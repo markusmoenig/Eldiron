@@ -258,11 +258,29 @@ impl Renderer {
                 break;
             }
 
-            // First person is limited to 1 y
-            if camera_type == CameraType::FirstPerson && key.y > 1 {
-                break;
-            }
+            if let Some(geo_obj) = region.geometry.get(&key) {
+                let lro = ray.at(dist);
 
+                let r = Ray::new(lro, ray.d);
+                let mut t = 0.000;
+
+                for _ in 0..100 {
+                    let p = r.at(t);
+                    let d = geo_obj.distance_3d(&settings.time, p);
+                    if d < 0.001 {
+                        color.x = 1.0;
+                        hit = true;
+                        dist += t;
+                        break;
+                    }
+                    t += d;
+                }
+
+                if hit {
+                    break;
+                }
+            } else
+            /*
             if let Some(model) = region.models.get(&(key.x, key.y, key.z)) {
                 let mut lro = ray.at(dist);
                 lro -= Vec3f::from(key);
@@ -331,9 +349,9 @@ impl Renderer {
                     dist += hit_struct.distance;
                     break;
                     }*/
-            }
+                    }*/
             // Test against world tiles
-            else if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
+            if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                 let mut uv = self.get_uv_face(normal, ray.at(dist)).0;
                 //pixel = [(uv.x * 255.0) as u8, (uv.y * 255.0) as u8, 0, 255];
                 if let Some(data) = self.textures.get(tile) {

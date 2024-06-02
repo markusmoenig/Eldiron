@@ -37,6 +37,7 @@ impl GeoFXNode {
         vec![Self::new(GeoFXNodeRole::Disc)]
     }
 
+    /// The 2D distance from the node to a point.
     pub fn distance(&self, time: &TheTime, p: Vec2f, scale: f32) -> f32 {
         match self.role {
             Disc => {
@@ -46,6 +47,37 @@ impl GeoFXNode {
                 {
                     if let Some(radius) = value.to_f32() {
                         return length(p - self.position() * scale) - radius * scale;
+                    }
+                }
+            }
+        }
+
+        f32::INFINITY
+    }
+
+    /// The 3D distance from the node to a point.
+    pub fn distance_3d(&self, time: &TheTime, p: Vec3f) -> f32 {
+        // float opExtrusion( in vec3 p, in sdf2d primitive, in float h )
+        // {
+        //     float d = primitive(p.xy)
+        //     vec2 w = vec2( d, abs(p.z) - h );
+        //     return min(max(w.x,w.y),0.0) + length(max(w,0.0));
+        // }
+
+        fn op_extrusion_y(p: Vec3f, d: f32, h: f32) -> f32 {
+            let w = Vec2f::new(d, abs(p.y) - h);
+            min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
+        }
+
+        match self.role {
+            Disc => {
+                if let Some(value) =
+                    self.timeline
+                        .get(str!("Geo"), str!("Radius"), time, TheInterpolation::Linear)
+                {
+                    if let Some(radius) = value.to_f32() {
+                        let d = length(vec2f(p.x, p.z) - self.position()) - radius;
+                        return op_extrusion_y(p, d, 0.1);
                     }
                 }
             }

@@ -9,6 +9,8 @@ pub mod geofxobject;
 pub mod interaction;
 pub mod item;
 pub mod level;
+pub mod materialfxnode;
+pub mod materialfxobject;
 pub mod modelfx;
 pub mod modelfxnode;
 pub mod modelfxstore;
@@ -29,7 +31,6 @@ pub mod tiledrawer;
 pub mod tilefx;
 pub mod tilemap;
 pub mod update;
-// pub mod voxelthread;
 pub mod widget;
 
 pub mod prelude {
@@ -46,6 +47,8 @@ pub mod prelude {
     pub use crate::interaction::*;
     pub use crate::item::Item;
     pub use crate::level::*;
+    pub use crate::materialfxnode::*;
+    pub use crate::materialfxobject::*;
     pub use crate::modelfx::ModelFX;
     pub use crate::modelfxnode::*;
     pub use crate::modelfxstore::ModelFXStore;
@@ -67,7 +70,6 @@ pub mod prelude {
     pub use crate::tilefx::TileFX;
     pub use crate::tilemap::{Tile, TileRole, Tilemap};
     pub use crate::update::*;
-    // pub use crate::voxelthread::*;
     pub use crate::widget::*;
     pub use crate::ServerMessage;
     pub use crate::{do_intersect, Hit, HitFace, Ray, RenderTile, Voxel, AABB2D};

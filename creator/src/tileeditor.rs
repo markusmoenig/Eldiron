@@ -1062,6 +1062,8 @@ impl TileEditor {
                     server_ctx.curr_geo_object = Some(obj_id);
                     server_ctx.curr_geo_node = Some(new_id);
                     server.update_region(region);
+                    ctx.ui
+                        .send(TheEvent::Custom(TheId::named("Prerender"), TheValue::Empty));
                     MODELFXEDITOR
                         .lock()
                         .unwrap()
@@ -1371,7 +1373,7 @@ impl TileEditor {
                                 let d = geo_obj.distance(&TheTime::default(), p, 1.0);
                                 if d < 0.0 {
                                     server_ctx.curr_geo_object = Some(geo_obj.id);
-                                    server_ctx.curr_geo_node = Some(geo_obj.geos[0].id);
+                                    server_ctx.curr_geo_node = Some(geo_obj.nodes[0].id);
                                     ctx.ui.send(TheEvent::Custom(
                                         TheId::named("Set Region Modeler"),
                                         TheValue::Empty,

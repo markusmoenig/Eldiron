@@ -1326,11 +1326,11 @@ impl TheTrait for Editor {
                                     }
                                     let mut model_editor = MODELFXEDITOR.lock().unwrap();
                                     model_editor.modelfx.draw(ui, ctx, &self.project.palette);
-                                    model_editor.set_selected_node_ui(
-                                        ui,
-                                        ctx,
-                                        &self.project.palette,
-                                    );
+                                    // model_editor.set_selected_node_ui(
+                                    //     ui,
+                                    //     ctx,
+                                    //     &self.project.palette,
+                                    // );
                                     model_editor.render_preview(ui, &self.project.palette);
                                 }
                             }

@@ -45,6 +45,8 @@ pub struct ServerContext {
 
     pub curr_geo_object: Option<Uuid>,
     pub curr_geo_node: Option<Uuid>,
+
+    pub curr_material_object: Option<Uuid>,
 }
 
 impl Default for ServerContext {
@@ -81,6 +83,8 @@ impl ServerContext {
 
             curr_geo_object: None,
             curr_geo_node: None,
+
+            curr_material_object: None,
         }
     }
 

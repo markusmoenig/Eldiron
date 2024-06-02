@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use indexmap::IndexMap;
 use theframework::prelude::*;
 
 /// The default target fps for the game.
@@ -50,6 +51,9 @@ pub struct Project {
     #[serde(default)]
     pub palette: ThePalette,
 
+    #[serde(default)]
+    pub materials: IndexMap<Uuid, MaterialFXObject>,
+
     #[serde(default = "default_target_fps")]
     pub target_fps: u32,
 
@@ -83,6 +87,7 @@ impl Project {
             models: vec![],
 
             palette: ThePalette::default(),
+            materials: IndexMap::default(),
 
             target_fps: default_target_fps(),
             tick_ms: default_tick_ms(),
