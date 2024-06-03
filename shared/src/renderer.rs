@@ -148,75 +148,76 @@ impl Renderer {
                     // Pathtracer
                     // Based on https://www.shadertoy.com/view/Dtl3WS
 
-                    let mut state = TracerState {
-                        is_refracted: false,
-                        has_been_refracted: false,
-                        last_ior: 1.0,
-                    };
-
-                    let mut acc = Vec3f::zero();
-                    let mut abso = Vec3f::one();
-
-                    let mut first_depth;
-
                     let mut color = Vec3f::zero();
+                    let ray_copy = ray;
 
-                    for i in 0..8 {
-                        if let Some(hit) = self.prerender_pixel(
-                            ray,
-                            region,
-                            &update,
-                            settings,
-                            max_render_distance,
-                            palette,
-                            &mut rng,
-                        ) {
-                            if i == 0 {
-                                first_depth = hit.distance;
-                            }
+                    for d in 0..30 {
+                        let mut state = TracerState {
+                            is_refracted: false,
+                            has_been_refracted: false,
+                            last_ior: 1.0,
+                        };
 
-                            let mut n = hit.normal;
-                            if state.is_refracted {
-                                n = -n
-                            };
+                        let mut acc = Vec3f::zero();
+                        let mut abso = Vec3f::one();
 
-                            // sample BSDF
-                            let mut out_dir: Vec3f = Vec3f::zero();
-                            let bsdf = sample_disney_bsdf(
-                                -ray.d,
-                                n,
-                                &hit,
-                                &mut out_dir,
-                                &mut state,
+                        ray = ray_copy;
+
+                        for _ in 0..8 {
+                            if let Some(hit) = self.prerender_pixel(
+                                ray,
+                                region,
+                                &update,
+                                settings,
+                                max_render_distance,
+                                palette,
                                 &mut rng,
-                            );
+                            ) {
+                                let mut n = hit.normal;
+                                if state.is_refracted {
+                                    n = -n
+                                };
 
-                            // add emissive part of the current material
-                            acc += hit.emissive * abso;
+                                // sample BSDF
+                                let mut out_dir: Vec3f = Vec3f::zero();
+                                let bsdf = sample_disney_bsdf(
+                                    -ray.d,
+                                    n,
+                                    &hit,
+                                    &mut out_dir,
+                                    &mut state,
+                                    &mut rng,
+                                );
 
-                            // bsdf absorption (pdf are in bsdf.a)
-                            if bsdf.1 > 0.0 {
-                                abso *= bsdf.0 / bsdf.1;
-                            }
+                                // add emissive part of the current material
+                                acc += hit.emissive * abso;
 
-                            // medium absorption
-                            if state.has_been_refracted {
-                                abso *=
-                                    exp(-hit.distance
+                                // bsdf absorption (pdf are in bsdf.a)
+                                if bsdf.1 > 0.0 {
+                                    abso *= bsdf.0 / bsdf.1;
+                                }
+
+                                // medium absorption
+                                if state.has_been_refracted {
+                                    abso *= exp(-hit.distance
                                         * ((Vec3f::one() - hit.albedo) * hit.absorption));
+                                }
+
+                                ray.o = hit.hit_point;
+                                ray.d = out_dir;
+
+                                ray.o += n * 0.01;
+                            } else {
+                                // acc += vec3f(0.1, 0.5, 0.1) * abso;
+                                acc += settings.daylight * abso;
+                                break;
                             }
-
-                            ray.o = hit.hit_point;
-                            ray.d = out_dir;
-
-                            ray.o += n * 0.01;
-                        } else {
-                            acc += vec3f(0.1, 0.5, 0.1) * abso;
-                            break;
                         }
+
+                        color = lerp(color, acc, 1.0 / (d as f32 + 1.0));
                     }
 
-                    let c = vec4f(acc.x, acc.y, acc.z, 1.0);
+                    let c = vec4f(color.x, color.y, color.z, 1.0);
                     buffer.set_pixel(w, h, &TheColor::from_vec4f(c).to_u8_array());
 
                     // -- End
@@ -389,8 +390,10 @@ impl Renderer {
                         if let Some(p) = data.buffer[index].at_f_vec4f(uv) {
                             hit.color = p;
                             hit.albedo = vec3f(p.x, p.y, p.z);
-                            hit.normal = normal;
+                            hit.normal = -normal;
                             hit.distance = dist;
+                            hit.hit_point = ray.at(dist);
+
                             return Some(hit);
                         }
                     } else {
@@ -448,8 +451,9 @@ impl Renderer {
                                         if c[3] == 255 {
                                             let col = TheColor::from_u8_array(c).to_vec4f();
                                             hit.color = col;
-                                            hit.distance = dist + t;
-                                            hit.normal = normal;
+                                            hit.distance = t;
+                                            hit.normal = -normal;
+                                            hit.hit_point = ray.at(t);
 
                                             return Some(hit);
                                         }
