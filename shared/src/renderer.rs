@@ -5,6 +5,7 @@ use theframework::prelude::*;
 
 pub struct Renderer {
     pub textures: FxHashMap<Uuid, TheRGBATile>,
+    pub materials: IndexMap<Uuid, MaterialFXObject>,
     pub tiles: TheFlattenedMap3D<Uuid>,
     pub models: FxHashMap<(i32, i32), TheTimeline>,
     pub position: Vec3f,
@@ -16,6 +17,7 @@ impl Renderer {
     pub fn new() -> Self {
         Self {
             textures: FxHashMap::default(),
+            materials: IndexMap::default(),
             tiles: TheFlattenedMap3D::new((0, -1, 0), (80, 2, 80)),
             models: FxHashMap::default(),
             position: Vec3f::zero(),
@@ -27,8 +29,6 @@ impl Renderer {
     pub fn prerender(
         &mut self,
         prerendered: &mut PreRendered,
-        //buffer: &mut TheRGBABuffer,
-        //dest_pixels: Arc<Mutex<&mut RTree<PreRenderedData>>>,
         region: &Region,
         settings: &mut RegionDrawSettings,
         palette: &ThePalette,
@@ -37,9 +37,6 @@ impl Renderer {
 
         let width = prerendered.albedo.dim().width as usize;
         let height = prerendered.albedo.dim().height as usize;
-
-        //let stride = buffer.stride();
-        //let height = dim.height;
 
         let width_f = width as f32;
         let height_f = height as f32;
@@ -70,18 +67,6 @@ impl Renderer {
             }
         }
 
-        let mut saturation = None;
-        if let Some(v) = region.regionfx.get(
-            str!("Saturation"),
-            str!("Saturation"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_f32() {
-                saturation = Some(value);
-            }
-        }
-
         let mut tilted_iso_alignment = 0;
         if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
             str!("Camera"),
@@ -95,15 +80,16 @@ impl Renderer {
         let update = RegionUpdate::default();
 
         // Fill the code level with the blocking info and collect lights
-        let mut level = Level::new(region.width, region.height, settings.time);
-        region.fill_code_level(&mut level, &self.textures, &update);
+        // let mut level = Level::new(region.width, region.height, settings.time);
+        // region.fill_code_level(&mut level, &self.textures, &update);
 
         let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
         let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
         let camera = Camera::new(ro, rd, fov);
 
-        let mut tiles = RenderTile::create_tiles(width, height, 80, 80);
+        let mut tiles = prerendered.tiles_to_render.clone(); // RenderTile::create_tiles(width, height, 80, 80);
 
+        let render_map_tree = prerendered.tree.size() == 0;
         let prerendered_mutex = Arc::new(Mutex::new(prerendered));
 
         let _start = self.get_time();
@@ -114,13 +100,13 @@ impl Renderer {
 
         tiles.par_iter_mut().for_each(|tile| {
             let mut tree = vec![];
-            let mut buffer =
-                TheRGBABuffer::new(TheDim::sized(tile.width as i32, tile.height as i32));
+            let mut buffer = TheRGBABuffer::new(TheDim::sized(region.grid_size, region.grid_size));
+            let mut rng = rand::thread_rng();
 
-            for h in 0..tile.height {
-                for w in 0..tile.width {
-                    let x = tile.x + w;
-                    let y = tile.y + h;
+            for h in 0..region.grid_size {
+                for w in 0..region.grid_size {
+                    let x = tile.x * region.grid_size + w;
+                    let y = tile.y * region.grid_size + h;
                     let xx = x as f32;
                     let yy = y as f32;
 
@@ -159,53 +145,125 @@ impl Renderer {
                         }
                     }
 
-                    let pixel = self.prerender_pixel(
-                        ray,
-                        region,
-                        &update,
-                        settings,
-                        camera_type,
-                        &level,
-                        &saturation,
-                        max_render_distance,
-                        palette,
-                    );
+                    // Pathtracer
+                    // Based on https://www.shadertoy.com/view/Dtl3WS
 
-                    buffer.set_pixel(w as i32, h as i32, &pixel);
+                    let mut state = TracerState {
+                        is_refracted: false,
+                        has_been_refracted: false,
+                        last_ior: 1.0,
+                    };
 
-                    let plane_normal = vec3f(0.0, 1.0, 0.0);
-                    let denom = dot(plane_normal, ray.d);
+                    let mut acc = Vec3f::zero();
+                    let mut abso = Vec3f::one();
 
-                    if denom.abs() > 0.0001 {
-                        let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
-                        if t >= 0.0 {
-                            let p = ray.o + ray.d * t;
-                            tree.push(PreRenderedData {
-                                location: (p.x, p.z),
-                                pixel_location: (xx as i32, (yy) as i32),
-                            });
+                    let mut first_depth;
+
+                    let mut color = Vec3f::zero();
+
+                    for i in 0..8 {
+                        if let Some(hit) = self.prerender_pixel(
+                            ray,
+                            region,
+                            &update,
+                            settings,
+                            max_render_distance,
+                            palette,
+                            &mut rng,
+                        ) {
+                            if i == 0 {
+                                first_depth = hit.distance;
+                            }
+
+                            let mut n = hit.normal;
+                            if state.is_refracted {
+                                n = -n
+                            };
+
+                            // sample BSDF
+                            let mut out_dir: Vec3f = Vec3f::zero();
+                            let bsdf = sample_disney_bsdf(
+                                -ray.d,
+                                n,
+                                &hit,
+                                &mut out_dir,
+                                &mut state,
+                                &mut rng,
+                            );
+
+                            // add emissive part of the current material
+                            acc += hit.emissive * abso;
+
+                            // bsdf absorption (pdf are in bsdf.a)
+                            if bsdf.1 > 0.0 {
+                                abso *= bsdf.0 / bsdf.1;
+                            }
+
+                            // medium absorption
+                            if state.has_been_refracted {
+                                abso *=
+                                    exp(-hit.distance
+                                        * ((Vec3f::one() - hit.albedo) * hit.absorption));
+                            }
+
+                            ray.o = hit.hit_point;
+                            ray.d = out_dir;
+
+                            ray.o += n * 0.01;
+                        } else {
+                            acc += vec3f(0.1, 0.5, 0.1) * abso;
+                            break;
+                        }
+                    }
+
+                    let c = vec4f(acc.x, acc.y, acc.z, 1.0);
+                    buffer.set_pixel(w, h, &TheColor::from_vec4f(c).to_u8_array());
+
+                    // -- End
+
+                    if render_map_tree {
+                        let plane_normal = vec3f(0.0, 1.0, 0.0);
+                        let denom = dot(plane_normal, ray.d);
+
+                        if denom.abs() > 0.0001 {
+                            let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
+                            if t >= 0.0 {
+                                let p = ray.o + ray.d * t;
+                                tree.push(PreRenderedData {
+                                    location: (p.x, p.z),
+                                    pixel_location: (xx as i32, (yy) as i32),
+                                });
+                            }
                         }
                     }
                 }
             }
 
             let mut prerendered = prerendered_mutex.lock().unwrap();
-            prerendered
-                .albedo
-                .copy_into(tile.x as i32, tile.y as i32, &buffer);
+            prerendered.albedo.copy_into(
+                tile.x * region.grid_size,
+                tile.y * region.grid_size,
+                &buffer,
+            );
 
-            let mut dest_tree_mutex = dest_tree_mutex.lock().unwrap();
-            dest_tree_mutex.append(&mut tree);
+            if render_map_tree {
+                let mut dest_tree_mutex = dest_tree_mutex.lock().unwrap();
+                dest_tree_mutex.append(&mut tree);
+            }
         });
 
         let mut prerendered = prerendered_mutex.lock().unwrap();
 
-        prerendered.tree = RTree::bulk_load(
-            Arc::try_unwrap(dest_tree_mutex)
-                .unwrap()
-                .into_inner()
-                .unwrap(),
-        );
+        if render_map_tree {
+            prerendered.tree = RTree::bulk_load(
+                Arc::try_unwrap(dest_tree_mutex)
+                    .unwrap()
+                    .into_inner()
+                    .unwrap(),
+            );
+        }
+
+        prerendered.tiles_to_render.clear();
 
         let _stop = self.get_time();
         //println!("render time {:?}", _stop - _start);
@@ -219,14 +277,11 @@ impl Renderer {
         region: &Region,
         update: &RegionUpdate,
         settings: &RegionDrawSettings,
-        camera_type: CameraType,
-        level: &Level,
-        saturation: &Option<f32>,
         max_render_distance: i32,
-        _palette: &ThePalette,
-    ) -> RGBA {
-        let mut color = vec4f(0.0, 0.0, 0.0, 1.0);
-        let mut hit_props = Hit::default();
+        palette: &ThePalette,
+        _rng: &mut ThreadRng,
+    ) -> Option<Hit> {
+        let mut hit = Hit::default();
 
         #[inline(always)]
         fn equal(l: f32, r: Vec3f) -> Vec3f {
@@ -249,7 +304,6 @@ impl Renderer {
         let rdi = 1.0 / (2.0 * rd);
 
         let mut key: Vec3<i32>;
-        let mut hit = false;
 
         for _ii in 0..max_render_distance {
             key = Vec3i::from(i);
@@ -258,98 +312,35 @@ impl Renderer {
                 break;
             }
 
-            if let Some(geo_obj) = region.geometry.get(&key) {
-                let lro = ray.at(dist);
+            if let Some(geo_ids) = region.geometry_areas.get(&key) {
+                for geo_id in geo_ids {
+                    if let Some(geo_obj) = region.geometry.get(geo_id) {
+                        let lro = ray.at(dist);
 
-                let r = Ray::new(lro, ray.d);
-                let mut t = 0.000;
+                        let r = Ray::new(lro, ray.d);
+                        let mut t = 0.000;
 
-                for _ in 0..100 {
-                    let p = r.at(t);
-                    let d = geo_obj.distance_3d(&settings.time, p);
-                    if d < 0.001 {
-                        color.x = 1.0;
-                        hit = true;
-                        dist += t;
-                        break;
-                    }
-                    t += d;
-                }
+                        for _ in 0..100 {
+                            let p = r.at(t);
+                            let d = geo_obj.distance_3d(&settings.time, p);
+                            if d < 0.001 {
+                                dist += t;
 
-                if hit {
-                    break;
-                }
-            } else
-            /*
-            if let Some(model) = region.models.get(&(key.x, key.y, key.z)) {
-                let mut lro = ray.at(dist);
-                lro -= Vec3f::from(key);
+                                hit.normal = geo_obj.normal(&settings.time, p);
+                                hit.hit_point = p;
+                                hit.distance = dist;
 
-                let mut wallfx_offset = Vec3i::zero();
-                let mut alpha = 1.0;
+                                if let Some(material) = self.materials.get(&geo_obj.material_id) {
+                                    material.compute(&mut hit, palette);
+                                }
 
-                if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
-                    let mut valid = true;
-                    let mut xx = 0;
-                    let mut yy = 0;
-                    let d =
-                        (update.server_tick - wallfx.at_tick) as f32 + settings.delta_in_tick - 1.0;
-                    if d < 1.0 {
-                        let t = (d * region.grid_size as f32) as i32;
-                        if wallfx.prev_fx != WallFX::Normal {
-                            wallfx.prev_fx.apply(
-                                &mut xx,
-                                &mut yy,
-                                &mut alpha,
-                                &(region.grid_size - t),
-                                &(1.0 - d),
-                            );
-                        } else {
-                            wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
+                                return Some(hit);
+                            }
+                            t += d;
                         }
-                    } else if wallfx.fx != WallFX::Normal {
-                        valid = false;
-                    }
-
-                    if valid {
-                        wallfx_offset.x -= xx;
-                        wallfx_offset.y -= yy;
-                    } else {
-                        //uv = vec2f(-1.0, -1.0);
-                        wallfx_offset = vec3i(region.grid_size, region.grid_size, region.grid_size);
                     }
                 }
-
-                if let Some(hit_struct) = model.dda(&Ray::new(lro, ray.d), wallfx_offset) {
-                    hit = true;
-                    color = hit_struct.color;
-                    // color = vec4f(
-                    //     hit_struct.normal.x,
-                    //     hit_struct.normal.y,
-                    //     hit_struct.normal.z,
-                    //     1.0,
-                    // );
-                    dist += hit_struct.distance;
-                    normal = hit_struct.normal;
-                    hit_props = hit_struct.clone();
-                    break;
-                }
-                /*
-                let mut lro = ray.at(dist);
-                lro -= Vec3f::from(key);
-                lro -= rd * 0.01;
-
-                let mut r = ray;
-                r.o = lro;
-
-                if let Some(hit_struct) = model.render(&r, 1.01, i, palette) {
-                    color = hit_struct.color;
-                    hit = true;
-                    //normal = hit_struct.normal;
-                    dist += hit_struct.distance;
-                    break;
-                    }*/
-                    }*/
+            }
             // Test against world tiles
             if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                 let mut uv = self.get_uv_face(normal, ray.at(dist)).0;
@@ -396,11 +387,11 @@ impl Renderer {
 
                     if !data.billboard {
                         if let Some(p) = data.buffer[index].at_f_vec4f(uv) {
-                            //if p[3] == 255 {
-                            color = p;
-                            hit = true;
-                            break;
-                            //}
+                            hit.color = p;
+                            hit.albedo = vec3f(p.x, p.y, p.z);
+                            hit.normal = normal;
+                            hit.distance = dist;
+                            return Some(hit);
                         }
                     } else {
                         let xx = i.x + 0.5;
@@ -414,7 +405,7 @@ impl Renderer {
 
                         if denom > 0.0001 {
                             let t = dot(plane_pos - ray.o, plane_normal) / denom;
-                            if t >= 0.0 && !hit || (hit && t < dist) {
+                            if t >= 0.0 {
                                 let hit_pos = ray.at(t);
                                 if (xx - hit_pos.x).abs() <= 0.5
                                     && (zz - hit_pos.z).abs() <= 0.5
@@ -456,11 +447,11 @@ impl Renderer {
                                     if let Some(c) = data.buffer[index].at(vec2i(x, y)) {
                                         if c[3] == 255 {
                                             let col = TheColor::from_u8_array(c).to_vec4f();
-                                            color = col;
-                                            dist = t;
-                                            //normal = vec3f(0.0, 0.0, 1.0);
-                                            hit = true;
-                                            break;
+                                            hit.color = col;
+                                            hit.distance = dist + t;
+                                            hit.normal = normal;
+
+                                            return Some(hit);
                                         }
                                     }
                                 }
@@ -478,6 +469,7 @@ impl Renderer {
 
         // Light Sampling
         //
+        /*
         if hit {
             let daylight = vec4f(
                 settings.daylight.x,
@@ -596,15 +588,16 @@ impl Renderer {
                     color,
                 );
             }
-        }
+            }*/
 
-        if let Some(saturation) = saturation {
-            let mut hsl = TheColor::from_vec4f(color).as_hsl();
-            hsl.y *= saturation;
-            color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec4f();
-        }
+        // if let Some(saturation) = saturation {
+        //     let mut hsl = TheColor::from_vec4f(color).as_hsl();
+        //     hsl.y *= saturation;
+        //     color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec4f();
+        // }
 
-        TheColor::from_vec4f(color).to_u8_array()
+        //TheColor::from_vec4f(color).to_u8_array()
+        None
     }
 
     /// RENDERED

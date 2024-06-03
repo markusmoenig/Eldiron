@@ -610,10 +610,11 @@ impl TheTrait for Editor {
                                 region.prerendered = PreRendered::default();
                                 self.server
                                     .set_prerendered(region.id, PreRendered::default());
-                                PRERENDERTHREAD
-                                    .lock()
-                                    .unwrap()
-                                    .render_region(region.clone(), self.project.palette.clone());
+                                PRERENDERTHREAD.lock().unwrap().render_region(
+                                    region.clone(),
+                                    self.project.palette.clone(),
+                                    vec![],
+                                );
                             }
                         }
                     }
@@ -1060,10 +1061,16 @@ impl TheTrait for Editor {
                                             .unwrap()
                                             .set_textures(self.project.extract_tiles());
 
+                                        PRERENDERTHREAD
+                                            .lock()
+                                            .unwrap()
+                                            .set_materials(self.project.materials.clone());
+
                                         for region in &mut self.project.regions {
                                             PRERENDERTHREAD.lock().unwrap().render_region(
                                                 region.clone(),
                                                 self.project.palette.clone(),
+                                                vec![],
                                             );
                                         }
 

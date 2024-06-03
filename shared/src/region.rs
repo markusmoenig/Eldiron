@@ -47,8 +47,11 @@ pub struct Region {
     pub models: FxHashMap<(i32, i32, i32), ModelFXStore>,
 
     #[serde(default)]
+    pub geometry: FxHashMap<Uuid, GeoFXObject>,
+
+    #[serde(default)]
     #[serde(with = "vectorize")]
-    pub geometry: FxHashMap<Vec3i, GeoFXObject>,
+    pub geometry_areas: FxHashMap<Vec3i, Vec<Uuid>>,
 
     #[serde(default)]
     pub areas: FxHashMap<Uuid, Area>,
@@ -108,7 +111,9 @@ impl Region {
 
             tiles: FxHashMap::default(),
             models: FxHashMap::default(),
+
             geometry: FxHashMap::default(),
+            geometry_areas: FxHashMap::default(),
 
             areas: FxHashMap::default(),
             characters: FxHashMap::default(),
@@ -180,18 +185,44 @@ impl Region {
     }
 
     /// Add a geometry node to the given position.
-    pub fn add_geo(&mut self, at: Vec3i, geo: GeoFXNode) -> Uuid {
-        if let Some(geo_obj) = self.geometry.get_mut(&at) {
-            geo_obj.nodes.push(geo);
-            geo_obj.update_area();
-            geo_obj.id
-        } else {
-            let mut geo_obj = GeoFXObject::default();
-            geo_obj.nodes.push(geo);
-            geo_obj.update_area();
-            let geo_obj_id = geo_obj.id;
-            self.geometry.insert(at, geo_obj);
-            geo_obj_id
+    pub fn add_geo_node(&mut self, geo: GeoFXNode) -> Uuid {
+        let mut geo_obj = GeoFXObject::default();
+        geo_obj.nodes.push(geo);
+        geo_obj.update_area();
+        let geo_obj_id = geo_obj.id;
+        self.geometry.insert(geo_obj_id, geo_obj);
+
+        self.update_geometry_areas();
+
+        geo_obj_id
+    }
+
+    /// Collects the area which needs to be rerendered if the given material changes.
+    pub fn get_material_area(&self, material_id: Uuid) -> Vec<Vec2i> {
+        let mut areas = FxHashSet::default();
+        for (_, geo_obj) in self.geometry.iter() {
+            if geo_obj.material_id == material_id {
+                for p2d in &geo_obj.area {
+                    areas.insert(*p2d);
+                }
+            }
+        }
+        areas.into_iter().collect()
+    }
+
+    /// Update the geometry areas.
+    pub fn update_geometry_areas(&mut self) {
+        self.geometry_areas.clear();
+        for (id, geo_obj) in self.geometry.iter() {
+            for p2d in &geo_obj.area {
+                let p3d = Vec3i::new(p2d.x, geo_obj.level, p2d.y);
+
+                if let Some(list) = self.geometry_areas.get_mut(&p3d) {
+                    list.push(*id);
+                } else {
+                    self.geometry_areas.insert(p3d, vec![*id]);
+                }
+            }
         }
     }
 

@@ -10,6 +10,8 @@ pub struct GeoFXObject {
     pub nodes: Vec<GeoFXNode>,
 
     pub area: Vec<Vec2i>,
+
+    pub level: i32,
 }
 
 impl Default for GeoFXObject {
@@ -26,6 +28,8 @@ impl GeoFXObject {
 
             nodes: Vec::new(),
             area: Vec::new(),
+
+            level: 0,
         }
     }
 
@@ -53,6 +57,24 @@ impl GeoFXObject {
         }
 
         min_distance
+    }
+
+    pub fn normal(&self, time: &TheTime, p: Vec3f) -> Vec3f {
+        let scale = 0.5773 * 0.0005;
+        let e = vec2f(1.0 * scale, -1.0 * scale);
+
+        // IQs normal function
+
+        let e1 = vec3f(e.x, e.y, e.y);
+        let e2 = vec3f(e.y, e.y, e.x);
+        let e3 = vec3f(e.y, e.x, e.y);
+        let e4 = vec3f(e.x, e.x, e.x);
+
+        let n = e1 * self.distance_3d(time, p + e1)
+            + e2 * self.distance_3d(time, p + e2)
+            + e3 * self.distance_3d(time, p + e3)
+            + e4 * self.distance_3d(time, p + e4);
+        normalize(n)
     }
 
     pub fn update_area(&mut self) {

@@ -5,7 +5,9 @@ use theframework::prelude::*;
 
 pub enum PreRenderCmd {
     SetTextures(FxHashMap<Uuid, TheRGBATile>),
-    RenderRegion(Region, ThePalette),
+    SetMaterials(IndexMap<Uuid, MaterialFXObject>),
+    MaterialChanged(MaterialFXObject),
+    RenderRegion(Region, ThePalette, Vec<Vec2i>),
     Quit,
 }
 
@@ -60,8 +62,16 @@ impl PreRenderThread {
         self.send(PreRenderCmd::SetTextures(textures));
     }
 
-    pub fn render_region(&self, region: Region, palette: ThePalette) {
-        self.send(PreRenderCmd::RenderRegion(region, palette));
+    pub fn set_materials(&self, materials: IndexMap<Uuid, MaterialFXObject>) {
+        self.send(PreRenderCmd::SetMaterials(materials));
+    }
+
+    pub fn material_changed(&self, material: MaterialFXObject) {
+        self.send(PreRenderCmd::MaterialChanged(material));
+    }
+
+    pub fn render_region(&self, region: Region, palette: ThePalette, tiles: Vec<Vec2i>) {
+        self.send(PreRenderCmd::RenderRegion(region, palette, tiles));
     }
 
     pub fn startup(&mut self) {
@@ -85,55 +95,57 @@ impl PreRenderThread {
                             println!("PreRenderCmd::SetTextures");
                             renderer.set_textures(textures);
                         }
-                        PreRenderCmd::RenderRegion(region, palette) => {
+                        PreRenderCmd::SetMaterials(materials) => {
+                            println!("PreRenderCmd::SetMaterials");
+                            renderer.materials = materials;
+                        }
+                        PreRenderCmd::MaterialChanged(materials) => {
+                            println!("PreRenderCmd::MaterialChanged");
+                            renderer.materials.insert(materials.id, materials);
+                        }
+                        PreRenderCmd::RenderRegion(region, palette, tiles) => {
                             println!("PreRenderCmd::RenderRegion");
 
-                            let w = (region.width as f32 * region.grid_size as f32 * region.zoom)
-                                as i32;
-                            let h = (region.height as f32 * region.grid_size as f32 * region.zoom)
-                                as i32;
-
-                            let buffer = TheRGBABuffer::new(TheDim::sized(w, h));
-                            let tree = RTree::new();
+                            let w = (region.width as f32 * region.grid_size as f32) as i32;
+                            let h = (region.height as f32 * region.grid_size as f32) as i32;
 
                             renderer.set_region(&region);
                             renderer.position =
                                 vec3f(region.width as f32 / 2.0, 0.0, region.height as f32 / 2.0);
 
-                            let mut prerendered = PreRendered {
-                                albedo: buffer,
-                                color: FxHashMap::default(),
-                                tree,
+                            let mut reset = false;
+
+                            if region.prerendered.albedo.dim().width != w
+                                || region.prerendered.albedo.dim().height != h
+                            {
+                                reset = true;
+                            }
+
+                            let mut prerendered = if reset {
+                                let mut prerendered =
+                                    PreRendered::new(TheRGBABuffer::new(TheDim::sized(w, h)));
+                                prerendered.add_all_tiles(region.grid_size);
+                                prerendered
+                            } else {
+                                let mut prerendered = region.prerendered.clone();
+                                if !tiles.is_empty() {
+                                    prerendered.add_tiles(tiles, region.grid_size);
+                                }
+                                prerendered
                             };
 
-                            renderer.prerender(
-                                &mut prerendered,
-                                &region,
-                                &mut draw_settings,
-                                &palette,
-                            );
-                            //buffer.to_clipboard();
-
-                            result_tx
-                                .send(PreRenderResult::RenderedRegion(region.id, prerendered))
-                                .unwrap();
-                            //}
-                            /*
-                            for (key, model) in region.models.iter_mut() {
-                                model.create_voxels(
-                                    region.grid_size as u8,
-                                    &vec3f(key.0 as f32, key.1 as f32, key.2 as f32),
+                            if !prerendered.tiles_to_render.is_empty() {
+                                renderer.prerender(
+                                    &mut prerendered,
+                                    &region,
+                                    &mut draw_settings,
                                     &palette,
                                 );
 
                                 result_tx
-                                    .send(PreRenderResult::VoxelizedModel(
-                                        region.id,
-                                        vec3i(key.0, key.1, key.2),
-                                        model.clone(),
-                                    ))
+                                    .send(PreRenderResult::RenderedRegion(region.id, prerendered))
                                     .unwrap();
-                                    }*/
+                            }
                         }
                         PreRenderCmd::Quit => {
                             println!("PreRenderCmd::Quit");

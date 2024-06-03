@@ -73,10 +73,10 @@ impl MaterialFXNode {
         TheCollection::default()
     }
 
-    pub fn get(&mut self, key: &str) -> Option<TheValue> {
+    pub fn get(&self, key: &str) -> Option<TheValue> {
         self.timeline.get(
-            key.to_string(),
             "Props".to_string(),
+            key.to_string(),
             &TheTime::default(),
             TheInterpolation::Linear,
         )
@@ -86,7 +86,7 @@ impl MaterialFXNode {
         self.timeline.set(&TheTime::default(), key, "Props", value);
     }
 
-    pub fn preview(&self, buffer: &mut TheRGBABuffer) {}
+    pub fn preview(&self, _buffer: &mut TheRGBABuffer) {}
 }
 
 /*#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]

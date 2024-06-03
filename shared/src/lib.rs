@@ -72,7 +72,8 @@ pub mod prelude {
     pub use crate::update::*;
     pub use crate::widget::*;
     pub use crate::ServerMessage;
-    pub use crate::{do_intersect, Hit, HitFace, Ray, RenderTile, Voxel, AABB2D};
+    pub use crate::{do_intersect, Hit, HitFace, Ray, RenderTile, TracerState, Voxel, AABB2D};
+    pub use indexmap::IndexMap;
     pub use rand::prelude::*;
     pub use rstar::*;
 }
@@ -112,6 +113,13 @@ pub enum HitFace {
     ZFace,
 }
 
+#[derive(PartialEq, Debug, Clone)]
+pub struct TracerState {
+    pub is_refracted: bool,
+    pub has_been_refracted: bool,
+    pub last_ior: f32,
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Hit {
     pub node: usize,
@@ -126,9 +134,15 @@ pub struct Hit {
     pub face: HitFace,
 
     pub color: Vec4f,
+    pub albedo: Vec3f,
     pub roughness: f32,
     pub metallic: f32,
     pub reflectance: f32,
+
+    pub emissive: Vec3f,
+    pub spec_trans: f32,
+    pub ior: f32,
+    pub absorption: f32,
 }
 
 impl Default for Hit {
@@ -152,9 +166,16 @@ impl Hit {
             face: HitFace::XFace,
 
             color: Vec4f::zero(),
+
+            albedo: Vec3f::zero(),
             roughness: 0.5,
             metallic: 0.0,
             reflectance: 0.5,
+
+            emissive: Vec3f::zero(),
+            spec_trans: 0.0,
+            ior: 1.0,
+            absorption: 0.0,
         }
     }
 }
@@ -303,7 +324,7 @@ pub fn do_intersect(p1: (i32, i32), q1: (i32, i32), p2: (i32, i32), q2: (i32, i3
     false
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RenderTile {
     pub x: usize,
     pub y: usize,

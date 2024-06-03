@@ -1,4 +1,4 @@
-use crate::editor::{SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{PRERENDERTHREAD, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -276,6 +276,18 @@ impl ModelFXEditor {
                     let node = MaterialFXNode::new(MaterialFXNodeRole::Material);
                     material.nodes.push(node);
 
+                    PRERENDERTHREAD
+                        .lock()
+                        .unwrap()
+                        .material_changed(material.clone());
+                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                        let area = region.get_material_area(material.id);
+                        PRERENDERTHREAD.lock().unwrap().render_region(
+                            region.clone(),
+                            project.palette.clone(),
+                            area,
+                        );
+                    }
                     project.materials.insert(material.id, material);
                     self.set_material_tiles(ui, ctx, project);
                 } else if id.name == "ModelFX Clear" && state == &TheWidgetState::Clicked {
@@ -317,17 +329,31 @@ impl ModelFXEditor {
                 } else if id.name == "MaterialFX RGBA Layout View" {
                     if let Some(material) = self.materials.get(&(coord.x, coord.y)) {
                         server_ctx.curr_material_object = Some(*material);
-                        println!("material picked");
+
+                        let mut region_to_render: Option<Region> = None;
+                        let mut tiles_to_render: Vec<Vec2i> = vec![];
 
                         if let Some(curr_geo_node) = server_ctx.curr_geo_node {
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 if let Some((geo_obj, _)) = region.find_geo_node(curr_geo_node) {
                                     geo_obj.material_id = *material;
                                     geo_obj.update_area();
+
+                                    tiles_to_render.clone_from(&geo_obj.area);
+
                                     server.update_region(region);
-                                    println!("material_assigned");
+                                    region_to_render = Some(region.clone());
                                 }
                             }
+                        }
+
+                        // Render the region area covered by the object with the new material.
+                        if let Some(region) = region_to_render {
+                            PRERENDERTHREAD.lock().unwrap().render_region(
+                                region,
+                                project.palette.clone(),
+                                tiles_to_render,
+                            );
                         }
                     } else {
                         server_ctx.curr_material_object = None;
@@ -406,6 +432,22 @@ impl ModelFXEditor {
                                             TheValue::PaletteIndex(project.palette.current_index),
                                         );
 
+                                        PRERENDERTHREAD
+                                            .lock()
+                                            .unwrap()
+                                            .material_changed(material.clone());
+
+                                        if let Some(region) =
+                                            project.get_region(&server_ctx.curr_region)
+                                        {
+                                            let area = region.get_material_area(material_id);
+                                            PRERENDERTHREAD.lock().unwrap().render_region(
+                                                region.clone(),
+                                                project.palette.clone(),
+                                                area,
+                                            );
+                                        }
+
                                         if let Some(widget) = ui.get_widget(&id.name) {
                                             widget.set_value(TheValue::ColorObject(color));
                                         }
@@ -481,16 +523,41 @@ impl ModelFXEditor {
 
                         if self.editing_mode == EditingMode::Geometry {
                             if let Some(curr_geo_node) = server_ctx.curr_geo_node {
+                                let mut region_to_render: Option<Region> = None;
+                                let mut old_tiles_to_render: Vec<Vec2i> = vec![];
+                                let mut new_tiles_to_render: Vec<Vec2i> = vec![];
+                                let mut tiles_to_render: Vec<Vec2i> = vec![];
+
                                 if let Some(region) =
                                     project.get_region_mut(&server_ctx.curr_region)
                                 {
                                     if let Some((geo_obj, index)) =
                                         region.find_geo_node(curr_geo_node)
                                     {
+                                        old_tiles_to_render.clone_from(&geo_obj.area);
                                         geo_obj.nodes[index].set(name, value);
                                         geo_obj.update_area();
+
+                                        new_tiles_to_render.clone_from(&geo_obj.area);
+                                        let mut set: FxHashSet<Vec2i> = FxHashSet::default();
+                                        set.extend(&old_tiles_to_render);
+                                        set.extend(&new_tiles_to_render);
+                                        tiles_to_render = set.into_iter().collect();
+
+                                        region.update_geometry_areas();
+
+                                        region_to_render = Some(region.clone());
+
                                         server.update_region(region);
                                     }
+                                }
+
+                                if let Some(region) = region_to_render {
+                                    PRERENDERTHREAD.lock().unwrap().render_region(
+                                        region,
+                                        project.palette.clone(),
+                                        tiles_to_render,
+                                    );
                                 }
                             } else if let Some(editor) = ui.get_rgba_layout("GeoFX RGBA Layout") {
                                 if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
@@ -822,6 +889,18 @@ impl ModelFXEditor {
                         ctx.ui.relayout = true;
                     }
                 }
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .material_changed(material.clone());
+                if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                    let area = region.get_material_area(material_id);
+                    PRERENDERTHREAD.lock().unwrap().render_region(
+                        region.clone(),
+                        project.palette.clone(),
+                        area,
+                    );
+                }
             }
         } else if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
             text_layout.clear();
@@ -1013,9 +1092,9 @@ impl ModelFXEditor {
                 let mut buffer =
                     TheRGBABuffer::new(TheDim::sized(width, max(lines * grid, height)));
 
-                let mut tile_buffer = TheRGBABuffer::new(TheDim::sized(tile_size, tile_size));
+                let tile_buffer = TheRGBABuffer::new(TheDim::sized(tile_size, tile_size));
 
-                for (i, (id, obj)) in project.materials.iter().enumerate() {
+                for (i, (id, _obj)) in project.materials.iter().enumerate() {
                     let x = i as i32 % tiles_per_row;
                     let y = i as i32 / tiles_per_row;
 

@@ -48,8 +48,30 @@ impl MaterialFXObject {
         }
     }
 
+    /// Computes the material
+    pub fn compute(&self, hit: &mut Hit, palette: &ThePalette) {
+        let mut material_index = None;
+        for (i, node) in self.nodes.iter().enumerate() {
+            if node.role == MaterialFXNodeRole::Material {
+                material_index = Some(i);
+                break;
+            }
+        }
+
+        if let Some(material_index) = material_index {
+            let material_node = &self.nodes[material_index];
+
+            let p = material_node.get("Color");
+            if let Some(TheValue::PaletteIndex(i)) = p {
+                if let Some(c) = &palette.colors[i as usize] {
+                    hit.color = c.to_vec4f();
+                }
+            }
+        }
+    }
+
     /// Convert the model to a node canvas.
-    pub fn to_canvas(&mut self, palette: &ThePalette) -> TheNodeCanvas {
+    pub fn to_canvas(&mut self, _palette: &ThePalette) -> TheNodeCanvas {
         let mut canvas = TheNodeCanvas {
             node_width: 95,
             ..Default::default()
@@ -73,8 +95,7 @@ impl MaterialFXObject {
 
             // Create preview if it doesn't exist
             if self.node_previews[i].is_none() {
-                let mut preview_buffer =
-                    TheRGBABuffer::new(TheDim::sized(preview_size, preview_size));
+                let preview_buffer = TheRGBABuffer::new(TheDim::sized(preview_size, preview_size));
                 //self.render_node_preview(&mut preview_buffer, i, palette);
                 self.node_previews[i] = Some(preview_buffer);
             }

@@ -1,6 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, MODELFXEDITOR, RENDERER, RENDERMODE, SIDEBARMODE, TILEDRAWER, TILEFXEDITOR,
-    UNDOMANAGER,
+    CODEEDITOR, MODELFXEDITOR, PRERENDERTHREAD, RENDERER, RENDERMODE, SIDEBARMODE, TILEDRAWER,
+    TILEFXEDITOR, UNDOMANAGER,
 };
 use crate::prelude::*;
 
@@ -1050,24 +1050,31 @@ impl TileEditor {
         }
 
         if self.editor_mode == EditorMode::Model {
-            //let palette = project.palette.clone();
+            let mut region_to_render: Option<Region> = None;
+            let mut tiles_to_render: Vec<Vec2i> = vec![];
+
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 //let model = MODELFXEDITOR.lock().unwrap().get_model();
                 let geo = MODELFXEDITOR.lock().unwrap().get_geo_node(ui);
                 if let Some(mut geo) = geo {
+                    region_to_render = Some(region.clone());
                     let new_id = Uuid::new_v4();
                     geo.id = new_id;
                     geo.set_default_position(coord);
-                    let obj_id = region.add_geo(vec3i(coord.x, 0, coord.y), geo);
+                    let obj_id = region.add_geo_node(geo);
+                    if let Some((geo_obj, _)) = region.find_geo_node(new_id) {
+                        tiles_to_render.clone_from(&geo_obj.area);
+                    }
                     server_ctx.curr_geo_object = Some(obj_id);
                     server_ctx.curr_geo_node = Some(new_id);
                     server.update_region(region);
                     ctx.ui
                         .send(TheEvent::Custom(TheId::named("Prerender"), TheValue::Empty));
-                    MODELFXEDITOR
-                        .lock()
-                        .unwrap()
-                        .set_geo_node_ui(server_ctx, project, ui, ctx);
+                    // MODELFXEDITOR
+                    //     .lock()
+                    //     .unwrap()
+                    //     .set_geo_node_ui(server_ctx, project, ui, ctx);
+                    //
                 }
 
                 /*
@@ -1115,6 +1122,14 @@ impl TileEditor {
                 server.update_region(region);
                 RENDERER.lock().unwrap().set_region(region);
                 */
+            }
+
+            if let Some(region) = region_to_render {
+                PRERENDERTHREAD.lock().unwrap().render_region(
+                    region,
+                    project.palette.clone(),
+                    tiles_to_render,
+                );
             }
         } else if self.editor_mode == EditorMode::Select {
             let p = (coord.x, coord.y);
