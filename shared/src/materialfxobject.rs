@@ -64,9 +64,11 @@ impl MaterialFXObject {
             let p = material_node.get("Color");
             if let Some(TheValue::PaletteIndex(i)) = p {
                 if let Some(c) = &palette.colors[i as usize] {
-                    hit.color = c.to_vec4f();
+                    hit.albedo = c.to_vec3f();
                 }
             }
+        } else {
+            hit.albedo = Vec3f::new(0.5, 0.5, 0.5);
         }
     }
 

@@ -122,8 +122,10 @@ impl PreRenderThread {
                             }
 
                             let mut prerendered = if reset {
-                                let mut prerendered =
-                                    PreRendered::new(TheRGBABuffer::new(TheDim::sized(w, h)));
+                                let mut prerendered = PreRendered::new(
+                                    TheRGBBuffer::new(TheDim::sized(w, h)),
+                                    TheRGBBuffer::new(TheDim::sized(w, h)),
+                                );
                                 prerendered.add_all_tiles(region.grid_size);
                                 prerendered
                             } else {
@@ -133,6 +135,8 @@ impl PreRenderThread {
                                 }
                                 prerendered
                             };
+
+                            // println!("tiles_to_render: {:?}", prerendered.tiles_to_render.len());
 
                             if !prerendered.tiles_to_render.is_empty() {
                                 renderer.prerender(
@@ -145,6 +149,7 @@ impl PreRenderThread {
                                 result_tx
                                     .send(PreRenderResult::RenderedRegion(region.id, prerendered))
                                     .unwrap();
+                                // println!("finished");
                             }
                         }
                         PreRenderCmd::Quit => {

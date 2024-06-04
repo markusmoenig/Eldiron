@@ -174,8 +174,8 @@ impl Hit {
 
             emissive: Vec3f::zero(),
             spec_trans: 0.0,
-            ior: 1.0,
-            absorption: 0.0,
+            ior: 1.5,
+            absorption: 1.0,
         }
     }
 }

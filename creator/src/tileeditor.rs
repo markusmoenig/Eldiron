@@ -1057,7 +1057,6 @@ impl TileEditor {
                 //let model = MODELFXEDITOR.lock().unwrap().get_model();
                 let geo = MODELFXEDITOR.lock().unwrap().get_geo_node(ui);
                 if let Some(mut geo) = geo {
-                    region_to_render = Some(region.clone());
                     let new_id = Uuid::new_v4();
                     geo.id = new_id;
                     geo.set_default_position(coord);
@@ -1067,14 +1066,11 @@ impl TileEditor {
                     }
                     server_ctx.curr_geo_object = Some(obj_id);
                     server_ctx.curr_geo_node = Some(new_id);
+                    region_to_render = Some(region.clone());
+
                     server.update_region(region);
-                    ctx.ui
-                        .send(TheEvent::Custom(TheId::named("Prerender"), TheValue::Empty));
-                    // MODELFXEDITOR
-                    //     .lock()
-                    //     .unwrap()
-                    //     .set_geo_node_ui(server_ctx, project, ui, ctx);
-                    //
+
+                    redraw = true;
                 }
 
                 /*

@@ -179,7 +179,7 @@ impl Camera {
     }
 
     pub fn create_ortho_ray2(&self, uv: Vec2f, screen: Vec2f, tiles: Vec2f, offset: Vec2f) -> Ray {
-        let pixel_size = Vec2f::new(1.0 / (screen.x * tiles.x), 1.0 / (screen.y * tiles.y));
+        let pixel_size = Vec2f::new(1.0 / screen.x, 1.0 / screen.y);
 
         let cam_origin = self.origin;
         let cam_look_at = self.center;
@@ -264,7 +264,7 @@ impl Camera {
         offset: Vec2f,
         alignment: i32,
     ) -> Ray {
-        let pixel_size = Vec2f::new(1.0 / (screen.x * tiles.x), 1.0 / (screen.y * tiles.y));
+        let pixel_size = Vec2f::new(1.0 / screen.x, 1.0 / screen.y);
 
         let cam_origin = self.origin;
         let cam_look_at = self.center;

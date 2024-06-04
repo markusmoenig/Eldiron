@@ -172,7 +172,7 @@ impl ModelFXEditor {
 
         // toolbar_hlayout.add_widget(Box::new(floors_button));
         // toolbar_hlayout.add_widget(Box::new(walls_button));
-        // toolbar_hlayout.add_widget(Box::new(material_button));
+        toolbar_hlayout.add_widget(Box::new(material_button));
         toolbar_hlayout.add_widget(Box::new(blend));
         toolbar_hlayout.set_reverse_index(Some(1));
 
@@ -308,16 +308,26 @@ impl ModelFXEditor {
                 }
             }
             TheEvent::ContextMenuSelected(_id, item) => {
-                let prev = self.modelfx.to_json();
-                if
-                /*id.name.starts_with("ModelFX Node") &&*/
-                self.modelfx.add(item.name.clone()) {
+                //let prev = self.modelfx.to_json();
+                if self.editing_mode == EditingMode::MaterialNodes
+                    && self.modelfx.add(item.name.clone())
+                {
+                    if let Some(material_id) = server_ctx.curr_material_object {
+                        if let Some(material) = project.materials.get_mut(&material_id) {
+                            let node = MaterialFXNode::new(MaterialFXNodeRole::Material);
+                            material.nodes.push(node);
+                            let node_canvas = material.to_canvas(&project.palette);
+                            ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
+                            self.set_material_tiles(ui, ctx, project);
+                        }
+                    }
+                    /*
                     self.modelfx.draw(ui, ctx, &project.palette);
                     self.update_node_canvas(&project.palette, ui);
                     self.set_selected_node_ui(server_ctx, project, ui, ctx);
                     self.render_preview(ui, &project.palette);
                     let undo = ModelFXUndoAtom::AddNode(prev, self.modelfx.to_json());
-                    UNDOMANAGER.lock().unwrap().add_modelfx_undo(undo, ctx);
+                    UNDOMANAGER.lock().unwrap().add_modelfx_undo(undo, ctx);*/
                     redraw = true;
                 }
             }
@@ -359,11 +369,12 @@ impl ModelFXEditor {
                         server_ctx.curr_material_object = None;
                     }
                     self.set_material_node_ui(server_ctx, project, ui, ctx);
+                    redraw = true;
                 }
             }
             TheEvent::TileEditorClicked(id, coord) => {
                 if id.name == "GeoFX RGBA Layout View" && self.modelfx.clicked(*coord, ui, ctx) {
-                    self.modelfx.draw(ui, ctx, &project.palette);
+                    //self.modelfx.draw(ui, ctx, &project.palette);
                     self.set_selected_node_ui(server_ctx, project, ui, ctx);
                     self.render_preview(ui, &project.palette);
                     redraw = true;
@@ -371,17 +382,17 @@ impl ModelFXEditor {
             }
             TheEvent::TileEditorDragged(id, coord) => {
                 if id.name == "GeoFX RGBA Layout View" && self.modelfx.dragged(*coord, ui, ctx) {
-                    self.modelfx.draw(ui, ctx, &project.palette);
+                    //self.modelfx.draw(ui, ctx, &project.palette);
                     redraw = true;
                 }
             }
             TheEvent::TileEditorUp(id) => {
                 let prev = self.modelfx.to_json();
                 if id.name == "GeoFX RGBA Layout View" && self.modelfx.released(ui, ctx) {
-                    self.modelfx.draw(ui, ctx, &project.palette);
+                    //self.modelfx.draw(ui, ctx, &project.palette);
                     self.render_preview(ui, &project.palette);
-                    let undo = ModelFXUndoAtom::Edit(prev, self.modelfx.to_json());
-                    UNDOMANAGER.lock().unwrap().add_modelfx_undo(undo, ctx);
+                    //let undo = ModelFXUndoAtom::Edit(prev, self.modelfx.to_json());
+                    //UNDOMANAGER.lock().unwrap().add_modelfx_undo(undo, ctx);
                     redraw = true;
                 }
             }
@@ -992,7 +1003,10 @@ impl ModelFXEditor {
     pub fn set_geo_tiles(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) {
         let tile_size = 48;
 
+        let mut set_default_selection = false;
+
         let geo_tiles = if self.geos.is_empty() {
+            set_default_selection = true;
             GeoFXNode::nodes()
         } else {
             self.geos.values().cloned().collect()
@@ -1047,6 +1061,11 @@ impl ModelFXEditor {
                 }
 
                 rgba_view.set_buffer(buffer);
+                if set_default_selection {
+                    let mut hashset = FxHashSet::default();
+                    hashset.insert((0, 0));
+                    rgba_view.set_selection(hashset);
+                }
             }
         }
     }

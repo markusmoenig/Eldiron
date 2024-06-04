@@ -83,8 +83,8 @@ impl Renderer {
         // let mut level = Level::new(region.width, region.height, settings.time);
         // region.fill_code_level(&mut level, &self.textures, &update);
 
-        let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
-        let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
+        let (ro, rd, fov, _, camera_type) = self.create_camera_setup(region, settings);
+        //let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
         let camera = Camera::new(ro, rd, fov);
 
         let mut tiles = prerendered.tiles_to_render.clone(); // RenderTile::create_tiles(width, height, 80, 80);
@@ -100,8 +100,13 @@ impl Renderer {
 
         tiles.par_iter_mut().for_each(|tile| {
             let mut tree = vec![];
-            let mut buffer = TheRGBABuffer::new(TheDim::sized(region.grid_size, region.grid_size));
+            let mut buffer = TheRGBBuffer::new(TheDim::sized(region.grid_size, region.grid_size));
+            let mut sky_abso_buffer =
+                TheRGBBuffer::new(TheDim::sized(region.grid_size, region.grid_size));
             let mut rng = rand::thread_rng();
+
+            let mut distance_buffer: TheFlattenedMap<f32> =
+                TheFlattenedMap::new(region.grid_size, region.grid_size);
 
             for h in 0..region.grid_size {
                 for w in 0..region.grid_size {
@@ -110,48 +115,42 @@ impl Renderer {
                     let xx = x as f32;
                     let yy = y as f32;
 
-                    let mut ray = if camera_type == CameraType::TiltedIso {
-                        camera.create_tilted_isometric_ray_prerendered(
-                            vec2f(xx / width_f, yy / height_f),
-                            tilted_iso_alignment,
-                            &prerender_camera,
-                        )
-                    } else if camera_mode == CameraMode::Pinhole {
-                        camera.create_ray(
-                            vec2f(xx / width_f, yy / height_f),
-                            vec2f(width_f, height_f),
-                            vec2f(1.0, 1.0),
-                        )
-                    } else {
-                        // camera.create_ortho_ray_prerendered(
-                        //     vec2f(xx / width_f, yy / height_f),
-                        //     &prerender_camera,
-                        // )
-                        camera.create_ortho_ray2(
-                            vec2f(xx / width_f, (height_f - yy) / height_f),
-                            vec2f(width_f, height_f),
-                            vec2f(region.width as f32, region.height as f32),
-                            vec2f(1.0, 1.0),
-                        )
-                    };
-
-                    let plane_normal = vec3f(0.0, 1.0, 0.0);
-                    let denom = dot(plane_normal, ray.d);
-
-                    if denom.abs() > 0.0001 {
-                        let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
-                        if t >= 0.0 {
-                            ray.o += ray.d * t;
-                        }
-                    }
-
                     // Pathtracer
                     // Based on https://www.shadertoy.com/view/Dtl3WS
 
+                    let mut empty_pixel = false;
                     let mut color = Vec3f::zero();
-                    let ray_copy = ray;
+                    let mut sky_abso = Vec3f::zero();
+                    let mut distance: f32 = 0.0;
 
-                    for d in 0..30 {
+                    for sample in 0..30 {
+                        let mut ray = if camera_type == CameraType::TiltedIso {
+                            camera.create_tilted_isometric_ray2(
+                                vec2f(xx / width_f, (height_f - yy) / height_f),
+                                vec2f(width_f, height_f),
+                                vec2f(region.width as f32, region.height as f32),
+                                vec2f(rng.gen(), rng.gen()),
+                                tilted_iso_alignment,
+                            )
+                        } else {
+                            camera.create_ortho_ray2(
+                                vec2f(xx / width_f, (height_f - yy) / height_f),
+                                vec2f(width_f, height_f),
+                                vec2f(region.width as f32, region.height as f32),
+                                vec2f(rng.gen(), rng.gen()),
+                            )
+                        };
+
+                        let plane_normal = vec3f(0.0, 1.0, 0.0);
+                        let denom = dot(plane_normal, ray.d);
+
+                        if denom.abs() > 0.0001 {
+                            let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
+                            if t >= 0.0 {
+                                ray.o += ray.d * t;
+                            }
+                        }
+
                         let mut state = TracerState {
                             is_refracted: false,
                             has_been_refracted: false,
@@ -160,10 +159,9 @@ impl Renderer {
 
                         let mut acc = Vec3f::zero();
                         let mut abso = Vec3f::one();
+                        let mut dist = 0.0;
 
-                        ray = ray_copy;
-
-                        for _ in 0..8 {
+                        for depth in 0..8 {
                             if let Some(hit) = self.prerender_pixel(
                                 ray,
                                 region,
@@ -173,6 +171,10 @@ impl Renderer {
                                 palette,
                                 &mut rng,
                             ) {
+                                if depth == 0 {
+                                    dist = hit.distance;
+                                }
+
                                 let mut n = hit.normal;
                                 if state.is_refracted {
                                     n = -n
@@ -206,23 +208,58 @@ impl Renderer {
                                 ray.o = hit.hit_point;
                                 ray.d = out_dir;
 
-                                ray.o += n * 0.01;
+                                if state.is_refracted {
+                                    ray.o += -n * 0.01;
+                                } else if state.has_been_refracted && !state.is_refracted {
+                                    ray.o += -n * 0.01;
+                                    state.last_ior = 1.;
+                                } else {
+                                    ray.o += n * 0.01;
+                                }
                             } else {
-                                // acc += vec3f(0.1, 0.5, 0.1) * abso;
-                                acc += settings.daylight * abso;
+                                // No hit
+
+                                if depth == 0 {
+                                    empty_pixel = true;
+                                } else {
+                                    //acc += settings.daylight * abso;
+                                }
                                 break;
                             }
                         }
 
-                        color = lerp(color, acc, 1.0 / (d as f32 + 1.0));
+                        if empty_pixel {
+                            break;
+                        }
+                        color = lerp(color, acc, 1.0 / (sample as f32 + 1.0));
+                        sky_abso = lerp(sky_abso, abso, 1.0 / (sample as f32 + 1.0));
+                        distance = lerp(distance, dist, 1.0 / (sample as f32 + 1.0));
                     }
 
-                    let c = vec4f(color.x, color.y, color.z, 1.0);
-                    buffer.set_pixel(w, h, &TheColor::from_vec4f(c).to_u8_array());
+                    buffer.set_pixel_vec3f(w, h, &color);
+                    sky_abso_buffer.set_pixel_vec3f(w, h, &sky_abso);
+                    distance_buffer.set((w, h), distance);
 
                     // -- End
 
                     if render_map_tree {
+                        let ray = if camera_type == CameraType::TiltedIso {
+                            camera.create_tilted_isometric_ray2(
+                                vec2f(xx / width_f, (height_f - yy) / height_f),
+                                vec2f(width_f, height_f),
+                                vec2f(region.width as f32, region.height as f32),
+                                vec2f(1.0, 1.0),
+                                tilted_iso_alignment,
+                            )
+                        } else {
+                            camera.create_ortho_ray2(
+                                vec2f(xx / width_f, (height_f - yy) / height_f),
+                                vec2f(width_f, height_f),
+                                vec2f(region.width as f32, region.height as f32),
+                                vec2f(1.0, 1.0),
+                            )
+                        };
+
                         let plane_normal = vec3f(0.0, 1.0, 0.0);
                         let denom = dot(plane_normal, ray.d);
 
@@ -247,10 +284,24 @@ impl Renderer {
                 &buffer,
             );
 
+            prerendered.sky_absorption.copy_into(
+                tile.x * region.grid_size,
+                tile.y * region.grid_size,
+                &sky_abso_buffer,
+            );
+
+            prerendered.distance.copy_into(
+                tile.x * region.grid_size,
+                tile.y * region.grid_size,
+                &distance_buffer,
+            );
+
             if render_map_tree {
                 let mut dest_tree_mutex = dest_tree_mutex.lock().unwrap();
                 dest_tree_mutex.append(&mut tree);
             }
+
+            std::thread::yield_now();
         });
 
         let mut prerendered = prerendered_mutex.lock().unwrap();
@@ -321,10 +372,10 @@ impl Renderer {
                         let r = Ray::new(lro, ray.d);
                         let mut t = 0.000;
 
-                        for _ in 0..100 {
+                        for _ in 0..20 {
                             let p = r.at(t);
                             let d = geo_obj.distance_3d(&settings.time, p);
-                            if d < 0.001 {
+                            if d.abs() < 0.001 {
                                 dist += t;
 
                                 hit.normal = geo_obj.normal(&settings.time, p);
@@ -333,6 +384,8 @@ impl Renderer {
 
                                 if let Some(material) = self.materials.get(&geo_obj.material_id) {
                                     material.compute(&mut hit, palette);
+                                } else {
+                                    hit.albedo = vec3f(0.5, 0.5, 0.5);
                                 }
 
                                 return Some(hit);
@@ -388,7 +441,7 @@ impl Renderer {
 
                     if !data.billboard {
                         if let Some(p) = data.buffer[index].at_f_vec4f(uv) {
-                            hit.color = p;
+                            //hit.color = powf(p, 2.2);
                             hit.albedo = vec3f(p.x, p.y, p.z);
                             hit.normal = -normal;
                             hit.distance = dist;
@@ -450,7 +503,7 @@ impl Renderer {
                                     if let Some(c) = data.buffer[index].at(vec2i(x, y)) {
                                         if c[3] == 255 {
                                             let col = TheColor::from_u8_array(c).to_vec4f();
-                                            hit.color = col;
+                                            hit.albedo = vec3f(col.x, col.y, col.z);
                                             hit.distance = t;
                                             hit.normal = -normal;
                                             hit.hit_point = ray.at(t);
@@ -698,7 +751,7 @@ impl Renderer {
         let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
         let camera = Camera::new(ro, rd, fov);
 
-        let ppt = region.grid_size as f32 * region.zoom;
+        let ppt = region.grid_size as f32;
 
         let mut start_x = 0;
         let mut start_y = 0;
@@ -706,10 +759,12 @@ impl Renderer {
         // Find the location in the prerendered map
 
         let ray = if camera_type == CameraType::TiltedIso {
-            camera.create_tilted_isometric_ray_prerendered(
-                vec2f(0.5, 0.5),
+            camera.create_tilted_isometric_ray2(
+                vec2f(0.0, 1.0),
+                vec2f(width_f, height_f),
+                vec2f(width_f / ppt, height_f / ppt),
+                vec2f(1.0, 1.0),
                 tilted_iso_alignment,
-                &prerender_camera,
             )
         } else {
             camera.create_ortho_ray2(
@@ -727,9 +782,7 @@ impl Renderer {
             let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
             if t >= 0.0 {
                 let p = ray.o + ray.d * t;
-
                 if let Some(data) = region.prerendered.tree.nearest_neighbor(&[p.x, p.z]) {
-                    //color = TheColor::from_u8_array(d.data).to_vec4f();
                     start_x = data.pixel_location.0;
                     start_y = data.pixel_location.1;
                 }
@@ -767,10 +820,6 @@ impl Renderer {
                             vec2f(width_f / ppt, height_f / ppt),
                             vec2f(1.0, 1.0),
                         )
-                        // camera.create_ortho_ray_prerendered(
-                        //     vec2f(xx / width_f, yy / height_f),
-                        //     &prerender_camera,
-                        // )
                     };
 
                     // In top down view, intersect ray with plane at 1.1 y
@@ -808,7 +857,7 @@ impl Renderer {
             });
 
         let _stop = self.get_time();
-        //println!("render time {:?}", _stop - _start);
+        // println!("render time {:?}", _stop - _start);
     }
 
     #[inline(always)]
@@ -826,33 +875,32 @@ impl Renderer {
         _max_render_distance: i32,
         _palette: &ThePalette,
     ) -> RGBA {
-        let mut color = vec4f(0.0, 0.0, 0.0, 1.0);
+        let mut color = vec3f(0.0, 0.0, 0.0);
         let hit_props = Hit::default();
 
         let rd = ray.d;
-
         let mut dist = 0.0;
-
         let normal = Vec3f::zero();
-
         let mut hit = false;
 
-        // let plane_normal = vec3f(0.0, 1.0, 0.0);
-        // let denom = dot(plane_normal, ray.d);
-
-        // if denom.abs() > 0.0001 {
-        //     let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
-        //     if t >= 0.0 {
-        //         let p = ray.o + ray.d * t;
-
-        //         if let Some(d) = region.prerendered.tree.nearest_neighbor(&[p.x, p.z]) {
-        //             color = TheColor::from_u8_array(d.data).to_vec4f();
-        //         }
-        //     }
-        // }
-
-        if let Some(c) = region.prerendered.albedo.at_vec4(pos) {
+        if let Some(c) = region.prerendered.albedo.at_vec3(pos) {
             color = c;
+
+            if let Some(abso) = region.prerendered.sky_absorption.at_vec3(pos) {
+                // color.x += powf(settings.daylight.x * abso.x, 1.0 / 2.2);
+                // color.y += powf(settings.daylight.y * abso.y, 1.0 / 2.2);
+                // color.z += powf(settings.daylight.z * abso.z, 1.0 / 2.2);
+
+                color.x += settings.daylight.x * abso.x;
+                color.y += settings.daylight.y * abso.y;
+                color.z += settings.daylight.z * abso.z;
+
+                if let Some(d) = region.prerendered.distance.get((pos.x, pos.y)) {
+                    dist = *d;
+                }
+            }
+
+            hit = true;
         }
 
         // Test against characters
@@ -913,16 +961,13 @@ impl Renderer {
                             let u = 0.5 + u_dot;
                             let v = 0.5 + v_dot;
 
-                            //println!("{}, {}", u, v);
-
                             let x = (u * data.buffer[index].dim().width as f32) as i32;
                             let y = ((1.0 - v) * data.buffer[index].dim().height as f32) as i32;
                             if let Some(c) = data.buffer[index].at(vec2i(x, y)) {
                                 if c[3] == 255 {
-                                    let col = TheColor::from_u8_array(c).to_vec4f();
-                                    color = col;
+                                    let col = TheColor::from_u8_array(c).to_vec3f();
+                                    color = col * settings.daylight;
                                     dist = t;
-                                    //normal = vec3f(0.0, 0.0, 1.0);
                                     hit = true;
                                 }
                             }
@@ -935,15 +980,8 @@ impl Renderer {
         // Light Sampling
         //
         if hit {
-            let daylight = vec4f(
-                settings.daylight.x,
-                settings.daylight.y,
-                settings.daylight.z,
-                1.0,
-            );
-
             if level.lights.is_empty() {
-                color *= daylight;
+                color *= settings.daylight;
             } else {
                 // Sample the lights
                 let mut total_light = Vec3f::new(0.0, 0.0, 0.0);
@@ -953,7 +991,7 @@ impl Renderer {
                     let mut light_strength = light.strength;
 
                     if light.color_type == 1 {
-                        light_strength = daylight.x;
+                        light_strength = settings.daylight.x;
                     }
 
                     let mut ro = ray.at(dist);
@@ -974,7 +1012,7 @@ impl Renderer {
                     let light_dir = light_pos - ro;
                     let light_dist = length(light_dir);
                     if light_dist < light.max_distance {
-                        ro += light_dir * 0.001;
+                        ro += light_dir * 0.01;
 
                         let light_ray = Ray::new(ro, light_dir);
 
@@ -1038,26 +1076,29 @@ impl Renderer {
 
                 // color = color * daylight + vec4f(total_light.x, total_light.y, total_light.z, 1.0);
 
-                let min_color = vec4f(
-                    color.x * daylight.x,
-                    color.y * daylight.y,
-                    color.z * daylight.z,
-                    1.0,
+                let min_color = color;
+                color += color * vec3f(total_light.x, total_light.y, total_light.z);
+                color = clamp(color, min_color, color);
+                /*
+                let min_color = vec3f(
+                    color.x * settings.daylight.x,
+                    color.y * settings.daylight.y,
+                    color.z * settings.daylight.z,
                 );
 
                 color = clamp(
-                    color * daylight
-                        + color * vec4f(total_light.x, total_light.y, total_light.z, 1.0),
+                    color // * settings.daylight
+                    + color * vec3f(total_light.x, total_light.y, total_light.z),
                     min_color,
                     color,
-                );
+                    );*/
             }
         }
 
         if let Some(saturation) = saturation {
-            let mut hsl = TheColor::from_vec4f(color).as_hsl();
+            let mut hsl = TheColor::from_vec3f(color).as_hsl();
             hsl.y *= saturation;
-            color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec4f();
+            color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec3f();
         }
 
         // Show hover
@@ -1070,15 +1111,15 @@ impl Renderer {
                 if t >= 0.0 {
                     let hp = Vec3i::from(ray.at(t));
                     if hp == hover {
-                        color = TheColor::from_vec4f(color)
+                        color = TheColor::from_vec3f(color)
                             .mix(&TheColor::white(), 0.5)
-                            .to_vec4f();
+                            .to_vec3f();
                     }
                 }
             }
         }
 
-        TheColor::from_vec4f(color).to_u8_array()
+        TheColor::from_vec3f(color).to_u8_array()
     }
 
     /// RENDER
@@ -1715,9 +1756,9 @@ impl Renderer {
         ray: Ray,
         light_pos: Vec3i,
         light: &Light,
-        region: &Region,
-        update: &RegionUpdate,
-        settings: &RegionDrawSettings,
+        _region: &Region,
+        _update: &RegionUpdate,
+        _settings: &RegionDrawSettings,
     ) -> bool {
         #[inline(always)]
         fn equal(l: f32, r: Vec3f) -> Vec3f {
@@ -1730,6 +1771,10 @@ impl Renderer {
 
         let ro = ray.o;
         let rd = ray.d;
+
+        if Vec3i::from(ro) == light_pos {
+            return true;
+        }
 
         let mut i = floor(ro);
         let mut dist = 0.0;
@@ -1756,6 +1801,7 @@ impl Renderer {
                 return false;
             }
 
+            /*
             if let Some(model) = region.models.get(&(key.x, key.y, key.z)) {
                 let mut lro = ray.at(dist);
                 lro -= Vec3f::from(key);
@@ -1798,9 +1844,9 @@ impl Renderer {
                 if let Some(_hit_struct) = model.dda(&Ray::new(lro, ray.d), wallfx_offset) {
                     return false;
                 }
-            }
+                }*/
             // Test against world tiles
-            else if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
+            if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                 if let Some(data) = self.textures.get(tile) {
                     if data.blocking {
                         return false;
@@ -2057,12 +2103,14 @@ impl Renderer {
                 vec2f(1.0, 1.0),
             )
         } else {
-            camera.create_ortho_ray(
+            let ppt = region.grid_size as f32;
+            camera.create_ortho_ray2(
                 vec2f(
                     screen_coord.x as f32 / width_f,
                     1.0 - screen_coord.y as f32 / height_f,
                 ),
                 vec2f(width_f, height_f),
+                vec2f(width_f / ppt, height_f / ppt),
                 vec2f(1.0, 1.0),
             )
         };

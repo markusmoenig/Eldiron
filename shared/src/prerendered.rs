@@ -32,8 +32,9 @@ impl RTreeObject for PreRenderedData {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PreRendered {
-    pub albedo: TheRGBABuffer,
-    pub color: FxHashMap<(i32, i32), RGBA>,
+    pub albedo: TheRGBBuffer,
+    pub sky_absorption: TheRGBBuffer,
+    pub distance: TheFlattenedMap<f32>,
 
     pub tiles_to_render: Vec<Vec2i>,
 
@@ -47,21 +48,23 @@ impl Default for PreRendered {
 }
 
 impl PreRendered {
-    pub fn new(albedo: TheRGBABuffer) -> Self {
+    pub fn new(albedo: TheRGBBuffer, sky_absorption: TheRGBBuffer) -> Self {
         Self {
+            distance: TheFlattenedMap::new(albedo.dim().width, albedo.dim().height),
+
             albedo,
-            color: FxHashMap::default(),
+            sky_absorption,
 
             tiles_to_render: Vec::new(),
-
             tree: RTree::new(),
         }
     }
 
     pub fn zero() -> Self {
         Self {
-            albedo: TheRGBABuffer::default(),
-            color: FxHashMap::default(),
+            albedo: TheRGBBuffer::default(),
+            sky_absorption: TheRGBBuffer::default(),
+            distance: TheFlattenedMap::new(0, 0),
 
             tiles_to_render: Vec::new(),
             tree: RTree::new(),
