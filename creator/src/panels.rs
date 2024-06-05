@@ -252,6 +252,10 @@ impl Panels {
                         ctx.ui.relayout = true;
                         redraw = true;
                     }
+                    MODELFXEDITOR
+                        .lock()
+                        .unwrap()
+                        .activated(server_ctx, project, ui, ctx);
                 } else if id.name == "Set Region Render" {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 5));

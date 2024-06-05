@@ -22,3 +22,4 @@ indexmap = { version = "2", features = ["serde"], default-features = true }
 noiselib = "0.2.3"
 regex = "1"
 rstar = { version = "0.12.0", features = ["serde"] }
+num_cpus = "1.16.0"

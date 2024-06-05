@@ -267,7 +267,7 @@ impl ModelFXEditor {
                 if id.name == "GeoFX RGBA Layout" {
                     self.set_geo_tiles(ui, ctx);
                 } else if id.name == "MaterialFX RGBA Layout" {
-                    self.set_material_tiles(ui, ctx, project);
+                    self.set_material_tiles(ui, ctx, project, None);
                 }
             }
             TheEvent::StateChanged(id, state) => {
@@ -275,21 +275,25 @@ impl ModelFXEditor {
                     let mut material = MaterialFXObject::default();
                     let node = MaterialFXNode::new(MaterialFXNodeRole::Material);
                     material.nodes.push(node);
+                    material.selected_node = Some(material.nodes.len() - 1);
 
                     PRERENDERTHREAD
                         .lock()
                         .unwrap()
                         .material_changed(material.clone());
-                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                        let area = region.get_material_area(material.id);
-                        PRERENDERTHREAD.lock().unwrap().render_region(
-                            region.clone(),
-                            project.palette.clone(),
-                            area,
-                        );
-                    }
+                    // if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                    //     let area = region.get_material_area(material.id);
+                    //     PRERENDERTHREAD.lock().unwrap().render_region(
+                    //         region.clone(),
+                    //         project.palette.clone(),
+                    //         area,
+                    //     );
+                    // }
+                    let material_id = material.id;
                     project.materials.insert(material.id, material);
-                    self.set_material_tiles(ui, ctx, project);
+                    server_ctx.curr_material_object = Some(material_id);
+                    self.set_material_tiles(ui, ctx, project, Some(material_id));
+                    self.set_material_node_ui(server_ctx, project, ui, ctx);
                 } else if id.name == "ModelFX Clear" && state == &TheWidgetState::Clicked {
                     self.modelfx = ModelFX::default();
                     self.modelfx.draw(ui, ctx, &project.palette);
@@ -314,11 +318,13 @@ impl ModelFXEditor {
                 {
                     if let Some(material_id) = server_ctx.curr_material_object {
                         if let Some(material) = project.materials.get_mut(&material_id) {
+                            let material_id = material.id;
                             let node = MaterialFXNode::new(MaterialFXNodeRole::Material);
                             material.nodes.push(node);
+                            material.selected_node = Some(material.nodes.len() - 1);
                             let node_canvas = material.to_canvas(&project.palette);
                             ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
-                            self.set_material_tiles(ui, ctx, project);
+                            self.set_material_tiles(ui, ctx, project, Some(material_id));
                         }
                     }
                     /*
@@ -387,7 +393,7 @@ impl ModelFXEditor {
                 }
             }
             TheEvent::TileEditorUp(id) => {
-                let prev = self.modelfx.to_json();
+                //let prev = self.modelfx.to_json();
                 if id.name == "GeoFX RGBA Layout View" && self.modelfx.released(ui, ctx) {
                     //self.modelfx.draw(ui, ctx, &project.palette);
                     self.render_preview(ui, &project.palette);
@@ -729,6 +735,23 @@ impl ModelFXEditor {
         redraw
     }
 
+    /// Modeler got activated, set the UI
+    pub fn activated(
+        &mut self,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        if self.editing_mode == EditingMode::Geometry {
+            self.set_geo_node_ui(server_ctx, project, ui, ctx);
+        } else if self.editing_mode == EditingMode::Material {
+            self.set_material_node_ui(server_ctx, project, ui, ctx);
+        } else {
+            self.set_selected_node_ui(server_ctx, project, ui, ctx);
+        }
+    }
+
     pub fn set_geo_node_ui(
         &mut self,
         server_ctx: &mut ServerContext,
@@ -761,7 +784,7 @@ impl ModelFXEditor {
                         slider.set_value(TheValue::Float(*value));
                         //slider.set_default_value(TheValue::Float(0.0));
                         slider.set_range(TheValue::RangeF32(range.clone()));
-                        slider.set_continuous(true);
+                        //slider.set_continuous(true);
                         text_layout.add_pair(name.clone(), Box::new(slider));
                     } else if let TheValue::Float(value) = value {
                         let mut slider = TheTextLineEdit::new(TheId::named(
@@ -775,7 +798,7 @@ impl ModelFXEditor {
                         ));
                         slider.set_value(TheValue::Int(*value));
                         slider.set_range(TheValue::RangeI32(range.clone()));
-                        slider.set_continuous(true);
+                        //slider.set_continuous(true);
                         text_layout.add_pair(name.clone(), Box::new(slider));
                     } else if let TheValue::TextList(index, list) = value {
                         let mut dropdown = TheDropdownMenu::new(TheId::named(
@@ -960,7 +983,7 @@ impl ModelFXEditor {
     */
 
     /// Update the node canvas
-    fn update_node_canvas(&mut self, palette: &ThePalette, ui: &mut TheUI) {
+    fn _update_node_canvas(&mut self, palette: &ThePalette, ui: &mut TheUI) {
         ui.set_node_canvas("ModelFX NodeCanvas", self.modelfx.to_canvas(palette));
     }
 
@@ -1003,10 +1026,10 @@ impl ModelFXEditor {
     pub fn set_geo_tiles(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) {
         let tile_size = 48;
 
-        let mut set_default_selection = false;
+        //let mut set_default_selection = false;
 
         let geo_tiles = if self.geos.is_empty() {
-            set_default_selection = true;
+            //set_default_selection = true;
             GeoFXNode::nodes()
         } else {
             self.geos.values().cloned().collect()
@@ -1061,11 +1084,11 @@ impl ModelFXEditor {
                 }
 
                 rgba_view.set_buffer(buffer);
-                if set_default_selection {
-                    let mut hashset = FxHashSet::default();
-                    hashset.insert((0, 0));
-                    rgba_view.set_selection(hashset);
-                }
+                // if set_default_selection {
+                //     let mut hashset = FxHashSet::default();
+                //     hashset.insert((0, 0));
+                //     rgba_view.set_selection(hashset);
+                // }
             }
         }
     }
@@ -1075,6 +1098,7 @@ impl ModelFXEditor {
         if let Some(editor) = ui.get_rgba_layout("GeoFX RGBA Layout") {
             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
                 let selection = rgba_view.selection();
+
                 for i in selection {
                     if let Some(tile) = self.geos.get(&i) {
                         return Some(tile.clone());
@@ -1087,7 +1111,13 @@ impl ModelFXEditor {
     }
 
     /// Set the tiles for the picker.
-    pub fn set_material_tiles(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
+    pub fn set_material_tiles(
+        &mut self,
+        ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        project: &Project,
+        set_selection: Option<Uuid>,
+    ) {
         let tile_size = 48;
 
         self.materials.clear();
@@ -1113,10 +1143,15 @@ impl ModelFXEditor {
 
                 let tile_buffer = TheRGBABuffer::new(TheDim::sized(tile_size, tile_size));
 
-                for (i, (id, _obj)) in project.materials.iter().enumerate() {
+                for (i, (id, obj)) in project.materials.iter().enumerate() {
                     let x = i as i32 % tiles_per_row;
                     let y = i as i32 / tiles_per_row;
 
+                    if Some(obj.id) == set_selection {
+                        let mut hashset = FxHashSet::default();
+                        hashset.insert((x, y));
+                        rgba_view.set_selection(hashset);
+                    }
                     /*
                     self.tile_ids.insert((x, y), tile.id);
                     self.tile_text.insert(

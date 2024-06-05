@@ -1070,6 +1070,10 @@ impl TileEditor {
 
                     server.update_region(region);
 
+                    MODELFXEDITOR
+                        .lock()
+                        .unwrap()
+                        .set_geo_node_ui(server_ctx, project, ui, ctx);
                     redraw = true;
                 }
 
@@ -1121,7 +1125,7 @@ impl TileEditor {
             }
 
             if let Some(region) = region_to_render {
-                PRERENDERTHREAD.lock().unwrap().render_region(
+                PRERENDERTHREAD.try_lock().unwrap().render_region(
                     region,
                     project.palette.clone(),
                     tiles_to_render,

@@ -79,12 +79,20 @@ impl GeoFXObject {
 
     pub fn update_area(&mut self) {
         self.area.clear();
-        let mut area = AABB2D::zero();
+        // let mut area = AABB2D::zero();
+        // for geo in &self.nodes {
+        //     if let Some(aabb) = geo.aabb(&TheTime::default()) {
+        //         area.grow(aabb);
+        //     }
+        // }
+        //self.area = area.to_tiles();
+
         for geo in &self.nodes {
-            if let Some(aabb) = geo.aabb(&TheTime::default()) {
-                area.grow(aabb);
+            let p = geo.position();
+            let pp = vec2i(p.x as i32, p.y as i32);
+            if !self.area.contains(&pp) {
+                self.area.push(pp);
             }
         }
-        self.area = area.to_tiles();
     }
 }

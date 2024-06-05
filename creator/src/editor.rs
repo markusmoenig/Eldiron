@@ -468,7 +468,7 @@ impl TheTrait for Editor {
 
         // Get prerendered results
         while let Some(PreRenderResult::RenderedRegion(id, prerendered)) =
-            PRERENDERTHREAD.lock().unwrap().receive()
+            PRERENDERTHREAD.try_lock().unwrap().receive()
         {
             if let Some(region) = self.project.get_region_mut(&id) {
                 region.prerendered = prerendered.clone();

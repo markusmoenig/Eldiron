@@ -87,6 +87,54 @@ impl Renderer {
         //let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
         let camera = Camera::new(ro, rd, fov);
 
+        if prerendered.tile_coords.is_none() {
+            let mut tile_coords = vec![];
+            let coords = vec![
+                vec2f(0.0, 0.0),
+                vec2f(1.0, 0.0),
+                vec2f(0.0, 1.0),
+                vec2f(1.0, 1.0),
+            ];
+
+            for coord in coords {
+                let ray = if camera_type == CameraType::TiltedIso {
+                    camera.create_tilted_isometric_ray2(
+                        coord,
+                        vec2f(width_f, height_f),
+                        vec2f(region.width as f32, region.height as f32),
+                        vec2f(1.0, 1.0),
+                        tilted_iso_alignment,
+                    )
+                } else {
+                    camera.create_ortho_ray2(
+                        coord,
+                        vec2f(width_f, height_f),
+                        vec2f(region.width as f32, region.height as f32),
+                        vec2f(1.0, 1.0),
+                    )
+                };
+
+                let plane_normal = vec3f(0.0, 1.0, 0.0);
+                let denom = dot(plane_normal, ray.d);
+
+                //if denom.abs() > 0.0001 {
+                let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
+                // if t >= 0.0 {
+                let p = ray.o + ray.d * t;
+                tile_coords.push(vec2f(p.x, p.z));
+                //}
+                //}
+            }
+
+            prerendered.tile_coords = Some([
+                tile_coords[0],
+                tile_coords[1],
+                tile_coords[2],
+                tile_coords[3],
+            ]);
+        }
+
+        // --
         let mut tiles = prerendered.tiles_to_render.clone(); // RenderTile::create_tiles(width, height, 80, 80);
 
         let render_map_tree = prerendered.tree.size() == 0;
@@ -378,17 +426,20 @@ impl Renderer {
                             if d.abs() < 0.001 {
                                 dist += t;
 
-                                hit.normal = geo_obj.normal(&settings.time, p);
-                                hit.hit_point = p;
-                                hit.distance = dist;
+                                if dist < hit.distance {
+                                    hit.normal = geo_obj.normal(&settings.time, p);
+                                    hit.hit_point = p;
+                                    hit.distance = dist;
 
-                                if let Some(material) = self.materials.get(&geo_obj.material_id) {
-                                    material.compute(&mut hit, palette);
-                                } else {
-                                    hit.albedo = vec3f(0.5, 0.5, 0.5);
+                                    if let Some(material) = self.materials.get(&geo_obj.material_id)
+                                    {
+                                        material.compute(&mut hit, palette);
+                                    } else {
+                                        hit.albedo = vec3f(0.5, 0.5, 0.5);
+                                    }
                                 }
 
-                                return Some(hit);
+                                break;
                             }
                             t += d;
                         }
@@ -397,6 +448,10 @@ impl Renderer {
             }
             // Test against world tiles
             if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
+                if dist > hit.distance {
+                    continue;
+                }
+
                 let mut uv = self.get_uv_face(normal, ray.at(dist)).0;
                 //pixel = [(uv.x * 255.0) as u8, (uv.y * 255.0) as u8, 0, 255];
                 if let Some(data) = self.textures.get(tile) {
@@ -441,13 +496,10 @@ impl Renderer {
 
                     if !data.billboard {
                         if let Some(p) = data.buffer[index].at_f_vec4f(uv) {
-                            //hit.color = powf(p, 2.2);
                             hit.albedo = vec3f(p.x, p.y, p.z);
                             hit.normal = -normal;
                             hit.distance = dist;
                             hit.hit_point = ray.at(dist);
-
-                            return Some(hit);
                         }
                     } else {
                         let xx = i.x + 0.5;
@@ -507,8 +559,6 @@ impl Renderer {
                                             hit.distance = t;
                                             hit.normal = -normal;
                                             hit.hit_point = ray.at(t);
-
-                                            return Some(hit);
                                         }
                                     }
                                 }
@@ -654,7 +704,12 @@ impl Renderer {
         // }
 
         //TheColor::from_vec4f(color).to_u8_array()
-        None
+
+        if hit.distance < f32::MAX {
+            Some(hit)
+        } else {
+            None
+        }
     }
 
     /// RENDERED
@@ -785,9 +840,37 @@ impl Renderer {
                 if let Some(data) = region.prerendered.tree.nearest_neighbor(&[p.x, p.z]) {
                     start_x = data.pixel_location.0;
                     start_y = data.pixel_location.1;
+
+                    // if let Some(tile_coords) = &region.prerendered.tile_coords {
+                    //     fn bilinear_interpolate(corners: &[Vec2f; 4], u: f32, v: f32) -> Vec2f {
+                    //         Vec2f {
+                    //             x: corners[0].x * (1.0 - u) * (1.0 - v)
+                    //                 + corners[1].x * u * (1.0 - v)
+                    //                 + corners[2].x * (1.0 - u) * v
+                    //                 + corners[3].x * u * v,
+                    //             y: corners[0].y * (1.0 - u) * (1.0 - v)
+                    //                 + corners[1].y * u * (1.0 - v)
+                    //                 + corners[2].y * (1.0 - u) * v
+                    //                 + corners[3].y * u * v,
+                    //         }
+                    //     }
+                    //     let size_x = width_f / (region.width as f32 * region.grid_size as f32);
+                    //     let size_y = height_f / (region.height as f32 * region.grid_size as f32);
+
+                    //     let x = p.x / size_x;
+                    //     let y = p.y / size_y;
+
+                    //     let uv = bilinear_interpolate(tile_coords, x, y) * vec2f(size_x, size_y);
+
+                    //     println!("{} {}", start_x, uv.x);
+                    // } else {
+                    //     println!("No coords!");
+                    // }
                 }
             }
         }
+
+        // TEMP TESTING
 
         // Render loop
 
@@ -1777,7 +1860,7 @@ impl Renderer {
         }
 
         let mut i = floor(ro);
-        let mut dist = 0.0;
+        let mut dist; // = 0.0;
 
         let mut normal;
         let srd = signum(rd);

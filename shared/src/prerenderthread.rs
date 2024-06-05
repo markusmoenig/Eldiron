@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use rayon::ThreadPoolBuilder;
 use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 use theframework::prelude::*;
@@ -88,6 +89,13 @@ impl PreRenderThread {
             let mut draw_settings = RegionDrawSettings::new();
             draw_settings.daylight = vec3f(1.0, 1.0, 1.0);
 
+            // We allocate half of the available cpus to the background pool
+            let cpus = num_cpus::get();
+            let background_pool = ThreadPoolBuilder::new()
+                .num_threads(cpus / 2)
+                .build()
+                .unwrap();
+
             loop {
                 if let Ok(cmd) = rx.recv() {
                     match cmd {
@@ -136,20 +144,24 @@ impl PreRenderThread {
                                 prerendered
                             };
 
-                            // println!("tiles_to_render: {:?}", prerendered.tiles_to_render.len());
+                            println!("tiles_to_render: {:?}", prerendered.tiles_to_render.len());
 
                             if !prerendered.tiles_to_render.is_empty() {
-                                renderer.prerender(
-                                    &mut prerendered,
-                                    &region,
-                                    &mut draw_settings,
-                                    &palette,
-                                );
+                                background_pool.install(|| {
+                                    renderer.prerender(
+                                        &mut prerendered,
+                                        &region,
+                                        &mut draw_settings,
+                                        &palette,
+                                    );
+                                });
+
+                                prerendered.tiles_to_render.clear();
 
                                 result_tx
                                     .send(PreRenderResult::RenderedRegion(region.id, prerendered))
                                     .unwrap();
-                                // println!("finished");
+                                println!("finished");
                             }
                         }
                         PreRenderCmd::Quit => {

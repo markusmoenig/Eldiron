@@ -76,6 +76,7 @@ impl MaterialFXObject {
     pub fn to_canvas(&mut self, _palette: &ThePalette) -> TheNodeCanvas {
         let mut canvas = TheNodeCanvas {
             node_width: 95,
+            selected_node: self.selected_node,
             ..Default::default()
         };
 
