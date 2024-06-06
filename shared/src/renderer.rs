@@ -421,6 +421,11 @@ impl Renderer {
                         let mut t = 0.000;
 
                         for _ in 0..20 {
+                            // Max distance a ray can travel in a unit cube
+                            if t > 1.732 {
+                                break;
+                            }
+
                             let p = r.at(t);
                             let d = geo_obj.distance_3d(&settings.time, p);
                             if d.abs() < 0.001 {
@@ -433,6 +438,7 @@ impl Renderer {
 
                                     if let Some(material) = self.materials.get(&geo_obj.material_id)
                                     {
+                                        hit.uv = self.get_uv_face(hit.normal, hit.hit_point).0;
                                         material.compute(&mut hit, palette);
                                     } else {
                                         hit.albedo = vec3f(0.5, 0.5, 0.5);

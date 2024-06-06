@@ -50,25 +50,93 @@ impl MaterialFXObject {
 
     /// Computes the material
     pub fn compute(&self, hit: &mut Hit, palette: &ThePalette) {
-        let mut material_index = None;
         for (i, node) in self.nodes.iter().enumerate() {
-            if node.role == MaterialFXNodeRole::Material {
-                material_index = Some(i);
+            if node.role == MaterialFXNodeRole::Geometry {
+                self.follow_trail(i, 0, hit, palette);
                 break;
             }
         }
 
-        if let Some(material_index) = material_index {
-            let material_node = &self.nodes[material_index];
+        // if let Some(material_index) = material_index {
+        //     let material_node = &self.nodes[material_index];
 
-            let p = material_node.get("Color");
-            if let Some(TheValue::PaletteIndex(i)) = p {
-                if let Some(c) = &palette.colors[i as usize] {
-                    hit.albedo = c.to_vec3f();
+        //     let p = material_node.get("Color");
+        //     if let Some(TheValue::PaletteIndex(i)) = p {
+        //         if let Some(c) = &palette.colors[i as usize] {
+        //             hit.albedo = c.to_vec3f();
+        //         }
+        //     }
+        // } else {
+        //     hit.albedo = Vec3f::new(0.5, 0.5, 0.5);
+        // }
+        //
+    }
+
+    /// Returns the connected output node for the given input node and terminal.
+    pub fn find_connected_output_node(&self, node: usize, terminal_index: usize) -> Option<usize> {
+        for (o, _, i, it) in &self.connections {
+            if *i == node as u16 && *it == terminal_index as u8 {
+                return Some(*o as usize);
+            }
+        }
+        None
+    }
+
+    /// After exiting a geometry node follow the trail of material nodes to calculate the final color.
+    pub fn follow_trail(
+        &self,
+        node: usize,
+        terminal_index: usize,
+        hit: &mut Hit,
+        palette: &ThePalette,
+    ) {
+        let mut connections = vec![];
+
+        for (o, ot, i, it) in &self.connections {
+            if *o == node as u16 && *ot == terminal_index as u8 {
+                connections.push((*i, *it));
+            }
+        }
+
+        match connections.len() {
+            0 => {}
+            1 => {
+                let o = connections[0].0 as usize;
+
+                /*
+                let mut noise = 0.0;
+                if let Some(noise_index) = self.find_connected_output_node(o, 1) {
+                    if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
+                        noise = self.nodes[noise_index].noise(hit);
+                        hit.uv += 7.23;
+                        let noise2 = self.nodes[noise_index].noise(hit);
+                        let wobble = vec2f(noise, noise2);
+                        hit.uv -= 7.23;
+                        hit.uv += wobble * 0.5;
+                    }
+                }
+
+                */
+                if let Some(ot) = self.nodes[o].compute(hit, palette) {
+                    self.follow_trail(o, ot as usize, hit, palette);
                 }
             }
-        } else {
-            hit.albedo = Vec3f::new(0.5, 0.5, 0.5);
+            _ => {
+                let index = (hit.hash * connections.len() as f32).floor() as usize;
+                if let Some(random_connection) = connections.get(index) {
+                    let o = random_connection.0 as usize;
+                    /*
+                    let mut noise = 0.0;
+                    if let Some(noise_index) = self.find_connected_output_node(o, 1) {
+                        if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
+                            noise = self.nodes[noise_index].noise(hit);
+                        }
+                        }*/
+                    if let Some(ot) = self.nodes[o].compute(hit, palette) {
+                        self.follow_trail(o, ot as usize, hit, palette);
+                    }
+                }
+            }
         }
     }
 

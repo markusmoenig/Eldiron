@@ -1380,14 +1380,32 @@ impl TileEditor {
                     // No area, set the tile.
 
                     server_ctx.curr_character_instance = None;
-                    // Test against object SDFs
-                    if let Some(editor) = ui.get_rgba_layout("Region Editor") {
-                        if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
-                            let p = rgba_view.float_pos();
-                            for geo_obj in region.geometry.values() {
-                                let d = geo_obj.distance(&TheTime::default(), p, 1.0);
-                                if d < 0.0 {
-                                    server_ctx.curr_geo_object = Some(geo_obj.id);
+                    if !three_d {
+                        // Test against object SDFs float position in 2d
+                        if let Some(editor) = ui.get_rgba_layout("Region Editor") {
+                            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                                let p = rgba_view.float_pos();
+                                for geo_obj in region.geometry.values() {
+                                    let d = geo_obj.distance(&TheTime::default(), p, 1.0);
+                                    if d < 0.0 {
+                                        server_ctx.curr_geo_object = Some(geo_obj.id);
+                                        server_ctx.curr_geo_node = Some(geo_obj.nodes[0].id);
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Set Region Modeler"),
+                                            TheValue::Empty,
+                                        ));
+                                        found_geo = true;
+                                    }
+                                }
+                            }
+                        }
+                    } else if let Some(geo_area) =
+                        region.geometry_areas.get(&vec3i(coord.x, 0, coord.y))
+                    {
+                        for geo in geo_area {
+                            if let Some(geo_obj) = region.geometry.get(geo) {
+                                server_ctx.curr_geo_object = Some(geo_obj.id);
+                                if !geo_obj.nodes.is_empty() {
                                     server_ctx.curr_geo_node = Some(geo_obj.nodes[0].id);
                                     ctx.ui.send(TheEvent::Custom(
                                         TheId::named("Set Region Modeler"),
@@ -1398,6 +1416,7 @@ impl TileEditor {
                             }
                         }
                     }
+
                     /*
                     if let Some(store) = region.models.get(&(coord.x, 0, coord.y)) {
                         let mut model = ModelFX::default();

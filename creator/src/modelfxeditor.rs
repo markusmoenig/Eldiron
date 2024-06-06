@@ -148,6 +148,7 @@ impl ModelFXEditor {
                         ..Default::default()
                     },
                 ),
+                TheContextMenuItem::new("Geometry".to_string(), TheId::named("Geometry")),
                 TheContextMenuItem::new("Noise".to_string(), TheId::named("Noise3D")),
                 TheContextMenuItem::new("Material".to_string(), TheId::named("Material")),
             ],
@@ -273,7 +274,7 @@ impl ModelFXEditor {
             TheEvent::StateChanged(id, state) => {
                 if id.name == "MaterialFX Add" {
                     let mut material = MaterialFXObject::default();
-                    let node = MaterialFXNode::new(MaterialFXNodeRole::Material);
+                    let node = MaterialFXNode::new(MaterialFXNodeRole::Geometry);
                     material.nodes.push(node);
                     material.selected_node = Some(material.nodes.len() - 1);
 
@@ -313,18 +314,17 @@ impl ModelFXEditor {
             }
             TheEvent::ContextMenuSelected(_id, item) => {
                 //let prev = self.modelfx.to_json();
-                if self.editing_mode == EditingMode::MaterialNodes
-                    && self.modelfx.add(item.name.clone())
-                {
+                if self.editing_mode == EditingMode::MaterialNodes {
                     if let Some(material_id) = server_ctx.curr_material_object {
                         if let Some(material) = project.materials.get_mut(&material_id) {
                             let material_id = material.id;
-                            let node = MaterialFXNode::new(MaterialFXNodeRole::Material);
+                            let node = MaterialFXNode::new_from_name(item.name.clone());
                             material.nodes.push(node);
                             material.selected_node = Some(material.nodes.len() - 1);
                             let node_canvas = material.to_canvas(&project.palette);
                             ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
                             self.set_material_tiles(ui, ctx, project, Some(material_id));
+                            self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
                         }
                     }
                     /*
@@ -381,7 +381,7 @@ impl ModelFXEditor {
             TheEvent::TileEditorClicked(id, coord) => {
                 if id.name == "GeoFX RGBA Layout View" && self.modelfx.clicked(*coord, ui, ctx) {
                     //self.modelfx.draw(ui, ctx, &project.palette);
-                    self.set_selected_node_ui(server_ctx, project, ui, ctx);
+                    self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
                     self.render_preview(ui, &project.palette);
                     redraw = true;
                 }
@@ -588,7 +588,34 @@ impl ModelFXEditor {
                                 }
                             }
                         } else if self.editing_mode == EditingMode::MaterialNodes {
-                            println!("mat {:?}", value);
+                            let mut region_to_render: Option<Region> = None;
+                            let mut tiles_to_render: Vec<Vec2i> = vec![];
+                            if let Some(material_id) = server_ctx.curr_material_object {
+                                if let Some(material) = project.materials.get_mut(&material_id) {
+                                    if let Some(selected_index) = material.selected_node {
+                                        material.nodes[selected_index].set(name, value);
+
+                                        PRERENDERTHREAD
+                                            .lock()
+                                            .unwrap()
+                                            .material_changed(material.clone());
+
+                                        if let Some(region) =
+                                            project.get_region_mut(&server_ctx.curr_region)
+                                        {
+                                            tiles_to_render = region.get_material_area(material_id);
+                                            region_to_render = Some(region.clone());
+                                        }
+                                    }
+                                }
+                            }
+                            if let Some(region) = region_to_render {
+                                PRERENDERTHREAD.lock().unwrap().render_region(
+                                    region,
+                                    project.palette.clone(),
+                                    tiles_to_render,
+                                );
+                            }
                         }
                         /*
                         let prev = self.modelfx.to_json();
@@ -682,7 +709,7 @@ impl ModelFXEditor {
                             self.set_material_node_ui(server_ctx, project, ui, ctx);
                         } else {
                             self.editing_mode = EditingMode::MaterialNodes;
-                            self.set_selected_node_ui(server_ctx, project, ui, ctx);
+                            self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
                         }
                     }
                 }
@@ -694,7 +721,7 @@ impl ModelFXEditor {
                             material.selected_node = *index;
                         }
                     }
-                    self.set_selected_node_ui(server_ctx, project, ui, ctx);
+                    self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
                 }
             }
             TheEvent::NodeDragged(id, index, position) => {
@@ -748,7 +775,7 @@ impl ModelFXEditor {
         } else if self.editing_mode == EditingMode::Material {
             self.set_material_node_ui(server_ctx, project, ui, ctx);
         } else {
-            self.set_selected_node_ui(server_ctx, project, ui, ctx);
+            self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
         }
     }
 
@@ -859,7 +886,7 @@ impl ModelFXEditor {
         }
     }
 
-    pub fn set_selected_node_ui(
+    pub fn set_selected_material_node_ui(
         &mut self,
         server_ctx: &mut ServerContext,
         project: &mut Project,
@@ -883,7 +910,7 @@ impl ModelFXEditor {
                                 slider.set_value(TheValue::Float(*value));
                                 //slider.set_default_value(TheValue::Float(0.0));
                                 slider.set_range(TheValue::RangeF32(range.clone()));
-                                slider.set_continuous(true);
+                                //slider.set_continuous(true);
                                 text_layout.add_pair(name.clone(), Box::new(slider));
                             } else if let TheValue::IntRange(value, range) = value {
                                 let mut slider = TheTextLineEdit::new(TheId::named(
@@ -891,7 +918,7 @@ impl ModelFXEditor {
                                 ));
                                 slider.set_value(TheValue::Int(*value));
                                 slider.set_range(TheValue::RangeI32(range.clone()));
-                                slider.set_continuous(true);
+                                //slider.set_continuous(true);
                                 text_layout.add_pair(name.clone(), Box::new(slider));
                             } else if let TheValue::TextList(index, list) = value {
                                 let mut dropdown = TheDropdownMenu::new(TheId::named(
@@ -923,18 +950,18 @@ impl ModelFXEditor {
                         ctx.ui.relayout = true;
                     }
                 }
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .material_changed(material.clone());
-                if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                    let area = region.get_material_area(material_id);
-                    PRERENDERTHREAD.lock().unwrap().render_region(
-                        region.clone(),
-                        project.palette.clone(),
-                        area,
-                    );
-                }
+                // PRERENDERTHREAD
+                //     .lock()
+                //     .unwrap()
+                //     .material_changed(material.clone());
+                // if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                //     let area = region.get_material_area(material_id);
+                //     PRERENDERTHREAD.lock().unwrap().render_region(
+                //         region.clone(),
+                //         project.palette.clone(),
+                //         area,
+                //     );
+                // }
             }
         } else if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
             text_layout.clear();

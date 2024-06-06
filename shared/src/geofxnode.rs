@@ -77,7 +77,7 @@ impl GeoFXNode {
                 {
                     if let Some(radius) = value.to_f32() {
                         let d = length(vec2f(p.x, p.z) - self.position()) - radius;
-                        return op_extrusion_y(p, d, 0.4);
+                        return op_extrusion_y(p, d, 0.8);
                     }
                 }
             }

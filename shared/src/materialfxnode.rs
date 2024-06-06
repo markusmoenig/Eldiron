@@ -1,12 +1,11 @@
-// use crate::prelude::*;
-//use indexmap::IndexMap;
-//use rayon::prelude::*;
-//use noiselib::prelude::*;
+use crate::prelude::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum MaterialFXNodeRole {
+    Geometry,
     Material,
+    Brick,
 }
 
 use MaterialFXNodeRole::*;
@@ -25,8 +24,22 @@ impl MaterialFXNode {
         let mut coll = TheCollection::named(str!("Props"));
 
         match role {
+            Geometry => {}
             Material => {
                 coll.set("Color", TheValue::PaletteIndex(0));
+                coll.set("Roughness", TheValue::FloatRange(0.5, 0.0..=1.0));
+                coll.set("Metallic", TheValue::FloatRange(0.0, 0.0..=1.0));
+            }
+            Brick => {
+                coll.set("Ratio", TheValue::FloatRange(2.0, 1.0..=10.0));
+                coll.set("Rounding", TheValue::FloatRange(0.0, 0.0..=0.5));
+                coll.set("Bevel", TheValue::FloatRange(0.0, 0.0..=0.5));
+                coll.set("Gap", TheValue::FloatRange(0.1, 0.0..=0.5));
+                coll.set("Cell", TheValue::FloatRange(6.0, 0.0..=15.0));
+                coll.set(
+                    "Mode",
+                    TheValue::TextList(0, vec![str!("Bricks"), str!("Tiles")]),
+                );
             }
         }
 
@@ -42,24 +55,103 @@ impl MaterialFXNode {
 
     pub fn name(&self) -> String {
         match self.role {
+            Geometry => str!("Geometry"),
             Material => str!("Material"),
+            Brick => str!("Bricks"),
         }
     }
 
     pub fn nodes() -> Vec<Self> {
-        vec![Self::new(MaterialFXNodeRole::Material)]
+        vec![
+            Self::new(MaterialFXNodeRole::Geometry),
+            Self::new(MaterialFXNodeRole::Material),
+            Self::new(MaterialFXNodeRole::Brick),
+        ]
     }
 
     pub fn inputs(&self) -> Vec<TheNodeTerminal> {
-        vec![]
+        match self.role {
+            Brick | Material => {
+                vec![TheNodeTerminal {
+                    name: str!("in"),
+                    role: str!("in"),
+                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                }]
+            }
+            _ => vec![],
+        }
     }
 
     pub fn outputs(&self) -> Vec<TheNodeTerminal> {
-        vec![TheNodeTerminal {
-            name: str!("color"),
-            role: str!("Albedo"),
-            color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-        }]
+        match self.role {
+            Geometry => {
+                vec![
+                    TheNodeTerminal {
+                        name: str!("3D"),
+                        role: str!("3D"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("2D"),
+                        role: str!("2D"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                ]
+            }
+            Brick => {
+                vec![
+                    TheNodeTerminal {
+                        name: str!("brick"),
+                        role: str!("Brick"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("mortar"),
+                        role: str!("Mortar"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                ]
+            }
+            _ => vec![],
+        }
+    }
+
+    /// Computes the node.
+    pub fn compute(&self, hit: &mut Hit, palette: &ThePalette) -> Option<u8> {
+        match self.role {
+            Material => {
+                let collection = self.collection();
+
+                if let Some(TheValue::PaletteIndex(index)) = collection.get("Color") {
+                    if let Some(color) = &palette.colors[*index as usize] {
+                        hit.albedo.x = color.r;
+                        hit.albedo.y = color.g;
+                        hit.albedo.z = color.b;
+                        hit.roughness = collection.get_f32_default("Roughness", 0.5);
+                        hit.metallic = collection.get_f32_default("Metallic", 0.0);
+                    }
+                }
+
+                None
+            }
+            Brick => {
+                let collection = self.collection();
+                let (_, terminal) = bricks(&collection, hit.uv, hit);
+                Some(terminal)
+            }
+            _ => None,
+        }
+    }
+
+    /// Creates a new node from a name.
+    pub fn new_from_name(name: String) -> Self {
+        let nodes = MaterialFXNode::nodes();
+        for n in nodes {
+            if n.name() == name {
+                return n;
+            }
+        }
+        MaterialFXNode::new(Geometry)
     }
 
     pub fn collection(&self) -> TheCollection {
