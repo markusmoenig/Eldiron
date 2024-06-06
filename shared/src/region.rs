@@ -9,6 +9,10 @@ fn default_max_brightness() -> f32 {
     1.0
 }
 
+fn default_pathtracer_samples() -> i32 {
+    30
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub enum RegionType {
     Region2D,
@@ -72,6 +76,9 @@ pub struct Region {
     pub scroll_offset: Vec2i,
     pub zoom: f32,
 
+    #[serde(default = "default_pathtracer_samples")]
+    pub pathtracer_samples: i32,
+
     #[serde(default)]
     pub editing_position_3d: Vec3f,
 
@@ -127,6 +134,8 @@ impl Region {
             grid_size: 24,
             scroll_offset: Vec2i::zero(),
             zoom: 1.0,
+
+            pathtracer_samples: default_pathtracer_samples(),
 
             editing_position_3d: Vec3f::zero(),
 

@@ -740,6 +740,7 @@ impl ModelFXEditor {
                         if let Some(material) = project.materials.get_mut(&material_id) {
                             material.connections.clone_from(connections);
                         }
+                        self.render_material_changes(material_id, server_ctx, project);
                     }
                 }
             }
@@ -752,6 +753,7 @@ impl ModelFXEditor {
                             material.connections.clone_from(connections);
                             redraw = true;
                         }
+                        self.render_material_changes(material_id, server_ctx, project);
                     }
                 }
             }
@@ -1202,6 +1204,33 @@ impl ModelFXEditor {
 
                 rgba_view.set_buffer(buffer);
             }
+        }
+    }
+
+    fn render_material_changes(
+        &mut self,
+        material_id: Uuid,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+    ) {
+        let mut region_to_render: Option<Region> = None;
+        let mut tiles_to_render: Vec<Vec2i> = vec![];
+        if let Some(material) = project.materials.get_mut(&material_id) {
+            PRERENDERTHREAD
+                .lock()
+                .unwrap()
+                .material_changed(material.clone());
+        }
+        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+            tiles_to_render = region.get_material_area(material_id);
+            region_to_render = Some(region.clone());
+        }
+        if let Some(region) = region_to_render {
+            PRERENDERTHREAD.lock().unwrap().render_region(
+                region,
+                project.palette.clone(),
+                tiles_to_render,
+            );
         }
     }
 }

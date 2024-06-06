@@ -143,6 +143,8 @@ pub struct Hit {
     pub spec_trans: f32,
     pub ior: f32,
     pub absorption: f32,
+
+    pub displacement: f32,
 }
 
 impl Default for Hit {
@@ -176,6 +178,8 @@ impl Hit {
             spec_trans: 0.0,
             ior: 1.5,
             absorption: 1.0,
+
+            displacement: 0.0,
         }
     }
 }

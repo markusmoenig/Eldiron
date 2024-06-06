@@ -243,6 +243,11 @@ impl Sidebar {
         grid_edit.set_status_text("The size of the region grid in pixels.");
         text_layout.add_pair("Grid Size".to_string(), Box::new(grid_edit));
 
+        let mut tracer_edit = TheTextLineEdit::new(TheId::named("Region Tracer Samples Edit"));
+        tracer_edit.set_range(TheValue::RangeI32(1..=100));
+        tracer_edit.set_status_text("The pathtracing samples for the region.");
+        text_layout.add_pair("Tracer Samples".to_string(), Box::new(tracer_edit));
+
         let mut minbr = TheSlider::new(TheId::named("Region Min Brightness"));
         minbr.set_value(TheValue::Float(0.3));
         minbr.set_continuous(true);
@@ -1086,6 +1091,22 @@ impl Sidebar {
                     if let Some(v) = value.to_i32() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.grid_size = v;
+
+                            ctx.ui
+                                .send(TheEvent::Custom(TheId::named("Prerender"), TheValue::Empty));
+                            server.update_region(region);
+
+                            if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
+                                if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                                    rgba.set_grid(Some(v));
+                                }
+                            }
+                        }
+                    }
+                } else if id.name == "Region Tracer Samples Edit" {
+                    if let Some(v) = value.to_i32() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.pathtracer_samples = v;
 
                             ctx.ui
                                 .send(TheEvent::Custom(TheId::named("Prerender"), TheValue::Empty));
@@ -2942,6 +2963,18 @@ impl Sidebar {
         {
             if let Some(region) = region {
                 widget.set_value(TheValue::Text(region.grid_size.clone().to_string()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Region Tracer Samples Edit".to_string()), None)
+        {
+            if let Some(region) = region {
+                widget.set_value(TheValue::Text(region.pathtracer_samples.to_string()));
                 widget.set_disabled(false);
             } else {
                 widget.set_value(TheValue::Empty);

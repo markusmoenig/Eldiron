@@ -171,7 +171,7 @@ impl Renderer {
                     let mut sky_abso = Vec3f::zero();
                     let mut distance: f32 = 0.0;
 
-                    for sample in 0..30 {
+                    for sample in 0..region.pathtracer_samples {
                         let mut ray = if camera_type == CameraType::TiltedIso {
                             camera.create_tilted_isometric_ray2(
                                 vec2f(xx / width_f, (height_f - yy) / height_f),
@@ -415,6 +415,10 @@ impl Renderer {
             if let Some(geo_ids) = region.geometry_areas.get(&key) {
                 for geo_id in geo_ids {
                     if let Some(geo_obj) = region.geometry.get(geo_id) {
+                        let mut has_displacement = false;
+                        if let Some(material) = self.materials.get(&geo_obj.material_id) {
+                            has_displacement = material.has_displacement();
+                        }
                         let lro = ray.at(dist);
 
                         let r = Ray::new(lro, ray.d);
@@ -427,7 +431,16 @@ impl Renderer {
                             }
 
                             let p = r.at(t);
-                            let d = geo_obj.distance_3d(&settings.time, p);
+                            let mut d = geo_obj.distance_3d(&settings.time, p);
+                            if has_displacement {
+                                if let Some(material) = self.materials.get(&geo_obj.material_id) {
+                                    hit.hit_point = p;
+                                    hit.normal = geo_obj.normal(&settings.time, p);
+                                    hit.uv = self.get_uv_face(hit.normal, hit.hit_point).0;
+                                    material.displacement(&mut hit);
+                                    d += hit.displacement;
+                                }
+                            }
                             if d.abs() < 0.001 {
                                 dist += t;
 

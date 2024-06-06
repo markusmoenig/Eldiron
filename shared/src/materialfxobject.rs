@@ -56,20 +56,44 @@ impl MaterialFXObject {
                 break;
             }
         }
+    }
 
-        // if let Some(material_index) = material_index {
-        //     let material_node = &self.nodes[material_index];
+    /// Computes the displacement if any
+    pub fn displacement(&self, hit: &mut Hit) {
+        for (i, node) in self.nodes.iter().enumerate() {
+            if node.role == MaterialFXNodeRole::Geometry {
+                if let Some((node, _)) = self.find_connected_input_node(i, 2) {
+                    self.nodes[node as usize].displacement(hit);
+                }
+                break;
+            }
+        }
+    }
 
-        //     let p = material_node.get("Color");
-        //     if let Some(TheValue::PaletteIndex(i)) = p {
-        //         if let Some(c) = &palette.colors[i as usize] {
-        //             hit.albedo = c.to_vec3f();
-        //         }
-        //     }
-        // } else {
-        //     hit.albedo = Vec3f::new(0.5, 0.5, 0.5);
-        // }
-        //
+    /// Returns true if the material supports displacement
+    pub fn has_displacement(&self) -> bool {
+        for (i, node) in self.nodes.iter().enumerate() {
+            if node.role == MaterialFXNodeRole::Geometry {
+                if let Some((_, _)) = self.find_connected_input_node(i, 2) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Returns the connected input node and terminal for the given output node and terminal.
+    pub fn find_connected_input_node(
+        &self,
+        node: usize,
+        terminal_index: usize,
+    ) -> Option<(u16, u8)> {
+        for (o, ot, i, it) in &self.connections {
+            if *o == node as u16 && *ot == terminal_index as u8 {
+                return Some((*i, *it));
+            }
+        }
+        None
     }
 
     /// Returns the connected output node for the given input node and terminal.

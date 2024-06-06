@@ -33,13 +33,14 @@ impl MaterialFXNode {
             Brick => {
                 coll.set("Ratio", TheValue::FloatRange(2.0, 1.0..=10.0));
                 coll.set("Rounding", TheValue::FloatRange(0.0, 0.0..=0.5));
-                coll.set("Bevel", TheValue::FloatRange(0.0, 0.0..=0.5));
+                //coll.set("Bevel", TheValue::FloatRange(0.0, 0.0..=0.5));
                 coll.set("Gap", TheValue::FloatRange(0.1, 0.0..=0.5));
                 coll.set("Cell", TheValue::FloatRange(6.0, 0.0..=15.0));
                 coll.set(
                     "Mode",
                     TheValue::TextList(0, vec![str!("Bricks"), str!("Tiles")]),
                 );
+                coll.set("Displace", TheValue::FloatRange(0.0, 0.0..=1.0));
             }
         }
 
@@ -71,10 +72,24 @@ impl MaterialFXNode {
 
     pub fn inputs(&self) -> Vec<TheNodeTerminal> {
         match self.role {
-            Brick | Material => {
+            Brick => {
+                vec![
+                    TheNodeTerminal {
+                        name: str!("in"),
+                        role: str!("Input"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("dis"),
+                        role: str!("Displacement"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                ]
+            }
+            Material => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
-                    role: str!("in"),
+                    role: str!("Input"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             }
@@ -94,6 +109,11 @@ impl MaterialFXNode {
                     TheNodeTerminal {
                         name: str!("2D"),
                         role: str!("2D"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("dis"),
+                        role: str!("Displacement"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]
@@ -140,6 +160,22 @@ impl MaterialFXNode {
                 Some(terminal)
             }
             _ => None,
+        }
+    }
+
+    /// Computes the displacement of the node.
+    pub fn displacement(&self, hit: &mut Hit) {
+        match self.role {
+            Brick => {
+                let collection = self.collection();
+                let (_, terminal) = bricks(&collection, hit.uv, hit);
+                if terminal == 1 {
+                    hit.displacement = collection.get_f32_default("Displace", 0.0);
+                } else {
+                    hit.displacement = 0.0;
+                }
+            }
+            _ => {}
         }
     }
 
