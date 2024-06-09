@@ -2534,6 +2534,11 @@ impl Sidebar {
             .unwrap()
             .redraw_modelfx_library(project, ui, ctx);
 
+        TILEDRAWER
+            .lock()
+            .unwrap()
+            .set_materials(project.materials.clone());
+
         ui.select_first_list_item("Region List", ctx);
         ui.select_first_list_item("Character List", ctx);
         ui.select_first_list_item("Item List", ctx);

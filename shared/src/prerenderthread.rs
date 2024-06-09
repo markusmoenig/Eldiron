@@ -3,7 +3,6 @@ use rayon::ThreadPoolBuilder;
 use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 use theframework::prelude::*;
-
 pub enum PreRenderCmd {
     SetTextures(FxHashMap<Uuid, TheRGBATile>),
     SetMaterials(IndexMap<Uuid, MaterialFXObject>),

@@ -234,6 +234,7 @@ impl RegionInstance {
     }
 
     /// Draws this instance into the given buffer.
+    #[allow(clippy::too_many_arguments)]
     pub fn draw(
         &mut self,
         buffer: &mut TheRGBABuffer,
@@ -242,6 +243,7 @@ impl RegionInstance {
         server_ctx: &ServerContext,
         compute_delta: bool,
         offset: Vec2i,
+        palette: &ThePalette,
     ) {
         let delta = self.redraw_ms as f32 / self.tick_ms as f32;
 
@@ -272,6 +274,7 @@ impl RegionInstance {
                     update,
                     &mut self.draw_settings,
                     compute_delta,
+                    palette,
                 );
             }
         }

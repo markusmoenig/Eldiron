@@ -50,6 +50,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
                             &mut update,
                             &mut settings,
                             true,
+                            &PALETTE.read().unwrap(),
                         );
                         zoom_buffer.scaled_into(&mut buffer);
                     } else {
@@ -59,6 +60,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
                             &mut update,
                             &mut settings,
                             true,
+                            &PALETTE.read().unwrap(),
                         );
                     }
                 } else if mode == 1 {

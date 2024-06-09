@@ -128,6 +128,8 @@ pub struct Hit {
     pub hash: f32,
 
     pub distance: f32,
+    pub interior_distance: f32,
+
     pub hit_point: Vec3f,
     pub normal: Vec3f,
     pub uv: Vec2f,
@@ -145,6 +147,7 @@ pub struct Hit {
     pub absorption: f32,
 
     pub displacement: f32,
+    pub value: f32,
 }
 
 impl Default for Hit {
@@ -162,6 +165,8 @@ impl Hit {
             hash: 0.0,
 
             distance: f32::MAX,
+            interior_distance: f32::MAX,
+
             hit_point: Vec3f::zero(),
             normal: Vec3f::zero(),
             uv: Vec2f::zero(),
@@ -180,6 +185,7 @@ impl Hit {
             absorption: 1.0,
 
             displacement: 0.0,
+            value: 0.0,
         }
     }
 }

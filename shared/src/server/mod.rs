@@ -386,6 +386,7 @@ impl Server {
                 server_ctx,
                 compute_delta,
                 offset,
+                &PALETTE.read().unwrap(),
             );
         }
     }

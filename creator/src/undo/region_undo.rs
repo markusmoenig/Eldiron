@@ -1,15 +1,31 @@
 use crate::prelude::*;
 use theframework::prelude::*;
 
+use crate::editor::PRERENDERTHREAD;
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum RegionUndoAtom {
+    GeoFXObjectEdit(Uuid, Option<GeoFXObject>, Option<GeoFXObject>, Vec<Vec2i>),
     RegionTileEdit(Vec2i, Option<RegionTile>, Option<RegionTile>),
     ModelFXEdit(Vec3i, Option<ModelFXStore>, Option<ModelFXStore>),
 }
 
 impl RegionUndoAtom {
-    pub fn undo(&self, region: &mut Region) {
+    pub fn undo(&self, region: &mut Region, palette: &ThePalette) {
         match self {
+            RegionUndoAtom::GeoFXObjectEdit(id, prev, _, tiles) => {
+                if let Some(prev) = prev {
+                    region.geometry.insert(*id, prev.clone());
+                } else {
+                    region.geometry.remove(id);
+                }
+                region.update_geometry_areas();
+                PRERENDERTHREAD.lock().unwrap().render_region(
+                    region.clone(),
+                    palette.clone(),
+                    tiles.clone(),
+                );
+            }
             RegionUndoAtom::RegionTileEdit(pos, prev, _) => {
                 if let Some(prev) = prev {
                     region.tiles.insert((pos.x, pos.y), prev.clone());
@@ -26,8 +42,21 @@ impl RegionUndoAtom {
             }
         }
     }
-    pub fn redo(&self, region: &mut Region) {
+    pub fn redo(&self, region: &mut Region, palette: &ThePalette) {
         match self {
+            RegionUndoAtom::GeoFXObjectEdit(id, _, next, tiles) => {
+                if let Some(next) = next {
+                    region.geometry.insert(*id, next.clone());
+                } else {
+                    region.geometry.remove(id);
+                }
+                region.update_geometry_areas();
+                PRERENDERTHREAD.lock().unwrap().render_region(
+                    region.clone(),
+                    palette.clone(),
+                    tiles.clone(),
+                );
+            }
             RegionUndoAtom::RegionTileEdit(pos, _, next) => {
                 if let Some(next) = next {
                     region.tiles.insert((pos.x, pos.y), next.clone());
@@ -95,17 +124,17 @@ impl RegionUndo {
         self.index += 1;
     }
 
-    pub fn undo(&mut self, region: &mut Region) {
+    pub fn undo(&mut self, region: &mut Region, palette: &ThePalette) {
         if self.index >= 0 {
-            self.stack[self.index as usize].undo(region);
+            self.stack[self.index as usize].undo(region, palette);
             self.index -= 1;
         }
     }
 
-    pub fn redo(&mut self, region: &mut Region) {
+    pub fn redo(&mut self, region: &mut Region, palette: &ThePalette) {
         if self.index < self.stack.len() as isize - 1 {
             self.index += 1;
-            self.stack[self.index as usize].redo(region);
+            self.stack[self.index as usize].redo(region, palette);
         }
     }
 }

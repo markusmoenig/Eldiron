@@ -1054,27 +1054,121 @@ impl TileEditor {
             let mut tiles_to_render: Vec<Vec2i> = vec![];
 
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                //let model = MODELFXEDITOR.lock().unwrap().get_model();
-                let geo = MODELFXEDITOR.lock().unwrap().get_geo_node(ui);
-                if let Some(mut geo) = geo {
-                    let new_id = Uuid::new_v4();
-                    geo.id = new_id;
-                    geo.set_default_position(coord);
-                    let obj_id = region.add_geo_node(geo);
-                    if let Some((geo_obj, _)) = region.find_geo_node(new_id) {
-                        tiles_to_render.clone_from(&geo_obj.area);
+                let editing_mode = MODELFXEDITOR.lock().unwrap().editing_mode;
+                if editing_mode == EditingMode::Geometry {
+                    // Add Geometry
+                    let geo = MODELFXEDITOR.lock().unwrap().get_geo_node(ui);
+                    if let Some(mut geo) = geo {
+                        let new_id = Uuid::new_v4();
+                        geo.id = new_id;
+                        geo.set_default_position(coord);
+                        let obj_id = region.add_geo_node(geo);
+                        if let Some((geo_obj, _)) = region.find_geo_node(new_id) {
+                            tiles_to_render.clone_from(&geo_obj.area);
+                        }
+                        server_ctx.curr_geo_object = Some(obj_id);
+                        server_ctx.curr_geo_node = Some(new_id);
+                        region_to_render = Some(region.clone());
+
+                        server.update_region(region);
+
+                        if let Some(obj) = region.geometry.get(&obj_id) {
+                            let undo = RegionUndoAtom::GeoFXObjectEdit(
+                                obj_id,
+                                None,
+                                Some(obj.clone()),
+                                tiles_to_render.clone(),
+                            );
+                            UNDOMANAGER
+                                .lock()
+                                .unwrap()
+                                .add_region_undo(&region.id, undo, ctx);
+                        }
+
+                        MODELFXEDITOR
+                            .lock()
+                            .unwrap()
+                            .set_geo_node_ui(server_ctx, project, ui, ctx);
+                        redraw = true;
                     }
-                    server_ctx.curr_geo_object = Some(obj_id);
-                    server_ctx.curr_geo_node = Some(new_id);
-                    region_to_render = Some(region.clone());
+                } else {
+                    // Apply material
 
-                    server.update_region(region);
+                    let mut region_to_render: Option<Region> = None;
+                    let mut tiles_to_render: Vec<Vec2i> = vec![];
 
-                    MODELFXEDITOR
-                        .lock()
-                        .unwrap()
-                        .set_geo_node_ui(server_ctx, project, ui, ctx);
-                    redraw = true;
+                    if let Some(material_id) = server_ctx.curr_material_object {
+                        // Set the material to the current geometry node.
+                        if !three_d {
+                            if let Some(editor) = ui.get_rgba_layout("Region Editor") {
+                                if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                                    let p = rgba_view.float_pos();
+                                    for geo_obj in region.geometry.values_mut() {
+                                        let d = geo_obj.distance(&TheTime::default(), p, 1.0);
+                                        if d.0 < 0.0 {
+                                            server_ctx.curr_geo_object = Some(geo_obj.id);
+                                            server_ctx.curr_geo_node = Some(geo_obj.nodes[d.1].id);
+
+                                            let prev = geo_obj.clone();
+
+                                            geo_obj.material_id = material_id;
+                                            geo_obj.update_area();
+
+                                            tiles_to_render.clone_from(&geo_obj.area);
+
+                                            let undo = RegionUndoAtom::GeoFXObjectEdit(
+                                                geo_obj.id,
+                                                Some(prev),
+                                                Some(geo_obj.clone()),
+                                                tiles_to_render.clone(),
+                                            );
+                                            UNDOMANAGER
+                                                .lock()
+                                                .unwrap()
+                                                .add_region_undo(&region.id, undo, ctx);
+
+                                            server.update_region(region);
+                                            region_to_render = Some(region.clone());
+
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        } else if let Some(curr_geo_node) = server_ctx.curr_geo_node {
+                            if let Some((geo_obj, _)) = region.find_geo_node(curr_geo_node) {
+                                let geo_obj_id = geo_obj.id;
+                                let prev = geo_obj.clone();
+                                geo_obj.material_id = material_id;
+                                geo_obj.update_area();
+
+                                tiles_to_render.clone_from(&geo_obj.area);
+
+                                let undo = RegionUndoAtom::GeoFXObjectEdit(
+                                    geo_obj_id,
+                                    Some(prev),
+                                    Some(geo_obj.clone()),
+                                    tiles_to_render.clone(),
+                                );
+                                UNDOMANAGER
+                                    .lock()
+                                    .unwrap()
+                                    .add_region_undo(&region.id, undo, ctx);
+
+                                server.update_region(region);
+                                region_to_render = Some(region.clone());
+                            }
+                        }
+
+                        // Render the region area covered by the object with the new material.
+                        if let Some(region) = region_to_render {
+                            PRERENDERTHREAD.lock().unwrap().render_region(
+                                region,
+                                project.palette.clone(),
+                                tiles_to_render,
+                            );
+                        }
+                    }
                 }
 
                 /*
@@ -1387,14 +1481,15 @@ impl TileEditor {
                                 let p = rgba_view.float_pos();
                                 for geo_obj in region.geometry.values() {
                                     let d = geo_obj.distance(&TheTime::default(), p, 1.0);
-                                    if d < 0.0 {
+                                    if d.0 < 0.0 {
                                         server_ctx.curr_geo_object = Some(geo_obj.id);
-                                        server_ctx.curr_geo_node = Some(geo_obj.nodes[0].id);
+                                        server_ctx.curr_geo_node = Some(geo_obj.nodes[d.1].id);
                                         ctx.ui.send(TheEvent::Custom(
                                             TheId::named("Set Region Modeler"),
                                             TheValue::Empty,
                                         ));
                                         found_geo = true;
+                                        break;
                                     }
                                 }
                             }
@@ -1539,16 +1634,18 @@ impl TileEditor {
                             );
 
                             if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
-                                let undo = RegionUndoAtom::RegionTileEdit(
-                                    vec2i(coord.x, coord.y),
-                                    prev,
-                                    Some(tile.clone()),
-                                );
+                                if prev != Some(tile.clone()) {
+                                    let undo = RegionUndoAtom::RegionTileEdit(
+                                        vec2i(coord.x, coord.y),
+                                        prev,
+                                        Some(tile.clone()),
+                                    );
 
-                                UNDOMANAGER
-                                    .lock()
-                                    .unwrap()
-                                    .add_region_undo(&region.id, undo, ctx);
+                                    UNDOMANAGER
+                                        .lock()
+                                        .unwrap()
+                                        .add_region_undo(&region.id, undo, ctx);
+                                }
                             }
                         }
                         self.set_icon_previews(region, coord, ui);

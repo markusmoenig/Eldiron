@@ -413,6 +413,7 @@ impl Renderer {
             }
 
             if let Some(geo_ids) = region.geometry_areas.get(&key) {
+                hit.key = Vec3f::from(key);
                 for geo_id in geo_ids {
                     if let Some(geo_obj) = region.geometry.get(geo_id) {
                         let mut has_displacement = false;
@@ -431,7 +432,7 @@ impl Renderer {
                             }
 
                             let p = r.at(t);
-                            let mut d = geo_obj.distance_3d(&settings.time, p);
+                            let mut d = geo_obj.distance_3d(&settings.time, p, &mut Some(&mut hit));
                             if has_displacement {
                                 if let Some(material) = self.materials.get(&geo_obj.material_id) {
                                     hit.hit_point = p;

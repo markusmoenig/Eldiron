@@ -1,4 +1,4 @@
-use crate::editor::{PRERENDERTHREAD, SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{PRERENDERTHREAD, SIDEBARMODE, TILEDRAWER, UNDOMANAGER};
 use crate::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -149,7 +149,7 @@ impl ModelFXEditor {
                     },
                 ),
                 TheContextMenuItem::new("Geometry".to_string(), TheId::named("Geometry")),
-                TheContextMenuItem::new("Noise".to_string(), TheId::named("Noise3D")),
+                TheContextMenuItem::new("Noise".to_string(), TheId::named("Noise")),
                 TheContextMenuItem::new("Material".to_string(), TheId::named("Material")),
             ],
             ..Default::default()
@@ -295,6 +295,10 @@ impl ModelFXEditor {
                     server_ctx.curr_material_object = Some(material_id);
                     self.set_material_tiles(ui, ctx, project, Some(material_id));
                     self.set_material_node_ui(server_ctx, project, ui, ctx);
+                    TILEDRAWER
+                        .lock()
+                        .unwrap()
+                        .set_materials(project.materials.clone());
                 } else if id.name == "ModelFX Clear" && state == &TheWidgetState::Clicked {
                     self.modelfx = ModelFX::default();
                     self.modelfx.draw(ui, ctx, &project.palette);
@@ -346,9 +350,11 @@ impl ModelFXEditor {
                     if let Some(material) = self.materials.get(&(coord.x, coord.y)) {
                         server_ctx.curr_material_object = Some(*material);
 
+                        /*
                         let mut region_to_render: Option<Region> = None;
                         let mut tiles_to_render: Vec<Vec2i> = vec![];
 
+                        // Set the material to the current geometry node.
                         if let Some(curr_geo_node) = server_ctx.curr_geo_node {
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 if let Some((geo_obj, _)) = region.find_geo_node(curr_geo_node) {
@@ -370,7 +376,7 @@ impl ModelFXEditor {
                                 project.palette.clone(),
                                 tiles_to_render,
                             );
-                        }
+                            }*/
                     } else {
                         server_ctx.curr_material_object = None;
                     }
@@ -454,6 +460,11 @@ impl ModelFXEditor {
                                             .unwrap()
                                             .material_changed(material.clone());
 
+                                        TILEDRAWER
+                                            .lock()
+                                            .unwrap()
+                                            .set_materials(project.materials.clone());
+
                                         if let Some(region) =
                                             project.get_region(&server_ctx.curr_region)
                                         {
@@ -530,13 +541,7 @@ impl ModelFXEditor {
                     self.render_preview(ui, &project.palette);
                 } else if id.name.starts_with(":MODELFX:") {
                     if let Some(name) = id.name.strip_prefix(":MODELFX: ") {
-                        let mut value = value.clone();
-
-                        if let TheValue::Text(_) = &value {
-                            if let Some(v) = value.to_f32() {
-                                value = TheValue::Float(v);
-                            }
-                        }
+                        let value = value.clone();
 
                         if self.editing_mode == EditingMode::Geometry {
                             if let Some(curr_geo_node) = server_ctx.curr_geo_node {
@@ -599,6 +604,11 @@ impl ModelFXEditor {
                                             .lock()
                                             .unwrap()
                                             .material_changed(material.clone());
+
+                                        TILEDRAWER
+                                            .lock()
+                                            .unwrap()
+                                            .set_materials(project.materials.clone());
 
                                         if let Some(region) =
                                             project.get_region_mut(&server_ctx.curr_region)
@@ -1221,6 +1231,12 @@ impl ModelFXEditor {
                 .unwrap()
                 .material_changed(material.clone());
         }
+
+        TILEDRAWER
+            .lock()
+            .unwrap()
+            .set_materials(project.materials.clone());
+
         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
             tiles_to_render = region.get_material_area(material_id);
             region_to_render = Some(region.clone());

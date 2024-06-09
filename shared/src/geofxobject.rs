@@ -33,24 +33,27 @@ impl GeoFXObject {
         }
     }
 
-    pub fn distance(&self, time: &TheTime, p: Vec2f, scale: f32) -> f32 {
+    /// Returns the distance to the object nodes, the distance and the index of the closes node is returned.
+    pub fn distance(&self, time: &TheTime, p: Vec2f, scale: f32) -> (f32, usize) {
         let mut min_distance = f32::INFINITY;
+        let mut index = 10000;
 
-        for geo in &self.nodes {
+        for (i, geo) in self.nodes.iter().enumerate() {
             let distance = geo.distance(time, p, scale);
             if distance < min_distance {
                 min_distance = distance;
+                index = i;
             }
         }
 
-        min_distance
+        (min_distance, index)
     }
 
-    pub fn distance_3d(&self, time: &TheTime, p: Vec3f) -> f32 {
+    pub fn distance_3d(&self, time: &TheTime, p: Vec3f, hit: &mut Option<&mut Hit>) -> f32 {
         let mut min_distance = f32::INFINITY;
 
         for geo in &self.nodes {
-            let distance = geo.distance_3d(time, p);
+            let distance = geo.distance_3d(time, p, hit);
             if distance < min_distance {
                 min_distance = distance;
             }
@@ -70,10 +73,10 @@ impl GeoFXObject {
         let e3 = vec3f(e.y, e.x, e.y);
         let e4 = vec3f(e.x, e.x, e.x);
 
-        let n = e1 * self.distance_3d(time, p + e1)
-            + e2 * self.distance_3d(time, p + e2)
-            + e3 * self.distance_3d(time, p + e3)
-            + e4 * self.distance_3d(time, p + e4);
+        let n = e1 * self.distance_3d(time, p + e1, &mut None)
+            + e2 * self.distance_3d(time, p + e2, &mut None)
+            + e3 * self.distance_3d(time, p + e3, &mut None)
+            + e4 * self.distance_3d(time, p + e4, &mut None);
         normalize(n)
     }
 

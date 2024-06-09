@@ -6,6 +6,10 @@ use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum GeoFXNodeRole {
+    LeftWall,
+    TopWall,
+    RightWall,
+    BottomWall,
     Disc,
 }
 
@@ -21,9 +25,22 @@ pub struct GeoFXNode {
 impl GeoFXNode {
     pub fn new(role: GeoFXNodeRole) -> Self {
         let mut coll = TheCollection::named(str!("Geo"));
-        coll.set("Pos X", TheValue::Float(0.5));
-        coll.set("Pos Y", TheValue::Float(0.5));
-        coll.set("Radius", TheValue::FloatRange(0.4, 0.001..=5.0));
+
+        match role {
+            LeftWall | TopWall | RightWall | BottomWall => {
+                coll.set("Pos X", TheValue::Float(0.1));
+                coll.set("Pos Y", TheValue::Float(0.5));
+                coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
+                coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+            }
+            Disc => {
+                coll.set("Pos X", TheValue::Float(0.5));
+                coll.set("Pos Y", TheValue::Float(0.5));
+                coll.set("Radius", TheValue::FloatRange(0.4, 0.001..=0.5));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+            }
+        }
         let timeline = TheTimeline::collection(coll);
 
         Self {
@@ -34,20 +51,65 @@ impl GeoFXNode {
     }
 
     pub fn nodes() -> Vec<Self> {
-        vec![Self::new(GeoFXNodeRole::Disc)]
+        vec![
+            Self::new(GeoFXNodeRole::LeftWall),
+            Self::new(GeoFXNodeRole::TopWall),
+            Self::new(GeoFXNodeRole::RightWall),
+            Self::new(GeoFXNodeRole::BottomWall),
+            Self::new(GeoFXNodeRole::Disc),
+        ]
     }
 
     /// The 2D distance from the node to a point.
-    pub fn distance(&self, time: &TheTime, p: Vec2f, scale: f32) -> f32 {
-        match self.role {
-            Disc => {
-                if let Some(value) =
-                    self.timeline
-                        .get(str!("Geo"), str!("Radius"), time, TheInterpolation::Linear)
-                {
-                    if let Some(radius) = value.to_f32() {
-                        return length(p - self.position() * scale) - radius * scale;
-                    }
+    pub fn distance(&self, _time: &TheTime, p: Vec2f, scale: f32) -> f32 {
+        if let Some(coll) = self
+            .timeline
+            .get_collection_at(&TheTime::default(), str!("Geo"))
+        {
+            match self.role {
+                LeftWall => {
+                    let thick = coll.get_f32_default("Thickness", 0.2) * scale;
+                    let len = coll.get_f32_default("Length", 1.0) * scale;
+
+                    let mut pos = self.position() * scale;
+                    pos.x = pos.x.floor() + thick.fract() / 2.0;
+
+                    let d = abs(p - pos) - vec2f(thick, len);
+                    return length(max(d, Vec2f::zero())) + min(max(d.x, d.y), 0.0);
+                }
+                TopWall => {
+                    let thick = coll.get_f32_default("Thickness", 0.2) * scale;
+                    let len = coll.get_f32_default("Length", 1.0) * scale;
+
+                    let mut pos = self.position() * scale;
+                    pos.y = pos.y.floor() + thick.fract() / 2.0;
+
+                    let d = abs(p - pos) - vec2f(len, thick);
+                    return length(max(d, Vec2f::zero())) + min(max(d.x, d.y), 0.0);
+                }
+                RightWall => {
+                    let thick = coll.get_f32_default("Thickness", 0.2) * scale;
+                    let len = coll.get_f32_default("Length", 1.0) * scale;
+
+                    let mut pos = self.position() * scale;
+                    pos.x = pos.x.floor() + 1.0 - thick.fract() / 2.0;
+
+                    let d = abs(p - pos) - vec2f(thick, len);
+                    return length(max(d, Vec2f::zero())) + min(max(d.x, d.y), 0.0);
+                }
+                BottomWall => {
+                    let thick = coll.get_f32_default("Thickness", 0.2) * scale;
+                    let len = coll.get_f32_default("Length", 1.0) * scale;
+
+                    let mut pos = self.position() * scale;
+                    pos.y = pos.y.floor() + 1.0 - thick.fract() / 2.0;
+
+                    let d = abs(p - pos) - vec2f(len, thick);
+                    return length(max(d, Vec2f::zero())) + min(max(d.x, d.y), 0.0);
+                }
+                Disc => {
+                    let radius = coll.get_f32_default("Radius", 0.4);
+                    return length(p - self.position() * scale) - radius * scale;
                 }
             }
         }
@@ -56,7 +118,7 @@ impl GeoFXNode {
     }
 
     /// The 3D distance from the node to a point.
-    pub fn distance_3d(&self, time: &TheTime, p: Vec3f) -> f32 {
+    pub fn distance_3d(&self, _time: &TheTime, p: Vec3f, hit: &mut Option<&mut Hit>) -> f32 {
         // float opExtrusion( in vec3 p, in sdf2d primitive, in float h )
         // {
         //     float d = primitive(p.xy)
@@ -69,16 +131,89 @@ impl GeoFXNode {
             min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
         }
 
-        match self.role {
-            Disc => {
-                if let Some(value) =
-                    self.timeline
-                        .get(str!("Geo"), str!("Radius"), time, TheInterpolation::Linear)
-                {
-                    if let Some(radius) = value.to_f32() {
-                        let d = length(vec2f(p.x, p.z) - self.position()) - radius;
-                        return op_extrusion_y(p, d, 0.8);
+        if let Some(coll) = self
+            .timeline
+            .get_collection_at(&TheTime::default(), str!("Geo"))
+        {
+            match self.role {
+                LeftWall => {
+                    let thick = coll.get_f32_default("Thickness", 0.2);
+                    let len = coll.get_f32_default("Length", 1.0);
+                    let height = coll.get_f32_default("Height", 1.0);
+
+                    let mut pos = self.position();
+                    pos.x = pos.x.floor() + thick.fract() / 2.0;
+
+                    let dd = abs(vec2f(p.x, p.z) - pos) - vec2f(thick, len);
+                    let d = length(max(dd, Vec2f::zero())) + min(max(dd.x, dd.y), 0.0);
+
+                    if let Some(hit) = hit {
+                        hit.interior_distance = d;
                     }
+
+                    return op_extrusion_y(p, d, height);
+                }
+                TopWall => {
+                    let thick = coll.get_f32_default("Thickness", 0.2);
+                    let len = coll.get_f32_default("Length", 1.0);
+                    let height = coll.get_f32_default("Height", 1.0);
+
+                    let mut pos = self.position();
+                    pos.y = pos.y.floor() + thick.fract() / 2.0;
+
+                    let dd = abs(vec2f(p.x, p.z) - pos) - vec2f(len, thick);
+                    let d = length(max(dd, Vec2f::zero())) + min(max(dd.x, dd.y), 0.0);
+
+                    if let Some(hit) = hit {
+                        hit.interior_distance = d;
+                    }
+
+                    return op_extrusion_y(p, d, height);
+                }
+                RightWall => {
+                    let thick = coll.get_f32_default("Thickness", 0.2);
+                    let len = coll.get_f32_default("Length", 1.0);
+                    let height = coll.get_f32_default("Height", 1.0);
+
+                    let mut pos = self.position();
+                    pos.x = pos.x.floor() + 1.0 - thick.fract() / 2.0;
+
+                    let dd = abs(vec2f(p.x, p.z) - pos) - vec2f(thick, len);
+                    let d = length(max(dd, Vec2f::zero())) + min(max(dd.x, dd.y), 0.0);
+
+                    if let Some(hit) = hit {
+                        hit.interior_distance = d;
+                    }
+
+                    return op_extrusion_y(p, d, height);
+                }
+                BottomWall => {
+                    let thick = coll.get_f32_default("Thickness", 0.2);
+                    let len = coll.get_f32_default("Length", 1.0);
+                    let height = coll.get_f32_default("Height", 1.0);
+
+                    let mut pos = self.position();
+                    pos.y = pos.y.floor() + 1.0 - thick.fract() / 2.0;
+
+                    let dd = abs(vec2f(p.x, p.z) - pos) - vec2f(len, thick);
+                    let d = length(max(dd, Vec2f::zero())) + min(max(dd.x, dd.y), 0.0);
+
+                    if let Some(hit) = hit {
+                        hit.interior_distance = d;
+                    }
+
+                    return op_extrusion_y(p, d, height);
+                }
+                Disc => {
+                    let radius = coll.get_f32_default("Radius", 0.4);
+                    let height = coll.get_f32_default("Height", 1.0);
+                    let d = length(vec2f(p.x, p.z) - self.position()) - radius;
+
+                    if let Some(hit) = hit {
+                        hit.interior_distance = d;
+                    }
+
+                    return op_extrusion_y(p, d, height);
                 }
             }
         }
@@ -86,24 +221,25 @@ impl GeoFXNode {
         f32::INFINITY
     }
 
-    pub fn aabb(&self, time: &TheTime) -> Option<AABB2D> {
-        match self.role {
-            Disc => {
-                if let Some(value) =
-                    self.timeline
-                        .get(str!("Geo"), str!("Radius"), time, TheInterpolation::Linear)
-                {
-                    if let Some(radius) = value.to_f32() {
-                        let position = self.position();
-                        let min = Vec2f::new(position.x - radius, position.y - radius);
-                        let max = Vec2f::new(position.x + radius, position.y + radius);
-                        return Some(AABB2D::new(min, max));
-                    }
-                }
-            }
-        }
+    pub fn aabb(&self, _time: &TheTime) -> Option<AABB2D> {
+        // match self.role {
+        //     Disc => {
+        //         if let Some(value) =
+        //             self.timeline
+        //                 .get(str!("Geo"), str!("Radius"), time, TheInterpolation::Linear)
+        //         {
+        //             if let Some(radius) = value.to_f32() {
+        //                 let position = self.position();
+        //                 let min = Vec2f::new(position.x - radius, position.y - radius);
+        //                 let max = Vec2f::new(position.x + radius, position.y + radius);
+        //                 return Some(AABB2D::new(min, max));
+        //             }
+        //         }
+        //     }
+        // }
 
-        None
+        let pos = self.position();
+        Some(AABB2D::new(pos, pos))
     }
 
     pub fn position(&self) -> Vec2f {
@@ -123,6 +259,22 @@ impl GeoFXNode {
     pub fn set_default_position(&mut self, p: Vec2i) {
         let mut pf = vec2f(p.x as f32, p.y as f32);
         match self.role {
+            LeftWall => {
+                pf.x += 0.1;
+                pf.y += 0.5;
+            }
+            TopWall => {
+                pf.x += 0.5;
+                pf.y += 0.1;
+            }
+            RightWall => {
+                pf.x += 0.9;
+                pf.y += 0.5;
+            }
+            BottomWall => {
+                pf.x += 0.1;
+                pf.y += 0.9;
+            }
             Disc => {
                 pf.x += 0.5;
                 pf.y += 0.5;
