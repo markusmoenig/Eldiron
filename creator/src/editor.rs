@@ -1309,13 +1309,17 @@ impl TheTrait for Editor {
                                     if id.name == "Undo" {
                                         manager.undo(
                                             self.server_ctx.curr_region,
+                                            &mut self.server_ctx,
                                             &mut self.project,
+                                            ui,
                                             ctx,
                                         );
                                     } else {
                                         manager.redo(
                                             self.server_ctx.curr_region,
+                                            &mut self.server_ctx,
                                             &mut self.project,
+                                            ui,
                                             ctx,
                                         );
                                     }
@@ -1325,20 +1329,32 @@ impl TheTrait for Editor {
                                         self.server.update_region(region);
                                         RENDERER.lock().unwrap().set_region(region);
                                     }
-                                } else if manager.context == UndoManagerContext::ModelFX {
+                                } else if manager.context == UndoManagerContext::MaterialFX {
                                     if id.name == "Undo" {
-                                        manager.undo(Uuid::nil(), &mut self.project, ctx);
+                                        manager.undo(
+                                            Uuid::nil(),
+                                            &mut self.server_ctx,
+                                            &mut self.project,
+                                            ui,
+                                            ctx,
+                                        );
                                     } else {
-                                        manager.redo(Uuid::nil(), &mut self.project, ctx);
+                                        manager.redo(
+                                            Uuid::nil(),
+                                            &mut self.server_ctx,
+                                            &mut self.project,
+                                            ui,
+                                            ctx,
+                                        );
                                     }
-                                    let mut model_editor = MODELFXEDITOR.lock().unwrap();
-                                    model_editor.modelfx.draw(ui, ctx, &self.project.palette);
+                                    //let mut model_editor = MODELFXEDITOR.lock().unwrap();
+                                    //model_editor.modelfx.draw(ui, ctx, &self.project.palette);
                                     // model_editor.set_selected_node_ui(
                                     //     ui,
                                     //     ctx,
                                     //     &self.project.palette,
                                     // );
-                                    model_editor.render_preview(ui, &self.project.palette);
+                                    //model_editor.render_preview(ui, &self.project.palette);
                                 }
                             }
 

@@ -2114,14 +2114,14 @@ impl Sidebar {
                         SidebarMode::Model as usize,
                     ));
 
-                    MODELFXEDITOR
-                        .lock()
-                        .unwrap()
-                        .render_preview(ui, &project.palette);
-                    MODELFXEDITOR
-                        .lock()
-                        .unwrap()
-                        .redraw_modelfx_library(project, ui, ctx);
+                    // MODELFXEDITOR
+                    //     .lock()
+                    //     .unwrap()
+                    //     .render_preview(ui, &project.palette);
+                    // MODELFXEDITOR
+                    //     .lock()
+                    //     .unwrap()
+                    //     .redraw_modelfx_library(project, ui, ctx);
 
                     redraw = true;
                 } else if id.name == "Debug Section" && *state == TheWidgetState::Selected {

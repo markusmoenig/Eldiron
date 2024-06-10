@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use rayon::prelude::*;
 use theframework::prelude::*;
 
 /// A character instance.
@@ -19,6 +20,8 @@ pub struct MaterialFXObject {
 
     pub zoom: f32,
     pub selected_node: Option<usize>,
+
+    pub preview: TheRGBABuffer,
 
     #[serde(default = "Vec2i::zero")]
     pub scroll_offset: Vec2i,
@@ -43,6 +46,8 @@ impl MaterialFXObject {
             node_previews: Vec::new(),
             zoom: 1.0,
             selected_node: None,
+
+            preview: TheRGBABuffer::empty(),
 
             scroll_offset: Vec2i::zero(),
         }
@@ -210,5 +215,123 @@ impl MaterialFXObject {
         canvas.selected_node = self.selected_node;
 
         canvas
+    }
+
+    pub fn render_preview(&mut self, palette: &ThePalette) {
+        let size: usize = 48;
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(size as i32, size as i32));
+
+        fn distance(p: Vec3f) -> f32 {
+            length(p) - 1.8
+        }
+
+        pub fn normal(p: Vec3f) -> Vec3f {
+            let scale = 0.5773 * 0.0005;
+            let e = vec2f(1.0 * scale, -1.0 * scale);
+
+            // IQs normal function
+
+            let e1 = vec3f(e.x, e.y, e.y);
+            let e2 = vec3f(e.y, e.y, e.x);
+            let e3 = vec3f(e.y, e.x, e.y);
+            let e4 = vec3f(e.x, e.x, e.x);
+
+            let n = e1 * distance(p + e1)
+                + e2 * distance(p + e2)
+                + e3 * distance(p + e3)
+                + e4 * distance(p + e4);
+            normalize(n)
+        }
+
+        let ro = vec3f(2.0, 2.0, 2.0);
+        let rd = vec3f(0.0, 0.0, 0.0);
+
+        let aa = 2;
+        let aa_f = aa as f32;
+
+        let camera = Camera::new(ro, rd, 80.0);
+        let bgc = 74.0 / 255.0;
+
+        buffer
+            .pixels_mut()
+            .par_rchunks_exact_mut(size * 4)
+            .enumerate()
+            .for_each(|(j, line)| {
+                let mut hit = Hit::default();
+
+                for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
+                    let i = j * size + i;
+
+                    let xx = (i % size) as f32;
+                    let yy = (i / size) as f32;
+
+                    let mut total = Vec4f::zero();
+
+                    for m in 0..aa {
+                        for n in 0..aa {
+                            let camera_offset =
+                                vec2f(m as f32 / aa_f, n as f32 / aa_f) - vec2f(0.5, 0.5);
+
+                            let mut color = vec4f(bgc, bgc, bgc, 1.0);
+
+                            let ray = camera.create_ray(
+                                vec2f(xx / size as f32, 1.0 - yy / size as f32),
+                                vec2f(size as f32, size as f32),
+                                camera_offset,
+                            );
+
+                            let mut t = 0.001;
+
+                            for _ in 0..20 {
+                                let p = ray.at(t);
+                                let d = distance(p);
+                                if d.abs() < 0.001 {
+                                    hit.hit_point = p;
+                                    hit.normal = normal(p);
+
+                                    for (i, node) in self.nodes.iter().enumerate() {
+                                        if node.role == MaterialFXNodeRole::Geometry {
+                                            self.follow_trail(i, 0, &mut hit, palette);
+
+                                            color.x += hit.albedo.x;
+                                            color.y += hit.albedo.y;
+                                            color.z += hit.albedo.z;
+                                            break;
+                                        }
+                                    }
+
+                                    break;
+                                }
+                                t += d;
+                            }
+                            total += color;
+                        }
+                    }
+
+                    let aa_aa = aa_f * aa_f;
+                    total[0] /= aa_aa;
+                    total[1] /= aa_aa;
+                    total[2] /= aa_aa;
+                    total[3] /= aa_aa;
+
+                    pixel.copy_from_slice(&TheColor::from_vec4f(total).to_u8_array());
+                }
+            });
+        self.preview = buffer;
+    }
+
+    /// Load a model from a JSON string.
+    pub fn from_json(json: &str) -> Self {
+        let mut material: MaterialFXObject = serde_json::from_str(json).unwrap_or_default();
+        let cnt = material.nodes.len();
+        for _ in 0..cnt {
+            material.node_previews.push(None);
+        }
+        material
+    }
+
+    /// Convert the model to a JSON string.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self).unwrap_or_default()
     }
 }

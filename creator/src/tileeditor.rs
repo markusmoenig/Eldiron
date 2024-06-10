@@ -558,7 +558,7 @@ impl TileEditor {
                 if id.name == "Region Editor View" || id.name == "RenderView" {
                     UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
                 } else if id.name == "ModelFX RGBA Layout View" {
-                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::ModelFX;
+                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::MaterialFX;
                 }
             }
             TheEvent::StateChanged(id, _state) => {

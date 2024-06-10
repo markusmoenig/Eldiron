@@ -1,17 +1,17 @@
-pub mod modelfx_undo;
+pub mod materialfx_undo;
 pub mod region_undo;
 
 use crate::prelude::*;
 
-use crate::editor::MODELFXEDITOR;
+//use crate::editor::MODELFXEDITOR;
 
-use self::modelfx_undo::ModelFXUndo;
+use self::materialfx_undo::MaterialFXUndo;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum UndoManagerContext {
     None,
     Region,
-    ModelFX,
+    MaterialFX,
     CodeGridFX,
 }
 
@@ -20,7 +20,7 @@ pub struct UndoManager {
     pub context: UndoManagerContext,
 
     regions: FxHashMap<Uuid, RegionUndo>,
-    modelfx: ModelFXUndo,
+    materialfx: MaterialFXUndo,
 }
 
 impl Default for UndoManager {
@@ -35,7 +35,7 @@ impl UndoManager {
             context: UndoManagerContext::None,
 
             regions: FxHashMap::default(),
-            modelfx: ModelFXUndo::default(),
+            materialfx: MaterialFXUndo::default(),
         }
     }
 
@@ -47,14 +47,21 @@ impl UndoManager {
         self.can_save(ctx);
     }
 
-    pub fn add_modelfx_undo(&mut self, atom: ModelFXUndoAtom, ctx: &mut TheContext) {
-        self.context = UndoManagerContext::ModelFX;
-        self.modelfx.add(atom);
+    pub fn add_materialfx_undo(&mut self, atom: MaterialFXUndoAtom, ctx: &mut TheContext) {
+        self.context = UndoManagerContext::MaterialFX;
+        self.materialfx.add(atom);
         ctx.ui.set_enabled("Undo");
         self.can_save(ctx);
     }
 
-    pub fn undo(&mut self, context_id: Uuid, project: &mut Project, ctx: &mut TheContext) {
+    pub fn undo(
+        &mut self,
+        context_id: Uuid,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
         match &self.context {
             UndoManagerContext::None => {}
             UndoManagerContext::Region => {
@@ -79,17 +86,16 @@ impl UndoManager {
                     }
                 }
             }
-            UndoManagerContext::ModelFX => {
-                self.modelfx
-                    .undo(&mut MODELFXEDITOR.lock().unwrap().modelfx);
+            UndoManagerContext::MaterialFX => {
+                self.materialfx.undo(server_ctx, project, ui, ctx);
 
-                if !self.modelfx.has_undo() {
+                if !self.materialfx.has_undo() {
                     ctx.ui.set_disabled("Undo");
                 } else {
                     ctx.ui.set_enabled("Undo");
                 }
 
-                if !self.modelfx.has_redo() {
+                if !self.materialfx.has_redo() {
                     ctx.ui.set_disabled("Redo");
                 } else {
                     ctx.ui.set_enabled("Redo");
@@ -100,7 +106,14 @@ impl UndoManager {
         self.can_save(ctx);
     }
 
-    pub fn redo(&mut self, context_id: Uuid, project: &mut Project, ctx: &mut TheContext) {
+    pub fn redo(
+        &mut self,
+        context_id: Uuid,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
         match &self.context {
             UndoManagerContext::None => {}
             UndoManagerContext::Region => {
@@ -125,17 +138,16 @@ impl UndoManager {
                     }
                 }
             }
-            UndoManagerContext::ModelFX => {
-                self.modelfx
-                    .redo(&mut MODELFXEDITOR.lock().unwrap().modelfx);
+            UndoManagerContext::MaterialFX => {
+                self.materialfx.redo(server_ctx, project, ui, ctx);
 
-                if !self.modelfx.has_undo() {
+                if !self.materialfx.has_undo() {
                     ctx.ui.set_disabled("Undo");
                 } else {
                     ctx.ui.set_enabled("Undo");
                 }
 
-                if !self.modelfx.has_redo() {
+                if !self.materialfx.has_redo() {
                     ctx.ui.set_disabled("Redo");
                 } else {
                     ctx.ui.set_enabled("Redo");
@@ -168,7 +180,7 @@ impl UndoManager {
     }
 
     /// Clears the ModelFX undo.
-    pub fn clear_modelfx(&mut self) {
-        self.modelfx.clear();
+    pub fn clear_materialfx(&mut self) {
+        self.materialfx.clear();
     }
 }
