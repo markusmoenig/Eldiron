@@ -5,6 +5,7 @@ use crate::editor::PRERENDERTHREAD;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum RegionUndoAtom {
+    GeoFXObjectsDeletion(Vec<GeoFXObject>, Vec<Vec2i>),
     GeoFXObjectEdit(Uuid, Option<GeoFXObject>, Option<GeoFXObject>, Vec<Vec2i>),
     RegionTileEdit(Vec2i, Option<RegionTile>, Option<RegionTile>),
     ModelFXEdit(Vec3i, Option<ModelFXStore>, Option<ModelFXStore>),
@@ -13,6 +14,17 @@ pub enum RegionUndoAtom {
 impl RegionUndoAtom {
     pub fn undo(&self, region: &mut Region, palette: &ThePalette) {
         match self {
+            RegionUndoAtom::GeoFXObjectsDeletion(objects, tiles) => {
+                for object in objects {
+                    region.geometry.insert(object.id, object.clone());
+                }
+                region.update_geometry_areas();
+                PRERENDERTHREAD.lock().unwrap().render_region(
+                    region.clone(),
+                    palette.clone(),
+                    tiles.clone(),
+                );
+            }
             RegionUndoAtom::GeoFXObjectEdit(id, prev, _, tiles) => {
                 if let Some(prev) = prev {
                     region.geometry.insert(*id, prev.clone());
@@ -44,6 +56,18 @@ impl RegionUndoAtom {
     }
     pub fn redo(&self, region: &mut Region, palette: &ThePalette) {
         match self {
+            RegionUndoAtom::GeoFXObjectsDeletion(objects, tiles) => {
+                for object in objects {
+                    region.geometry.remove(&object.id);
+                }
+                region.update_geometry_areas();
+                PRERENDERTHREAD.lock().unwrap().render_region(
+                    region.clone(),
+                    palette.clone(),
+                    tiles.clone(),
+                );
+            }
+
             RegionUndoAtom::GeoFXObjectEdit(id, _, next, tiles) => {
                 if let Some(next) = next {
                     region.geometry.insert(*id, next.clone());

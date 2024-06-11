@@ -119,13 +119,10 @@ impl PreRendered {
             }
         }
 
-        if min.x == max.x {
-            max.x += 1;
-        }
-
-        if min.y == max.y {
-            max.y += 1;
-        }
+        min.x -= 1;
+        min.y -= 1;
+        max.x += 1;
+        max.y += 1;
 
         let mut mapped_tiles: Vec<Vec2i> = vec![];
 

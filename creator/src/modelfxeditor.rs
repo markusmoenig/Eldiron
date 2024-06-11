@@ -53,10 +53,10 @@ impl ModelFXEditor {
         toolbar_hlayout.limiter_mut().set_max_height(25);
         toolbar_hlayout.set_margin(vec4i(10, 2, 5, 3));
 
-        // let mut clear_button: TheTraybarButton =
-        //     TheTraybarButton::new(TheId::named("ModelFX Clear"));
-        // clear_button.set_icon_name("trash".to_string());
-        // clear_button.set_status_text("Clears the model, deleting all nodes.");
+        let mut add_material_button: TheTraybarButton =
+            TheTraybarButton::new(TheId::named("MaterialFX Add"));
+        add_material_button.set_text("Add Material".to_string());
+        add_material_button.set_status_text("Add a new material.");
 
         // let mut move_button: TheTraybarButton = TheTraybarButton::new(TheId::named("ModelFX Move"));
         // move_button.set_icon_name("move".to_string());
@@ -116,9 +116,9 @@ impl ModelFXEditor {
             ..Default::default()
         }));
 
-        let mut material_button = TheTraybarButton::new(TheId::named("ModelFX Nodes Material"));
+        let mut material_button = TheTraybarButton::new(TheId::named("MaterialFX Nodes"));
         //add_button.set_icon_name("icon_role_add".to_string());
-        material_button.set_text(str!("Material Related"));
+        material_button.set_text(str!("Material Nodes"));
         material_button.set_status_text(
             "Nodes which model walls and components like windows, doors and decoration.",
         );
@@ -161,7 +161,6 @@ impl ModelFXEditor {
         blend.limiter_mut().set_max_width(120);
         blend.set_status_text("Sets the blend factor for the preview in the 2D Map. 0 only shows the conceptual preview, 1 the fully rendered preview.");
 
-        // toolbar_hlayout.add_widget(Box::new(clear_button));
         // toolbar_hlayout.add_widget(Box::new(move_button));
         toolbar_hlayout.add_widget(Box::new(gb));
 
@@ -171,6 +170,9 @@ impl ModelFXEditor {
 
         // toolbar_hlayout.add_widget(Box::new(floors_button));
         // toolbar_hlayout.add_widget(Box::new(walls_button));
+
+        toolbar_hlayout.add_widget(Box::new(add_material_button));
+
         toolbar_hlayout.add_widget(Box::new(material_button));
         toolbar_hlayout.add_widget(Box::new(blend));
         toolbar_hlayout.set_reverse_index(Some(1));
@@ -320,27 +322,33 @@ impl ModelFXEditor {
                     redraw = true;
                 }
             }
-            TheEvent::ContextMenuSelected(_id, item) => {
+            TheEvent::ContextMenuSelected(id, item) => {
                 //let prev = self.modelfx.to_json();
-                if self.editing_mode == EditingMode::MaterialNodes {
-                    if let Some(material_id) = server_ctx.curr_material_object {
-                        if let Some(material) = project.materials.get_mut(&material_id) {
-                            let prev = material.to_json();
-                            let material_id = material.id;
-                            let mut node = MaterialFXNode::new_from_name(item.name.clone());
-                            node.position = vec2i(150, 50);
-                            material.nodes.push(node);
-                            material.selected_node = Some(material.nodes.len() - 1);
-                            let undo =
-                                MaterialFXUndoAtom::AddNode(material.id, prev, material.to_json());
-                            UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
-                            let node_canvas = material.to_canvas(&project.palette);
-                            ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
-                            self.set_material_tiles(ui, ctx, project, Some(material_id));
-                            self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
+                #[allow(clippy::collapsible_if)]
+                if id.name == "MaterialFX Nodes" {
+                    if self.editing_mode == EditingMode::MaterialNodes {
+                        if let Some(material_id) = server_ctx.curr_material_object {
+                            if let Some(material) = project.materials.get_mut(&material_id) {
+                                let prev = material.to_json();
+                                let material_id = material.id;
+                                let mut node = MaterialFXNode::new_from_name(item.name.clone());
+                                node.position = vec2i(150, 50);
+                                material.nodes.push(node);
+                                material.selected_node = Some(material.nodes.len() - 1);
+                                let undo = MaterialFXUndoAtom::AddNode(
+                                    material.id,
+                                    prev,
+                                    material.to_json(),
+                                );
+                                UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
+                                let node_canvas = material.to_canvas(&project.palette);
+                                ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
+                                self.set_material_tiles(ui, ctx, project, Some(material_id));
+                                self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
+                            }
                         }
+                        redraw = true;
                     }
-                    redraw = true;
                 }
             }
             TheEvent::TilePicked(id, coord) => {
@@ -855,6 +863,7 @@ impl ModelFXEditor {
         if let Some(collection) = collection {
             if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
                 text_layout.clear();
+
                 for (name, value) in &collection.keys {
                     if let TheValue::FloatRange(value, range) = value {
                         let mut slider = TheTextLineEdit::new(TheId::named(
@@ -922,11 +931,11 @@ impl ModelFXEditor {
         if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
             text_layout.clear();
 
-            let mut add_button = TheTraybarButton::new(TheId::named("MaterialFX Add"));
-            add_button.set_text("New Material".to_string());
-            add_button.set_status_text("Add a new material");
+            // let mut add_button = TheTraybarButton::new(TheId::named("MaterialFX Add"));
+            // add_button.set_text("New Material".to_string());
+            // add_button.set_status_text("Add a new material");
 
-            text_layout.add_pair("Add".to_string(), Box::new(add_button));
+            // text_layout.add_pair("Add".to_string(), Box::new(add_button));
 
             if let Some(materialid) = server_ctx.curr_material_object {
                 if let Some(material) = project.materials.get_mut(&materialid) {
@@ -1016,83 +1025,6 @@ impl ModelFXEditor {
             }
         } else if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
             text_layout.clear();
-        }
-    }
-
-    /*
-    pub fn render_preview(&mut self, ui: &mut TheUI, palette: &ThePalette) {
-        self.modelfx.create_voxels(24, &Vec3f::zero(), palette);
-
-        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Model {
-            if let Some(widget) = ui.get_render_view("ModelFX Library Preview") {
-                let buffer = widget.render_buffer_mut();
-
-                self.modelfx.render_preview(buffer, palette);
-            }
-        }
-
-        if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
-            let mut buffer = TheRGBABuffer::new(TheDim::sized(65, 65));
-            self.modelfx.render_preview(&mut buffer, palette);
-            self.modelfx.preview_buffer = buffer.clone();
-            let tile = TheRGBATile::buffer(buffer);
-            icon_view.set_rgba_tile(tile);
-        }
-        }*/
-
-    // pub fn get_model(&self) -> ModelFX {
-    //     self.modelfx.clone()
-    // }
-
-    /*
-    pub fn set_model(
-        &mut self,
-        model: ModelFX,
-        ui: &mut TheUI,
-        ctx: &mut TheContext,
-        palette: &ThePalette,
-    ) {
-        self.set_selected_node_ui(ui, ctx, palette);
-        self.modelfx = model;
-        self.update_node_canvas(palette, ui);
-        self.modelfx.draw(ui, ctx, palette);
-        UNDOMANAGER.lock().unwrap().clear_modelfx();
-        self.render_preview(ui, palette);
-    }
-    */
-
-    /// Set the library models.
-    pub fn redraw_modelfx_library(
-        &mut self,
-        project: &Project,
-        ui: &mut TheUI,
-        ctx: &mut TheContext,
-    ) {
-        if let Some(editor) = ui.get_rgba_layout("ModelFX Library RGBA Layout") {
-            //println!("{}", editor.dim().width);
-            let width = 275; //editor.dim().width - 16;
-            let height = editor.dim().height - 16;
-            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
-                let grid = 65;
-
-                rgba_view.set_grid(Some(grid));
-
-                let tiles_per_row = width / grid;
-                let lines = project.models.len() as i32 / tiles_per_row + 1;
-
-                let mut buffer =
-                    TheRGBABuffer::new(TheDim::sized(width, max(lines * grid, height)));
-                buffer.fill([74, 74, 74, 255]);
-
-                for (i, model) in project.models.iter().enumerate() {
-                    let x = i as i32 % tiles_per_row;
-                    let y = i as i32 / tiles_per_row;
-
-                    buffer.copy_into(x * grid, y * grid, &model.preview_buffer);
-                }
-                rgba_view.set_buffer(buffer);
-            }
-            editor.relayout(ctx);
         }
     }
 

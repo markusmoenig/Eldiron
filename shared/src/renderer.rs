@@ -823,7 +823,7 @@ impl Renderer {
         region.fill_code_level(&mut level, &self.textures, update);
 
         let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
-        let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
+        //let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
         let camera = Camera::new(ro, rd, fov);
 
         let ppt = region.grid_size as f32;
@@ -905,10 +905,12 @@ impl Renderer {
                     let yy = (i / width) as f32;
 
                     let mut ray = if camera_type == CameraType::TiltedIso {
-                        camera.create_tilted_isometric_ray_prerendered(
+                        camera.create_tilted_isometric_ray2(
                             vec2f(xx / width_f, yy / height_f),
+                            vec2f(width_f, height_f),
+                            vec2f(width_f / ppt, height_f / ppt),
+                            vec2f(1.0, 1.0),
                             tilted_iso_alignment,
-                            &prerender_camera,
                         )
                     } else if camera_mode == CameraMode::Pinhole {
                         camera.create_ray(
@@ -2185,14 +2187,17 @@ impl Renderer {
             tilted_iso_alignment = value;
         }
 
+        let ppt = region.grid_size as f32;
+
         let camera = Camera::new(ro, rd, fov);
         let ray = if camera_type == CameraType::TiltedIso {
-            camera.create_tilted_isometric_ray(
+            camera.create_tilted_isometric_ray2(
                 vec2f(
                     screen_coord.x as f32 / width_f,
                     1.0 - screen_coord.y as f32 / height_f,
                 ),
                 vec2f(width_f, height_f),
+                vec2f(width_f / ppt, height_f / ppt),
                 vec2f(1.0, 1.0),
                 tilted_iso_alignment,
             )
@@ -2206,7 +2211,6 @@ impl Renderer {
                 vec2f(1.0, 1.0),
             )
         } else {
-            let ppt = region.grid_size as f32;
             camera.create_ortho_ray2(
                 vec2f(
                     screen_coord.x as f32 / width_f,

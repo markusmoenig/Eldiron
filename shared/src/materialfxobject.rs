@@ -310,7 +310,7 @@ impl MaterialFXObject {
                             hit = None;
 
                             let mut t = 0.0;
-                            for _ in 0..40 {
+                            for _ in 0..20 {
                                 let p = ray.at(t);
                                 let mut d = distance(p);
 
@@ -407,6 +407,7 @@ impl MaterialFXObject {
                     pixel.copy_from_slice(&TheColor::from_vec4f(color).to_u8_array());
                 }
             });
+
         self.preview = buffer;
     }
 
