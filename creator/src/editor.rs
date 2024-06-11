@@ -1347,43 +1347,8 @@ impl TheTrait for Editor {
                                             ctx,
                                         );
                                     }
-                                    //let mut model_editor = MODELFXEDITOR.lock().unwrap();
-                                    //model_editor.modelfx.draw(ui, ctx, &self.project.palette);
-                                    // model_editor.set_selected_node_ui(
-                                    //     ui,
-                                    //     ctx,
-                                    //     &self.project.palette,
-                                    // );
-                                    //model_editor.render_preview(ui, &self.project.palette);
                                 }
                             }
-
-                            /*
-                            let mut data: Option<(TheId, String)> = None;
-                            if id.name == "Undo" && ctx.ui.undo_stack.has_undo() {
-                                data = Some(ctx.ui.undo_stack.undo());
-                            } else if id.name == "Redo" && ctx.ui.undo_stack.has_redo() {
-                                data = Some(ctx.ui.undo_stack.redo());
-                            }
-
-                            if let Some((id, json)) = data {
-                                #[allow(clippy::single_match)]
-                                match id.name.as_str() {
-                                    "RegionChanged" => {
-                                        let region = Region::from_json(json.as_str());
-                                        for (index, r) in self.project.regions.iter().enumerate() {
-                                            if r.id == region.id {
-                                                self.server.update_region(&region);
-                                                RENDERER.lock().unwrap().set_region(&region);
-                                                self.project.regions[index] = region;
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                                redraw = true;
-                                }*/
                         }
                     }
                     TheEvent::ImageDecodeResult(id, name, buffer) => {

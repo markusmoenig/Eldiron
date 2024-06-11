@@ -1204,6 +1204,8 @@ impl ModelFX {
                 inputs,
                 outputs,
                 preview: self.node_previews[i].clone().unwrap(),
+                supports_preview: false,
+                preview_is_open: false,
             };
             canvas.nodes.push(n);
         }

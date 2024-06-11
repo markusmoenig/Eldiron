@@ -15,9 +15,8 @@ pub struct MaterialFXObject {
     /// The node connections: Source node index, source terminal, dest node index, dest terminal
     pub connections: Vec<(u16, u8, u16, u8)>,
 
-    #[serde(skip)]
-    pub node_previews: Vec<Option<TheRGBABuffer>>,
-
+    //#[serde(skip)]
+    //pub node_previews: Vec<Option<TheRGBABuffer>>,
     pub zoom: f32,
     pub selected_node: Option<usize>,
 
@@ -43,7 +42,7 @@ impl MaterialFXObject {
             nodes: Vec::new(),
             connections: Vec::new(),
 
-            node_previews: Vec::new(),
+            // node_previews: Vec::new(),
             zoom: 1.0,
             selected_node: None,
 
@@ -67,7 +66,7 @@ impl MaterialFXObject {
     pub fn displacement(&self, hit: &mut Hit) {
         for (i, node) in self.nodes.iter().enumerate() {
             if node.role == MaterialFXNodeRole::Geometry {
-                if let Some((node, _)) = self.find_connected_input_node(i, 2) {
+                if let Some((node, _)) = self.find_connected_input_node(i, 1) {
                     self.nodes[node as usize].displacement(hit);
                 }
                 break;
@@ -79,7 +78,7 @@ impl MaterialFXObject {
     pub fn has_displacement(&self) -> bool {
         for (i, node) in self.nodes.iter().enumerate() {
             if node.role == MaterialFXNodeRole::Geometry {
-                if let Some((_, _)) = self.find_connected_input_node(i, 2) {
+                if let Some((_, _)) = self.find_connected_input_node(i, 1) {
                     return true;
                 }
             }
@@ -172,40 +171,50 @@ impl MaterialFXObject {
     /// Convert the model to a node canvas.
     pub fn to_canvas(&mut self, _palette: &ThePalette) -> TheNodeCanvas {
         let mut canvas = TheNodeCanvas {
-            node_width: 95,
+            node_width: 136,
             selected_node: self.selected_node,
             ..Default::default()
         };
 
-        let preview_size = (40.0 * self.zoom) as i32;
+        //let preview_size = 100;
 
         for (i, node) in self.nodes.iter().enumerate() {
-            if i >= self.node_previews.len() {
-                self.node_previews.resize(i + 1, None);
-            }
+            // if i >= self.node_previews.len() {
+            //     self.node_previews.resize(i + 1, None);
+            // }
 
             // Remove preview buffer if size has changed
-            if let Some(preview_buffer) = &self.node_previews[i] {
-                if preview_buffer.dim().width != preview_size
-                    && preview_buffer.dim().height != preview_size
-                {
-                    self.node_previews[i] = None;
-                }
-            }
+            // if let Some(preview_buffer) = &self.node_previews[i] {
+            //     if preview_buffer.dim().width != preview_size
+            //         && preview_buffer.dim().height != preview_size
+            //     {
+            //         self.node_previews[i] = None;
+            //     }
+            // }
 
             // Create preview if it doesn't exist
-            if self.node_previews[i].is_none() {
-                let preview_buffer = TheRGBABuffer::new(TheDim::sized(preview_size, preview_size));
-                //self.render_node_preview(&mut preview_buffer, i, palette);
-                self.node_previews[i] = Some(preview_buffer);
-            }
+            // if self.node_previews[i].is_none() {
+            //     let preview_buffer = TheRGBABuffer::new(TheDim::sized(preview_size, preview_size));
+            //     //self.render_node_preview(&mut preview_buffer, i, palette);
+            //     self.node_previews[i] = Some(preview_buffer);
+            // }
+
+            let coll = node.collection();
+
+            let preview = if i == 0 {
+                self.preview.clone()
+            } else {
+                TheRGBABuffer::empty()
+            };
 
             let n = TheNode {
                 name: node.name(),
                 position: node.position,
                 inputs: node.inputs(),
                 outputs: node.outputs(),
-                preview: self.node_previews[i].clone().unwrap(),
+                preview,
+                supports_preview: coll.get_bool_default("_supports_preview", false),
+                preview_is_open: coll.get_bool_default("_preview_is_open", false),
             };
             canvas.nodes.push(n);
         }
@@ -218,11 +227,11 @@ impl MaterialFXObject {
     }
 
     pub fn render_preview(&mut self, palette: &ThePalette) {
-        let size: usize = 48;
+        let size: usize = 100;
         let mut buffer = TheRGBABuffer::new(TheDim::sized(size as i32, size as i32));
 
         fn distance(p: Vec3f) -> f32 {
-            length(p) - 1.8
+            length(p) - 2.0
         }
 
         pub fn normal(p: Vec3f) -> Vec3f {
@@ -243,21 +252,33 @@ impl MaterialFXObject {
             normalize(n)
         }
 
-        let ro = vec3f(2.0, 2.0, 2.0);
+        fn sphere_to_uv(hitpoint: Vec3f) -> Vec2f {
+            let normalized_hitpoint = normalize(hitpoint);
+
+            // Calculate spherical coordinates
+            let theta = atan2(normalized_hitpoint.y, normalized_hitpoint.x);
+            let phi = acos(normalized_hitpoint.z);
+
+            // Map to UV coordinates
+            let u = (theta + std::f32::consts::PI) / (2.0 * std::f32::consts::PI);
+            let v = phi / std::f32::consts::PI;
+
+            vec2f(u, v)
+        }
+
+        let ro = vec3f(0.0, 2.5, 2.5);
         let rd = vec3f(0.0, 0.0, 0.0);
 
-        let aa = 2;
-        let aa_f = aa as f32;
+        let camera = Camera::new(ro, rd, 90.0);
 
-        let camera = Camera::new(ro, rd, 80.0);
-        let bgc = 74.0 / 255.0;
+        let has_displacement = self.has_displacement();
 
         buffer
             .pixels_mut()
             .par_rchunks_exact_mut(size * 4)
             .enumerate()
             .for_each(|(j, line)| {
-                let mut hit = Hit::default();
+                let mut rng = rand::thread_rng();
 
                 for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
                     let i = j * size + i;
@@ -265,56 +286,125 @@ impl MaterialFXObject {
                     let xx = (i % size) as f32;
                     let yy = (i / size) as f32;
 
-                    let mut total = Vec4f::zero();
+                    let mut color = Vec4f::zero();
 
-                    for m in 0..aa {
-                        for n in 0..aa {
-                            let camera_offset =
-                                vec2f(m as f32 / aa_f, n as f32 / aa_f) - vec2f(0.5, 0.5);
+                    for sample in 0..20 {
+                        let mut ray = camera.create_ray(
+                            vec2f(xx / size as f32, 1.0 - yy / size as f32),
+                            vec2f(size as f32, size as f32),
+                            vec2f(rng.gen(), rng.gen()),
+                        );
 
-                            let mut color = vec4f(bgc, bgc, bgc, 1.0);
+                        let mut state = TracerState {
+                            is_refracted: false,
+                            has_been_refracted: false,
+                            last_ior: 1.0,
+                        };
 
-                            let ray = camera.create_ray(
-                                vec2f(xx / size as f32, 1.0 - yy / size as f32),
-                                vec2f(size as f32, size as f32),
-                                camera_offset,
-                            );
+                        let mut acc = Vec3f::zero();
+                        let mut abso = Vec3f::one();
+                        let mut hit: Option<Hit>;
+                        let mut alpha = 0.0;
 
-                            let mut t = 0.001;
+                        for _ in 0..8 {
+                            hit = None;
 
-                            for _ in 0..20 {
+                            let mut t = 0.0;
+                            for _ in 0..40 {
                                 let p = ray.at(t);
-                                let d = distance(p);
-                                if d.abs() < 0.001 {
-                                    hit.hit_point = p;
-                                    hit.normal = normal(p);
+                                let mut d = distance(p);
+
+                                if has_displacement {
+                                    let mut hit = Hit {
+                                        hit_point: p,
+                                        normal: normal(p),
+                                        uv: sphere_to_uv(p),
+                                        distance: t,
+                                        ..Default::default()
+                                    };
+                                    self.displacement(&mut hit);
+                                    d += hit.displacement;
+                                }
+
+                                if d.abs() < 0.0001 {
+                                    let mut h = Hit {
+                                        hit_point: p,
+                                        normal: normal(p),
+                                        uv: sphere_to_uv(p),
+                                        distance: t,
+                                        albedo: Vec3f::zero(),
+                                        ..Default::default()
+                                    };
 
                                     for (i, node) in self.nodes.iter().enumerate() {
                                         if node.role == MaterialFXNodeRole::Geometry {
-                                            self.follow_trail(i, 0, &mut hit, palette);
+                                            self.follow_trail(i, 0, &mut h, palette);
 
-                                            color.x += hit.albedo.x;
-                                            color.y += hit.albedo.y;
-                                            color.z += hit.albedo.z;
+                                            alpha = 1.0;
+
+                                            hit = Some(h);
                                             break;
                                         }
                                     }
-
-                                    break;
                                 }
+                                // if hit.is_some() {
+                                //     break;
+                                // }
                                 t += d;
                             }
-                            total += color;
+
+                            if let Some(hit) = &mut hit {
+                                let mut n = hit.normal;
+                                if state.is_refracted {
+                                    n = -n
+                                };
+
+                                // sample BSDF
+                                let mut out_dir: Vec3f = Vec3f::zero();
+                                let bsdf = sample_disney_bsdf(
+                                    -ray.d,
+                                    n,
+                                    hit,
+                                    &mut out_dir,
+                                    &mut state,
+                                    &mut rng,
+                                );
+
+                                // add emissive part of the current material
+                                acc += hit.emissive * abso;
+
+                                // bsdf absorption (pdf are in bsdf.a)
+                                if bsdf.1 > 0.0 {
+                                    abso *= bsdf.0 / bsdf.1;
+                                }
+
+                                // medium absorption
+                                if state.has_been_refracted {
+                                    abso *= exp(-hit.distance
+                                        * ((Vec3f::one() - hit.albedo) * hit.absorption));
+                                }
+
+                                ray.o = hit.hit_point;
+                                ray.d = out_dir;
+
+                                if state.is_refracted {
+                                    ray.o += -n * 0.01;
+                                } else if state.has_been_refracted && !state.is_refracted {
+                                    ray.o += -n * 0.01;
+                                    state.last_ior = 1.;
+                                } else {
+                                    ray.o += n * 0.01;
+                                }
+                            } else {
+                                acc += vec3f(0.5, 0.5, 0.5) * abso;
+                                break;
+                            }
                         }
+                        let c = vec4f(acc.x, acc.y, acc.z, alpha);
+                        color = lerp(color, c, 1.0 / (sample as f32 + 1.0));
                     }
 
-                    let aa_aa = aa_f * aa_f;
-                    total[0] /= aa_aa;
-                    total[1] /= aa_aa;
-                    total[2] /= aa_aa;
-                    total[3] /= aa_aa;
-
-                    pixel.copy_from_slice(&TheColor::from_vec4f(total).to_u8_array());
+                    pixel.copy_from_slice(&TheColor::from_vec4f(color).to_u8_array());
                 }
             });
         self.preview = buffer;
@@ -322,11 +412,11 @@ impl MaterialFXObject {
 
     /// Load a model from a JSON string.
     pub fn from_json(json: &str) -> Self {
-        let mut material: MaterialFXObject = serde_json::from_str(json).unwrap_or_default();
-        let cnt = material.nodes.len();
-        for _ in 0..cnt {
-            material.node_previews.push(None);
-        }
+        let material: MaterialFXObject = serde_json::from_str(json).unwrap_or_default();
+        //let cnt = material.nodes.len();
+        // for _ in 0..cnt {
+        //     material.node_previews.push(None);
+        // }
         material
     }
 

@@ -26,7 +26,10 @@ impl MaterialFXNode {
         let mut coll = TheCollection::named(str!("Props"));
 
         match role {
-            Geometry => {}
+            Geometry => {
+                coll.set("_supports_preview", TheValue::Bool(true));
+                coll.set("_preview_is_open", TheValue::Bool(true));
+            }
             Material => {
                 coll.set("Color", TheValue::PaletteIndex(0));
                 coll.set("Roughness", TheValue::FloatRange(0.5, 0.0..=1.0));
@@ -66,7 +69,7 @@ impl MaterialFXNode {
             id: Uuid::new_v4(),
             role,
             timeline,
-            position: Vec2i::new(20, 20),
+            position: Vec2i::new(10, 5),
         }
     }
 
@@ -98,8 +101,8 @@ impl MaterialFXNode {
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
-                        name: str!("dis"),
-                        role: str!("Displacement"),
+                        name: str!("displace"),
+                        role: str!("Displace"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]
@@ -120,18 +123,13 @@ impl MaterialFXNode {
             Geometry => {
                 vec![
                     TheNodeTerminal {
-                        name: str!("3D"),
-                        role: str!("3D"),
+                        name: str!("out"),
+                        role: str!("Out"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
-                        name: str!("2D"),
-                        role: str!("2D"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("dis"),
-                        role: str!("Displacement"),
+                        name: str!("displace"),
+                        role: str!("Displac"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]

@@ -442,7 +442,7 @@ impl Renderer {
                                     d += hit.displacement;
                                 }
                             }
-                            if d.abs() < 0.001 {
+                            if d.abs() < 0.0001 {
                                 dist += t;
 
                                 if dist < hit.distance {

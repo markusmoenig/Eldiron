@@ -161,8 +161,8 @@ impl UndoManager {
     /// Checks if the undo manager is empty and disables the save buttons if it is.
     pub fn can_save(&self, ctx: &mut TheContext) {
         if self.has_undo() {
-            ctx.ui.set_disabled("Save");
-            ctx.ui.set_disabled("Save As");
+            // ctx.ui.set_disabled("Save");
+            // ctx.ui.set_disabled("Save As");
         } else {
             ctx.ui.set_enabled("Save");
             ctx.ui.set_enabled("Save As");

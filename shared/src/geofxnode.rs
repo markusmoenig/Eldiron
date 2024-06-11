@@ -27,9 +27,30 @@ impl GeoFXNode {
         let mut coll = TheCollection::named(str!("Geo"));
 
         match role {
-            LeftWall | TopWall | RightWall | BottomWall => {
+            LeftWall => {
                 coll.set("Pos X", TheValue::Float(0.1));
                 coll.set("Pos Y", TheValue::Float(0.5));
+                coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
+                coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+            }
+            TopWall => {
+                coll.set("Pos X", TheValue::Float(0.5));
+                coll.set("Pos Y", TheValue::Float(0.1));
+                coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
+                coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+            }
+            RightWall => {
+                coll.set("Pos X", TheValue::Float(0.9));
+                coll.set("Pos Y", TheValue::Float(0.5));
+                coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
+                coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+            }
+            BottomWall => {
+                coll.set("Pos X", TheValue::Float(0.5));
+                coll.set("Pos Y", TheValue::Float(0.9));
                 coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
@@ -69,7 +90,7 @@ impl GeoFXNode {
             match self.role {
                 LeftWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
-                    let len = coll.get_f32_default("Length", 1.0) * scale;
+                    let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
 
                     let mut pos = self.position() * scale;
                     pos.x = pos.x.floor() + thick.fract() / 2.0;
@@ -79,7 +100,7 @@ impl GeoFXNode {
                 }
                 TopWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
-                    let len = coll.get_f32_default("Length", 1.0) * scale;
+                    let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
 
                     let mut pos = self.position() * scale;
                     pos.y = pos.y.floor() + thick.fract() / 2.0;
@@ -89,7 +110,7 @@ impl GeoFXNode {
                 }
                 RightWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
-                    let len = coll.get_f32_default("Length", 1.0) * scale;
+                    let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
 
                     let mut pos = self.position() * scale;
                     pos.x = pos.x.floor() + 1.0 - thick.fract() / 2.0;
@@ -99,7 +120,7 @@ impl GeoFXNode {
                 }
                 BottomWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
-                    let len = coll.get_f32_default("Length", 1.0) * scale;
+                    let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
 
                     let mut pos = self.position() * scale;
                     pos.y = pos.y.floor() + 1.0 - thick.fract() / 2.0;
@@ -138,7 +159,7 @@ impl GeoFXNode {
             match self.role {
                 LeftWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2);
-                    let len = coll.get_f32_default("Length", 1.0);
+                    let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let mut pos = self.position();
@@ -155,7 +176,7 @@ impl GeoFXNode {
                 }
                 TopWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2);
-                    let len = coll.get_f32_default("Length", 1.0);
+                    let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let mut pos = self.position();
@@ -172,7 +193,7 @@ impl GeoFXNode {
                 }
                 RightWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2);
-                    let len = coll.get_f32_default("Length", 1.0);
+                    let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let mut pos = self.position();
@@ -189,7 +210,7 @@ impl GeoFXNode {
                 }
                 BottomWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2);
-                    let len = coll.get_f32_default("Length", 1.0);
+                    let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let mut pos = self.position();
@@ -272,7 +293,7 @@ impl GeoFXNode {
                 pf.y += 0.5;
             }
             BottomWall => {
-                pf.x += 0.1;
+                pf.x += 0.5;
                 pf.y += 0.9;
             }
             Disc => {

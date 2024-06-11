@@ -1,6 +1,4 @@
-use crate::editor::{
-    CODEEDITOR, MODELFXEDITOR, REGIONFXEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR,
-};
+use crate::editor::{CODEEDITOR, REGIONFXEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR};
 use crate::prelude::*;
 
 #[derive(PartialEq, Debug)]
@@ -92,9 +90,9 @@ impl Sidebar {
             "Manage assets in the asset library, such as images, sounds, and fonts.",
         );
 
-        let mut model_sectionbar_button = TheSectionbarButton::new(TheId::named("Model Section"));
-        model_sectionbar_button.set_text("Model".to_string());
-        model_sectionbar_button.set_status_text("Add and manage models in the model library.");
+        // let mut model_sectionbar_button = TheSectionbarButton::new(TheId::named("Model Section"));
+        // model_sectionbar_button.set_text("Model".to_string());
+        // model_sectionbar_button.set_status_text("Add and manage models in the model library.");
 
         let mut debug_sectionbar_button = TheSectionbarButton::new(TheId::named("Debug Section"));
         debug_sectionbar_button.set_text("Debug".to_string());
@@ -116,7 +114,7 @@ impl Sidebar {
         vlayout.add_widget(Box::new(module_sectionbar_button));
         vlayout.add_widget(Box::new(screen_sectionbar_button));
         vlayout.add_widget(Box::new(asset_sectionbar_button));
-        vlayout.add_widget(Box::new(model_sectionbar_button));
+        //vlayout.add_widget(Box::new(model_sectionbar_button));
         vlayout.add_widget(Box::new(debug_sectionbar_button));
         vlayout.add_widget(Box::new(palette_sectionbar_button));
         vlayout.set_margin(vec4i(5, 10, 5, 5));
@@ -2528,11 +2526,6 @@ impl Sidebar {
                 }
             }
         }
-
-        MODELFXEDITOR
-            .lock()
-            .unwrap()
-            .redraw_modelfx_library(project, ui, ctx);
 
         TILEDRAWER
             .lock()
