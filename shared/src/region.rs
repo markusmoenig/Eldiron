@@ -194,7 +194,7 @@ impl Region {
         }
     }
 
-    /// Add a geometry node to the given position.
+    /// Add a geometry node.
     pub fn add_geo_node(&mut self, geo: GeoFXNode) -> Uuid {
         let mut geo_obj = GeoFXObject::default();
         geo_obj.nodes.push(geo);

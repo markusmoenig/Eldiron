@@ -84,10 +84,6 @@ impl PreRenderThread {
         self.rx = Some(result_rx);
 
         let renderer_thread = thread::spawn(move || {
-            let mut renderer = Renderer::new();
-            let mut draw_settings = RegionDrawSettings::new();
-            draw_settings.daylight = vec3f(1.0, 1.0, 1.0);
-
             // We allocate half of the available cpus to the background pool
             let cpus = num_cpus::get();
             let background_pool = ThreadPoolBuilder::new()
@@ -95,20 +91,29 @@ impl PreRenderThread {
                 .build()
                 .unwrap();
 
+            let mut renderer = Renderer::new();
+
+            let mut draw_settings = RegionDrawSettings::new();
+            draw_settings.daylight = vec3f(1.0, 1.0, 1.0);
+
+            let mut prerendered_regions: FxHashMap<Uuid, PreRendered> = FxHashMap::default();
+
             loop {
                 if let Ok(cmd) = rx.recv() {
                     match cmd {
-                        PreRenderCmd::SetTextures(textures) => {
+                        PreRenderCmd::SetTextures(new_textures) => {
                             println!("PreRenderCmd::SetTextures");
-                            renderer.set_textures(textures);
+                            renderer.set_textures(new_textures.clone());
                         }
-                        PreRenderCmd::SetMaterials(materials) => {
+                        PreRenderCmd::SetMaterials(new_materials) => {
                             println!("PreRenderCmd::SetMaterials");
-                            renderer.materials = materials;
+                            renderer.materials.clone_from(&new_materials);
                         }
-                        PreRenderCmd::MaterialChanged(materials) => {
+                        PreRenderCmd::MaterialChanged(changed_material) => {
                             println!("PreRenderCmd::MaterialChanged");
-                            renderer.materials.insert(materials.id, materials);
+                            renderer
+                                .materials
+                                .insert(changed_material.id, changed_material);
                         }
                         PreRenderCmd::RenderRegion(region, palette, tiles) => {
                             println!("PreRenderCmd::RenderRegion");
@@ -136,7 +141,12 @@ impl PreRenderThread {
                                 prerendered.add_all_tiles(region.grid_size);
                                 prerendered
                             } else {
-                                let mut prerendered = region.prerendered.clone();
+                                let mut prerendered =
+                                    if let Some(pre) = prerendered_regions.get(&region.id) {
+                                        pre.clone()
+                                    } else {
+                                        region.prerendered.clone()
+                                    };
                                 if !tiles.is_empty() {
                                     prerendered.add_tiles(tiles, region.grid_size);
                                 }
@@ -156,6 +166,8 @@ impl PreRenderThread {
                                 });
 
                                 prerendered.tiles_to_render.clear();
+
+                                prerendered_regions.insert(region.id, prerendered.clone());
 
                                 result_tx
                                     .send(PreRenderResult::RenderedRegion(region.id, prerendered))

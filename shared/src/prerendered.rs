@@ -94,109 +94,23 @@ impl PreRendered {
 
     /// Add the given tiles to be rendered in grid space, we map them to local space.
     pub fn add_tiles(&mut self, tiles: Vec<Vec2i>, grid_size: i32) {
-        let mut min = Vec2i {
-            x: i32::MAX,
-            y: i32::MAX,
-        };
-        let mut max = Vec2i {
-            x: i32::MIN,
-            y: i32::MIN,
-        };
+        for tile in tiles {
+            if let Some(data) = self.tree.nearest_neighbor(&[tile.x as f32, tile.y as f32]) {
+                let tile = Vec2i::new(
+                    data.pixel_location.0 / grid_size,
+                    data.pixel_location.1 / grid_size,
+                );
 
-        for vec in tiles {
-            // Update min and max for x and y components
-            if vec.x < min.x {
-                min.x = vec.x;
-            }
-            if vec.x > max.x {
-                max.x = vec.x;
-            }
-            if vec.y < min.y {
-                min.y = vec.y;
-            }
-            if vec.y > max.y {
-                max.y = vec.y;
-            }
-        }
-
-        min.x -= 1;
-        min.y -= 1;
-        max.x += 1;
-        max.y += 1;
-
-        let mut mapped_tiles: Vec<Vec2i> = vec![];
-
-        if let Some(data) = self.tree.nearest_neighbor(&[min.x as f32, min.y as f32]) {
-            let min_tile = Vec2i::new(
-                data.pixel_location.0 / grid_size,
-                data.pixel_location.1 / grid_size,
-            );
-            mapped_tiles.push(min_tile);
-        }
-
-        if let Some(data) = self.tree.nearest_neighbor(&[max.x as f32, min.y as f32]) {
-            let min_tile = Vec2i::new(
-                data.pixel_location.0 / grid_size,
-                data.pixel_location.1 / grid_size,
-            );
-            mapped_tiles.push(min_tile);
-        }
-
-        if let Some(data) = self.tree.nearest_neighbor(&[min.x as f32, max.y as f32]) {
-            let min_tile = Vec2i::new(
-                data.pixel_location.0 / grid_size,
-                data.pixel_location.1 / grid_size,
-            );
-            mapped_tiles.push(min_tile);
-        }
-
-        if let Some(data) = self.tree.nearest_neighbor(&[max.x as f32, max.y as f32]) {
-            let min_tile = Vec2i::new(
-                data.pixel_location.0 / grid_size,
-                data.pixel_location.1 / grid_size,
-            );
-            mapped_tiles.push(min_tile);
-        }
-
-        let mut min = Vec2i {
-            x: i32::MAX,
-            y: i32::MAX,
-        };
-        let mut max = Vec2i {
-            x: i32::MIN,
-            y: i32::MIN,
-        };
-
-        for vec in mapped_tiles {
-            // Update min and max for x and y components
-            if vec.x < min.x {
-                min.x = vec.x;
-            }
-            if vec.x > max.x {
-                max.x = vec.x;
-            }
-            if vec.y < min.y {
-                min.y = vec.y;
-            }
-            if vec.y > max.y {
-                max.y = vec.y;
-            }
-        }
-
-        for x in min.x..=max.x {
-            for y in min.y..=max.y {
-                let tile = Vec2i::new(x, y);
-                if !self.tiles_to_render.contains(&tile) {
-                    self.tiles_to_render.push(tile);
+                for y in tile.y - 1..tile.y + 2 {
+                    for x in tile.x - 1..tile.x + 2 {
+                        let t = Vec2i::new(x, y);
+                        if !self.tiles_to_render.contains(&t) {
+                            self.tiles_to_render.push(t);
+                        }
+                    }
                 }
             }
         }
-
-        /*
-        for t in tiles {
-            let coord = [t.x as f32, t.y as f32];
-            self.add_mapped_tile(coord, grid_size);
-            }*/
     }
 
     /// Maps a tile to local camera space and adds the pixel region to be rendered.

@@ -32,6 +32,8 @@ pub struct TileEditor {
 
     icon_normal_border_color: RGBA,
     icon_selected_border_color: RGBA,
+
+    processed_coords: FxHashSet<Vec2i>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -46,6 +48,8 @@ impl TileEditor {
 
             icon_normal_border_color: [100, 100, 100, 255],
             icon_selected_border_color: [255, 255, 255, 255],
+
+            processed_coords: FxHashSet::default(),
         }
     }
 
@@ -328,7 +332,36 @@ impl TileEditor {
                     }
                 }
             }
-            TheEvent::RenderViewClicked(id, coord) | TheEvent::RenderViewDragged(id, coord) => {
+            TheEvent::RenderViewClicked(id, coord) => {
+                if id.name == "RenderView" {
+                    self.processed_coords.clear();
+                    if let Some(render_view) = ui.get_render_view("RenderView") {
+                        let dim = render_view.dim();
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            let pos = RENDERER.lock().unwrap().get_hit_position_at(
+                                *coord,
+                                region,
+                                &mut server.get_instance_draw_settings(server_ctx.curr_region),
+                                dim.width as usize,
+                                dim.height as usize,
+                            );
+
+                            if let Some(pos) = pos {
+                                redraw = self.action_at(
+                                    vec2i(pos.x, pos.z),
+                                    ui,
+                                    ctx,
+                                    project,
+                                    server,
+                                    server_ctx,
+                                    true,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            TheEvent::RenderViewDragged(id, coord) => {
                 if id.name == "RenderView" {
                     if let Some(render_view) = ui.get_render_view("RenderView") {
                         let dim = render_view.dim();
@@ -356,7 +389,13 @@ impl TileEditor {
                     }
                 }
             }
-            TheEvent::TileEditorClicked(id, coord) | TheEvent::TileEditorDragged(id, coord) => {
+            TheEvent::TileEditorClicked(id, coord) => {
+                if id.name == "Region Editor View" {
+                    self.processed_coords.clear();
+                    redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx, false);
+                }
+            }
+            TheEvent::TileEditorDragged(id, coord) => {
                 if id.name == "Region Editor View" {
                     redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx, false);
                 }
@@ -1057,40 +1096,45 @@ impl TileEditor {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 let editing_mode = MODELFXEDITOR.lock().unwrap().editing_mode;
                 if editing_mode == EditingMode::Geometry {
-                    // Add Geometry
-                    let geo = MODELFXEDITOR.lock().unwrap().get_geo_node(ui);
-                    if let Some(mut geo) = geo {
-                        let new_id = Uuid::new_v4();
-                        geo.id = new_id;
-                        geo.set_default_position(coord);
-                        let obj_id = region.add_geo_node(geo);
-                        if let Some((geo_obj, _)) = region.find_geo_node(new_id) {
-                            tiles_to_render.clone_from(&geo_obj.area);
-                        }
-                        server_ctx.curr_geo_object = Some(obj_id);
-                        server_ctx.curr_geo_node = Some(new_id);
-                        region_to_render = Some(region.clone());
+                    if !self.processed_coords.contains(&coord) {
+                        // Add Geometry
+                        let geo = MODELFXEDITOR.lock().unwrap().get_geo_node(ui);
+                        if let Some(mut geo) = geo {
+                            let new_id = Uuid::new_v4();
+                            geo.id = new_id;
+                            geo.set_default_position(coord);
+                            let obj_id = region.add_geo_node(geo);
+                            if let Some((geo_obj, _)) = region.find_geo_node(new_id) {
+                                tiles_to_render.clone_from(&geo_obj.area);
+                            }
+                            server_ctx.curr_geo_object = Some(obj_id);
+                            server_ctx.curr_geo_node = Some(new_id);
+                            region_to_render = Some(region.clone());
 
-                        server.update_region(region);
+                            server.update_region(region);
 
-                        if let Some(obj) = region.geometry.get(&obj_id) {
-                            let undo = RegionUndoAtom::GeoFXObjectEdit(
-                                obj_id,
-                                None,
-                                Some(obj.clone()),
-                                tiles_to_render.clone(),
-                            );
-                            UNDOMANAGER
+                            if let Some(obj) = region.geometry.get(&obj_id) {
+                                let undo = RegionUndoAtom::GeoFXObjectEdit(
+                                    obj_id,
+                                    None,
+                                    Some(obj.clone()),
+                                    tiles_to_render.clone(),
+                                );
+                                UNDOMANAGER
+                                    .lock()
+                                    .unwrap()
+                                    .add_region_undo(&region.id, undo, ctx);
+                            }
+
+                            MODELFXEDITOR
                                 .lock()
                                 .unwrap()
-                                .add_region_undo(&region.id, undo, ctx);
-                        }
+                                .set_geo_node_ui(server_ctx, project, ui, ctx);
 
-                        MODELFXEDITOR
-                            .lock()
-                            .unwrap()
-                            .set_geo_node_ui(server_ctx, project, ui, ctx);
-                        redraw = true;
+                            self.processed_coords.insert(coord);
+
+                            redraw = true;
+                        }
                     }
                 } else {
                     // Apply material
