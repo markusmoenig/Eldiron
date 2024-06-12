@@ -25,6 +25,107 @@ impl Renderer {
         }
     }
 
+    pub fn prerender_rtree(
+        &mut self,
+        prerendered: &mut PreRendered,
+        region: &Region,
+        settings: &mut RegionDrawSettings,
+    ) {
+        let _start = self.get_time();
+
+        let width = prerendered.albedo.dim().width as usize;
+        let height = prerendered.albedo.dim().height as usize;
+
+        let width_f = width as f32;
+        let height_f = height as f32;
+
+        let mut tilted_iso_alignment = 0;
+        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("Tilted Iso Alignment"),
+            &settings.time,
+            TheInterpolation::Switch,
+        ) {
+            tilted_iso_alignment = value;
+        }
+
+        let (ro, rd, fov, _, camera_type) = self.create_camera_setup(region, settings);
+        let camera = Camera::new(ro, rd, fov);
+
+        // --
+        let mut tiles = prerendered.tiles_to_render.clone();
+        let prerendered_mutex = Arc::new(Mutex::new(prerendered));
+
+        let _start = self.get_time();
+
+        // Temporary array to store the rtree values, we bulk_load the content at the end
+        let dest_tree = vec![];
+        let dest_tree_mutex = Arc::new(Mutex::new(dest_tree));
+
+        tiles.par_iter_mut().for_each(|tile| {
+            let mut tree = vec![];
+
+            for h in 0..region.grid_size {
+                for w in 0..region.grid_size {
+                    let x = tile.x * region.grid_size + w;
+                    let y = tile.y * region.grid_size + h;
+                    let xx = x as f32;
+                    let yy = y as f32;
+
+                    let ray = if camera_type == CameraType::TiltedIso {
+                        camera.create_tilted_isometric_ray2(
+                            vec2f(xx / width_f, (height_f - yy) / height_f),
+                            vec2f(width_f, height_f),
+                            vec2f(region.width as f32, region.height as f32),
+                            vec2f(1.0, 1.0),
+                            tilted_iso_alignment,
+                        )
+                    } else {
+                        camera.create_ortho_ray2(
+                            vec2f(xx / width_f, (height_f - yy) / height_f),
+                            vec2f(width_f, height_f),
+                            vec2f(region.width as f32, region.height as f32),
+                            vec2f(1.0, 1.0),
+                        )
+                    };
+
+                    let plane_normal = vec3f(0.0, 1.0, 0.0);
+                    let denom = dot(plane_normal, ray.d);
+
+                    if denom.abs() > 0.0001 {
+                        let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
+                        if t >= 0.0 {
+                            let p = ray.o + ray.d * t;
+                            tree.push(PreRenderedData {
+                                location: (p.x, p.z),
+                                pixel_location: (xx as i32, (yy) as i32),
+                            });
+                        }
+                    }
+                }
+            }
+
+            let mut dest_tree_mutex = dest_tree_mutex.lock().unwrap();
+            dest_tree_mutex.append(&mut tree);
+
+            std::thread::yield_now();
+        });
+
+        let mut prerendered = prerendered_mutex.lock().unwrap();
+
+        prerendered.tree = RTree::bulk_load(
+            Arc::try_unwrap(dest_tree_mutex)
+                .unwrap()
+                .into_inner()
+                .unwrap(),
+        );
+
+        prerendered.tiles_to_render.clear();
+
+        let _stop = self.get_time();
+        //println!("render time {:?}", _stop - _start);
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn prerender(
         &mut self,

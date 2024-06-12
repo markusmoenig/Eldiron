@@ -67,7 +67,6 @@ pub struct Region {
     pub items: FxHashMap<Uuid, Item>,
 
     #[serde(default)]
-    #[serde(skip)]
     pub prerendered: PreRendered,
 
     pub width: i32,

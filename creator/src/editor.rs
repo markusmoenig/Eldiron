@@ -1067,11 +1067,10 @@ impl TheTrait for Editor {
                                             .set_materials(self.project.materials.clone());
 
                                         for region in &mut self.project.regions {
-                                            PRERENDERTHREAD.lock().unwrap().render_region(
-                                                region.clone(),
-                                                self.project.palette.clone(),
-                                                vec![],
-                                            );
+                                            PRERENDERTHREAD
+                                                .lock()
+                                                .unwrap()
+                                                .render_region_coord_tree(region.clone());
                                         }
 
                                         if let Some(widget) = ui.get_widget("Server Time Slider") {

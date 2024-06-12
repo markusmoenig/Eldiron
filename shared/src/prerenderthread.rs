@@ -7,6 +7,7 @@ pub enum PreRenderCmd {
     SetTextures(FxHashMap<Uuid, TheRGBATile>),
     SetMaterials(IndexMap<Uuid, MaterialFXObject>),
     MaterialChanged(MaterialFXObject),
+    RenderRegionCoordTree(Region),
     RenderRegion(Region, ThePalette, Vec<Vec2i>),
     Quit,
 }
@@ -74,6 +75,10 @@ impl PreRenderThread {
         self.send(PreRenderCmd::RenderRegion(region, palette, tiles));
     }
 
+    pub fn render_region_coord_tree(&self, region: Region) {
+        self.send(PreRenderCmd::RenderRegionCoordTree(region));
+    }
+
     pub fn startup(&mut self) {
         let (tx, rx) = mpsc::channel::<PreRenderCmd>();
 
@@ -114,6 +119,63 @@ impl PreRenderThread {
                             renderer
                                 .materials
                                 .insert(changed_material.id, changed_material);
+                        }
+                        PreRenderCmd::RenderRegionCoordTree(region) => {
+                            println!("PreRenderCmd::RenderRegionCoordTree");
+
+                            let w = (region.width as f32 * region.grid_size as f32) as i32;
+                            let h = (region.height as f32 * region.grid_size as f32) as i32;
+
+                            renderer.set_region(&region);
+                            renderer.position =
+                                vec3f(region.width as f32 / 2.0, 0.0, region.height as f32 / 2.0);
+
+                            let mut reset = false;
+
+                            if region.prerendered.albedo.dim().width != w
+                                || region.prerendered.albedo.dim().height != h
+                            {
+                                reset = true;
+                            }
+
+                            let mut prerendered = if reset {
+                                let mut prerendered = PreRendered::new(
+                                    TheRGBBuffer::new(TheDim::sized(w, h)),
+                                    TheRGBBuffer::new(TheDim::sized(w, h)),
+                                );
+                                prerendered.add_all_tiles(region.grid_size);
+                                prerendered
+                            } else {
+                                let mut prerendered =
+                                    if let Some(pre) = prerendered_regions.get(&region.id) {
+                                        pre.clone()
+                                    } else {
+                                        region.prerendered.clone()
+                                    };
+                                prerendered.add_all_tiles(region.grid_size);
+                                prerendered
+                            };
+
+                            println!("tiles_to_render: {:?}", prerendered.tiles_to_render.len());
+
+                            if !prerendered.tiles_to_render.is_empty() {
+                                background_pool.install(|| {
+                                    renderer.prerender_rtree(
+                                        &mut prerendered,
+                                        &region,
+                                        &mut draw_settings,
+                                    );
+                                });
+
+                                prerendered.tiles_to_render.clear();
+
+                                prerendered_regions.insert(region.id, prerendered.clone());
+
+                                result_tx
+                                    .send(PreRenderResult::RenderedRegion(region.id, prerendered))
+                                    .unwrap();
+                                println!("finished");
+                            }
                         }
                         PreRenderCmd::RenderRegion(region, palette, tiles) => {
                             println!("PreRenderCmd::RenderRegion");

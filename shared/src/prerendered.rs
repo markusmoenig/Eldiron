@@ -41,6 +41,7 @@ pub struct PreRendered {
 
     pub tiles_to_render: Vec<Vec2i>,
 
+    #[serde(skip)]
     pub tree: RTree<PreRenderedData>,
 }
 
