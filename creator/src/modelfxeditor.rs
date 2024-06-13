@@ -21,6 +21,7 @@ pub struct ModelFXEditor {
     pub materials: FxHashMap<(i32, i32), Uuid>,
 
     pub editing_mode: EditingMode,
+    pub curr_function: String,
 
     pub current_material: Option<Uuid>,
 
@@ -36,6 +37,7 @@ impl ModelFXEditor {
             materials: FxHashMap::default(),
 
             editing_mode: EditingMode::Geometry,
+            curr_function: "Ground".to_string(),
 
             current_material: None,
 
@@ -146,8 +148,9 @@ impl ModelFXEditor {
                         ..Default::default()
                     },
                 ),
+                TheContextMenuItem::new("Noise2D".to_string(), TheId::named("Noise2D")),
+                TheContextMenuItem::new("Noise3D".to_string(), TheId::named("Noise3D")),
                 TheContextMenuItem::new("Geometry".to_string(), TheId::named("Geometry")),
-                TheContextMenuItem::new("Noise".to_string(), TheId::named("Noise")),
                 TheContextMenuItem::new("Material".to_string(), TheId::named("Material")),
             ],
             ..Default::default()
@@ -278,7 +281,7 @@ impl ModelFXEditor {
                     material.nodes.push(node);
                     material.selected_node = Some(material.nodes.len() - 1);
                     material.render_preview(&project.palette);
-                    ui.set_node_preview("MaterialFX NodeCanvas", 0, material.preview.clone());
+                    ui.set_node_preview("MaterialFX NodeCanvas", 0, material.get_preview());
 
                     PRERENDERTHREAD
                         .lock()
@@ -332,7 +335,11 @@ impl ModelFXEditor {
                                 let prev = material.to_json();
                                 let material_id = material.id;
                                 let mut node = MaterialFXNode::new_from_name(item.name.clone());
-                                node.position = vec2i(150, 50);
+                                node.position = vec2i(220, 10);
+                                let index = material.nodes.len();
+                                if index > 0 && node.supports_preview {
+                                    node.render_preview(&project.palette);
+                                }
                                 material.nodes.push(node);
                                 material.selected_node = Some(material.nodes.len() - 1);
                                 let undo = MaterialFXUndoAtom::AddNode(
@@ -447,7 +454,7 @@ impl ModelFXEditor {
                                         ui.set_node_preview(
                                             "MaterialFX NodeCanvas",
                                             0,
-                                            material.preview.clone(),
+                                            material.get_preview(),
                                         );
 
                                         let next = material.to_json();
@@ -603,11 +610,20 @@ impl ModelFXEditor {
                                     if let Some(selected_index) = material.selected_node {
                                         let prev = material.to_json();
                                         material.nodes[selected_index].set(name, value);
+                                        if material.nodes[selected_index].supports_preview {
+                                            material.nodes[selected_index]
+                                                .render_preview(&project.palette);
+                                            ui.set_node_preview(
+                                                "MaterialFX NodeCanvas",
+                                                selected_index,
+                                                material.nodes[selected_index].preview.clone(),
+                                            );
+                                        }
                                         material.render_preview(&project.palette);
                                         ui.set_node_preview(
                                             "MaterialFX NodeCanvas",
                                             0,
-                                            material.preview.clone(),
+                                            material.get_preview(),
                                         );
                                         let next = material.to_json();
 
@@ -776,11 +792,7 @@ impl ModelFXEditor {
                             let prev = material.to_json();
                             material.connections.clone_from(connections);
                             material.render_preview(&project.palette);
-                            ui.set_node_preview(
-                                "MaterialFX NodeCanvas",
-                                0,
-                                material.preview.clone(),
-                            );
+                            ui.set_node_preview("MaterialFX NodeCanvas", 0, material.get_preview());
                             let undo =
                                 MaterialFXUndoAtom::Edit(material.id, prev, material.to_json());
                             UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
@@ -800,11 +812,7 @@ impl ModelFXEditor {
                             //material.node_previews.remove(*deleted_node_index);
                             material.connections.clone_from(connections);
                             material.render_preview(&project.palette);
-                            ui.set_node_preview(
-                                "MaterialFX NodeCanvas",
-                                0,
-                                material.preview.clone(),
-                            );
+                            ui.set_node_preview("MaterialFX NodeCanvas", 0, material.get_preview());
                             let undo =
                                 MaterialFXUndoAtom::Edit(material.id, prev, material.to_json());
                             UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
@@ -1028,20 +1036,26 @@ impl ModelFXEditor {
         }
     }
 
+    pub fn set_curr_function(&mut self, function: String, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.curr_function = function;
+        self.set_geo_tiles(ui, ctx);
+    }
+
     /// Set the tiles for the picker.
     pub fn set_geo_tiles(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) {
         let tile_size = 48;
 
         //let mut set_default_selection = false;
 
-        let geo_tiles = if self.geos.is_empty() {
-            //set_default_selection = true;
-            GeoFXNode::nodes()
-        } else {
-            self.geos.values().cloned().collect()
-        };
+        let geo_tiles = GeoFXNode::nodes();
 
         self.geos.clear();
+        let mut amount = 0;
+        for g in geo_tiles.iter() {
+            if g.function == self.curr_function {
+                amount += 1;
+            }
+        }
 
         if let Some(editor) = ui.get_rgba_layout("GeoFX RGBA Layout") {
             if editor.dim().width == 0 {
@@ -1057,32 +1071,23 @@ impl ModelFXEditor {
                 rgba_view.set_grid(Some(grid));
 
                 let tiles_per_row = width / grid;
-                let lines = geo_tiles.len() as i32 / tiles_per_row + 1;
+                let lines = amount / tiles_per_row + 1;
 
                 let mut buffer =
                     TheRGBABuffer::new(TheDim::sized(width, max(lines * grid, height)));
 
                 let mut tile_buffer = TheRGBABuffer::new(TheDim::sized(tile_size, tile_size));
 
-                for (i, tile) in geo_tiles.iter().enumerate() {
-                    let x = i as i32 % tiles_per_row;
-                    let y = i as i32 / tiles_per_row;
+                let mut i = 0;
+                for tile in geo_tiles.iter() {
+                    if tile.function != self.curr_function {
+                        continue;
+                    }
 
-                    /*
-                    self.tile_ids.insert((x, y), tile.id);
-                    self.tile_text.insert(
-                        (x, y),
-                        format!(
-                            "{} : {}",
-                            tile.name,
-                            TileRole::from_index(tile.role)
-                                .unwrap_or(TileRole::ManMade)
-                                .to_string()
-                        ),
-                    );
-                    if !tile.buffer.is_empty() {
-                        buffer.copy_into(x * grid, y * grid, &tile.buffer[0].scaled(grid, grid));
-                        }*/
+                    let x = i % tiles_per_row;
+                    let y = i / tiles_per_row;
+
+                    i += 1;
 
                     tile.preview(&mut tile_buffer);
                     buffer.copy_into(x * grid, y * grid, &tile_buffer);
@@ -1179,7 +1184,7 @@ impl ModelFXEditor {
                         }*/
 
                     //tile.preview(&mut tile_buffer);
-                    buffer.copy_into(x * grid, y * grid, &obj.preview);
+                    buffer.copy_into(x * grid, y * grid, &obj.get_preview());
                     self.materials.insert((x, y), *id);
                 }
 

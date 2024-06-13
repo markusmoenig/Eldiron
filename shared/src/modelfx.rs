@@ -1022,19 +1022,19 @@ impl ModelFX {
                             );
                             total = c.color().to_vec4f();
                         }
-                    } else if role == ModelFXNodeRole::Noise {
-                        // Noise node
-                        let uv = vec2f(xx / width as f32, yy / height as f32);
-                        let hit = Hit {
-                            uv: uv * 3.0,
-                            hit_point: vec3f(uv.x, 0.0, uv.y) * 3.0,
-                            ..Default::default()
-                        };
-                        if let ModelFXNode::Noise3D(_coll) = &self.nodes[node_index] {
-                            let n = self.nodes[node_index].noise(&hit) * 0.5 + 0.5;
-                            total = vec4f(n, n, n, 1.0);
-                        }
-                    }
+                    } /*else if role == ModelFXNodeRole::Noise {
+                      // Noise node
+                      let uv = vec2f(xx / width as f32, yy / height as f32);
+                      let hit = Hit {
+                          uv: uv * 3.0,
+                          hit_point: vec3f(uv.x, 0.0, uv.y) * 3.0,
+                          ..Default::default()
+                      };
+                      if let ModelFXNode::Noise3D(_coll) = &self.nodes[node_index] {
+                          let n = self.nodes[node_index].noise(&hit) * 0.5 + 0.5;
+                          total = vec4f(n, n, n, 1.0);
+                      }
+                      }*/
 
                     pixel.copy_from_slice(&TheColor::from_vec4f(total).to_u8_array());
                 }

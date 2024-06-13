@@ -784,6 +784,10 @@ impl TileEditor {
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
                     }
+                    MODELFXEDITOR
+                        .lock()
+                        .unwrap()
+                        .set_curr_function(str!("Ground"), ui, ctx);
                 } else if id.name == "Wall Icon" {
                     self.curr_layer_role = Layer2DRole::Wall;
                     self.set_icon_colors(ui);
@@ -797,6 +801,10 @@ impl TileEditor {
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
                     }
+                    MODELFXEDITOR
+                        .lock()
+                        .unwrap()
+                        .set_curr_function(str!("Wall"), ui, ctx);
                 } else if id.name == "Ceiling Icon" {
                     self.curr_layer_role = Layer2DRole::Ceiling;
                     self.set_icon_colors(ui);
@@ -810,6 +818,10 @@ impl TileEditor {
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
                     }
+                    MODELFXEDITOR
+                        .lock()
+                        .unwrap()
+                        .set_curr_function(str!("Ceiling"), ui, ctx);
                 } else if id.name == "Tile FX Icon" {
                     self.curr_layer_role = Layer2DRole::FX;
                     self.set_icon_colors(ui);
@@ -819,6 +831,10 @@ impl TileEditor {
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
                     }
+                    MODELFXEDITOR
+                        .lock()
+                        .unwrap()
+                        .set_curr_function(str!("FX"), ui, ctx);
                 }
             }
             _ => {}

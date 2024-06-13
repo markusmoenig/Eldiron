@@ -1,11 +1,12 @@
 use crate::prelude::*;
-use noiselib::prelude::*;
+use rayon::prelude::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum MaterialFXNodeRole {
     Geometry,
     Material,
+    Noise2D,
     Noise3D,
     Brick,
 }
@@ -19,35 +20,40 @@ pub struct MaterialFXNode {
     pub timeline: TheTimeline,
 
     pub position: Vec2i,
+
+    pub supports_preview: bool,
+    pub preview_is_open: bool,
+
+    pub preview: TheRGBABuffer,
 }
 
 impl MaterialFXNode {
     pub fn new(role: MaterialFXNodeRole) -> Self {
         let mut coll = TheCollection::named(str!("Props"));
+        let mut supports_preview = false;
+        let mut preview_is_open = false;
 
         match role {
             Geometry => {
-                coll.set("_supports_preview", TheValue::Bool(true));
-                coll.set("_preview_is_open", TheValue::Bool(true));
+                supports_preview = true;
+                preview_is_open = true;
             }
             Material => {
                 coll.set("Color", TheValue::PaletteIndex(0));
                 coll.set("Roughness", TheValue::FloatRange(0.5, 0.0..=1.0));
                 coll.set("Metallic", TheValue::FloatRange(0.0, 0.0..=1.0));
             }
-            Noise3D => {
-                coll.set(
-                    "Type",
-                    TheValue::TextList(0, vec![str!("Perlin"), str!("Musgrave"), str!("Simplex")]),
-                );
-                coll.set("Seed", TheValue::IntRange(0, 0..=100));
-                coll.set("UV Scale", TheValue::FloatRange(1.0, 0.0..=20.0));
+            Noise2D | Noise3D => {
+                // coll.set(
+                //     "Type",
+                //     TheValue::TextList(0, vec![str!("Value"), str!("Musgrave"), str!("Simplex")]),
+                // );
+                coll.set("UV Scale", TheValue::FloatRange(1.0, 0.0..=6.0));
                 coll.set("Out Scale", TheValue::FloatRange(1.0, 0.0..=1.0));
-                coll.set("Octaves", TheValue::IntRange(1, 1..=4));
-                coll.set(
-                    "Fractal",
-                    TheValue::TextList(0, vec![str!("Add"), str!("Add Abs"), str!("Mul")]),
-                );
+                coll.set("Disp Scale", TheValue::FloatRange(0.1, 0.0..=1.0));
+                coll.set("Octaves", TheValue::IntRange(5, 0..=5));
+                supports_preview = true;
+                preview_is_open = true;
             }
             Brick => {
                 coll.set("Ratio", TheValue::FloatRange(2.0, 1.0..=10.0));
@@ -70,6 +76,9 @@ impl MaterialFXNode {
             role,
             timeline,
             position: Vec2i::new(10, 5),
+            supports_preview,
+            preview_is_open,
+            preview: TheRGBABuffer::empty(),
         }
     }
 
@@ -77,7 +86,8 @@ impl MaterialFXNode {
         match self.role {
             Geometry => str!("Geometry"),
             Material => str!("Material"),
-            Noise3D => str!("Noise"),
+            Noise2D => str!("Noise2D"),
+            Noise3D => str!("Noise3D"),
             Brick => str!("Bricks"),
         }
     }
@@ -86,6 +96,7 @@ impl MaterialFXNode {
         vec![
             Self::new(MaterialFXNodeRole::Geometry),
             Self::new(MaterialFXNodeRole::Material),
+            Self::new(MaterialFXNodeRole::Noise2D),
             Self::new(MaterialFXNodeRole::Noise3D),
             Self::new(MaterialFXNodeRole::Brick),
         ]
@@ -107,7 +118,7 @@ impl MaterialFXNode {
                     },
                 ]
             }
-            Material | Noise3D => {
+            Material | Noise3D | Noise2D => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
                     role: str!("Input"),
@@ -148,6 +159,13 @@ impl MaterialFXNode {
                     },
                 ]
             }
+            Noise3D | Noise2D => {
+                vec![TheNodeTerminal {
+                    name: str!("out"),
+                    role: str!("Output"),
+                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                }]
+            }
             _ => vec![],
         }
     }
@@ -160,19 +178,27 @@ impl MaterialFXNode {
 
                 if let Some(TheValue::PaletteIndex(index)) = collection.get("Color") {
                     if let Some(color) = &palette.colors[*index as usize] {
-                        hit.albedo.x = color.r;
-                        hit.albedo.y = color.g;
-                        hit.albedo.z = color.b;
-                        hit.roughness = collection.get_f32_default("Roughness", 0.5);
-                        hit.metallic = collection.get_f32_default("Metallic", 0.0);
+                        hit.albedo.x = color.r * hit.value;
+                        hit.albedo.y = color.g * hit.value;
+                        hit.albedo.z = color.b * hit.value;
+                        hit.roughness = collection.get_f32_default("Roughness", 0.5) * hit.value;
+                        hit.metallic = collection.get_f32_default("Metallic", 0.0) * hit.value;
                     }
                 }
 
                 None
             }
+            Noise2D => {
+                let collection = self.collection();
+                hit.value = noise2d(&collection, hit);
+                hit.albedo = vec3f(hit.value, hit.value, hit.value);
+                Some(0)
+            }
             Noise3D => {
-                hit.value = self.noise(hit, false);
-                None
+                let collection = self.collection();
+                hit.value = noise3d(&collection, hit);
+                hit.albedo = vec3f(hit.value, hit.value, hit.value);
+                Some(0)
             }
             Brick => {
                 let collection = self.collection();
@@ -180,186 +206,6 @@ impl MaterialFXNode {
                 Some(terminal)
             }
             _ => None,
-        }
-    }
-
-    /// Noise function.
-    pub fn noise(&self, hit: &mut Hit, normalize: bool) -> f32 {
-        match self.role {
-            Noise3D => {
-                let collection = self.collection();
-
-                let seed = collection.get_i32_default("Seed", 0) as u32;
-                let noise_type = collection.get_i32_default("Type", 0);
-                let scale = collection.get_f32_default("UV Scale", 1.0);
-                let out_scale = collection.get_f32_default("Out Scale", 1.0);
-                let octaves = collection.get_i32_default("Octaves", 0);
-                let mut value = 0.0;
-                let mut rng = UniformRandomGen::new(seed);
-
-                if noise_type == 0 {
-                    if octaves == 1 {
-                        value = perlin_noise_3d(
-                            &mut rng,
-                            hit.hit_point.x * scale,
-                            hit.hit_point.y * scale,
-                            hit.hit_point.z * scale,
-                            seed,
-                        );
-                    } else {
-                        let fractal = collection.get_i32_default("Fractal", 0);
-
-                        if fractal == 0 {
-                            value = fractal_noise_add_3d(
-                                &mut rng,
-                                hit.hit_point.x * scale,
-                                hit.hit_point.y * scale,
-                                hit.hit_point.z * scale,
-                                perlin_noise_3d,
-                                octaves,
-                                0.5,
-                                2.0,
-                                seed,
-                            );
-                        } else if fractal == 1 {
-                            value = fractal_noise_add_abs_3d(
-                                &mut rng,
-                                hit.hit_point.x * scale,
-                                hit.hit_point.y * scale,
-                                hit.hit_point.z * scale,
-                                perlin_noise_3d,
-                                octaves,
-                                0.5,
-                                2.0,
-                                seed,
-                            );
-                        } else {
-                            value = fractal_noise_mul_3d(
-                                &mut rng,
-                                hit.hit_point.x * scale,
-                                hit.hit_point.y * scale,
-                                hit.hit_point.z * scale,
-                                perlin_noise_3d,
-                                octaves,
-                                0.5,
-                                2.0,
-                                1.5,
-                                seed,
-                            );
-                        }
-                    }
-                } else if noise_type == 1 {
-                    if octaves == 1 {
-                        value = musgrave_noise_3d(
-                            &mut rng,
-                            hit.hit_point.x * scale,
-                            hit.hit_point.y * scale,
-                            hit.hit_point.z * scale,
-                            seed,
-                        );
-                    } else {
-                        let fractal = collection.get_i32_default("Fractal", 0);
-
-                        if fractal == 0 {
-                            value = fractal_noise_add_3d(
-                                &mut rng,
-                                hit.hit_point.x * scale,
-                                hit.hit_point.y * scale,
-                                hit.hit_point.z * scale,
-                                musgrave_noise_3d,
-                                octaves,
-                                0.5,
-                                2.0,
-                                seed,
-                            );
-                        } else if fractal == 1 {
-                            value = fractal_noise_add_abs_3d(
-                                &mut rng,
-                                hit.hit_point.x * scale,
-                                hit.hit_point.y * scale,
-                                hit.hit_point.z * scale,
-                                musgrave_noise_3d,
-                                octaves,
-                                0.5,
-                                2.0,
-                                seed,
-                            );
-                        } else {
-                            value = fractal_noise_mul_3d(
-                                &mut rng,
-                                hit.hit_point.x * scale,
-                                hit.hit_point.y * scale,
-                                hit.hit_point.z * scale,
-                                musgrave_noise_3d,
-                                octaves,
-                                0.5,
-                                2.0,
-                                1.5,
-                                seed,
-                            );
-                        }
-                    }
-                }
-                if noise_type == 2 {
-                    if octaves == 1 {
-                        value = simplex_noise_3d(
-                            &mut rng,
-                            hit.hit_point.x * scale,
-                            hit.hit_point.y * scale,
-                            hit.hit_point.z * scale,
-                            seed,
-                        );
-                    } else {
-                        let fractal = collection.get_i32_default("Fractal", 0);
-
-                        if fractal == 0 {
-                            value = fractal_noise_add_3d(
-                                &mut rng,
-                                hit.hit_point.x * scale,
-                                hit.hit_point.y * scale,
-                                hit.hit_point.z * scale,
-                                simplex_noise_3d,
-                                octaves,
-                                0.5,
-                                2.0,
-                                seed,
-                            );
-                        } else if fractal == 1 {
-                            value = fractal_noise_add_abs_3d(
-                                &mut rng,
-                                hit.hit_point.x * scale,
-                                hit.hit_point.y * scale,
-                                hit.hit_point.z * scale,
-                                simplex_noise_3d,
-                                octaves,
-                                0.5,
-                                2.0,
-                                seed,
-                            );
-                        } else {
-                            value = fractal_noise_mul_3d(
-                                &mut rng,
-                                hit.hit_point.x * scale,
-                                hit.hit_point.y * scale,
-                                hit.hit_point.z * scale,
-                                simplex_noise_3d,
-                                octaves,
-                                0.5,
-                                2.0,
-                                1.5,
-                                seed,
-                            );
-                        }
-                    }
-                }
-
-                if normalize {
-                    (value + 1.0) * 0.5 * out_scale
-                } else {
-                    value * out_scale
-                }
-            }
-            _ => 0.0,
         }
     }
 
@@ -375,9 +221,17 @@ impl MaterialFXNode {
                     hit.displacement = 0.0;
                 }
             }
+            Noise2D => {
+                let collection = self.collection();
+                let value = noise2d(&collection, hit);
+                let disp_scale = collection.get_f32_default("Disp Scale", 0.1);
+                hit.displacement = value * disp_scale;
+            }
             Noise3D => {
-                let value = self.noise(hit, true);
-                hit.displacement = value;
+                let collection = self.collection();
+                let value = noise3d(&collection, hit);
+                let disp_scale = collection.get_f32_default("Disp Scale", 0.1);
+                hit.displacement = value * disp_scale;
             }
             _ => {}
         }
@@ -418,7 +272,53 @@ impl MaterialFXNode {
         self.timeline.set(&TheTime::default(), key, "Props", value);
     }
 
-    pub fn preview(&self, _buffer: &mut TheRGBABuffer) {}
+    pub fn render_preview(&mut self, _palette: &ThePalette) {
+        let width = 111;
+        let height = 104;
+
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(width as i32, height));
+        let collection = self.collection();
+
+        buffer
+            .pixels_mut()
+            .par_rchunks_exact_mut(width * 4)
+            .enumerate()
+            .for_each(|(j, line)| {
+                for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
+                    let i = j * width + i;
+
+                    let xx = (i % width) as f32;
+                    let yy = (i / width) as f32;
+
+                    let mut color = Vec4f::zero();
+
+                    match &self.role {
+                        Noise2D => {
+                            let mut hit = Hit::new();
+
+                            hit.uv = Vec2f::new(xx / width as f32, yy / height as f32);
+
+                            let value = noise2d(&collection, &mut hit);
+                            color = Vec4f::new(value, value, value, 1.0);
+                        }
+                        Noise3D => {
+                            let mut hit = Hit::new();
+
+                            hit.uv = Vec2f::new(xx / width as f32, yy / height as f32);
+                            hit.hit_point = Vec3f::new(xx / width as f32, 0.0, yy / height as f32);
+
+                            let value = noise3d(&collection, &mut hit);
+                            color = Vec4f::new(value, value, value, 1.0);
+                        }
+                        _ => {}
+                    }
+
+                    pixel.copy_from_slice(&TheColor::from_vec4f(color).to_u8_array());
+                }
+            });
+
+        self.preview = buffer;
+    }
 }
 
 /*#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]

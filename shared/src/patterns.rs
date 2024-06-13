@@ -98,3 +98,115 @@ pub fn subdivide(coll: &TheCollection, uv: Vec2f, hit: &mut Hit) -> (u8, u8) {
         (1, 1)
     }
 }
+
+pub fn noise2d(coll: &TheCollection, hit: &mut Hit) -> f32 {
+    fn hash(p: Vec2f) -> f32 {
+        let mut p3 = frac(vec3f(p.x, p.y, p.x) * 0.13);
+        p3 += dot(p3, vec3f(p3.y, p3.z, p3.x) + 3.333);
+        frac((p3.x + p3.y) * p3.z)
+    }
+
+    fn noise(x: Vec2f) -> f32 {
+        let i = floor(x);
+        let f = frac(x);
+
+        let a = hash(i);
+        let b = hash(i + vec2f(1.0, 0.0));
+        let c = hash(i + vec2f(0.0, 1.0));
+        let d = hash(i + vec2f(1.0, 1.0));
+
+        let u = f * f * (3.0 - 2.0 * f);
+        lerp(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y
+    }
+
+    let scale = coll.get_f32_default("UV Scale", 1.0);
+    let out_scale = coll.get_f32_default("Out Scale", 1.0);
+    let octaves = coll.get_i32_default("Octaves", 5);
+
+    let mut x = hit.uv * 8.0 * scale;
+
+    if octaves == 0 {
+        return noise(x) * out_scale;
+    }
+
+    let mut v = 0.0;
+    let mut a = 0.5;
+    let shift = vec2f(100.0, 100.0);
+    // Rotate to reduce axial bias
+    let rot = Mat2::new(cos(0.5), sin(0.5), -sin(0.5), cos(0.50));
+    for _ in 0..octaves {
+        v += a * noise(x);
+        x = rot * x * 2.0 + shift;
+        a *= 0.5;
+    }
+    v * out_scale
+}
+
+pub fn noise3d(coll: &TheCollection, hit: &mut Hit) -> f32 {
+    fn hash(mut p: f32) -> f32 {
+        p = frac(p * 0.011);
+        p *= p + 7.5;
+        p *= p + p;
+        frac(p)
+    }
+
+    fn noise(x: Vec3f) -> f32 {
+        let step: Vec3f = vec3f(110.0, 241.0, 171.0);
+
+        let i = floor(x);
+        let f = frac(x);
+
+        let n = dot(i, step);
+
+        let u = f * f * (3.0 - 2.0 * f);
+        lerp(
+            lerp(
+                lerp(
+                    hash(n + dot(step, vec3f(0.0, 0.0, 0.0))),
+                    hash(n + dot(step, vec3f(1.0, 0.0, 0.0))),
+                    u.x,
+                ),
+                lerp(
+                    hash(n + dot(step, vec3f(0.0, 1.0, 0.0))),
+                    hash(n + dot(step, vec3f(1.0, 1.0, 0.0))),
+                    u.x,
+                ),
+                u.y,
+            ),
+            lerp(
+                lerp(
+                    hash(n + dot(step, vec3f(0.0, 0.0, 1.0))),
+                    hash(n + dot(step, vec3f(1.0, 0.0, 1.0))),
+                    u.x,
+                ),
+                lerp(
+                    hash(n + dot(step, vec3f(0.0, 1.0, 1.0))),
+                    hash(n + dot(step, vec3f(1.0, 1.0, 1.0))),
+                    u.x,
+                ),
+                u.y,
+            ),
+            u.z,
+        )
+    }
+
+    let scale = coll.get_f32_default("UV Scale", 1.0);
+    let out_scale = coll.get_f32_default("Out Scale", 1.0);
+    let octaves = coll.get_i32_default("Octaves", 5);
+
+    let mut x = 1240.0 + hit.hit_point * 8.0 * scale;
+
+    if octaves == 0 {
+        return noise(x) * out_scale;
+    }
+
+    let mut v = 0.0;
+    let mut a = 0.5;
+    let shift = vec3f(100.0, 100.0, 100.0);
+    for _ in 0..octaves {
+        v += a * noise(x);
+        x = x * 2.0 + shift;
+        a *= 0.5;
+    }
+    v * out_scale
+}

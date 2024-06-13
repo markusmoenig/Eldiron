@@ -20,8 +20,6 @@ pub struct MaterialFXObject {
     pub zoom: f32,
     pub selected_node: Option<usize>,
 
-    pub preview: TheRGBABuffer,
-
     #[serde(default = "Vec2i::zero")]
     pub scroll_offset: Vec2i,
 }
@@ -45,8 +43,6 @@ impl MaterialFXObject {
             // node_previews: Vec::new(),
             zoom: 1.0,
             selected_node: None,
-
-            preview: TheRGBABuffer::empty(),
 
             scroll_offset: Vec2i::zero(),
         }
@@ -178,7 +174,7 @@ impl MaterialFXObject {
 
         //let preview_size = 100;
 
-        for (i, node) in self.nodes.iter().enumerate() {
+        for node in self.nodes.iter() {
             // if i >= self.node_previews.len() {
             //     self.node_previews.resize(i + 1, None);
             // }
@@ -199,22 +195,14 @@ impl MaterialFXObject {
             //     self.node_previews[i] = Some(preview_buffer);
             // }
 
-            let coll = node.collection();
-
-            let preview = if i == 0 {
-                self.preview.clone()
-            } else {
-                TheRGBABuffer::empty()
-            };
-
             let n = TheNode {
                 name: node.name(),
                 position: node.position,
                 inputs: node.inputs(),
                 outputs: node.outputs(),
-                preview,
-                supports_preview: coll.get_bool_default("_supports_preview", false),
-                preview_is_open: coll.get_bool_default("_preview_is_open", false),
+                preview: node.preview.clone(),
+                supports_preview: node.supports_preview,
+                preview_is_open: node.preview_is_open,
             };
             canvas.nodes.push(n);
         }
@@ -233,6 +221,11 @@ impl MaterialFXObject {
         fn distance(p: Vec3f) -> f32 {
             length(p) - 2.0
         }
+
+        // fn distance(p: Vec3f) -> f32 {
+        //     let q = abs(p) - vec3f(2.0, 2.0, 2.0);
+        //     length(max(q, Vec3f::zero())) + min(max(q.x, max(q.y, q.z)), 0.0)
+        // }
 
         pub fn normal(p: Vec3f) -> Vec3f {
             let scale = 0.5773 * 0.0005;
@@ -266,7 +259,34 @@ impl MaterialFXObject {
             vec2f(u, v)
         }
 
+        fn _get_uv_face(normal: Vec3f, hp: Vec3f) -> (Vec2f, usize) {
+            // Calculate the absolute values of the normal components
+            let abs_normal = abs(normal);
+
+            // Determine which face of the cube was hit based on the maximum component of the normal
+            let face_index = if abs_normal.x > abs_normal.y {
+                if abs_normal.x > abs_normal.z {
+                    0 // X-axis face
+                } else {
+                    2 // Z-axis face
+                }
+            } else if abs_normal.y > abs_normal.z {
+                1 // Y-axis face
+            } else {
+                2 // Z-axis face
+            };
+
+            // Calculate UV coordinates based on the face
+            match face_index {
+                0 => (Vec2f::new(frac(hp.z), 1.0 - frac(hp.y)), 0), // X-axis face
+                1 => (Vec2f::new(frac(hp.x), frac(hp.z)), 1),       // Y-axis face
+                2 => (Vec2f::new(frac(hp.x), 1.0 - frac(hp.y)), 2), // Z-axis face
+                _ => (Vec2f::zero(), 0),
+            }
+        }
+
         let ro = vec3f(0.0, 2.5, 2.5);
+        // let ro = vec3f(2.0, 2.0, 2.0);
         let rd = vec3f(0.0, 0.0, 0.0);
 
         let camera = Camera::new(ro, rd, 90.0);
@@ -305,8 +325,9 @@ impl MaterialFXObject {
                         let mut abso = Vec3f::one();
                         let mut hit: Option<Hit>;
                         let mut alpha = 0.0;
+                        let mut early_exit = false;
 
-                        for _ in 0..8 {
+                        for depth in 0..8 {
                             hit = None;
 
                             let mut t = 0.0;
@@ -315,10 +336,12 @@ impl MaterialFXObject {
                                 let mut d = distance(p);
 
                                 if has_displacement {
+                                    let normal = normal(p);
                                     let mut hit = Hit {
                                         hit_point: p,
-                                        normal: normal(p),
+                                        normal, //: normal(p),
                                         uv: sphere_to_uv(p),
+                                        // uv: get_uv_face(p, normal).0,
                                         distance: t,
                                         ..Default::default()
                                     };
@@ -327,10 +350,12 @@ impl MaterialFXObject {
                                 }
 
                                 if d.abs() < 0.0001 {
+                                    let normal = normal(p);
                                     let mut h = Hit {
                                         hit_point: p,
-                                        normal: normal(p),
+                                        normal,
                                         uv: sphere_to_uv(p),
+                                        // uv: get_uv_face(p, normal).0,
                                         distance: t,
                                         albedo: Vec3f::zero(),
                                         ..Default::default()
@@ -347,9 +372,9 @@ impl MaterialFXObject {
                                         }
                                     }
                                 }
-                                // if hit.is_some() {
-                                //     break;
-                                // }
+                                if hit.is_some() {
+                                    break;
+                                }
                                 t += d;
                             }
 
@@ -396,19 +421,34 @@ impl MaterialFXObject {
                                     ray.o += n * 0.01;
                                 }
                             } else {
-                                acc += vec3f(0.5, 0.5, 0.5) * abso;
+                                //acc += vec3f(0.5, 0.5, 0.5) * abso;
+                                acc += vec3f(1.0, 1.0, 1.0) * abso;
+                                if depth == 0 {
+                                    early_exit = true;
+                                };
                                 break;
                             }
                         }
                         let c = vec4f(acc.x, acc.y, acc.z, alpha);
                         color = lerp(color, c, 1.0 / (sample as f32 + 1.0));
+                        if early_exit {
+                            break;
+                        }
                     }
 
                     pixel.copy_from_slice(&TheColor::from_vec4f(color).to_u8_array());
                 }
             });
 
-        self.preview = buffer;
+        self.nodes[0].preview = buffer;
+    }
+
+    pub fn get_preview(&self) -> TheRGBABuffer {
+        if self.nodes.is_empty() {
+            TheRGBABuffer::empty()
+        } else {
+            self.nodes[0].preview.clone()
+        }
     }
 
     /// Load a model from a JSON string.

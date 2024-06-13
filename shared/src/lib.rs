@@ -185,7 +185,7 @@ impl Hit {
             absorption: 1.0,
 
             displacement: 0.0,
-            value: 0.0,
+            value: 1.0,
         }
     }
 }

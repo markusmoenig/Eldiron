@@ -6,11 +6,11 @@ use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum GeoFXNodeRole {
+    Disc,
     LeftWall,
     TopWall,
     RightWall,
     BottomWall,
-    Disc,
 }
 
 use GeoFXNodeRole::*;
@@ -19,12 +19,14 @@ use GeoFXNodeRole::*;
 pub struct GeoFXNode {
     pub id: Uuid,
     pub role: GeoFXNodeRole,
+    pub function: String,
     pub timeline: TheTimeline,
 }
 
 impl GeoFXNode {
     pub fn new(role: GeoFXNodeRole) -> Self {
         let mut coll = TheCollection::named(str!("Geo"));
+        let mut function = str!("Wall");
 
         match role {
             LeftWall => {
@@ -60,6 +62,7 @@ impl GeoFXNode {
                 coll.set("Pos Y", TheValue::Float(0.5));
                 coll.set("Radius", TheValue::FloatRange(0.4, 0.001..=0.5));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+                function = str!("Ground");
             }
         }
         let timeline = TheTimeline::collection(coll);
@@ -67,6 +70,7 @@ impl GeoFXNode {
         Self {
             id: Uuid::new_v4(),
             role,
+            function,
             timeline,
         }
     }
