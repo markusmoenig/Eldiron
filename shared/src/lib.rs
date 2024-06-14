@@ -174,7 +174,7 @@ impl Hit {
 
             color: Vec4f::zero(),
 
-            albedo: Vec3f::zero(),
+            albedo: Vec3f::new(0.5, 0.5, 0.5),
             roughness: 0.5,
             metallic: 0.0,
             reflectance: 0.5,

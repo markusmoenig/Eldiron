@@ -311,29 +311,54 @@ impl TileDrawer {
                         }
                     }
 
+                    let p = vec2f(x as f32, y as f32);
+                    let mut hit = Hit {
+                        uv: vec2f(
+                            tile_x as f32 + xx as f32 / region.grid_size as f32,
+                            tile_y as f32 + yy as f32 / region.grid_size as f32,
+                        ),
+                        ..Default::default()
+                    };
+
                     for geo_obj in region.geometry.values() {
                         if geo_obj.area.contains(&vec2i(tile_x, tile_y)) {
-                            let p = vec2f(x as f32, y as f32);
-                            let d = geo_obj.distance(&TheTime::default(), p, grid_size);
-                            if d.0 < 0.0 {
+                            let d = geo_obj.distance(&TheTime::default(), p, grid_size, &mut None);
+                            if d.0 < 0.0 && d.0 < hit.distance {
                                 let mut c = if Some(geo_obj.id) == settings.curr_geo_object {
                                     WHITE
                                 } else {
                                     [128, 128, 128, 255]
                                 };
 
+                                hit.albedo = vec3f(0.5, 0.5, 0.5);
+                                hit.value = 1.0;
+
+                                geo_obj.nodes[d.1].distance(
+                                    &TheTime::default(),
+                                    p,
+                                    grid_size,
+                                    &mut Some(&mut hit),
+                                );
+
+                                hit.distance = d.0;
+
                                 if let Some(material) = self.materials.get(&geo_obj.material_id) {
-                                    let mut hit = Hit {
-                                        distance: d.0,
-                                        normal: vec3f(0.0, 1.0, 0.0),
-                                        hit_point: vec3f(p.x, 0.0, p.y),
-                                        uv: vec2f(
-                                            xx as f32 / region.grid_size as f32,
-                                            yy as f32 / region.grid_size as f32,
-                                        ),
-                                        ..Default::default()
-                                    };
+                                    // let mut hit = Hit {
+                                    //     distance: d.0,
+                                    //     normal: vec3f(0.0, 1.0, 0.0),
+                                    //     hit_point: vec3f(p.x, 0.0, p.y),
+                                    //     uv: vec2f(
+                                    //         xx as f32 / region.grid_size as f32,
+                                    //         yy as f32 / region.grid_size as f32,
+                                    //     ),
+                                    //     ..Default::default()
+                                    // };
+                                    hit.normal = vec3f(0.0, 1.0, 0.0);
+                                    hit.hit_point = vec3f(p.x, 0.0, p.y);
                                     material.compute(&mut hit, palette);
+                                    let col = TheColor::from_vec3f(hit.albedo).to_u8_array();
+                                    c = col;
+                                } else {
                                     let col = TheColor::from_vec3f(hit.albedo).to_u8_array();
                                     c = col;
                                 }
@@ -341,7 +366,7 @@ impl TileDrawer {
                                 //let t = smoothstep(-0.5, 0.0, d.0);
                                 //color = self.mix_color(&c, &color, t);
                                 color = c;
-                                break;
+                                //break;
                             }
                         }
                     }

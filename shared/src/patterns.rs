@@ -99,7 +99,7 @@ pub fn subdivide(coll: &TheCollection, uv: Vec2f, hit: &mut Hit) -> (u8, u8) {
     }
 }
 
-pub fn noise2d(coll: &TheCollection, hit: &mut Hit) -> f32 {
+pub fn noise2d(coll: &TheCollection, p: &Vec2f) -> f32 {
     fn hash(p: Vec2f) -> f32 {
         let mut p3 = frac(vec3f(p.x, p.y, p.x) * 0.13);
         p3 += dot(p3, vec3f(p3.y, p3.z, p3.x) + 3.333);
@@ -123,7 +123,7 @@ pub fn noise2d(coll: &TheCollection, hit: &mut Hit) -> f32 {
     let out_scale = coll.get_f32_default("Out Scale", 1.0);
     let octaves = coll.get_i32_default("Octaves", 5);
 
-    let mut x = hit.uv * 8.0 * scale;
+    let mut x = *p * 8.0 * scale;
 
     if octaves == 0 {
         return noise(x) * out_scale;
@@ -142,7 +142,7 @@ pub fn noise2d(coll: &TheCollection, hit: &mut Hit) -> f32 {
     v * out_scale
 }
 
-pub fn noise3d(coll: &TheCollection, hit: &mut Hit) -> f32 {
+pub fn noise3d(coll: &TheCollection, p: &Vec3f) -> f32 {
     fn hash(mut p: f32) -> f32 {
         p = frac(p * 0.011);
         p *= p + 7.5;
@@ -194,7 +194,7 @@ pub fn noise3d(coll: &TheCollection, hit: &mut Hit) -> f32 {
     let out_scale = coll.get_f32_default("Out Scale", 1.0);
     let octaves = coll.get_i32_default("Octaves", 5);
 
-    let mut x = 1240.0 + hit.hit_point * 8.0 * scale;
+    let mut x = 1240.0 + *p * 8.0 * scale;
 
     if octaves == 0 {
         return noise(x) * out_scale;

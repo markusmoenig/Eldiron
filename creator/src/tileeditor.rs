@@ -1165,7 +1165,12 @@ impl TileEditor {
                                 if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
                                     let p = rgba_view.float_pos();
                                     for geo_obj in region.geometry.values_mut() {
-                                        let d = geo_obj.distance(&TheTime::default(), p, 1.0);
+                                        let d = geo_obj.distance(
+                                            &TheTime::default(),
+                                            p,
+                                            1.0,
+                                            &mut None,
+                                        );
                                         if d.0 < 0.0 {
                                             server_ctx.curr_geo_object = Some(geo_obj.id);
                                             server_ctx.curr_geo_node = Some(geo_obj.nodes[d.1].id);
@@ -1603,7 +1608,8 @@ impl TileEditor {
                             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
                                 let p = rgba_view.float_pos();
                                 for geo_obj in region.geometry.values() {
-                                    let d = geo_obj.distance(&TheTime::default(), p, 1.0);
+                                    let d =
+                                        geo_obj.distance(&TheTime::default(), p, 1.0, &mut None);
                                     if d.0 < 0.0 {
                                         server_ctx.curr_geo_object = Some(geo_obj.id);
                                         server_ctx.curr_geo_node = Some(geo_obj.nodes[d.1].id);

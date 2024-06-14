@@ -120,7 +120,7 @@ impl Camera {
         theta += pitch.to_radians();
         phi += yaw.to_radians();
 
-        theta = theta.max(0.1).min(PI - 0.1);
+        theta = theta.clamp(0.1, PI - 0.1); //theta.max(0.1).min(PI - 0.1);
 
         self.origin.x = self.center.x + radius * theta.sin() * phi.cos();
         self.origin.y = self.center.y + radius * theta.cos();

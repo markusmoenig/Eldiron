@@ -6,7 +6,8 @@ use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum GeoFXNodeRole {
-    Disc,
+    Ground,
+    Column,
     LeftWall,
     TopWall,
     RightWall,
@@ -29,6 +30,20 @@ impl GeoFXNode {
         let mut function = str!("Wall");
 
         match role {
+            Ground => {
+                coll.set("UV Scale", TheValue::FloatRange(1.0, 0.0..=6.0));
+                coll.set("Out Scale", TheValue::FloatRange(1.0, 0.0..=1.0));
+                coll.set("Disp Scale", TheValue::FloatRange(0.1, 0.0..=1.0));
+                coll.set("Octaves", TheValue::IntRange(5, 0..=5));
+                function = str!("Ground");
+            }
+            Column => {
+                coll.set("Pos X", TheValue::Float(0.5));
+                coll.set("Pos Y", TheValue::Float(0.5));
+                coll.set("Radius", TheValue::FloatRange(0.4, 0.001..=0.5));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+                function = str!("Ground");
+            }
             LeftWall => {
                 coll.set("Pos X", TheValue::Float(0.1));
                 coll.set("Pos Y", TheValue::Float(0.5));
@@ -57,13 +72,6 @@ impl GeoFXNode {
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
             }
-            Disc => {
-                coll.set("Pos X", TheValue::Float(0.5));
-                coll.set("Pos Y", TheValue::Float(0.5));
-                coll.set("Radius", TheValue::FloatRange(0.4, 0.001..=0.5));
-                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
-                function = str!("Ground");
-            }
         }
         let timeline = TheTimeline::collection(coll);
 
@@ -77,21 +85,40 @@ impl GeoFXNode {
 
     pub fn nodes() -> Vec<Self> {
         vec![
+            Self::new(GeoFXNodeRole::Ground),
+            Self::new(GeoFXNodeRole::Column),
             Self::new(GeoFXNodeRole::LeftWall),
             Self::new(GeoFXNodeRole::TopWall),
             Self::new(GeoFXNodeRole::RightWall),
             Self::new(GeoFXNodeRole::BottomWall),
-            Self::new(GeoFXNodeRole::Disc),
         ]
     }
 
     /// The 2D distance from the node to a point.
-    pub fn distance(&self, _time: &TheTime, p: Vec2f, scale: f32) -> f32 {
+    pub fn distance(
+        &self,
+        _time: &TheTime,
+        p: Vec2f,
+        scale: f32,
+        hit: &mut Option<&mut Hit>,
+    ) -> f32 {
         if let Some(coll) = self
             .timeline
             .get_collection_at(&TheTime::default(), str!("Geo"))
         {
             match self.role {
+                Ground => {
+                    if let Some(hit) = hit {
+                        let value = noise2d(&coll, &hit.uv);
+                        hit.albedo = vec3f(value, value, value);
+                        hit.value = value;
+                    }
+                    return -0.001;
+                }
+                Column => {
+                    let radius = coll.get_f32_default("Radius", 0.4);
+                    return length(p - self.position() * scale) - radius * scale;
+                }
                 LeftWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
                     let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
@@ -131,10 +158,6 @@ impl GeoFXNode {
 
                     let d = abs(p - pos) - vec2f(len, thick);
                     return length(max(d, Vec2f::zero())) + min(max(d.x, d.y), 0.0);
-                }
-                Disc => {
-                    let radius = coll.get_f32_default("Radius", 0.4);
-                    return length(p - self.position() * scale) - radius * scale;
                 }
             }
         }
@@ -161,6 +184,26 @@ impl GeoFXNode {
             .get_collection_at(&TheTime::default(), str!("Geo"))
         {
             match self.role {
+                Ground => {
+                    let uv = p.xz();
+                    let value = noise2d(&coll, &uv);
+                    if let Some(hit) = hit {
+                        hit.albedo = vec3f(value, value, value);
+                        hit.value = value;
+                    }
+                    return p.y - value * 0.05;
+                }
+                Column => {
+                    let radius = coll.get_f32_default("Radius", 0.4);
+                    let height = coll.get_f32_default("Height", 1.0);
+                    let d = length(vec2f(p.x, p.z) - self.position()) - radius;
+
+                    if let Some(hit) = hit {
+                        hit.interior_distance = d;
+                    }
+
+                    return op_extrusion_y(p, d, height);
+                }
                 LeftWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2);
                     let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
@@ -222,17 +265,6 @@ impl GeoFXNode {
 
                     let dd = abs(vec2f(p.x, p.z) - pos) - vec2f(len, thick);
                     let d = length(max(dd, Vec2f::zero())) + min(max(dd.x, dd.y), 0.0);
-
-                    if let Some(hit) = hit {
-                        hit.interior_distance = d;
-                    }
-
-                    return op_extrusion_y(p, d, height);
-                }
-                Disc => {
-                    let radius = coll.get_f32_default("Radius", 0.4);
-                    let height = coll.get_f32_default("Height", 1.0);
-                    let d = length(vec2f(p.x, p.z) - self.position()) - radius;
 
                     if let Some(hit) = hit {
                         hit.interior_distance = d;
@@ -284,6 +316,14 @@ impl GeoFXNode {
     pub fn set_default_position(&mut self, p: Vec2i) {
         let mut pf = vec2f(p.x as f32, p.y as f32);
         match self.role {
+            Ground => {
+                pf.x += 0.5;
+                pf.y += 0.5;
+            }
+            Column => {
+                pf.x += 0.5;
+                pf.y += 0.5;
+            }
             LeftWall => {
                 pf.x += 0.1;
                 pf.y += 0.5;
@@ -299,10 +339,6 @@ impl GeoFXNode {
             BottomWall => {
                 pf.x += 0.5;
                 pf.y += 0.9;
-            }
-            Disc => {
-                pf.x += 0.5;
-                pf.y += 0.5;
             }
         }
         self.set("Pos X", TheValue::Float(pf.x));
@@ -337,12 +373,19 @@ impl GeoFXNode {
         let width = buffer.dim().width;
         let height = buffer.dim().height;
 
+        let mut hit = Hit::default();
+
         for y in 0..height {
             for x in 0..width {
                 let p = vec2f(x as f32 / width as f32, y as f32 / height as f32);
-                let d = self.distance(&TheTime::default(), p, 1.0);
+                hit.uv = p;
+                let d = self.distance(&TheTime::default(), p, 1.0, &mut Some(&mut hit));
                 let t = smoothstep(-0.04, 0.0, d);
-                buffer.set_pixel(x, y, &mix_color(&WHITE, &BLACK, t));
+                if hit.value != 1.0 {
+                    buffer.set_pixel(x, y, &TheColor::from_vec3f(hit.albedo).to_u8_array());
+                } else {
+                    buffer.set_pixel(x, y, &mix_color(&WHITE, &BLACK, t));
+                }
             }
         }
     }

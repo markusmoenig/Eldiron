@@ -34,12 +34,18 @@ impl GeoFXObject {
     }
 
     /// Returns the distance to the object nodes, the distance and the index of the closes node is returned.
-    pub fn distance(&self, time: &TheTime, p: Vec2f, scale: f32) -> (f32, usize) {
+    pub fn distance(
+        &self,
+        time: &TheTime,
+        p: Vec2f,
+        scale: f32,
+        hit: &mut Option<&mut Hit>,
+    ) -> (f32, usize) {
         let mut min_distance = f32::INFINITY;
         let mut index = 10000;
 
         for (i, geo) in self.nodes.iter().enumerate() {
-            let distance = geo.distance(time, p, scale);
+            let distance = geo.distance(time, p, scale, hit);
             if distance < min_distance {
                 min_distance = distance;
                 index = i;
@@ -49,17 +55,24 @@ impl GeoFXObject {
         (min_distance, index)
     }
 
-    pub fn distance_3d(&self, time: &TheTime, p: Vec3f, hit: &mut Option<&mut Hit>) -> f32 {
+    pub fn distance_3d(
+        &self,
+        time: &TheTime,
+        p: Vec3f,
+        hit: &mut Option<&mut Hit>,
+    ) -> (f32, usize) {
         let mut min_distance = f32::INFINITY;
+        let mut index = 10000;
 
-        for geo in &self.nodes {
+        for (i, geo) in self.nodes.iter().enumerate() {
             let distance = geo.distance_3d(time, p, hit);
             if distance < min_distance {
                 min_distance = distance;
+                index = i;
             }
         }
 
-        min_distance
+        (min_distance, index)
     }
 
     pub fn normal(&self, time: &TheTime, p: Vec3f) -> Vec3f {
@@ -73,10 +86,10 @@ impl GeoFXObject {
         let e3 = vec3f(e.y, e.x, e.y);
         let e4 = vec3f(e.x, e.x, e.x);
 
-        let n = e1 * self.distance_3d(time, p + e1, &mut None)
-            + e2 * self.distance_3d(time, p + e2, &mut None)
-            + e3 * self.distance_3d(time, p + e3, &mut None)
-            + e4 * self.distance_3d(time, p + e4, &mut None);
+        let n = e1 * self.distance_3d(time, p + e1, &mut None).0
+            + e2 * self.distance_3d(time, p + e2, &mut None).0
+            + e3 * self.distance_3d(time, p + e3, &mut None).0
+            + e4 * self.distance_3d(time, p + e4, &mut None).0;
         normalize(n)
     }
 

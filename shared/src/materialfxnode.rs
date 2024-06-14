@@ -190,13 +190,13 @@ impl MaterialFXNode {
             }
             Noise2D => {
                 let collection = self.collection();
-                hit.value = noise2d(&collection, hit);
+                hit.value = noise2d(&collection, &hit.uv);
                 hit.albedo = vec3f(hit.value, hit.value, hit.value);
                 Some(0)
             }
             Noise3D => {
                 let collection = self.collection();
-                hit.value = noise3d(&collection, hit);
+                hit.value = noise3d(&collection, &hit.hit_point);
                 hit.albedo = vec3f(hit.value, hit.value, hit.value);
                 Some(0)
             }
@@ -223,13 +223,13 @@ impl MaterialFXNode {
             }
             Noise2D => {
                 let collection = self.collection();
-                let value = noise2d(&collection, hit);
+                let value = noise2d(&collection, &hit.uv);
                 let disp_scale = collection.get_f32_default("Disp Scale", 0.1);
                 hit.displacement = value * disp_scale;
             }
             Noise3D => {
                 let collection = self.collection();
-                let value = noise3d(&collection, hit);
+                let value = noise3d(&collection, &hit.hit_point);
                 let disp_scale = collection.get_f32_default("Disp Scale", 0.1);
                 hit.displacement = value * disp_scale;
             }
@@ -294,20 +294,15 @@ impl MaterialFXNode {
 
                     match &self.role {
                         Noise2D => {
-                            let mut hit = Hit::new();
+                            let uv = Vec2f::new(xx / width as f32, yy / height as f32);
 
-                            hit.uv = Vec2f::new(xx / width as f32, yy / height as f32);
-
-                            let value = noise2d(&collection, &mut hit);
+                            let value = noise2d(&collection, &uv);
                             color = Vec4f::new(value, value, value, 1.0);
                         }
                         Noise3D => {
-                            let mut hit = Hit::new();
+                            let hit_point = Vec3f::new(xx / width as f32, 0.0, yy / height as f32);
 
-                            hit.uv = Vec2f::new(xx / width as f32, yy / height as f32);
-                            hit.hit_point = Vec3f::new(xx / width as f32, 0.0, yy / height as f32);
-
-                            let value = noise3d(&collection, &mut hit);
+                            let value = noise3d(&collection, &hit_point);
                             color = Vec4f::new(value, value, value, 1.0);
                         }
                         _ => {}

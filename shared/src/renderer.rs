@@ -513,6 +513,8 @@ impl Renderer {
                 break;
             }
 
+            let mut has_hit = false;
+
             if let Some(geo_ids) = region.geometry_areas.get(&key) {
                 hit.key = Vec3f::from(key);
                 for geo_id in geo_ids {
@@ -533,36 +535,41 @@ impl Renderer {
                             }
 
                             let p = r.at(t);
-                            let mut d = geo_obj.distance_3d(&settings.time, p, &mut Some(&mut hit));
+                            let mut d = geo_obj.distance_3d(&settings.time, p, &mut None);
                             if has_displacement {
                                 if let Some(material) = self.materials.get(&geo_obj.material_id) {
                                     hit.hit_point = p;
                                     hit.normal = geo_obj.normal(&settings.time, p);
                                     hit.uv = self.get_uv_face(hit.normal, hit.hit_point).0;
                                     material.displacement(&mut hit);
-                                    d += hit.displacement;
+                                    d.0 += hit.displacement;
                                 }
                             }
-                            if d.abs() < 0.0001 {
-                                dist += t;
-
-                                if dist < hit.distance {
+                            if d.0.abs() < 0.0001 {
+                                if dist + t < hit.distance {
                                     hit.normal = geo_obj.normal(&settings.time, p);
                                     hit.hit_point = p;
-                                    hit.distance = dist;
+                                    hit.distance = dist + t;
+
+                                    hit.albedo = vec3f(0.5, 0.5, 0.5);
+                                    hit.value = 1.0;
+
+                                    geo_obj.nodes[d.1].distance_3d(
+                                        &settings.time,
+                                        p,
+                                        &mut Some(&mut hit),
+                                    );
 
                                     if let Some(material) = self.materials.get(&geo_obj.material_id)
                                     {
                                         hit.uv = self.get_uv_face(hit.normal, hit.hit_point).0;
                                         material.compute(&mut hit, palette);
-                                    } else {
-                                        hit.albedo = vec3f(0.5, 0.5, 0.5);
                                     }
                                 }
 
-                                break;
+                                has_hit = true;
                             }
-                            t += d;
+                            t += d.0;
                         }
                     }
                 }
@@ -621,6 +628,7 @@ impl Renderer {
                             hit.normal = -normal;
                             hit.distance = dist;
                             hit.hit_point = ray.at(dist);
+                            has_hit = true;
                         }
                     } else {
                         let xx = i.x + 0.5;
@@ -680,12 +688,17 @@ impl Renderer {
                                             hit.distance = t;
                                             hit.normal = -normal;
                                             hit.hit_point = ray.at(t);
+                                            has_hit = true;
                                         }
                                     }
                                 }
                             }
                         }
                     }
+                }
+
+                if has_hit {
+                    break;
                 }
             }
 

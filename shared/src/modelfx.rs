@@ -187,8 +187,8 @@ impl ModelFX {
     pub fn draw(&mut self, ui: &mut TheUI, ctx: &mut TheContext, palette: &ThePalette) {
         let min_x = 0; //std::i32::MAX;
         let min_y = 0; //std::i32::MAX;
-        let mut max_x = std::i32::MIN;
-        let mut max_y = std::i32::MIN;
+        let mut max_x = i32::MIN;
+        let mut max_y = i32::MIN;
 
         let zoom = self.zoom;
         let node_size = 60;

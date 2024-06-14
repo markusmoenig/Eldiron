@@ -48,7 +48,7 @@ impl ModelFXStore {
         palette: &ThePalette,
     ) -> Option<Hit> {
         let mut hit = None;
-        let mut distance = std::f32::MAX;
+        let mut distance = f32::MAX;
 
         if let Some(floor_hit) = self.floor.render(ray, max_distance, key, palette) {
             if floor_hit.distance < distance {
