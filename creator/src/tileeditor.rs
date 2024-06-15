@@ -1164,16 +1164,12 @@ impl TileEditor {
                             if let Some(editor) = ui.get_rgba_layout("Region Editor") {
                                 if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
                                     let p = rgba_view.float_pos();
-                                    for geo_obj in region.geometry.values_mut() {
-                                        let d = geo_obj.distance(
-                                            &TheTime::default(),
-                                            p,
-                                            1.0,
-                                            &mut None,
-                                        );
-                                        if d.0 < 0.0 {
+                                    if let Some((obj, node_index)) = region.get_closest_geometry(p)
+                                    {
+                                        if let Some(geo_obj) = region.geometry.get_mut(&obj) {
                                             server_ctx.curr_geo_object = Some(geo_obj.id);
-                                            server_ctx.curr_geo_node = Some(geo_obj.nodes[d.1].id);
+                                            server_ctx.curr_geo_node =
+                                                Some(geo_obj.nodes[node_index].id);
 
                                             let prev = geo_obj.clone();
 
@@ -1195,23 +1191,26 @@ impl TileEditor {
 
                                             server.update_region(region);
                                             region_to_render = Some(region.clone());
-
-                                            break;
                                         }
                                     }
                                 }
                             }
-                        } else if let Some(curr_geo_node) = server_ctx.curr_geo_node {
-                            if let Some((geo_obj, _)) = region.find_geo_node(curr_geo_node) {
-                                let geo_obj_id = geo_obj.id;
+                        } else if let Some((obj, node_index)) =
+                            region.get_closest_geometry(Vec2f::from(coord))
+                        {
+                            if let Some(geo_obj) = region.geometry.get_mut(&obj) {
+                                server_ctx.curr_geo_object = Some(geo_obj.id);
+                                server_ctx.curr_geo_node = Some(geo_obj.nodes[node_index].id);
+
                                 let prev = geo_obj.clone();
+
                                 geo_obj.material_id = material_id;
                                 geo_obj.update_area();
 
                                 tiles_to_render.clone_from(&geo_obj.area);
 
                                 let undo = RegionUndoAtom::GeoFXObjectEdit(
-                                    geo_obj_id,
+                                    geo_obj.id,
                                     Some(prev),
                                     Some(geo_obj.clone()),
                                     tiles_to_render.clone(),
@@ -1607,37 +1606,32 @@ impl TileEditor {
                         if let Some(editor) = ui.get_rgba_layout("Region Editor") {
                             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
                                 let p = rgba_view.float_pos();
-                                for geo_obj in region.geometry.values() {
-                                    let d =
-                                        geo_obj.distance(&TheTime::default(), p, 1.0, &mut None);
-                                    if d.0 < 0.0 {
-                                        server_ctx.curr_geo_object = Some(geo_obj.id);
-                                        server_ctx.curr_geo_node = Some(geo_obj.nodes[d.1].id);
+                                if let Some((obj, node_index)) = region.get_closest_geometry(p) {
+                                    if let Some(geo) = region.geometry.get(&obj) {
+                                        server_ctx.curr_geo_object = Some(geo.id);
+                                        server_ctx.curr_geo_node = Some(geo.nodes[node_index].id);
+
                                         ctx.ui.send(TheEvent::Custom(
                                             TheId::named("Set Region Modeler"),
                                             TheValue::Empty,
                                         ));
                                         found_geo = true;
-                                        break;
                                     }
                                 }
                             }
                         }
-                    } else if let Some(geo_area) =
-                        region.geometry_areas.get(&vec3i(coord.x, 0, coord.y))
+                    } else if let Some((obj, node_index)) =
+                        region.get_closest_geometry(Vec2f::from(coord))
                     {
-                        for geo in geo_area {
-                            if let Some(geo_obj) = region.geometry.get(geo) {
-                                server_ctx.curr_geo_object = Some(geo_obj.id);
-                                if !geo_obj.nodes.is_empty() {
-                                    server_ctx.curr_geo_node = Some(geo_obj.nodes[0].id);
-                                    ctx.ui.send(TheEvent::Custom(
-                                        TheId::named("Set Region Modeler"),
-                                        TheValue::Empty,
-                                    ));
-                                    found_geo = true;
-                                }
-                            }
+                        if let Some(geo) = region.geometry.get(&obj) {
+                            server_ctx.curr_geo_object = Some(geo.id);
+                            server_ctx.curr_geo_node = Some(geo.nodes[node_index].id);
+
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Set Region Modeler"),
+                                TheValue::Empty,
+                            ));
+                            found_geo = true;
                         }
                     }
 

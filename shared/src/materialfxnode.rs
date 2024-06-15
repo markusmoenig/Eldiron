@@ -5,6 +5,7 @@ use theframework::prelude::*;
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum MaterialFXNodeRole {
     Geometry,
+    MaterialMixer,
     Material,
     Noise2D,
     Noise3D,
@@ -25,6 +26,8 @@ pub struct MaterialFXNode {
     pub preview_is_open: bool,
 
     pub preview: TheRGBABuffer,
+
+    pub resolve_branches: bool,
 }
 
 impl MaterialFXNode {
@@ -32,11 +35,15 @@ impl MaterialFXNode {
         let mut coll = TheCollection::named(str!("Props"));
         let mut supports_preview = false;
         let mut preview_is_open = false;
+        let mut resolve_branches = false;
 
         match role {
             Geometry => {
                 supports_preview = true;
                 preview_is_open = true;
+            }
+            MaterialMixer => {
+                resolve_branches = true;
             }
             Material => {
                 coll.set("Color", TheValue::PaletteIndex(0));
@@ -79,12 +86,14 @@ impl MaterialFXNode {
             supports_preview,
             preview_is_open,
             preview: TheRGBABuffer::empty(),
+            resolve_branches,
         }
     }
 
     pub fn name(&self) -> String {
         match self.role {
             Geometry => str!("Geometry"),
+            MaterialMixer => str!("Material Mixer"),
             Material => str!("Material"),
             Noise2D => str!("Noise2D"),
             Noise3D => str!("Noise3D"),
@@ -95,6 +104,7 @@ impl MaterialFXNode {
     pub fn nodes() -> Vec<Self> {
         vec![
             Self::new(MaterialFXNodeRole::Geometry),
+            Self::new(MaterialFXNodeRole::MaterialMixer),
             Self::new(MaterialFXNodeRole::Material),
             Self::new(MaterialFXNodeRole::Noise2D),
             Self::new(MaterialFXNodeRole::Noise3D),
@@ -118,7 +128,7 @@ impl MaterialFXNode {
                     },
                 ]
             }
-            Material | Noise3D | Noise2D => {
+            MaterialMixer | Material | Noise3D | Noise2D => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
                     role: str!("Input"),
@@ -141,6 +151,20 @@ impl MaterialFXNode {
                     TheNodeTerminal {
                         name: str!("displace"),
                         role: str!("Displac"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                ]
+            }
+            MaterialMixer => {
+                vec![
+                    TheNodeTerminal {
+                        name: str!("mat1"),
+                        role: str!("Material1"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("mat2"),
+                        role: str!("Material2"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]
@@ -171,7 +195,7 @@ impl MaterialFXNode {
     }
 
     /// Computes the node.
-    pub fn compute(&self, hit: &mut Hit, palette: &ThePalette) -> Option<u8> {
+    pub fn compute(&self, hit: &mut Hit, palette: &ThePalette, resolved: Vec<Hit>) -> Option<u8> {
         match self.role {
             Material => {
                 let collection = self.collection();
@@ -186,6 +210,16 @@ impl MaterialFXNode {
                     }
                 }
 
+                None
+            }
+            MaterialMixer => {
+                if resolved.len() == 1 {
+                    *hit = resolved[0].clone();
+                } else if resolved.len() >= 2 {
+                    hit.albedo = lerp(resolved[0].albedo, resolved[1].albedo, hit.value);
+                    hit.roughness = lerp(resolved[0].roughness, resolved[1].roughness, hit.value);
+                    hit.metallic = lerp(resolved[0].metallic, resolved[1].metallic, hit.value);
+                }
                 None
             }
             Noise2D => {

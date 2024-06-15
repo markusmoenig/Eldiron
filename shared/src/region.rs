@@ -206,6 +206,25 @@ impl Region {
         geo_obj_id
     }
 
+    /// Get the closest geometry to the given 2D point.
+    pub fn get_closest_geometry(&self, p: Vec2f) -> Option<(Uuid, usize)> {
+        let pi = Vec2i::from(p);
+        let mut min_dist = f32::MAX;
+        let mut rc = None;
+
+        for geo_obj in self.geometry.values() {
+            if geo_obj.area.contains(&pi) {
+                let d = geo_obj.distance(&TheTime::default(), p, 1.0, &mut None);
+                if d.0 < min_dist {
+                    min_dist = d.0;
+                    rc = Some((geo_obj.id, d.1));
+                }
+            }
+        }
+
+        rc
+    }
+
     /// Collects the area which needs to be rerendered if the given material changes.
     pub fn get_material_area(&self, material_id: Uuid) -> Vec<Vec2i> {
         let mut areas = FxHashSet::default();

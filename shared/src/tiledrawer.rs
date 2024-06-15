@@ -343,24 +343,22 @@ impl TileDrawer {
                                 hit.distance = d.0;
 
                                 if let Some(material) = self.materials.get(&geo_obj.material_id) {
-                                    // let mut hit = Hit {
-                                    //     distance: d.0,
-                                    //     normal: vec3f(0.0, 1.0, 0.0),
-                                    //     hit_point: vec3f(p.x, 0.0, p.y),
-                                    //     uv: vec2f(
-                                    //         xx as f32 / region.grid_size as f32,
-                                    //         yy as f32 / region.grid_size as f32,
-                                    //     ),
-                                    //     ..Default::default()
-                                    // };
                                     hit.normal = vec3f(0.0, 1.0, 0.0);
                                     hit.hit_point = vec3f(p.x, 0.0, p.y);
                                     material.compute(&mut hit, palette);
                                     let col = TheColor::from_vec3f(hit.albedo).to_u8_array();
-                                    c = col;
+                                    if let Some(cd) = settings.conceptual_display {
+                                        c = self.mix_color(&c, &col, cd);
+                                    } else {
+                                        c = col;
+                                    }
                                 } else {
                                     let col = TheColor::from_vec3f(hit.albedo).to_u8_array();
-                                    c = col;
+                                    if let Some(cd) = settings.conceptual_display {
+                                        c = self.mix_color(&c, &col, cd);
+                                    } else {
+                                        c = col;
+                                    }
                                 }
 
                                 //let t = smoothstep(-0.5, 0.0, d.0);

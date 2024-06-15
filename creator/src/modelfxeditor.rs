@@ -129,7 +129,7 @@ impl ModelFXEditor {
             items: vec![
                 TheContextMenuItem::new_submenu(
                     "Patterns".to_string(),
-                    TheId::named("ModelFX Nodes Patterns"),
+                    TheId::named("MaterialFX Nodes Patterns"),
                     TheContextMenu {
                         items: vec![
                             TheContextMenuItem::new(
@@ -151,6 +151,10 @@ impl ModelFXEditor {
                 TheContextMenuItem::new("Noise2D".to_string(), TheId::named("Noise2D")),
                 TheContextMenuItem::new("Noise3D".to_string(), TheId::named("Noise3D")),
                 TheContextMenuItem::new("Geometry".to_string(), TheId::named("Geometry")),
+                TheContextMenuItem::new(
+                    "Material Mixer".to_string(),
+                    TheId::named("Material Mixer"),
+                ),
                 TheContextMenuItem::new("Material".to_string(), TheId::named("Material")),
             ],
             ..Default::default()
@@ -328,7 +332,7 @@ impl ModelFXEditor {
             TheEvent::ContextMenuSelected(id, item) => {
                 //let prev = self.modelfx.to_json();
                 #[allow(clippy::collapsible_if)]
-                if id.name == "MaterialFX Nodes" {
+                if id.name == "MaterialFX Nodes" || id.name.is_empty() {
                     if self.editing_mode == EditingMode::MaterialNodes {
                         if let Some(material_id) = server_ctx.curr_material_object {
                             if let Some(material) = project.materials.get_mut(&material_id) {

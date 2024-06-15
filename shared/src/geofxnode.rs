@@ -31,6 +31,8 @@ impl GeoFXNode {
 
         match role {
             Ground => {
+                coll.set("Pos X", TheValue::Float(0.5));
+                coll.set("Pos Y", TheValue::Float(0.5));
                 coll.set("UV Scale", TheValue::FloatRange(1.0, 0.0..=6.0));
                 coll.set("Out Scale", TheValue::FloatRange(1.0, 0.0..=1.0));
                 coll.set("Disp Scale", TheValue::FloatRange(0.1, 0.0..=1.0));

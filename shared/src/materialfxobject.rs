@@ -106,7 +106,7 @@ impl MaterialFXObject {
         None
     }
 
-    /// After exiting a geometry node follow the trail of material nodes to calculate the final color.
+    /// After exiting a geometry node follow the trail of material nodes to calculate the final material.
     pub fn follow_trail(
         &self,
         node: usize,
@@ -115,49 +115,72 @@ impl MaterialFXObject {
         palette: &ThePalette,
     ) {
         let mut connections = vec![];
-
         for (o, ot, i, it) in &self.connections {
             if *o == node as u16 && *ot == terminal_index as u8 {
                 connections.push((*i, *it));
             }
         }
 
-        match connections.len() {
-            0 => {}
-            1 => {
-                let o = connections[0].0 as usize;
+        if connections.len() == 1 && self.nodes[connections[0].0 as usize].resolve_branches {
+            // Resolve branches of the node and feed them into the resolver
 
-                /*
-                let mut noise = 0.0;
-                if let Some(noise_index) = self.find_connected_output_node(o, 1) {
-                    if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
-                        noise = self.nodes[noise_index].noise(hit);
-                        hit.uv += 7.23;
-                        let noise2 = self.nodes[noise_index].noise(hit);
-                        let wobble = vec2f(noise, noise2);
-                        hit.uv -= 7.23;
-                        hit.uv += wobble * 0.5;
-                    }
-                }
+            let mut resolved: Vec<Hit> = vec![];
 
-                */
-                if let Some(ot) = self.nodes[o].compute(hit, palette) {
-                    self.follow_trail(o, ot as usize, hit, palette);
+            let resolver = connections[0].0;
+
+            let mut to_resolve = vec![];
+            for (o, _, i, it) in &self.connections {
+                if *o == resolver {
+                    to_resolve.push((*i, *it));
                 }
             }
-            _ => {
-                let index = (hit.hash * connections.len() as f32).floor() as usize;
-                if let Some(random_connection) = connections.get(index) {
-                    let o = random_connection.0 as usize;
+
+            for (o, _) in &to_resolve {
+                let mut h = hit.clone();
+                _ = self.nodes[*o as usize].compute(&mut h, palette, vec![]);
+                resolved.push(h);
+            }
+            _ = self.nodes[resolver as usize].compute(hit, palette, resolved);
+        } else {
+            // The node decides its own trail
+
+            match connections.len() {
+                0 => {}
+                1 => {
+                    let o = connections[0].0 as usize;
+
                     /*
                     let mut noise = 0.0;
                     if let Some(noise_index) = self.find_connected_output_node(o, 1) {
                         if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
                             noise = self.nodes[noise_index].noise(hit);
+                            hit.uv += 7.23;
+                            let noise2 = self.nodes[noise_index].noise(hit);
+                            let wobble = vec2f(noise, noise2);
+                            hit.uv -= 7.23;
+                            hit.uv += wobble * 0.5;
                         }
-                        }*/
-                    if let Some(ot) = self.nodes[o].compute(hit, palette) {
+                    }
+
+                    */
+                    if let Some(ot) = self.nodes[o].compute(hit, palette, vec![]) {
                         self.follow_trail(o, ot as usize, hit, palette);
+                    }
+                }
+                _ => {
+                    let index = (hit.hash * connections.len() as f32).floor() as usize;
+                    if let Some(random_connection) = connections.get(index) {
+                        let o = random_connection.0 as usize;
+                        /*
+                        let mut noise = 0.0;
+                        if let Some(noise_index) = self.find_connected_output_node(o, 1) {
+                            if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
+                                noise = self.nodes[noise_index].noise(hit);
+                            }
+                            }*/
+                        if let Some(ot) = self.nodes[o].compute(hit, palette, vec![]) {
+                            self.follow_trail(o, ot as usize, hit, palette);
+                        }
                     }
                 }
             }
@@ -293,6 +316,8 @@ impl MaterialFXObject {
 
         let has_displacement = self.has_displacement();
 
+        let noise2d = MaterialFXNode::new(MaterialFXNodeRole::Noise2D);
+
         buffer
             .pixels_mut()
             .par_rchunks_exact_mut(size * 4)
@@ -308,7 +333,7 @@ impl MaterialFXObject {
 
                     let mut color = Vec4f::zero();
 
-                    for sample in 0..20 {
+                    for sample in 0..40 {
                         let mut ray = camera.create_ray(
                             vec2f(xx / size as f32, 1.0 - yy / size as f32),
                             vec2f(size as f32, size as f32),
@@ -325,7 +350,7 @@ impl MaterialFXObject {
                         let mut abso = Vec3f::one();
                         let mut hit: Option<Hit>;
                         let mut alpha = 0.0;
-                        let mut early_exit = false;
+                        //let mut early_exit = false;
 
                         for depth in 0..8 {
                             hit = None;
@@ -345,6 +370,7 @@ impl MaterialFXObject {
                                         distance: t,
                                         ..Default::default()
                                     };
+                                    noise2d.compute(&mut hit, palette, vec![]);
                                     self.displacement(&mut hit);
                                     d += hit.displacement;
                                 }
@@ -360,6 +386,7 @@ impl MaterialFXObject {
                                         albedo: Vec3f::zero(),
                                         ..Default::default()
                                     };
+                                    noise2d.compute(&mut h, palette, vec![]);
 
                                     for (i, node) in self.nodes.iter().enumerate() {
                                         if node.role == MaterialFXNodeRole::Geometry {
@@ -424,16 +451,16 @@ impl MaterialFXObject {
                                 //acc += vec3f(0.5, 0.5, 0.5) * abso;
                                 acc += vec3f(1.0, 1.0, 1.0) * abso;
                                 if depth == 0 {
-                                    early_exit = true;
+                                    //early_exit = true;
                                 };
                                 break;
                             }
                         }
                         let c = vec4f(acc.x, acc.y, acc.z, alpha);
                         color = lerp(color, c, 1.0 / (sample as f32 + 1.0));
-                        if early_exit {
-                            break;
-                        }
+                        // if early_exit {
+                        //     break;
+                        // }
                     }
 
                     pixel.copy_from_slice(&TheColor::from_vec4f(color).to_u8_array());
