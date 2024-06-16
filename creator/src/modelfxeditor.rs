@@ -148,6 +148,7 @@ impl ModelFXEditor {
                         ..Default::default()
                     },
                 ),
+                TheContextMenuItem::new("UV Splitter".to_string(), TheId::named("UV Splitter")),
                 TheContextMenuItem::new("Noise2D".to_string(), TheId::named("Noise2D")),
                 TheContextMenuItem::new("Noise3D".to_string(), TheId::named("Noise3D")),
                 TheContextMenuItem::new("Geometry".to_string(), TheId::named("Geometry")),

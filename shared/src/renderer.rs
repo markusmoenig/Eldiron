@@ -545,7 +545,7 @@ impl Renderer {
                                     d.0 += hit.displacement;
                                 }
                             }
-                            if d.0.abs() < 0.0001 {
+                            if d.0.abs() < 0.001 {
                                 if dist + t < hit.distance {
                                     hit.normal = geo_obj.normal(&settings.time, p);
                                     hit.hit_point = p;

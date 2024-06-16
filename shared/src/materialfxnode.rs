@@ -10,6 +10,7 @@ pub enum MaterialFXNodeRole {
     Noise2D,
     Noise3D,
     Brick,
+    UVSplitter,
 }
 
 use MaterialFXNodeRole::*;
@@ -50,6 +51,7 @@ impl MaterialFXNode {
                 coll.set("Roughness", TheValue::FloatRange(0.5, 0.0..=1.0));
                 coll.set("Metallic", TheValue::FloatRange(0.0, 0.0..=1.0));
             }
+            UVSplitter => {}
             Noise2D | Noise3D => {
                 // coll.set(
                 //     "Type",
@@ -98,6 +100,7 @@ impl MaterialFXNode {
             Noise2D => str!("Noise2D"),
             Noise3D => str!("Noise3D"),
             Brick => str!("Bricks"),
+            UVSplitter => str!("UV Splitter"),
         }
     }
 
@@ -109,6 +112,7 @@ impl MaterialFXNode {
             Self::new(MaterialFXNodeRole::Noise2D),
             Self::new(MaterialFXNodeRole::Noise3D),
             Self::new(MaterialFXNodeRole::Brick),
+            Self::new(MaterialFXNodeRole::UVSplitter),
         ]
     }
 
@@ -128,7 +132,7 @@ impl MaterialFXNode {
                     },
                 ]
             }
-            MaterialMixer | Material | Noise3D | Noise2D => {
+            MaterialMixer | Material | Noise3D | Noise2D | UVSplitter => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
                     role: str!("Input"),
@@ -190,6 +194,30 @@ impl MaterialFXNode {
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             }
+            UVSplitter => {
+                vec![
+                    TheNodeTerminal {
+                        name: str!("top"),
+                        role: str!("Top"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("side"),
+                        role: str!("Side"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("front"),
+                        role: str!("Front"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("mapped"),
+                        role: str!("Mapped"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                ]
+            }
             _ => vec![],
         }
     }
@@ -238,6 +266,30 @@ impl MaterialFXNode {
                 let collection = self.collection();
                 let (_, terminal) = bricks(&collection, hit.uv, hit);
                 Some(terminal)
+            }
+            UVSplitter => {
+                // Determine the dominant axis of the normal vector
+                let normal = hit.normal;
+                let hp = hit.hit_point;
+                // if abs(normal.y) > abs(normal.x) && abs(normal.y) > abs(normal.z) {
+                if abs(normal.y) > 0.9 && abs(normal.x) < 0.1 && abs(normal.z) < 0.1 {
+                    // Top (or bottom) face
+                    hit.uv = Vec2f::new(frac(hp.x), frac(hp.z));
+                    Some(0)
+                // } else if abs(normal.x) > abs(normal.y) && abs(normal.x) > abs(normal.z) {
+                } else if abs(normal.x) > 0.9 && abs(normal.y) < 0.1 && abs(normal.z) < 0.1 {
+                    // Side face (left or right)
+                    hit.uv = Vec2f::new(frac(hp.z), 1.0 - frac(hp.y));
+                    Some(1)
+                // } else if abs(normal.z) > abs(normal.y) && abs(normal.z) > abs(normal.x) {
+                } else if abs(normal.z) > 0.9 && abs(normal.y) < 0.1 && abs(normal.x) < 0.1 {
+                    // Front (or back) face
+                    hit.uv = Vec2f::new(frac(hp.x), 1.0 - frac(hp.y));
+                    Some(2)
+                } else {
+                    // TODO: Implement different uv mapping modes (cylindrical, spherical, etc.)
+                    Some(3)
+                }
             }
             _ => None,
         }

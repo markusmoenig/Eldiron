@@ -386,7 +386,16 @@ impl GeoFXNode {
                 if hit.value != 1.0 {
                     buffer.set_pixel(x, y, &TheColor::from_vec3f(hit.albedo).to_u8_array());
                 } else {
-                    buffer.set_pixel(x, y, &mix_color(&WHITE, &BLACK, t));
+                    let uv_scaled = p * 10.0;
+                    let square_pos = Vec2i::from(floor(uv_scaled));
+
+                    let color = if (square_pos.x + square_pos.y) % 2 == 0 {
+                        [81, 81, 81, 255]
+                    } else {
+                        [209, 209, 209, 255]
+                    };
+
+                    buffer.set_pixel(x, y, &mix_color(&color, &BLACK, t));
                 }
             }
         }
