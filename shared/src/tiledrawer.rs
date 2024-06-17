@@ -317,6 +317,7 @@ impl TileDrawer {
                             tile_x as f32 + xx as f32 / region.grid_size as f32,
                             tile_y as f32 + yy as f32 / region.grid_size as f32,
                         ),
+                        two_d: true,
                         ..Default::default()
                     };
 
@@ -361,10 +362,8 @@ impl TileDrawer {
                                     }
                                 }
 
-                                //let t = smoothstep(-0.5, 0.0, d.0);
-                                //color = self.mix_color(&c, &color, t);
-                                color = c;
-                                //break;
+                                let t = smoothstep(-1.0, 0.0, d.0);
+                                color = self.mix_color(&c, &color, t);
                             }
                         }
                     }

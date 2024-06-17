@@ -31,10 +31,22 @@ impl RTreeObject for PreRenderedData {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PreRenderedLight {
+    pub brdf: Vec3f,
+}
+
+fn default_prerendered_lights() -> TheFlattenedMap<FxHashMap<Vec2i, PreRenderedLight>> {
+    TheFlattenedMap::new(0, 0)
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PreRendered {
     pub albedo: TheRGBBuffer,
     pub sky_absorption: TheRGBBuffer,
     pub distance: TheFlattenedMap<f32>,
+
+    #[serde(default = "default_prerendered_lights")]
+    pub lights: TheFlattenedMap<FxHashMap<Vec2i, PreRenderedLight>>,
 
     /// The tile coordinates for the 4 corners of the prerendered data.
     pub tile_coords: Option<[Vec2f; 4]>,
@@ -55,6 +67,7 @@ impl PreRendered {
     pub fn new(albedo: TheRGBBuffer, sky_absorption: TheRGBBuffer) -> Self {
         Self {
             distance: TheFlattenedMap::new(albedo.dim().width, albedo.dim().height),
+            lights: TheFlattenedMap::new(albedo.dim().width, albedo.dim().height),
 
             albedo,
             sky_absorption,
@@ -73,6 +86,7 @@ impl PreRendered {
             distance: TheFlattenedMap::new(0, 0),
 
             tile_coords: None,
+            lights: TheFlattenedMap::new(0, 0),
 
             tiles_to_render: Vec::new(),
             tree: RTree::new(),

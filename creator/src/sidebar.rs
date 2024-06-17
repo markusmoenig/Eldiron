@@ -1109,12 +1109,6 @@ impl Sidebar {
                             ctx.ui
                                 .send(TheEvent::Custom(TheId::named("Prerender"), TheValue::Empty));
                             server.update_region(region);
-
-                            if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
-                                if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                                    rgba.set_grid(Some(v));
-                                }
-                            }
                         }
                     }
                 } else if id.name == "Region Min Brightness" {

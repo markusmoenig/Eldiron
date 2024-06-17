@@ -148,6 +148,8 @@ pub struct Hit {
 
     pub displacement: f32,
     pub value: f32,
+
+    pub two_d: bool,
 }
 
 impl Default for Hit {
@@ -177,7 +179,7 @@ impl Hit {
             albedo: Vec3f::new(0.5, 0.5, 0.5),
             roughness: 0.5,
             metallic: 0.0,
-            reflectance: 0.5,
+            reflectance: 1.0,
 
             emissive: Vec3f::zero(),
             spec_trans: 0.0,
@@ -186,6 +188,8 @@ impl Hit {
 
             displacement: 0.0,
             value: 1.0,
+
+            two_d: false,
         }
     }
 }

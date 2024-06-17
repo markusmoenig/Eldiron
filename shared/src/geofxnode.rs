@@ -44,6 +44,7 @@ impl GeoFXNode {
                 coll.set("Pos Y", TheValue::Float(0.5));
                 coll.set("Radius", TheValue::FloatRange(0.4, 0.001..=0.5));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Hole", TheValue::FloatRange(0.0, 0.0..=1.0));
                 function = str!("Ground");
             }
             LeftWall => {
@@ -119,7 +120,26 @@ impl GeoFXNode {
                 }
                 Column => {
                     let radius = coll.get_f32_default("Radius", 0.4);
-                    return length(p - self.position() * scale) - radius * scale;
+
+                    // let waveAmplitude = 0.05;
+                    // let waveFrequency = 12.0 * 4.0; // Higher frequency for more fluting patterns
+
+                    // let angle = atan2(p.y + 0.5, p.x + 0.5);
+
+                    // // Modulate the radius with a sine wave to create fluting
+                    // let wave = waveAmplitude * sin(waveFrequency * angle);
+
+                    // // Calculate the modified radius
+                    // let modifiedRadius = radius + wave; // * 0.05;
+
+                    let hole = coll.get_f32_default("Hole", 0.0) * scale;
+
+                    let mut d = length(p - self.position() * scale) - radius * scale + hole;
+                    if hole > 0.0 {
+                        d = d.abs() - hole;
+                    }
+
+                    return d;
                 }
                 LeftWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
@@ -198,7 +218,12 @@ impl GeoFXNode {
                 Column => {
                     let radius = coll.get_f32_default("Radius", 0.4);
                     let height = coll.get_f32_default("Height", 1.0);
-                    let d = length(vec2f(p.x, p.z) - self.position()) - radius;
+                    let hole = coll.get_f32_default("Hole", 0.0);
+
+                    let mut d = length(vec2f(p.x, p.z) - self.position()) - radius + hole;
+                    if hole > 0.0 {
+                        d = d.abs() - hole;
+                    }
 
                     if let Some(hit) = hit {
                         hit.interior_distance = d;

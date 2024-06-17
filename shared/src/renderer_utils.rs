@@ -487,3 +487,49 @@ pub fn sample_disney_bsdf(
 
     (bsdf, pdf)
 }
+
+pub fn angle_to_dir(n: Vec3f, theta: f32, phi: f32) -> Vec3f {
+    let sin_phi = phi.sin();
+    let cos_phi = phi.cos();
+    let w = normalize(n);
+    let u = normalize(cross(vec3f(w.y, w.z, w.x), w));
+    let v = cross(w, u);
+    (u * theta.cos() + v * theta.sin()) * sin_phi + w * cos_phi
+}
+
+pub fn jitter(d: Vec3f, phi: f32, sina: f32, cosa: f32) -> Vec3f {
+    let w = normalize(d);
+    let u = normalize(cross(vec3f(w.y, w.z, w.x), w));
+    let v = cross(w, u);
+    (u * phi.cos() + v * phi.sin()) * sina + w * cosa
+}
+
+pub fn ggx(n: Vec3f, v: Vec3f, l: Vec3f, roughness: f32, f0: f32) -> f32 {
+    let h = normalize(v + l);
+
+    let dot_lh = dot(l, h).max(0.0);
+    let dot_nh = dot(n, h).max(0.0);
+    let dot_nl = dot(n, l).max(0.0);
+    let dot_nv = dot(n, v).max(0.0);
+
+    let alpha = roughness * roughness + 0.0001;
+
+    // GGX normal distribution
+    let alpha_sqr = alpha * alpha;
+    let denom = dot_nh * dot_nh * (alpha_sqr - 1.0) + 1.0;
+    let d = alpha_sqr / (denom * denom);
+
+    // Fresnel term approximation
+    let f_a = 1.0;
+    let f_b = (1.0 - dot_lh).powi(5);
+    let f = f_b * f0 + (1.0 - f_b) * f_a;
+
+    // GGX self shadowing term
+    let k = (alpha + 2.0 * roughness + 1.0) / 8.0;
+    let g = dot_nl / ((dot_nl * (1.0 - k) + k) * (dot_nv * (1.0 - k) + k));
+
+    // '* dot_nv' - Is canceled due to normalization
+    // '/ dot_ln' - Is canceled due to lambert
+    // '/ dot_nv' - Is canceled due to g
+    (d * f * g / 4.0).clamp(0.0, 10.0)
+}

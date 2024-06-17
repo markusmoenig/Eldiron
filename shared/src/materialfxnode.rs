@@ -51,12 +51,10 @@ impl MaterialFXNode {
                 coll.set("Roughness", TheValue::FloatRange(0.5, 0.0..=1.0));
                 coll.set("Metallic", TheValue::FloatRange(0.0, 0.0..=1.0));
             }
-            UVSplitter => {}
+            UVSplitter => {
+                coll.set("Map", TheValue::TextList(0, vec![str!("Cylinder")]));
+            }
             Noise2D | Noise3D => {
-                // coll.set(
-                //     "Type",
-                //     TheValue::TextList(0, vec![str!("Value"), str!("Musgrave"), str!("Simplex")]),
-                // );
                 coll.set("UV Scale", TheValue::FloatRange(1.0, 0.0..=6.0));
                 coll.set("Out Scale", TheValue::FloatRange(1.0, 0.0..=1.0));
                 coll.set("Disp Scale", TheValue::FloatRange(0.1, 0.0..=1.0));
@@ -268,7 +266,10 @@ impl MaterialFXNode {
                 Some(terminal)
             }
             UVSplitter => {
-                // Determine the dominant axis of the normal vector
+                if hit.two_d {
+                    // In 2D mode, we akways return the top face, UV is already set
+                    return Some(0);
+                }
                 let normal = hit.normal;
                 let hp = hit.hit_point;
                 // if abs(normal.y) > abs(normal.x) && abs(normal.y) > abs(normal.z) {
@@ -287,7 +288,18 @@ impl MaterialFXNode {
                     hit.uv = Vec2f::new(frac(hp.x), 1.0 - frac(hp.y));
                     Some(2)
                 } else {
-                    // TODO: Implement different uv mapping modes (cylindrical, spherical, etc.)
+                    let collection = self.collection();
+                    let map = collection.get_i32_default("Map", 0);
+
+                    if map == 0 {
+                        // Cylindrical mapping
+
+                        let u = atan2(hp.z, hp.x) / (2.0 * f32::pi()) + 0.5; // Map the angle to [0, 1]
+                        let v = hp.y;
+
+                        hit.uv = Vec2f::new(u, v);
+                    }
+
                     Some(3)
                 }
             }

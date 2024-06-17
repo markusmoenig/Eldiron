@@ -181,8 +181,8 @@ impl Renderer {
         let update = RegionUpdate::default();
 
         // Fill the code level with the blocking info and collect lights
-        // let mut level = Level::new(region.width, region.height, settings.time);
-        // region.fill_code_level(&mut level, &self.textures, &update);
+        let mut level = Level::new(region.width, region.height, settings.time);
+        region.fill_code_level(&mut level, &self.textures, &update);
 
         let (ro, rd, fov, _, camera_type) = self.create_camera_setup(region, settings);
         //let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
@@ -257,6 +257,9 @@ impl Renderer {
             let mut distance_buffer: TheFlattenedMap<f32> =
                 TheFlattenedMap::new(region.grid_size, region.grid_size);
 
+            let mut lights_buffer: TheFlattenedMap<FxHashMap<Vec2i, PreRenderedLight>> =
+                TheFlattenedMap::new(region.grid_size, region.grid_size);
+
             for h in 0..region.grid_size {
                 for w in 0..region.grid_size {
                     let x = tile.x * region.grid_size + w;
@@ -271,6 +274,7 @@ impl Renderer {
                     let mut color = Vec3f::zero();
                     let mut sky_abso = Vec3f::zero();
                     let mut distance: f32 = 0.0;
+                    let mut lights: FxHashMap<Vec2i, PreRenderedLight> = FxHashMap::default();
 
                     for sample in 0..region.pathtracer_samples {
                         let mut ray = if camera_type == CameraType::TiltedIso {
@@ -300,94 +304,229 @@ impl Renderer {
                             }
                         }
 
-                        let mut state = TracerState {
-                            is_refracted: false,
-                            has_been_refracted: false,
-                            last_ior: 1.0,
-                        };
+                        if true {
+                            let mut acc = Vec3f::zero();
+                            let mut mask = Vec3f::one();
+                            let mut dist = 0.0;
 
-                        let mut acc = Vec3f::zero();
-                        let mut abso = Vec3f::one();
-                        let mut dist = 0.0;
-
-                        for depth in 0..8 {
-                            if let Some(hit) = self.prerender_pixel(
-                                ray,
-                                region,
-                                &update,
-                                settings,
-                                max_render_distance,
-                                palette,
-                                &mut rng,
-                            ) {
-                                if depth == 0 {
-                                    dist = hit.distance;
-                                }
-
-                                let mut n = hit.normal;
-                                if state.is_refracted {
-                                    n = -n
-                                };
-
-                                // sample BSDF
-                                let mut out_dir: Vec3f = Vec3f::zero();
-                                let bsdf = sample_disney_bsdf(
-                                    -ray.d,
-                                    n,
-                                    &hit,
-                                    &mut out_dir,
-                                    &mut state,
+                            for depth in 0..8 {
+                                if let Some(hit) = self.prerender_pixel(
+                                    ray,
+                                    region,
+                                    &update,
+                                    settings,
+                                    max_render_distance,
+                                    palette,
                                     &mut rng,
-                                );
+                                ) {
+                                    if depth == 0 {
+                                        dist = hit.distance;
+                                    }
 
-                                // add emissive part of the current material
-                                acc += hit.emissive * abso;
+                                    let x = hit.hit_point;
+                                    let n = hit.normal;
+                                    let nl = n * signum(-dot(n, ray.d));
 
-                                // bsdf absorption (pdf are in bsdf.a)
-                                if bsdf.1 > 0.0 {
-                                    abso *= bsdf.0 / bsdf.1;
-                                }
+                                    let e = 1.0;
+                                    let roughness = hit.roughness;
+                                    let alpha = roughness * roughness;
+                                    let metallic = hit.metallic;
+                                    let reflectance = 1.0;
+                                    let color = hit.albedo;
 
-                                // medium absorption
-                                if state.has_been_refracted {
-                                    abso *= exp(-hit.distance
-                                        * ((Vec3f::one() - hit.albedo) * hit.absorption));
-                                }
+                                    //let mut brdf = Vec3f::zero();
 
-                                ray.o = hit.hit_point;
-                                ray.d = out_dir;
+                                    if rng.gen::<f32>() < reflectance {
+                                        // Sphere s = lightSourceVolume;
+                                        // int i = 6;
 
-                                if state.is_refracted {
-                                    ray.o += -n * 0.01;
-                                } else if state.has_been_refracted && !state.is_refracted {
-                                    ray.o += -n * 0.01;
-                                    state.last_ior = 1.;
+                                        // vec3 l0 = s.p - x;
+                                        // float cos_a_max = sqrt(1. - clamp(s.r * s.r / dot(l0, l0), 0., 1.));
+                                        // float cosa = mix(cos_a_max, 1., rand());
+                                        // vec3 l = jitter(l0, 2.*PI*rand(), sqrt(1. - cosa*cosa), cosa);
+
+                                        // if (intersect(Ray(x, l), t, s, id) == i) {
+                                        //     float omega = 2. * PI * (1. - cos_a_max);
+                                        //     brdf += (s.e * clamp(ggx(nl, r.d, l, roughness, metallic),0.,1.) * omega) / PI;
+                                        // }
+
+                                        // Direct light sampling
+                                        if depth == 0 {
+                                            for (light_grid, light) in &level.lights {
+                                                let light_pos = vec3f(
+                                                    light_grid.x as f32 + 0.5,
+                                                    0.2,
+                                                    light_grid.y as f32 + 0.5,
+                                                );
+                                                let l0 = light_pos - x;
+
+                                                let lr = 3.0;
+                                                let le = Vec3f::new(20.0, 10.0, 10.0);
+
+                                                let cos_a_max =
+                                                    sqrt(1. - clamp(lr * lr / dot(l0, l0), 0., 1.));
+                                                let cosa = lerp(cos_a_max, 1., rng.gen());
+                                                let l = jitter(
+                                                    l0,
+                                                    2. * f32::pi() * rng.gen::<f32>(),
+                                                    sqrt(1. - cosa * cosa),
+                                                    cosa,
+                                                );
+
+                                                if self.shadow_ray(
+                                                    Ray::new(x, l0),
+                                                    Vec3i::from(light_pos),
+                                                    light,
+                                                    region,
+                                                    &update,
+                                                    settings,
+                                                ) {
+                                                    let omega = 2.0 * f32::pi() * (1.0 - cos_a_max);
+                                                    let mut light_brdf =
+                                                        (le * clamp(
+                                                            ggx(nl, ray.d, l, roughness, metallic),
+                                                            0.0,
+                                                            1.0,
+                                                        ) * omega)
+                                                            / f32::pi();
+
+                                                    //brdf += light_brdf;
+                                                    light_brdf *= mask * color;
+
+                                                    if let Some(light) = lights.get_mut(light_grid)
+                                                    {
+                                                        light_brdf = lerp(
+                                                            light.brdf,
+                                                            light_brdf,
+                                                            1.0 / (sample as f32 + 1.0),
+                                                        );
+                                                    }
+
+                                                    lights.insert(
+                                                        *light_grid,
+                                                        PreRenderedLight { brdf: light_brdf },
+                                                    );
+                                                }
+                                            }
+                                        }
+
+                                        let xsi_1: f32 = rng.gen();
+                                        let xsi_2: f32 = rng.gen();
+                                        let phi = atan((alpha * sqrt(xsi_1)) / sqrt(1.0 - xsi_1));
+                                        let theta = 2.0 * f32::pi() * xsi_2;
+                                        let direction = angle_to_dir(nl, theta, phi);
+                                        ray = Ray::new(x + n * 0.01, direction);
+                                        acc += mask * hit.emissive * e; // + mask * color * brdf;
+
+                                        mask *= color;
+                                    }
                                 } else {
-                                    ray.o += n * 0.01;
+                                    if depth == 0 {
+                                        empty_pixel = true;
+                                    }
+                                    break;
                                 }
-                            } else {
-                                // No hit
+                            }
 
-                                if depth == 0 {
-                                    empty_pixel = true;
-                                } else {
-                                    //acc += settings.daylight * abso;
-                                }
+                            if empty_pixel {
                                 break;
                             }
-                        }
 
-                        if empty_pixel {
-                            break;
+                            color = lerp(color, acc, 1.0 / (sample as f32 + 1.0));
+                            sky_abso = lerp(sky_abso, mask, 1.0 / (sample as f32 + 1.0));
+                            distance = lerp(distance, dist, 1.0 / (sample as f32 + 1.0));
+                        } else {
+                            let mut state = TracerState {
+                                is_refracted: false,
+                                has_been_refracted: false,
+                                last_ior: 1.0,
+                            };
+
+                            let mut acc = Vec3f::zero();
+                            let mut abso = Vec3f::one();
+                            let mut dist = 0.0;
+
+                            for depth in 0..8 {
+                                if let Some(hit) = self.prerender_pixel(
+                                    ray,
+                                    region,
+                                    &update,
+                                    settings,
+                                    max_render_distance,
+                                    palette,
+                                    &mut rng,
+                                ) {
+                                    if depth == 0 {
+                                        dist = hit.distance;
+                                    }
+
+                                    let mut n = hit.normal;
+                                    if state.is_refracted {
+                                        n = -n
+                                    };
+
+                                    // sample BSDF
+                                    let mut out_dir: Vec3f = Vec3f::zero();
+                                    let bsdf = sample_disney_bsdf(
+                                        -ray.d,
+                                        n,
+                                        &hit,
+                                        &mut out_dir,
+                                        &mut state,
+                                        &mut rng,
+                                    );
+
+                                    // add emissive part of the current material
+                                    acc += hit.emissive * abso;
+
+                                    // bsdf absorption (pdf are in bsdf.a)
+                                    if bsdf.1 > 0.0 {
+                                        abso *= bsdf.0 / bsdf.1;
+                                    }
+
+                                    // medium absorption
+                                    if state.has_been_refracted {
+                                        abso *= exp(-hit.distance
+                                            * ((Vec3f::one() - hit.albedo) * hit.absorption));
+                                    }
+
+                                    ray.o = hit.hit_point;
+                                    ray.d = out_dir;
+
+                                    if state.is_refracted {
+                                        ray.o += -n * 0.01;
+                                    } else if state.has_been_refracted && !state.is_refracted {
+                                        ray.o += -n * 0.01;
+                                        state.last_ior = 1.;
+                                    } else {
+                                        ray.o += n * 0.01;
+                                    }
+                                } else {
+                                    // No hit
+
+                                    if depth == 0 {
+                                        empty_pixel = true;
+                                    } else {
+                                        //acc += settings.daylight * abso;
+                                    }
+                                    break;
+                                }
+                            }
+
+                            if empty_pixel {
+                                break;
+                            }
+
+                            color = lerp(color, acc, 1.0 / (sample as f32 + 1.0));
+                            sky_abso = lerp(sky_abso, abso, 1.0 / (sample as f32 + 1.0));
+                            distance = lerp(distance, dist, 1.0 / (sample as f32 + 1.0));
                         }
-                        color = lerp(color, acc, 1.0 / (sample as f32 + 1.0));
-                        sky_abso = lerp(sky_abso, abso, 1.0 / (sample as f32 + 1.0));
-                        distance = lerp(distance, dist, 1.0 / (sample as f32 + 1.0));
                     }
 
                     buffer.set_pixel_vec3f(w, h, &color);
                     sky_abso_buffer.set_pixel_vec3f(w, h, &sky_abso);
                     distance_buffer.set((w, h), distance);
+                    lights_buffer.set((w, h), lights);
 
                     // -- End
 
@@ -443,6 +582,12 @@ impl Renderer {
                 tile.x * region.grid_size,
                 tile.y * region.grid_size,
                 &distance_buffer,
+            );
+
+            prerendered.lights.copy_into(
+                tile.x * region.grid_size,
+                tile.y * region.grid_size,
+                &lights_buffer,
             );
 
             if render_map_tree {
@@ -1102,6 +1247,8 @@ impl Renderer {
         let normal = Vec3f::zero();
         let mut hit = false;
 
+        let mut pixel_light = vec3f(0.0, 0.0, 0.0);
+
         if let Some(c) = region.prerendered.albedo.at_vec3(pos) {
             color = c;
 
@@ -1116,6 +1263,32 @@ impl Renderer {
 
                 if let Some(d) = region.prerendered.distance.get((pos.x, pos.y)) {
                     dist = *d;
+                }
+
+                if let Some(lights) = region.prerendered.lights.get((pos.x, pos.y)) {
+                    for (_, light) in lights.iter() {
+                        fn hash_u32(seed: u32) -> u32 {
+                            let mut state = seed;
+                            state = (state ^ 61) ^ (state >> 16);
+                            state = state.wrapping_add(state << 3);
+                            state ^= state >> 4;
+                            state = state.wrapping_mul(0x27d4eb2d);
+                            state ^= state >> 15;
+                            state
+                        }
+
+                        fn flicker_value(anim_counter: u32, intensity: f32) -> f32 {
+                            let hash = hash_u32(anim_counter);
+                            let flicker_value = (hash as f32 / u32::MAX as f32).clamp(0.0, 1.0);
+
+                            let flicker_range = intensity * (flicker_value - 0.5) * 2.0;
+                            (1.0 + flicker_range).clamp(0.0, 1.0)
+                        }
+
+                        let l = light.brdf * flicker_value(settings.anim_counter as u32, 0.2);
+                        pixel_light += l;
+                        color += l;
+                    }
                 }
             }
 
@@ -1198,7 +1371,8 @@ impl Renderer {
 
         // Light Sampling
         //
-        if hit {
+        if false {
+            //hit {
             if level.lights.is_empty() {
                 color *= settings.daylight;
             } else {
