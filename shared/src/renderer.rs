@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use rayon::prelude::*;
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
 
@@ -133,6 +134,7 @@ impl Renderer {
         region: &Region,
         settings: &mut RegionDrawSettings,
         palette: &ThePalette,
+        sender: mpsc::Sender<PreRenderResult>,
     ) {
         let _start = self.get_time();
 
@@ -188,53 +190,6 @@ impl Renderer {
         //let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
         let camera = Camera::new(ro, rd, fov);
 
-        if prerendered.tile_coords.is_none() {
-            let mut tile_coords = vec![];
-            let coords = vec![
-                vec2f(0.0, 0.0),
-                vec2f(1.0, 0.0),
-                vec2f(0.0, 1.0),
-                vec2f(1.0, 1.0),
-            ];
-
-            for coord in coords {
-                let ray = if camera_type == CameraType::TiltedIso {
-                    camera.create_tilted_isometric_ray2(
-                        coord,
-                        vec2f(width_f, height_f),
-                        vec2f(region.width as f32, region.height as f32),
-                        vec2f(1.0, 1.0),
-                        tilted_iso_alignment,
-                    )
-                } else {
-                    camera.create_ortho_ray2(
-                        coord,
-                        vec2f(width_f, height_f),
-                        vec2f(region.width as f32, region.height as f32),
-                        vec2f(1.0, 1.0),
-                    )
-                };
-
-                let plane_normal = vec3f(0.0, 1.0, 0.0);
-                let denom = dot(plane_normal, ray.d);
-
-                //if denom.abs() > 0.0001 {
-                let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
-                // if t >= 0.0 {
-                let p = ray.o + ray.d * t;
-                tile_coords.push(vec2f(p.x, p.z));
-                //}
-                //}
-            }
-
-            prerendered.tile_coords = Some([
-                tile_coords[0],
-                tile_coords[1],
-                tile_coords[2],
-                tile_coords[3],
-            ]);
-        }
-
         // --
         let mut tiles = prerendered.tiles_to_render.clone(); // RenderTile::create_tiles(width, height, 80, 80);
 
@@ -257,7 +212,7 @@ impl Renderer {
             let mut distance_buffer: TheFlattenedMap<f32> =
                 TheFlattenedMap::new(region.grid_size, region.grid_size);
 
-            let mut lights_buffer: TheFlattenedMap<FxHashMap<Vec2i, PreRenderedLight>> =
+            let mut lights_buffer: TheFlattenedMap<Vec<PreRenderedLight>> =
                 TheFlattenedMap::new(region.grid_size, region.grid_size);
 
             for h in 0..region.grid_size {
@@ -274,7 +229,7 @@ impl Renderer {
                     let mut color = Vec3f::zero();
                     let mut sky_abso = Vec3f::zero();
                     let mut distance: f32 = 0.0;
-                    let mut lights: FxHashMap<Vec2i, PreRenderedLight> = FxHashMap::default();
+                    let mut lights: Vec<PreRenderedLight> = vec![];
 
                     for sample in 0..region.pathtracer_samples {
                         let mut ray = if camera_type == CameraType::TiltedIso {
@@ -353,59 +308,75 @@ impl Renderer {
                                         // Direct light sampling
                                         if depth == 0 {
                                             for (light_grid, light) in &level.lights {
-                                                let light_pos = vec3f(
-                                                    light_grid.x as f32 + 0.5,
-                                                    0.2,
-                                                    light_grid.y as f32 + 0.5,
-                                                );
-                                                let l0 = light_pos - x;
+                                                let light_dist =
+                                                    length(Vec2f::from(*light_grid - *tile));
 
-                                                let lr = 3.0;
-                                                let le = Vec3f::new(20.0, 10.0, 10.0);
-
-                                                let cos_a_max =
-                                                    sqrt(1. - clamp(lr * lr / dot(l0, l0), 0., 1.));
-                                                let cosa = lerp(cos_a_max, 1., rng.gen());
-                                                let l = jitter(
-                                                    l0,
-                                                    2. * f32::pi() * rng.gen::<f32>(),
-                                                    sqrt(1. - cosa * cosa),
-                                                    cosa,
-                                                );
-
-                                                if self.shadow_ray(
-                                                    Ray::new(x, l0),
-                                                    Vec3i::from(light_pos),
-                                                    light,
-                                                    region,
-                                                    &update,
-                                                    settings,
-                                                ) {
-                                                    let omega = 2.0 * f32::pi() * (1.0 - cos_a_max);
-                                                    let mut light_brdf =
-                                                        (le * clamp(
-                                                            ggx(nl, ray.d, l, roughness, metallic),
-                                                            0.0,
-                                                            1.0,
-                                                        ) * omega)
-                                                            / f32::pi();
-
-                                                    //brdf += light_brdf;
-                                                    light_brdf *= mask * color;
-
-                                                    if let Some(light) = lights.get_mut(light_grid)
-                                                    {
-                                                        light_brdf = lerp(
-                                                            light.brdf,
-                                                            light_brdf,
-                                                            1.0 / (sample as f32 + 1.0),
-                                                        );
-                                                    }
-
-                                                    lights.insert(
-                                                        *light_grid,
-                                                        PreRenderedLight { brdf: light_brdf },
+                                                if light_dist < light.max_distance {
+                                                    let light_pos = vec3f(
+                                                        light_grid.x as f32 + 0.5,
+                                                        0.2,
+                                                        light_grid.y as f32 + 0.5,
                                                     );
+                                                    let l0 = light_pos - x;
+
+                                                    let lr = 3.0;
+                                                    let le = Vec3f::new(20.0, 10.0, 10.0);
+
+                                                    let cos_a_max = sqrt(
+                                                        1. - clamp(lr * lr / dot(l0, l0), 0., 1.),
+                                                    );
+                                                    let cosa = lerp(cos_a_max, 1., rng.gen());
+                                                    let l = jitter(
+                                                        l0,
+                                                        2. * f32::pi() * rng.gen::<f32>(),
+                                                        sqrt(1. - cosa * cosa),
+                                                        cosa,
+                                                    );
+
+                                                    if self.shadow_ray(
+                                                        Ray::new(x, l0),
+                                                        Vec3i::from(light_pos),
+                                                        light,
+                                                        region,
+                                                        &update,
+                                                        settings,
+                                                    ) {
+                                                        let omega =
+                                                            2.0 * f32::pi() * (1.0 - cos_a_max);
+                                                        let mut light_brdf =
+                                                            (le * clamp(
+                                                                ggx(
+                                                                    nl, ray.d, l, roughness,
+                                                                    metallic,
+                                                                ),
+                                                                0.0,
+                                                                1.0,
+                                                            ) * omega)
+                                                                / f32::pi();
+
+                                                        //brdf += light_brdf;
+                                                        light_brdf *= mask * color;
+
+                                                        let mut found_light = false;
+                                                        for light in lights.iter_mut() {
+                                                            if light.pos == *light_grid {
+                                                                light.brdf = lerp(
+                                                                    light.brdf,
+                                                                    light_brdf,
+                                                                    1.0 / (sample as f32 + 1.0),
+                                                                );
+                                                                found_light = true;
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        if !found_light {
+                                                            lights.push(PreRenderedLight {
+                                                                pos: *light_grid,
+                                                                brdf: light_brdf,
+                                                            });
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -566,6 +537,22 @@ impl Renderer {
             }
 
             let mut prerendered = prerendered_mutex.lock().unwrap();
+
+            sender
+                .send(PreRenderResult::RenderedRegionTile(
+                    region.id,
+                    vec2i(
+                        prerendered.albedo.dim().width,
+                        prerendered.albedo.dim().height,
+                    ),
+                    vec2i(tile.x * region.grid_size, tile.y * region.grid_size),
+                    buffer.clone(),
+                    sky_abso_buffer.clone(),
+                    distance_buffer.clone(),
+                    lights_buffer.clone(),
+                ))
+                .unwrap();
+
             prerendered.albedo.copy_into(
                 tile.x * region.grid_size,
                 tile.y * region.grid_size,
@@ -1266,7 +1253,7 @@ impl Renderer {
                 }
 
                 if let Some(lights) = region.prerendered.lights.get((pos.x, pos.y)) {
-                    for (_, light) in lights.iter() {
+                    for light in lights.iter() {
                         fn hash_u32(seed: u32) -> u32 {
                             let mut state = seed;
                             state = (state ^ 61) ^ (state >> 16);

@@ -410,9 +410,18 @@ impl TileEditor {
                         } else if item_id.name == "Camera Tilted" {
                             region.camera_type = CameraType::TiltedIso;
                         }
+                        region.prerendered.invalidate();
                         server.update_region(region);
-                        ctx.ui
-                            .send(TheEvent::Custom(TheId::named("Prerender"), TheValue::Empty));
+                        PRERENDERTHREAD
+                            .lock()
+                            .unwrap()
+                            .render_region_coord_tree(region.clone());
+                        PRERENDERTHREAD.lock().unwrap().render_region(
+                            region.clone(),
+                            project.palette.clone(),
+                            vec![],
+                        );
+                        redraw = true;
                     }
                 } else if item_id.name == "Create Area" {
                     open_text_dialog(

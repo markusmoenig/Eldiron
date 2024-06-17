@@ -769,10 +769,51 @@ impl Server {
         }
     }
 
-    /// Set a voxelized model to the region.
     pub fn set_prerendered(&mut self, region: Uuid, prerendered: PreRendered) {
         if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
             region.prerendered = prerendered;
+        }
+    }
+
+    pub fn set_prerendered_tree(&mut self, region: Uuid, tree: RTree<PreRenderedData>) {
+        if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
+            region.prerendered.tree = tree;
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_prerendered_tile(
+        &mut self,
+        region: Uuid,
+        size: &Vec2i,
+        tile_pos: &Vec2i,
+        albedo: &TheRGBBuffer,
+        sky_abso: &TheRGBBuffer,
+        distance: &TheFlattenedMap<f32>,
+        lights: &TheFlattenedMap<Vec<PreRenderedLight>>,
+    ) {
+        if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
+            region.prerendered.resize(size.x, size.y);
+
+            region
+                .prerendered
+                .albedo
+                .copy_into(tile_pos.x, tile_pos.y, albedo);
+
+            region
+                .prerendered
+                .sky_absorption
+                .copy_into(tile_pos.x, tile_pos.y, sky_abso);
+
+            region
+                .prerendered
+                .distance
+                .copy_into(tile_pos.x, tile_pos.y, distance);
+
+            region
+                .prerendered
+                .lights
+                .copy_into(tile_pos.x, tile_pos.y, lights);
         }
     }
 

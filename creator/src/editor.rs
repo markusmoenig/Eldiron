@@ -467,14 +467,62 @@ impl TheTrait for Editor {
         }
 
         // Get prerendered results
-        while let Some(PreRenderResult::RenderedRegion(id, prerendered)) =
-            PRERENDERTHREAD.try_lock().unwrap().receive()
-        {
-            if let Some(region) = self.project.get_region_mut(&id) {
-                region.prerendered = prerendered.clone();
+        while let Some(rendered) = PRERENDERTHREAD.lock().unwrap().receive() {
+            match rendered {
+                PreRenderResult::RenderedRegion(id, prerendered) => {
+                    if let Some(region) = self.project.get_region_mut(&id) {
+                        region.prerendered = prerendered.clone();
+                    }
+                    self.server.set_prerendered(id, prerendered);
+                    redraw = true;
+                }
+                PreRenderResult::RenderedRTree(id, tree) => {
+                    if let Some(region) = self.project.get_region_mut(&id) {
+                        region.prerendered.tree = tree.clone();
+                        self.server.set_prerendered_tree(id, tree);
+                    }
+                    redraw = true;
+                }
+                PreRenderResult::RenderedRegionTile(
+                    id,
+                    size,
+                    tile_pos,
+                    albedo,
+                    sky_abso,
+                    distance,
+                    lights,
+                ) => {
+                    if let Some(region) = self.project.get_region_mut(&id) {
+                        region.prerendered.resize(size.x, size.y);
+
+                        region
+                            .prerendered
+                            .albedo
+                            .copy_into(tile_pos.x, tile_pos.y, &albedo);
+
+                        region
+                            .prerendered
+                            .sky_absorption
+                            .copy_into(tile_pos.x, tile_pos.y, &sky_abso);
+
+                        region
+                            .prerendered
+                            .distance
+                            .copy_into(tile_pos.x, tile_pos.y, &distance);
+
+                        region
+                            .prerendered
+                            .lights
+                            .copy_into(tile_pos.x, tile_pos.y, &lights);
+
+                        self.server.set_prerendered_tile(
+                            id, &size, &tile_pos, &albedo, &sky_abso, &distance, &lights,
+                        );
+                    }
+                    redraw = true;
+                }
+                _ => {}
             }
-            self.server.set_prerendered(id, prerendered);
-            redraw = true;
         }
 
         if self.active_editor == ActiveEditor::TileEditor
@@ -607,9 +655,9 @@ impl TheTrait for Editor {
                             if let Some(region) =
                                 self.project.get_region_mut(&self.server_ctx.curr_region)
                             {
-                                region.prerendered = PreRendered::default();
+                                region.prerendered.albedo.fill([0, 0, 0]);
                                 self.server
-                                    .set_prerendered(region.id, PreRendered::default());
+                                    .set_prerendered(region.id, region.prerendered.clone());
                                 PRERENDERTHREAD.lock().unwrap().render_region(
                                     region.clone(),
                                     self.project.palette.clone(),

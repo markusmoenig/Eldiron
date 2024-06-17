@@ -32,10 +32,11 @@ impl RTreeObject for PreRenderedData {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PreRenderedLight {
+    pub pos: Vec2i,
     pub brdf: Vec3f,
 }
 
-fn default_prerendered_lights() -> TheFlattenedMap<FxHashMap<Vec2i, PreRenderedLight>> {
+fn default_prerendered_lights() -> TheFlattenedMap<Vec<PreRenderedLight>> {
     TheFlattenedMap::new(0, 0)
 }
 
@@ -46,10 +47,7 @@ pub struct PreRendered {
     pub distance: TheFlattenedMap<f32>,
 
     #[serde(default = "default_prerendered_lights")]
-    pub lights: TheFlattenedMap<FxHashMap<Vec2i, PreRenderedLight>>,
-
-    /// The tile coordinates for the 4 corners of the prerendered data.
-    pub tile_coords: Option<[Vec2f; 4]>,
+    pub lights: TheFlattenedMap<Vec<PreRenderedLight>>,
 
     pub tiles_to_render: Vec<Vec2i>,
 
@@ -72,8 +70,6 @@ impl PreRendered {
             albedo,
             sky_absorption,
 
-            tile_coords: None,
-
             tiles_to_render: Vec::new(),
             tree: RTree::new(),
         }
@@ -85,12 +81,25 @@ impl PreRendered {
             sky_absorption: TheRGBBuffer::default(),
             distance: TheFlattenedMap::new(0, 0),
 
-            tile_coords: None,
             lights: TheFlattenedMap::new(0, 0),
 
             tiles_to_render: Vec::new(),
             tree: RTree::new(),
         }
+    }
+
+    pub fn resize(&mut self, width: i32, height: i32) {
+        self.albedo.resize(width, height);
+        self.sky_absorption.resize(width, height);
+        self.distance.resize(width, height);
+        self.lights.resize(width, height);
+    }
+
+    pub fn invalidate(&mut self) {
+        self.albedo.fill([0, 0, 0]);
+        self.sky_absorption.fill([0, 0, 0]);
+        self.distance.clear();
+        self.lights.clear();
     }
 
     /// Add all tiles to be rendered.

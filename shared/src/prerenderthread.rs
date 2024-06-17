@@ -14,6 +14,16 @@ pub enum PreRenderCmd {
 
 pub enum PreRenderResult {
     RenderedRegion(Uuid, PreRendered),
+    RenderedRegionTile(
+        Uuid,
+        Vec2i,
+        Vec2i,
+        TheRGBBuffer,
+        TheRGBBuffer,
+        TheFlattenedMap<f32>,
+        TheFlattenedMap<Vec<PreRenderedLight>>,
+    ),
+    RenderedRTree(Uuid, RTree<PreRenderedData>),
     Quit,
 }
 
@@ -172,7 +182,10 @@ impl PreRenderThread {
                                 prerendered_regions.insert(region.id, prerendered.clone());
 
                                 result_tx
-                                    .send(PreRenderResult::RenderedRegion(region.id, prerendered))
+                                    .send(PreRenderResult::RenderedRTree(
+                                        region.id,
+                                        prerendered.tree,
+                                    ))
                                     .unwrap();
                                 println!("finished");
                             }
@@ -191,6 +204,7 @@ impl PreRenderThread {
 
                             if region.prerendered.albedo.dim().width != w
                                 || region.prerendered.albedo.dim().height != h
+                                || tiles.is_empty()
                             {
                                 reset = true;
                             }
@@ -224,6 +238,7 @@ impl PreRenderThread {
                                         &region,
                                         &mut draw_settings,
                                         &palette,
+                                        result_tx.clone(),
                                     );
                                 });
 
@@ -231,9 +246,9 @@ impl PreRenderThread {
 
                                 prerendered_regions.insert(region.id, prerendered.clone());
 
-                                result_tx
-                                    .send(PreRenderResult::RenderedRegion(region.id, prerendered))
-                                    .unwrap();
+                                // result_tx
+                                //     .send(PreRenderResult::RenderedRegion(region.id, prerendered))
+                                //     .unwrap();
                                 println!("finished");
                             }
                         }

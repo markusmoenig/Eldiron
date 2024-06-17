@@ -1,4 +1,6 @@
-use crate::editor::{CODEEDITOR, REGIONFXEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR};
+use crate::editor::{
+    CODEEDITOR, PRERENDERTHREAD, REGIONFXEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR,
+};
 use crate::prelude::*;
 
 #[derive(PartialEq, Debug)]
@@ -1089,10 +1091,17 @@ impl Sidebar {
                     if let Some(v) = value.to_i32() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.grid_size = v;
-
-                            ctx.ui
-                                .send(TheEvent::Custom(TheId::named("Prerender"), TheValue::Empty));
+                            region.prerendered.invalidate();
                             server.update_region(region);
+                            PRERENDERTHREAD
+                                .lock()
+                                .unwrap()
+                                .render_region_coord_tree(region.clone());
+                            PRERENDERTHREAD.lock().unwrap().render_region(
+                                region.clone(),
+                                project.palette.clone(),
+                                vec![],
+                            );
 
                             if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
                                 if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
@@ -1105,10 +1114,17 @@ impl Sidebar {
                     if let Some(v) = value.to_i32() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.pathtracer_samples = v;
-
-                            ctx.ui
-                                .send(TheEvent::Custom(TheId::named("Prerender"), TheValue::Empty));
+                            region.prerendered.invalidate();
                             server.update_region(region);
+                            PRERENDERTHREAD
+                                .lock()
+                                .unwrap()
+                                .render_region_coord_tree(region.clone());
+                            PRERENDERTHREAD.lock().unwrap().render_region(
+                                region.clone(),
+                                project.palette.clone(),
+                                vec![],
+                            );
                         }
                     }
                 } else if id.name == "Region Min Brightness" {
