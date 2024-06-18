@@ -125,7 +125,7 @@ impl PreRendered {
                     data.pixel_location.1 / grid_size,
                 );
 
-                for y in tile.y - 1..=tile.y + 1 {
+                for y in tile.y - 2..=tile.y + 2 {
                     for x in tile.x - 2..=tile.x + 2 {
                         let t = Vec2i::new(x, y);
                         if !self.tiles_to_render.contains(&t) {

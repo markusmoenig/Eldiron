@@ -65,11 +65,10 @@ impl UndoManager {
         match &self.context {
             UndoManagerContext::None => {}
             UndoManagerContext::Region => {
-                let palette = project.palette.clone();
                 if let Some(region_undo) = self.regions.get_mut(&context_id) {
                     if let Some(region) = project.get_region_mut(&context_id) {
                         if region_undo.has_undo() {
-                            region_undo.undo(region, &palette);
+                            region_undo.undo(region);
                         }
 
                         if !region_undo.has_undo() {
@@ -117,11 +116,10 @@ impl UndoManager {
         match &self.context {
             UndoManagerContext::None => {}
             UndoManagerContext::Region => {
-                let palette = project.palette.clone();
                 if let Some(region_undo) = self.regions.get_mut(&context_id) {
                     if let Some(region) = project.get_region_mut(&context_id) {
                         if region_undo.has_redo() {
-                            region_undo.redo(region, &palette);
+                            region_undo.redo(region);
                         }
 
                         if !region_undo.has_undo() {

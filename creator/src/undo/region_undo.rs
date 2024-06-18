@@ -12,18 +12,17 @@ pub enum RegionUndoAtom {
 }
 
 impl RegionUndoAtom {
-    pub fn undo(&self, region: &mut Region, palette: &ThePalette) {
+    pub fn undo(&self, region: &mut Region) {
         match self {
             RegionUndoAtom::GeoFXObjectsDeletion(objects, tiles) => {
                 for object in objects {
                     region.geometry.insert(object.id, object.clone());
                 }
                 region.update_geometry_areas();
-                PRERENDERTHREAD.lock().unwrap().render_region(
-                    region.clone(),
-                    palette.clone(),
-                    tiles.clone(),
-                );
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), tiles.clone());
             }
             RegionUndoAtom::GeoFXObjectEdit(id, prev, _, tiles) => {
                 if let Some(prev) = prev {
@@ -32,11 +31,10 @@ impl RegionUndoAtom {
                     region.geometry.remove(id);
                 }
                 region.update_geometry_areas();
-                PRERENDERTHREAD.lock().unwrap().render_region(
-                    region.clone(),
-                    palette.clone(),
-                    tiles.clone(),
-                );
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), tiles.clone());
             }
             RegionUndoAtom::RegionTileEdit(pos, prev, _) => {
                 if let Some(prev) = prev {
@@ -54,18 +52,17 @@ impl RegionUndoAtom {
             }
         }
     }
-    pub fn redo(&self, region: &mut Region, palette: &ThePalette) {
+    pub fn redo(&self, region: &mut Region) {
         match self {
             RegionUndoAtom::GeoFXObjectsDeletion(objects, tiles) => {
                 for object in objects {
                     region.geometry.remove(&object.id);
                 }
                 region.update_geometry_areas();
-                PRERENDERTHREAD.lock().unwrap().render_region(
-                    region.clone(),
-                    palette.clone(),
-                    tiles.clone(),
-                );
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), tiles.clone());
             }
 
             RegionUndoAtom::GeoFXObjectEdit(id, _, next, tiles) => {
@@ -75,11 +72,10 @@ impl RegionUndoAtom {
                     region.geometry.remove(id);
                 }
                 region.update_geometry_areas();
-                PRERENDERTHREAD.lock().unwrap().render_region(
-                    region.clone(),
-                    palette.clone(),
-                    tiles.clone(),
-                );
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), tiles.clone());
             }
             RegionUndoAtom::RegionTileEdit(pos, _, next) => {
                 if let Some(next) = next {
@@ -148,17 +144,17 @@ impl RegionUndo {
         self.index += 1;
     }
 
-    pub fn undo(&mut self, region: &mut Region, palette: &ThePalette) {
+    pub fn undo(&mut self, region: &mut Region) {
         if self.index >= 0 {
-            self.stack[self.index as usize].undo(region, palette);
+            self.stack[self.index as usize].undo(region);
             self.index -= 1;
         }
     }
 
-    pub fn redo(&mut self, region: &mut Region, palette: &ThePalette) {
+    pub fn redo(&mut self, region: &mut Region) {
         if self.index < self.stack.len() as isize - 1 {
             self.index += 1;
-            self.stack[self.index as usize].redo(region, palette);
+            self.stack[self.index as usize].redo(region);
         }
     }
 }

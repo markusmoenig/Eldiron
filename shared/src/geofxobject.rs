@@ -101,13 +101,22 @@ impl GeoFXObject {
         //         area.grow(aabb);
         //     }
         // }
-        //self.area = area.to_tiles();
+        // self.area = area.to_tiles();
+
+        // for geo in &self.nodes {
+        //     let p = geo.position();
+        //     let pp = vec2i(p.x as i32, p.y as i32);
+        //     if !self.area.contains(&pp) {
+        //         self.area.push(pp);
+        //     }
+        // }
 
         for geo in &self.nodes {
-            let p = geo.position();
-            let pp = vec2i(p.x as i32, p.y as i32);
-            if !self.area.contains(&pp) {
-                self.area.push(pp);
+            let area = geo.area();
+            for p in area {
+                if !self.area.contains(&p) {
+                    self.area.push(p);
+                }
             }
         }
     }

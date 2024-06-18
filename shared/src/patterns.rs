@@ -74,28 +74,24 @@ pub fn steepness(coll: &TheCollection, _uv: Vec2f, hit: &mut Hit) -> (u8, u8) {
     }
 }
 
-pub fn subdivide(coll: &TheCollection, uv: Vec2f, hit: &mut Hit) -> (u8, u8) {
+pub fn subdivide(coll: &TheCollection, uv: Vec2f, hit: &mut Hit) -> u8 {
     let mode = coll.get_i32_default("Mode", 0);
     let offset = coll.get_f32_default("Offset", 0.5);
 
     if mode == 0 {
-        if uv.y < offset {
-            hit.face = HitFace::YFace;
+        if uv.x < offset {
             hit.uv = uv / offset;
-            (1, 1)
+            0
         } else {
-            hit.face = HitFace::XFace;
-            hit.uv = (uv - vec2f(0.0, offset)) / (1.0 - offset);
-            (0, 0)
+            hit.uv = (uv - vec2f(offset, 0.0)) / (1.0 - offset);
+            1
         }
-    } else if uv.x < offset {
-        hit.face = HitFace::XFace;
+    } else if uv.y < offset {
         hit.uv = uv / offset;
-        (0, 0)
+        0
     } else {
-        hit.face = HitFace::YFace;
-        hit.uv = (uv - vec2f(offset, 0.0)) / (1.0 - offset);
-        (1, 1)
+        hit.uv = (uv - vec2f(0.0, offset)) / (1.0 - offset);
+        1
     }
 }
 

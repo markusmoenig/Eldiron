@@ -416,11 +416,10 @@ impl TileEditor {
                             .lock()
                             .unwrap()
                             .render_region_coord_tree(region.clone());
-                        PRERENDERTHREAD.lock().unwrap().render_region(
-                            region.clone(),
-                            project.palette.clone(),
-                            vec![],
-                        );
+                        PRERENDERTHREAD
+                            .lock()
+                            .unwrap()
+                            .render_region(region.clone(), vec![]);
                         redraw = true;
                     }
                 } else if item_id.name == "Create Area" {
@@ -1236,11 +1235,10 @@ impl TileEditor {
 
                         // Render the region area covered by the object with the new material.
                         if let Some(region) = region_to_render {
-                            PRERENDERTHREAD.lock().unwrap().render_region(
-                                region,
-                                project.palette.clone(),
-                                tiles_to_render,
-                            );
+                            PRERENDERTHREAD
+                                .lock()
+                                .unwrap()
+                                .render_region(region, tiles_to_render);
                         }
                     }
                 }
@@ -1293,11 +1291,10 @@ impl TileEditor {
             }
 
             if let Some(region) = region_to_render {
-                PRERENDERTHREAD.lock().unwrap().render_region(
-                    region,
-                    project.palette.clone(),
-                    tiles_to_render,
-                );
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region, tiles_to_render);
             }
         } else if self.editor_mode == EditorMode::Select {
             let p = (coord.x, coord.y);
@@ -1488,11 +1485,10 @@ impl TileEditor {
                     }
 
                     if let Some(region) = region_to_render {
-                        PRERENDERTHREAD.lock().unwrap().render_region(
-                            region,
-                            project.palette.clone(),
-                            tiles_to_render,
-                        );
+                        PRERENDERTHREAD
+                            .lock()
+                            .unwrap()
+                            .render_region(region, tiles_to_render);
                     }
                 }
             }

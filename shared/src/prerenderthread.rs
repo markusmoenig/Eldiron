@@ -6,9 +6,10 @@ use theframework::prelude::*;
 pub enum PreRenderCmd {
     SetTextures(FxHashMap<Uuid, TheRGBATile>),
     SetMaterials(IndexMap<Uuid, MaterialFXObject>),
+    SetPalette(ThePalette),
     MaterialChanged(MaterialFXObject),
     RenderRegionCoordTree(Region),
-    RenderRegion(Region, ThePalette, Vec<Vec2i>),
+    RenderRegion(Region, Vec<Vec2i>),
     Quit,
 }
 
@@ -77,12 +78,16 @@ impl PreRenderThread {
         self.send(PreRenderCmd::SetMaterials(materials));
     }
 
+    pub fn set_palette(&self, palette: ThePalette) {
+        self.send(PreRenderCmd::SetPalette(palette));
+    }
+
     pub fn material_changed(&self, material: MaterialFXObject) {
         self.send(PreRenderCmd::MaterialChanged(material));
     }
 
-    pub fn render_region(&self, region: Region, palette: ThePalette, tiles: Vec<Vec2i>) {
-        self.send(PreRenderCmd::RenderRegion(region, palette, tiles));
+    pub fn render_region(&self, region: Region, tiles: Vec<Vec2i>) {
+        self.send(PreRenderCmd::RenderRegion(region, tiles));
     }
 
     pub fn render_region_coord_tree(&self, region: Region) {
@@ -107,6 +112,7 @@ impl PreRenderThread {
                 .unwrap();
 
             let mut renderer = Renderer::new();
+            let mut palette = ThePalette::default();
 
             let mut draw_settings = RegionDrawSettings::new();
             draw_settings.daylight = vec3f(1.0, 1.0, 1.0);
@@ -123,6 +129,10 @@ impl PreRenderThread {
                         PreRenderCmd::SetMaterials(new_materials) => {
                             println!("PreRenderCmd::SetMaterials");
                             renderer.materials.clone_from(&new_materials);
+                        }
+                        PreRenderCmd::SetPalette(new_palette) => {
+                            println!("PreRenderCmd::SetPalette");
+                            palette = new_palette;
                         }
                         PreRenderCmd::MaterialChanged(changed_material) => {
                             println!("PreRenderCmd::MaterialChanged");
@@ -190,7 +200,7 @@ impl PreRenderThread {
                                 println!("finished");
                             }
                         }
-                        PreRenderCmd::RenderRegion(region, palette, tiles) => {
+                        PreRenderCmd::RenderRegion(region, tiles) => {
                             println!("PreRenderCmd::RenderRegion");
 
                             let w = (region.width as f32 * region.grid_size as f32) as i32;

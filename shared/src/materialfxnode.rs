@@ -11,6 +11,7 @@ pub enum MaterialFXNodeRole {
     Noise3D,
     Brick,
     UVSplitter,
+    Subdivide,
 }
 
 use MaterialFXNodeRole::*;
@@ -74,6 +75,13 @@ impl MaterialFXNode {
                 );
                 coll.set("Displace", TheValue::FloatRange(0.0, 0.0..=1.0));
             }
+            Subdivide => {
+                coll.set(
+                    "Mode",
+                    TheValue::TextList(0, vec![str!("Horizontal"), str!("Vertical")]),
+                );
+                coll.set("Offset", TheValue::FloatRange(0.5, 0.0..=1.0));
+            }
         }
 
         let timeline = TheTimeline::collection(coll);
@@ -99,6 +107,7 @@ impl MaterialFXNode {
             Noise3D => str!("Noise3D"),
             Brick => str!("Bricks"),
             UVSplitter => str!("UV Splitter"),
+            Subdivide => str!("Subdivide"),
         }
     }
 
@@ -111,6 +120,7 @@ impl MaterialFXNode {
             Self::new(MaterialFXNodeRole::Noise3D),
             Self::new(MaterialFXNodeRole::Brick),
             Self::new(MaterialFXNodeRole::UVSplitter),
+            Self::new(MaterialFXNodeRole::Subdivide),
         ]
     }
 
@@ -130,7 +140,7 @@ impl MaterialFXNode {
                     },
                 ]
             }
-            MaterialMixer | Material | Noise3D | Noise2D | UVSplitter => {
+            MaterialMixer | Material | Noise3D | Noise2D | UVSplitter | Subdivide => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
                     role: str!("Input"),
@@ -212,6 +222,20 @@ impl MaterialFXNode {
                     TheNodeTerminal {
                         name: str!("mapped"),
                         role: str!("Mapped"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                ]
+            }
+            Subdivide => {
+                vec![
+                    TheNodeTerminal {
+                        name: str!("mat1"),
+                        role: str!("Material1"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("mat2"),
+                        role: str!("Material2"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]
@@ -302,6 +326,10 @@ impl MaterialFXNode {
 
                     Some(3)
                 }
+            }
+            Subdivide => {
+                let collection = self.collection();
+                Some(subdivide(&collection, hit.uv, hit))
             }
             _ => None,
         }

@@ -239,9 +239,10 @@ impl ModelFXNode {
                 let uv = hit.uv / 3.0;
                 steepness(coll, uv, hit)
             }
-            Self::Subdivide(coll) => {
-                let uv = hit.uv / 3.0;
-                subdivide(coll, uv, hit)
+            Self::Subdivide(_coll) => {
+                let _uv = hit.uv / 3.0;
+                //subdivide(coll, uv, hit)
+                (0, 0)
             }
             Self::Bricks(coll) => {
                 let uv = hit.uv / 3.0;
@@ -278,9 +279,10 @@ impl ModelFXNode {
                 let (_, terminal) = steepness(collection, hit.uv, hit);
                 Some(terminal)
             }
-            Self::Subdivide(collection) => {
-                let (_, terminal) = subdivide(collection, hit.uv, hit);
-                Some(terminal)
+            Self::Subdivide(_collection) => {
+                //let (_, terminal) = subdivide(collection, hit.uv, hit);
+                //Some(terminal)
+                None
             }
             Self::Bricks(collection) => {
                 let (_, terminal) = bricks(collection, hit.uv, hit);

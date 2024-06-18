@@ -1097,11 +1097,10 @@ impl Sidebar {
                                 .lock()
                                 .unwrap()
                                 .render_region_coord_tree(region.clone());
-                            PRERENDERTHREAD.lock().unwrap().render_region(
-                                region.clone(),
-                                project.palette.clone(),
-                                vec![],
-                            );
+                            PRERENDERTHREAD
+                                .lock()
+                                .unwrap()
+                                .render_region(region.clone(), vec![]);
 
                             if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
                                 if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
@@ -1120,11 +1119,10 @@ impl Sidebar {
                                 .lock()
                                 .unwrap()
                                 .render_region_coord_tree(region.clone());
-                            PRERENDERTHREAD.lock().unwrap().render_region(
-                                region.clone(),
-                                project.palette.clone(),
-                                vec![],
-                            );
+                            PRERENDERTHREAD
+                                .lock()
+                                .unwrap()
+                                .render_region(region.clone(), vec![]);
                         }
                     }
                 } else if id.name == "Region Min Brightness" {

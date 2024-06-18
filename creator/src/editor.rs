@@ -658,11 +658,10 @@ impl TheTrait for Editor {
                                 region.prerendered.albedo.fill([0, 0, 0]);
                                 self.server
                                     .set_prerendered(region.id, region.prerendered.clone());
-                                PRERENDERTHREAD.lock().unwrap().render_region(
-                                    region.clone(),
-                                    self.project.palette.clone(),
-                                    vec![],
-                                );
+                                PRERENDERTHREAD
+                                    .lock()
+                                    .unwrap()
+                                    .render_region(region.clone(), vec![]);
                             }
                         }
                     }
@@ -1103,6 +1102,11 @@ impl TheTrait for Editor {
                                         // }
                                         // r.models.clear();
                                         // }
+
+                                        PRERENDERTHREAD
+                                            .lock()
+                                            .unwrap()
+                                            .set_palette(self.project.palette.clone());
 
                                         PRERENDERTHREAD
                                             .lock()

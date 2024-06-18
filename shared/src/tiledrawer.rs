@@ -362,8 +362,9 @@ impl TileDrawer {
                                     }
                                 }
 
-                                let t = smoothstep(-1.0, 0.0, d.0);
-                                color = self.mix_color(&c, &color, t);
+                                //     let t = smoothstep(-1.0, 0.0, d.0);
+                                //     color = self.mix_color(&c, &color, t);
+                                color = c;
                             }
                         }
                     }

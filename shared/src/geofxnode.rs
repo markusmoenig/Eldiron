@@ -12,6 +12,10 @@ pub enum GeoFXNodeRole {
     TopWall,
     RightWall,
     BottomWall,
+    BendWallNW,
+    BendWallNE,
+    BendWallSW,
+    BendWallSE,
 }
 
 use GeoFXNodeRole::*;
@@ -42,7 +46,7 @@ impl GeoFXNode {
             Column => {
                 coll.set("Pos X", TheValue::Float(0.5));
                 coll.set("Pos Y", TheValue::Float(0.5));
-                coll.set("Radius", TheValue::FloatRange(0.4, 0.001..=0.5));
+                coll.set("Radius", TheValue::FloatRange(0.4, 0.001..=2.0));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
                 coll.set("Hole", TheValue::FloatRange(0.0, 0.0..=1.0));
                 function = str!("Ground");
@@ -75,6 +79,13 @@ impl GeoFXNode {
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
             }
+            BendWallNW | BendWallNE | BendWallSW | BendWallSE => {
+                coll.set("Pos X", TheValue::Float(0.5));
+                coll.set("Pos Y", TheValue::Float(0.5));
+                coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
+                coll.set("Rounding", TheValue::FloatRange(0.3, 0.0..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+            }
         }
         let timeline = TheTimeline::collection(coll);
 
@@ -94,6 +105,10 @@ impl GeoFXNode {
             Self::new(GeoFXNodeRole::TopWall),
             Self::new(GeoFXNodeRole::RightWall),
             Self::new(GeoFXNodeRole::BottomWall),
+            Self::new(GeoFXNodeRole::BendWallNW),
+            Self::new(GeoFXNodeRole::BendWallNE),
+            Self::new(GeoFXNodeRole::BendWallSW),
+            Self::new(GeoFXNodeRole::BendWallSE),
         ]
     }
 
@@ -148,8 +163,7 @@ impl GeoFXNode {
                     let mut pos = self.position() * scale;
                     pos.x = pos.x.floor() + thick.fract() / 2.0;
 
-                    let d = abs(p - pos) - vec2f(thick, len);
-                    return length(max(d, Vec2f::zero())) + min(max(d.x, d.y), 0.0);
+                    return self.box2d(p, pos, thick, len);
                 }
                 TopWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
@@ -158,8 +172,7 @@ impl GeoFXNode {
                     let mut pos = self.position() * scale;
                     pos.y = pos.y.floor() + thick.fract() / 2.0;
 
-                    let d = abs(p - pos) - vec2f(len, thick);
-                    return length(max(d, Vec2f::zero())) + min(max(d.x, d.y), 0.0);
+                    return self.box2d(p, pos, len, thick);
                 }
                 RightWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
@@ -168,8 +181,7 @@ impl GeoFXNode {
                     let mut pos = self.position() * scale;
                     pos.x = pos.x.floor() + 1.0 - thick.fract() / 2.0;
 
-                    let d = abs(p - pos) - vec2f(thick, len);
-                    return length(max(d, Vec2f::zero())) + min(max(d.x, d.y), 0.0);
+                    return self.box2d(p, pos, thick, len);
                 }
                 BottomWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
@@ -178,8 +190,100 @@ impl GeoFXNode {
                     let mut pos = self.position() * scale;
                     pos.y = pos.y.floor() + 1.0 - thick.fract() / 2.0;
 
-                    let d = abs(p - pos) - vec2f(len, thick);
-                    return length(max(d, Vec2f::zero())) + min(max(d.x, d.y), 0.0);
+                    return self.box2d(p, pos, len, thick);
+                }
+                BendWallNW => {
+                    let thick = coll.get_f32_default("Thickness", 0.2) * scale;
+                    let round = coll.get_f32_default("Rounding", 0.3) * scale;
+
+                    let pos = self.position() * scale + 1.0 * scale;
+                    let rounding = (round, round, round, round);
+
+                    let p = p - pos;
+
+                    let size = if scale != 1.0 {
+                        1.0 * scale
+                    } else {
+                        1.5 * scale
+                    };
+
+                    let d = self.rounded_box2d(p, size, thick, rounding);
+
+                    return d.abs() - thick;
+                }
+                BendWallNE => {
+                    let thick = coll.get_f32_default("Thickness", 0.2) * scale;
+                    let round = coll.get_f32_default("Rounding", 0.3) * scale;
+
+                    let mut pos = self.position() * scale;
+                    pos += if scale != 1.0 {
+                        vec2f(0.0, 1.0) * scale
+                    } else {
+                        vec2f(-1.0, 1.0) * scale
+                    };
+
+                    let rounding = (round, round, round, round);
+
+                    let p = p - pos;
+
+                    let size = if scale != 1.0 {
+                        1.0 * scale
+                    } else {
+                        1.5 * scale
+                    };
+
+                    let d = self.rounded_box2d(p, size, thick, rounding);
+
+                    return d.abs() - thick;
+                }
+                BendWallSW => {
+                    let thick = coll.get_f32_default("Thickness", 0.2) * scale;
+                    let round = coll.get_f32_default("Rounding", 0.3) * scale;
+
+                    let mut pos = self.position() * scale;
+                    pos += if scale != 1.0 {
+                        vec2f(1.0, 0.0) * scale
+                    } else {
+                        vec2f(1.0, -1.0) * scale
+                    };
+                    let rounding = (round, round, round, round);
+
+                    let p = p - pos;
+
+                    let size = if scale != 1.0 {
+                        1.0 * scale
+                    } else {
+                        1.5 * scale
+                    };
+
+                    let d = self.rounded_box2d(p, size, thick, rounding);
+
+                    return d.abs() - thick;
+                }
+                BendWallSE => {
+                    let thick = coll.get_f32_default("Thickness", 0.2) * scale;
+                    let round = coll.get_f32_default("Rounding", 0.3) * scale;
+
+                    let mut pos = self.position() * scale;
+                    pos += if scale != 1.0 {
+                        vec2f(0.0, 0.0) * scale
+                    } else {
+                        vec2f(-1.0, -1.0) * scale
+                    };
+
+                    let rounding = (round, round, round, round);
+
+                    let p = p - pos;
+
+                    let size = if scale != 1.0 {
+                        1.0 * scale
+                    } else {
+                        1.5 * scale
+                    };
+
+                    let d = self.rounded_box2d(p, size, thick, rounding);
+
+                    return d.abs() - thick;
                 }
             }
         }
@@ -229,7 +333,9 @@ impl GeoFXNode {
                         hit.interior_distance = d;
                     }
 
-                    return op_extrusion_y(p, d, height);
+                    let d = op_extrusion_y(p, d, height);
+                    let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                    return max(-plane, d);
                 }
                 LeftWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2);
@@ -239,14 +345,15 @@ impl GeoFXNode {
                     let mut pos = self.position();
                     pos.x = pos.x.floor() + thick.fract() / 2.0;
 
-                    let dd = abs(vec2f(p.x, p.z) - pos) - vec2f(thick, len);
-                    let d = length(max(dd, Vec2f::zero())) + min(max(dd.x, dd.y), 0.0);
+                    let d = self.box2d(vec2f(p.x, p.z), pos, thick, len);
 
                     if let Some(hit) = hit {
                         hit.interior_distance = d;
                     }
 
-                    return op_extrusion_y(p, d, height);
+                    let d = op_extrusion_y(p, d, height);
+                    let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                    return max(-plane, d);
                 }
                 TopWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2);
@@ -256,14 +363,15 @@ impl GeoFXNode {
                     let mut pos = self.position();
                     pos.y = pos.y.floor() + thick.fract() / 2.0;
 
-                    let dd = abs(vec2f(p.x, p.z) - pos) - vec2f(len, thick);
-                    let d = length(max(dd, Vec2f::zero())) + min(max(dd.x, dd.y), 0.0);
+                    let d = self.box2d(vec2f(p.x, p.z), pos, len, thick);
 
                     if let Some(hit) = hit {
                         hit.interior_distance = d;
                     }
 
-                    return op_extrusion_y(p, d, height);
+                    let d = op_extrusion_y(p, d, height);
+                    let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                    return max(-plane, d);
                 }
                 RightWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2);
@@ -273,14 +381,15 @@ impl GeoFXNode {
                     let mut pos = self.position();
                     pos.x = pos.x.floor() + 1.0 - thick.fract() / 2.0;
 
-                    let dd = abs(vec2f(p.x, p.z) - pos) - vec2f(thick, len);
-                    let d = length(max(dd, Vec2f::zero())) + min(max(dd.x, dd.y), 0.0);
+                    let d = self.box2d(vec2f(p.x, p.z), pos, thick, len);
 
                     if let Some(hit) = hit {
                         hit.interior_distance = d;
                     }
 
-                    return op_extrusion_y(p, d, height);
+                    let d = op_extrusion_y(p, d, height);
+                    let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                    return max(-plane, d);
                 }
                 BottomWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2);
@@ -290,14 +399,107 @@ impl GeoFXNode {
                     let mut pos = self.position();
                     pos.y = pos.y.floor() + 1.0 - thick.fract() / 2.0;
 
-                    let dd = abs(vec2f(p.x, p.z) - pos) - vec2f(len, thick);
-                    let d = length(max(dd, Vec2f::zero())) + min(max(dd.x, dd.y), 0.0);
+                    let d = self.box2d(vec2f(p.x, p.z), pos, len, thick);
 
                     if let Some(hit) = hit {
                         hit.interior_distance = d;
                     }
 
-                    return op_extrusion_y(p, d, height);
+                    let d = op_extrusion_y(p, d, height);
+                    let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                    return max(-plane, d);
+                }
+                BendWallNW => {
+                    let thick = coll.get_f32_default("Thickness", 0.2);
+                    let round = coll.get_f32_default("Rounding", 0.3);
+                    let height = coll.get_f32_default("Height", 1.0);
+
+                    let pos = self.position() + 1.0;
+                    let rounding = (round, round, round, round);
+
+                    let pp = vec2f(p.x, p.z) - pos;
+
+                    let size = 1.0;
+                    let mut d = self.rounded_box2d(pp, size, thick, rounding);
+
+                    d = d.abs() - thick;
+
+                    if let Some(hit) = hit {
+                        hit.interior_distance = d;
+                    }
+
+                    let d = op_extrusion_y(p, d, height);
+                    let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                    return max(-plane, d);
+                }
+                BendWallNE => {
+                    let thick = coll.get_f32_default("Thickness", 0.2);
+                    let round = coll.get_f32_default("Rounding", 0.3);
+                    let height = coll.get_f32_default("Height", 1.0);
+
+                    let pos = self.position() + vec2f(0.0, 1.0);
+                    let rounding = (round, round, round, round);
+
+                    let pp = vec2f(p.x, p.z) - pos;
+
+                    let size = 1.0;
+                    let mut d = self.rounded_box2d(pp, size, thick, rounding);
+
+                    d = d.abs() - thick;
+
+                    if let Some(hit) = hit {
+                        hit.interior_distance = d;
+                    }
+
+                    let d = op_extrusion_y(p, d, height);
+                    let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                    return max(-plane, d);
+                }
+                BendWallSW => {
+                    let thick = coll.get_f32_default("Thickness", 0.2);
+                    let round = coll.get_f32_default("Rounding", 0.3);
+                    let height = coll.get_f32_default("Height", 1.0);
+
+                    let pos = self.position() + 1.0;
+                    let rounding = (round, round, round, round);
+
+                    let pp = vec2f(p.x, p.z) - pos;
+
+                    let size = 1.0;
+                    let mut d = self.rounded_box2d(pp, size, thick, rounding);
+
+                    d = d.abs() - thick;
+
+                    if let Some(hit) = hit {
+                        hit.interior_distance = d;
+                    }
+
+                    let d = op_extrusion_y(p, d, height);
+                    let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                    return max(-plane, d);
+                }
+                BendWallSE => {
+                    let thick = coll.get_f32_default("Thickness", 0.2);
+                    let round = coll.get_f32_default("Rounding", 0.3);
+                    let height = coll.get_f32_default("Height", 1.0);
+
+                    let pos = self.position() + vec2f(0.0, 1.0);
+                    let rounding = (round, round, round, round);
+
+                    let pp = vec2f(p.x, p.z) - pos;
+
+                    let size = 1.0;
+                    let mut d = self.rounded_box2d(pp, size, thick, rounding);
+
+                    d = d.abs() - thick;
+
+                    if let Some(hit) = hit {
+                        hit.interior_distance = d;
+                    }
+
+                    let d = op_extrusion_y(p, d, height);
+                    let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                    return max(-plane, d);
                 }
             }
         }
@@ -305,25 +507,59 @@ impl GeoFXNode {
         f32::INFINITY
     }
 
-    pub fn aabb(&self, _time: &TheTime) -> Option<AABB2D> {
-        // match self.role {
-        //     Disc => {
-        //         if let Some(value) =
-        //             self.timeline
-        //                 .get(str!("Geo"), str!("Radius"), time, TheInterpolation::Linear)
-        //         {
-        //             if let Some(radius) = value.to_f32() {
-        //                 let position = self.position();
-        //                 let min = Vec2f::new(position.x - radius, position.y - radius);
-        //                 let max = Vec2f::new(position.x + radius, position.y + radius);
-        //                 return Some(AABB2D::new(min, max));
-        //             }
-        //         }
-        //     }
-        // }
+    /// Returns all tiles which are touched by this geometry.
+    pub fn area(&self) -> Vec<Vec2i> {
+        let mut area = Vec::new();
+        if let Some(coll) = self
+            .timeline
+            .get_collection_at(&TheTime::default(), str!("Geo"))
+        {
+            match self.role {
+                Column => {
+                    let radius = coll.get_f32_default("Radius", 0.4);
 
-        let pos = self.position();
-        Some(AABB2D::new(pos, pos))
+                    let center = self.position();
+                    let min_x = (center.x - radius).floor() as i32;
+                    let max_x = (center.x + radius).ceil() as i32;
+                    let min_y = (center.y - radius).floor() as i32;
+                    let max_y = (center.y + radius).ceil() as i32;
+
+                    fn tile_intersects_disc(center: Vec2f, radius: f32, x: i32, y: i32) -> bool {
+                        let closest_x = if center.x < x as f32 {
+                            x as f32
+                        } else if center.x > (x + 1) as f32 {
+                            (x + 1) as f32
+                        } else {
+                            center.x
+                        };
+                        let closest_y = if center.y < y as f32 {
+                            y as f32
+                        } else if center.y > (y + 1) as f32 {
+                            (y + 1) as f32
+                        } else {
+                            center.y
+                        };
+
+                        let dist_x = center.x - closest_x;
+                        let dist_y = center.y - closest_y;
+
+                        dist_x * dist_x + dist_y * dist_y <= radius * radius
+                    }
+
+                    for x in min_x..=max_x {
+                        for y in min_y..=max_y {
+                            if tile_intersects_disc(center, radius, x, y) {
+                                area.push(Vec2i::new(x, y));
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    area.push(Vec2i::from(self.position()));
+                }
+            }
+        }
+        area
     }
 
     pub fn position(&self) -> Vec2f {
@@ -367,6 +603,7 @@ impl GeoFXNode {
                 pf.x += 0.5;
                 pf.y += 0.9;
             }
+            _ => {}
         }
         self.set("Pos X", TheValue::Float(pf.x));
         self.set("Pos Y", TheValue::Float(pf.y));
@@ -385,6 +622,40 @@ impl GeoFXNode {
 
     pub fn set(&mut self, key: &str, value: TheValue) {
         self.timeline.set(&TheTime::default(), key, "Geo", value);
+    }
+
+    #[inline(always)]
+    fn box2d(&self, p: Vec2f, pos: Vec2f, dim1: f32, dim2: f32) -> f32 {
+        let d = abs(p - pos) - vec2f(dim1, dim2);
+        length(max(d, Vec2f::zero())) + min(max(d.x, d.y), 0.0)
+    }
+
+    #[inline(always)]
+    fn rounded_box2d(
+        &self,
+        p: Vec2f,
+        size: f32,
+        thick: f32,
+        rounding: (f32, f32, f32, f32),
+    ) -> f32 {
+        let mut r: (f32, f32);
+
+        if p.x > 0.0 {
+            r = (rounding.0, rounding.1);
+        } else {
+            r = (rounding.2, rounding.3);
+        }
+
+        if p.y <= 0.0 {
+            r.0 = r.1;
+        }
+        let hb = thick / 2.0;
+        let q: (f32, f32) = (
+            p.x.abs() - size + hb + rounding.0,
+            p.y.abs() - size + hb + rounding.0,
+        );
+        f32::min(f32::max(q.0, q.1), 0.0) + length(vec2f(f32::max(q.0, 0.0), f32::max(q.1, 0.0)))
+            - rounding.0
     }
 
     pub fn preview(&self, buffer: &mut TheRGBABuffer) {
@@ -426,90 +697,3 @@ impl GeoFXNode {
         }
     }
 }
-
-/*#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-pub enum GeoFXNode {
-    Disc(Uuid, TheTimeline),
-}
-
-impl GeoFXNode {
-    pub fn new_disc() -> Self {
-        let mut coll = TheCollection::named(str!("Geo"));
-        coll.set("Radius", TheValue::FloatRange(0.4, 0.001..=5.0));
-        Self::Disc(Uuid::new_v4(), TheTimeline::collection(coll))
-    }
-
-    pub fn nodes() -> Vec<Self> {
-        vec![Self::new_disc()]
-    }
-
-    pub fn distance(&self, time: &TheTime, p: Vec2f, scale: f32) -> f32 {
-        match self {
-            Self::Disc(_, timeline) => {
-                if let Some(value) =
-                    timeline.get(str!("Geo"), str!("Radius"), time, TheInterpolation::Linear)
-                {
-                    if let Some(radius) = value.to_f32() {
-                        return length(p) - radius * scale;
-                    }
-                }
-            }
-        }
-
-        f32::INFINITY
-    }
-
-    pub fn collection(&self) -> TheCollection {
-        match self {
-            Self::Disc(_, timeline) => {
-                if let Some(coll) = timeline.get_collection_at(&TheTime::default(), str!("Geo")) {
-                    return coll.clone();
-                }
-            }
-        }
-
-        TheCollection::default()
-    }
-
-    pub fn set_id(&mut self, id: Uuid) {
-        match self {
-            Self::Disc(ref mut node_id, _) => {
-                *node_id = id;
-            }
-        }
-    }
-
-    pub fn set(&mut self, key: &str, value: TheValue) {
-        match self {
-            Self::Disc(_, timeline) => {
-                timeline.set(&TheTime::default(), key, "Geo", value);
-            }
-        }
-    }
-
-    pub fn preview(&self, buffer: &mut TheRGBABuffer) {
-        fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
-            [
-                (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
-                (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] as f32 / 255.0 * v) * 255.0) as u8,
-                (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v) * 255.0) as u8,
-                (((1.0 - v) * (a[3] as f32 / 255.0) + b[3] as f32 / 255.0 * v) * 255.0) as u8,
-            ]
-        }
-
-        let width = buffer.dim().width;
-        let height = buffer.dim().height;
-
-        for y in 0..height {
-            for x in 0..width {
-                let p = vec2f(
-                    x as f32 / width as f32 - 0.5,
-                    y as f32 / height as f32 - 0.5,
-                );
-                let d = self.distance(&TheTime::default(), p, 1.0);
-                let t = smoothstep(-0.04, 0.0, d);
-                buffer.set_pixel(x, y, &mix_color(&WHITE, &BLACK, t));
-            }
-        }
-    }
-} */
