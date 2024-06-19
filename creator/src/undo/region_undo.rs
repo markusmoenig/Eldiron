@@ -22,7 +22,7 @@ impl RegionUndoAtom {
                 PRERENDERTHREAD
                     .lock()
                     .unwrap()
-                    .render_region(region.clone(), tiles.clone());
+                    .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::GeoFXObjectEdit(id, prev, _, tiles) => {
                 if let Some(prev) = prev {
@@ -34,7 +34,7 @@ impl RegionUndoAtom {
                 PRERENDERTHREAD
                     .lock()
                     .unwrap()
-                    .render_region(region.clone(), tiles.clone());
+                    .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::RegionTileEdit(pos, prev, _) => {
                 if let Some(prev) = prev {
@@ -62,7 +62,7 @@ impl RegionUndoAtom {
                 PRERENDERTHREAD
                     .lock()
                     .unwrap()
-                    .render_region(region.clone(), tiles.clone());
+                    .render_region(region.clone(), Some(tiles.clone()));
             }
 
             RegionUndoAtom::GeoFXObjectEdit(id, _, next, tiles) => {
@@ -75,7 +75,7 @@ impl RegionUndoAtom {
                 PRERENDERTHREAD
                     .lock()
                     .unwrap()
-                    .render_region(region.clone(), tiles.clone());
+                    .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::RegionTileEdit(pos, _, next) => {
                 if let Some(next) = next {

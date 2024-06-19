@@ -419,7 +419,7 @@ impl TileEditor {
                         PRERENDERTHREAD
                             .lock()
                             .unwrap()
-                            .render_region(region.clone(), vec![]);
+                            .render_region(region.clone(), None);
                         redraw = true;
                     }
                 } else if item_id.name == "Create Area" {
@@ -1238,7 +1238,7 @@ impl TileEditor {
                             PRERENDERTHREAD
                                 .lock()
                                 .unwrap()
-                                .render_region(region, tiles_to_render);
+                                .render_region(region, Some(tiles_to_render));
                         }
                     }
                 }
@@ -1294,7 +1294,7 @@ impl TileEditor {
                 PRERENDERTHREAD
                     .lock()
                     .unwrap()
-                    .render_region(region, tiles_to_render);
+                    .render_region(region, Some(tiles_to_render));
             }
         } else if self.editor_mode == EditorMode::Select {
             let p = (coord.x, coord.y);
@@ -1488,7 +1488,7 @@ impl TileEditor {
                         PRERENDERTHREAD
                             .lock()
                             .unwrap()
-                            .render_region(region, tiles_to_render);
+                            .render_region(region, Some(tiles_to_render));
                     }
                 }
             }

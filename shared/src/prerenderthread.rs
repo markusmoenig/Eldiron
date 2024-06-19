@@ -9,7 +9,7 @@ pub enum PreRenderCmd {
     SetPalette(ThePalette),
     MaterialChanged(MaterialFXObject),
     RenderRegionCoordTree(Region),
-    RenderRegion(Region, Vec<Vec2i>),
+    RenderRegion(Region, Option<Vec<Vec2i>>),
     Quit,
 }
 
@@ -86,7 +86,7 @@ impl PreRenderThread {
         self.send(PreRenderCmd::MaterialChanged(material));
     }
 
-    pub fn render_region(&self, region: Region, tiles: Vec<Vec2i>) {
+    pub fn render_region(&self, region: Region, tiles: Option<Vec<Vec2i>>) {
         self.send(PreRenderCmd::RenderRegion(region, tiles));
     }
 
@@ -120,7 +120,7 @@ impl PreRenderThread {
             let mut prerendered_regions: FxHashMap<Uuid, PreRendered> = FxHashMap::default();
 
             loop {
-                if let Ok(cmd) = rx.recv() {
+                if let Ok(cmd) = rx.try_recv() {
                     match cmd {
                         PreRenderCmd::SetTextures(new_textures) => {
                             println!("PreRenderCmd::SetTextures");
@@ -150,55 +150,26 @@ impl PreRenderThread {
                             renderer.position =
                                 vec3f(region.width as f32 / 2.0, 0.0, region.height as f32 / 2.0);
 
-                            let mut reset = false;
+                            let mut prerendered = PreRendered::new(
+                                TheRGBBuffer::new(TheDim::sized(w, h)),
+                                TheRGBBuffer::new(TheDim::sized(w, h)),
+                            );
+                            prerendered.add_all_tiles(region.grid_size);
 
-                            if region.prerendered.albedo.dim().width != w
-                                || region.prerendered.albedo.dim().height != h
-                            {
-                                reset = true;
-                            }
-
-                            let mut prerendered = if reset {
-                                let mut prerendered = PreRendered::new(
-                                    TheRGBBuffer::new(TheDim::sized(w, h)),
-                                    TheRGBBuffer::new(TheDim::sized(w, h)),
+                            background_pool.install(|| {
+                                renderer.prerender_rtree(
+                                    &mut prerendered,
+                                    &region,
+                                    &mut draw_settings,
                                 );
-                                prerendered.add_all_tiles(region.grid_size);
-                                prerendered
-                            } else {
-                                let mut prerendered =
-                                    if let Some(pre) = prerendered_regions.get(&region.id) {
-                                        pre.clone()
-                                    } else {
-                                        region.prerendered.clone()
-                                    };
-                                prerendered.add_all_tiles(region.grid_size);
-                                prerendered
-                            };
+                            });
 
-                            println!("tiles_to_render: {:?}", prerendered.tiles_to_render.len());
+                            prerendered_regions.insert(region.id, prerendered.clone());
 
-                            if !prerendered.tiles_to_render.is_empty() {
-                                background_pool.install(|| {
-                                    renderer.prerender_rtree(
-                                        &mut prerendered,
-                                        &region,
-                                        &mut draw_settings,
-                                    );
-                                });
-
-                                prerendered.tiles_to_render.clear();
-
-                                prerendered_regions.insert(region.id, prerendered.clone());
-
-                                result_tx
-                                    .send(PreRenderResult::RenderedRTree(
-                                        region.id,
-                                        prerendered.tree,
-                                    ))
-                                    .unwrap();
-                                println!("finished");
-                            }
+                            result_tx
+                                .send(PreRenderResult::RenderedRTree(region.id, prerendered.tree))
+                                .unwrap();
+                            println!("finished");
                         }
                         PreRenderCmd::RenderRegion(region, tiles) => {
                             println!("PreRenderCmd::RenderRegion");
@@ -214,7 +185,7 @@ impl PreRenderThread {
 
                             if region.prerendered.albedo.dim().width != w
                                 || region.prerendered.albedo.dim().height != h
-                                || tiles.is_empty()
+                                || tiles.is_none()
                             {
                                 reset = true;
                             }
@@ -224,6 +195,15 @@ impl PreRenderThread {
                                     TheRGBBuffer::new(TheDim::sized(w, h)),
                                     TheRGBBuffer::new(TheDim::sized(w, h)),
                                 );
+                                if let Some(pre) = prerendered_regions.get(&region.id) {
+                                    prerendered.tree = pre.tree.clone();
+                                }
+
+                                // Flush the queue
+                                while rx.try_recv().is_ok() {
+                                    println!("skipped");
+                                }
+
                                 prerendered.add_all_tiles(region.grid_size);
                                 prerendered
                             } else {
@@ -233,13 +213,17 @@ impl PreRenderThread {
                                     } else {
                                         region.prerendered.clone()
                                     };
-                                if !tiles.is_empty() {
+                                if let Some(tiles) = tiles {
                                     prerendered.add_tiles(tiles, region.grid_size);
                                 }
                                 prerendered
                             };
 
-                            println!("tiles_to_render: {:?}", prerendered.tiles_to_render.len());
+                            println!(
+                                "tiles_to_render: {:?}, size {}",
+                                prerendered.tiles_to_render.len(),
+                                vec2i(w, h)
+                            );
 
                             if !prerendered.tiles_to_render.is_empty() {
                                 background_pool.install(|| {

@@ -605,9 +605,9 @@ impl Renderer {
                         let lro = ray.at(dist);
 
                         let r = Ray::new(lro, ray.d);
-                        let mut t = 0.000;
+                        let mut t = 0.01;
 
-                        for _ in 0..20 {
+                        for _ in 0..15 {
                             // Max distance a ray can travel in a unit cube
                             if t > 1.732 {
                                 break;

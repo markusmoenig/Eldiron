@@ -661,7 +661,7 @@ impl TheTrait for Editor {
                                 PRERENDERTHREAD
                                     .lock()
                                     .unwrap()
-                                    .render_region(region.clone(), vec![]);
+                                    .render_region(region.clone(), None);
                             }
                         }
                     }

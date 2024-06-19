@@ -460,7 +460,7 @@ impl GeoFXNode {
                     let round = coll.get_f32_default("Rounding", 0.3);
                     let height = coll.get_f32_default("Height", 1.0);
 
-                    let pos = self.position() + 1.0;
+                    let pos = self.position() + vec2f(1.0, 0.0);
                     let rounding = (round, round, round, round);
 
                     let pp = vec2f(p.x, p.z) - pos;
@@ -483,7 +483,7 @@ impl GeoFXNode {
                     let round = coll.get_f32_default("Rounding", 0.3);
                     let height = coll.get_f32_default("Height", 1.0);
 
-                    let pos = self.position() + vec2f(0.0, 1.0);
+                    let pos = self.position();
                     let rounding = (round, round, round, round);
 
                     let pp = vec2f(p.x, p.z) - pos;

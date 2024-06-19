@@ -481,7 +481,7 @@ impl ModelFXEditor {
                                             PRERENDERTHREAD
                                                 .lock()
                                                 .unwrap()
-                                                .render_region(region.clone(), area);
+                                                .render_region(region.clone(), Some(area));
                                         }
 
                                         if let Some(widget) = ui.get_widget(&id.name) {
@@ -550,9 +550,6 @@ impl ModelFXEditor {
                             }
                         }
                     }
-                    // self.modelfx.clear_previews();
-                    // self.modelfx.draw(ui, ctx, &project.palette);
-                    //self.render_preview(ui, &project.palette);
                 } else if id.name.starts_with(":MODELFX:") {
                     if let Some(name) = id.name.strip_prefix(":MODELFX: ") {
                         let mut value = value.clone();
@@ -571,6 +568,14 @@ impl ModelFXEditor {
                                         region.find_geo_node(curr_geo_node)
                                     {
                                         old_tiles_to_render.clone_from(&geo_obj.area);
+
+                                        // Convert TextList back
+                                        let coll = geo_obj.nodes[index].collection();
+                                        if let Some(TheValue::TextList(_, list)) = coll.get(name) {
+                                            if let Some(v) = value.to_i32() {
+                                                value = TheValue::TextList(v, list.clone());
+                                            }
+                                        }
 
                                         geo_obj.nodes[index].set(name, value);
                                         geo_obj.update_area();
@@ -593,7 +598,7 @@ impl ModelFXEditor {
                                     PRERENDERTHREAD
                                         .lock()
                                         .unwrap()
-                                        .render_region(region, tiles_to_render);
+                                        .render_region(region, Some(tiles_to_render));
                                 }
                             } else if let Some(editor) = ui.get_rgba_layout("GeoFX RGBA Layout") {
                                 if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
@@ -614,6 +619,7 @@ impl ModelFXEditor {
                                     if let Some(selected_index) = material.selected_node {
                                         let prev = material.to_json();
 
+                                        // Convert TextList back
                                         if let Some(TheValue::TextList(_, list)) =
                                             material.nodes[selected_index].get(name)
                                         {
@@ -674,7 +680,7 @@ impl ModelFXEditor {
                                 PRERENDERTHREAD
                                     .lock()
                                     .unwrap()
-                                    .render_region(region, tiles_to_render);
+                                    .render_region(region, Some(tiles_to_render));
                             }
                         }
                         /*
@@ -1233,7 +1239,7 @@ impl ModelFXEditor {
             PRERENDERTHREAD
                 .lock()
                 .unwrap()
-                .render_region(region, tiles_to_render);
+                .render_region(region, Some(tiles_to_render));
         }
     }
 }
