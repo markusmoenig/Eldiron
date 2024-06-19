@@ -48,11 +48,14 @@ pub struct PreRendered {
 
     #[serde(default = "default_prerendered_lights")]
     pub lights: TheFlattenedMap<Vec<PreRenderedLight>>,
-
     pub tiles_to_render: Vec<Vec2i>,
 
     #[serde(skip)]
     pub tree: RTree<PreRenderedData>,
+
+    #[serde(default)]
+    #[serde(with = "vectorize")]
+    pub tile_samples: FxHashMap<Vec2i, u16>,
 }
 
 impl Default for PreRendered {
@@ -72,6 +75,8 @@ impl PreRendered {
 
             tiles_to_render: Vec::new(),
             tree: RTree::new(),
+
+            tile_samples: FxHashMap::default(),
         }
     }
 
@@ -85,6 +90,8 @@ impl PreRendered {
 
             tiles_to_render: Vec::new(),
             tree: RTree::new(),
+
+            tile_samples: FxHashMap::default(),
         }
     }
 
@@ -117,7 +124,7 @@ impl PreRendered {
     }
 
     /// Add the given tiles to be rendered in grid space, we map them to local space.
-    pub fn add_tiles(&mut self, tiles: Vec<Vec2i>, grid_size: i32) {
+    pub fn remove_tiles(&mut self, tiles: Vec<Vec2i>, grid_size: i32) {
         for tile in tiles {
             if let Some(data) = self.tree.nearest_neighbor(&[tile.x as f32, tile.y as f32]) {
                 let tile = Vec2i::new(
@@ -128,45 +135,11 @@ impl PreRendered {
                 for y in tile.y - 2..=tile.y + 2 {
                     for x in tile.x - 2..=tile.x + 2 {
                         let t = Vec2i::new(x, y);
-                        if !self.tiles_to_render.contains(&t) {
-                            self.tiles_to_render.push(t);
-                        }
+                        println!("remove {:?}", t);
+                        self.tile_samples.remove(&t);
                     }
                 }
             }
-        }
-    }
-
-    /// Maps a tile to local camera space and adds the pixel region to be rendered.
-    pub fn add_mapped_tile(&mut self, coord: [f32; 2], grid_size: i32) {
-        if let Some(data) = self.tree.nearest_neighbor(&coord) {
-            let local_tile = Vec2i::new(
-                data.pixel_location.0 / grid_size,
-                data.pixel_location.1 / grid_size,
-            );
-            if !self.tiles_to_render.contains(&local_tile) {
-                self.tiles_to_render.push(local_tile);
-            }
-
-            let temp = vec2i(local_tile.x + 1, local_tile.y);
-            if !self.tiles_to_render.contains(&temp) {
-                self.tiles_to_render.push(temp);
-            }
-
-            let temp = vec2i(local_tile.x - 1, local_tile.y);
-            if !self.tiles_to_render.contains(&temp) {
-                self.tiles_to_render.push(temp);
-            }
-
-            // let temp = vec2i(local_tile.x, local_tile.y + 1);
-            // if !self.tiles_to_render.contains(&temp) {
-            //     self.tiles_to_render.push(temp);
-            // }
-
-            // let temp = vec2i(local_tile.x, local_tile.y - 1);
-            // if !self.tiles_to_render.contains(&temp) {
-            //     self.tiles_to_render.push(temp);
-            // }
         }
     }
 }

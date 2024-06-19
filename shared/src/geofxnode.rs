@@ -4,6 +4,19 @@ use crate::prelude::*;
 //use noiselib::prelude::*;
 use theframework::prelude::*;
 
+// https://www.shadertoy.com/view/3syGzz
+// vec2 opRepLim( in vec2 p, in float s, in vec2 lima, in vec2 limb )
+// {
+//     p.x += s*.5* floor(mod(p.y/s+.5,2.));
+//     return p-s*clamp(round(p/s),lima,limb);
+// }
+//
+// vec2 opRep( in vec2 p, in float s )
+// {
+//     p.x += s*.5* floor(mod(p.y/s+.5,2.));
+//     return mod(p+s*.5,s)-s*0.5;
+// }
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum GeoFXNodeRole {
     Ground,
@@ -301,7 +314,7 @@ impl GeoFXNode {
         // }
 
         fn op_extrusion_y(p: Vec3f, d: f32, h: f32) -> f32 {
-            let w = Vec2f::new(d, abs(p.y) - h);
+            let w = Vec2f::new(d, abs(p.z) - h);
             min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
         }
 
@@ -396,16 +409,26 @@ impl GeoFXNode {
                     let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
                     let height = coll.get_f32_default("Height", 1.0);
 
-                    let mut pos = self.position();
-                    pos.y = pos.y.floor() + 1.0 - thick.fract() / 2.0;
+                    let pos = self.position();
 
-                    let d = self.box2d(vec2f(p.x, p.z), pos, len, thick);
+                    let mut uv = vec2f(p.x, p.y);
+                    //return p-s*round(p/s);
+                    //uv = uv - 2.0 * round(uv / 2.0);
+
+                    let d = self.box2d(uv, vec2f(pos.x, height / 2.0), len, height);
+                    //let d = length(vec2f(p.x, p.y) - vec2f(pos.x, height / 2.0)) - height / 2.0;
 
                     if let Some(hit) = hit {
                         hit.interior_distance = d;
                     }
 
-                    let d = op_extrusion_y(p, d, height);
+                    //pos.y = pos.y.floor() + 1.0 - thick.fract() / 2.0;
+
+                    let d = op_extrusion_y(
+                        p - vec3f(0.0, 0.0, pos.y.floor() + 1.0 - thick.fract() / 2.0),
+                        d,
+                        thick,
+                    );
                     let plane = dot(p, vec3f(0.0, 1.0, 0.0));
                     return max(-plane, d);
                 }

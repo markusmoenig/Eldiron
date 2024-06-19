@@ -113,11 +113,14 @@ impl PreRenderThread {
 
             let mut renderer = Renderer::new();
             let mut palette = ThePalette::default();
+            let mut curr_region = Region::default();
 
             let mut draw_settings = RegionDrawSettings::new();
             draw_settings.daylight = vec3f(1.0, 1.0, 1.0);
 
             let mut prerendered_regions: FxHashMap<Uuid, PreRendered> = FxHashMap::default();
+
+            let mut in_progress = false;
 
             loop {
                 if let Ok(cmd) = rx.try_recv() {
@@ -154,6 +157,7 @@ impl PreRenderThread {
                                 TheRGBBuffer::new(TheDim::sized(w, h)),
                                 TheRGBBuffer::new(TheDim::sized(w, h)),
                             );
+
                             prerendered.add_all_tiles(region.grid_size);
 
                             background_pool.install(|| {
@@ -169,82 +173,28 @@ impl PreRenderThread {
                             result_tx
                                 .send(PreRenderResult::RenderedRTree(region.id, prerendered.tree))
                                 .unwrap();
+
+                            curr_region = region;
+
                             println!("finished");
                         }
                         PreRenderCmd::RenderRegion(region, tiles) => {
                             println!("PreRenderCmd::RenderRegion");
 
-                            let w = (region.width as f32 * region.grid_size as f32) as i32;
-                            let h = (region.height as f32 * region.grid_size as f32) as i32;
-
                             renderer.set_region(&region);
                             renderer.position =
                                 vec3f(region.width as f32 / 2.0, 0.0, region.height as f32 / 2.0);
+                            curr_region = region;
 
-                            let mut reset = false;
-
-                            if region.prerendered.albedo.dim().width != w
-                                || region.prerendered.albedo.dim().height != h
-                                || tiles.is_none()
-                            {
-                                reset = true;
-                            }
-
-                            let mut prerendered = if reset {
-                                let mut prerendered = PreRendered::new(
-                                    TheRGBBuffer::new(TheDim::sized(w, h)),
-                                    TheRGBBuffer::new(TheDim::sized(w, h)),
-                                );
-                                if let Some(pre) = prerendered_regions.get(&region.id) {
-                                    prerendered.tree = pre.tree.clone();
-                                }
-
-                                // Flush the queue
-                                while rx.try_recv().is_ok() {
-                                    println!("skipped");
-                                }
-
-                                prerendered.add_all_tiles(region.grid_size);
-                                prerendered
-                            } else {
-                                let mut prerendered =
-                                    if let Some(pre) = prerendered_regions.get(&region.id) {
-                                        pre.clone()
-                                    } else {
-                                        region.prerendered.clone()
-                                    };
+                            if let Some(pre) = prerendered_regions.get_mut(&curr_region.id) {
                                 if let Some(tiles) = tiles {
-                                    prerendered.add_tiles(tiles, region.grid_size);
+                                    pre.remove_tiles(tiles, curr_region.grid_size);
+                                } else {
+                                    pre.tile_samples.clear();
                                 }
-                                prerendered
-                            };
-
-                            println!(
-                                "tiles_to_render: {:?}, size {}",
-                                prerendered.tiles_to_render.len(),
-                                vec2i(w, h)
-                            );
-
-                            if !prerendered.tiles_to_render.is_empty() {
-                                background_pool.install(|| {
-                                    renderer.prerender(
-                                        &mut prerendered,
-                                        &region,
-                                        &mut draw_settings,
-                                        &palette,
-                                        result_tx.clone(),
-                                    );
-                                });
-
-                                prerendered.tiles_to_render.clear();
-
-                                prerendered_regions.insert(region.id, prerendered.clone());
-
-                                // result_tx
-                                //     .send(PreRenderResult::RenderedRegion(region.id, prerendered))
-                                //     .unwrap();
-                                println!("finished");
                             }
+
+                            in_progress = true;
                         }
                         PreRenderCmd::Quit => {
                             println!("PreRenderCmd::Quit");
@@ -252,6 +202,55 @@ impl PreRenderThread {
                         }
                     }
                 }
+
+                // Rendering in progress ?
+
+                if in_progress {
+                    let mut reset = false;
+
+                    let w = (curr_region.width as f32 * curr_region.grid_size as f32) as i32;
+                    let h = (curr_region.height as f32 * curr_region.grid_size as f32) as i32;
+
+                    if curr_region.prerendered.albedo.dim().width != w
+                        || curr_region.prerendered.albedo.dim().height != h
+                    {
+                        reset = true;
+                    }
+
+                    let mut prerendered = if reset {
+                        let mut prerendered = PreRendered::new(
+                            TheRGBBuffer::new(TheDim::sized(w, h)),
+                            TheRGBBuffer::new(TheDim::sized(w, h)),
+                        );
+                        if let Some(pre) = prerendered_regions.get(&curr_region.id) {
+                            prerendered.tree = pre.tree.clone();
+                        }
+
+                        prerendered
+                    } else {
+                        let prerendered =
+                            if let Some(pre) = prerendered_regions.get(&curr_region.id) {
+                                pre.clone()
+                            } else {
+                                curr_region.prerendered.clone()
+                            };
+                        prerendered
+                    };
+
+                    background_pool.install(|| {
+                        in_progress = !renderer.prerender(
+                            &mut prerendered,
+                            &curr_region,
+                            &mut draw_settings,
+                            &palette,
+                            result_tx.clone(),
+                        );
+                    });
+
+                    prerendered_regions.insert(curr_region.id, prerendered.clone());
+                }
+                std::thread::yield_now();
+                std::thread::sleep(std::time::Duration::from_millis(100));
             }
 
             println!("Renderer thread exiting")

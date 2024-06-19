@@ -135,7 +135,33 @@ impl Renderer {
         settings: &mut RegionDrawSettings,
         palette: &ThePalette,
         sender: mpsc::Sender<PreRenderResult>,
-    ) {
+    ) -> bool {
+        // --
+        let mut tiles = vec![]; //prerendered.tiles_to_render.clone(); // RenderTile::create_tiles(width, height, 80, 80);
+
+        // Add all tiles which do not have all samples
+        let w = prerendered.albedo.dim().width / region.grid_size;
+        let h = prerendered.albedo.dim().height / region.grid_size;
+        for x in 0..w {
+            for y in 0..h {
+                let tile = Vec2i::new(x, y);
+                if let Some(samples) = prerendered.tile_samples.get(&tile) {
+                    if (*samples as i32) < region.pathtracer_samples {
+                        tiles.push(tile);
+                    }
+                } else {
+                    tiles.push(tile);
+                }
+            }
+        }
+
+        // Finished ?
+        if tiles.is_empty() {
+            return false;
+        }
+
+        // println!("tiles {}", tiles.len());
+
         let _start = self.get_time();
 
         let width = prerendered.albedo.dim().width as usize;
@@ -190,9 +216,6 @@ impl Renderer {
         //let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
         let camera = Camera::new(ro, rd, fov);
 
-        // --
-        let mut tiles = prerendered.tiles_to_render.clone(); // RenderTile::create_tiles(width, height, 80, 80);
-
         let prerendered_mutex = Arc::new(Mutex::new(prerendered));
 
         let _start = self.get_time();
@@ -208,6 +231,8 @@ impl Renderer {
 
             let mut lights_buffer: TheFlattenedMap<Vec<PreRenderedLight>> =
                 TheFlattenedMap::new(region.grid_size, region.grid_size);
+
+            let mut tile_is_empty = true;
 
             for h in 0..region.grid_size {
                 for w in 0..region.grid_size {
@@ -225,7 +250,7 @@ impl Renderer {
                     let mut distance: f32 = 0.0;
                     let mut lights: Vec<PreRenderedLight> = vec![];
 
-                    for sample in 0..region.pathtracer_samples {
+                    for sample in 0..1 {
                         let mut ray = if camera_type == CameraType::TiltedIso {
                             camera.create_tilted_isometric_ray2(
                                 vec2f(xx / width_f, (height_f - yy) / height_f),
@@ -388,6 +413,8 @@ impl Renderer {
                                 } else {
                                     if depth == 0 {
                                         empty_pixel = true;
+                                    } else {
+                                        tile_is_empty = false;
                                     }
                                     break;
                                 }
@@ -397,9 +424,9 @@ impl Renderer {
                                 break;
                             }
 
-                            color = lerp(color, acc, 1.0 / (sample as f32 + 1.0));
-                            sky_abso = lerp(sky_abso, mask, 1.0 / (sample as f32 + 1.0));
-                            distance = lerp(distance, dist, 1.0 / (sample as f32 + 1.0));
+                            color = acc; //lerp(color, acc, 1.0 / (sample as f32 + 1.0));
+                            sky_abso = mask; //lerp(sky_abso, mask, 1.0 / (sample as f32 + 1.0));
+                            distance = dist; //lerp(distance, dist, 1.0 / (sample as f32 + 1.0));
                         } else {
                             let mut state = TracerState {
                                 is_refracted: false,
@@ -499,54 +526,111 @@ impl Renderer {
 
             let mut prerendered = prerendered_mutex.lock().unwrap();
 
-            sender
-                .send(PreRenderResult::RenderedRegionTile(
-                    region.id,
-                    vec2i(
-                        prerendered.albedo.dim().width,
-                        prerendered.albedo.dim().height,
-                    ),
-                    vec2i(tile.x * region.grid_size, tile.y * region.grid_size),
-                    buffer.clone(),
-                    sky_abso_buffer.clone(),
-                    distance_buffer.clone(),
-                    lights_buffer.clone(),
-                ))
-                .unwrap();
+            let mut sample = 0;
+            if let Some(sampled) = prerendered.tile_samples.get(&vec2i(tile.x, tile.y)) {
+                sample = *sampled as i32;
+            }
 
-            prerendered.albedo.copy_into(
-                tile.x * region.grid_size,
-                tile.y * region.grid_size,
-                &buffer,
-            );
+            if !tile_is_empty {
+                let tile_x = tile.x * region.grid_size;
+                let tile_y = tile.y * region.grid_size;
+                let s = 1.0 / (sample as f32 + 1.0);
 
-            prerendered.sky_absorption.copy_into(
-                tile.x * region.grid_size,
-                tile.y * region.grid_size,
-                &sky_abso_buffer,
-            );
+                for h in 0..region.grid_size {
+                    for w in 0..region.grid_size {
+                        // albedo
+                        if let Some(existing) =
+                            prerendered.albedo.at_vec3(vec2i(w + tile_x, h + tile_y))
+                        {
+                            if let Some(new_samp) = buffer.at_vec3(vec2i(w, h)) {
+                                let p = lerp(existing, new_samp, s);
+                                buffer.set_pixel_vec3f(w, h, &p);
+                                prerendered
+                                    .albedo
+                                    .set_pixel_vec3f(w + tile_x, h + tile_y, &p);
+                            }
+                        }
 
-            prerendered.distance.copy_into(
-                tile.x * region.grid_size,
-                tile.y * region.grid_size,
-                &distance_buffer,
-            );
+                        // sky abso
+                        if let Some(existing) = prerendered
+                            .sky_absorption
+                            .at_vec3(vec2i(w + tile_x, h + tile_y))
+                        {
+                            if let Some(new_samp) = sky_abso_buffer.at_vec3(vec2i(w, h)) {
+                                let p = lerp(existing, new_samp, s);
+                                sky_abso_buffer.set_pixel_vec3f(w, h, &p);
+                                prerendered.sky_absorption.set_pixel_vec3f(
+                                    w + tile_x,
+                                    h + tile_y,
+                                    &p,
+                                );
+                            }
+                        }
 
-            prerendered.lights.copy_into(
-                tile.x * region.grid_size,
-                tile.y * region.grid_size,
-                &lights_buffer,
-            );
+                        // distance
+                        if let Some(existing) =
+                            prerendered.distance.get_mut((w + tile_x, h + tile_y))
+                        {
+                            if let Some(new_samp) = distance_buffer.get_mut((w, h)) {
+                                let d = lerp(*existing, *new_samp, s);
+                                *existing = d;
+                                *new_samp = d;
+                            }
+                        }
 
-            std::thread::yield_now();
+                        // lights
+                        if let Some(new_samp) = lights_buffer.get_mut((w, h)) {
+                            if let Some(existing) =
+                                prerendered.lights.get_mut((w + tile_x, h + tile_y))
+                            {
+                                for nl in new_samp {
+                                    for ex in existing.iter_mut() {
+                                        if nl.pos == ex.pos {
+                                            let e = ex.brdf;
+                                            let n = nl.brdf;
+
+                                            ex.brdf = lerp(e, n, s);
+                                        }
+                                    }
+                                }
+                                lights_buffer.set((w, h), existing.clone());
+                            } else {
+                                prerendered
+                                    .lights
+                                    .set((w + tile_x, h + tile_y), new_samp.clone());
+                            }
+                        }
+                    }
+                }
+
+                sender
+                    .send(PreRenderResult::RenderedRegionTile(
+                        region.id,
+                        vec2i(
+                            prerendered.albedo.dim().width,
+                            prerendered.albedo.dim().height,
+                        ),
+                        vec2i(tile.x * region.grid_size, tile.y * region.grid_size),
+                        buffer.clone(),
+                        sky_abso_buffer.clone(),
+                        distance_buffer.clone(),
+                        lights_buffer.clone(),
+                    ))
+                    .unwrap();
+
+                sample += 1;
+            } else {
+                sample = region.pathtracer_samples;
+            }
+            prerendered
+                .tile_samples
+                .insert(vec2i(tile.x, tile.y), sample as u16);
         });
-
-        let mut prerendered = prerendered_mutex.lock().unwrap();
-
-        prerendered.tiles_to_render.clear();
 
         let _stop = self.get_time();
         //println!("render time {:?}", _stop - _start);
+
+        false
     }
 
     #[inline(always)]
@@ -607,7 +691,7 @@ impl Renderer {
                         let r = Ray::new(lro, ray.d);
                         let mut t = 0.01;
 
-                        for _ in 0..15 {
+                        for _ in 0..20 {
                             // Max distance a ray can travel in a unit cube
                             if t > 1.732 {
                                 break;
