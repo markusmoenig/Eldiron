@@ -78,6 +78,7 @@ pub mod prelude {
     pub use rstar::*;
 }
 
+use geofxnode::{GeoFXNodeExtrusion, GeoFXNodeFacing};
 use theframework::prelude::*;
 
 /// Messages to the clients. The first argument is always the client id.
@@ -127,6 +128,11 @@ pub struct Hit {
     pub key: Vec3f,
     pub hash: f32,
 
+    pub extrusion: GeoFXNodeExtrusion,
+    pub extrusion_length: f32,
+
+    pub facing: GeoFXNodeFacing,
+
     pub distance: f32,
     pub interior_distance: f32,
 
@@ -165,6 +171,11 @@ impl Hit {
 
             key: Vec3f::zero(),
             hash: 0.0,
+
+            extrusion: GeoFXNodeExtrusion::None,
+            extrusion_length: 0.0,
+
+            facing: GeoFXNodeFacing::NorthSouth,
 
             distance: f32::MAX,
             interior_distance: f32::MAX,

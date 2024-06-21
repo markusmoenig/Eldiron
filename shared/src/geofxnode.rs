@@ -18,6 +18,19 @@ use theframework::prelude::*;
 // }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub enum GeoFXNodeExtrusion {
+    None,
+    Vertical,
+    Horizontal,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub enum GeoFXNodeFacing {
+    NorthSouth,
+    WestEast,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum GeoFXNodeRole {
     Ground,
     Column,
@@ -314,6 +327,11 @@ impl GeoFXNode {
         // }
 
         fn op_extrusion_y(p: Vec3f, d: f32, h: f32) -> f32 {
+            let w = Vec2f::new(d, abs(p.y) - h);
+            min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
+        }
+
+        fn op_extrusion_z(p: Vec3f, d: f32, h: f32) -> f32 {
             let w = Vec2f::new(d, abs(p.z) - h);
             min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
         }
@@ -405,32 +423,39 @@ impl GeoFXNode {
                     return max(-plane, d);
                 }
                 BottomWall => {
-                    let thick = coll.get_f32_default("Thickness", 0.2);
                     let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let pos = self.position();
 
-                    let mut uv = vec2f(p.x, p.y);
+                    //let mut uv = vec2f(p.x, p.y);
                     //return p-s*round(p/s);
                     //uv = uv - 2.0 * round(uv / 2.0);
 
-                    let d = self.box2d(uv, vec2f(pos.x, height / 2.0), len, height);
+                    let d = self.box2d(vec2f(p.x, p.y), vec2f(pos.x, height / 2.0), len, height);
                     //let d = length(vec2f(p.x, p.y) - vec2f(pos.x, height / 2.0)) - height / 2.0;
 
                     if let Some(hit) = hit {
+                        hit.extrusion = GeoFXNodeExtrusion::Horizontal;
+                        hit.extrusion_length = coll.get_f32_default("Thickness", 0.2);
                         hit.interior_distance = d;
+                        hit.hit_point = p - vec3f(
+                            0.0,
+                            0.0,
+                            pos.y.floor() + 1.0 - hit.extrusion_length.fract() / 2.0,
+                        );
                     }
 
                     //pos.y = pos.y.floor() + 1.0 - thick.fract() / 2.0;
 
-                    let d = op_extrusion_y(
-                        p - vec3f(0.0, 0.0, pos.y.floor() + 1.0 - thick.fract() / 2.0),
-                        d,
-                        thick,
-                    );
-                    let plane = dot(p, vec3f(0.0, 1.0, 0.0));
-                    return max(-plane, d);
+                    // let d = op_extrusion_z(
+                    //     p - vec3f(0.0, 0.0, pos.y.floor() + 1.0 - thick.fract() / 2.0),
+                    //     d,
+                    //     thick,
+                    // );
+                    // let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                    // return max(-plane, d);
+                    return d;
                 }
                 BendWallNW => {
                     let thick = coll.get_f32_default("Thickness", 0.2);

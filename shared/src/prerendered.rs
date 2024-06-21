@@ -48,7 +48,6 @@ pub struct PreRendered {
 
     #[serde(default = "default_prerendered_lights")]
     pub lights: TheFlattenedMap<Vec<PreRenderedLight>>,
-    pub tiles_to_render: Vec<Vec2i>,
 
     #[serde(skip)]
     pub tree: RTree<PreRenderedData>,
@@ -73,7 +72,6 @@ impl PreRendered {
             albedo,
             sky_absorption,
 
-            tiles_to_render: Vec::new(),
             tree: RTree::new(),
 
             tile_samples: FxHashMap::default(),
@@ -88,7 +86,6 @@ impl PreRendered {
 
             lights: TheFlattenedMap::new(0, 0),
 
-            tiles_to_render: Vec::new(),
             tree: RTree::new(),
 
             tile_samples: FxHashMap::default(),
@@ -109,20 +106,6 @@ impl PreRendered {
         self.lights.clear();
     }
 
-    /// Add all tiles to be rendered.
-    pub fn add_all_tiles(&mut self, grid_size: i32) {
-        let mut tiles = Vec::new();
-        let w = self.albedo.dim().width / grid_size;
-        let h = self.albedo.dim().height / grid_size;
-        for x in 0..w {
-            for y in 0..h {
-                let tile = Vec2i::new(x, y);
-                tiles.push(tile);
-            }
-        }
-        self.tiles_to_render = tiles;
-    }
-
     /// Add the given tiles to be rendered in grid space, we map them to local space.
     pub fn remove_tiles(&mut self, tiles: Vec<Vec2i>, grid_size: i32) {
         for tile in tiles {
@@ -135,7 +118,6 @@ impl PreRendered {
                 for y in tile.y - 2..=tile.y + 2 {
                     for x in tile.x - 2..=tile.x + 2 {
                         let t = Vec2i::new(x, y);
-                        println!("remove {:?}", t);
                         self.tile_samples.remove(&t);
                     }
                 }

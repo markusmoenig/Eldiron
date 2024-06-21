@@ -158,8 +158,6 @@ impl PreRenderThread {
                                 TheRGBBuffer::new(TheDim::sized(w, h)),
                             );
 
-                            prerendered.add_all_tiles(region.grid_size);
-
                             background_pool.install(|| {
                                 renderer.prerender_rtree(
                                     &mut prerendered,
@@ -250,7 +248,7 @@ impl PreRenderThread {
                     prerendered_regions.insert(curr_region.id, prerendered.clone());
                 }
                 std::thread::yield_now();
-                std::thread::sleep(std::time::Duration::from_millis(100));
+                //std::thread::sleep(std::time::Duration::from_millis(10));
             }
 
             println!("Renderer thread exiting")

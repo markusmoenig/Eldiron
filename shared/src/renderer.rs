@@ -54,7 +54,16 @@ impl Renderer {
         let camera = Camera::new(ro, rd, fov);
 
         // --
-        let mut tiles = prerendered.tiles_to_render.clone();
+        let mut tiles = vec![];
+        let w = prerendered.albedo.dim().width / region.grid_size;
+        let h = prerendered.albedo.dim().height / region.grid_size;
+        for x in 0..w {
+            for y in 0..h {
+                let tile = Vec2i::new(x, y);
+                tiles.push(tile);
+            }
+        }
+
         let prerendered_mutex = Arc::new(Mutex::new(prerendered));
 
         let _start = self.get_time();
@@ -121,8 +130,6 @@ impl Renderer {
                 .unwrap(),
         );
 
-        prerendered.tiles_to_render.clear();
-
         let _stop = self.get_time();
         //println!("render time {:?}", _stop - _start);
     }
@@ -137,7 +144,7 @@ impl Renderer {
         sender: mpsc::Sender<PreRenderResult>,
     ) -> bool {
         // --
-        let mut tiles = vec![]; //prerendered.tiles_to_render.clone(); // RenderTile::create_tiles(width, height, 80, 80);
+        let mut tiles = vec![];
 
         // Add all tiles which do not have all samples
         let w = prerendered.albedo.dim().width / region.grid_size;
@@ -531,93 +538,88 @@ impl Renderer {
                 sample = *sampled as i32;
             }
 
-            if !tile_is_empty {
-                let tile_x = tile.x * region.grid_size;
-                let tile_y = tile.y * region.grid_size;
-                let s = 1.0 / (sample as f32 + 1.0);
+            let tile_x = tile.x * region.grid_size;
+            let tile_y = tile.y * region.grid_size;
+            let s = 1.0 / (sample as f32 + 1.0);
 
-                for h in 0..region.grid_size {
-                    for w in 0..region.grid_size {
-                        // albedo
-                        if let Some(existing) =
-                            prerendered.albedo.at_vec3(vec2i(w + tile_x, h + tile_y))
-                        {
-                            if let Some(new_samp) = buffer.at_vec3(vec2i(w, h)) {
-                                let p = lerp(existing, new_samp, s);
-                                buffer.set_pixel_vec3f(w, h, &p);
-                                prerendered
-                                    .albedo
-                                    .set_pixel_vec3f(w + tile_x, h + tile_y, &p);
-                            }
+            for h in 0..region.grid_size {
+                for w in 0..region.grid_size {
+                    // albedo
+                    if let Some(existing) =
+                        prerendered.albedo.at_vec3(vec2i(w + tile_x, h + tile_y))
+                    {
+                        if let Some(new_samp) = buffer.at_vec3(vec2i(w, h)) {
+                            let p = lerp(existing, new_samp, s);
+                            buffer.set_pixel_vec3f(w, h, &p);
+                            prerendered
+                                .albedo
+                                .set_pixel_vec3f(w + tile_x, h + tile_y, &p);
                         }
+                    }
 
-                        // sky abso
-                        if let Some(existing) = prerendered
-                            .sky_absorption
-                            .at_vec3(vec2i(w + tile_x, h + tile_y))
-                        {
-                            if let Some(new_samp) = sky_abso_buffer.at_vec3(vec2i(w, h)) {
-                                let p = lerp(existing, new_samp, s);
-                                sky_abso_buffer.set_pixel_vec3f(w, h, &p);
-                                prerendered.sky_absorption.set_pixel_vec3f(
-                                    w + tile_x,
-                                    h + tile_y,
-                                    &p,
-                                );
-                            }
+                    // sky abso
+                    if let Some(existing) = prerendered
+                        .sky_absorption
+                        .at_vec3(vec2i(w + tile_x, h + tile_y))
+                    {
+                        if let Some(new_samp) = sky_abso_buffer.at_vec3(vec2i(w, h)) {
+                            let p = lerp(existing, new_samp, s);
+                            sky_abso_buffer.set_pixel_vec3f(w, h, &p);
+                            prerendered
+                                .sky_absorption
+                                .set_pixel_vec3f(w + tile_x, h + tile_y, &p);
                         }
+                    }
 
-                        // distance
-                        if let Some(existing) =
-                            prerendered.distance.get_mut((w + tile_x, h + tile_y))
-                        {
-                            if let Some(new_samp) = distance_buffer.get_mut((w, h)) {
-                                let d = lerp(*existing, *new_samp, s);
-                                *existing = d;
-                                *new_samp = d;
-                            }
+                    // distance
+                    if let Some(existing) = prerendered.distance.get_mut((w + tile_x, h + tile_y)) {
+                        if let Some(new_samp) = distance_buffer.get_mut((w, h)) {
+                            let d = lerp(*existing, *new_samp, s);
+                            *existing = d;
+                            *new_samp = d;
                         }
+                    }
 
-                        // lights
-                        if let Some(new_samp) = lights_buffer.get_mut((w, h)) {
-                            if let Some(existing) =
-                                prerendered.lights.get_mut((w + tile_x, h + tile_y))
-                            {
-                                for nl in new_samp {
-                                    for ex in existing.iter_mut() {
-                                        if nl.pos == ex.pos {
-                                            let e = ex.brdf;
-                                            let n = nl.brdf;
+                    // lights
+                    if let Some(new_samp) = lights_buffer.get_mut((w, h)) {
+                        if let Some(existing) = prerendered.lights.get_mut((w + tile_x, h + tile_y))
+                        {
+                            for nl in new_samp {
+                                for ex in existing.iter_mut() {
+                                    if nl.pos == ex.pos {
+                                        let e = ex.brdf;
+                                        let n = nl.brdf;
 
-                                            ex.brdf = lerp(e, n, s);
-                                        }
+                                        ex.brdf = lerp(e, n, s);
                                     }
                                 }
-                                lights_buffer.set((w, h), existing.clone());
-                            } else {
-                                prerendered
-                                    .lights
-                                    .set((w + tile_x, h + tile_y), new_samp.clone());
                             }
+                            lights_buffer.set((w, h), existing.clone());
+                        } else {
+                            prerendered
+                                .lights
+                                .set((w + tile_x, h + tile_y), new_samp.clone());
                         }
                     }
                 }
+            }
 
-                sender
-                    .send(PreRenderResult::RenderedRegionTile(
-                        region.id,
-                        vec2i(
-                            prerendered.albedo.dim().width,
-                            prerendered.albedo.dim().height,
-                        ),
-                        vec2i(tile.x * region.grid_size, tile.y * region.grid_size),
-                        buffer.clone(),
-                        sky_abso_buffer.clone(),
-                        distance_buffer.clone(),
-                        lights_buffer.clone(),
-                    ))
-                    .unwrap();
+            sender
+                .send(PreRenderResult::RenderedRegionTile(
+                    region.id,
+                    vec2i(
+                        prerendered.albedo.dim().width,
+                        prerendered.albedo.dim().height,
+                    ),
+                    vec2i(tile.x * region.grid_size, tile.y * region.grid_size),
+                    buffer.clone(),
+                    sky_abso_buffer.clone(),
+                    distance_buffer.clone(),
+                    lights_buffer.clone(),
+                ))
+                .unwrap();
 
+            if !tile_is_empty {
                 sample += 1;
             } else {
                 sample = region.pathtracer_samples;
@@ -681,11 +683,14 @@ impl Renderer {
             if let Some(geo_ids) = region.geometry_areas.get(&key) {
                 hit.key = Vec3f::from(key);
                 for geo_id in geo_ids {
+                    let mut h = Hit::default();
                     if let Some(geo_obj) = region.geometry.get(geo_id) {
-                        let mut has_displacement = false;
-                        if let Some(material) = self.materials.get(&geo_obj.material_id) {
-                            has_displacement = material.has_displacement();
-                        }
+                        let material = self.materials.get(&geo_obj.material_id);
+
+                        // let mut has_displacement = false;
+                        // if let Some(material) = self.materials.get(&geo_obj.material_id) {
+                        //     has_displacement = material.has_displacement();
+                        // }
                         let lro = ray.at(dist);
 
                         let r = Ray::new(lro, ray.d);
@@ -698,30 +703,59 @@ impl Renderer {
                             }
 
                             let p = r.at(t);
-                            let mut d = geo_obj.distance_3d(&settings.time, p, &mut None);
-                            if has_displacement {
-                                if let Some(material) = self.materials.get(&geo_obj.material_id) {
-                                    hit.hit_point = p;
-                                    hit.normal = geo_obj.normal(&settings.time, p);
-                                    hit.uv = self.get_uv_face(hit.normal, hit.hit_point).0;
-                                    material.displacement(&mut hit);
-                                    d.0 += hit.displacement;
-                                }
+                            //let mut d = geo_obj.distance_3d(&settings.time, p, &mut Some(&mut h));
+                            // if has_displacement {
+                            //     if let Some(material) = self.materials.get(&geo_obj.material_id) {
+                            //         hit.hit_point = p;
+                            //         hit.normal = geo_obj.normal(&settings.time, p);
+                            //         hit.uv = self.get_uv_face(hit.normal, hit.hit_point).0;
+                            //         material.displacement(&mut hit);
+                            //         d.0 += hit.displacement;
+                            //     }
+                            // }
+
+                            let mut d = (f32::INFINITY, 0);
+                            if let Some(material) = material {
+                                d = material.get_distance(&settings.time, p, &mut h, geo_obj);
+                            } else {
+                                d = MaterialFXObject::default().get_distance(
+                                    &settings.time,
+                                    p,
+                                    &mut h,
+                                    geo_obj,
+                                );
                             }
+
                             if d.0.abs() < 0.001 {
                                 if dist + t < hit.distance {
-                                    hit.normal = geo_obj.normal(&settings.time, p);
+                                    hit = h.clone();
                                     hit.hit_point = p;
+
+                                    if let Some(material) = material {
+                                        hit.normal =
+                                            material.normal(&settings.time, p, &mut h, geo_obj);
+                                    } else {
+                                        hit.normal = MaterialFXObject::default().normal(
+                                            &settings.time,
+                                            p,
+                                            &mut h,
+                                            geo_obj,
+                                        );
+                                    }
+
+                                    //hit.normal = geo_obj.normal(&settings.time, p);
                                     hit.distance = dist + t;
 
                                     hit.albedo = vec3f(0.5, 0.5, 0.5);
                                     hit.value = 1.0;
 
-                                    geo_obj.nodes[d.1].distance_3d(
-                                        &settings.time,
-                                        p,
-                                        &mut Some(&mut hit),
-                                    );
+                                    if h.extrusion == GeoFXNodeExtrusion::None {
+                                        geo_obj.nodes[d.1].distance_3d(
+                                            &settings.time,
+                                            p,
+                                            &mut Some(&mut hit),
+                                        );
+                                    }
 
                                     if let Some(material) = self.materials.get(&geo_obj.material_id)
                                     {

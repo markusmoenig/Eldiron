@@ -58,6 +58,49 @@ impl MaterialFXObject {
         }
     }
 
+    pub fn get_distance(
+        &self,
+        time: &TheTime,
+        p: Vec3f,
+        hit: &mut Hit,
+        geo_obj: &GeoFXObject,
+    ) -> (f32, usize) {
+        let mut d = geo_obj.distance_3d(time, p, &mut Some(hit));
+
+        match hit.extrusion {
+            GeoFXNodeExtrusion::Horizontal => {
+                fn op_extrusion_z(p: Vec3f, d: f32, h: f32) -> f32 {
+                    let w = Vec2f::new(d, abs(p.z) - h);
+                    min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
+                }
+
+                d.0 = op_extrusion_z(hit.hit_point, hit.interior_distance, hit.extrusion_length);
+            }
+            _ => {}
+        }
+
+        d
+    }
+
+    /// Calculate normal
+    pub fn normal(&self, time: &TheTime, p: Vec3f, hit: &mut Hit, geo_obj: &GeoFXObject) -> Vec3f {
+        let scale = 0.5773 * 0.0005;
+        let e = vec2f(1.0 * scale, -1.0 * scale);
+
+        // IQs normal function
+
+        let e1 = vec3f(e.x, e.y, e.y);
+        let e2 = vec3f(e.y, e.y, e.x);
+        let e3 = vec3f(e.y, e.x, e.y);
+        let e4 = vec3f(e.x, e.x, e.x);
+
+        let n = e1 * self.get_distance(time, p + e1, hit, geo_obj).0
+            + e2 * self.get_distance(time, p + e2, hit, geo_obj).0
+            + e3 * self.get_distance(time, p + e3, hit, geo_obj).0
+            + e4 * self.get_distance(time, p + e4, hit, geo_obj).0;
+        normalize(n)
+    }
+
     /// Computes the displacement if any
     pub fn displacement(&self, hit: &mut Hit) {
         for (i, node) in self.nodes.iter().enumerate() {
