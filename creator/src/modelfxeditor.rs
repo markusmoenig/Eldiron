@@ -76,48 +76,6 @@ impl ModelFXEditor {
         gb.add_text_status(str!("Editor"), str!("Edit the current material."));
         gb.set_item_width(75);
 
-        let mut floors_button = TheTraybarButton::new(TheId::named("ModelFX Nodes Floor"));
-        //add_button.set_icon_name("icon_role_add".to_string());
-        floors_button.set_text(str!("Floor & Furniture"));
-        floors_button.set_status_text("Nodes which model floors and furniture like tables.");
-
-        floors_button.set_context_menu(Some(TheContextMenu {
-            items: vec![TheContextMenuItem::new(
-                "Floor".to_string(),
-                TheId::named("Floor"),
-            )],
-            ..Default::default()
-        }));
-
-        let mut walls_button = TheTraybarButton::new(TheId::named("ModelFX Nodes Wall"));
-        //add_button.set_icon_name("icon_role_add".to_string());
-        walls_button.set_text(str!("Wall & Components"));
-        walls_button.set_status_text(
-            "Nodes which model walls and components like windows, doors and decoration.",
-        );
-
-        walls_button.set_context_menu(Some(TheContextMenu {
-            items: vec![
-                TheContextMenuItem::new_submenu(
-                    "Shapes".to_string(),
-                    TheId::named("ModelFX Nodes Patterns"),
-                    TheContextMenu {
-                        items: vec![TheContextMenuItem::new(
-                            "Capsule".to_string(),
-                            TheId::named("Capsule"),
-                        )],
-                        ..Default::default()
-                    },
-                ),
-                TheContextMenuItem::new(
-                    "Wall Horizontal".to_string(),
-                    TheId::named("Wall Horizontal"),
-                ),
-                TheContextMenuItem::new("Wall Vertical".to_string(), TheId::named("Wall Vertical")),
-            ],
-            ..Default::default()
-        }));
-
         let mut material_button = TheTraybarButton::new(TheId::named("MaterialFX Nodes"));
         //add_button.set_icon_name("icon_role_add".to_string());
         material_button.set_text(str!("Material Nodes"));
@@ -127,6 +85,17 @@ impl ModelFXEditor {
 
         material_button.set_context_menu(Some(TheContextMenu {
             items: vec![
+                TheContextMenuItem::new_submenu(
+                    "Geometry".to_string(),
+                    TheId::named("Extrusion Patterns"),
+                    TheContextMenu {
+                        items: vec![TheContextMenuItem::new(
+                            "Extrusion Patterns".to_string(),
+                            TheId::named("Extrusion Patterns"),
+                        )],
+                        ..Default::default()
+                    },
+                ),
                 TheContextMenuItem::new_submenu(
                     "Patterns".to_string(),
                     TheId::named("MaterialFX Nodes Patterns"),
@@ -151,7 +120,7 @@ impl ModelFXEditor {
                 TheContextMenuItem::new("UV Splitter".to_string(), TheId::named("UV Splitter")),
                 TheContextMenuItem::new("Noise2D".to_string(), TheId::named("Noise2D")),
                 TheContextMenuItem::new("Noise3D".to_string(), TheId::named("Noise3D")),
-                TheContextMenuItem::new("Geometry".to_string(), TheId::named("Geometry")),
+                //TheContextMenuItem::new("Geometry".to_string(), TheId::named("Geometry")),
                 TheContextMenuItem::new(
                     "Material Mixer".to_string(),
                     TheId::named("Material Mixer"),

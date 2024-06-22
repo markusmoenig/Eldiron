@@ -686,11 +686,6 @@ impl Renderer {
                     let mut h = Hit::default();
                     if let Some(geo_obj) = region.geometry.get(geo_id) {
                         let material = self.materials.get(&geo_obj.material_id);
-
-                        // let mut has_displacement = false;
-                        // if let Some(material) = self.materials.get(&geo_obj.material_id) {
-                        //     has_displacement = material.has_displacement();
-                        // }
                         let lro = ray.at(dist);
 
                         let r = Ray::new(lro, ray.d);
@@ -703,18 +698,8 @@ impl Renderer {
                             }
 
                             let p = r.at(t);
-                            //let mut d = geo_obj.distance_3d(&settings.time, p, &mut Some(&mut h));
-                            // if has_displacement {
-                            //     if let Some(material) = self.materials.get(&geo_obj.material_id) {
-                            //         hit.hit_point = p;
-                            //         hit.normal = geo_obj.normal(&settings.time, p);
-                            //         hit.uv = self.get_uv_face(hit.normal, hit.hit_point).0;
-                            //         material.displacement(&mut hit);
-                            //         d.0 += hit.displacement;
-                            //     }
-                            // }
 
-                            let mut d = (f32::INFINITY, 0);
+                            let d; // = (f32::INFINITY, 0);
                             if let Some(material) = material {
                                 d = material.get_distance(&settings.time, p, &mut h, geo_obj);
                             } else {
@@ -743,13 +728,11 @@ impl Renderer {
                                         );
                                     }
 
-                                    //hit.normal = geo_obj.normal(&settings.time, p);
                                     hit.distance = dist + t;
-
                                     hit.albedo = vec3f(0.5, 0.5, 0.5);
-                                    hit.value = 1.0;
 
                                     if h.extrusion == GeoFXNodeExtrusion::None {
+                                        hit.value = 1.0;
                                         geo_obj.nodes[d.1].distance_3d(
                                             &settings.time,
                                             p,
@@ -757,8 +740,7 @@ impl Renderer {
                                         );
                                     }
 
-                                    if let Some(material) = self.materials.get(&geo_obj.material_id)
-                                    {
+                                    if let Some(material) = material {
                                         hit.uv = self.get_uv_face(hit.normal, hit.hit_point).0;
                                         material.compute(&mut hit, palette);
                                     }

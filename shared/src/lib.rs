@@ -135,11 +135,14 @@ pub struct Hit {
 
     pub distance: f32,
     pub interior_distance: f32,
+    pub interior_distance_mortar: Option<f32>,
 
     pub hit_point: Vec3f,
     pub normal: Vec3f,
     pub uv: Vec2f,
     pub face: HitFace,
+
+    pub pattern_pos: Vec2f,
 
     pub color: Vec4f,
     pub albedo: Vec3f,
@@ -179,11 +182,14 @@ impl Hit {
 
             distance: f32::MAX,
             interior_distance: f32::MAX,
+            interior_distance_mortar: None,
 
             hit_point: Vec3f::zero(),
             normal: Vec3f::zero(),
             uv: Vec2f::zero(),
             face: HitFace::XFace,
+
+            pattern_pos: Vec2f::zero(),
 
             color: Vec4f::zero(),
 

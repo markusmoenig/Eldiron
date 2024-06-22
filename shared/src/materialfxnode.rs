@@ -12,6 +12,7 @@ pub enum MaterialFXNodeRole {
     Brick,
     UVSplitter,
     Subdivide,
+    ExtrusionPatterns,
 }
 
 use MaterialFXNodeRole::*;
@@ -82,6 +83,13 @@ impl MaterialFXNode {
                 );
                 coll.set("Offset", TheValue::FloatRange(0.5, 0.0..=1.0));
             }
+            ExtrusionPatterns => {
+                coll.set(
+                    "Pattern",
+                    TheValue::TextList(0, vec![str!("Horizontal"), str!("Vertical")]),
+                );
+                coll.set("Scale", TheValue::FloatRange(1.0, 0.0..=5.0));
+            }
         }
 
         let timeline = TheTimeline::collection(coll);
@@ -108,6 +116,7 @@ impl MaterialFXNode {
             Brick => str!("Bricks"),
             UVSplitter => str!("UV Splitter"),
             Subdivide => str!("Subdivide"),
+            ExtrusionPatterns => str!("Extrusion Patterns"),
         }
     }
 
@@ -121,6 +130,7 @@ impl MaterialFXNode {
             Self::new(MaterialFXNodeRole::Brick),
             Self::new(MaterialFXNodeRole::UVSplitter),
             Self::new(MaterialFXNodeRole::Subdivide),
+            Self::new(MaterialFXNodeRole::ExtrusionPatterns),
         ]
     }
 
@@ -147,6 +157,13 @@ impl MaterialFXNode {
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             }
+            ExtrusionPatterns => {
+                vec![TheNodeTerminal {
+                    name: str!("geo"),
+                    role: str!("Geometry"),
+                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                }]
+            }
             _ => vec![],
         }
     }
@@ -156,13 +173,13 @@ impl MaterialFXNode {
             Geometry => {
                 vec![
                     TheNodeTerminal {
-                        name: str!("out"),
-                        role: str!("Out"),
+                        name: str!("mat"),
+                        role: str!("Material"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
-                        name: str!("displace"),
-                        role: str!("Displac"),
+                        name: str!("geo"),
+                        role: str!("Geometry"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]
@@ -333,6 +350,24 @@ impl MaterialFXNode {
             }
             _ => None,
         }
+    }
+
+    pub fn geometry(&self, _p: Vec3f, hit: &mut Hit) -> Option<u8> {
+        #[allow(clippy::single_match)]
+        match self.role {
+            ExtrusionPatterns => {
+                let collection = self.collection();
+                let scale = collection.get_f32_default("Scale", 1.0);
+
+                let p = hit.pattern_pos / (5.0 * scale);
+                let rc = box_divide(p);
+                hit.interior_distance_mortar = Some(hit.interior_distance - 0.1);
+                hit.interior_distance = rc.0;
+                hit.hash = rc.1;
+            }
+            _ => {}
+        }
+        None
     }
 
     /// Computes the displacement of the node.

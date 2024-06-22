@@ -206,3 +206,64 @@ pub fn noise3d(coll: &TheCollection, p: &Vec3f) -> f32 {
     }
     v * out_scale
 }
+
+fn rot(a: f32) -> Mat2f {
+    Mat2f::new(a.cos(), -a.sin(), a.sin(), a.cos())
+}
+
+// Shane's box divide formula from https://www.shadertoy.com/view/XsGyDh
+pub fn box_divide(p: Vec2f) -> (f32, f32) {
+    fn s_box(p: Vec2f, b: Vec2f, r: f32) -> f32 {
+        let d = abs(p) - b + vec2f(r, r);
+        d.x.max(d.y).min(0.0) + length(max(d, vec2f(0.0, 0.0))) - r
+    }
+
+    let mut p = p;
+    let ip = floor(p);
+    p -= ip;
+    let mut l = vec2f(1.0, 1.0);
+    let mut last_l;
+    let mut r = hash21(ip);
+
+    for _ in 0..6 {
+        r = (dot(l + vec2f(r, r), vec2f(123.71, 439.43)).fract() * 0.4) + (1.0 - 0.4) / 2.0;
+
+        last_l = l;
+        if l.x > l.y {
+            p = vec2f(p.y, p.x);
+            l = vec2f(l.y, l.x);
+        }
+
+        if p.x < r {
+            l.x /= r;
+            p.x /= r;
+        } else {
+            l.x /= 1.0 - r;
+            p.x = (p.x - r) / (1.0 - r);
+        }
+
+        if last_l.x > last_l.y {
+            p = vec2f(p.y, p.x);
+            l = vec2f(l.y, l.x);
+        }
+    }
+    p -= 0.5;
+
+    // Create the id
+    let id = hash21(ip + l);
+
+    // Slightly rotate the tile based on its id
+    p = rot((id - 0.5) * 0.15) * p;
+
+    // Gap, or mortar, width. Using "l" to keep it roughly constant.
+    let th = l * 0.02;
+    // Take the subdivided space and turn them into rounded pavers.
+    //let c = s_box(p, vec2f(0.5, 0.5) - th, noise(p) * 0.5);
+    let c = s_box(p, vec2f(0.5, 0.5) - th, 0.0);
+    // Smoothing factor.
+    //let sf = 2.0 / res.x * length(l);
+    // Individual tile ID.
+
+    // Return distance and id
+    (c, id)
+}

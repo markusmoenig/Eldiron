@@ -67,19 +67,101 @@ impl MaterialFXObject {
     ) -> (f32, usize) {
         let mut d = geo_obj.distance_3d(time, p, &mut Some(hit));
 
+        _ = self.follow_geo_trail(time, p, hit);
+
         match hit.extrusion {
-            GeoFXNodeExtrusion::Horizontal => {
+            GeoFXNodeExtrusion::X => {
+                fn op_extrusion_x(p: Vec3f, d: f32, h: f32) -> f32 {
+                    let w = Vec2f::new(d, abs(p.x) - h);
+                    min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
+                }
+
+                let distance =
+                    op_extrusion_x(hit.hit_point, hit.interior_distance, hit.extrusion_length);
+
+                if let Some(mortar) = hit.interior_distance_mortar {
+                    let mortar_distance =
+                        op_extrusion_x(hit.hit_point, mortar, hit.extrusion_length);
+                    d.0 = min(distance, mortar_distance);
+
+                    if hit.interior_distance <= 0.0 {
+                        hit.value = 0.0;
+                    } else {
+                        hit.value = 1.0;
+                    }
+                } else {
+                    d.0 = distance;
+                }
+            }
+            GeoFXNodeExtrusion::Y => {
+                fn op_extrusion_y(p: Vec3f, d: f32, h: f32) -> f32 {
+                    let w = Vec2f::new(d, abs(p.y) - h);
+                    min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
+                }
+
+                let distance =
+                    op_extrusion_y(hit.hit_point, hit.interior_distance, hit.extrusion_length);
+
+                if let Some(mortar) = hit.interior_distance_mortar {
+                    let mortar_distance =
+                        op_extrusion_y(hit.hit_point, mortar, hit.extrusion_length);
+                    d.0 = min(distance, mortar_distance);
+
+                    if hit.interior_distance < 0.0 {
+                        hit.value = 0.0;
+                    } else {
+                        hit.value = 1.0;
+                    }
+                } else {
+                    d.0 = distance;
+                }
+            }
+            GeoFXNodeExtrusion::Z => {
                 fn op_extrusion_z(p: Vec3f, d: f32, h: f32) -> f32 {
                     let w = Vec2f::new(d, abs(p.z) - h);
                     min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
                 }
 
-                d.0 = op_extrusion_z(hit.hit_point, hit.interior_distance, hit.extrusion_length);
+                let distance =
+                    op_extrusion_z(hit.hit_point, hit.interior_distance, hit.extrusion_length);
+
+                if let Some(mortar) = hit.interior_distance_mortar {
+                    let mortar_distance =
+                        op_extrusion_z(hit.hit_point, mortar, hit.extrusion_length);
+                    d.0 = min(distance, mortar_distance);
+                    //hit.value = normalize_sdf(distance, normalize_distance);
+                    //let v1 = smoothstep(-0.05, 0.05, distance);
+                    // let v2 = smoothstep(-0.05, 0.05, mortar_distance);
+
+                    //hit.value = smoothstep(-0.05, 0.05, d.0);
+
+                    if hit.interior_distance < 0.0 {
+                        hit.value = 0.0;
+                    } else {
+                        hit.value = 1.0;
+                    }
+
+                    //hit.value = smoothstep(-0.05, 0.05, hit.interior_distance);
+
+                    //hit.value = max(v1, v2);
+                    //println!("v {}", hit.value);
+                } else {
+                    d.0 = distance;
+                }
             }
+
             _ => {}
         }
 
         d
+    }
+
+    pub fn follow_geo_trail(&self, _time: &TheTime, p: Vec3f, hit: &mut Hit) -> bool {
+        if let Some((index, _input)) = self.find_connected_input_node(0, 1) {
+            self.nodes[index as usize].geometry(p, hit);
+            return true;
+        }
+        false
     }
 
     /// Calculate normal
@@ -94,35 +176,21 @@ impl MaterialFXObject {
         let e3 = vec3f(e.y, e.x, e.y);
         let e4 = vec3f(e.x, e.x, e.x);
 
+        // let mut hit_copy = hit.clone();
+        // let mut hit_copy1 = hit.clone();
+        // let mut hit_copy2 = hit.clone();
+        // let mut hit_copy3 = hit.clone();
+
+        // let n = e1 * self.get_distance(time, p + e1, &mut hit_copy, geo_obj).0
+        //     + e2 * self.get_distance(time, p + e2, &mut hit_copy1, geo_obj).0
+        //     + e3 * self.get_distance(time, p + e3, &mut hit_copy2, geo_obj).0
+        //     + e4 * self.get_distance(time, p + e4, &mut hit_copy3, geo_obj).0;
+
         let n = e1 * self.get_distance(time, p + e1, hit, geo_obj).0
             + e2 * self.get_distance(time, p + e2, hit, geo_obj).0
             + e3 * self.get_distance(time, p + e3, hit, geo_obj).0
             + e4 * self.get_distance(time, p + e4, hit, geo_obj).0;
         normalize(n)
-    }
-
-    /// Computes the displacement if any
-    pub fn displacement(&self, hit: &mut Hit) {
-        for (i, node) in self.nodes.iter().enumerate() {
-            if node.role == MaterialFXNodeRole::Geometry {
-                if let Some((node, _)) = self.find_connected_input_node(i, 1) {
-                    self.nodes[node as usize].displacement(hit);
-                }
-                break;
-            }
-        }
-    }
-
-    /// Returns true if the material supports displacement
-    pub fn has_displacement(&self) -> bool {
-        for (i, node) in self.nodes.iter().enumerate() {
-            if node.role == MaterialFXNodeRole::Geometry {
-                if let Some((_, _)) = self.find_connected_input_node(i, 1) {
-                    return true;
-                }
-            }
-        }
-        false
     }
 
     /// Returns the connected input node and terminal for the given output node and terminal.
@@ -284,9 +352,15 @@ impl MaterialFXObject {
         let size: usize = 100;
         let mut buffer = TheRGBABuffer::new(TheDim::sized(size as i32, size as i32));
 
+        let mut geo_object = GeoFXObject::default();
+        let geo_node = GeoFXNode::new(GeoFXNodeRole::BottomWall);
+        geo_object.nodes.push(geo_node);
+
         fn distance(p: Vec3f) -> f32 {
             length(p) - 2.0
         }
+
+        let time = TheTime::default();
 
         // fn distance(p: Vec3f) -> f32 {
         //     let q = abs(p) - vec3f(2.0, 2.0, 2.0);
@@ -311,7 +385,7 @@ impl MaterialFXObject {
             normalize(n)
         }
 
-        fn sphere_to_uv(hitpoint: Vec3f) -> Vec2f {
+        fn _sphere_to_uv(hitpoint: Vec3f) -> Vec2f {
             let normalized_hitpoint = normalize(hitpoint);
 
             // Calculate spherical coordinates
@@ -351,13 +425,13 @@ impl MaterialFXObject {
             }
         }
 
-        let ro = vec3f(0.0, 2.5, 2.5);
-        // let ro = vec3f(2.0, 2.0, 2.0);
+        // let ro = vec3f(0.0, 2.5, 2.5);
+        let ro = vec3f(0.0, 0.0, 2.0);
         let rd = vec3f(0.0, 0.0, 0.0);
 
         let camera = Camera::new(ro, rd, 90.0);
 
-        let has_displacement = self.has_displacement();
+        //let has_displacement = self.has_displacement();
 
         let noise2d = MaterialFXNode::new(MaterialFXNodeRole::Noise2D);
 
@@ -396,56 +470,58 @@ impl MaterialFXObject {
                         //let mut early_exit = false;
 
                         for depth in 0..8 {
+                            let mut h = Hit::default();
                             hit = None;
 
                             let mut t = 0.0;
                             for _ in 0..20 {
                                 let p = ray.at(t);
-                                let mut d = distance(p);
+                                //let mut d = distance(p);
 
-                                if has_displacement {
-                                    let normal = normal(p);
-                                    let mut hit = Hit {
-                                        hit_point: p,
-                                        normal, //: normal(p),
-                                        uv: sphere_to_uv(p),
-                                        // uv: get_uv_face(p, normal).0,
-                                        distance: t,
-                                        ..Default::default()
-                                    };
-                                    noise2d.compute(&mut hit, palette, vec![]);
-                                    self.displacement(&mut hit);
-                                    d += hit.displacement;
-                                }
+                                let d = self.get_distance(&time, p, &mut h, &geo_object);
 
-                                if d.abs() < 0.0001 {
-                                    let normal = normal(p);
-                                    let mut h = Hit {
-                                        hit_point: p,
-                                        normal,
-                                        uv: sphere_to_uv(p),
-                                        // uv: get_uv_face(p, normal).0,
-                                        distance: t,
-                                        albedo: Vec3f::zero(),
-                                        ..Default::default()
-                                    };
-                                    noise2d.compute(&mut h, palette, vec![]);
+                                // if has_displacement {
+                                //     let normal = normal(p);
+                                //     let mut hit = Hit {
+                                //         hit_point: p,
+                                //         normal, //: normal(p),
+                                //         //uv: sphere_to_uv(p),
+                                //         uv: vec2f(p.x, p.y), //get_uv_face(p, normal).0,
+                                //         distance: t,
+                                //         ..Default::default()
+                                //     };
+                                //     noise2d.compute(&mut hit, palette, vec![]);
+                                //     self.displacement(&mut hit);
+                                //     d += hit.displacement;
+                                // }
 
-                                    for (i, node) in self.nodes.iter().enumerate() {
-                                        if node.role == MaterialFXNodeRole::Geometry {
-                                            self.follow_trail(i, 0, &mut h, palette);
+                                if d.0.abs() < 0.0001 {
+                                    h.normal = self.normal(&time, p, &mut h, &geo_object);
+                                    h.uv = vec2f(p.x, p.y);
+                                    h.distance = t;
+                                    h.hit_point = p;
+                                    // let mut h = Hit {
+                                    //     hit_point: p,
+                                    //     normal,
+                                    //     //uv: sphere_to_uv(p),
+                                    //     // uv: get_uv_face(p, normal).0,
+                                    //     uv: vec2f(p.x, p.y),
+                                    //     distance: t,
+                                    //     albedo: Vec3f::zero(),
+                                    //     ..Default::default()
+                                    // };
+                                    //noise2d.compute(&mut h, palette, vec![]);
 
-                                            alpha = 1.0;
+                                    self.follow_trail(0, 0, &mut h, palette);
 
-                                            hit = Some(h);
-                                            break;
-                                        }
-                                    }
+                                    alpha = 1.0;
+
+                                    hit = Some(h.clone());
                                 }
                                 if hit.is_some() {
                                     break;
                                 }
-                                t += d;
+                                t += d.0;
                             }
 
                             if let Some(hit) = &mut hit {
