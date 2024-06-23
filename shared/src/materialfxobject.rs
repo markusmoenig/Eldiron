@@ -50,12 +50,7 @@ impl MaterialFXObject {
 
     /// Computes the material
     pub fn compute(&self, hit: &mut Hit, palette: &ThePalette) {
-        for (i, node) in self.nodes.iter().enumerate() {
-            if node.role == MaterialFXNodeRole::Geometry {
-                self.follow_trail(i, 0, hit, palette);
-                break;
-            }
-        }
+        self.follow_trail(0, 0, hit, palette);
     }
 
     pub fn get_distance(
@@ -84,7 +79,7 @@ impl MaterialFXObject {
                         op_extrusion_x(hit.hit_point, mortar, hit.extrusion_length);
                     d.0 = min(distance, mortar_distance);
 
-                    if hit.interior_distance <= 0.0 {
+                    if hit.interior_distance <= 0.01 {
                         hit.value = 0.0;
                     } else {
                         hit.value = 1.0;
@@ -107,7 +102,7 @@ impl MaterialFXObject {
                         op_extrusion_y(hit.hit_point, mortar, hit.extrusion_length);
                     d.0 = min(distance, mortar_distance);
 
-                    if hit.interior_distance < 0.0 {
+                    if hit.interior_distance <= 0.01 {
                         hit.value = 0.0;
                     } else {
                         hit.value = 1.0;
@@ -129,22 +124,13 @@ impl MaterialFXObject {
                     let mortar_distance =
                         op_extrusion_z(hit.hit_point, mortar, hit.extrusion_length);
                     d.0 = min(distance, mortar_distance);
-                    //hit.value = normalize_sdf(distance, normalize_distance);
-                    //let v1 = smoothstep(-0.05, 0.05, distance);
-                    // let v2 = smoothstep(-0.05, 0.05, mortar_distance);
 
-                    //hit.value = smoothstep(-0.05, 0.05, d.0);
-
-                    if hit.interior_distance < 0.0 {
+                    if hit.interior_distance <= 0.01 {
                         hit.value = 0.0;
                     } else {
                         hit.value = 1.0;
                     }
-
-                    //hit.value = smoothstep(-0.05, 0.05, hit.interior_distance);
-
-                    //hit.value = max(v1, v2);
-                    //println!("v {}", hit.value);
+                    //hit.value = smoothstep(-0.01, 0.01, hit.interior_distance).clamp(0.0, 1.0);
                 } else {
                     d.0 = distance;
                 }

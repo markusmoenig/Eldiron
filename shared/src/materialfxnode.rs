@@ -88,7 +88,8 @@ impl MaterialFXNode {
                     "Pattern",
                     TheValue::TextList(0, vec![str!("Horizontal"), str!("Vertical")]),
                 );
-                coll.set("Scale", TheValue::FloatRange(1.0, 0.0..=5.0));
+                coll.set("Scale", TheValue::FloatRange(1.0, 0.0..=2.0));
+                coll.set("Gap", TheValue::FloatRange(1.0, 0.0..=2.0));
             }
         }
 
@@ -269,11 +270,12 @@ impl MaterialFXNode {
 
                 if let Some(TheValue::PaletteIndex(index)) = collection.get("Color") {
                     if let Some(color) = &palette.colors[*index as usize] {
-                        hit.albedo.x = color.r * hit.value;
-                        hit.albedo.y = color.g * hit.value;
-                        hit.albedo.z = color.b * hit.value;
-                        hit.roughness = collection.get_f32_default("Roughness", 0.5) * hit.value;
-                        hit.metallic = collection.get_f32_default("Metallic", 0.0) * hit.value;
+                        hit.albedo.x = color.r; // * hit.value;
+                        hit.albedo.y = color.g; // * hit.value;
+                        hit.albedo.z = color.b; // * hit.value;
+                        hit.roughness = collection.get_f32_default("Roughness", 0.5); // * hit.value;
+                        hit.metallic = collection.get_f32_default("Metallic", 0.0);
+                        // * hit.value;
                     }
                 }
 
@@ -358,10 +360,11 @@ impl MaterialFXNode {
             ExtrusionPatterns => {
                 let collection = self.collection();
                 let scale = collection.get_f32_default("Scale", 1.0);
+                let gap = collection.get_f32_default("Gap", 1.0);
 
                 let p = hit.pattern_pos / (5.0 * scale);
-                let rc = box_divide(p);
-                hit.interior_distance_mortar = Some(hit.interior_distance - 0.1);
+                let rc = box_divide(p, gap);
+                hit.interior_distance_mortar = Some(hit.interior_distance);
                 hit.interior_distance = rc.0;
                 hit.hash = rc.1;
             }

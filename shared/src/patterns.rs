@@ -212,7 +212,7 @@ fn rot(a: f32) -> Mat2f {
 }
 
 // Shane's box divide formula from https://www.shadertoy.com/view/XsGyDh
-pub fn box_divide(p: Vec2f) -> (f32, f32) {
+pub fn box_divide(p: Vec2f, gap: f32) -> (f32, f32) {
     fn s_box(p: Vec2f, b: Vec2f, r: f32) -> f32 {
         let d = abs(p) - b + vec2f(r, r);
         d.x.max(d.y).min(0.0) + length(max(d, vec2f(0.0, 0.0))) - r
@@ -256,7 +256,7 @@ pub fn box_divide(p: Vec2f) -> (f32, f32) {
     p = rot((id - 0.5) * 0.15) * p;
 
     // Gap, or mortar, width. Using "l" to keep it roughly constant.
-    let th = l * 0.02;
+    let th = l * 0.02 * gap;
     // Take the subdivided space and turn them into rounded pavers.
     //let c = s_box(p, vec2f(0.5, 0.5) - th, noise(p) * 0.5);
     let c = s_box(p, vec2f(0.5, 0.5) - th, 0.0);
