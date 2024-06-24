@@ -12,7 +12,7 @@ pub enum MaterialFXNodeRole {
     Brick,
     UVSplitter,
     Subdivide,
-    ExtrusionPatterns,
+    BoxSubdivision,
 }
 
 use MaterialFXNodeRole::*;
@@ -83,13 +83,15 @@ impl MaterialFXNode {
                 );
                 coll.set("Offset", TheValue::FloatRange(0.5, 0.0..=1.0));
             }
-            ExtrusionPatterns => {
+            BoxSubdivision => {
                 coll.set(
                     "Pattern",
                     TheValue::TextList(0, vec![str!("Horizontal"), str!("Vertical")]),
                 );
                 coll.set("Scale", TheValue::FloatRange(1.0, 0.0..=2.0));
                 coll.set("Gap", TheValue::FloatRange(1.0, 0.0..=2.0));
+                coll.set("Rotation", TheValue::FloatRange(0.15, 0.0..=2.0));
+                coll.set("Rounding", TheValue::FloatRange(0.15, 0.0..=1.0));
             }
         }
 
@@ -117,7 +119,7 @@ impl MaterialFXNode {
             Brick => str!("Bricks"),
             UVSplitter => str!("UV Splitter"),
             Subdivide => str!("Subdivide"),
-            ExtrusionPatterns => str!("Extrusion Patterns"),
+            BoxSubdivision => str!("Box Subdivision"),
         }
     }
 
@@ -131,7 +133,7 @@ impl MaterialFXNode {
             Self::new(MaterialFXNodeRole::Brick),
             Self::new(MaterialFXNodeRole::UVSplitter),
             Self::new(MaterialFXNodeRole::Subdivide),
-            Self::new(MaterialFXNodeRole::ExtrusionPatterns),
+            Self::new(MaterialFXNodeRole::BoxSubdivision),
         ]
     }
 
@@ -158,7 +160,7 @@ impl MaterialFXNode {
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             }
-            ExtrusionPatterns => {
+            BoxSubdivision => {
                 vec![TheNodeTerminal {
                     name: str!("geo"),
                     role: str!("Geometry"),
@@ -354,16 +356,18 @@ impl MaterialFXNode {
         }
     }
 
-    pub fn geometry(&self, _p: Vec3f, hit: &mut Hit) -> Option<u8> {
+    pub fn geometry(&self, hit: &mut Hit) -> Option<u8> {
         #[allow(clippy::single_match)]
         match self.role {
-            ExtrusionPatterns => {
+            BoxSubdivision => {
                 let collection = self.collection();
                 let scale = collection.get_f32_default("Scale", 1.0);
                 let gap = collection.get_f32_default("Gap", 1.0);
+                let rotation = collection.get_f32_default("Rotation", 0.15);
+                let rounding = collection.get_f32_default("Rounding", 0.15);
 
                 let p = hit.pattern_pos / (5.0 * scale);
-                let rc = box_divide(p, gap);
+                let rc = box_divide(p, gap, rotation, rounding);
                 hit.interior_distance_mortar = Some(hit.interior_distance);
                 hit.interior_distance = rc.0;
                 hit.hash = rc.1;
@@ -371,34 +375,6 @@ impl MaterialFXNode {
             _ => {}
         }
         None
-    }
-
-    /// Computes the displacement of the node.
-    pub fn displacement(&self, hit: &mut Hit) {
-        match self.role {
-            Brick => {
-                let collection = self.collection();
-                let (_, terminal) = bricks(&collection, hit.uv, hit);
-                if terminal == 1 {
-                    hit.displacement = collection.get_f32_default("Displace", 0.0);
-                } else {
-                    hit.displacement = 0.0;
-                }
-            }
-            Noise2D => {
-                let collection = self.collection();
-                let value = noise2d(&collection, &hit.uv);
-                let disp_scale = collection.get_f32_default("Disp Scale", 0.1);
-                hit.displacement = value * disp_scale;
-            }
-            Noise3D => {
-                let collection = self.collection();
-                let value = noise3d(&collection, &hit.hit_point);
-                let disp_scale = collection.get_f32_default("Disp Scale", 0.1);
-                hit.displacement = value * disp_scale;
-            }
-            _ => {}
-        }
     }
 
     /// Creates a new node from a name.
@@ -479,90 +455,3 @@ impl MaterialFXNode {
         self.preview = buffer;
     }
 }
-
-/*#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-pub enum GeoFXNode {
-    Disc(Uuid, TheTimeline),
-}
-
-impl GeoFXNode {
-    pub fn new_disc() -> Self {
-        let mut coll = TheCollection::named(str!("Geo"));
-        coll.set("Radius", TheValue::FloatRange(0.4, 0.001..=5.0));
-        Self::Disc(Uuid::new_v4(), TheTimeline::collection(coll))
-    }
-
-    pub fn nodes() -> Vec<Self> {
-        vec![Self::new_disc()]
-    }
-
-    pub fn distance(&self, time: &TheTime, p: Vec2f, scale: f32) -> f32 {
-        match self {
-            Self::Disc(_, timeline) => {
-                if let Some(value) =
-                    timeline.get(str!("Geo"), str!("Radius"), time, TheInterpolation::Linear)
-                {
-                    if let Some(radius) = value.to_f32() {
-                        return length(p) - radius * scale;
-                    }
-                }
-            }
-        }
-
-        f32::INFINITY
-    }
-
-    pub fn collection(&self) -> TheCollection {
-        match self {
-            Self::Disc(_, timeline) => {
-                if let Some(coll) = timeline.get_collection_at(&TheTime::default(), str!("Geo")) {
-                    return coll.clone();
-                }
-            }
-        }
-
-        TheCollection::default()
-    }
-
-    pub fn set_id(&mut self, id: Uuid) {
-        match self {
-            Self::Disc(ref mut node_id, _) => {
-                *node_id = id;
-            }
-        }
-    }
-
-    pub fn set(&mut self, key: &str, value: TheValue) {
-        match self {
-            Self::Disc(_, timeline) => {
-                timeline.set(&TheTime::default(), key, "Geo", value);
-            }
-        }
-    }
-
-    pub fn preview(&self, buffer: &mut TheRGBABuffer) {
-        fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
-            [
-                (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
-                (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] as f32 / 255.0 * v) * 255.0) as u8,
-                (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v) * 255.0) as u8,
-                (((1.0 - v) * (a[3] as f32 / 255.0) + b[3] as f32 / 255.0 * v) * 255.0) as u8,
-            ]
-        }
-
-        let width = buffer.dim().width;
-        let height = buffer.dim().height;
-
-        for y in 0..height {
-            for x in 0..width {
-                let p = vec2f(
-                    x as f32 / width as f32 - 0.5,
-                    y as f32 / height as f32 - 0.5,
-                );
-                let d = self.distance(&TheTime::default(), p, 1.0);
-                let t = smoothstep(-0.04, 0.0, d);
-                buffer.set_pixel(x, y, &mix_color(&WHITE, &BLACK, t));
-            }
-        }
-    }
-} */

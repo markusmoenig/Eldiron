@@ -90,8 +90,8 @@ impl ModelFXEditor {
                     TheId::named("Extrusion Patterns"),
                     TheContextMenu {
                         items: vec![TheContextMenuItem::new(
-                            "Extrusion Patterns".to_string(),
-                            TheId::named("Extrusion Patterns"),
+                            "Box Subdivision".to_string(),
+                            TheId::named("Box Subdivision"),
                         )],
                         ..Default::default()
                     },
@@ -798,6 +798,7 @@ impl ModelFXEditor {
                             material.nodes.remove(*deleted_node_index);
                             //material.node_previews.remove(*deleted_node_index);
                             material.connections.clone_from(connections);
+                            material.selected_node = None;
                             material.render_preview(&project.palette);
                             ui.set_node_preview("MaterialFX NodeCanvas", 0, material.get_preview());
                             let undo =
@@ -953,6 +954,12 @@ impl ModelFXEditor {
         if let Some(material_id) = server_ctx.curr_material_object {
             if let Some(material) = project.materials.get_mut(&material_id) {
                 if let Some(selected_index) = material.selected_node {
+                    // Safeguard, not actually needed
+                    if selected_index >= material.nodes.len() {
+                        material.selected_node = None;
+                        return;
+                    }
+
                     let collection = material.nodes[selected_index].collection();
 
                     if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
@@ -1131,7 +1138,7 @@ impl ModelFXEditor {
             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
                 let grid = tile_size;
 
-                rgba_view.set_grid(Some(100));
+                rgba_view.set_grid(Some(tile_size));
                 let mut c = WHITE;
                 c[3] = 64;
                 rgba_view.set_hover_color(Some(c));
@@ -1170,8 +1177,16 @@ impl ModelFXEditor {
                         buffer.copy_into(x * grid, y * grid, &tile.buffer[0].scaled(grid, grid));
                         }*/
 
-                    //tile.preview(&mut tile_buffer);
-                    buffer.copy_into(x * grid, y * grid, &obj.get_preview());
+                    let mut prev = obj.get_preview();
+                    if prev.dim().width > tile_size && prev.dim().height > tile_size {
+                        prev = prev.extract_region(&TheRGBARegion::new(
+                            0,
+                            0,
+                            tile_size as usize,
+                            tile_size as usize,
+                        ));
+                    }
+                    buffer.copy_into(x * grid, y * grid, &prev);
                     self.materials.insert((x, y), *id);
                 }
 

@@ -334,19 +334,30 @@ impl TileDrawer {
                                 hit.albedo = vec3f(0.5, 0.5, 0.5);
                                 hit.value = 1.0;
 
-                                geo_obj.nodes[d.1].distance(
-                                    &TheTime::default(),
-                                    p,
-                                    grid_size,
-                                    &mut Some(&mut hit),
-                                );
+                                // geo_obj.nodes[d.1].distance(
+                                //     &TheTime::default(),
+                                //     p,
+                                //     grid_size,
+                                //     &mut Some(&mut hit),
+                                // );
 
                                 hit.distance = d.0;
 
                                 if let Some(material) = self.materials.get(&geo_obj.material_id) {
                                     hit.normal = vec3f(0.0, 1.0, 0.0);
                                     hit.hit_point = vec3f(p.x, 0.0, p.y);
+                                    //material.compute(&mut hit, palette);
+
+                                    material.get_distance(
+                                        &TheTime::default(),
+                                        p / 5.0,
+                                        &mut hit,
+                                        geo_obj,
+                                        grid_size,
+                                    );
+
                                     material.compute(&mut hit, palette);
+
                                     let col = TheColor::from_vec3f(hit.albedo).to_u8_array();
                                     if let Some(cd) = settings.conceptual_display {
                                         c = self.mix_color(&c, &col, cd);

@@ -701,9 +701,9 @@ impl Renderer {
 
                             let d; // = (f32::INFINITY, 0);
                             if let Some(material) = material {
-                                d = material.get_distance(&settings.time, p, &mut h, geo_obj);
+                                d = material.get_distance_3d(&settings.time, p, &mut h, geo_obj);
                             } else {
-                                d = MaterialFXObject::default().get_distance(
+                                d = MaterialFXObject::default().get_distance_3d(
                                     &settings.time,
                                     p,
                                     &mut h,

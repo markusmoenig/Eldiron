@@ -56,13 +56,33 @@ impl MaterialFXObject {
     pub fn get_distance(
         &self,
         time: &TheTime,
+        p: Vec2f,
+        hit: &mut Hit,
+        geo_obj: &GeoFXObject,
+        scale: f32,
+    ) -> (f32, usize) {
+        hit.pattern_pos = p;
+        let d = geo_obj.distance(time, p, scale, &mut Some(hit));
+        if self.follow_geo_trail(time, hit) {
+            if hit.interior_distance <= 0.01 {
+                hit.value = 0.0;
+            } else {
+                hit.value = 1.0;
+            }
+        }
+
+        d
+    }
+
+    pub fn get_distance_3d(
+        &self,
+        time: &TheTime,
         p: Vec3f,
         hit: &mut Hit,
         geo_obj: &GeoFXObject,
     ) -> (f32, usize) {
         let mut d = geo_obj.distance_3d(time, p, &mut Some(hit));
-
-        _ = self.follow_geo_trail(time, p, hit);
+        _ = self.follow_geo_trail(time, hit);
 
         match hit.extrusion {
             GeoFXNodeExtrusion::X => {
@@ -76,7 +96,7 @@ impl MaterialFXObject {
 
                 if let Some(mortar) = hit.interior_distance_mortar {
                     let mortar_distance =
-                        op_extrusion_x(hit.hit_point, mortar, hit.extrusion_length);
+                        op_extrusion_x(hit.hit_point, mortar, hit.extrusion_length - 0.005);
                     d.0 = min(distance, mortar_distance);
 
                     if hit.interior_distance <= 0.01 {
@@ -99,7 +119,7 @@ impl MaterialFXObject {
 
                 if let Some(mortar) = hit.interior_distance_mortar {
                     let mortar_distance =
-                        op_extrusion_y(hit.hit_point, mortar, hit.extrusion_length);
+                        op_extrusion_y(hit.hit_point, mortar, hit.extrusion_length - 0.005);
                     d.0 = min(distance, mortar_distance);
 
                     if hit.interior_distance <= 0.01 {
@@ -122,7 +142,7 @@ impl MaterialFXObject {
 
                 if let Some(mortar) = hit.interior_distance_mortar {
                     let mortar_distance =
-                        op_extrusion_z(hit.hit_point, mortar, hit.extrusion_length);
+                        op_extrusion_z(hit.hit_point, mortar, hit.extrusion_length - 0.005);
                     d.0 = min(distance, mortar_distance);
 
                     if hit.interior_distance <= 0.01 {
@@ -142,9 +162,9 @@ impl MaterialFXObject {
         d
     }
 
-    pub fn follow_geo_trail(&self, _time: &TheTime, p: Vec3f, hit: &mut Hit) -> bool {
+    pub fn follow_geo_trail(&self, _time: &TheTime, hit: &mut Hit) -> bool {
         if let Some((index, _input)) = self.find_connected_input_node(0, 1) {
-            self.nodes[index as usize].geometry(p, hit);
+            self.nodes[index as usize].geometry(hit);
             return true;
         }
         false
@@ -162,20 +182,10 @@ impl MaterialFXObject {
         let e3 = vec3f(e.y, e.x, e.y);
         let e4 = vec3f(e.x, e.x, e.x);
 
-        // let mut hit_copy = hit.clone();
-        // let mut hit_copy1 = hit.clone();
-        // let mut hit_copy2 = hit.clone();
-        // let mut hit_copy3 = hit.clone();
-
-        // let n = e1 * self.get_distance(time, p + e1, &mut hit_copy, geo_obj).0
-        //     + e2 * self.get_distance(time, p + e2, &mut hit_copy1, geo_obj).0
-        //     + e3 * self.get_distance(time, p + e3, &mut hit_copy2, geo_obj).0
-        //     + e4 * self.get_distance(time, p + e4, &mut hit_copy3, geo_obj).0;
-
-        let n = e1 * self.get_distance(time, p + e1, hit, geo_obj).0
-            + e2 * self.get_distance(time, p + e2, hit, geo_obj).0
-            + e3 * self.get_distance(time, p + e3, hit, geo_obj).0
-            + e4 * self.get_distance(time, p + e4, hit, geo_obj).0;
+        let n = e1 * self.get_distance_3d(time, p + e1, hit, geo_obj).0
+            + e2 * self.get_distance_3d(time, p + e2, hit, geo_obj).0
+            + e3 * self.get_distance_3d(time, p + e3, hit, geo_obj).0
+            + e4 * self.get_distance_3d(time, p + e4, hit, geo_obj).0;
         normalize(n)
     }
 
@@ -335,107 +345,50 @@ impl MaterialFXObject {
     }
 
     pub fn render_preview(&mut self, palette: &ThePalette) {
-        let size: usize = 100;
-        let mut buffer = TheRGBABuffer::new(TheDim::sized(size as i32, size as i32));
+        let width = 111;
+        let height = 104;
 
-        let mut geo_object = GeoFXObject::default();
-        let geo_node = GeoFXNode::new(GeoFXNodeRole::BottomWall);
-        geo_object.nodes.push(geo_node);
-
-        fn distance(p: Vec3f) -> f32 {
-            length(p) - 2.0
-        }
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(width as i32, height));
 
         let time = TheTime::default();
 
-        // fn distance(p: Vec3f) -> f32 {
-        //     let q = abs(p) - vec3f(2.0, 2.0, 2.0);
-        //     length(max(q, Vec3f::zero())) + min(max(q.x, max(q.y, q.z)), 0.0)
-        // }
-
-        pub fn normal(p: Vec3f) -> Vec3f {
-            let scale = 0.5773 * 0.0005;
-            let e = vec2f(1.0 * scale, -1.0 * scale);
-
-            // IQs normal function
-
-            let e1 = vec3f(e.x, e.y, e.y);
-            let e2 = vec3f(e.y, e.y, e.x);
-            let e3 = vec3f(e.y, e.x, e.y);
-            let e4 = vec3f(e.x, e.x, e.x);
-
-            let n = e1 * distance(p + e1)
-                + e2 * distance(p + e2)
-                + e3 * distance(p + e3)
-                + e4 * distance(p + e4);
-            normalize(n)
-        }
-
-        fn _sphere_to_uv(hitpoint: Vec3f) -> Vec2f {
-            let normalized_hitpoint = normalize(hitpoint);
-
-            // Calculate spherical coordinates
-            let theta = atan2(normalized_hitpoint.y, normalized_hitpoint.x);
-            let phi = acos(normalized_hitpoint.z);
-
-            // Map to UV coordinates
-            let u = (theta + std::f32::consts::PI) / (2.0 * std::f32::consts::PI);
-            let v = phi / std::f32::consts::PI;
-
-            vec2f(u, v)
-        }
-
-        fn _get_uv_face(normal: Vec3f, hp: Vec3f) -> (Vec2f, usize) {
-            // Calculate the absolute values of the normal components
-            let abs_normal = abs(normal);
-
-            // Determine which face of the cube was hit based on the maximum component of the normal
-            let face_index = if abs_normal.x > abs_normal.y {
-                if abs_normal.x > abs_normal.z {
-                    0 // X-axis face
-                } else {
-                    2 // Z-axis face
-                }
-            } else if abs_normal.y > abs_normal.z {
-                1 // Y-axis face
-            } else {
-                2 // Z-axis face
-            };
-
-            // Calculate UV coordinates based on the face
-            match face_index {
-                0 => (Vec2f::new(frac(hp.z), 1.0 - frac(hp.y)), 0), // X-axis face
-                1 => (Vec2f::new(frac(hp.x), frac(hp.z)), 1),       // Y-axis face
-                2 => (Vec2f::new(frac(hp.x), 1.0 - frac(hp.y)), 2), // Z-axis face
-                _ => (Vec2f::zero(), 0),
-            }
-        }
-
-        // let ro = vec3f(0.0, 2.5, 2.5);
-        let ro = vec3f(0.0, 0.0, 2.0);
-        let rd = vec3f(0.0, 0.0, 0.0);
-
-        let camera = Camera::new(ro, rd, 90.0);
-
-        //let has_displacement = self.has_displacement();
+        let mut geo_object = GeoFXObject::default();
+        let geo_node = GeoFXNode::new(GeoFXNodeRole::Floor);
+        geo_object.nodes.push(geo_node);
 
         let noise2d = MaterialFXNode::new(MaterialFXNodeRole::Noise2D);
 
         buffer
             .pixels_mut()
-            .par_rchunks_exact_mut(size * 4)
+            .par_rchunks_exact_mut(width * 4)
             .enumerate()
             .for_each(|(j, line)| {
-                let mut rng = rand::thread_rng();
+                // let mut rng = rand::thread_rng();
 
                 for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
-                    let i = j * size + i;
+                    let i = j * width + i;
 
-                    let xx = (i % size) as f32;
-                    let yy = (i / size) as f32;
+                    let xx = (i % width) as f32;
+                    let yy = (i / width) as f32;
 
                     let mut color = Vec4f::zero();
 
+                    let mut hit = Hit {
+                        normal: vec3f(0., 1., 0.),
+                        uv: vec2f(xx / width as f32, yy / height as f32),
+                        ..Default::default()
+                    };
+
+                    noise2d.compute(&mut hit, palette, vec![]);
+                    self.get_distance(&time, hit.uv, &mut hit, &geo_object, 1.0);
+                    self.follow_trail(0, 0, &mut hit, palette);
+
+                    color.x = hit.albedo.x;
+                    color.y = hit.albedo.y;
+                    color.z = hit.albedo.z;
+                    color.w = 1.0;
+
+                    /*
                     for sample in 0..40 {
                         let mut ray = camera.create_ray(
                             vec2f(xx / size as f32, 1.0 - yy / size as f32),
@@ -566,7 +519,7 @@ impl MaterialFXObject {
                         // if early_exit {
                         //     break;
                         // }
-                    }
+                        }*/
 
                     pixel.copy_from_slice(&TheColor::from_vec4f(color).to_u8_array());
                 }

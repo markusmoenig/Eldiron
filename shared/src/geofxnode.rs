@@ -647,8 +647,8 @@ impl GeoFXNode {
             .timeline
             .get_collection_at(&TheTime::default(), str!("Geo"))
         {
-            x = coll.get("Pos X").unwrap().to_f32().unwrap();
-            y = coll.get("Pos Y").unwrap().to_f32().unwrap();
+            x = coll.get_f32_default("Pos X", 0.0);
+            y = coll.get_f32_default("Pos Y", 0.0);
         }
 
         vec2f(x, y)
