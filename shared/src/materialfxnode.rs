@@ -50,8 +50,11 @@ impl MaterialFXNode {
             }
             Material => {
                 coll.set("Color", TheValue::PaletteIndex(0));
+                coll.set("Reflectance", TheValue::FloatRange(0.5, 0.0..=1.0));
                 coll.set("Roughness", TheValue::FloatRange(0.5, 0.0..=1.0));
                 coll.set("Metallic", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Emission", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("IOR", TheValue::FloatRange(0.0, 0.0..=2.0));
             }
             UVSplitter => {
                 coll.set("Map", TheValue::TextList(0, vec![str!("Cylinder")]));

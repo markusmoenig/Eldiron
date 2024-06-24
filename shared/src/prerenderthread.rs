@@ -243,6 +243,9 @@ impl PreRenderThread {
                             &palette,
                             result_tx.clone(),
                         );
+                        if !in_progress {
+                            println!("finished");
+                        }
                     });
 
                     prerendered_regions.insert(curr_region.id, prerendered.clone());

@@ -312,7 +312,7 @@ impl Renderer {
                                     let roughness = hit.roughness;
                                     let alpha = roughness * roughness;
                                     let metallic = hit.metallic;
-                                    let reflectance = 1.0;
+                                    let reflectance = hit.reflectance;
                                     let color = hit.albedo;
 
                                     //let mut brdf = Vec3f::zero();
@@ -345,9 +345,7 @@ impl Renderer {
                                                     );
                                                     let l0 = light_pos - x;
 
-                                                    let lr = 3.0;
-                                                    let le = Vec3f::new(20.0, 10.0, 10.0);
-
+                                                    let lr = light.max_distance;
                                                     let cos_a_max = sqrt(
                                                         1. - clamp(lr * lr / dot(l0, l0), 0., 1.),
                                                     );
@@ -369,18 +367,20 @@ impl Renderer {
                                                     ) {
                                                         let omega =
                                                             2.0 * f32::pi() * (1.0 - cos_a_max);
-                                                        let mut light_brdf =
-                                                            (le * clamp(
+                                                        let mut light_brdf = (light.color
+                                                            * light.strength
+                                                            * 5.0
+                                                            * clamp(
                                                                 ggx(
                                                                     nl, ray.d, l, roughness,
                                                                     metallic,
                                                                 ),
                                                                 0.0,
                                                                 1.0,
-                                                            ) * omega)
-                                                                / f32::pi();
+                                                            )
+                                                            * omega)
+                                                            / f32::pi();
 
-                                                        //brdf += light_brdf;
                                                         light_brdf *= mask * color;
 
                                                         let mut found_light = false;
@@ -416,6 +416,69 @@ impl Renderer {
                                         acc += mask * hit.emissive * e; // + mask * color * brdf;
 
                                         mask *= color;
+                                    } else {
+                                        let r2: f32 = rng.gen();
+                                        let d = jitter(
+                                            nl,
+                                            2. * f32::pi() * rng.gen::<f32>(),
+                                            sqrt(r2),
+                                            sqrt(1. - r2),
+                                        );
+
+                                        let mut e = vec3f(0., 0., 0.);
+
+                                        // Direct light sampling
+                                        if depth == 0 {
+                                            for (light_grid, light) in &level.lights {
+                                                let light_dist =
+                                                    length(Vec2f::from(*light_grid - *tile));
+
+                                                if light_dist < light.max_distance {
+                                                    let light_pos = vec3f(
+                                                        light_grid.x as f32 + 0.5,
+                                                        0.5,
+                                                        light_grid.y as f32 + 0.5,
+                                                    );
+                                                    let l0 = light_pos - x;
+
+                                                    let lr = light.max_distance;
+
+                                                    let cos_a_max = sqrt(
+                                                        1. - clamp(lr * lr / dot(l0, l0), 0., 1.),
+                                                    );
+                                                    let cosa = lerp(cos_a_max, 1., rng.gen());
+                                                    let l = jitter(
+                                                        l0,
+                                                        2. * f32::pi() * rng.gen::<f32>(),
+                                                        sqrt(1. - cosa * cosa),
+                                                        cosa,
+                                                    );
+
+                                                    if self.shadow_ray(
+                                                        Ray::new(x, l0),
+                                                        Vec3i::from(light_pos),
+                                                        light,
+                                                        region,
+                                                        &update,
+                                                        settings,
+                                                    ) {
+                                                        let omega =
+                                                            2.0 * f32::pi() * (1.0 - cos_a_max);
+
+                                                        e += (light.color
+                                                            * light.strength
+                                                            * 5.0
+                                                            * clamp(dot(l, n), 0., 1.)
+                                                            * omega)
+                                                            / f32::pi();
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        acc += mask * hit.emissive + mask * color * e;
+                                        mask *= color;
+                                        ray = Ray::new(x + n * 0.01, d);
                                     }
                                 } else {
                                     if depth == 0 {
@@ -1281,8 +1344,6 @@ impl Renderer {
         let normal = Vec3f::zero();
         let mut hit = false;
 
-        let mut pixel_light = vec3f(0.0, 0.0, 0.0);
-
         if let Some(c) = region.prerendered.albedo.at_vec3(pos) {
             color = c;
 
@@ -1320,7 +1381,6 @@ impl Renderer {
                         }
 
                         let l = light.brdf * flicker_value(settings.anim_counter as u32, 0.2);
-                        pixel_light += l;
                         color += l;
                     }
                 }

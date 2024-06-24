@@ -413,7 +413,7 @@ impl GeoFXNode {
                 }
                 LeftWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2);
-                    let len = coll.get_f32_default("Length", 1.0) / 2.0;
+                    let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let pos = self.position();
@@ -430,7 +430,7 @@ impl GeoFXNode {
                     return d;
                 }
                 TopWall => {
-                    let len = coll.get_f32_default("Length", 1.0) / 2.0;
+                    let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let pos = self.position();
@@ -449,7 +449,7 @@ impl GeoFXNode {
                 }
                 RightWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2);
-                    let len = coll.get_f32_default("Length", 1.0) / 2.0;
+                    let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let pos = self.position();
@@ -467,7 +467,7 @@ impl GeoFXNode {
                     return d;
                 }
                 BottomWall => {
-                    let len = coll.get_f32_default("Length", 1.0) / 2.0;
+                    let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let pos = self.position();
