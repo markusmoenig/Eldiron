@@ -13,6 +13,7 @@ pub enum MaterialFXNodeRole {
     UVSplitter,
     Subdivide,
     BoxSubdivision,
+    Distance,
 }
 
 use MaterialFXNodeRole::*;
@@ -59,10 +60,19 @@ impl MaterialFXNode {
             UVSplitter => {
                 coll.set("Map", TheValue::TextList(0, vec![str!("Cylinder")]));
             }
-            Noise2D | Noise3D => {
-                coll.set("UV Scale", TheValue::FloatRange(1.0, 0.0..=6.0));
+            Noise2D => {
+                coll.set("UV Scale X", TheValue::FloatRange(1.0, 0.0..=10.0));
+                coll.set("UV Scale Y", TheValue::FloatRange(1.0, 0.0..=10.0));
                 coll.set("Out Scale", TheValue::FloatRange(1.0, 0.0..=1.0));
-                coll.set("Disp Scale", TheValue::FloatRange(0.1, 0.0..=1.0));
+                coll.set("Octaves", TheValue::IntRange(5, 0..=5));
+                supports_preview = true;
+                preview_is_open = true;
+            }
+            Noise3D => {
+                coll.set("UV Scale X", TheValue::FloatRange(1.0, 0.0..=10.0));
+                coll.set("UV Scale Y", TheValue::FloatRange(1.0, 0.0..=10.0));
+                coll.set("UV Scale Z", TheValue::FloatRange(1.0, 0.0..=10.0));
+                coll.set("Out Scale", TheValue::FloatRange(1.0, 0.0..=1.0));
                 coll.set("Octaves", TheValue::IntRange(5, 0..=5));
                 supports_preview = true;
                 preview_is_open = true;
@@ -96,6 +106,15 @@ impl MaterialFXNode {
                 coll.set("Rotation", TheValue::FloatRange(0.15, 0.0..=2.0));
                 coll.set("Rounding", TheValue::FloatRange(0.15, 0.0..=1.0));
             }
+            Distance => {
+                coll.set(
+                    "Mode",
+                    TheValue::TextList(0, vec![str!("Blend"), str!("Copy")]),
+                );
+                coll.set("From", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("To", TheValue::FloatRange(0.2, 0.0..=1.0));
+                resolve_branches = true;
+            }
         }
 
         let timeline = TheTimeline::collection(coll);
@@ -123,6 +142,7 @@ impl MaterialFXNode {
             UVSplitter => str!("UV Splitter"),
             Subdivide => str!("Subdivide"),
             BoxSubdivision => str!("Box Subdivision"),
+            Distance => str!("Distance"),
         }
     }
 
@@ -137,6 +157,7 @@ impl MaterialFXNode {
             Self::new(MaterialFXNodeRole::UVSplitter),
             Self::new(MaterialFXNodeRole::Subdivide),
             Self::new(MaterialFXNodeRole::BoxSubdivision),
+            Self::new(MaterialFXNodeRole::Distance),
         ]
     }
 
@@ -156,12 +177,26 @@ impl MaterialFXNode {
                     },
                 ]
             }
-            MaterialMixer | Material | Noise3D | Noise2D | UVSplitter | Subdivide => {
+            Noise3D | Noise2D | UVSplitter | Subdivide | Distance => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
                     role: str!("Input"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
+            }
+            Material | MaterialMixer => {
+                vec![
+                    TheNodeTerminal {
+                        name: str!("in"),
+                        role: str!("Input"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("noise"),
+                        role: str!("Noise"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                ]
             }
             BoxSubdivision => {
                 vec![TheNodeTerminal {
@@ -218,7 +253,7 @@ impl MaterialFXNode {
                     },
                 ]
             }
-            Noise3D | Noise2D => {
+            Material | Noise3D | Noise2D | Distance => {
                 vec![TheNodeTerminal {
                     name: str!("out"),
                     role: str!("Output"),
@@ -275,36 +310,51 @@ impl MaterialFXNode {
 
                 if let Some(TheValue::PaletteIndex(index)) = collection.get("Color") {
                     if let Some(color) = &palette.colors[*index as usize] {
-                        hit.albedo.x = color.r; // * hit.value;
-                        hit.albedo.y = color.g; // * hit.value;
-                        hit.albedo.z = color.b; // * hit.value;
-                        hit.roughness = collection.get_f32_default("Roughness", 0.5); // * hit.value;
+                        hit.albedo.x = color.r;
+                        hit.albedo.y = color.g;
+                        hit.albedo.z = color.b;
+                        if let Some(noise) = hit.noise {
+                            let noise = (noise * 2.0 - 1.0) * hit.noise_scale;
+                            hit.albedo.x += noise;
+                            hit.albedo.y += noise;
+                            hit.albedo.z += noise;
+                        }
+                        hit.roughness = collection.get_f32_default("Roughness", 0.5);
                         hit.metallic = collection.get_f32_default("Metallic", 0.0);
-                        // * hit.value;
                     }
                 }
 
-                None
+                Some(0)
             }
             MaterialMixer => {
                 if resolved.len() == 1 {
                     *hit = resolved[0].clone();
                 } else if resolved.len() >= 2 {
-                    hit.albedo = lerp(resolved[0].albedo, resolved[1].albedo, hit.value);
-                    hit.roughness = lerp(resolved[0].roughness, resolved[1].roughness, hit.value);
-                    hit.metallic = lerp(resolved[0].metallic, resolved[1].metallic, hit.value);
+                    if let Some(noise) = hit.noise {
+                        let noise = noise * hit.noise_scale;
+                        hit.albedo = lerp(resolved[0].albedo, resolved[1].albedo, noise);
+                        hit.roughness = lerp(resolved[0].roughness, resolved[1].roughness, noise);
+                        hit.metallic = lerp(resolved[0].metallic, resolved[1].metallic, noise);
+                    } else {
+                        hit.albedo = lerp(resolved[0].albedo, resolved[1].albedo, hit.value);
+                        hit.roughness =
+                            lerp(resolved[0].roughness, resolved[1].roughness, hit.value);
+                        hit.metallic = lerp(resolved[0].metallic, resolved[1].metallic, hit.value);
+                    }
                 }
                 None
             }
             Noise2D => {
                 let collection = self.collection();
-                hit.value = noise2d(&collection, &hit.uv);
+                hit.noise_scale = collection.get_f32_default("Out Scale", 1.0);
+                hit.noise = Some(noise2d(&collection, &hit.uv));
                 hit.albedo = vec3f(hit.value, hit.value, hit.value);
                 Some(0)
             }
             Noise3D => {
                 let collection = self.collection();
-                hit.value = noise3d(&collection, &hit.hit_point);
+                hit.noise_scale = collection.get_f32_default("Out Scale", 1.0);
+                hit.noise = Some(noise3d(&collection, &hit.hit_point));
                 hit.albedo = vec3f(hit.value, hit.value, hit.value);
                 Some(0)
             }
@@ -354,6 +404,23 @@ impl MaterialFXNode {
             Subdivide => {
                 let collection = self.collection();
                 Some(subdivide(&collection, hit.uv, hit))
+            }
+            Distance => {
+                let collection = self.collection();
+                let from = collection.get_f32_default("From", 0.0);
+                let to = collection.get_f32_default("To", 0.2);
+
+                if hit.interior_distance > PATTERN2D_DISTANCE_BORDER {
+                    return None;
+                }
+
+                let value = smoothstep(from, to, -hit.interior_distance);
+
+                if resolved.len() == 1 {
+                    hit.albedo = lerp(resolved[0].albedo, hit.albedo, value);
+                }
+
+                Some(0)
             }
             _ => None,
         }

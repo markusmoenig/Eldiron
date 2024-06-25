@@ -33,7 +33,10 @@ pub mod tilemap;
 pub mod update;
 pub mod widget;
 
+pub const PATTERN2D_DISTANCE_BORDER: f32 = 0.01;
+
 pub mod prelude {
+    pub use crate::PATTERN2D_DISTANCE_BORDER;
     pub use ::serde::{Deserialize, Serialize};
 
     pub use crate::area::Area;
@@ -155,7 +158,9 @@ pub struct Hit {
     pub ior: f32,
     pub absorption: f32,
 
-    pub displacement: f32,
+    pub noise: Option<f32>,
+    pub noise_scale: f32,
+
     pub value: f32,
 
     pub two_d: bool,
@@ -203,7 +208,9 @@ impl Hit {
             ior: 1.5,
             absorption: 1.0,
 
-            displacement: 0.0,
+            noise: None,
+            noise_scale: 1.0,
+
             value: 1.0,
 
             two_d: false,

@@ -417,7 +417,12 @@ impl GeoFXNode {
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let pos = self.position();
-                    let d = self.box2d(vec2f(p.z, p.y), vec2f(pos.y, height / 2.0), len, height);
+                    let d = self.box2d(
+                        vec2f(p.z, p.y),
+                        vec2f(pos.y, height / 2.0),
+                        len,
+                        height / 2.0,
+                    );
 
                     if let Some(hit) = hit {
                         hit.pattern_pos = vec2f(p.z, p.y);
@@ -434,7 +439,12 @@ impl GeoFXNode {
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let pos = self.position();
-                    let d = self.box2d(vec2f(p.x, p.y), vec2f(pos.x, height / 2.0), len, height);
+                    let d = self.box2d(
+                        vec2f(p.x, p.y),
+                        vec2f(pos.x, height / 2.0),
+                        len,
+                        height / 2.0,
+                    );
 
                     if let Some(hit) = hit {
                         hit.pattern_pos = vec2f(p.x, p.y);
@@ -453,12 +463,17 @@ impl GeoFXNode {
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let pos = self.position();
-                    let d = self.box2d(vec2f(p.z, p.y), vec2f(pos.y, height / 2.0), len, height);
+                    let d = self.box2d(
+                        vec2f(p.z, p.y),
+                        vec2f(pos.y, height / 2.0),
+                        len,
+                        height / 2.0,
+                    );
 
                     if let Some(hit) = hit {
                         hit.pattern_pos = vec2f(p.z, p.y);
                         hit.extrusion = GeoFXNodeExtrusion::X;
-                        hit.extrusion_length = coll.get_f32_default("Thickness", 0.2);
+                        hit.extrusion_length = thick;
                         hit.interior_distance = d;
                         hit.hit_point =
                             p - vec3f(pos.x.floor() + 1.0 - thick.fract() / 2.0, 0.0, 0.0);
@@ -471,7 +486,12 @@ impl GeoFXNode {
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let pos = self.position();
-                    let d = self.box2d(vec2f(p.x, p.y), vec2f(pos.x, height / 2.0), len, height);
+                    let d = self.box2d(
+                        vec2f(p.x, p.y),
+                        vec2f(pos.x, height / 2.0),
+                        len,
+                        height / 2.0,
+                    );
 
                     if let Some(hit) = hit {
                         hit.pattern_pos = vec2f(p.x, p.y);

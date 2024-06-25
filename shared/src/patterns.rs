@@ -115,14 +115,16 @@ pub fn noise2d(coll: &TheCollection, p: &Vec2f) -> f32 {
         lerp(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y
     }
 
-    let scale = coll.get_f32_default("UV Scale", 1.0);
-    let out_scale = coll.get_f32_default("Out Scale", 1.0);
+    let scale = vec2f(
+        coll.get_f32_default("UV Scale X", 1.0),
+        coll.get_f32_default("UV Scale Y", 1.0),
+    );
     let octaves = coll.get_i32_default("Octaves", 5);
 
     let mut x = *p * 8.0 * scale;
 
     if octaves == 0 {
-        return noise(x) * out_scale;
+        return noise(x);
     }
 
     let mut v = 0.0;
@@ -135,7 +137,7 @@ pub fn noise2d(coll: &TheCollection, p: &Vec2f) -> f32 {
         x = rot * x * 2.0 + shift;
         a *= 0.5;
     }
-    v * out_scale
+    v
 }
 
 pub fn noise3d(coll: &TheCollection, p: &Vec3f) -> f32 {
@@ -186,14 +188,18 @@ pub fn noise3d(coll: &TheCollection, p: &Vec3f) -> f32 {
         )
     }
 
-    let scale = coll.get_f32_default("UV Scale", 1.0);
-    let out_scale = coll.get_f32_default("Out Scale", 1.0);
+    let scale = vec3f(
+        coll.get_f32_default("UV Scale X", 1.0),
+        coll.get_f32_default("UV Scale Y", 1.0),
+        coll.get_f32_default("UV Scale Z", 1.0),
+    );
+
     let octaves = coll.get_i32_default("Octaves", 5);
 
     let mut x = 1240.0 + *p * 8.0 * scale;
 
     if octaves == 0 {
-        return noise(x) * out_scale;
+        return noise(x);
     }
 
     let mut v = 0.0;
@@ -204,7 +210,7 @@ pub fn noise3d(coll: &TheCollection, p: &Vec3f) -> f32 {
         x = x * 2.0 + shift;
         a *= 0.5;
     }
-    v * out_scale
+    v
 }
 
 fn rot(a: f32) -> Mat2f {

@@ -113,6 +113,10 @@ impl ModelFXEditor {
                                 "Subdivide".to_string(),
                                 TheId::named("Subdivide"),
                             ),
+                            TheContextMenuItem::new(
+                                "Distance".to_string(),
+                                TheId::named("Distance"),
+                            ),
                         ],
                         ..Default::default()
                     },
@@ -309,7 +313,10 @@ impl ModelFXEditor {
                                 let prev = material.to_json();
                                 let material_id = material.id;
                                 let mut node = MaterialFXNode::new_from_name(item.name.clone());
-                                node.position = vec2i(220, 10);
+                                node.position = vec2i(
+                                    material.scroll_offset.x + 220,
+                                    material.scroll_offset.y + 10,
+                                );
                                 let index = material.nodes.len();
                                 if index > 0 && node.supports_preview {
                                     node.render_preview(&project.palette);
@@ -808,6 +815,15 @@ impl ModelFXEditor {
                             redraw = true;
                         }
                         self.render_material_changes(material_id, server_ctx, project);
+                    }
+                }
+            }
+            TheEvent::NodeViewScrolled(id, offset) => {
+                if id.name == "MaterialFX NodeCanvas" {
+                    if let Some(material_id) = server_ctx.curr_material_object {
+                        if let Some(material) = project.materials.get_mut(&material_id) {
+                            material.scroll_offset = *offset;
+                        }
                     }
                 }
             }

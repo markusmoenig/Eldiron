@@ -122,7 +122,7 @@ impl MaterialFXObject {
                         op_extrusion_y(hit.hit_point, mortar, hit.extrusion_length - 0.005);
                     d.0 = min(distance, mortar_distance);
 
-                    if hit.interior_distance <= 0.01 {
+                    if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
                         hit.value = 0.0;
                     } else {
                         hit.value = 1.0;
@@ -221,6 +221,9 @@ impl MaterialFXObject {
         hit: &mut Hit,
         palette: &ThePalette,
     ) {
+        hit.noise = None;
+        hit.noise_scale = 1.0;
+
         let mut connections = vec![];
         for (o, ot, i, it) in &self.connections {
             if *o == node as u16 && *ot == terminal_index as u8 {
@@ -242,12 +245,30 @@ impl MaterialFXObject {
                 }
             }
 
+            let mut follow_ups = vec![];
+
             for (o, _) in &to_resolve {
                 let mut h = hit.clone();
-                _ = self.nodes[*o as usize].compute(&mut h, palette, vec![]);
+
+                if let Some(noise_index) = self.find_connected_output_node(*o as usize, 1) {
+                    if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
+                        || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
+                    {
+                        _ = self.nodes[noise_index].compute(&mut h, palette, vec![]);
+                    }
+                }
+
+                if let Some(ot) = self.nodes[*o as usize].compute(&mut h, palette, vec![]) {
+                    follow_ups.push((*o, ot));
+                }
+
                 resolved.push(h);
             }
             _ = self.nodes[resolver as usize].compute(hit, palette, resolved);
+
+            for (node, terminal) in follow_ups {
+                self.follow_trail(node as usize, terminal as usize, hit, palette);
+            }
         } else {
             // The node decides its own trail
 
@@ -256,20 +277,19 @@ impl MaterialFXObject {
                 1 => {
                     let o = connections[0].0 as usize;
 
-                    /*
-                    let mut noise = 0.0;
                     if let Some(noise_index) = self.find_connected_output_node(o, 1) {
-                        if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
-                            noise = self.nodes[noise_index].noise(hit);
-                            hit.uv += 7.23;
-                            let noise2 = self.nodes[noise_index].noise(hit);
-                            let wobble = vec2f(noise, noise2);
-                            hit.uv -= 7.23;
-                            hit.uv += wobble * 0.5;
+                        if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
+                            || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
+                        {
+                            _ = self.nodes[noise_index].compute(hit, palette, vec![]);
+                            // hit.uv += 7.23;
+                            // let noise2 = self.nodes[noise_index].noise(hit);
+                            // let wobble = vec2f(noise, noise2);
+                            // hit.uv -= 7.23;
+                            // hit.uv += wobble * 0.5;
                         }
                     }
 
-                    */
                     if let Some(ot) = self.nodes[o].compute(hit, palette, vec![]) {
                         self.follow_trail(o, ot as usize, hit, palette);
                     }
@@ -278,13 +298,15 @@ impl MaterialFXObject {
                     let index = (hit.hash * connections.len() as f32).floor() as usize;
                     if let Some(random_connection) = connections.get(index) {
                         let o = random_connection.0 as usize;
-                        /*
-                        let mut noise = 0.0;
+
                         if let Some(noise_index) = self.find_connected_output_node(o, 1) {
-                            if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
-                                noise = self.nodes[noise_index].noise(hit);
+                            if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
+                                || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
+                            {
+                                _ = self.nodes[noise_index].compute(hit, palette, vec![]);
                             }
-                            }*/
+                        }
+
                         if let Some(ot) = self.nodes[o].compute(hit, palette, vec![]) {
                             self.follow_trail(o, ot as usize, hit, palette);
                         }
@@ -299,6 +321,7 @@ impl MaterialFXObject {
         let mut canvas = TheNodeCanvas {
             node_width: 136,
             selected_node: self.selected_node,
+            offset: self.scroll_offset,
             ..Default::default()
         };
 
@@ -338,7 +361,6 @@ impl MaterialFXObject {
         }
         canvas.connections.clone_from(&self.connections);
         canvas.zoom = self.zoom;
-        canvas.offset = self.scroll_offset;
         canvas.selected_node = self.selected_node;
 
         canvas
@@ -381,7 +403,7 @@ impl MaterialFXObject {
 
                     noise2d.compute(&mut hit, palette, vec![]);
                     self.get_distance(&time, hit.uv, &mut hit, &geo_object, 1.0);
-                    self.follow_trail(0, 0, &mut hit, palette);
+                    self.compute(&mut hit, palette);
 
                     color.x = hit.albedo.x;
                     color.y = hit.albedo.y;

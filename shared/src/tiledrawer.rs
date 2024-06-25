@@ -350,7 +350,7 @@ impl TileDrawer {
 
                                     material.get_distance(
                                         &TheTime::default(),
-                                        p / 5.0,
+                                        p / grid_size,
                                         &mut hit,
                                         geo_obj,
                                         grid_size,
