@@ -314,8 +314,8 @@ impl TileDrawer {
                     let p = vec2f(x as f32, y as f32);
                     let mut hit = Hit {
                         uv: vec2f(
-                            tile_x as f32 + xx as f32 / region.grid_size as f32,
-                            tile_y as f32 + yy as f32 / region.grid_size as f32,
+                            /*tile_x as f32 +*/ xx as f32 / region.grid_size as f32,
+                            /*tile_y as f32 +*/ 1.0 - (yy as f32 / region.grid_size as f32),
                         ),
                         two_d: true,
                         ..Default::default()
@@ -356,7 +356,7 @@ impl TileDrawer {
                                         grid_size,
                                     );
 
-                                    material.compute(&mut hit, palette);
+                                    material.compute(&mut hit, palette, &self.tiles);
 
                                     let col = TheColor::from_vec3f(hit.albedo).to_u8_array();
                                     if let Some(cd) = settings.conceptual_display {

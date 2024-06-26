@@ -503,84 +503,87 @@ impl ModelFXNode {
                 let height = collection.get_f32_default("Height", 0.01);
                 p.y - height - noise
             }
-            Self::WallHorizontal(collection) => {
-                let position = collection.get_f32_default("Position", 0.5);
-                let offset = collection.get_f32_default("Offset", 0.5);
-                let width = collection.get_f32_default("Width", 1.0);
-                let height = collection.get_f32_default("Height", 1.0);
-                let depth = collection.get_f32_default("Depth", 0.2);
-                let mut min = position - depth / 2.0;
-                let mut max = position + depth / 2.0;
-                if min < 0.0 {
-                    let adjustment = 0.0 - min;
-                    min += adjustment;
-                    max += adjustment;
-                }
-                if max > 1.0 {
-                    let adjustment = max - 1.0;
-                    min -= adjustment;
-                    max -= adjustment;
-                }
-                let mut min_o = offset - width / 2.0;
-                let mut max_o = offset + width / 2.0;
-                if min_o < 0.0 {
-                    let adjustment = 0.0 - min_o;
-                    min_o += adjustment;
-                    max_o += adjustment;
-                }
-                if max_o > 1.0 {
-                    let adjustment = max_o - 1.0;
-                    min_o -= adjustment;
-                    max_o -= adjustment;
-                }
-                sd_box(
-                    p - vec3f((min_o + max_o) / 2.0, height / 2.0, (min + max) / 2.0),
-                    vec3f((max_o - min_o) / 2.0, height / 2.0, (max - min) / 2.0),
-                ) - noise
+            Self::WallHorizontal(_collection) => {
+                // let position = collection.get_f32_default("Position", 0.5);
+                // let offset = collection.get_f32_default("Offset", 0.5);
+                // let width = collection.get_f32_default("Width", 1.0);
+                // let height = collection.get_f32_default("Height", 1.0);
+                // let depth = collection.get_f32_default("Depth", 0.2);
+                // let mut min = position - depth / 2.0;
+                // let mut max = position + depth / 2.0;
+                // if min < 0.0 {
+                //     let adjustment = 0.0 - min;
+                //     min += adjustment;
+                //     max += adjustment;
+                // }
+                // if max > 1.0 {
+                //     let adjustment = max - 1.0;
+                //     min -= adjustment;
+                //     max -= adjustment;
+                // }
+                // let mut min_o = offset - width / 2.0;
+                // let mut max_o = offset + width / 2.0;
+                // if min_o < 0.0 {
+                //     let adjustment = 0.0 - min_o;
+                //     min_o += adjustment;
+                //     max_o += adjustment;
+                // }
+                // if max_o > 1.0 {
+                //     let adjustment = max_o - 1.0;
+                //     min_o -= adjustment;
+                //     max_o -= adjustment;
+                // }
+                // sd_box(
+                //     p - vec3f((min_o + max_o) / 2.0, height / 2.0, (min + max) / 2.0),
+                //     vec3f((max_o - min_o) / 2.0, height / 2.0, (max - min) / 2.0),
+                // ) - noise
+                0.0
             }
-            Self::WallVertical(collection) => {
-                let position = collection.get_f32_default("Position", 0.5);
-                let offset = collection.get_f32_default("Offset", 0.5);
-                let width = collection.get_f32_default("Width", 1.0);
-                let height = collection.get_f32_default("Height", 1.0);
-                let depth = collection.get_f32_default("Depth", 0.2);
-                let mut min = position - depth / 2.0;
-                let mut max = position + depth / 2.0;
-                if min < 0.0 {
-                    let adjustment = 0.0 - min;
-                    min += adjustment;
-                    max += adjustment;
-                }
-                if max > 1.0 {
-                    let adjustment = max - 1.0;
-                    min -= adjustment;
-                    max -= adjustment;
-                }
-                let mut min_o = offset - width / 2.0;
-                let mut max_o = offset + width / 2.0;
-                if min_o < 0.0 {
-                    let adjustment = 0.0 - min_o;
-                    min_o += adjustment;
-                    max_o += adjustment;
-                }
-                if max_o > 1.0 {
-                    let adjustment = max_o - 1.0;
-                    min_o -= adjustment;
-                    max_o -= adjustment;
-                }
-                sd_box(
-                    p - vec3f((min + max) / 2.0, height / 2.0, (min_o + max_o) / 2.0),
-                    vec3f((max - min) / 2.0, height / 2.0, (max_o - min_o) / 2.0),
-                ) - noise
+            Self::WallVertical(_collection) => {
+                // let position = collection.get_f32_default("Position", 0.5);
+                // let offset = collection.get_f32_default("Offset", 0.5);
+                // let width = collection.get_f32_default("Width", 1.0);
+                // let height = collection.get_f32_default("Height", 1.0);
+                // let depth = collection.get_f32_default("Depth", 0.2);
+                // let mut min = position - depth / 2.0;
+                // let mut max = position + depth / 2.0;
+                // if min < 0.0 {
+                //     let adjustment = 0.0 - min;
+                //     min += adjustment;
+                //     max += adjustment;
+                // }
+                // if max > 1.0 {
+                //     let adjustment = max - 1.0;
+                //     min -= adjustment;
+                //     max -= adjustment;
+                // }
+                // let mut min_o = offset - width / 2.0;
+                // let mut max_o = offset + width / 2.0;
+                // if min_o < 0.0 {
+                //     let adjustment = 0.0 - min_o;
+                //     min_o += adjustment;
+                //     max_o += adjustment;
+                // }
+                // if max_o > 1.0 {
+                //     let adjustment = max_o - 1.0;
+                //     min_o -= adjustment;
+                //     max_o -= adjustment;
+                // }
+                // sd_box(
+                //     p - vec3f((min + max) / 2.0, height / 2.0, (min_o + max_o) / 2.0),
+                //     vec3f((max - min) / 2.0, height / 2.0, (max_o - min_o) / 2.0),
+                // ) - noise
+                0.0
             }
-            Self::Capsule(collection) => {
-                let x = collection.get_f32_default("X", 0.5);
-                let y = collection.get_f32_default("Y", 0.5);
-                let z = collection.get_f32_default("Z", 0.5);
-                let height = collection.get_f32_default("Height", 0.5);
-                let radius = collection.get_f32_default("Radius", 0.1) / 2.0;
+            Self::Capsule(_collection) => {
+                // let x = collection.get_f32_default("X", 0.5);
+                // let y = collection.get_f32_default("Y", 0.5);
+                // let z = collection.get_f32_default("Z", 0.5);
+                // let height = collection.get_f32_default("Height", 0.5);
+                // let radius = collection.get_f32_default("Radius", 0.1) / 2.0;
 
-                sd_vertical_capsule(p - vec3f(x, y, z), height, radius) - noise
+                //sd_vertical_capsule(p - vec3f(x, y, z), height, radius) - noise
+                0.0
             }
             _ => f32::MAX,
         }

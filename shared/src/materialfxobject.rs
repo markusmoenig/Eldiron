@@ -49,8 +49,13 @@ impl MaterialFXObject {
     }
 
     /// Computes the material
-    pub fn compute(&self, hit: &mut Hit, palette: &ThePalette) {
-        self.follow_trail(0, 0, hit, palette);
+    pub fn compute(
+        &self,
+        hit: &mut Hit,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
+    ) {
+        self.follow_trail(0, 0, hit, palette, textures);
     }
 
     pub fn get_distance(
@@ -220,6 +225,7 @@ impl MaterialFXObject {
         terminal_index: usize,
         hit: &mut Hit,
         palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
     ) {
         hit.noise = None;
         hit.noise_scale = 1.0;
@@ -254,20 +260,21 @@ impl MaterialFXObject {
                     if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
                         || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
                     {
-                        _ = self.nodes[noise_index].compute(&mut h, palette, vec![]);
+                        _ = self.nodes[noise_index].compute(&mut h, palette, textures, vec![]);
                     }
                 }
 
-                if let Some(ot) = self.nodes[*o as usize].compute(&mut h, palette, vec![]) {
+                if let Some(ot) = self.nodes[*o as usize].compute(&mut h, palette, textures, vec![])
+                {
                     follow_ups.push((*o, ot));
                 }
 
                 resolved.push(h);
             }
-            _ = self.nodes[resolver as usize].compute(hit, palette, resolved);
+            _ = self.nodes[resolver as usize].compute(hit, palette, textures, resolved);
 
             for (node, terminal) in follow_ups {
-                self.follow_trail(node as usize, terminal as usize, hit, palette);
+                self.follow_trail(node as usize, terminal as usize, hit, palette, textures);
             }
         } else {
             // The node decides its own trail
@@ -281,7 +288,7 @@ impl MaterialFXObject {
                         if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
                             || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
                         {
-                            _ = self.nodes[noise_index].compute(hit, palette, vec![]);
+                            _ = self.nodes[noise_index].compute(hit, palette, textures, vec![]);
                             // hit.uv += 7.23;
                             // let noise2 = self.nodes[noise_index].noise(hit);
                             // let wobble = vec2f(noise, noise2);
@@ -290,8 +297,8 @@ impl MaterialFXObject {
                         }
                     }
 
-                    if let Some(ot) = self.nodes[o].compute(hit, palette, vec![]) {
-                        self.follow_trail(o, ot as usize, hit, palette);
+                    if let Some(ot) = self.nodes[o].compute(hit, palette, textures, vec![]) {
+                        self.follow_trail(o, ot as usize, hit, palette, textures);
                     }
                 }
                 _ => {
@@ -303,12 +310,12 @@ impl MaterialFXObject {
                             if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
                                 || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
                             {
-                                _ = self.nodes[noise_index].compute(hit, palette, vec![]);
+                                _ = self.nodes[noise_index].compute(hit, palette, textures, vec![]);
                             }
                         }
 
-                        if let Some(ot) = self.nodes[o].compute(hit, palette, vec![]) {
-                            self.follow_trail(o, ot as usize, hit, palette);
+                        if let Some(ot) = self.nodes[o].compute(hit, palette, textures, vec![]) {
+                            self.follow_trail(o, ot as usize, hit, palette, textures);
                         }
                     }
                 }
@@ -366,7 +373,11 @@ impl MaterialFXObject {
         canvas
     }
 
-    pub fn render_preview(&mut self, palette: &ThePalette) {
+    pub fn render_preview(
+        &mut self,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
+    ) {
         let width = 111;
         let height = 104;
 
@@ -401,9 +412,9 @@ impl MaterialFXObject {
                         ..Default::default()
                     };
 
-                    noise2d.compute(&mut hit, palette, vec![]);
+                    noise2d.compute(&mut hit, palette, textures, vec![]);
                     self.get_distance(&time, hit.uv, &mut hit, &geo_object, 1.0);
-                    self.compute(&mut hit, palette);
+                    self.compute(&mut hit, palette, textures);
 
                     color.x = hit.albedo.x;
                     color.y = hit.albedo.y;

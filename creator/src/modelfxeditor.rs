@@ -89,10 +89,13 @@ impl ModelFXEditor {
                     "Geometry".to_string(),
                     TheId::named("Extrusion Patterns"),
                     TheContextMenu {
-                        items: vec![TheContextMenuItem::new(
-                            "Box Subdivision".to_string(),
-                            TheId::named("Box Subdivision"),
-                        )],
+                        items: vec![
+                            TheContextMenuItem::new(
+                                "Box Subdivision".to_string(),
+                                TheId::named("Box Subdivision"),
+                            ),
+                            TheContextMenuItem::new("Tiles".to_string(), TheId::named("Tiles")),
+                        ],
                         ..Default::default()
                     },
                 ),
@@ -105,14 +108,14 @@ impl ModelFXEditor {
                                 "Bricks & Tiles".to_string(),
                                 TheId::named("Bricks"),
                             ),
-                            TheContextMenuItem::new(
-                                "Steepness".to_string(),
-                                TheId::named("Steepness"),
-                            ),
-                            TheContextMenuItem::new(
-                                "Subdivide".to_string(),
-                                TheId::named("Subdivide"),
-                            ),
+                            // TheContextMenuItem::new(
+                            //     "Steepness".to_string(),
+                            //     TheId::named("Steepness"),
+                            // ),
+                            // TheContextMenuItem::new(
+                            //     "Subdivide".to_string(),
+                            //     TheId::named("Subdivide"),
+                            // ),
                             TheContextMenuItem::new(
                                 "Distance".to_string(),
                                 TheId::named("Distance"),
@@ -258,7 +261,7 @@ impl ModelFXEditor {
                     let node = MaterialFXNode::new(MaterialFXNodeRole::Geometry);
                     material.nodes.push(node);
                     material.selected_node = Some(material.nodes.len() - 1);
-                    material.render_preview(&project.palette);
+                    material.render_preview(&project.palette, &TILEDRAWER.lock().unwrap().tiles);
                     ui.set_node_preview("MaterialFX NodeCanvas", 0, material.get_preview());
 
                     PRERENDERTHREAD
@@ -431,7 +434,10 @@ impl ModelFXEditor {
                                             TheValue::PaletteIndex(project.palette.current_index),
                                         );
 
-                                        material.render_preview(&project.palette);
+                                        material.render_preview(
+                                            &project.palette,
+                                            &TILEDRAWER.lock().unwrap().tiles,
+                                        );
                                         ui.set_node_preview(
                                             "MaterialFX NodeCanvas",
                                             0,
@@ -604,7 +610,23 @@ impl ModelFXEditor {
                                             }
                                         }
 
+                                        if material.nodes[selected_index].role
+                                            == MaterialFXNodeRole::Material
+                                        {
+                                            if let TheValue::Text(tags) = &value {
+                                                if let Some(TheValue::Tile(_, id)) = TILEDRAWER
+                                                    .lock()
+                                                    .unwrap()
+                                                    .get_tile_by_tags(0, &tags.to_lowercase())
+                                                {
+                                                    material.nodes[selected_index].texture_id =
+                                                        Some(id);
+                                                }
+                                            }
+                                        }
+
                                         material.nodes[selected_index].set(name, value);
+
                                         if material.nodes[selected_index].supports_preview {
                                             material.nodes[selected_index]
                                                 .render_preview(&project.palette);
@@ -614,7 +636,10 @@ impl ModelFXEditor {
                                                 material.nodes[selected_index].preview.clone(),
                                             );
                                         }
-                                        material.render_preview(&project.palette);
+                                        material.render_preview(
+                                            &project.palette,
+                                            &TILEDRAWER.lock().unwrap().tiles,
+                                        );
                                         ui.set_node_preview(
                                             "MaterialFX NodeCanvas",
                                             0,
@@ -785,7 +810,10 @@ impl ModelFXEditor {
                         if let Some(material) = project.materials.get_mut(&material_id) {
                             let prev = material.to_json();
                             material.connections.clone_from(connections);
-                            material.render_preview(&project.palette);
+                            material.render_preview(
+                                &project.palette,
+                                &TILEDRAWER.lock().unwrap().tiles,
+                            );
                             ui.set_node_preview("MaterialFX NodeCanvas", 0, material.get_preview());
                             let undo =
                                 MaterialFXUndoAtom::Edit(material.id, prev, material.to_json());
@@ -806,7 +834,10 @@ impl ModelFXEditor {
                             //material.node_previews.remove(*deleted_node_index);
                             material.connections.clone_from(connections);
                             material.selected_node = None;
-                            material.render_preview(&project.palette);
+                            material.render_preview(
+                                &project.palette,
+                                &TILEDRAWER.lock().unwrap().tiles,
+                            );
                             ui.set_node_preview("MaterialFX NodeCanvas", 0, material.get_preview());
                             let undo =
                                 MaterialFXUndoAtom::Edit(material.id, prev, material.to_json());
@@ -981,7 +1012,13 @@ impl ModelFXEditor {
                     if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
                         text_layout.clear();
                         for (name, value) in &collection.keys {
-                            if let TheValue::FloatRange(value, range) = value {
+                            if let TheValue::Text(text) = value {
+                                let mut edit = TheTextLineEdit::new(TheId::named(
+                                    (":MODELFX: ".to_owned() + name).as_str(),
+                                ));
+                                edit.set_value(TheValue::Text(text.clone()));
+                                text_layout.add_pair(name.clone(), Box::new(edit));
+                            } else if let TheValue::FloatRange(value, range) = value {
                                 let mut slider = TheTextLineEdit::new(TheId::named(
                                     (":MODELFX: ".to_owned() + name).as_str(),
                                 ));

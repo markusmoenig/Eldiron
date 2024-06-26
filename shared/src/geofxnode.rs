@@ -175,7 +175,7 @@ impl GeoFXNode {
 
                     let hole = coll.get_f32_default("Hole", 0.0) * scale;
 
-                    let mut d = self.box2d(p, pos, 1.0 * scale, 1.0 * scale);
+                    let mut d = sdf_box2d(p, pos, 1.0 * scale, 1.0 * scale);
 
                     if hole > 0.0 {
                         d = d.abs() - hole;
@@ -213,7 +213,7 @@ impl GeoFXNode {
                     let mut pos = self.position() * scale;
                     pos.x = pos.x.floor() + thick.fract() / 2.0;
 
-                    return self.box2d(p, pos, thick, len);
+                    return sdf_box2d(p, pos, thick, len);
                 }
                 TopWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
@@ -222,7 +222,7 @@ impl GeoFXNode {
                     let mut pos = self.position() * scale;
                     pos.y = pos.y.floor() + thick.fract() / 2.0;
 
-                    return self.box2d(p, pos, len, thick);
+                    return sdf_box2d(p, pos, len, thick);
                 }
                 RightWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
@@ -231,7 +231,7 @@ impl GeoFXNode {
                     let mut pos = self.position() * scale;
                     pos.x = pos.x.floor() + 1.0 - thick.fract() / 2.0;
 
-                    return self.box2d(p, pos, thick, len);
+                    return sdf_box2d(p, pos, thick, len);
                 }
                 BottomWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
@@ -240,7 +240,7 @@ impl GeoFXNode {
                     let mut pos = self.position() * scale;
                     pos.y = pos.y.floor() + 1.0 - thick.fract() / 2.0;
 
-                    return self.box2d(p, pos, len, thick);
+                    return sdf_box2d(p, pos, len, thick);
                 }
                 BendWallNW => {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
@@ -257,7 +257,7 @@ impl GeoFXNode {
                         1.5 * scale
                     };
 
-                    let d = self.rounded_box2d(p, size, thick, rounding);
+                    let d = sdf_rounded_box2d(p, size, thick, rounding);
 
                     return d.abs() - thick;
                 }
@@ -282,7 +282,7 @@ impl GeoFXNode {
                         1.5 * scale
                     };
 
-                    let d = self.rounded_box2d(p, size, thick, rounding);
+                    let d = sdf_rounded_box2d(p, size, thick, rounding);
 
                     return d.abs() - thick;
                 }
@@ -306,7 +306,7 @@ impl GeoFXNode {
                         1.5 * scale
                     };
 
-                    let d = self.rounded_box2d(p, size, thick, rounding);
+                    let d = sdf_rounded_box2d(p, size, thick, rounding);
 
                     return d.abs() - thick;
                 }
@@ -331,7 +331,7 @@ impl GeoFXNode {
                         1.5 * scale
                     };
 
-                    let d = self.rounded_box2d(p, size, thick, rounding);
+                    let d = sdf_rounded_box2d(p, size, thick, rounding);
 
                     return d.abs() - thick;
                 }
@@ -374,7 +374,7 @@ impl GeoFXNode {
                     let hole = coll.get_f32_default("Hole", 0.0);
 
                     let pos = self.position();
-                    let mut d = self.box2d(vec2f(p.x, p.z), pos, 1.0, 1.0);
+                    let mut d = sdf_box2d(vec2f(p.x, p.z), pos, 1.0, 1.0);
 
                     if hole > 0.0 {
                         d = d.abs() - hole;
@@ -417,7 +417,7 @@ impl GeoFXNode {
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let pos = self.position();
-                    let d = self.box2d(
+                    let d = sdf_box2d(
                         vec2f(p.z, p.y),
                         vec2f(pos.y, height / 2.0),
                         len,
@@ -439,7 +439,7 @@ impl GeoFXNode {
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let pos = self.position();
-                    let d = self.box2d(
+                    let d = sdf_box2d(
                         vec2f(p.x, p.y),
                         vec2f(pos.x, height / 2.0),
                         len,
@@ -463,7 +463,7 @@ impl GeoFXNode {
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let pos = self.position();
-                    let d = self.box2d(
+                    let d = sdf_box2d(
                         vec2f(p.z, p.y),
                         vec2f(pos.y, height / 2.0),
                         len,
@@ -486,7 +486,7 @@ impl GeoFXNode {
                     let height = coll.get_f32_default("Height", 1.0);
 
                     let pos = self.position();
-                    let d = self.box2d(
+                    let d = sdf_box2d(
                         vec2f(p.x, p.y),
                         vec2f(pos.x, height / 2.0),
                         len,
@@ -518,7 +518,7 @@ impl GeoFXNode {
                     let pp = vec2f(p.x, p.z) - pos;
 
                     let size = 1.0;
-                    let mut d = self.rounded_box2d(pp, size, thick, rounding);
+                    let mut d = sdf_rounded_box2d(pp, size, thick, rounding);
 
                     d = d.abs() - thick;
 
@@ -541,7 +541,7 @@ impl GeoFXNode {
                     let pp = vec2f(p.x, p.z) - pos;
 
                     let size = 1.0;
-                    let mut d = self.rounded_box2d(pp, size, thick, rounding);
+                    let mut d = sdf_rounded_box2d(pp, size, thick, rounding);
 
                     d = d.abs() - thick;
 
@@ -564,7 +564,7 @@ impl GeoFXNode {
                     let pp = vec2f(p.x, p.z) - pos;
 
                     let size = 1.0;
-                    let mut d = self.rounded_box2d(pp, size, thick, rounding);
+                    let mut d = sdf_rounded_box2d(pp, size, thick, rounding);
 
                     d = d.abs() - thick;
 
@@ -587,7 +587,7 @@ impl GeoFXNode {
                     let pp = vec2f(p.x, p.z) - pos;
 
                     let size = 1.0;
-                    let mut d = self.rounded_box2d(pp, size, thick, rounding);
+                    let mut d = sdf_rounded_box2d(pp, size, thick, rounding);
 
                     d = d.abs() - thick;
 
@@ -720,40 +720,6 @@ impl GeoFXNode {
 
     pub fn set(&mut self, key: &str, value: TheValue) {
         self.timeline.set(&TheTime::default(), key, "Geo", value);
-    }
-
-    #[inline(always)]
-    fn box2d(&self, p: Vec2f, pos: Vec2f, dim1: f32, dim2: f32) -> f32 {
-        let d = abs(p - pos) - vec2f(dim1, dim2);
-        length(max(d, Vec2f::zero())) + min(max(d.x, d.y), 0.0)
-    }
-
-    #[inline(always)]
-    fn rounded_box2d(
-        &self,
-        p: Vec2f,
-        size: f32,
-        thick: f32,
-        rounding: (f32, f32, f32, f32),
-    ) -> f32 {
-        let mut r: (f32, f32);
-
-        if p.x > 0.0 {
-            r = (rounding.0, rounding.1);
-        } else {
-            r = (rounding.2, rounding.3);
-        }
-
-        if p.y <= 0.0 {
-            r.0 = r.1;
-        }
-        let hb = thick / 2.0;
-        let q: (f32, f32) = (
-            p.x.abs() - size + hb + rounding.0,
-            p.y.abs() - size + hb + rounding.0,
-        );
-        f32::min(f32::max(q.0, q.1), 0.0) + length(vec2f(f32::max(q.0, 0.0), f32::max(q.1, 0.0)))
-            - rounding.0
     }
 
     pub fn preview(&self, buffer: &mut TheRGBABuffer) {

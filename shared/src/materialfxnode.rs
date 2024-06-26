@@ -13,6 +13,7 @@ pub enum MaterialFXNodeRole {
     UVSplitter,
     Subdivide,
     BoxSubdivision,
+    Tiles,
     Distance,
 }
 
@@ -32,6 +33,8 @@ pub struct MaterialFXNode {
     pub preview: TheRGBABuffer,
 
     pub resolve_branches: bool,
+
+    pub texture_id: Option<Uuid>,
 }
 
 impl MaterialFXNode {
@@ -54,8 +57,9 @@ impl MaterialFXNode {
                 coll.set("Reflectance", TheValue::FloatRange(0.5, 0.0..=1.0));
                 coll.set("Roughness", TheValue::FloatRange(0.5, 0.0..=1.0));
                 coll.set("Metallic", TheValue::FloatRange(0.0, 0.0..=1.0));
-                coll.set("Emission", TheValue::FloatRange(0.0, 0.0..=1.0));
+                //coll.set("Emission", TheValue::FloatRange(0.0, 0.0..=1.0));
                 coll.set("IOR", TheValue::FloatRange(0.0, 0.0..=2.0));
+                coll.set("Texture", TheValue::Text(str!("")));
             }
             UVSplitter => {
                 coll.set("Map", TheValue::TextList(0, vec![str!("Cylinder")]));
@@ -96,24 +100,26 @@ impl MaterialFXNode {
                 );
                 coll.set("Offset", TheValue::FloatRange(0.5, 0.0..=1.0));
             }
+            Distance => {
+                coll.set("From", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("To", TheValue::FloatRange(0.2, 0.0..=1.0));
+                resolve_branches = true;
+            }
             BoxSubdivision => {
-                coll.set(
-                    "Pattern",
-                    TheValue::TextList(0, vec![str!("Horizontal"), str!("Vertical")]),
-                );
                 coll.set("Scale", TheValue::FloatRange(1.0, 0.0..=2.0));
                 coll.set("Gap", TheValue::FloatRange(1.0, 0.0..=2.0));
                 coll.set("Rotation", TheValue::FloatRange(0.15, 0.0..=2.0));
                 coll.set("Rounding", TheValue::FloatRange(0.15, 0.0..=1.0));
             }
-            Distance => {
+            Tiles => {
                 coll.set(
                     "Mode",
-                    TheValue::TextList(0, vec![str!("Blend"), str!("Copy")]),
+                    TheValue::TextList(0, vec![str!("Tiles"), str!("Bricks")]),
                 );
-                coll.set("From", TheValue::FloatRange(0.0, 0.0..=1.0));
-                coll.set("To", TheValue::FloatRange(0.2, 0.0..=1.0));
-                resolve_branches = true;
+                coll.set("Scale", TheValue::FloatRange(1.0, 0.0..=2.0));
+                coll.set("Gap", TheValue::FloatRange(1.0, 0.0..=2.0));
+                coll.set("Rotation", TheValue::FloatRange(0.15, 0.0..=2.0));
+                coll.set("Rounding", TheValue::FloatRange(0.15, 0.0..=1.0));
             }
         }
 
@@ -128,6 +134,7 @@ impl MaterialFXNode {
             preview_is_open,
             preview: TheRGBABuffer::empty(),
             resolve_branches,
+            texture_id: None,
         }
     }
 
@@ -141,8 +148,9 @@ impl MaterialFXNode {
             Brick => str!("Bricks"),
             UVSplitter => str!("UV Splitter"),
             Subdivide => str!("Subdivide"),
-            BoxSubdivision => str!("Box Subdivision"),
             Distance => str!("Distance"),
+            BoxSubdivision => str!("Box Subdivision"),
+            Tiles => str!("Tiles"),
         }
     }
 
@@ -156,8 +164,9 @@ impl MaterialFXNode {
             Self::new(MaterialFXNodeRole::Brick),
             Self::new(MaterialFXNodeRole::UVSplitter),
             Self::new(MaterialFXNodeRole::Subdivide),
-            Self::new(MaterialFXNodeRole::BoxSubdivision),
             Self::new(MaterialFXNodeRole::Distance),
+            Self::new(MaterialFXNodeRole::BoxSubdivision),
+            Self::new(MaterialFXNodeRole::Tiles),
         ]
     }
 
@@ -199,6 +208,13 @@ impl MaterialFXNode {
                 ]
             }
             BoxSubdivision => {
+                vec![TheNodeTerminal {
+                    name: str!("geo"),
+                    role: str!("Geometry"),
+                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                }]
+            }
+            Tiles => {
                 vec![TheNodeTerminal {
                     name: str!("geo"),
                     role: str!("Geometry"),
@@ -303,24 +319,47 @@ impl MaterialFXNode {
     }
 
     /// Computes the node.
-    pub fn compute(&self, hit: &mut Hit, palette: &ThePalette, resolved: Vec<Hit>) -> Option<u8> {
+    pub fn compute(
+        &self,
+        hit: &mut Hit,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
+        resolved: Vec<Hit>,
+    ) -> Option<u8> {
         match self.role {
             Material => {
                 let collection = self.collection();
 
-                if let Some(TheValue::PaletteIndex(index)) = collection.get("Color") {
-                    if let Some(color) = &palette.colors[*index as usize] {
-                        hit.albedo.x = color.r;
-                        hit.albedo.y = color.g;
-                        hit.albedo.z = color.b;
-                        if let Some(noise) = hit.noise {
-                            let noise = (noise * 2.0 - 1.0) * hit.noise_scale;
-                            hit.albedo.x += noise;
-                            hit.albedo.y += noise;
-                            hit.albedo.z += noise;
+                let mut used_texture = false;
+
+                if let Some(texture_id) = &self.texture_id {
+                    if let Some(texture) = textures.get(texture_id) {
+                        if let Some(color) =
+                            texture.buffer[0].at_f_vec4f(vec2f(hit.uv.x, 1.0 - hit.uv.y))
+                        {
+                            hit.albedo.x = color.x;
+                            hit.albedo.y = color.y;
+                            hit.albedo.z = color.z;
+                            used_texture = true;
                         }
-                        hit.roughness = collection.get_f32_default("Roughness", 0.5);
-                        hit.metallic = collection.get_f32_default("Metallic", 0.0);
+                    }
+                }
+
+                if !used_texture {
+                    if let Some(TheValue::PaletteIndex(index)) = collection.get("Color") {
+                        if let Some(color) = &palette.colors[*index as usize] {
+                            hit.albedo.x = color.r;
+                            hit.albedo.y = color.g;
+                            hit.albedo.z = color.b;
+                            if let Some(noise) = hit.noise {
+                                let noise = (noise * 2.0 - 1.0) * hit.noise_scale;
+                                hit.albedo.x += noise;
+                                hit.albedo.y += noise;
+                                hit.albedo.z += noise;
+                            }
+                            hit.roughness = collection.get_f32_default("Roughness", 0.5);
+                            hit.metallic = collection.get_f32_default("Metallic", 0.0);
+                        }
                     }
                 }
 
@@ -441,6 +480,22 @@ impl MaterialFXNode {
                 hit.interior_distance_mortar = Some(hit.interior_distance);
                 hit.interior_distance = rc.0;
                 hit.hash = rc.1;
+            }
+            Tiles => {
+                let collection = self.collection();
+                let scale = collection.get_f32_default("Scale", 1.0);
+                let gap = collection.get_f32_default("Gap", 1.0);
+                let rotation = collection.get_f32_default("Rotation", 0.15);
+                let rounding = collection.get_f32_default("Rounding", 0.15);
+
+                let p = hit.pattern_pos; // / (5.0 * scale);
+                                         //let rc = box_divide(p, gap, rotation, rounding);
+
+                let d = sdf_box2d(p, vec2f(0.5, 0.5), 0.4, 0.4);
+
+                hit.interior_distance_mortar = Some(hit.interior_distance);
+                hit.interior_distance = d;
+                //hit.hash = rc.1;
             }
             _ => {}
         }

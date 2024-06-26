@@ -1,4 +1,4 @@
-use crate::editor::MODELFXEDITOR;
+use crate::editor::{MODELFXEDITOR, TILEDRAWER};
 use crate::prelude::*;
 use theframework::prelude::*;
 
@@ -31,7 +31,7 @@ impl MaterialFXUndoAtom {
             MaterialFXUndoAtom::AddNode(id, prev, _) | MaterialFXUndoAtom::Edit(id, prev, _) => {
                 if let Some(material) = project.materials.get_mut(id) {
                     *material = MaterialFXObject::from_json(prev);
-                    material.render_preview(&project.palette);
+                    material.render_preview(&project.palette, &TILEDRAWER.lock().unwrap().tiles);
 
                     let node_canvas = material.to_canvas(&project.palette);
                     ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
@@ -59,7 +59,7 @@ impl MaterialFXUndoAtom {
             MaterialFXUndoAtom::AddNode(id, _, next) | MaterialFXUndoAtom::Edit(id, _, next) => {
                 if let Some(material) = project.materials.get_mut(id) {
                     *material = MaterialFXObject::from_json(next);
-                    material.render_preview(&project.palette);
+                    material.render_preview(&project.palette, &TILEDRAWER.lock().unwrap().tiles);
 
                     let node_canvas = material.to_canvas(&project.palette);
                     ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
