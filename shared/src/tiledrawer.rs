@@ -315,7 +315,7 @@ impl TileDrawer {
                     let mut hit = Hit {
                         uv: vec2f(
                             /*tile_x as f32 +*/ xx as f32 / region.grid_size as f32,
-                            /*tile_y as f32 +*/ 1.0 - (yy as f32 / region.grid_size as f32),
+                            /*tile_y as f32 +*/ yy as f32 / region.grid_size as f32,
                         ),
                         two_d: true,
                         ..Default::default()

@@ -408,7 +408,7 @@ impl MaterialFXObject {
 
                     let mut hit = Hit {
                         normal: vec3f(0., 1., 0.),
-                        uv: vec2f(xx / width as f32, yy / height as f32),
+                        uv: vec2f(xx / width as f32, 1.0 - yy / height as f32),
                         ..Default::default()
                     };
 

@@ -774,41 +774,38 @@ impl Renderer {
                                 );
                             }
 
-                            if d.0.abs() < 0.001 {
-                                if dist + t < hit.distance {
-                                    hit = h.clone();
-                                    hit.hit_point = p;
+                            if d.0.abs() < 0.001 && dist + t < hit.distance {
+                                hit = h.clone();
+                                hit.hit_point = p;
 
-                                    if let Some(material) = material {
-                                        hit.normal =
-                                            material.normal(&settings.time, p, &mut h, geo_obj);
-                                    } else {
-                                        hit.normal = MaterialFXObject::default().normal(
-                                            &settings.time,
-                                            p,
-                                            &mut h,
-                                            geo_obj,
-                                        );
-                                    }
-
-                                    hit.distance = dist + t;
-                                    hit.albedo = vec3f(0.5, 0.5, 0.5);
-
-                                    if h.extrusion == GeoFXNodeExtrusion::None {
-                                        hit.value = 1.0;
-                                        geo_obj.nodes[d.1].distance_3d(
-                                            &settings.time,
-                                            p,
-                                            &mut Some(&mut hit),
-                                        );
-                                    }
-
-                                    if let Some(material) = material {
-                                        hit.uv = self.get_uv_face(hit.normal, hit.hit_point).0;
-                                        material.compute(&mut hit, palette, &self.textures);
-                                    }
+                                if let Some(material) = material {
+                                    hit.normal =
+                                        material.normal(&settings.time, p, &mut h, geo_obj);
+                                } else {
+                                    hit.normal = MaterialFXObject::default().normal(
+                                        &settings.time,
+                                        p,
+                                        &mut h,
+                                        geo_obj,
+                                    );
                                 }
 
+                                hit.distance = dist + t;
+                                hit.albedo = vec3f(0.5, 0.5, 0.5);
+
+                                if h.extrusion == GeoFXNodeExtrusion::None {
+                                    hit.value = 1.0;
+                                    geo_obj.nodes[d.1].distance_3d(
+                                        &settings.time,
+                                        p,
+                                        &mut Some(&mut hit),
+                                    );
+                                }
+
+                                if let Some(material) = material {
+                                    hit.uv = self.get_uv_face(hit.normal, hit.hit_point).0;
+                                    material.compute(&mut hit, palette, &self.textures);
+                                }
                                 has_hit = true;
                             }
                             t += d.0;
@@ -2243,9 +2240,9 @@ impl Renderer {
         ray: Ray,
         light_pos: Vec3i,
         light: &Light,
-        _region: &Region,
+        region: &Region,
         _update: &RegionUpdate,
-        _settings: &RegionDrawSettings,
+        settings: &RegionDrawSettings,
     ) -> bool {
         #[inline(always)]
         fn equal(l: f32, r: Vec3f) -> Vec3f {
@@ -2264,7 +2261,7 @@ impl Renderer {
         }
 
         let mut i = floor(ro);
-        let mut dist; // = 0.0;
+        let mut dist = 0.0;
 
         let mut normal;
         let srd = signum(rd);
@@ -2288,55 +2285,51 @@ impl Renderer {
                 return false;
             }
 
-            /*
-            if let Some(model) = region.models.get(&(key.x, key.y, key.z)) {
-                let mut lro = ray.at(dist);
-                lro -= Vec3f::from(key);
-
-                let mut wallfx_offset = Vec3i::zero();
-                let mut alpha = 1.0;
-
-                if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
-                    let mut valid = true;
-                    let mut xx = 0;
-                    let mut yy = 0;
-                    let d =
-                        (update.server_tick - wallfx.at_tick) as f32 + settings.delta_in_tick - 1.0;
-                    if d < 1.0 {
-                        let t = (d * region.grid_size as f32) as i32;
-                        if wallfx.prev_fx != WallFX::Normal {
-                            wallfx.prev_fx.apply(
-                                &mut xx,
-                                &mut yy,
-                                &mut alpha,
-                                &(region.grid_size - t),
-                                &(1.0 - d),
-                            );
-                        } else {
-                            wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
-                        }
-                    } else if wallfx.fx != WallFX::Normal {
-                        valid = false;
-                    }
-
-                    if valid {
-                        wallfx_offset.x -= xx;
-                        wallfx_offset.y -= yy;
-                    } else {
-                        //uv = vec2f(-1.0, -1.0);
-                        wallfx_offset = vec3i(region.grid_size, region.grid_size, region.grid_size);
-                    }
-                }
-
-                if let Some(_hit_struct) = model.dda(&Ray::new(lro, ray.d), wallfx_offset) {
-                    return false;
-                }
-                }*/
             // Test against world tiles
             if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                 if let Some(data) = self.textures.get(tile) {
                     if data.blocking {
                         return false;
+                    }
+                }
+            }
+
+            // Test against geometry
+            if let Some(geo_ids) = region.geometry_areas.get(&key) {
+                for geo_id in geo_ids {
+                    let mut h = Hit::default();
+                    if let Some(geo_obj) = region.geometry.get(geo_id) {
+                        let material = self.materials.get(&geo_obj.material_id);
+                        let lro = ray.at(dist);
+
+                        let r = Ray::new(lro, ray.d);
+                        let mut t = 0.01;
+
+                        for _ in 0..20 {
+                            // Max distance a ray can travel in a unit cube
+                            if t > 1.732 {
+                                break;
+                            }
+
+                            let p = r.at(t);
+
+                            let d; // = (f32::INFINITY, 0);
+                            if let Some(material) = material {
+                                d = material.get_distance_3d(&settings.time, p, &mut h, geo_obj);
+                            } else {
+                                d = MaterialFXObject::default().get_distance_3d(
+                                    &settings.time,
+                                    p,
+                                    &mut h,
+                                    geo_obj,
+                                );
+                            }
+
+                            if d.0.abs() < 0.001 {
+                                return false;
+                            }
+                            t += d.0;
+                        }
                     }
                 }
             }

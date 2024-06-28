@@ -374,7 +374,7 @@ impl GeoFXNode {
                     let hole = coll.get_f32_default("Hole", 0.0);
 
                     let pos = self.position();
-                    let mut d = sdf_box2d(vec2f(p.x, p.z), pos, 1.0, 1.0);
+                    let mut d = sdf_box2d(vec2f(p.x, p.z), pos, 0.5, 0.5);
 
                     if hole > 0.0 {
                         d = d.abs() - hole;
@@ -385,7 +385,7 @@ impl GeoFXNode {
                         hit.extrusion = GeoFXNodeExtrusion::Y;
                         hit.extrusion_length = height;
                         hit.interior_distance = d;
-                        hit.hit_point = p - vec3f(pos.x.floor() + 0.5, 0.0, 0.0);
+                        hit.hit_point = p - vec3f(pos.x.floor(), 0.0, pos.y.floor());
                     }
 
                     return d;
@@ -681,7 +681,7 @@ impl GeoFXNode {
                 pf.x += 0.5;
                 pf.y += 0.5;
             }
-            Column => {
+            Column | Floor => {
                 pf.x += 0.5;
                 pf.y += 0.5;
             }

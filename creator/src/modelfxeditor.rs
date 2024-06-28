@@ -610,6 +610,7 @@ impl ModelFXEditor {
                                             }
                                         }
 
+                                        // Look up the texture.
                                         if material.nodes[selected_index].role
                                             == MaterialFXNodeRole::Material
                                         {
@@ -621,6 +622,9 @@ impl ModelFXEditor {
                                                 {
                                                     material.nodes[selected_index].texture_id =
                                                         Some(id);
+                                                } else {
+                                                    material.nodes[selected_index].texture_id =
+                                                        None;
                                                 }
                                             }
                                         }

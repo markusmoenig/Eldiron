@@ -334,8 +334,7 @@ impl MaterialFXNode {
 
                 if let Some(texture_id) = &self.texture_id {
                     if let Some(texture) = textures.get(texture_id) {
-                        if let Some(color) =
-                            texture.buffer[0].at_f_vec4f(vec2f(hit.uv.x, 1.0 - hit.uv.y))
+                        if let Some(color) = texture.buffer[0].at_f_vec4f(vec2f(hit.uv.x, hit.uv.y))
                         {
                             hit.albedo.x = color.x;
                             hit.albedo.y = color.y;
