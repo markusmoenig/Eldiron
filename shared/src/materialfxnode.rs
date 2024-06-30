@@ -337,8 +337,7 @@ impl MaterialFXNode {
 
                 if let Some(texture_id) = &self.texture_id {
                     if let Some(texture) = textures.get(texture_id) {
-                        if let Some(color) = texture.buffer[0].at_f_vec4f(vec2f(hit.uv.x, hit.uv.y))
-                        {
+                        if let Some(color) = texture.buffer[0].at_f_vec4f(hit.uv) {
                             hit.albedo.x = color.x;
                             hit.albedo.y = color.y;
                             hit.albedo.z = color.z;
@@ -388,7 +387,12 @@ impl MaterialFXNode {
             Noise2D => {
                 let collection = self.collection();
                 hit.noise_scale = collection.get_f32_default("Out Scale", 1.0);
-                hit.noise = Some(noise2d(&collection, &hit.uv));
+                let value = if hit.two_d {
+                    noise2d(&collection, &hit.global_uv)
+                } else {
+                    noise2d(&collection, &hit.uv)
+                };
+                hit.noise = Some(value);
                 hit.albedo = vec3f(hit.value, hit.value, hit.value);
                 Some(0)
             }
@@ -401,7 +405,7 @@ impl MaterialFXNode {
             }
             Brick => {
                 let collection = self.collection();
-                let (_, terminal) = bricks(&collection, hit.uv, hit);
+                let (_, terminal) = bricks(&collection, hit.global_uv, hit);
                 Some(terminal)
             }
             UVSplitter => {

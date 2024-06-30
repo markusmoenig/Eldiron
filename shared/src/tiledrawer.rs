@@ -313,9 +313,13 @@ impl TileDrawer {
 
                     let p = vec2f(x as f32, y as f32);
                     let mut hit = Hit {
+                        global_uv: vec2f(
+                            tile_x as f32 + xx as f32 / region.grid_size as f32,
+                            tile_y as f32 + yy as f32 / region.grid_size as f32,
+                        ),
                         uv: vec2f(
-                            /*tile_x as f32 +*/ xx as f32 / region.grid_size as f32,
-                            /*tile_y as f32 +*/ yy as f32 / region.grid_size as f32,
+                            xx as f32 / region.grid_size as f32,
+                            yy as f32 / region.grid_size as f32,
                         ),
                         two_d: true,
                         ..Default::default()

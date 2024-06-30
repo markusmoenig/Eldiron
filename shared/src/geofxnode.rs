@@ -163,7 +163,11 @@ impl GeoFXNode {
             match self.role {
                 Ground => {
                     if let Some(hit) = hit {
-                        let value = noise2d(&coll, &hit.uv);
+                        let value = if hit.two_d {
+                            noise2d(&coll, &hit.global_uv)
+                        } else {
+                            noise2d(&coll, &hit.uv)
+                        };
                         hit.albedo = vec3f(value, value, value);
                         hit.value = value;
                     }

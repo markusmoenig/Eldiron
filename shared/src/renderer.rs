@@ -804,6 +804,7 @@ impl Renderer {
 
                                 if let Some(material) = material {
                                     hit.uv = self.get_uv_face(hit.normal, hit.hit_point).0;
+                                    hit.global_uv = hit.uv;
                                     material.compute(&mut hit, palette, &self.textures);
                                 }
                                 has_hit = true;

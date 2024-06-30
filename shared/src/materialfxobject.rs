@@ -412,6 +412,8 @@ impl MaterialFXObject {
                         ..Default::default()
                     };
 
+                    hit.global_uv = hit.uv;
+
                     noise2d.compute(&mut hit, palette, textures, vec![]);
                     self.get_distance(&time, hit.uv, &mut hit, &geo_object, 1.0);
                     self.compute(&mut hit, palette, textures);

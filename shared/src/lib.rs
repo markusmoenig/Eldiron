@@ -143,6 +143,7 @@ pub struct Hit {
     pub hit_point: Vec3f,
     pub normal: Vec3f,
     pub uv: Vec2f,
+    pub global_uv: Vec2f,
     pub face: HitFace,
 
     pub pattern_pos: Vec2f,
@@ -192,6 +193,7 @@ impl Hit {
             hit_point: Vec3f::zero(),
             normal: Vec3f::zero(),
             uv: Vec2f::zero(),
+            global_uv: Vec2f::zero(),
             face: HitFace::XFace,
 
             pattern_pos: Vec2f::zero(),
