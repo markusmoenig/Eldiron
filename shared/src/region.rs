@@ -308,6 +308,16 @@ impl Region {
             }
         }
 
+        // Check if the geometry for the tile is blocking
+        if can_move {
+            for geo_obj in self.geometry.values() {
+                if geo_obj.area.contains(&pos) && geo_obj.is_blocking() {
+                    can_move = false;
+                    break;
+                }
+            }
+        }
+
         can_move
     }
 
@@ -328,6 +338,7 @@ impl Region {
             for x in 0..self.width {
                 let mut can_move = true;
                 let pos = vec2i(x, y);
+
                 if let Some(tile) = self.tiles.get(&(pos.x, pos.y)) {
                     for index in 0..tile.layers.len() {
                         if let Some(layer) = tile.layers[index] {
@@ -352,6 +363,14 @@ impl Region {
                             let mut l = light.collection_cloned();
                             timeline.fill(&level.time, &mut l);
                             level.add_light(pos, l);
+                        }
+                    }
+                }
+
+                if can_move {
+                    for geo_obj in self.geometry.values() {
+                        if geo_obj.area.contains(&pos) && geo_obj.is_blocking() {
+                            can_move = false;
                         }
                     }
                 }

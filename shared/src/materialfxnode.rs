@@ -112,12 +112,8 @@ impl MaterialFXNode {
                 coll.set("Rounding", TheValue::FloatRange(0.15, 0.0..=1.0));
             }
             Tiles => {
-                coll.set(
-                    "Mode",
-                    TheValue::TextList(0, vec![str!("Tiles"), str!("Bricks")]),
-                );
-                coll.set("Scale", TheValue::FloatRange(1.0, 0.0..=2.0));
-                coll.set("Gap", TheValue::FloatRange(1.0, 0.0..=2.0));
+                coll.set("Subdivisions", TheValue::IntRange(2, 1..=8));
+                coll.set("Size", TheValue::FloatRange(0.8, 0.0..=1.0));
                 coll.set("Rotation", TheValue::FloatRange(0.15, 0.0..=2.0));
                 coll.set("Rounding", TheValue::FloatRange(0.15, 0.0..=1.0));
             }
@@ -215,11 +211,18 @@ impl MaterialFXNode {
                 }]
             }
             Tiles => {
-                vec![TheNodeTerminal {
-                    name: str!("geo"),
-                    role: str!("Geometry"),
-                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                }]
+                vec![
+                    TheNodeTerminal {
+                        name: str!("geo"),
+                        role: str!("Geometry"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("noise"),
+                        role: str!("Noise"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                ]
             }
             _ => vec![],
         }
@@ -482,15 +485,40 @@ impl MaterialFXNode {
             }
             Tiles => {
                 let collection = self.collection();
-                let scale = collection.get_f32_default("Scale", 1.0);
-                let gap = collection.get_f32_default("Gap", 1.0);
-                let rotation = collection.get_f32_default("Rotation", 0.15);
+                let size = collection.get_f32_default("Size", 0.8);
+                let subdivisions = collection.get_i32_default("Subdivisions", 2);
+                let _rotation = collection.get_f32_default("Rotation", 0.15);
                 let rounding = collection.get_f32_default("Rounding", 0.15);
 
-                let p = hit.pattern_pos; // / (5.0 * scale);
-                                         //let rc = box_divide(p, gap, rotation, rounding);
+                let p = hit.pattern_pos; // / (5.0);
 
-                let d = sdf_box2d(p, vec2f(0.5, 0.5), 0.4, 0.4);
+                let x = p.x.floor();
+                let y = p.y.floor();
+
+                let mut d = f32::INFINITY;
+
+                let grid_size = subdivisions;
+                let box_size = 1.0 / grid_size as f32;
+                let half_box_size = box_size * 0.5;
+
+                let rounding = rounding * half_box_size;
+
+                // Check distance to each box in the grid
+                for by in 0..grid_size {
+                    for bx in 0..grid_size {
+                        let center = Vec2f::new(
+                            x + (bx as f32 + 0.5) * box_size,
+                            y + (by as f32 + 0.5) * box_size,
+                        );
+                        let dist = sdf_box2d(
+                            p,
+                            center,
+                            half_box_size * size - rounding / 1.0,
+                            half_box_size * size - rounding / 1.0,
+                        ) - rounding;
+                        d = d.min(dist);
+                    }
+                }
 
                 hit.interior_distance_mortar = Some(hit.interior_distance);
                 hit.interior_distance = d;

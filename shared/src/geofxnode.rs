@@ -722,6 +722,24 @@ impl GeoFXNode {
         self.timeline.set(&TheTime::default(), key, "Geo", value);
     }
 
+    pub fn is_blocking(&self) -> bool {
+        match self.role {
+            Ground => false,
+            Floor => {
+                if let Some(coll) = self
+                    .timeline
+                    .get_collection_at(&TheTime::default(), str!("Geo"))
+                {
+                    let height = coll.get_f32_default("Height", 0.01);
+                    height > 0.3
+                } else {
+                    false
+                }
+            }
+            _ => true,
+        }
+    }
+
     pub fn preview(&self, buffer: &mut TheRGBABuffer) {
         fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
             [

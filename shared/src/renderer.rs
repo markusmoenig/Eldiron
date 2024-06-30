@@ -2256,11 +2256,12 @@ impl Renderer {
         let ro = ray.o;
         let rd = ray.d;
 
-        if Vec3i::from(ro) == light_pos {
+        let mut i = floor(ro);
+
+        if Vec3i::from(i) == light_pos {
             return true;
         }
 
-        let mut i = floor(ro);
         let mut dist = 0.0;
 
         let mut normal;
@@ -2303,7 +2304,7 @@ impl Renderer {
                         let lro = ray.at(dist);
 
                         let r = Ray::new(lro, ray.d);
-                        let mut t = 0.01;
+                        let mut t = 0.00;
 
                         for _ in 0..20 {
                             // Max distance a ray can travel in a unit cube
@@ -2325,7 +2326,7 @@ impl Renderer {
                                 );
                             }
 
-                            if d.0.abs() < 0.001 {
+                            if d.0.abs() < 0.15 {
                                 return false;
                             }
                             t += d.0;

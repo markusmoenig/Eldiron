@@ -120,4 +120,14 @@ impl GeoFXObject {
             }
         }
     }
+
+    /// Checks if this tile is blocking
+    pub fn is_blocking(&self) -> bool {
+        for node in &self.nodes {
+            if node.is_blocking() {
+                return true;
+            }
+        }
+        false
+    }
 }
