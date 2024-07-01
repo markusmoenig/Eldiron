@@ -92,6 +92,14 @@ impl PreRendered {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.albedo.fill([0, 0, 0]);
+        self.sky_absorption.fill([0, 0, 0]);
+        self.distance.clear();
+        self.lights.clear();
+        self.tile_samples.clear();
+    }
+
     pub fn resize(&mut self, width: i32, height: i32) {
         self.albedo.resize(width, height);
         self.sky_absorption.resize(width, height);
@@ -123,5 +131,74 @@ impl PreRendered {
                 }
             }
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn apply_tile(
+        &mut self,
+        grid_size: i32,
+        size: &Vec2i,
+        tile: &Vec2i,
+        sample: u16,
+        albedo: &TheRGBBuffer,
+        sky_absorption: &TheRGBBuffer,
+        distance: &TheFlattenedMap<f32>,
+        lights: &TheFlattenedMap<Vec<PreRenderedLight>>,
+    ) {
+        self.resize(size.x, size.y);
+
+        let tile_x = tile.x * grid_size;
+        let tile_y = tile.y * grid_size;
+
+        let s = 1.0 / (sample as f32 + 1.0);
+
+        for h in 0..grid_size {
+            for w in 0..grid_size {
+                // albedo
+                if let Some(existing) = self.albedo.at_vec3(vec2i(w + tile_x, h + tile_y)) {
+                    if let Some(new_samp) = albedo.at_vec3(vec2i(w, h)) {
+                        let p = lerp(existing, new_samp, s);
+                        self.albedo.set_pixel_vec3f(w + tile_x, h + tile_y, &p);
+                    }
+                }
+
+                // sky abso
+                if let Some(existing) = self.sky_absorption.at_vec3(vec2i(w + tile_x, h + tile_y)) {
+                    if let Some(new_samp) = sky_absorption.at_vec3(vec2i(w, h)) {
+                        let p = lerp(existing, new_samp, s);
+                        self.sky_absorption
+                            .set_pixel_vec3f(w + tile_x, h + tile_y, &p);
+                    }
+                }
+
+                // distance
+                if let Some(existing) = self.distance.get_mut((w + tile_x, h + tile_y)) {
+                    if let Some(new_samp) = distance.get((w, h)) {
+                        let d = lerp(*existing, *new_samp, s);
+                        *existing = d;
+                    }
+                }
+
+                // lights
+                if let Some(new_samp) = lights.get((w, h)) {
+                    if let Some(existing) = self.lights.get_mut((w + tile_x, h + tile_y)) {
+                        for nl in new_samp {
+                            for ex in existing.iter_mut() {
+                                if nl.pos == ex.pos {
+                                    let e = ex.brdf;
+                                    let n = nl.brdf;
+
+                                    ex.brdf = lerp(e, n, s);
+                                }
+                            }
+                        }
+                    } else {
+                        self.lights.set((w + tile_x, h + tile_y), new_samp.clone());
+                    }
+                }
+            }
+        }
+
+        self.tile_samples.insert(*tile, sample);
     }
 }

@@ -332,7 +332,7 @@ impl Region {
         tiles: &FxHashMap<Uuid, TheRGBATile>,
         update: &RegionUpdate,
     ) {
-        level.clear_blocking();
+        level.clear();
 
         for y in 0..self.height {
             for x in 0..self.width {

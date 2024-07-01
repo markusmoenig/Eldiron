@@ -28,14 +28,14 @@ impl Renderer {
 
     pub fn prerender_rtree(
         &mut self,
-        prerendered: &mut PreRendered,
+        size: Vec2i,
         region: &Region,
         settings: &mut RegionDrawSettings,
-    ) {
+    ) -> RTree<PreRenderedData> {
         let _start = self.get_time();
 
-        let width = prerendered.albedo.dim().width as usize;
-        let height = prerendered.albedo.dim().height as usize;
+        let width = size.x as usize;
+        let height = size.y as usize;
 
         let width_f = width as f32;
         let height_f = height as f32;
@@ -55,16 +55,14 @@ impl Renderer {
 
         // --
         let mut tiles = vec![];
-        let w = prerendered.albedo.dim().width / region.grid_size;
-        let h = prerendered.albedo.dim().height / region.grid_size;
+        let w = size.x / region.grid_size;
+        let h = size.y / region.grid_size;
         for x in 0..w {
             for y in 0..h {
                 let tile = Vec2i::new(x, y);
                 tiles.push(tile);
             }
         }
-
-        let prerendered_mutex = Arc::new(Mutex::new(prerendered));
 
         let _start = self.get_time();
 
@@ -121,22 +119,21 @@ impl Renderer {
             std::thread::yield_now();
         });
 
-        let mut prerendered = prerendered_mutex.lock().unwrap();
+        let _stop = self.get_time();
+        //println!("render time {:?}", _stop - _start);
 
-        prerendered.tree = RTree::bulk_load(
+        RTree::bulk_load(
             Arc::try_unwrap(dest_tree_mutex)
                 .unwrap()
                 .into_inner()
                 .unwrap(),
-        );
-
-        let _stop = self.get_time();
-        //println!("render time {:?}", _stop - _start);
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
     pub fn prerender(
         &mut self,
+        size: Vec2i,
         prerendered: &mut PreRendered,
         region: &Region,
         settings: &mut RegionDrawSettings,
@@ -147,8 +144,8 @@ impl Renderer {
         let mut tiles = vec![];
 
         // Add all tiles which do not have all samples
-        let w = prerendered.albedo.dim().width / region.grid_size;
-        let h = prerendered.albedo.dim().height / region.grid_size;
+        let w = region.width;
+        let h = region.height;
         for x in 0..w {
             for y in 0..h {
                 let tile = Vec2i::new(x, y);
@@ -171,8 +168,8 @@ impl Renderer {
 
         let _start = self.get_time();
 
-        let width = prerendered.albedo.dim().width as usize;
-        let height = prerendered.albedo.dim().height as usize;
+        let width = size.x as usize;
+        let height = size.y as usize;
 
         let width_f = width as f32;
         let height_f = height as f32;
@@ -601,6 +598,8 @@ impl Renderer {
                 sample = *sampled as i32;
             }
 
+            /*
+
             let tile_x = tile.x * region.grid_size;
             let tile_y = tile.y * region.grid_size;
             let s = 1.0 / (sample as f32 + 1.0);
@@ -665,16 +664,14 @@ impl Renderer {
                         }
                     }
                 }
-            }
+                }*/
 
             sender
                 .send(PreRenderResult::RenderedRegionTile(
                     region.id,
-                    vec2i(
-                        prerendered.albedo.dim().width,
-                        prerendered.albedo.dim().height,
-                    ),
-                    vec2i(tile.x * region.grid_size, tile.y * region.grid_size),
+                    size,
+                    *tile,
+                    sample as u16,
                     buffer.clone(),
                     sky_abso_buffer.clone(),
                     distance_buffer.clone(),

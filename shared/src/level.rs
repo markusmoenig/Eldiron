@@ -18,9 +18,10 @@ impl Level {
         }
     }
 
-    /// Clears the blocking positions of the level.
-    pub fn clear_blocking(&mut self) {
+    /// Clears the level.
+    pub fn clear(&mut self) {
         self.blocking.clear();
+        self.lights.clear();
     }
 
     /// Marks the given position as blocking.

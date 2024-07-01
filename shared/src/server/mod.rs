@@ -769,9 +769,9 @@ impl Server {
         }
     }
 
-    pub fn set_prerendered(&mut self, region: Uuid, prerendered: PreRendered) {
+    pub fn clear_prerendered(&mut self, region: Uuid) {
         if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
-            region.prerendered = prerendered;
+            region.prerendered.clear();
         }
     }
 
@@ -786,34 +786,24 @@ impl Server {
         &mut self,
         region: Uuid,
         size: &Vec2i,
-        tile_pos: &Vec2i,
+        tile: &Vec2i,
+        sample: u16,
         albedo: &TheRGBBuffer,
         sky_abso: &TheRGBBuffer,
         distance: &TheFlattenedMap<f32>,
         lights: &TheFlattenedMap<Vec<PreRenderedLight>>,
     ) {
         if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
-            region.prerendered.resize(size.x, size.y);
-
-            region
-                .prerendered
-                .albedo
-                .copy_into(tile_pos.x, tile_pos.y, albedo);
-
-            region
-                .prerendered
-                .sky_absorption
-                .copy_into(tile_pos.x, tile_pos.y, sky_abso);
-
-            region
-                .prerendered
-                .distance
-                .copy_into(tile_pos.x, tile_pos.y, distance);
-
-            region
-                .prerendered
-                .lights
-                .copy_into(tile_pos.x, tile_pos.y, lights);
+            region.prerendered.apply_tile(
+                region.grid_size,
+                size,
+                tile,
+                sample,
+                albedo,
+                sky_abso,
+                distance,
+                lights,
+            );
         }
     }
 

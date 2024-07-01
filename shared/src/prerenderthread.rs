@@ -14,17 +14,18 @@ pub enum PreRenderCmd {
 }
 
 pub enum PreRenderResult {
-    RenderedRegion(Uuid, PreRendered),
     RenderedRegionTile(
         Uuid,
         Vec2i,
         Vec2i,
+        u16,
         TheRGBBuffer,
         TheRGBBuffer,
         TheFlattenedMap<f32>,
         TheFlattenedMap<Vec<PreRenderedLight>>,
     ),
     RenderedRTree(Uuid, RTree<PreRenderedData>),
+    Clear(Uuid),
     Quit,
 }
 
@@ -118,12 +119,16 @@ impl PreRenderThread {
             let mut draw_settings = RegionDrawSettings::new();
             draw_settings.daylight = vec3f(1.0, 1.0, 1.0);
 
-            let mut prerendered_regions: FxHashMap<Uuid, PreRendered> = FxHashMap::default();
+            let mut prerendered_region_data: FxHashMap<Uuid, PreRendered> = FxHashMap::default();
 
             let mut in_progress = false;
+            let mut exit_loop = false;
 
             loop {
-                if let Ok(cmd) = rx.try_recv() {
+                if exit_loop {
+                    break;
+                }
+                while let Ok(cmd) = rx.try_recv() {
                     match cmd {
                         PreRenderCmd::SetTextures(new_textures) => {
                             println!("PreRenderCmd::SetTextures");
@@ -153,26 +158,34 @@ impl PreRenderThread {
                             renderer.position =
                                 vec3f(region.width as f32 / 2.0, 0.0, region.height as f32 / 2.0);
 
-                            let mut prerendered = PreRendered::new(
-                                TheRGBBuffer::new(TheDim::sized(w, h)),
-                                TheRGBBuffer::new(TheDim::sized(w, h)),
-                            );
+                            let mut tree: RTree<PreRenderedData> = RTree::new();
 
                             background_pool.install(|| {
-                                renderer.prerender_rtree(
-                                    &mut prerendered,
+                                tree = renderer.prerender_rtree(
+                                    vec2i(w, h),
                                     &region,
                                     &mut draw_settings,
                                 );
                             });
 
-                            prerendered_regions.insert(region.id, prerendered.clone());
+                            if let Some(data) = prerendered_region_data.get_mut(&region.id) {
+                                data.tree = tree.clone();
+                                data.tile_samples.clear()
+                            } else {
+                                let mut prerendered = PreRendered::zero();
+                                prerendered.tree = tree.clone();
+                                prerendered
+                                    .tile_samples
+                                    .clone_from(&region.prerendered.tile_samples);
+                                prerendered_region_data.insert(region.id, prerendered);
+                            }
 
                             result_tx
-                                .send(PreRenderResult::RenderedRTree(region.id, prerendered.tree))
+                                .send(PreRenderResult::RenderedRTree(region.id, tree))
                                 .unwrap();
 
                             curr_region = region;
+                            in_progress = true;
 
                             println!("finished");
                         }
@@ -184,11 +197,14 @@ impl PreRenderThread {
                                 vec3f(region.width as f32 / 2.0, 0.0, region.height as f32 / 2.0);
                             curr_region = region;
 
-                            if let Some(pre) = prerendered_regions.get_mut(&curr_region.id) {
+                            if let Some(pre) = prerendered_region_data.get_mut(&curr_region.id) {
                                 if let Some(tiles) = tiles {
                                     pre.remove_tiles(tiles, curr_region.grid_size);
                                 } else {
                                     pre.tile_samples.clear();
+                                    result_tx
+                                        .send(PreRenderResult::Clear(curr_region.id))
+                                        .unwrap();
                                 }
                             }
 
@@ -196,7 +212,7 @@ impl PreRenderThread {
                         }
                         PreRenderCmd::Quit => {
                             println!("PreRenderCmd::Quit");
-                            break;
+                            exit_loop = true;
                         }
                     }
                 }
@@ -209,46 +225,41 @@ impl PreRenderThread {
                     let w = (curr_region.width as f32 * curr_region.grid_size as f32) as i32;
                     let h = (curr_region.height as f32 * curr_region.grid_size as f32) as i32;
 
-                    if curr_region.prerendered.albedo.dim().width != w
-                        || curr_region.prerendered.albedo.dim().height != h
-                    {
-                        reset = true;
+                    // if curr_region.prerendered.albedo.dim().width != w
+                    //     || curr_region.prerendered.albedo.dim().height != h
+                    // {
+                    //     reset = true;
+                    // }
+
+                    // let mut prerendered = if reset {
+                    //     PreRendered::zero()
+                    // } else {
+                    //     let prerendered =
+                    //         if let Some(pre) = prerendered_region_data.get(&curr_region.id) {
+                    //             pre.clone()
+                    //         } else {
+                    //             PreRendered::zero()
+                    //             //curr_region.prerendered.clone()
+                    //         };
+                    //     prerendered
+                    // };
+
+                    if let Some(prerendered) = prerendered_region_data.get_mut(&curr_region.id) {
+                        background_pool.install(|| {
+                            println!("working");
+                            in_progress = !renderer.prerender(
+                                vec2i(w, h),
+                                prerendered,
+                                &curr_region,
+                                &mut draw_settings,
+                                &palette,
+                                result_tx.clone(),
+                            );
+                            if !in_progress {
+                                println!("finished");
+                            }
+                        });
                     }
-
-                    let mut prerendered = if reset {
-                        let mut prerendered = PreRendered::new(
-                            TheRGBBuffer::new(TheDim::sized(w, h)),
-                            TheRGBBuffer::new(TheDim::sized(w, h)),
-                        );
-                        if let Some(pre) = prerendered_regions.get(&curr_region.id) {
-                            prerendered.tree = pre.tree.clone();
-                        }
-
-                        prerendered
-                    } else {
-                        let prerendered =
-                            if let Some(pre) = prerendered_regions.get(&curr_region.id) {
-                                pre.clone()
-                            } else {
-                                curr_region.prerendered.clone()
-                            };
-                        prerendered
-                    };
-
-                    background_pool.install(|| {
-                        in_progress = !renderer.prerender(
-                            &mut prerendered,
-                            &curr_region,
-                            &mut draw_settings,
-                            &palette,
-                            result_tx.clone(),
-                        );
-                        if !in_progress {
-                            println!("finished");
-                        }
-                    });
-
-                    prerendered_regions.insert(curr_region.id, prerendered.clone());
                 }
                 std::thread::yield_now();
                 //std::thread::sleep(std::time::Duration::from_millis(10));
