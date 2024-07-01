@@ -164,8 +164,6 @@ impl Renderer {
             return false;
         }
 
-        // println!("tiles {}", tiles.len());
-
         let _start = self.get_time();
 
         let width = size.x as usize;
@@ -745,6 +743,7 @@ impl Renderer {
                 for geo_id in geo_ids {
                     let mut h = Hit::default();
                     if let Some(geo_obj) = region.geometry.get(geo_id) {
+                        let params = geo_obj.load_parameters(&settings.time);
                         let material = self.materials.get(&geo_obj.material_id);
                         let lro = ray.at(dist);
 
@@ -761,13 +760,20 @@ impl Renderer {
 
                             let d; // = (f32::INFINITY, 0);
                             if let Some(material) = material {
-                                d = material.get_distance_3d(&settings.time, p, &mut h, geo_obj);
+                                d = material.get_distance_3d(
+                                    &settings.time,
+                                    p,
+                                    &mut h,
+                                    geo_obj,
+                                    &params,
+                                );
                             } else {
                                 d = MaterialFXObject::default().get_distance_3d(
                                     &settings.time,
                                     p,
                                     &mut h,
                                     geo_obj,
+                                    &params,
                                 );
                             }
 
@@ -776,14 +782,20 @@ impl Renderer {
                                 hit.hit_point = p;
 
                                 if let Some(material) = material {
-                                    hit.normal =
-                                        material.normal(&settings.time, p, &mut h, geo_obj);
+                                    hit.normal = material.normal(
+                                        &settings.time,
+                                        p,
+                                        &mut h,
+                                        geo_obj,
+                                        &params,
+                                    );
                                 } else {
                                     hit.normal = MaterialFXObject::default().normal(
                                         &settings.time,
                                         p,
                                         &mut h,
                                         geo_obj,
+                                        &params,
                                     );
                                 }
 
@@ -796,6 +808,7 @@ impl Renderer {
                                         &settings.time,
                                         p,
                                         &mut Some(&mut hit),
+                                        &params[d.1],
                                     );
                                 }
 
@@ -2298,6 +2311,7 @@ impl Renderer {
                 for geo_id in geo_ids {
                     let mut h = Hit::default();
                     if let Some(geo_obj) = region.geometry.get(geo_id) {
+                        let params = geo_obj.load_parameters(&settings.time);
                         let material = self.materials.get(&geo_obj.material_id);
                         let lro = ray.at(dist);
 
@@ -2314,13 +2328,20 @@ impl Renderer {
 
                             let d; // = (f32::INFINITY, 0);
                             if let Some(material) = material {
-                                d = material.get_distance_3d(&settings.time, p, &mut h, geo_obj);
+                                d = material.get_distance_3d(
+                                    &settings.time,
+                                    p,
+                                    &mut h,
+                                    geo_obj,
+                                    &params,
+                                );
                             } else {
                                 d = MaterialFXObject::default().get_distance_3d(
                                     &settings.time,
                                     p,
                                     &mut h,
                                     geo_obj,
+                                    &params,
                                 );
                             }
 

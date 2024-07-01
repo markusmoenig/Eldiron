@@ -65,9 +65,8 @@ impl GeoFXNode {
             Ground => {
                 coll.set("Pos X", TheValue::Float(0.5));
                 coll.set("Pos Y", TheValue::Float(0.5));
-                coll.set("UV Scale", TheValue::FloatRange(1.0, 0.0..=6.0));
-                coll.set("Out Scale", TheValue::FloatRange(1.0, 0.0..=1.0));
-                coll.set("Disp Scale", TheValue::FloatRange(0.1, 0.0..=1.0));
+                coll.set("UV Scale X", TheValue::FloatRange(1.0, 0.0..=10.0));
+                coll.set("UV Scale Y", TheValue::FloatRange(1.0, 0.0..=10.0));
                 coll.set("Octaves", TheValue::IntRange(5, 0..=5));
                 function = str!("Ground");
             }
@@ -148,6 +147,44 @@ impl GeoFXNode {
         ]
     }
 
+    /// Loads the parameters of the nodes into memory for faster access.
+    pub fn load_parameters(&self, time: &TheTime) -> Vec<f32> {
+        let mut params = vec![];
+
+        if let Some(coll) = self.timeline.get_collection_at(time, str!("Geo")) {
+            params.push(coll.get_f32_default("Pos X", 0.0));
+            params.push(coll.get_f32_default("Pos Y", 0.0));
+            match self.role {
+                Ground => {
+                    params.push(coll.get_f32_default("UV Scale X", 1.0));
+                    params.push(coll.get_f32_default("UV Scale Y", 1.0));
+                    params.push(coll.get_i32_default("Octaves", 5) as f32);
+                }
+                Floor => {
+                    params.push(coll.get_f32_default("Height", 0.01));
+                    params.push(coll.get_f32_default("Hole", 0.0));
+                }
+                Column => {
+                    params.push(coll.get_f32_default("Radius", 0.4));
+                    params.push(coll.get_f32_default("Height", 1.0));
+                    params.push(coll.get_f32_default("Hole", 0.0));
+                }
+                LeftWall | TopWall | RightWall | BottomWall => {
+                    params.push(coll.get_f32_default("Thickness", 0.2));
+                    params.push(coll.get_f32_default("Length", 1.0) / 2.0 + 0.1);
+                    params.push(coll.get_f32_default("Height", 1.0));
+                }
+                BendWallNW | BendWallNE | BendWallSW | BendWallSE => {
+                    params.push(coll.get_f32_default("Thickness", 0.2));
+                    params.push(coll.get_f32_default("Rounding", 0.3));
+                    params.push(coll.get_f32_default("Height", 1.0));
+                }
+            }
+        }
+
+        params
+    }
+
     /// The 2D distance from the node to a point.
     pub fn distance(
         &self,
@@ -163,10 +200,15 @@ impl GeoFXNode {
             match self.role {
                 Ground => {
                     if let Some(hit) = hit {
+                        let scale = vec2f(
+                            coll.get_f32_default("UV Scale X", 1.0),
+                            coll.get_f32_default("UV Scale Y", 1.0),
+                        );
+                        let octaves = coll.get_i32_default("Octaves", 5);
                         let value = if hit.two_d {
-                            noise2d(&coll, &hit.global_uv)
+                            noise2d(&hit.global_uv, scale, octaves)
                         } else {
-                            noise2d(&coll, &hit.uv)
+                            noise2d(&hit.uv, scale, octaves)
                         };
                         hit.albedo = vec3f(value, value, value);
                         hit.value = value;
@@ -346,7 +388,13 @@ impl GeoFXNode {
     }
 
     /// The 3D distance from the node to a point.
-    pub fn distance_3d(&self, _time: &TheTime, p: Vec3f, hit: &mut Option<&mut Hit>) -> f32 {
+    pub fn distance_3d(
+        &self,
+        _time: &TheTime,
+        p: Vec3f,
+        hit: &mut Option<&mut Hit>,
+        params: &[f32],
+    ) -> f32 {
         // float opExtrusion( in vec3 p, in sdf2d primitive, in float h )
         // {
         //     float d = primitive(p.xy)
@@ -359,254 +407,248 @@ impl GeoFXNode {
             min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
         }
 
-        if let Some(coll) = self
-            .timeline
-            .get_collection_at(&TheTime::default(), str!("Geo"))
-        {
-            match self.role {
-                Ground => {
-                    let uv = p.xz();
-                    let value = noise2d(&coll, &uv);
-                    if let Some(hit) = hit {
-                        hit.albedo = vec3f(value, value, value);
-                        hit.value = value;
-                    }
-                    return p.y - value * 0.05;
+        match self.role {
+            Ground => {
+                let uv = p.xz();
+                let value = noise2d(&uv, vec2f(params[2], params[3]), params[4] as i32);
+                if let Some(hit) = hit {
+                    hit.albedo = vec3f(value, value, value);
+                    hit.value = value;
                 }
-                Floor => {
-                    let height = coll.get_f32_default("Height", 0.01);
-                    let hole = coll.get_f32_default("Hole", 0.0);
+                p.y - value * 0.05
+            }
+            Floor => {
+                let height = params[2];
+                let hole = params[3];
 
-                    let pos = self.position();
-                    let mut d = sdf_box2d(vec2f(p.x, p.z), pos, 0.5, 0.5);
+                let pos = vec2f(params[0], params[1]);
+                let mut d = sdf_box2d(vec2f(p.x, p.z), pos, 0.5, 0.5);
 
-                    if hole > 0.0 {
-                        d = d.abs() - hole;
-                    }
-
-                    if let Some(hit) = hit {
-                        hit.pattern_pos = vec2f(p.x, p.z);
-                        hit.extrusion = GeoFXNodeExtrusion::Y;
-                        hit.extrusion_length = height;
-                        hit.interior_distance = d;
-                        hit.hit_point = p - vec3f(pos.x.floor(), 0.0, pos.y.floor());
-                    }
-
-                    return d;
+                if hole > 0.0 {
+                    d = d.abs() - hole;
                 }
-                Column => {
-                    let radius = coll.get_f32_default("Radius", 0.4);
-                    let height = coll.get_f32_default("Height", 1.0);
-                    let hole = coll.get_f32_default("Hole", 0.0);
 
-                    let pos = self.position();
-                    let mut d = length(vec2f(p.x, p.z) - self.position()) - radius + hole;
-                    if hole > 0.0 {
-                        d = d.abs() - hole;
-                    }
-
-                    if let Some(hit) = hit {
-                        hit.pattern_pos = vec2f(p.x, p.z);
-                        hit.extrusion = GeoFXNodeExtrusion::Y;
-                        hit.extrusion_length = height;
-                        hit.interior_distance = d;
-                        hit.hit_point = p - vec3f(pos.x.floor(), 0.0, pos.y.floor());
-                    }
-
-                    return d;
+                if let Some(hit) = hit {
+                    hit.pattern_pos = vec2f(p.x, p.z);
+                    hit.extrusion = GeoFXNodeExtrusion::Y;
+                    hit.extrusion_length = height;
+                    hit.interior_distance = d;
+                    hit.hit_point = p - vec3f(pos.x.floor(), 0.0, pos.y.floor());
                 }
-                LeftWall => {
-                    let thick = coll.get_f32_default("Thickness", 0.2);
-                    let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
-                    let height = coll.get_f32_default("Height", 1.0);
 
-                    let pos = self.position();
-                    let d = sdf_box2d(
-                        vec2f(p.z, p.y),
-                        vec2f(pos.y, height / 2.0),
-                        len,
-                        height / 2.0,
+                d
+            }
+            Column => {
+                let radius = params[2];
+                let height = params[3];
+                let hole = params[4];
+
+                let pos = vec2f(params[0], params[1]);
+                let mut d = length(vec2f(p.x, p.z) - self.position()) - radius + hole;
+                if hole > 0.0 {
+                    d = d.abs() - hole;
+                }
+
+                if let Some(hit) = hit {
+                    hit.pattern_pos = vec2f(p.x, p.z);
+                    hit.extrusion = GeoFXNodeExtrusion::Y;
+                    hit.extrusion_length = height;
+                    hit.interior_distance = d;
+                    hit.hit_point = p - vec3f(pos.x.floor(), 0.0, pos.y.floor());
+                }
+
+                d
+            }
+            LeftWall => {
+                let thick = params[2];
+                let len = params[3];
+                let height = params[4];
+
+                let pos = vec2f(params[0], params[1]);
+                let d = sdf_box2d(
+                    vec2f(p.z, p.y),
+                    vec2f(pos.y, height / 2.0),
+                    len,
+                    height / 2.0,
+                );
+
+                if let Some(hit) = hit {
+                    hit.pattern_pos = vec2f(p.z, p.y);
+                    hit.extrusion = GeoFXNodeExtrusion::X;
+                    hit.extrusion_length = thick;
+                    hit.interior_distance = d;
+                    hit.hit_point = p - vec3f(pos.x.floor() + thick.fract() / 2.0, 0.0, 0.0);
+                }
+
+                d
+            }
+            TopWall => {
+                let thick = params[2];
+                let len = params[3];
+                let height = params[4];
+
+                let pos = vec2f(params[0], params[1]);
+                let d = sdf_box2d(
+                    vec2f(p.x, p.y),
+                    vec2f(pos.x, height / 2.0),
+                    len,
+                    height / 2.0,
+                );
+
+                if let Some(hit) = hit {
+                    hit.pattern_pos = vec2f(p.x, p.y);
+                    hit.extrusion = GeoFXNodeExtrusion::Z;
+                    hit.extrusion_length = thick;
+                    hit.interior_distance = d;
+                    hit.hit_point =
+                        p - vec3f(0.0, 0.0, pos.y.floor() + hit.extrusion_length.fract() / 2.0);
+                }
+
+                d
+            }
+            RightWall => {
+                let thick = params[2];
+                let len = params[3];
+                let height = params[4];
+
+                let pos = vec2f(params[0], params[1]);
+                let d = sdf_box2d(
+                    vec2f(p.z, p.y),
+                    vec2f(pos.y, height / 2.0),
+                    len,
+                    height / 2.0,
+                );
+
+                if let Some(hit) = hit {
+                    hit.pattern_pos = vec2f(p.z, p.y);
+                    hit.extrusion = GeoFXNodeExtrusion::X;
+                    hit.extrusion_length = thick;
+                    hit.interior_distance = d;
+                    hit.hit_point = p - vec3f(pos.x.floor() + 1.0 - thick.fract() / 2.0, 0.0, 0.0);
+                }
+
+                d
+            }
+            BottomWall => {
+                let thick = params[2];
+                let len = params[3];
+                let height = params[4];
+
+                let pos = vec2f(params[0], params[1]);
+                let d = sdf_box2d(
+                    vec2f(p.x, p.y),
+                    vec2f(pos.x, height / 2.0),
+                    len,
+                    height / 2.0,
+                );
+
+                if let Some(hit) = hit {
+                    hit.pattern_pos = vec2f(p.x, p.y);
+                    hit.extrusion = GeoFXNodeExtrusion::Z;
+                    hit.extrusion_length = thick;
+                    hit.interior_distance = d;
+                    hit.hit_point = p - vec3f(
+                        0.0,
+                        0.0,
+                        pos.y.floor() + 1.0 - hit.extrusion_length.fract() / 2.0,
                     );
-
-                    if let Some(hit) = hit {
-                        hit.pattern_pos = vec2f(p.z, p.y);
-                        hit.extrusion = GeoFXNodeExtrusion::X;
-                        hit.extrusion_length = coll.get_f32_default("Thickness", 0.2);
-                        hit.interior_distance = d;
-                        hit.hit_point = p - vec3f(pos.x.floor() + thick.fract() / 2.0, 0.0, 0.0);
-                    }
-
-                    return d;
                 }
-                TopWall => {
-                    let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
-                    let height = coll.get_f32_default("Height", 1.0);
 
-                    let pos = self.position();
-                    let d = sdf_box2d(
-                        vec2f(p.x, p.y),
-                        vec2f(pos.x, height / 2.0),
-                        len,
-                        height / 2.0,
-                    );
+                d
+            }
+            BendWallNW => {
+                let thick = params[2];
+                let round = params[3];
+                let height = params[4];
 
-                    if let Some(hit) = hit {
-                        hit.pattern_pos = vec2f(p.x, p.y);
-                        hit.extrusion = GeoFXNodeExtrusion::Z;
-                        hit.extrusion_length = coll.get_f32_default("Thickness", 0.2);
-                        hit.interior_distance = d;
-                        hit.hit_point =
-                            p - vec3f(0.0, 0.0, pos.y.floor() + hit.extrusion_length.fract() / 2.0);
-                    }
+                let pos = vec2f(params[0], params[1]) + 1.0;
+                let rounding = (round, round, round, round);
 
-                    return d;
+                let pp = vec2f(p.x, p.z) - pos;
+
+                let size = 1.0;
+                let mut d = sdf_rounded_box2d(pp, size, thick, rounding);
+
+                d = d.abs() - thick;
+
+                if let Some(hit) = hit {
+                    hit.interior_distance = d;
                 }
-                RightWall => {
-                    let thick = coll.get_f32_default("Thickness", 0.2);
-                    let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
-                    let height = coll.get_f32_default("Height", 1.0);
 
-                    let pos = self.position();
-                    let d = sdf_box2d(
-                        vec2f(p.z, p.y),
-                        vec2f(pos.y, height / 2.0),
-                        len,
-                        height / 2.0,
-                    );
+                let d = op_extrusion_y(p, d, height);
+                let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                max(-plane, d)
+            }
+            BendWallNE => {
+                let thick = params[2];
+                let round = params[3];
+                let height = params[4];
 
-                    if let Some(hit) = hit {
-                        hit.pattern_pos = vec2f(p.z, p.y);
-                        hit.extrusion = GeoFXNodeExtrusion::X;
-                        hit.extrusion_length = thick;
-                        hit.interior_distance = d;
-                        hit.hit_point =
-                            p - vec3f(pos.x.floor() + 1.0 - thick.fract() / 2.0, 0.0, 0.0);
-                    }
+                let pos = vec2f(params[0], params[1]) + vec2f(0.0, 1.0);
+                let rounding = (round, round, round, round);
 
-                    return d;
+                let pp = vec2f(p.x, p.z) - pos;
+
+                let size = 1.0;
+                let mut d = sdf_rounded_box2d(pp, size, thick, rounding);
+
+                d = d.abs() - thick;
+
+                if let Some(hit) = hit {
+                    hit.interior_distance = d;
                 }
-                BottomWall => {
-                    let len = coll.get_f32_default("Length", 1.0) / 2.0 + 0.1;
-                    let height = coll.get_f32_default("Height", 1.0);
 
-                    let pos = self.position();
-                    let d = sdf_box2d(
-                        vec2f(p.x, p.y),
-                        vec2f(pos.x, height / 2.0),
-                        len,
-                        height / 2.0,
-                    );
+                let d = op_extrusion_y(p, d, height);
+                let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                max(-plane, d)
+            }
+            BendWallSW => {
+                let thick = params[2];
+                let round = params[3];
+                let height = params[4];
 
-                    if let Some(hit) = hit {
-                        hit.pattern_pos = vec2f(p.x, p.y);
-                        hit.extrusion = GeoFXNodeExtrusion::Z;
-                        hit.extrusion_length = coll.get_f32_default("Thickness", 0.2);
-                        hit.interior_distance = d;
-                        hit.hit_point = p - vec3f(
-                            0.0,
-                            0.0,
-                            pos.y.floor() + 1.0 - hit.extrusion_length.fract() / 2.0,
-                        );
-                    }
+                let pos = vec2f(params[0], params[1]) + vec2f(1.0, 0.0);
+                let rounding = (round, round, round, round);
 
-                    return d;
+                let pp = vec2f(p.x, p.z) - pos;
+
+                let size = 1.0;
+                let mut d = sdf_rounded_box2d(pp, size, thick, rounding);
+
+                d = d.abs() - thick;
+
+                if let Some(hit) = hit {
+                    hit.interior_distance = d;
                 }
-                BendWallNW => {
-                    let thick = coll.get_f32_default("Thickness", 0.2);
-                    let round = coll.get_f32_default("Rounding", 0.3);
-                    let height = coll.get_f32_default("Height", 1.0);
 
-                    let pos = self.position() + 1.0;
-                    let rounding = (round, round, round, round);
+                let d = op_extrusion_y(p, d, height);
+                let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                max(-plane, d)
+            }
+            BendWallSE => {
+                let thick = params[2];
+                let round = params[3];
+                let height = params[4];
 
-                    let pp = vec2f(p.x, p.z) - pos;
+                let pos = vec2f(params[0], params[1]);
+                let rounding = (round, round, round, round);
 
-                    let size = 1.0;
-                    let mut d = sdf_rounded_box2d(pp, size, thick, rounding);
+                let pp = vec2f(p.x, p.z) - pos;
 
-                    d = d.abs() - thick;
+                let size = 1.0;
+                let mut d = sdf_rounded_box2d(pp, size, thick, rounding);
 
-                    if let Some(hit) = hit {
-                        hit.interior_distance = d;
-                    }
+                d = d.abs() - thick;
 
-                    let d = op_extrusion_y(p, d, height);
-                    let plane = dot(p, vec3f(0.0, 1.0, 0.0));
-                    return max(-plane, d);
+                if let Some(hit) = hit {
+                    hit.interior_distance = d;
                 }
-                BendWallNE => {
-                    let thick = coll.get_f32_default("Thickness", 0.2);
-                    let round = coll.get_f32_default("Rounding", 0.3);
-                    let height = coll.get_f32_default("Height", 1.0);
 
-                    let pos = self.position() + vec2f(0.0, 1.0);
-                    let rounding = (round, round, round, round);
-
-                    let pp = vec2f(p.x, p.z) - pos;
-
-                    let size = 1.0;
-                    let mut d = sdf_rounded_box2d(pp, size, thick, rounding);
-
-                    d = d.abs() - thick;
-
-                    if let Some(hit) = hit {
-                        hit.interior_distance = d;
-                    }
-
-                    let d = op_extrusion_y(p, d, height);
-                    let plane = dot(p, vec3f(0.0, 1.0, 0.0));
-                    return max(-plane, d);
-                }
-                BendWallSW => {
-                    let thick = coll.get_f32_default("Thickness", 0.2);
-                    let round = coll.get_f32_default("Rounding", 0.3);
-                    let height = coll.get_f32_default("Height", 1.0);
-
-                    let pos = self.position() + vec2f(1.0, 0.0);
-                    let rounding = (round, round, round, round);
-
-                    let pp = vec2f(p.x, p.z) - pos;
-
-                    let size = 1.0;
-                    let mut d = sdf_rounded_box2d(pp, size, thick, rounding);
-
-                    d = d.abs() - thick;
-
-                    if let Some(hit) = hit {
-                        hit.interior_distance = d;
-                    }
-
-                    let d = op_extrusion_y(p, d, height);
-                    let plane = dot(p, vec3f(0.0, 1.0, 0.0));
-                    return max(-plane, d);
-                }
-                BendWallSE => {
-                    let thick = coll.get_f32_default("Thickness", 0.2);
-                    let round = coll.get_f32_default("Rounding", 0.3);
-                    let height = coll.get_f32_default("Height", 1.0);
-
-                    let pos = self.position();
-                    let rounding = (round, round, round, round);
-
-                    let pp = vec2f(p.x, p.z) - pos;
-
-                    let size = 1.0;
-                    let mut d = sdf_rounded_box2d(pp, size, thick, rounding);
-
-                    d = d.abs() - thick;
-
-                    if let Some(hit) = hit {
-                        hit.interior_distance = d;
-                    }
-
-                    let d = op_extrusion_y(p, d, height);
-                    let plane = dot(p, vec3f(0.0, 1.0, 0.0));
-                    return max(-plane, d);
-                }
+                let d = op_extrusion_y(p, d, height);
+                let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                max(-plane, d)
             }
         }
-
-        f32::INFINITY
     }
 
     /// Returns all tiles which are touched by this geometry.

@@ -385,12 +385,17 @@ impl MaterialFXNode {
                 None
             }
             Noise2D => {
-                let collection = self.collection();
-                hit.noise_scale = collection.get_f32_default("Out Scale", 1.0);
+                let coll = self.collection();
+                hit.noise_scale = coll.get_f32_default("Out Scale", 1.0);
+                let scale = vec2f(
+                    coll.get_f32_default("UV Scale X", 1.0),
+                    coll.get_f32_default("UV Scale Y", 1.0),
+                );
+                let octaves = coll.get_i32_default("Octaves", 5);
                 let value = if hit.two_d {
-                    noise2d(&collection, &hit.global_uv)
+                    noise2d(&hit.global_uv, scale, octaves)
                 } else {
-                    noise2d(&collection, &hit.uv)
+                    noise2d(&hit.uv, scale, octaves)
                 };
                 hit.noise = Some(value);
                 hit.albedo = vec3f(hit.value, hit.value, hit.value);
@@ -592,7 +597,13 @@ impl MaterialFXNode {
                         Noise2D => {
                             let uv = Vec2f::new(xx / width as f32, yy / height as f32);
 
-                            let value = noise2d(&collection, &uv);
+                            let scale = vec2f(
+                                collection.get_f32_default("UV Scale X", 1.0),
+                                collection.get_f32_default("UV Scale Y", 1.0),
+                            );
+                            let octaves = collection.get_i32_default("Octaves", 5);
+
+                            let value = noise2d(&uv, scale, octaves);
                             color = Vec4f::new(value, value, value, 1.0);
                         }
                         Noise3D => {

@@ -95,7 +95,7 @@ pub fn subdivide(coll: &TheCollection, uv: Vec2f, hit: &mut Hit) -> u8 {
     }
 }
 
-pub fn noise2d(coll: &TheCollection, p: &Vec2f) -> f32 {
+pub fn noise2d(p: &Vec2f, scale: Vec2f, octaves: i32) -> f32 {
     fn hash(p: Vec2f) -> f32 {
         let mut p3 = frac(vec3f(p.x, p.y, p.x) * 0.13);
         p3 += dot(p3, vec3f(p3.y, p3.z, p3.x) + 3.333);
@@ -115,11 +115,11 @@ pub fn noise2d(coll: &TheCollection, p: &Vec2f) -> f32 {
         lerp(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y
     }
 
-    let scale = vec2f(
-        coll.get_f32_default("UV Scale X", 1.0),
-        coll.get_f32_default("UV Scale Y", 1.0),
-    );
-    let octaves = coll.get_i32_default("Octaves", 5);
+    // let scale = vec2f(
+    //     coll.get_f32_default("UV Scale X", 1.0),
+    //     coll.get_f32_default("UV Scale Y", 1.0),
+    // );
+    // let octaves = coll.get_i32_default("Octaves", 5);
 
     let mut x = *p * 8.0 * scale;
 

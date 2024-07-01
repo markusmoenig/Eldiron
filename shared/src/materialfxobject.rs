@@ -85,8 +85,9 @@ impl MaterialFXObject {
         p: Vec3f,
         hit: &mut Hit,
         geo_obj: &GeoFXObject,
+        geo_obj_params: &[Vec<f32>],
     ) -> (f32, usize) {
-        let mut d = geo_obj.distance_3d(time, p, &mut Some(hit));
+        let mut d = geo_obj.distance_3d(time, p, &mut Some(hit), geo_obj_params);
         _ = self.follow_geo_trail(time, hit);
 
         match hit.extrusion {
@@ -176,7 +177,14 @@ impl MaterialFXObject {
     }
 
     /// Calculate normal
-    pub fn normal(&self, time: &TheTime, p: Vec3f, hit: &mut Hit, geo_obj: &GeoFXObject) -> Vec3f {
+    pub fn normal(
+        &self,
+        time: &TheTime,
+        p: Vec3f,
+        hit: &mut Hit,
+        geo_obj: &GeoFXObject,
+        geo_obj_params: &[Vec<f32>],
+    ) -> Vec3f {
         let scale = 0.5773 * 0.0005;
         let e = vec2f(1.0 * scale, -1.0 * scale);
 
@@ -187,10 +195,19 @@ impl MaterialFXObject {
         let e3 = vec3f(e.y, e.x, e.y);
         let e4 = vec3f(e.x, e.x, e.x);
 
-        let n = e1 * self.get_distance_3d(time, p + e1, hit, geo_obj).0
-            + e2 * self.get_distance_3d(time, p + e2, hit, geo_obj).0
-            + e3 * self.get_distance_3d(time, p + e3, hit, geo_obj).0
-            + e4 * self.get_distance_3d(time, p + e4, hit, geo_obj).0;
+        let n = e1
+            * self
+                .get_distance_3d(time, p + e1, hit, geo_obj, geo_obj_params)
+                .0
+            + e2 * self
+                .get_distance_3d(time, p + e2, hit, geo_obj, geo_obj_params)
+                .0
+            + e3 * self
+                .get_distance_3d(time, p + e3, hit, geo_obj, geo_obj_params)
+                .0
+            + e4 * self
+                .get_distance_3d(time, p + e4, hit, geo_obj, geo_obj_params)
+                .0;
         normalize(n)
     }
 

@@ -220,7 +220,7 @@ impl PreRenderThread {
                 // Rendering in progress ?
 
                 if in_progress {
-                    let mut reset = false;
+                    //let mut reset = false;
 
                     let w = (curr_region.width as f32 * curr_region.grid_size as f32) as i32;
                     let h = (curr_region.height as f32 * curr_region.grid_size as f32) as i32;
@@ -246,7 +246,6 @@ impl PreRenderThread {
 
                     if let Some(prerendered) = prerendered_region_data.get_mut(&curr_region.id) {
                         background_pool.install(|| {
-                            println!("working");
                             in_progress = !renderer.prerender(
                                 vec2i(w, h),
                                 prerendered,
