@@ -218,6 +218,13 @@ impl Renderer {
         //let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
         let camera = Camera::new(ro, rd, fov);
 
+        // Collect the material params
+        let mut material_params: FxHashMap<Uuid, Vec<Vec<f32>>> = FxHashMap::default();
+        for (id, material) in &self.materials {
+            let params = material.load_parameters(&settings.time);
+            material_params.insert(*id, params);
+        }
+
         let prerendered_mutex = Arc::new(Mutex::new(prerendered));
 
         let _start = self.get_time();
@@ -293,6 +300,7 @@ impl Renderer {
                                     settings,
                                     max_render_distance,
                                     palette,
+                                    &material_params,
                                     &mut rng,
                                 ) {
                                     if depth == 0 {
@@ -359,6 +367,7 @@ impl Renderer {
                                                         region,
                                                         &update,
                                                         settings,
+                                                        &material_params,
                                                     ) {
                                                         let omega =
                                                             2.0 * f32::pi() * (1.0 - cos_a_max);
@@ -456,6 +465,7 @@ impl Renderer {
                                                         region,
                                                         &update,
                                                         settings,
+                                                        &material_params,
                                                     ) {
                                                         let omega =
                                                             2.0 * f32::pi() * (1.0 - cos_a_max);
@@ -511,6 +521,7 @@ impl Renderer {
                                     settings,
                                     max_render_distance,
                                     palette,
+                                    &material_params,
                                     &mut rng,
                                 ) {
                                     if depth == 0 {
@@ -703,6 +714,7 @@ impl Renderer {
         settings: &RegionDrawSettings,
         max_render_distance: i32,
         palette: &ThePalette,
+        material_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
         _rng: &mut ThreadRng,
     ) -> Option<Hit> {
         let mut hit = Hit::default();
@@ -743,8 +755,14 @@ impl Renderer {
                 for geo_id in geo_ids {
                     let mut h = Hit::default();
                     if let Some(geo_obj) = region.geometry.get(geo_id) {
-                        let params = geo_obj.load_parameters(&settings.time);
+                        let geo_obj_params = geo_obj.load_parameters(&settings.time);
                         let material = self.materials.get(&geo_obj.material_id);
+                        let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+
+                        if let Some(m_params) = material_params.get(&geo_obj.material_id) {
+                            mat_obj_params.clone_from(m_params);
+                        }
+
                         let lro = ray.at(dist);
 
                         let r = Ray::new(lro, ray.d);
@@ -765,7 +783,8 @@ impl Renderer {
                                     p,
                                     &mut h,
                                     geo_obj,
-                                    &params,
+                                    &geo_obj_params,
+                                    &mat_obj_params,
                                 );
                             } else {
                                 d = MaterialFXObject::default().get_distance_3d(
@@ -773,7 +792,8 @@ impl Renderer {
                                     p,
                                     &mut h,
                                     geo_obj,
-                                    &params,
+                                    &geo_obj_params,
+                                    &mat_obj_params,
                                 );
                             }
 
@@ -787,7 +807,8 @@ impl Renderer {
                                         p,
                                         &mut h,
                                         geo_obj,
-                                        &params,
+                                        &geo_obj_params,
+                                        &mat_obj_params,
                                     );
                                 } else {
                                     hit.normal = MaterialFXObject::default().normal(
@@ -795,7 +816,8 @@ impl Renderer {
                                         p,
                                         &mut h,
                                         geo_obj,
-                                        &params,
+                                        &geo_obj_params,
+                                        &mat_obj_params,
                                     );
                                 }
 
@@ -808,7 +830,7 @@ impl Renderer {
                                         &settings.time,
                                         p,
                                         &mut Some(&mut hit),
-                                        &params[d.1],
+                                        &geo_obj_params[d.1],
                                     );
                                 }
 
@@ -1339,17 +1361,17 @@ impl Renderer {
         update: &RegionUpdate,
         settings: &RegionDrawSettings,
         camera_type: CameraType,
-        level: &Level,
+        _level: &Level,
         saturation: &Option<f32>,
         _max_render_distance: i32,
         _palette: &ThePalette,
     ) -> RGBA {
         let mut color = vec3f(0.0, 0.0, 0.0);
-        let hit_props = Hit::default();
+        //let hit_props = Hit::default();
 
         let rd = ray.d;
         let mut dist = 0.0;
-        let normal = Vec3f::zero();
+        //let normal = Vec3f::zero();
         let mut hit = false;
 
         if let Some(c) = region.prerendered.albedo.at_vec3(pos) {
@@ -1473,6 +1495,7 @@ impl Renderer {
 
         // Light Sampling
         //
+        /*
         if false {
             //hit {
             if level.lights.is_empty() {
@@ -1588,7 +1611,7 @@ impl Renderer {
                     color,
                     );*/
             }
-        }
+            }*/
 
         if let Some(saturation) = saturation {
             let mut hsl = TheColor::from_vec3f(color).as_hsl();
@@ -1707,6 +1730,13 @@ impl Renderer {
         let mut level = Level::new(region.width, region.height, settings.time);
         region.fill_code_level(&mut level, &self.textures, update);
 
+        // Collect the material params
+        let mut material_params: FxHashMap<Uuid, Vec<Vec<f32>>> = FxHashMap::default();
+        for (id, material) in &self.materials {
+            let params = material.load_parameters(&settings.time);
+            material_params.insert(*id, params);
+        }
+
         let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
         let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
         let camera = Camera::new(ro, rd, fov);
@@ -1764,6 +1794,7 @@ impl Renderer {
                         &saturation,
                         max_render_distance,
                         palette,
+                        &material_params,
                     ));
                 }
             });
@@ -1785,6 +1816,7 @@ impl Renderer {
         saturation: &Option<f32>,
         max_render_distance: i32,
         _palette: &ThePalette,
+        material_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
     ) -> RGBA {
         let mut color = vec4f(0.0, 0.0, 0.0, 1.0);
         let mut hit_props = Hit::default();
@@ -2160,6 +2192,7 @@ impl Renderer {
                             region,
                             update,
                             settings,
+                            material_params,
                         ) {
                             let c = if settings.pbr {
                                 let mut light_color = Vec3f::from(1.5 * light_strength);
@@ -2246,6 +2279,7 @@ impl Renderer {
     }
 
     #[inline(always)]
+    #[allow(clippy::too_many_arguments)]
     pub fn shadow_ray(
         &self,
         ray: Ray,
@@ -2254,6 +2288,7 @@ impl Renderer {
         region: &Region,
         _update: &RegionUpdate,
         settings: &RegionDrawSettings,
+        material_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
     ) -> bool {
         #[inline(always)]
         fn equal(l: f32, r: Vec3f) -> Vec3f {
@@ -2311,8 +2346,14 @@ impl Renderer {
                 for geo_id in geo_ids {
                     let mut h = Hit::default();
                     if let Some(geo_obj) = region.geometry.get(geo_id) {
-                        let params = geo_obj.load_parameters(&settings.time);
+                        let geo_obj_params = geo_obj.load_parameters(&settings.time);
                         let material = self.materials.get(&geo_obj.material_id);
+                        let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+
+                        if let Some(m_params) = material_params.get(&geo_obj.material_id) {
+                            mat_obj_params.clone_from(m_params);
+                        }
+
                         let lro = ray.at(dist);
 
                         let r = Ray::new(lro, ray.d);
@@ -2333,7 +2374,8 @@ impl Renderer {
                                     p,
                                     &mut h,
                                     geo_obj,
-                                    &params,
+                                    &geo_obj_params,
+                                    &mat_obj_params,
                                 );
                             } else {
                                 d = MaterialFXObject::default().get_distance_3d(
@@ -2341,7 +2383,8 @@ impl Renderer {
                                     p,
                                     &mut h,
                                     geo_obj,
-                                    &params,
+                                    &geo_obj_params,
+                                    &mat_obj_params,
                                 );
                             }
 

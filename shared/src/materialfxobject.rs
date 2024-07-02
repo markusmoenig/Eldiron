@@ -48,6 +48,16 @@ impl MaterialFXObject {
         }
     }
 
+    /// Loads the parameters of the nodes into memory for faster access.
+    pub fn load_parameters(&self, time: &TheTime) -> Vec<Vec<f32>> {
+        let mut data = vec![];
+
+        for n in &self.nodes {
+            data.push(n.load_parameters(time));
+        }
+        data
+    }
+
     /// Computes the material
     pub fn compute(
         &self,
@@ -65,10 +75,11 @@ impl MaterialFXObject {
         hit: &mut Hit,
         geo_obj: &GeoFXObject,
         scale: f32,
+        mat_obj_params: &[Vec<f32>],
     ) -> (f32, usize) {
         hit.pattern_pos = p;
         let d = geo_obj.distance(time, p, scale, &mut Some(hit));
-        if self.follow_geo_trail(time, hit) {
+        if self.follow_geo_trail(time, hit, mat_obj_params) {
             if hit.interior_distance <= 0.01 {
                 hit.value = 0.0;
             } else {
@@ -86,9 +97,10 @@ impl MaterialFXObject {
         hit: &mut Hit,
         geo_obj: &GeoFXObject,
         geo_obj_params: &[Vec<f32>],
+        mat_obj_params: &[Vec<f32>],
     ) -> (f32, usize) {
         let mut d = geo_obj.distance_3d(time, p, &mut Some(hit), geo_obj_params);
-        _ = self.follow_geo_trail(time, hit);
+        _ = self.follow_geo_trail(time, hit, mat_obj_params);
 
         match hit.extrusion {
             GeoFXNodeExtrusion::X => {
@@ -168,9 +180,14 @@ impl MaterialFXObject {
         d
     }
 
-    pub fn follow_geo_trail(&self, _time: &TheTime, hit: &mut Hit) -> bool {
+    pub fn follow_geo_trail(
+        &self,
+        _time: &TheTime,
+        hit: &mut Hit,
+        mat_obj_params: &[Vec<f32>],
+    ) -> bool {
         if let Some((index, _input)) = self.find_connected_input_node(0, 1) {
-            self.nodes[index as usize].geometry(hit);
+            self.nodes[index as usize].geometry(hit, &mat_obj_params[index as usize]);
             return true;
         }
         false
@@ -184,6 +201,7 @@ impl MaterialFXObject {
         hit: &mut Hit,
         geo_obj: &GeoFXObject,
         geo_obj_params: &[Vec<f32>],
+        mat_obj_params: &[Vec<f32>],
     ) -> Vec3f {
         let scale = 0.5773 * 0.0005;
         let e = vec2f(1.0 * scale, -1.0 * scale);
@@ -197,16 +215,16 @@ impl MaterialFXObject {
 
         let n = e1
             * self
-                .get_distance_3d(time, p + e1, hit, geo_obj, geo_obj_params)
+                .get_distance_3d(time, p + e1, hit, geo_obj, geo_obj_params, mat_obj_params)
                 .0
             + e2 * self
-                .get_distance_3d(time, p + e2, hit, geo_obj, geo_obj_params)
+                .get_distance_3d(time, p + e2, hit, geo_obj, geo_obj_params, mat_obj_params)
                 .0
             + e3 * self
-                .get_distance_3d(time, p + e3, hit, geo_obj, geo_obj_params)
+                .get_distance_3d(time, p + e3, hit, geo_obj, geo_obj_params, mat_obj_params)
                 .0
             + e4 * self
-                .get_distance_3d(time, p + e4, hit, geo_obj, geo_obj_params)
+                .get_distance_3d(time, p + e4, hit, geo_obj, geo_obj_params, mat_obj_params)
                 .0;
         normalize(n)
     }
@@ -408,6 +426,8 @@ impl MaterialFXObject {
 
         let noise2d = MaterialFXNode::new(MaterialFXNodeRole::Noise2D);
 
+        let mat_obj_params = self.load_parameters(&time);
+
         buffer
             .pixels_mut()
             .par_rchunks_exact_mut(width * 4)
@@ -432,7 +452,7 @@ impl MaterialFXObject {
                     hit.global_uv = hit.uv;
 
                     noise2d.compute(&mut hit, palette, textures, vec![]);
-                    self.get_distance(&time, hit.uv, &mut hit, &geo_object, 1.0);
+                    self.get_distance(&time, hit.uv, &mut hit, &geo_object, 1.0, &mat_obj_params);
                     self.compute(&mut hit, palette, textures);
 
                     color.x = hit.albedo.x;

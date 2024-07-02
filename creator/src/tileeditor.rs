@@ -415,11 +415,11 @@ impl TileEditor {
                         PRERENDERTHREAD
                             .lock()
                             .unwrap()
-                            .render_region_coord_tree(region.clone());
+                            .render_region_coord_tree(region.shallow_clone());
                         PRERENDERTHREAD
                             .lock()
                             .unwrap()
-                            .render_region(region.clone(), None);
+                            .render_region(region.shallow_clone(), None);
                         redraw = true;
                     }
                 } else if item_id.name == "Create Area" {

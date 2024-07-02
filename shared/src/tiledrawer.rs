@@ -162,6 +162,13 @@ impl TileDrawer {
         let mut level = Level::new(region.width, region.height, settings.time);
         region.fill_code_level(&mut level, &self.tiles, update);
 
+        // Collect the material params
+        let mut material_params: FxHashMap<Uuid, Vec<Vec<f32>>> = FxHashMap::default();
+        for (id, material) in &self.materials {
+            let params = material.load_parameters(&settings.time);
+            material_params.insert(*id, params);
+        }
+
         let pixels = buffer.pixels_mut();
         pixels
             .par_rchunks_exact_mut(width * 4)
@@ -352,12 +359,20 @@ impl TileDrawer {
                                     hit.hit_point = vec3f(p.x, 0.0, p.y);
                                     //material.compute(&mut hit, palette);
 
+                                    let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+
+                                    if let Some(m_params) =
+                                        material_params.get(&geo_obj.material_id)
+                                    {
+                                        mat_obj_params.clone_from(m_params);
+                                    }
                                     material.get_distance(
                                         &TheTime::default(),
                                         p / grid_size,
                                         &mut hit,
                                         geo_obj,
                                         grid_size,
+                                        &mat_obj_params,
                                     );
 
                                     material.compute(&mut hit, palette, &self.tiles);

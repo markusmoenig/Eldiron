@@ -391,6 +391,14 @@ impl Region {
     pub fn to_json(&self) -> String {
         serde_json::to_string(&self).unwrap_or_default()
     }
+
+    /// Create a shallow clone without any of the prerendered data.
+    pub fn shallow_clone(&self) -> Region {
+        Region {
+            prerendered: PreRendered::zero(),
+            ..self.clone()
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]

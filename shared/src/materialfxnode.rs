@@ -166,6 +166,31 @@ impl MaterialFXNode {
         ]
     }
 
+    /// Loads the parameters of the nodes into memory for faster access.
+    pub fn load_parameters(&self, _time: &TheTime) -> Vec<f32> {
+        let mut params = vec![];
+
+        let coll = self.collection();
+
+        match self.role {
+            MaterialFXNodeRole::BoxSubdivision => {
+                params.push(coll.get_f32_default("Scale", 1.0));
+                params.push(coll.get_f32_default("Gap", 1.0));
+                params.push(coll.get_f32_default("Rotation", 0.15));
+                params.push(coll.get_f32_default("Rounding", 0.15));
+            }
+            MaterialFXNodeRole::Tiles => {
+                params.push(coll.get_f32_default("Size", 0.8));
+                params.push(coll.get_i32_default("Subdivisions", 2) as f32);
+                params.push(coll.get_f32_default("Rotation", 0.15));
+                params.push(coll.get_f32_default("Rounding", 0.15));
+            }
+            _ => {}
+        }
+
+        params
+    }
+
     pub fn inputs(&self) -> Vec<TheNodeTerminal> {
         match self.role {
             Brick => {
@@ -476,15 +501,14 @@ impl MaterialFXNode {
         }
     }
 
-    pub fn geometry(&self, hit: &mut Hit) -> Option<u8> {
+    pub fn geometry(&self, hit: &mut Hit, params: &[f32]) -> Option<u8> {
         #[allow(clippy::single_match)]
         match self.role {
             BoxSubdivision => {
-                let collection = self.collection();
-                let scale = collection.get_f32_default("Scale", 1.0);
-                let gap = collection.get_f32_default("Gap", 1.0);
-                let rotation = collection.get_f32_default("Rotation", 0.15);
-                let rounding = collection.get_f32_default("Rounding", 0.15);
+                let scale = params[0];
+                let gap = params[1];
+                let rotation = params[2];
+                let rounding = params[3];
 
                 let p = hit.pattern_pos / (5.0 * scale);
                 let rc = box_divide(p, gap, rotation, rounding);
@@ -493,11 +517,10 @@ impl MaterialFXNode {
                 hit.hash = rc.1;
             }
             Tiles => {
-                let collection = self.collection();
-                let size = collection.get_f32_default("Size", 0.8);
-                let subdivisions = collection.get_i32_default("Subdivisions", 2);
-                let _rotation = collection.get_f32_default("Rotation", 0.15);
-                let rounding = collection.get_f32_default("Rounding", 0.15);
+                let size = params[0];
+                let subdivisions = params[1] as i32;
+                let _rotation = params[2];
+                let rounding = params[3];
 
                 let p = hit.pattern_pos; // / (5.0);
 
