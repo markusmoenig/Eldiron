@@ -172,10 +172,12 @@ impl PreRendered {
                 }
 
                 // distance
-                if let Some(existing) = self.distance.get_mut((w + tile_x, h + tile_y)) {
-                    if let Some(new_samp) = distance.get((w, h)) {
+                if let Some(new_samp) = distance.get((w, h)) {
+                    if let Some(existing) = self.distance.get_mut((w + tile_x, h + tile_y)) {
                         let d = lerp(*existing, *new_samp, s);
                         *existing = d;
+                    } else {
+                        self.distance.set((w + tile_x, h + tile_y), *new_samp);
                     }
                 }
 

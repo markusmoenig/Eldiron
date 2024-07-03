@@ -44,6 +44,7 @@ pub enum GeoFXNodeRole {
     BendWallNE,
     BendWallSW,
     BendWallSE,
+    Gate,
 }
 
 use GeoFXNodeRole::*;
@@ -73,15 +74,7 @@ impl GeoFXNode {
             Floor => {
                 coll.set("Pos X", TheValue::Float(0.5));
                 coll.set("Pos Y", TheValue::Float(0.5));
-                coll.set("Height", TheValue::FloatRange(0.1, 0.001..=1.0));
-                coll.set("Hole", TheValue::FloatRange(0.0, 0.0..=1.0));
-                function = str!("Ground");
-            }
-            Column => {
-                coll.set("Pos X", TheValue::Float(0.5));
-                coll.set("Pos Y", TheValue::Float(0.5));
-                coll.set("Radius", TheValue::FloatRange(0.4, 0.001..=2.0));
-                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(0.01, 0.001..=1.0));
                 coll.set("Hole", TheValue::FloatRange(0.0, 0.0..=1.0));
                 function = str!("Ground");
             }
@@ -120,6 +113,22 @@ impl GeoFXNode {
                 coll.set("Rounding", TheValue::FloatRange(0.3, 0.0..=1.0));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
             }
+            Column => {
+                coll.set("Pos X", TheValue::Float(0.5));
+                coll.set("Pos Y", TheValue::Float(0.5));
+                coll.set("Radius", TheValue::FloatRange(0.4, 0.001..=2.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Hole", TheValue::FloatRange(0.0, 0.0..=1.0));
+            }
+            Gate => {
+                coll.set("Pos X", TheValue::Float(0.5));
+                coll.set("Pos Y", TheValue::Float(0.5));
+                coll.set(
+                    "Align",
+                    TheValue::TextList(0, vec![str!("North/South"), str!("West/East")]),
+                );
+                coll.set("Height", TheValue::FloatRange(0.8, 0.001..=1.0));
+            }
         }
         let timeline = TheTimeline::collection(coll);
 
@@ -135,7 +144,6 @@ impl GeoFXNode {
         vec![
             Self::new(GeoFXNodeRole::Ground),
             Self::new(GeoFXNodeRole::Floor),
-            Self::new(GeoFXNodeRole::Column),
             Self::new(GeoFXNodeRole::LeftWall),
             Self::new(GeoFXNodeRole::TopWall),
             Self::new(GeoFXNodeRole::RightWall),
@@ -144,7 +152,26 @@ impl GeoFXNode {
             Self::new(GeoFXNodeRole::BendWallNE),
             Self::new(GeoFXNodeRole::BendWallSW),
             Self::new(GeoFXNodeRole::BendWallSE),
+            Self::new(GeoFXNodeRole::Column),
+            Self::new(GeoFXNodeRole::Gate),
         ]
+    }
+
+    /// Gives the node a chance to update its parameters in case things changed.
+    pub fn update_parameters(&mut self) {
+        // match self.role {
+        //     Floor => {
+        //         if let Some(coll) = self
+        //             .timeline
+        //             .get_collection_at(&TheTime::default(), str!("Geo"))
+        //         {
+        //             if coll.get_f32_default("Height", 0.01) == 0.1 {
+        //                 self.set("Height", TheValue::FloatRange(0.01, 0.001..=1.0));
+        //             }
+        //         }
+        //     }
+        //     _ => {}
+        // }
     }
 
     /// Loads the parameters of the nodes into memory for faster access.
@@ -178,6 +205,10 @@ impl GeoFXNode {
                     params.push(coll.get_f32_default("Thickness", 0.2));
                     params.push(coll.get_f32_default("Rounding", 0.3));
                     params.push(coll.get_f32_default("Height", 1.0));
+                }
+                Gate => {
+                    params.push(coll.get_i32_default("Align", 0) as f32);
+                    params.push(coll.get_f32_default("Height", 0.8));
                 }
             }
         }
@@ -216,7 +247,7 @@ impl GeoFXNode {
                     return -0.001;
                 }
                 Floor => {
-                    let mut pos = self.position() * scale;
+                    let mut pos = self.position(&coll) * scale;
                     pos.x = pos.x.floor();
 
                     let hole = coll.get_f32_default("Hole", 0.0) * scale;
@@ -229,34 +260,11 @@ impl GeoFXNode {
 
                     return d;
                 }
-                Column => {
-                    let radius = coll.get_f32_default("Radius", 0.4);
-
-                    // let waveAmplitude = 0.05;
-                    // let waveFrequency = 12.0 * 4.0; // Higher frequency for more fluting patterns
-
-                    // let angle = atan2(p.y + 0.5, p.x + 0.5);
-
-                    // // Modulate the radius with a sine wave to create fluting
-                    // let wave = waveAmplitude * sin(waveFrequency * angle);
-
-                    // // Calculate the modified radius
-                    // let modifiedRadius = radius + wave; // * 0.05;
-
-                    let hole = coll.get_f32_default("Hole", 0.0) * scale;
-
-                    let mut d = length(p - self.position() * scale) - radius * scale + hole;
-                    if hole > 0.0 {
-                        d = d.abs() - hole;
-                    }
-
-                    return d;
-                }
                 LeftWall => {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
                     let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
 
-                    let mut pos = self.position() * scale;
+                    let mut pos = self.position(&coll) * scale;
                     pos.x = pos.x.floor() + thick.fract() / 2.0;
 
                     return sdf_box2d(p, pos, thick, len);
@@ -265,7 +273,7 @@ impl GeoFXNode {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
                     let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
 
-                    let mut pos = self.position() * scale;
+                    let mut pos = self.position(&coll) * scale;
                     pos.y = pos.y.floor() + thick.fract() / 2.0;
 
                     return sdf_box2d(p, pos, len, thick);
@@ -274,7 +282,7 @@ impl GeoFXNode {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
                     let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
 
-                    let mut pos = self.position() * scale;
+                    let mut pos = self.position(&coll) * scale;
                     pos.x = pos.x.floor() + 1.0 - thick.fract() / 2.0;
 
                     return sdf_box2d(p, pos, thick, len);
@@ -283,7 +291,7 @@ impl GeoFXNode {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
                     let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
 
-                    let mut pos = self.position() * scale;
+                    let mut pos = self.position(&coll) * scale;
                     pos.y = pos.y.floor() + 1.0 - thick.fract() / 2.0;
 
                     return sdf_box2d(p, pos, len, thick);
@@ -292,7 +300,7 @@ impl GeoFXNode {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
                     let round = coll.get_f32_default("Rounding", 0.3) * scale;
 
-                    let pos = self.position() * scale + 1.0 * scale;
+                    let pos = self.position(&coll) * scale + 1.0 * scale;
                     let rounding = (round, round, round, round);
 
                     let p = p - pos;
@@ -311,7 +319,7 @@ impl GeoFXNode {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
                     let round = coll.get_f32_default("Rounding", 0.3) * scale;
 
-                    let mut pos = self.position() * scale;
+                    let mut pos = self.position(&coll) * scale;
                     pos += if scale != 1.0 {
                         vec2f(0.0, 1.0) * scale
                     } else {
@@ -336,7 +344,7 @@ impl GeoFXNode {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
                     let round = coll.get_f32_default("Rounding", 0.3) * scale;
 
-                    let mut pos = self.position() * scale;
+                    let mut pos = self.position(&coll) * scale;
                     pos += if scale != 1.0 {
                         vec2f(1.0, 0.0) * scale
                     } else {
@@ -360,7 +368,7 @@ impl GeoFXNode {
                     let thick = coll.get_f32_default("Thickness", 0.2) * scale;
                     let round = coll.get_f32_default("Rounding", 0.3) * scale;
 
-                    let mut pos = self.position() * scale;
+                    let mut pos = self.position(&coll) * scale;
                     pos += if scale != 1.0 {
                         vec2f(0.0, 0.0) * scale
                     } else {
@@ -380,6 +388,40 @@ impl GeoFXNode {
                     let d = sdf_rounded_box2d(p, size, thick, rounding);
 
                     return d.abs() - thick;
+                }
+                Column => {
+                    let radius = coll.get_f32_default("Radius", 0.4);
+
+                    // let waveAmplitude = 0.05;
+                    // let waveFrequency = 12.0 * 4.0; // Higher frequency for more fluting patterns
+
+                    // let angle = atan2(p.y + 0.5, p.x + 0.5);
+
+                    // // Modulate the radius with a sine wave to create fluting
+                    // let wave = waveAmplitude * sin(waveFrequency * angle);
+
+                    // // Calculate the modified radius
+                    // let modifiedRadius = radius + wave; // * 0.05;
+
+                    let hole = coll.get_f32_default("Hole", 0.0) * scale;
+
+                    let mut d = length(p - self.position(&coll) * scale) - radius * scale + hole;
+                    if hole > 0.0 {
+                        d = d.abs() - hole;
+                    }
+
+                    return d;
+                }
+                Gate => {
+                    let mut pos = self.position(&coll) * scale;
+                    let height = coll.get_f32_default("Height", 0.8) * scale;
+                    pos.y -= (height - 1.0 * scale) / 2.0;
+
+                    let r = op_rep_lim(p - pos, 0.32 * scale, vec2f(-1., 0.), vec2f(1., 0.));
+
+                    let d = sdf_box2d(r, Vec2f::zero(), 0.06 * scale, height / 2.0);
+
+                    return d;
                 }
             }
         }
@@ -424,27 +466,6 @@ impl GeoFXNode {
                 let pos = vec2f(params[0], params[1]);
                 let mut d = sdf_box2d(vec2f(p.x, p.z), pos, 0.5, 0.5);
 
-                if hole > 0.0 {
-                    d = d.abs() - hole;
-                }
-
-                if let Some(hit) = hit {
-                    hit.pattern_pos = vec2f(p.x, p.z);
-                    hit.extrusion = GeoFXNodeExtrusion::Y;
-                    hit.extrusion_length = height;
-                    hit.interior_distance = d;
-                    hit.hit_point = p - vec3f(pos.x.floor(), 0.0, pos.y.floor());
-                }
-
-                d
-            }
-            Column => {
-                let radius = params[2];
-                let height = params[3];
-                let hole = params[4];
-
-                let pos = vec2f(params[0], params[1]);
-                let mut d = length(vec2f(p.x, p.z) - self.position()) - radius + hole;
                 if hole > 0.0 {
                     d = d.abs() - hole;
                 }
@@ -648,6 +669,49 @@ impl GeoFXNode {
                 let plane = dot(p, vec3f(0.0, 1.0, 0.0));
                 max(-plane, d)
             }
+            Column => {
+                let radius = params[2];
+                let height = params[3];
+                let hole = params[4];
+
+                let pos = vec2f(params[0], params[1]);
+                let mut d = length(vec2f(p.x, p.z) - pos) - radius + hole;
+                if hole > 0.0 {
+                    d = d.abs() - hole;
+                }
+
+                if let Some(hit) = hit {
+                    hit.pattern_pos = vec2f(p.x, p.z);
+                    hit.extrusion = GeoFXNodeExtrusion::Y;
+                    hit.extrusion_length = height;
+                    hit.interior_distance = d;
+                    hit.hit_point = p - vec3f(pos.x.floor(), 0.0, pos.y.floor());
+                }
+
+                d
+            }
+            Gate => {
+                let pos = vec2f(params[0], params[1]);
+                let align = params[2] as i32;
+                let height = params[3];
+
+                let r = if align == 0 {
+                    op_rep_lim(vec2f(p.x, p.z) - pos, 0.32, vec2f(0., -1.), vec2f(0., 1.))
+                } else {
+                    op_rep_lim(vec2f(p.x, p.z) - pos, 0.32, vec2f(-1., 0.), vec2f(1., 0.))
+                };
+                let d = sdf_box2d(r, Vec2f::zero(), 0.06, 0.06);
+
+                if let Some(hit) = hit {
+                    hit.pattern_pos = vec2f(p.x, p.z);
+                    hit.extrusion = GeoFXNodeExtrusion::Y;
+                    hit.extrusion_length = height;
+                    hit.interior_distance = d;
+                    hit.hit_point = p - vec3f(pos.x.floor(), 0.0, pos.y.floor());
+                }
+
+                d
+            }
         }
     }
 
@@ -662,7 +726,7 @@ impl GeoFXNode {
                 Column => {
                     let radius = coll.get_f32_default("Radius", 0.4);
 
-                    let center = self.position();
+                    let center = self.position(&coll);
                     let min_x = (center.x - radius).floor() as i32;
                     let max_x = (center.x + radius).ceil() as i32;
                     let min_y = (center.y - radius).floor() as i32;
@@ -699,38 +763,23 @@ impl GeoFXNode {
                     }
                 }
                 _ => {
-                    area.push(Vec2i::from(self.position()));
+                    area.push(Vec2i::from(self.position(&coll)));
                 }
             }
         }
         area
     }
 
-    pub fn position(&self) -> Vec2f {
-        let mut x = 0.0;
-        let mut y = 0.0;
-        if let Some(coll) = self
-            .timeline
-            .get_collection_at(&TheTime::default(), str!("Geo"))
-        {
-            x = coll.get_f32_default("Pos X", 0.0);
-            y = coll.get_f32_default("Pos Y", 0.0);
-        }
-
+    #[inline(always)]
+    pub fn position(&self, coll: &TheCollection) -> Vec2f {
+        let x = coll.get_f32_default("Pos X", 0.0);
+        let y = coll.get_f32_default("Pos Y", 0.0);
         vec2f(x, y)
     }
 
     pub fn set_default_position(&mut self, p: Vec2i) {
         let mut pf = vec2f(p.x as f32, p.y as f32);
         match self.role {
-            Ground => {
-                pf.x += 0.5;
-                pf.y += 0.5;
-            }
-            Column | Floor => {
-                pf.x += 0.5;
-                pf.y += 0.5;
-            }
             LeftWall => {
                 pf.x += 0.1;
                 pf.y += 0.5;
@@ -747,7 +796,10 @@ impl GeoFXNode {
                 pf.x += 0.5;
                 pf.y += 0.9;
             }
-            _ => {}
+            _ => {
+                pf.x += 0.5;
+                pf.y += 0.5;
+            }
         }
         self.set("Pos X", TheValue::Float(pf.x));
         self.set("Pos Y", TheValue::Float(pf.y));

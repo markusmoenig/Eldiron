@@ -499,9 +499,9 @@ impl Renderer {
                                 break;
                             }
 
-                            color = acc; //lerp(color, acc, 1.0 / (sample as f32 + 1.0));
-                            sky_abso = mask; //lerp(sky_abso, mask, 1.0 / (sample as f32 + 1.0));
-                            distance = dist; //lerp(distance, dist, 1.0 / (sample as f32 + 1.0));
+                            color = acc;
+                            sky_abso = mask;
+                            distance = dist;
                         } else {
                             let mut state = TracerState {
                                 is_refracted: false,

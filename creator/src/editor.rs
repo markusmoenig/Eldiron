@@ -1077,17 +1077,12 @@ impl TheTrait for Editor {
                                     if let Ok(project) = serde_json::from_str(&contents) {
                                         self.project = project;
 
-                                        // for r in &mut self.project.regions {
-                                        // for m in r.models.values_mut() {
-                                        //     m.floor.addjust_nodes();
-                                        //     m.wall.addjust_nodes();
-                                        //     m.ceiling.addjust_nodes();
-                                        // }
-                                        // for m in r.models.values_mut() {
-                                        //     m.clear();
-                                        // }
-                                        // r.models.clear();
-                                        // }
+                                        // Update geo_obj parameters if necessary
+                                        for r in &mut self.project.regions {
+                                            for geo_obj in r.geometry.values_mut() {
+                                                geo_obj.update_parameters();
+                                            }
+                                        }
 
                                         PRERENDERTHREAD
                                             .lock()

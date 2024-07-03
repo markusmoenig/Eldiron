@@ -32,6 +32,13 @@ impl GeoFXObject {
         }
     }
 
+    /// Gives a chance to each node to update its parameters in case things changed.
+    pub fn update_parameters(&mut self) {
+        for n in &mut self.nodes {
+            n.update_parameters();
+        }
+    }
+
     /// Loads the parameters of the nodes into memory for faster access.
     pub fn load_parameters(&self, time: &TheTime) -> Vec<Vec<f32>> {
         let mut data = vec![];
