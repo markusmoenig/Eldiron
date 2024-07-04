@@ -147,4 +147,13 @@ impl GeoFXObject {
         }
         false
     }
+
+    /// Returns the layer role (Ground, Wall etc) for this object.
+    pub fn get_layer_role(&self) -> Option<Layer2DRole> {
+        if let Some(geo) = self.nodes.first() {
+            return Some(geo.get_layer_role());
+        }
+
+        None
+    }
 }
