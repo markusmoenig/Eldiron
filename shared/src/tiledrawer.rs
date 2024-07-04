@@ -357,7 +357,6 @@ impl TileDrawer {
                                 if let Some(material) = self.materials.get(&geo_obj.material_id) {
                                     hit.normal = vec3f(0.0, 1.0, 0.0);
                                     hit.hit_point = vec3f(p.x, 0.0, p.y);
-                                    //material.compute(&mut hit, palette);
 
                                     let mut mat_obj_params: Vec<Vec<f32>> = vec![];
 

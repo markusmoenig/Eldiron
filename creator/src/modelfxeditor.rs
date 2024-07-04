@@ -21,7 +21,7 @@ pub struct ModelFXEditor {
     pub materials: FxHashMap<(i32, i32), Uuid>,
 
     pub editing_mode: EditingMode,
-    pub curr_function: String,
+    pub curr_layer_role: Layer2DRole,
 
     pub current_material: Option<Uuid>,
 
@@ -37,7 +37,7 @@ impl ModelFXEditor {
             materials: FxHashMap::default(),
 
             editing_mode: EditingMode::Geometry,
-            curr_function: "Ground".to_string(),
+            curr_layer_role: Layer2DRole::Ground,
 
             current_material: None,
 
@@ -250,7 +250,7 @@ impl ModelFXEditor {
         match event {
             TheEvent::SizeChanged(id) => {
                 if id.name == "GeoFX RGBA Layout" {
-                    self.set_geo_tiles(ui, ctx);
+                    self.set_geo_tiles(&project.palette, ui, ctx);
                 } else if id.name == "MaterialFX RGBA Layout" {
                     self.set_material_tiles(ui, ctx, project, None);
                 }
@@ -347,6 +347,7 @@ impl ModelFXEditor {
                     server_ctx.curr_geo_object = None;
                     server_ctx.curr_geo_node = None;
                     self.set_geo_node_ui(server_ctx, project, ui, ctx);
+                    self.set_current_brush(ui, project, server_ctx);
                 } else if id.name == "MaterialFX RGBA Layout View" {
                     if let Some(material) = self.materials.get(&(coord.x, coord.y)) {
                         server_ctx.curr_material_object = Some(*material);
@@ -355,6 +356,7 @@ impl ModelFXEditor {
                         ui.set_node_canvas("MaterialFX NodeCanvas", TheNodeCanvas::default());
                     }
                     self.set_material_node_ui(server_ctx, project, ui, ctx);
+                    self.set_current_brush(ui, project, server_ctx);
                     redraw = true;
                 }
             }
@@ -869,6 +871,37 @@ impl ModelFXEditor {
         redraw
     }
 
+    /// Set the preview for the current geometry or material we are painting with
+    pub fn set_current_brush(
+        &self,
+        ui: &mut TheUI,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        if self.editing_mode == EditingMode::Geometry {
+            if let Some(curr_geo_node) = self.get_geo_node(ui) {
+                let mut buffer = TheRGBABuffer::new(TheDim::sized(65, 65));
+                curr_geo_node.preview(
+                    &mut buffer,
+                    None,
+                    &project.palette,
+                    &TILEDRAWER.lock().unwrap().tiles,
+                    Vec2f::zero(),
+                );
+
+                if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
+                    icon_view.set_rgba_tile(TheRGBATile::buffer(buffer));
+                }
+            }
+        } else if let Some(curr_material) = server_ctx.curr_material_object {
+            if let Some(material) = project.materials.get(&curr_material) {
+                if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
+                    icon_view.set_rgba_tile(TheRGBATile::buffer(material.get_preview()));
+                }
+            }
+        }
+    }
+
     /// Modeler got activated, set the UI
     pub fn activated(
         &mut self,
@@ -877,6 +910,7 @@ impl ModelFXEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) {
+        self.set_current_brush(ui, project, server_ctx);
         if self.editing_mode == EditingMode::Geometry {
             self.set_geo_node_ui(server_ctx, project, ui, ctx);
         } else if self.editing_mode == EditingMode::Material {
@@ -1087,13 +1121,19 @@ impl ModelFXEditor {
         }
     }
 
-    pub fn set_curr_function(&mut self, function: String, ui: &mut TheUI, ctx: &mut TheContext) {
-        self.curr_function = function;
-        self.set_geo_tiles(ui, ctx);
+    pub fn set_curr_layer_role(
+        &mut self,
+        layer_role: Layer2DRole,
+        palette: &ThePalette,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        self.curr_layer_role = layer_role;
+        self.set_geo_tiles(palette, ui, ctx);
     }
 
     /// Set the tiles for the picker.
-    pub fn set_geo_tiles(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) {
+    pub fn set_geo_tiles(&mut self, palette: &ThePalette, ui: &mut TheUI, _ctx: &mut TheContext) {
         let tile_size = 48;
 
         //let mut set_default_selection = false;
@@ -1103,7 +1143,7 @@ impl ModelFXEditor {
         self.geos.clear();
         let mut amount = 0;
         for g in geo_tiles.iter() {
-            if g.function == self.curr_function {
+            if g.get_layer_role() == self.curr_layer_role {
                 amount += 1;
             }
         }
@@ -1131,7 +1171,7 @@ impl ModelFXEditor {
 
                 let mut i = 0;
                 for tile in geo_tiles.iter() {
-                    if tile.function != self.curr_function {
+                    if tile.get_layer_role() != self.curr_layer_role {
                         continue;
                     }
 
@@ -1140,7 +1180,13 @@ impl ModelFXEditor {
 
                     i += 1;
 
-                    tile.preview(&mut tile_buffer);
+                    tile.preview(
+                        &mut tile_buffer,
+                        None,
+                        palette,
+                        &FxHashMap::default(),
+                        Vec2f::zero(),
+                    );
                     buffer.copy_into(x * grid, y * grid, &tile_buffer);
                     self.geos.insert((x, y), tile.clone());
                 }

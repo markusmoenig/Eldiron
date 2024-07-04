@@ -307,6 +307,7 @@ impl TileEditor {
                 if id.name == "RenderView" {
                     if let Some(render_view) = ui.get_render_view("RenderView") {
                         let dim = render_view.dim();
+                        let palette = project.palette.clone();
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             let pos = RENDERER.lock().unwrap().get_hit_position_at(
                                 *coord,
@@ -326,7 +327,7 @@ impl TileEditor {
                                     }
                                 }
 
-                                self.set_icon_previews(region, *coord, ui);
+                                self.set_icon_previews(region, &palette, vec2i(pos.x, pos.z), ui);
                             }
                         }
                     }
@@ -491,6 +492,15 @@ impl TileEditor {
                             }
                         }
 
+                        // Set the icon for the current brush
+                        if let Some(id) = self.curr_tile_uuid {
+                            if let Some(t) = TILEDRAWER.lock().unwrap().tiles.get(&id) {
+                                if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
+                                    icon_view.set_rgba_tile(t.clone());
+                                }
+                            }
+                        }
+
                         if self.curr_layer_role == Layer2DRole::FX {
                             ctx.ui
                                 .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
@@ -581,7 +591,7 @@ impl TileEditor {
 
                     for r in &mut project.regions {
                         if r.id == server_ctx.curr_region {
-                            self.set_icon_previews(r, *coord, ui);
+                            self.set_icon_previews(r, &project.palette, *coord, ui);
                             break;
                         }
                     }
@@ -792,10 +802,12 @@ impl TileEditor {
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
                     }
-                    MODELFXEDITOR
-                        .lock()
-                        .unwrap()
-                        .set_curr_function(str!("Ground"), ui, ctx);
+                    MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
+                        Layer2DRole::Ground,
+                        &project.palette,
+                        ui,
+                        ctx,
+                    );
                 } else if id.name == "Wall Icon" {
                     self.curr_layer_role = Layer2DRole::Wall;
                     self.set_icon_colors(ui);
@@ -809,10 +821,12 @@ impl TileEditor {
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
                     }
-                    MODELFXEDITOR
-                        .lock()
-                        .unwrap()
-                        .set_curr_function(str!("Wall"), ui, ctx);
+                    MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
+                        Layer2DRole::Wall,
+                        &project.palette,
+                        ui,
+                        ctx,
+                    );
                 } else if id.name == "Ceiling Icon" {
                     self.curr_layer_role = Layer2DRole::Ceiling;
                     self.set_icon_colors(ui);
@@ -826,10 +840,12 @@ impl TileEditor {
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
                     }
-                    MODELFXEDITOR
-                        .lock()
-                        .unwrap()
-                        .set_curr_function(str!("Ceiling"), ui, ctx);
+                    MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
+                        Layer2DRole::Ceiling,
+                        &project.palette,
+                        ui,
+                        ctx,
+                    );
                 } else if id.name == "Tile FX Icon" {
                     self.curr_layer_role = Layer2DRole::FX;
                     self.set_icon_colors(ui);
@@ -839,10 +855,12 @@ impl TileEditor {
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
                     }
-                    MODELFXEDITOR
-                        .lock()
-                        .unwrap()
-                        .set_curr_function(str!("FX"), ui, ctx);
+                    MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
+                        Layer2DRole::FX,
+                        &project.palette,
+                        ui,
+                        ctx,
+                    );
                 }
             }
             _ => {}
@@ -850,78 +868,156 @@ impl TileEditor {
         redraw
     }
 
-    fn set_icon_previews(&mut self, region: &mut Region, coord: Vec2i, ui: &mut TheUI) {
-        // Ground Icon Preview
-        if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
-            // Ground
-            let mut success = false;
-            if let Some(ground) = tile.layers[0] {
-                if let Some(tile) = TILEDRAWER.lock().unwrap().tiles.get(&ground) {
-                    if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
-                        icon_view.set_rgba_tile(tile.clone());
-                        success = true;
+    fn set_icon_previews(
+        &mut self,
+        region: &mut Region,
+        palette: &ThePalette,
+        coord: Vec2i,
+        ui: &mut TheUI,
+    ) {
+        let mut found_ground_icon = false;
+        let mut found_wall_icon = false;
+        let mut found_ceiling_icon = false;
+
+        let tile_coord = vec2f(coord.x as f32, coord.y as f32);
+
+        if let Some(geo_ids) = region.geometry_areas.get(&vec3i(coord.x, 0, coord.y)) {
+            for geo_id in geo_ids {
+                if let Some(geo_obj) = region.geometry.get(geo_id) {
+                    for node in &geo_obj.nodes {
+                        let tiledrawer = TILEDRAWER.lock().unwrap();
+                        if node.get_layer_role() == Layer2DRole::Ground && !found_ground_icon {
+                            let mut buffer = TheRGBABuffer::new(TheDim::sized(48, 48));
+                            if let Some(material) = tiledrawer.materials.get(&geo_obj.material_id) {
+                                node.preview(
+                                    &mut buffer,
+                                    Some(material),
+                                    palette,
+                                    &tiledrawer.tiles,
+                                    tile_coord,
+                                );
+                            } else {
+                                node.preview(
+                                    &mut buffer,
+                                    None,
+                                    palette,
+                                    &FxHashMap::default(),
+                                    tile_coord,
+                                );
+                            }
+                            if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                                icon_view.set_rgba_tile(TheRGBATile::buffer(buffer));
+                                found_ground_icon = true;
+                            }
+                        } else if node.get_layer_role() == Layer2DRole::Wall && !found_wall_icon {
+                            let mut buffer = TheRGBABuffer::new(TheDim::sized(48, 48));
+                            if let Some(material) = tiledrawer.materials.get(&geo_obj.material_id) {
+                                node.preview(
+                                    &mut buffer,
+                                    Some(material),
+                                    palette,
+                                    &tiledrawer.tiles,
+                                    tile_coord,
+                                );
+                            } else {
+                                node.preview(
+                                    &mut buffer,
+                                    None,
+                                    palette,
+                                    &FxHashMap::default(),
+                                    tile_coord,
+                                );
+                            }
+                            if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
+                                icon_view.set_rgba_tile(TheRGBATile::buffer(buffer));
+                                found_wall_icon = true;
+                            }
+                        } else if node.get_layer_role() == Layer2DRole::Ceiling
+                            && !found_ceiling_icon
+                        {
+                            let mut buffer = TheRGBABuffer::new(TheDim::sized(48, 48));
+                            if let Some(material) = tiledrawer.materials.get(&geo_obj.material_id) {
+                                node.preview(
+                                    &mut buffer,
+                                    Some(material),
+                                    palette,
+                                    &tiledrawer.tiles,
+                                    tile_coord,
+                                );
+                            } else {
+                                node.preview(
+                                    &mut buffer,
+                                    None,
+                                    palette,
+                                    &FxHashMap::default(),
+                                    tile_coord,
+                                );
+                            }
+                            if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
+                                icon_view.set_rgba_tile(TheRGBATile::buffer(buffer));
+                                found_ceiling_icon = true;
+                            }
+                        }
                     }
                 }
             }
-            if !success {
-                if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
-                    icon_view.set_rgba_tile(TheRGBATile::default());
+        }
+
+        if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
+            // Ground
+
+            if !found_ground_icon {
+                if let Some(ground) = tile.layers[0] {
+                    if let Some(tile) = TILEDRAWER.lock().unwrap().tiles.get(&ground) {
+                        if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                            icon_view.set_rgba_tile(tile.clone());
+                            found_ground_icon = true;
+                        }
+                    }
                 }
             }
 
             // Wall
-            success = false;
-            if let Some(wall) = tile.layers[1] {
-                if let Some(tile) = TILEDRAWER.lock().unwrap().tiles.get(&wall) {
-                    if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
-                        icon_view.set_rgba_tile(tile.clone());
-                        success = true;
+            if !found_wall_icon {
+                if let Some(wall) = tile.layers[1] {
+                    if let Some(tile) = TILEDRAWER.lock().unwrap().tiles.get(&wall) {
+                        if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
+                            icon_view.set_rgba_tile(tile.clone());
+                            found_wall_icon = true;
+                        }
                     }
-                }
-            }
-            if !success {
-                if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
-                    icon_view.set_rgba_tile(TheRGBATile::default());
                 }
             }
 
             // Ceiling
-            success = false;
-            if let Some(ceiling) = tile.layers[2] {
-                if let Some(tile) = TILEDRAWER.lock().unwrap().tiles.get(&ceiling) {
-                    if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
-                        icon_view.set_rgba_tile(tile.clone());
-                        success = true;
+            if !found_ceiling_icon {
+                if let Some(ceiling) = tile.layers[2] {
+                    if let Some(tile) = TILEDRAWER.lock().unwrap().tiles.get(&ceiling) {
+                        if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
+                            icon_view.set_rgba_tile(tile.clone());
+                            found_ceiling_icon = true;
+                        }
                     }
                 }
             }
-            if !success {
-                if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
-                    icon_view.set_rgba_tile(TheRGBATile::default());
-                }
-            }
-            // if let Some(overlay) = tile.layers[3] {
-            //     if let Some(tile) = self.tiledrawer.tiles.get(&overlay) {
-            //         if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
-            //             icon_view.set_rgba_tile(tile.clone());
-            //         }
-            //     } else if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
-            //         icon_view.set_rgba_tile(TheRGBATile::default());
-            //     }
-            // }
-        } else {
+        }
+
+        if !found_ground_icon {
             if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
                 icon_view.set_rgba_tile(TheRGBATile::default());
             }
+        }
+
+        if !found_wall_icon {
             if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
                 icon_view.set_rgba_tile(TheRGBATile::default());
             }
+        }
+
+        if !found_ceiling_icon {
             if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
                 icon_view.set_rgba_tile(TheRGBATile::default());
             }
-            // if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
-            //     icon_view.set_rgba_tile(TheRGBATile::default());
-            // }
         }
     }
 
@@ -1316,6 +1412,7 @@ impl TileEditor {
                 server_ctx.tile_selection = Some(tilearea);
             }
         } else if self.editor_mode == EditorMode::Erase {
+            let palette = project.palette.clone();
             // If there is a character instance at the position we delete the instance.
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 if let Some(c) =
@@ -1480,7 +1577,7 @@ impl TileEditor {
 
                         server.update_region(region);
                         RENDERER.lock().unwrap().set_region(region);
-                        self.set_icon_previews(region, coord, ui);
+                        self.set_icon_previews(region, &palette, coord, ui);
                         redraw = true;
                     }
 
@@ -1739,6 +1836,7 @@ impl TileEditor {
                         }
                     }
 
+                    let palette = project.palette.clone();
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if self.curr_layer_role == Layer2DRole::FX {
                             if !TILEFXEDITOR.lock().unwrap().curr_timeline.is_empty() {
@@ -1776,7 +1874,7 @@ impl TileEditor {
                                 }
                             }
                         }
-                        self.set_icon_previews(region, coord, ui);
+                        self.set_icon_previews(region, &palette, coord, ui);
 
                         server.update_region(region);
                         RENDERER.lock().unwrap().set_region(region);

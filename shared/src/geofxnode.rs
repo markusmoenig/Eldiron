@@ -1,7 +1,5 @@
 use crate::prelude::*;
-//use indexmap::IndexMap;
-//use rayon::prelude::*;
-//use noiselib::prelude::*;
+use rayon::prelude::*;
 use theframework::prelude::*;
 
 // https://www.shadertoy.com/view/3syGzz
@@ -53,14 +51,12 @@ use GeoFXNodeRole::*;
 pub struct GeoFXNode {
     pub id: Uuid,
     pub role: GeoFXNodeRole,
-    pub function: String,
     pub timeline: TheTimeline,
 }
 
 impl GeoFXNode {
     pub fn new(role: GeoFXNodeRole) -> Self {
         let mut coll = TheCollection::named(str!("Geo"));
-        let mut function = str!("Wall");
 
         match role {
             Ground => {
@@ -69,14 +65,12 @@ impl GeoFXNode {
                 coll.set("UV Scale X", TheValue::FloatRange(1.0, 0.0..=10.0));
                 coll.set("UV Scale Y", TheValue::FloatRange(1.0, 0.0..=10.0));
                 coll.set("Octaves", TheValue::IntRange(5, 0..=5));
-                function = str!("Ground");
             }
             Floor => {
                 coll.set("Pos X", TheValue::Float(0.5));
                 coll.set("Pos Y", TheValue::Float(0.5));
                 coll.set("Height", TheValue::FloatRange(0.01, 0.001..=1.0));
                 coll.set("Hole", TheValue::FloatRange(0.0, 0.0..=1.0));
-                function = str!("Ground");
             }
             LeftWall => {
                 coll.set("Pos X", TheValue::Float(0.1));
@@ -135,7 +129,6 @@ impl GeoFXNode {
         Self {
             id: Uuid::new_v4(),
             role,
-            function,
             timeline,
         }
     }
@@ -155,6 +148,14 @@ impl GeoFXNode {
             Self::new(GeoFXNodeRole::Column),
             Self::new(GeoFXNodeRole::Gate),
         ]
+    }
+
+    /// Returns the layer role (Ground, Wall etc) for this node.
+    pub fn get_layer_role(&self) -> Layer2DRole {
+        match self.role {
+            GeoFXNodeRole::Ground | GeoFXNodeRole::Floor => Layer2DRole::Ground,
+            _ => Layer2DRole::Wall,
+        }
     }
 
     /// Gives the node a chance to update its parameters in case things changed.
@@ -838,7 +839,14 @@ impl GeoFXNode {
         }
     }
 
-    pub fn preview(&self, buffer: &mut TheRGBABuffer) {
+    pub fn preview(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        material: Option<&MaterialFXObject>,
+        palette: &ThePalette,
+        tiles: &FxHashMap<Uuid, TheRGBATile>,
+        coord: Vec2f,
+    ) {
         fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
             [
                 (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
@@ -848,32 +856,68 @@ impl GeoFXNode {
             ]
         }
 
-        let width = buffer.dim().width;
+        let width = buffer.dim().width as usize;
         let height = buffer.dim().height;
 
-        let mut hit = Hit::default();
+        let time = TheTime::default();
 
-        for y in 0..height {
-            for x in 0..width {
-                let p = vec2f(x as f32 / width as f32, y as f32 / height as f32);
-                hit.uv = p;
-                let d = self.distance(&TheTime::default(), p, 1.0, &mut Some(&mut hit));
-                let t = smoothstep(-0.04, 0.0, d);
-                if hit.value != 1.0 {
-                    buffer.set_pixel(x, y, &TheColor::from_vec3f(hit.albedo).to_u8_array());
-                } else {
-                    let uv_scaled = p * 10.0;
-                    let square_pos = Vec2i::from(floor(uv_scaled));
+        let mut mat_obj_params: Vec<Vec<f32>> = vec![];
 
-                    let color = if (square_pos.x + square_pos.y) % 2 == 0 {
-                        [81, 81, 81, 255]
-                    } else {
-                        [209, 209, 209, 255]
+        if let Some(material) = material {
+            mat_obj_params = material.load_parameters(&time);
+        }
+
+        buffer
+            .pixels_mut()
+            .par_rchunks_exact_mut(width * 4)
+            .enumerate()
+            .for_each(|(j, line)| {
+                for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
+                    let i = j * width + i;
+
+                    let x = (i % width) as f32;
+                    let y = (i / width) as f32;
+
+                    let mut hit = Hit {
+                        two_d: true,
+                        ..Default::default()
                     };
 
-                    buffer.set_pixel(x, y, &mix_color(&color, &BLACK, t));
+                    let p = vec2f(x / width as f32, y / height as f32);
+                    let p_coord = p + coord;
+                    hit.uv = p;
+                    hit.global_uv = p_coord;
+                    hit.pattern_pos = p_coord;
+                    hit.hit_point = vec3f(p.x + coord.x, 0.0, p.y + coord.y);
+                    hit.normal = vec3f(0.0, 1.0, 0.0);
+                    let d = self.distance(&time, p_coord, 1.0, &mut Some(&mut hit));
+                    hit.distance = d;
+
+                    if let Some(material) = material {
+                        material.follow_geo_trail(&TheTime::default(), &mut hit, &mat_obj_params);
+                        if self.role != GeoFXNodeRole::Ground {
+                            if hit.interior_distance <= 0.01 {
+                                hit.value = 0.0;
+                            } else {
+                                hit.value = 1.0;
+                            }
+                        }
+                        material.compute(&mut hit, palette, tiles);
+                    };
+
+                    let t = smoothstep(-0.04, 0.0, d);
+
+                    if self.role == GeoFXNodeRole::Ground {
+                        pixel.copy_from_slice(&TheColor::from_vec3f(hit.albedo).to_u8_array());
+                    } else {
+                        let color = if material.is_some() {
+                            TheColor::from_vec3f(hit.albedo).to_u8_array()
+                        } else {
+                            [209, 209, 209, 255]
+                        };
+                        pixel.copy_from_slice(&mix_color(&color, &[81, 81, 81, 255], t));
+                    }
                 }
-            }
-        }
+            });
     }
 }
