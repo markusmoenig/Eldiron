@@ -47,10 +47,6 @@ pub struct Region {
     pub tiles: FxHashMap<(i32, i32), RegionTile>,
 
     #[serde(default)]
-    #[serde(with = "vectorize")]
-    pub models: FxHashMap<(i32, i32, i32), ModelFXStore>,
-
-    #[serde(default)]
     pub geometry: FxHashMap<Uuid, GeoFXObject>,
 
     #[serde(default)]
@@ -117,7 +113,6 @@ impl Region {
             camera_type: CameraType::TiltedIso,
 
             tiles: FxHashMap::default(),
-            models: FxHashMap::default(),
 
             geometry: FxHashMap::default(),
             geometry_areas: FxHashMap::default(),

@@ -242,7 +242,7 @@ impl GeoFXNode {
                         } else {
                             noise2d(&hit.uv, scale, octaves)
                         };
-                        hit.albedo = vec3f(value, value, value);
+                        hit.mat.base_color = vec3f(value, value, value);
                         hit.value = value;
                     }
                     return -0.001;
@@ -455,7 +455,7 @@ impl GeoFXNode {
                 let uv = p.xz();
                 let value = noise2d(&uv, vec2f(params[2], params[3]), params[4] as i32);
                 if let Some(hit) = hit {
-                    hit.albedo = vec3f(value, value, value);
+                    hit.mat.base_color = vec3f(value, value, value);
                     hit.value = value;
                 }
                 p.y - value * 0.05
@@ -902,16 +902,18 @@ impl GeoFXNode {
                                 hit.value = 1.0;
                             }
                         }
-                        material.compute(&mut hit, palette, tiles);
+                        material.compute(&mut hit, palette, tiles, &mat_obj_params);
                     };
 
                     let t = smoothstep(-0.04, 0.0, d);
 
                     if self.role == GeoFXNodeRole::Ground {
-                        pixel.copy_from_slice(&TheColor::from_vec3f(hit.albedo).to_u8_array());
+                        pixel.copy_from_slice(
+                            &TheColor::from_vec3f(hit.mat.base_color).to_u8_array(),
+                        );
                     } else {
                         let color = if material.is_some() {
-                            TheColor::from_vec3f(hit.albedo).to_u8_array()
+                            TheColor::from_vec3f(hit.mat.base_color).to_u8_array()
                         } else {
                             [209, 209, 209, 255]
                         };

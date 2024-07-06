@@ -12,10 +12,6 @@ pub mod item;
 pub mod level;
 pub mod materialfxnode;
 pub mod materialfxobject;
-pub mod modelfx;
-pub mod modelfxnode;
-pub mod modelfxstore;
-pub mod modelfxterminal;
 pub mod patterns;
 pub mod prerendered;
 pub mod prerenderthread;
@@ -54,10 +50,6 @@ pub mod prelude {
     pub use crate::level::*;
     pub use crate::materialfxnode::*;
     pub use crate::materialfxobject::*;
-    pub use crate::modelfx::ModelFX;
-    pub use crate::modelfxnode::*;
-    pub use crate::modelfxstore::ModelFXStore;
-    pub use crate::modelfxterminal::*;
     pub use crate::patterns::*;
     pub use crate::prerendered::*;
     pub use crate::prerenderthread::*;
@@ -65,7 +57,6 @@ pub mod prelude {
     pub use crate::region::{CameraMode, CameraType, Layer2DRole, Region, RegionTile};
     pub use crate::regionfx::*;
     pub use crate::renderer::Renderer;
-    pub use crate::renderer_utils::*;
     pub use crate::screen::*;
     pub use crate::sdf::*;
     pub use crate::server::context::ServerContext;
@@ -77,12 +68,13 @@ pub mod prelude {
     pub use crate::update::*;
     pub use crate::widget::*;
     pub use crate::ServerMessage;
-    pub use crate::{do_intersect, Hit, HitFace, Ray, RenderTile, TracerState, Voxel, AABB2D};
+    pub use crate::{do_intersect, Hit, HitFace, Ray, RenderTile, AABB2D};
     pub use indexmap::IndexMap;
     pub use rand::prelude::*;
     pub use rstar::*;
 }
 
+use bsdf::BSDFMaterial;
 use geofxnode::{GeoFXNodeExtrusion, GeoFXNodeFacing};
 use theframework::prelude::*;
 
@@ -119,13 +111,6 @@ pub enum HitFace {
     ZFace,
 }
 
-#[derive(PartialEq, Debug, Clone)]
-pub struct TracerState {
-    pub is_refracted: bool,
-    pub has_been_refracted: bool,
-    pub last_ior: f32,
-}
-
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Hit {
     pub node: usize,
@@ -151,15 +136,9 @@ pub struct Hit {
     pub pattern_pos: Vec2f,
 
     pub color: Vec4f,
-    pub albedo: Vec3f,
-    pub roughness: f32,
-    pub metallic: f32,
-    pub reflectance: f32,
 
-    pub emissive: Vec3f,
-    pub spec_trans: f32,
-    pub ior: f32,
-    pub absorption: f32,
+    #[serde(default)]
+    pub mat: BSDFMaterial,
 
     pub noise: Option<f32>,
     pub noise_scale: f32,
@@ -202,15 +181,7 @@ impl Hit {
 
             color: Vec4f::zero(),
 
-            albedo: Vec3f::new(0.5, 0.5, 0.5),
-            roughness: 0.5,
-            metallic: 0.0,
-            reflectance: 1.0,
-
-            emissive: Vec3f::zero(),
-            spec_trans: 0.0,
-            ior: 1.5,
-            absorption: 1.0,
+            mat: BSDFMaterial::default(),
 
             noise: None,
             noise_scale: 1.0,
@@ -218,31 +189,6 @@ impl Hit {
             value: 1.0,
 
             two_d: false,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]
-pub struct Voxel {
-    pub color: [u8; 3],
-    pub roughness: u8,
-    pub metallic: u8,
-    pub reflectance: u8,
-}
-
-impl Default for Voxel {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Voxel {
-    pub fn new() -> Self {
-        Self {
-            color: [0, 0, 0],
-            roughness: 128,
-            metallic: 0,
-            reflectance: 128,
         }
     }
 }

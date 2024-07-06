@@ -64,8 +64,9 @@ impl MaterialFXObject {
         hit: &mut Hit,
         palette: &ThePalette,
         textures: &FxHashMap<Uuid, TheRGBATile>,
+        mat_obj_params: &[Vec<f32>],
     ) {
-        self.follow_trail(0, 0, hit, palette, textures);
+        self.follow_trail(0, 0, hit, palette, textures, mat_obj_params);
     }
 
     pub fn get_distance(
@@ -261,6 +262,7 @@ impl MaterialFXObject {
         hit: &mut Hit,
         palette: &ThePalette,
         textures: &FxHashMap<Uuid, TheRGBATile>,
+        mat_obj_params: &[Vec<f32>],
     ) {
         hit.noise = None;
         hit.noise_scale = 1.0;
@@ -295,21 +297,45 @@ impl MaterialFXObject {
                     if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
                         || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
                     {
-                        _ = self.nodes[noise_index].compute(&mut h, palette, textures, vec![]);
+                        _ = self.nodes[noise_index].compute(
+                            &mut h,
+                            palette,
+                            textures,
+                            vec![],
+                            &mat_obj_params[noise_index],
+                        );
                     }
                 }
 
-                if let Some(ot) = self.nodes[*o as usize].compute(&mut h, palette, textures, vec![])
-                {
+                if let Some(ot) = self.nodes[*o as usize].compute(
+                    &mut h,
+                    palette,
+                    textures,
+                    vec![],
+                    &mat_obj_params[*o as usize],
+                ) {
                     follow_ups.push((*o, ot));
                 }
 
                 resolved.push(h);
             }
-            _ = self.nodes[resolver as usize].compute(hit, palette, textures, resolved);
+            _ = self.nodes[resolver as usize].compute(
+                hit,
+                palette,
+                textures,
+                resolved,
+                &mat_obj_params[resolver as usize],
+            );
 
             for (node, terminal) in follow_ups {
-                self.follow_trail(node as usize, terminal as usize, hit, palette, textures);
+                self.follow_trail(
+                    node as usize,
+                    terminal as usize,
+                    hit,
+                    palette,
+                    textures,
+                    mat_obj_params,
+                );
             }
         } else {
             // The node decides its own trail
@@ -323,7 +349,13 @@ impl MaterialFXObject {
                         if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
                             || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
                         {
-                            _ = self.nodes[noise_index].compute(hit, palette, textures, vec![]);
+                            _ = self.nodes[noise_index].compute(
+                                hit,
+                                palette,
+                                textures,
+                                vec![],
+                                &mat_obj_params[noise_index],
+                            );
                             // hit.uv += 7.23;
                             // let noise2 = self.nodes[noise_index].noise(hit);
                             // let wobble = vec2f(noise, noise2);
@@ -332,8 +364,10 @@ impl MaterialFXObject {
                         }
                     }
 
-                    if let Some(ot) = self.nodes[o].compute(hit, palette, textures, vec![]) {
-                        self.follow_trail(o, ot as usize, hit, palette, textures);
+                    if let Some(ot) =
+                        self.nodes[o].compute(hit, palette, textures, vec![], &mat_obj_params[o])
+                    {
+                        self.follow_trail(o, ot as usize, hit, palette, textures, mat_obj_params);
                     }
                 }
                 _ => {
@@ -345,12 +379,31 @@ impl MaterialFXObject {
                             if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
                                 || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
                             {
-                                _ = self.nodes[noise_index].compute(hit, palette, textures, vec![]);
+                                _ = self.nodes[noise_index].compute(
+                                    hit,
+                                    palette,
+                                    textures,
+                                    vec![],
+                                    &mat_obj_params[noise_index],
+                                );
                             }
                         }
 
-                        if let Some(ot) = self.nodes[o].compute(hit, palette, textures, vec![]) {
-                            self.follow_trail(o, ot as usize, hit, palette, textures);
+                        if let Some(ot) = self.nodes[o].compute(
+                            hit,
+                            palette,
+                            textures,
+                            vec![],
+                            &mat_obj_params[o],
+                        ) {
+                            self.follow_trail(
+                                o,
+                                ot as usize,
+                                hit,
+                                palette,
+                                textures,
+                                mat_obj_params,
+                            );
                         }
                     }
                 }
@@ -451,13 +504,13 @@ impl MaterialFXObject {
 
                     hit.global_uv = hit.uv;
 
-                    noise2d.compute(&mut hit, palette, textures, vec![]);
+                    noise2d.compute(&mut hit, palette, textures, vec![], &mat_obj_params[0]);
                     self.get_distance(&time, hit.uv, &mut hit, &geo_object, 1.0, &mat_obj_params);
-                    self.compute(&mut hit, palette, textures);
+                    self.compute(&mut hit, palette, textures, &mat_obj_params);
 
-                    color.x = hit.albedo.x;
-                    color.y = hit.albedo.y;
-                    color.z = hit.albedo.z;
+                    color.x = hit.mat.base_color.x;
+                    color.y = hit.mat.base_color.y;
+                    color.z = hit.mat.base_color.z;
                     color.w = 1.0;
 
                     /*

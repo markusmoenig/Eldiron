@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use theframework::prelude::*;
 
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct BSDFMedium {
     pub type_: i32,
     pub density: f32,
@@ -25,6 +26,7 @@ impl BSDFMedium {
     }
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct BSDFMaterial {
     pub base_color: Vec3f,
     pub opacity: f32,
@@ -44,6 +46,7 @@ pub struct BSDFMaterial {
     pub ior: f32,
     pub ax: f32,
     pub ay: f32,
+    #[serde(default)]
     pub medium: BSDFMedium,
 }
 
@@ -56,14 +59,14 @@ impl Default for BSDFMaterial {
 impl BSDFMaterial {
     pub fn new() -> Self {
         Self {
-            base_color: Vec3f::zero(),
-            opacity: 0.0,
+            base_color: Vec3f::new(0.5, 0.5, 0.5),
+            opacity: 1.0,
             alpha_mode: 0,
             alpha_cutoff: 0.0,
             emission: Vec3f::zero(),
             anisotropic: 0.0,
             metallic: 0.0,
-            roughness: 0.0,
+            roughness: 0.5,
             subsurface: 0.0,
             specular_tint: 0.0,
             sheen: 0.0,
@@ -71,7 +74,7 @@ impl BSDFMaterial {
             clearcoat: 0.0,
             clearcoat_roughness: 0.0,
             spec_trans: 0.0,
-            ior: 0.0,
+            ior: 1.5,
             ax: 0.0,
             ay: 0.0,
             medium: BSDFMedium::new(),

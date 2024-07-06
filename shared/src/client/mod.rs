@@ -216,19 +216,19 @@ impl Client {
         }
     }
 
-    pub fn set_region(&mut self, region: &Uuid) {
-        if let Some(region) = REGIONS.write().unwrap().get_mut(region) {
-            // TODO: Only do this once per region.
-            for (key, model) in region.models.iter_mut() {
-                model.create_voxels(
-                    region.grid_size as u8,
-                    &vec3f(key.0 as f32, key.1 as f32, key.2 as f32),
-                    &self.project.palette,
-                );
-            }
+    pub fn set_region(&mut self, _region: &Uuid) {
+        // if let Some(region) = REGIONS.write().unwrap().get_mut(region) {
+        //     // TODO: Only do this once per region.
+        //     for (key, model) in region.models.iter_mut() {
+        //         model.create_voxels(
+        //             region.grid_size as u8,
+        //             &vec3f(key.0 as f32, key.1 as f32, key.2 as f32),
+        //             &self.project.palette,
+        //         );
+        //     }
 
-            RENDERER.write().unwrap().set_region(region);
-        }
+        //     RENDERER.write().unwrap().set_region(region);
+        // }
     }
 
     pub fn tick(&mut self) {

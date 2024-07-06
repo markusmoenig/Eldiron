@@ -342,7 +342,7 @@ impl TileDrawer {
                                     [128, 128, 128, 255]
                                 };
 
-                                hit.albedo = vec3f(0.5, 0.5, 0.5);
+                                hit.mat.base_color = vec3f(0.5, 0.5, 0.5);
                                 hit.value = 1.0;
 
                                 // geo_obj.nodes[d.1].distance(
@@ -374,16 +374,23 @@ impl TileDrawer {
                                         &mat_obj_params,
                                     );
 
-                                    material.compute(&mut hit, palette, &self.tiles);
+                                    material.compute(
+                                        &mut hit,
+                                        palette,
+                                        &self.tiles,
+                                        &mat_obj_params,
+                                    );
 
-                                    let col = TheColor::from_vec3f(hit.albedo).to_u8_array();
+                                    let col =
+                                        TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
                                     if let Some(cd) = settings.conceptual_display {
                                         c = self.mix_color(&c, &col, cd);
                                     } else {
                                         c = col;
                                     }
                                 } else {
-                                    let col = TheColor::from_vec3f(hit.albedo).to_u8_array();
+                                    let col =
+                                        TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
                                     if let Some(cd) = settings.conceptual_display {
                                         c = self.mix_color(&c, &col, cd);
                                     } else {

@@ -721,9 +721,9 @@ impl ModelFX {
                                 (color.y * 255.0) as u8,
                                 (color.z * 255.0) as u8,
                             ],
-                            roughness: (hit.roughness * 255.0) as u8,
-                            metallic: (hit.metallic * 255.0) as u8,
-                            reflectance: (hit.reflectance * 255.0) as u8,
+                            roughness: (hit.mat.roughness * 255.0) as u8,
+                            metallic: (hit.mat.metallic * 255.0) as u8,
+                            reflectance: 0,
                         };
 
                         layer_voxels.insert((x as u8, y as u8, z as u8), voxel);

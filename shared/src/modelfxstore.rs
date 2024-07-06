@@ -145,9 +145,9 @@ impl ModelFXStore {
                 let c =
                     TheColor::from_u8_array([voxel.color[0], voxel.color[1], voxel.color[2], 255]);
                 hit.color = c.to_vec4f();
-                hit.roughness = (voxel.roughness as f32) / 255.0;
-                hit.metallic = (voxel.metallic as f32) / 255.0;
-                hit.reflectance = (voxel.reflectance as f32) / 255.0;
+                hit.mat.roughness = (voxel.roughness as f32) / 255.0;
+                hit.mat.metallic = (voxel.metallic as f32) / 255.0;
+
                 hit.distance = dist / density_f;
                 hit.normal = normal;
                 return Some(hit);
@@ -158,9 +158,9 @@ impl ModelFXStore {
                 let c =
                     TheColor::from_u8_array([voxel.color[0], voxel.color[1], voxel.color[2], 255]);
                 hit.color = c.to_vec4f();
-                hit.roughness = (voxel.roughness as f32) / 255.0;
-                hit.metallic = (voxel.metallic as f32) / 255.0;
-                hit.reflectance = (voxel.reflectance as f32) / 255.0;
+                hit.mat.roughness = (voxel.roughness as f32) / 255.0;
+                hit.mat.metallic = (voxel.metallic as f32) / 255.0;
+                // hit.reflectance = (voxel.reflectance as f32) / 255.0;
                 hit.distance = dist / density_f;
                 hit.normal = normal;
                 return Some(hit);

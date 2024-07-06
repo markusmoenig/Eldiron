@@ -54,11 +54,18 @@ impl MaterialFXNode {
             }
             Material => {
                 coll.set("Color", TheValue::PaletteIndex(0));
-                coll.set("Reflectance", TheValue::FloatRange(0.5, 0.0..=1.0));
                 coll.set("Roughness", TheValue::FloatRange(0.5, 0.0..=1.0));
                 coll.set("Metallic", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Anisotropic", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Subsurface", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Specular Tint", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Sheen", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Sheen Tint", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Clearcoat", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Clearcoat Gloss", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Transmission", TheValue::FloatRange(0.0, 0.0..=1.0));
                 //coll.set("Emission", TheValue::FloatRange(0.0, 0.0..=1.0));
-                coll.set("IOR", TheValue::FloatRange(0.0, 0.0..=2.0));
+                coll.set("IOR", TheValue::FloatRange(1.5, 0.0..=2.0));
                 coll.set("Texture", TheValue::Text(str!("")));
             }
             UVSplitter => {
@@ -173,6 +180,20 @@ impl MaterialFXNode {
         let coll = self.collection();
 
         match self.role {
+            MaterialFXNodeRole::Material => {
+                params.push(coll.get_i32_default("Color", 0) as f32);
+                params.push(coll.get_f32_default("Rougness", 0.5));
+                params.push(coll.get_f32_default("Metallic", 0.0));
+                params.push(coll.get_f32_default("Anisotropic", 0.0));
+                params.push(coll.get_f32_default("Subsurface", 0.0));
+                params.push(coll.get_f32_default("Specular Tint", 0.0));
+                params.push(coll.get_f32_default("Sheen", 0.0));
+                params.push(coll.get_f32_default("Sheen Tint", 0.0));
+                params.push(coll.get_f32_default("Clearcoat", 0.0));
+                params.push(coll.get_f32_default("Clearcoat Gloss", 0.0));
+                params.push(coll.get_f32_default("Transmission", 0.0));
+                params.push(coll.get_f32_default("IOR", 1.5));
+            }
             MaterialFXNodeRole::BoxSubdivision => {
                 params.push(coll.get_f32_default("Scale", 1.0));
                 params.push(coll.get_f32_default("Gap", 1.0));
@@ -353,41 +374,49 @@ impl MaterialFXNode {
         palette: &ThePalette,
         textures: &FxHashMap<Uuid, TheRGBATile>,
         resolved: Vec<Hit>,
+        params: &[f32],
     ) -> Option<u8> {
         match self.role {
             Material => {
-                let collection = self.collection();
-
                 let mut used_texture = false;
 
                 if let Some(texture_id) = &self.texture_id {
                     if let Some(texture) = textures.get(texture_id) {
                         if let Some(color) = texture.buffer[0].at_f_vec4f(hit.uv) {
-                            hit.albedo.x = color.x;
-                            hit.albedo.y = color.y;
-                            hit.albedo.z = color.z;
+                            hit.mat.base_color.x = color.x;
+                            hit.mat.base_color.y = color.y;
+                            hit.mat.base_color.z = color.z;
                             used_texture = true;
                         }
                     }
                 }
 
                 if !used_texture {
-                    if let Some(TheValue::PaletteIndex(index)) = collection.get("Color") {
-                        if let Some(color) = &palette.colors[*index as usize] {
-                            hit.albedo.x = color.r;
-                            hit.albedo.y = color.g;
-                            hit.albedo.z = color.b;
-                            if let Some(noise) = hit.noise {
-                                let noise = (noise * 2.0 - 1.0) * hit.noise_scale;
-                                hit.albedo.x += noise;
-                                hit.albedo.y += noise;
-                                hit.albedo.z += noise;
-                            }
-                            hit.roughness = collection.get_f32_default("Roughness", 0.5);
-                            hit.metallic = collection.get_f32_default("Metallic", 0.0);
+                    let index = params[0] as usize;
+                    if let Some(color) = &palette.colors[index] {
+                        hit.mat.base_color.x = color.r;
+                        hit.mat.base_color.y = color.g;
+                        hit.mat.base_color.z = color.b;
+                        if let Some(noise) = hit.noise {
+                            let noise = (noise * 2.0 - 1.0) * hit.noise_scale;
+                            hit.mat.base_color.x += noise;
+                            hit.mat.base_color.y += noise;
+                            hit.mat.base_color.z += noise;
                         }
                     }
                 }
+
+                hit.mat.roughness = params[1];
+                hit.mat.metallic = params[2];
+                hit.mat.anisotropic = params[3];
+                hit.mat.subsurface = params[4];
+                hit.mat.specular_tint = params[5];
+                hit.mat.sheen = params[6];
+                hit.mat.sheen_tint = params[7];
+                hit.mat.clearcoat = params[8];
+                hit.mat.clearcoat_roughness = params[9];
+                hit.mat.spec_trans = params[10];
+                hit.mat.ior = params[11];
 
                 Some(0)
             }
@@ -397,14 +426,31 @@ impl MaterialFXNode {
                 } else if resolved.len() >= 2 {
                     if let Some(noise) = hit.noise {
                         let noise = noise * hit.noise_scale;
-                        hit.albedo = lerp(resolved[0].albedo, resolved[1].albedo, noise);
-                        hit.roughness = lerp(resolved[0].roughness, resolved[1].roughness, noise);
-                        hit.metallic = lerp(resolved[0].metallic, resolved[1].metallic, noise);
+                        hit.mat.base_color = lerp(
+                            resolved[0].mat.base_color,
+                            resolved[1].mat.base_color,
+                            noise,
+                        );
+                        hit.mat.roughness =
+                            lerp(resolved[0].mat.roughness, resolved[1].mat.roughness, noise);
+                        hit.mat.metallic =
+                            lerp(resolved[0].mat.metallic, resolved[1].mat.metallic, noise);
                     } else {
-                        hit.albedo = lerp(resolved[0].albedo, resolved[1].albedo, hit.value);
-                        hit.roughness =
-                            lerp(resolved[0].roughness, resolved[1].roughness, hit.value);
-                        hit.metallic = lerp(resolved[0].metallic, resolved[1].metallic, hit.value);
+                        hit.mat.base_color = lerp(
+                            resolved[0].mat.base_color,
+                            resolved[1].mat.base_color,
+                            hit.value,
+                        );
+                        hit.mat.roughness = lerp(
+                            resolved[0].mat.roughness,
+                            resolved[1].mat.roughness,
+                            hit.value,
+                        );
+                        hit.mat.metallic = lerp(
+                            resolved[0].mat.metallic,
+                            resolved[1].mat.metallic,
+                            hit.value,
+                        );
                     }
                 }
                 None
@@ -423,14 +469,14 @@ impl MaterialFXNode {
                     noise2d(&hit.uv, scale, octaves)
                 };
                 hit.noise = Some(value);
-                hit.albedo = vec3f(hit.value, hit.value, hit.value);
+                hit.mat.base_color = vec3f(hit.value, hit.value, hit.value);
                 Some(0)
             }
             Noise3D => {
                 let collection = self.collection();
                 hit.noise_scale = collection.get_f32_default("Out Scale", 1.0);
                 hit.noise = Some(noise3d(&collection, &hit.hit_point));
-                hit.albedo = vec3f(hit.value, hit.value, hit.value);
+                hit.mat.base_color = vec3f(hit.value, hit.value, hit.value);
                 Some(0)
             }
             Brick => {
@@ -492,7 +538,8 @@ impl MaterialFXNode {
                 let value = smoothstep(from, to, -hit.interior_distance);
 
                 if resolved.len() == 1 {
-                    hit.albedo = lerp(resolved[0].albedo, hit.albedo, value);
+                    hit.mat.base_color =
+                        lerp(resolved[0].mat.base_color, hit.mat.base_color, value);
                 }
 
                 Some(0)

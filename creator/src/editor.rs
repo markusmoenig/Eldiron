@@ -1074,6 +1074,10 @@ impl TheTrait for Editor {
                                 if let Ok(contents) = std::fs::read_to_string(p) {
                                     //if let Ok(project) =
                                     //    postcard::from_bytes::<Project>(contents.deref())
+                                    let pr: Result<Project, serde_json::Error> =
+                                        serde_json::from_str(&contents);
+                                    println!("{:?}", pr.err());
+
                                     if let Ok(project) = serde_json::from_str(&contents) {
                                         self.project = project;
 

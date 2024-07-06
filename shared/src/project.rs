@@ -46,9 +46,6 @@ pub struct Project {
     pub assets: FxHashMap<Uuid, Asset>,
 
     #[serde(default)]
-    pub models: Vec<ModelFX>,
-
-    #[serde(default)]
     pub palette: ThePalette,
 
     #[serde(default)]
@@ -84,7 +81,6 @@ impl Project {
 
             screens: FxHashMap::default(),
             assets: FxHashMap::default(),
-            models: vec![],
 
             palette: ThePalette::default(),
             materials: IndexMap::default(),

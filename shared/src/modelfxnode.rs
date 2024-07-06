@@ -268,9 +268,8 @@ impl ModelFXNode {
                         hit.color.y = color.g + noise;
                         hit.color.z = color.b + noise;
                         hit.color.w = 1.0;
-                        hit.roughness = collection.get_f32_default("Roughness", 0.5) + noise;
-                        hit.metallic = collection.get_f32_default("Metallic", 0.0) + noise;
-                        hit.reflectance = collection.get_f32_default("Reflectance", 0.0) + noise;
+                        hit.mat.roughness = collection.get_f32_default("Roughness", 0.5) + noise;
+                        hit.mat.metallic = collection.get_f32_default("Metallic", 0.0) + noise;
                     }
                 }
                 None

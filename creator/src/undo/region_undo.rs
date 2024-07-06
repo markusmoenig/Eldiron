@@ -8,7 +8,6 @@ pub enum RegionUndoAtom {
     GeoFXObjectsDeletion(Vec<GeoFXObject>, Vec<Vec2i>),
     GeoFXObjectEdit(Uuid, Option<GeoFXObject>, Option<GeoFXObject>, Vec<Vec2i>),
     RegionTileEdit(Vec2i, Option<RegionTile>, Option<RegionTile>),
-    ModelFXEdit(Vec3i, Option<ModelFXStore>, Option<ModelFXStore>),
 }
 
 impl RegionUndoAtom {
@@ -43,13 +42,6 @@ impl RegionUndoAtom {
                     region.tiles.remove(&(pos.x, pos.y));
                 }
             }
-            RegionUndoAtom::ModelFXEdit(pos, prev, _) => {
-                if let Some(prev) = prev {
-                    region.models.insert((pos.x, pos.y, pos.z), prev.clone());
-                } else {
-                    region.models.remove(&(pos.x, pos.y, pos.z));
-                }
-            }
         }
     }
     pub fn redo(&self, region: &mut Region) {
@@ -82,13 +74,6 @@ impl RegionUndoAtom {
                     region.tiles.insert((pos.x, pos.y), next.clone());
                 } else {
                     region.tiles.remove(&(pos.x, pos.y));
-                }
-            }
-            RegionUndoAtom::ModelFXEdit(pos, _, next) => {
-                if let Some(next) = next {
-                    region.models.insert((pos.x, pos.y, pos.z), next.clone());
-                } else {
-                    region.models.remove(&(pos.x, pos.y, pos.z));
                 }
             }
         }

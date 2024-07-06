@@ -254,584 +254,255 @@ impl Renderer {
                     // Based on https://www.shadertoy.com/view/Dtl3WS
 
                     let mut empty_pixel = false;
-                    let mut color = Vec3f::zero();
-                    let mut sky_abso = Vec3f::zero();
-                    let mut distance: f32 = 0.0;
-                    let mut lights: Vec<PreRenderedLight> = vec![];
 
-                    for sample in 0..1 {
-                        let mut ray = if camera_type == CameraType::TiltedIso {
-                            camera.create_tilted_isometric_ray2(
-                                vec2f(xx / width_f, (height_f - yy) / height_f),
-                                vec2f(width_f, height_f),
-                                vec2f(region.width as f32, region.height as f32),
-                                vec2f(rng.gen(), rng.gen()),
-                                tilted_iso_alignment,
-                            )
-                        } else {
-                            camera.create_ortho_ray2(
-                                vec2f(xx / width_f, (height_f - yy) / height_f),
-                                vec2f(width_f, height_f),
-                                vec2f(region.width as f32, region.height as f32),
-                                vec2f(rng.gen(), rng.gen()),
-                            )
-                        };
+                    let mut ray = if camera_type == CameraType::TiltedIso {
+                        camera.create_tilted_isometric_ray2(
+                            vec2f(xx / width_f, (height_f - yy) / height_f),
+                            vec2f(width_f, height_f),
+                            vec2f(region.width as f32, region.height as f32),
+                            vec2f(rng.gen(), rng.gen()),
+                            tilted_iso_alignment,
+                        )
+                    } else {
+                        camera.create_ortho_ray2(
+                            vec2f(xx / width_f, (height_f - yy) / height_f),
+                            vec2f(width_f, height_f),
+                            vec2f(region.width as f32, region.height as f32),
+                            vec2f(rng.gen(), rng.gen()),
+                        )
+                    };
 
-                        let plane_normal = vec3f(0.0, 1.0, 0.0);
-                        let denom = dot(plane_normal, ray.d);
+                    let plane_normal = vec3f(0.0, 1.0, 0.0);
+                    let denom = dot(plane_normal, ray.d);
 
-                        if denom.abs() > 0.0001 {
-                            let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
-                            if t >= 0.0 {
-                                ray.o += ray.d * t;
-                            }
+                    if denom.abs() > 0.0001 {
+                        let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
+                        if t >= 0.0 {
+                            ray.o += ray.d * t;
                         }
-
-                        // BSDF Pathtracer based on glsl_pathtracer
-                        // https://github.com/knightcrawler25/GLSL-PathTracer
-
-                        let mut dist = 0.0;
-
-                        let mut radiance = Vec3f::zero();
-                        let mut throughput = Vec3f::one();
-
-                        let mut state = BSDFState::default();
-                        let mut light_sample = BSDFLightSampleRec::default();
-                        let mut scatter_sample = BSDFScatterSampleRec::default();
-
-                        let mut alpha = 1.0;
-
-                        let eps = 0.01; //0.0003;
-
-                        // For medium tracking
-                        let mut in_medium = false;
-                        let mut medium_sampled = false;
-                        let mut surface_scatter = false;
-
-                        state.depth = 8;
-
-                        // Choose the light we want to sample for this sample
-                        // We choose one random light per sample
-
-                        let mut sample_light_grid_pos: Option<Vec2i> = None;
-                        let mut direct_light_sample = Vec3f::zero();
-                        let mut possible_lights_to_sample = vec![];
-
-                        for (light_grid, light) in &level.lights {
-                            let light_dist = length(Vec2f::from(*light_grid - *tile));
-
-                            // Is light in distance ?
-                            if light_dist < light.max_distance {
-                                possible_lights_to_sample.push(*light_grid);
-                            }
-                        }
-
-                        if !possible_lights_to_sample.is_empty() {
-                            let index = rng.gen_range(0..possible_lights_to_sample.len());
-                            sample_light_grid_pos = Some(possible_lights_to_sample[index]);
-                        }
-
-                        for depth in 0..8 {
-                            if let Some(hit) = self.prerender_pixel(
-                                ray,
-                                region,
-                                &update,
-                                settings,
-                                max_render_distance,
-                                palette,
-                                &material_params,
-                                &mut rng,
-                            ) {
-                                if depth == 0 {
-                                    dist = hit.distance;
-                                }
-
-                                state.mat.base_color = hit.albedo;
-                                state.mat.roughness = max(hit.roughness, 0.001);
-                                state.mat.metallic = hit.metallic;
-                                //state.mat.spec_trans = 1.0;
-                                state.mat.ior = 1.33;
-                                state.mat.opacity = 1.0;
-
-                                state.mat.clearcoat_roughness = lerp(0.1, 0.001, 0.0); // Remapping from gloss to roughness
-
-                                state.hit_dist = hit.distance;
-                                state.fhp = hit.hit_point;
-
-                                state.normal = hit.normal;
-                                state.ffnormal = if dot(state.normal, ray.d) <= 0.0 {
-                                    state.normal
-                                } else {
-                                    -state.normal
-                                };
-
-                                state.eta = if dot(ray.d, state.normal) < 0.0 {
-                                    1.0 / state.mat.ior
-                                } else {
-                                    state.mat.ior
-                                };
-
-                                onb(state.normal, &mut state.tangent, &mut state.bitangent);
-
-                                let aspect = sqrt(1.0 - state.mat.anisotropic * 0.9);
-                                state.mat.ax = max(0.001, state.mat.roughness / aspect);
-                                state.mat.ay = max(0.001, state.mat.roughness * aspect);
-
-                                surface_scatter = true;
-
-                                // Direct light sampling
-
-                                if let Some(light_grid) = sample_light_grid_pos {
-                                    if let Some(light) = level.lights.get(&light_grid) {
-                                        let light_dist = length(Vec2f::from(light_grid - *tile));
-
-                                        if light_dist < light.max_distance {
-                                            let mut light_sample = BSDFLightSampleRec::default();
-                                            let mut scatter_sample =
-                                                BSDFScatterSampleRec::default();
-
-                                            let scatter_pos = state.fhp + state.normal * eps;
-
-                                            let light_pos = vec3f(
-                                                light_grid.x as f32 + 0.5,
-                                                0.6,
-                                                light_grid.y as f32 + 0.5,
-                                            );
-
-                                            let radius = 0.4;
-
-                                            let l = BSDFLight {
-                                                position: light_pos,
-                                                emission: light.color * light.strength * 5.0,
-                                                radius,
-                                                type_: 1.0,
-                                                u: Vec3f::zero(),
-                                                v: Vec3f::zero(),
-                                                area: 4.0 * f32::pi() * radius * radius,
-                                            };
-
-                                            sample_sphere_light(
-                                                &l,
-                                                scatter_pos,
-                                                &mut light_sample,
-                                                1,
-                                                &mut rng,
-                                            );
-
-                                            let li = light_sample.emission;
-
-                                            if self.shadow_ray(
-                                                Ray::new(scatter_pos, light_sample.direction),
-                                                Vec3i::from(light_pos),
-                                                light,
-                                                region,
-                                                &update,
-                                                settings,
-                                                &material_params,
-                                            ) {
-                                                scatter_sample.f = disney_eval(
-                                                    &state,
-                                                    -ray.d,
-                                                    state.ffnormal,
-                                                    light_sample.direction,
-                                                    &mut scatter_sample.pdf,
-                                                );
-
-                                                let mut mis_weight = 1.0;
-                                                if l.area > 0.0 {
-                                                    // No MIS for distant light
-                                                    mis_weight = power_heuristic(
-                                                        light_sample.pdf,
-                                                        scatter_sample.pdf,
-                                                    );
-                                                }
-
-                                                let falloff = 1.0; // / (light_dist * light_dist);
-                                                                   // Original inverse-square falloff
-                                                                   // let falloff = 1.0 / (distance * distance * distance); // Stronger falloff
-                                                                   // let falloff = 1.0 / (distance + 1.0); // Linear falloff for larger distance
-                                                                   // let falloff = 1.0 / (distance.powf(1.5)); // Custom falloff
-
-                                                if scatter_sample.pdf > 0.0 {
-                                                    direct_light_sample +=
-                                                        (mis_weight * li * scatter_sample.f
-                                                            / (light_sample.pdf * falloff))
-                                                            * throughput;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Next event estimation
-                                //radiance += direct_light * throughput;
-
-                                // Sample BSDF for color and outgoing direction
-                                scatter_sample.f = disney_sample(
-                                    &state,
-                                    -ray.d,
-                                    state.ffnormal,
-                                    &mut scatter_sample.l,
-                                    &mut scatter_sample.pdf,
-                                    &mut rng,
-                                );
-                                if scatter_sample.pdf > 0.0 {
-                                    throughput *= scatter_sample.f / scatter_sample.pdf;
-                                } else {
-                                    break;
-                                }
-
-                                ray.d = scatter_sample.l;
-                                ray.o = state.fhp + ray.d * eps;
-                            } else {
-                                if depth == 0 {
-                                    empty_pixel = true;
-                                } else {
-                                    tile_is_empty = false;
-                                }
-                                break;
-                            }
-                        }
-
-                        if empty_pixel {
-                            break;
-                        }
-
-                        color = radiance;
-                        sky_abso = throughput;
-                        distance = dist;
-
-                        // Store the light sample
-                        if let Some(light_grid) = sample_light_grid_pos {
-                            let mut found_light = false;
-                            for light in lights.iter_mut() {
-                                if light.pos == light_grid {
-                                    light.brdf = lerp(
-                                        light.brdf,
-                                        direct_light_sample,
-                                        1.0 / (sample as f32 + 1.0),
-                                    );
-                                    found_light = true;
-                                    break;
-                                }
-                            }
-
-                            if !found_light {
-                                lights.push(PreRenderedLight {
-                                    pos: light_grid,
-                                    brdf: direct_light_sample,
-                                });
-                            }
-                        }
-
-                        /*
-                        if true {
-                            let mut acc = Vec3f::zero();
-                            let mut mask = Vec3f::one();
-                            let mut dist = 0.0;
-
-                            for depth in 0..8 {
-                                if let Some(hit) = self.prerender_pixel(
-                                    ray,
-                                    region,
-                                    &update,
-                                    settings,
-                                    max_render_distance,
-                                    palette,
-                                    &material_params,
-                                    &mut rng,
-                                ) {
-                                    if depth == 0 {
-                                        dist = hit.distance;
-                                    }
-
-                                    let x = hit.hit_point;
-                                    let n = hit.normal;
-                                    let nl = n * signum(-dot(n, ray.d));
-
-                                    let e = 1.0;
-                                    let roughness = hit.roughness;
-                                    let alpha = roughness * roughness;
-                                    let metallic = hit.metallic;
-                                    let reflectance = hit.reflectance;
-                                    let color = hit.albedo;
-
-                                    //let mut brdf = Vec3f::zero();
-
-                                    if rng.gen::<f32>() < reflectance {
-                                        // Sphere s = lightSourceVolume;
-                                        // int i = 6;
-
-                                        // vec3 l0 = s.p - x;
-                                        // float cos_a_max = sqrt(1. - clamp(s.r * s.r / dot(l0, l0), 0., 1.));
-                                        // float cosa = mix(cos_a_max, 1., rand());
-                                        // vec3 l = jitter(l0, 2.*PI*rand(), sqrt(1. - cosa*cosa), cosa);
-
-                                        // if (intersect(Ray(x, l), t, s, id) == i) {
-                                        //     float omega = 2. * PI * (1. - cos_a_max);
-                                        //     brdf += (s.e * clamp(ggx(nl, r.d, l, roughness, metallic),0.,1.) * omega) / PI;
-                                        // }
-
-                                        // Direct light sampling
-                                        if depth == 0 {
-                                            for (light_grid, light) in &level.lights {
-                                                let light_dist =
-                                                    length(Vec2f::from(*light_grid - *tile));
-
-                                                if light_dist < light.max_distance {
-                                                    let light_pos = vec3f(
-                                                        light_grid.x as f32 + 0.5,
-                                                        0.5,
-                                                        light_grid.y as f32 + 0.5,
-                                                    );
-                                                    let l0 = light_pos - x;
-
-                                                    let lr = light.max_distance;
-                                                    let cos_a_max = sqrt(
-                                                        1. - clamp(lr * lr / dot(l0, l0), 0., 1.),
-                                                    );
-                                                    let cosa = lerp(cos_a_max, 1., rng.gen());
-                                                    let l = jitter(
-                                                        l0,
-                                                        2. * f32::pi() * rng.gen::<f32>(),
-                                                        sqrt(1. - cosa * cosa),
-                                                        cosa,
-                                                    );
-
-                                                    if self.shadow_ray(
-                                                        Ray::new(x, l0),
-                                                        Vec3i::from(light_pos),
-                                                        light,
-                                                        region,
-                                                        &update,
-                                                        settings,
-                                                        &material_params,
-                                                    ) {
-                                                        let omega =
-                                                            2.0 * f32::pi() * (1.0 - cos_a_max);
-                                                        let mut light_brdf = (light.color
-                                                            * light.strength
-                                                            * 5.0
-                                                            * clamp(
-                                                                ggx(
-                                                                    nl, ray.d, l, roughness,
-                                                                    metallic,
-                                                                ),
-                                                                0.0,
-                                                                1.0,
-                                                            )
-                                                            * omega)
-                                                            / f32::pi();
-
-                                                        light_brdf *= mask * color;
-
-                                                        let mut found_light = false;
-                                                        for light in lights.iter_mut() {
-                                                            if light.pos == *light_grid {
-                                                                light.brdf = lerp(
-                                                                    light.brdf,
-                                                                    light_brdf,
-                                                                    1.0 / (sample as f32 + 1.0),
-                                                                );
-                                                                found_light = true;
-                                                                break;
-                                                            }
-                                                        }
-
-                                                        if !found_light {
-                                                            lights.push(PreRenderedLight {
-                                                                pos: *light_grid,
-                                                                brdf: light_brdf,
-                                                            });
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        let xsi_1: f32 = rng.gen();
-                                        let xsi_2: f32 = rng.gen();
-                                        let phi = atan((alpha * sqrt(xsi_1)) / sqrt(1.0 - xsi_1));
-                                        let theta = 2.0 * f32::pi() * xsi_2;
-                                        let direction = angle_to_dir(nl, theta, phi);
-                                        ray = Ray::new(x + n * 0.01, direction);
-                                        acc += mask * hit.emissive * e; // + mask * color * brdf;
-
-                                        mask *= color;
-                                    } else {
-                                        let r2: f32 = rng.gen();
-                                        let d = jitter(
-                                            nl,
-                                            2. * f32::pi() * rng.gen::<f32>(),
-                                            sqrt(r2),
-                                            sqrt(1. - r2),
-                                        );
-
-                                        let mut e = vec3f(0., 0., 0.);
-
-                                        // Direct light sampling
-                                        if depth == 0 {
-                                            for (light_grid, light) in &level.lights {
-                                                let light_dist =
-                                                    length(Vec2f::from(*light_grid - *tile));
-
-                                                if light_dist < light.max_distance {
-                                                    let light_pos = vec3f(
-                                                        light_grid.x as f32 + 0.5,
-                                                        0.5,
-                                                        light_grid.y as f32 + 0.5,
-                                                    );
-                                                    let l0 = light_pos - x;
-
-                                                    let lr = light.max_distance;
-
-                                                    let cos_a_max = sqrt(
-                                                        1. - clamp(lr * lr / dot(l0, l0), 0., 1.),
-                                                    );
-                                                    let cosa = lerp(cos_a_max, 1., rng.gen());
-                                                    let l = jitter(
-                                                        l0,
-                                                        2. * f32::pi() * rng.gen::<f32>(),
-                                                        sqrt(1. - cosa * cosa),
-                                                        cosa,
-                                                    );
-
-                                                    if self.shadow_ray(
-                                                        Ray::new(x, l0),
-                                                        Vec3i::from(light_pos),
-                                                        light,
-                                                        region,
-                                                        &update,
-                                                        settings,
-                                                        &material_params,
-                                                    ) {
-                                                        let omega =
-                                                            2.0 * f32::pi() * (1.0 - cos_a_max);
-
-                                                        e += (light.color
-                                                            * light.strength
-                                                            * 5.0
-                                                            * clamp(dot(l, n), 0., 1.)
-                                                            * omega)
-                                                            / f32::pi();
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        acc += mask * hit.emissive + mask * color * e;
-                                        mask *= color;
-                                        ray = Ray::new(x + n * 0.01, d);
-                                    }
-                                } else {
-                                    if depth == 0 {
-                                        empty_pixel = true;
-                                    } else {
-                                        tile_is_empty = false;
-                                    }
-                                    break;
-                                }
-                            }
-
-                            if empty_pixel {
-                                break;
-                            }
-
-                            color = acc;
-                            sky_abso = mask;
-                            distance = dist;
-                        } else {
-                            let mut state = TracerState {
-                                is_refracted: false,
-                                has_been_refracted: false,
-                                last_ior: 1.0,
-                            };
-
-                            let mut acc = Vec3f::zero();
-                            let mut abso = Vec3f::one();
-                            let mut dist = 0.0;
-
-                            for depth in 0..8 {
-                                if let Some(hit) = self.prerender_pixel(
-                                    ray,
-                                    region,
-                                    &update,
-                                    settings,
-                                    max_render_distance,
-                                    palette,
-                                    &material_params,
-                                    &mut rng,
-                                ) {
-                                    if depth == 0 {
-                                        dist = hit.distance;
-                                    }
-
-                                    let mut n = hit.normal;
-                                    if state.is_refracted {
-                                        n = -n
-                                    };
-
-                                    // sample BSDF
-                                    let mut out_dir: Vec3f = Vec3f::zero();
-                                    let bsdf = sample_disney_bsdf(
-                                        -ray.d,
-                                        n,
-                                        &hit,
-                                        &mut out_dir,
-                                        &mut state,
-                                        &mut rng,
-                                    );
-
-                                    // add emissive part of the current material
-                                    acc += hit.emissive * abso;
-
-                                    // bsdf absorption (pdf are in bsdf.a)
-                                    if bsdf.1 > 0.0 {
-                                        abso *= bsdf.0 / bsdf.1;
-                                    }
-
-                                    // medium absorption
-                                    if state.has_been_refracted {
-                                        abso *= exp(-hit.distance
-                                            * ((Vec3f::one() - hit.albedo) * hit.absorption));
-                                    }
-
-                                    ray.o = hit.hit_point;
-                                    ray.d = out_dir;
-
-                                    if state.is_refracted {
-                                        ray.o += -n * 0.01;
-                                    } else if state.has_been_refracted && !state.is_refracted {
-                                        ray.o += -n * 0.01;
-                                        state.last_ior = 1.;
-                                    } else {
-                                        ray.o += n * 0.01;
-                                    }
-                                } else {
-                                    // No hit
-
-                                    if depth == 0 {
-                                        empty_pixel = true;
-                                    } else {
-                                        //acc += settings.daylight * abso;
-                                    }
-                                    break;
-                                }
-                            }
-
-                            if empty_pixel {
-                                break;
-                            }
-
-                            color = lerp(color, acc, 1.0 / (sample as f32 + 1.0));
-                            sky_abso = lerp(sky_abso, abso, 1.0 / (sample as f32 + 1.0));
-                            distance = lerp(distance, dist, 1.0 / (sample as f32 + 1.0));
-                            }*/
                     }
 
-                    buffer.set_pixel_vec3f(w, h, &color);
-                    sky_abso_buffer.set_pixel_vec3f(w, h, &sky_abso);
-                    distance_buffer.set((w, h), distance);
+                    // BSDF Pathtracer based on glsl_pathtracer
+                    // https://github.com/knightcrawler25/GLSL-PathTracer
+
+                    let mut dist = 0.0;
+
+                    let radiance = Vec3f::zero();
+                    let mut throughput = Vec3f::one();
+
+                    let mut state = BSDFState::default();
+                    //let mut light_sample = BSDFLightSampleRec::default();
+                    let mut scatter_sample = BSDFScatterSampleRec::default();
+
+                    //let mut alpha = 1.0;
+
+                    let eps = 0.01; //0.0003;
+
+                    // For medium tracking
+                    let mut _in_medium = false;
+                    let mut _medium_sampled = false;
+                    let mut _surface_scatter = false;
+
+                    state.depth = 8;
+
+                    // Choose the light we want to sample for this sample
+                    // We choose one random light per sample
+
+                    let mut sample_light_grid_pos: Option<Vec2i> = None;
+                    let mut direct_light_sample = Vec3f::zero();
+                    let mut possible_lights_to_sample = vec![];
+
+                    for (light_grid, light) in &level.lights {
+                        let light_dist = length(Vec2f::from(*light_grid - *tile));
+
+                        // Is light in distance ?
+                        if light_dist < light.max_distance {
+                            possible_lights_to_sample.push(*light_grid);
+                        }
+                    }
+
+                    if !possible_lights_to_sample.is_empty() {
+                        let index = rng.gen_range(0..possible_lights_to_sample.len());
+                        sample_light_grid_pos = Some(possible_lights_to_sample[index]);
+                    }
+
+                    for depth in 0..8 {
+                        if let Some(hit) = self.prerender_pixel(
+                            ray,
+                            region,
+                            &update,
+                            settings,
+                            max_render_distance,
+                            palette,
+                            &material_params,
+                            &mut rng,
+                        ) {
+                            if depth == 0 {
+                                dist = hit.distance;
+                            }
+
+                            state.mat.clone_from(&hit.mat);
+                            state.mat.roughness = max(state.mat.roughness, 0.001);
+                            // Remapping from clearcoat gloss to roughness
+                            state.mat.clearcoat_roughness =
+                                lerp(0.1, 0.001, state.mat.clearcoat_roughness);
+
+                            state.hit_dist = hit.distance;
+                            state.fhp = hit.hit_point;
+
+                            state.normal = hit.normal;
+                            state.ffnormal = if dot(state.normal, ray.d) <= 0.0 {
+                                state.normal
+                            } else {
+                                -state.normal
+                            };
+
+                            state.eta = if dot(ray.d, state.normal) < 0.0 {
+                                1.0 / state.mat.ior
+                            } else {
+                                state.mat.ior
+                            };
+
+                            onb(state.normal, &mut state.tangent, &mut state.bitangent);
+
+                            let aspect = sqrt(1.0 - state.mat.anisotropic * 0.9);
+                            state.mat.ax = max(0.001, state.mat.roughness / aspect);
+                            state.mat.ay = max(0.001, state.mat.roughness * aspect);
+
+                            _surface_scatter = true;
+
+                            // Direct light sampling
+
+                            if let Some(light_grid) = sample_light_grid_pos {
+                                if let Some(light) = level.lights.get(&light_grid) {
+                                    let light_dist = length(Vec2f::from(light_grid - *tile));
+
+                                    if light_dist < light.max_distance {
+                                        let mut light_sample = BSDFLightSampleRec::default();
+                                        let mut scatter_sample = BSDFScatterSampleRec::default();
+
+                                        let scatter_pos = state.fhp + state.normal * eps;
+
+                                        let light_pos = vec3f(
+                                            light_grid.x as f32 + 0.5,
+                                            0.6,
+                                            light_grid.y as f32 + 0.5,
+                                        );
+
+                                        let radius = 0.4;
+
+                                        let l = BSDFLight {
+                                            position: light_pos,
+                                            emission: light.color * light.strength * 5.0,
+                                            radius,
+                                            type_: 1.0,
+                                            u: Vec3f::zero(),
+                                            v: Vec3f::zero(),
+                                            area: 4.0 * f32::pi() * radius * radius,
+                                        };
+
+                                        sample_sphere_light(
+                                            &l,
+                                            scatter_pos,
+                                            &mut light_sample,
+                                            1,
+                                            &mut rng,
+                                        );
+
+                                        let li = light_sample.emission;
+
+                                        if self.shadow_ray(
+                                            Ray::new(scatter_pos, light_sample.direction),
+                                            Vec3i::from(light_pos),
+                                            light,
+                                            region,
+                                            &update,
+                                            settings,
+                                            &material_params,
+                                        ) {
+                                            scatter_sample.f = disney_eval(
+                                                &state,
+                                                -ray.d,
+                                                state.ffnormal,
+                                                light_sample.direction,
+                                                &mut scatter_sample.pdf,
+                                            );
+
+                                            let mut mis_weight = 1.0;
+                                            if l.area > 0.0 {
+                                                // No MIS for distant light
+                                                mis_weight = power_heuristic(
+                                                    light_sample.pdf,
+                                                    scatter_sample.pdf,
+                                                );
+                                            }
+
+                                            let falloff = 1.0; // / (light_dist * light_dist);
+                                                               // Original inverse-square falloff
+                                                               // let falloff = 1.0 / (distance * distance * distance); // Stronger falloff
+                                                               // let falloff = 1.0 / (distance + 1.0); // Linear falloff for larger distance
+                                                               // let falloff = 1.0 / (distance.powf(1.5)); // Custom falloff
+
+                                            if scatter_sample.pdf > 0.0 {
+                                                direct_light_sample +=
+                                                    (mis_weight * li * scatter_sample.f
+                                                        / (light_sample.pdf * falloff))
+                                                        * throughput;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Next event estimation
+                            //radiance += direct_light * throughput;
+
+                            // Sample BSDF for color and outgoing direction
+                            scatter_sample.f = disney_sample(
+                                &state,
+                                -ray.d,
+                                state.ffnormal,
+                                &mut scatter_sample.l,
+                                &mut scatter_sample.pdf,
+                                &mut rng,
+                            );
+                            if scatter_sample.pdf > 0.0 {
+                                throughput *= scatter_sample.f / scatter_sample.pdf;
+                            } else {
+                                break;
+                            }
+
+                            ray.d = scatter_sample.l;
+                            ray.o = state.fhp + ray.d * eps;
+                        } else {
+                            if depth == 0 {
+                                empty_pixel = true;
+                            } else {
+                                tile_is_empty = false;
+                            }
+                            break;
+                        }
+                    }
+
+                    if empty_pixel {
+                        break;
+                    }
+
+                    let mut lights: Vec<PreRenderedLight> = vec![];
+
+                    // Store the light sample
+                    if let Some(light_grid) = sample_light_grid_pos {
+                        if !direct_light_sample.x.is_nan() {
+                            lights.push(PreRenderedLight {
+                                pos: light_grid,
+                                brdf: direct_light_sample,
+                            });
+                        }
+                    }
+
+                    buffer.set_pixel_vec3f(w, h, &radiance);
+                    sky_abso_buffer.set_pixel_vec3f(w, h, &throughput);
+                    distance_buffer.set((w, h), dist);
                     lights_buffer.set((w, h), lights);
 
                     // -- End
@@ -844,74 +515,6 @@ impl Renderer {
             if let Some(sampled) = prerendered.tile_samples.get(&vec2i(tile.x, tile.y)) {
                 sample = *sampled as i32;
             }
-
-            /*
-
-            let tile_x = tile.x * region.grid_size;
-            let tile_y = tile.y * region.grid_size;
-            let s = 1.0 / (sample as f32 + 1.0);
-
-            for h in 0..region.grid_size {
-                for w in 0..region.grid_size {
-                    // albedo
-                    if let Some(existing) =
-                        prerendered.albedo.at_vec3(vec2i(w + tile_x, h + tile_y))
-                    {
-                        if let Some(new_samp) = buffer.at_vec3(vec2i(w, h)) {
-                            let p = lerp(existing, new_samp, s);
-                            buffer.set_pixel_vec3f(w, h, &p);
-                            prerendered
-                                .albedo
-                                .set_pixel_vec3f(w + tile_x, h + tile_y, &p);
-                        }
-                    }
-
-                    // sky abso
-                    if let Some(existing) = prerendered
-                        .sky_absorption
-                        .at_vec3(vec2i(w + tile_x, h + tile_y))
-                    {
-                        if let Some(new_samp) = sky_abso_buffer.at_vec3(vec2i(w, h)) {
-                            let p = lerp(existing, new_samp, s);
-                            sky_abso_buffer.set_pixel_vec3f(w, h, &p);
-                            prerendered
-                                .sky_absorption
-                                .set_pixel_vec3f(w + tile_x, h + tile_y, &p);
-                        }
-                    }
-
-                    // distance
-                    if let Some(existing) = prerendered.distance.get_mut((w + tile_x, h + tile_y)) {
-                        if let Some(new_samp) = distance_buffer.get_mut((w, h)) {
-                            let d = lerp(*existing, *new_samp, s);
-                            *existing = d;
-                            *new_samp = d;
-                        }
-                    }
-
-                    // lights
-                    if let Some(new_samp) = lights_buffer.get_mut((w, h)) {
-                        if let Some(existing) = prerendered.lights.get_mut((w + tile_x, h + tile_y))
-                        {
-                            for nl in new_samp {
-                                for ex in existing.iter_mut() {
-                                    if nl.pos == ex.pos {
-                                        let e = ex.brdf;
-                                        let n = nl.brdf;
-
-                                        ex.brdf = lerp(e, n, s);
-                                    }
-                                }
-                            }
-                            lights_buffer.set((w, h), existing.clone());
-                        } else {
-                            prerendered
-                                .lights
-                                .set((w + tile_x, h + tile_y), new_samp.clone());
-                        }
-                    }
-                }
-                }*/
 
             sender
                 .send(PreRenderResult::RenderedRegionTile(
@@ -1060,7 +663,7 @@ impl Renderer {
                                 }
 
                                 hit.distance = dist + t;
-                                hit.albedo = vec3f(0.5, 0.5, 0.5);
+                                hit.mat.base_color = vec3f(0.5, 0.5, 0.5);
 
                                 if h.extrusion == GeoFXNodeExtrusion::None {
                                     hit.value = 1.0;
@@ -1075,7 +678,12 @@ impl Renderer {
                                 if let Some(material) = material {
                                     hit.uv = self.get_uv_face(hit.normal, hit.hit_point).0;
                                     hit.global_uv = hit.uv;
-                                    material.compute(&mut hit, palette, &self.textures);
+                                    material.compute(
+                                        &mut hit,
+                                        palette,
+                                        &self.textures,
+                                        &mat_obj_params,
+                                    );
                                 }
                                 has_hit = true;
                             }
@@ -1134,7 +742,7 @@ impl Renderer {
 
                     if !data.billboard {
                         if let Some(p) = data.buffer[index].at_f_vec4f(uv) {
-                            hit.albedo = vec3f(p.x, p.y, p.z);
+                            hit.mat.base_color = vec3f(p.x, p.y, p.z);
                             hit.normal = -normal;
                             hit.distance = dist;
                             hit.hit_point = ray.at(dist);
@@ -1194,7 +802,7 @@ impl Renderer {
                                     if let Some(c) = data.buffer[index].at(vec2i(x, y)) {
                                         if c[3] == 255 {
                                             let col = TheColor::from_u8_array(c).to_vec4f();
-                                            hit.albedo = vec3f(col.x, col.y, col.z);
+                                            hit.mat.base_color = vec3f(col.x, col.y, col.z);
                                             hit.distance = t;
                                             hit.normal = -normal;
                                             hit.hit_point = ray.at(t);
@@ -2057,7 +1665,7 @@ impl Renderer {
         material_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
     ) -> RGBA {
         let mut color = vec4f(0.0, 0.0, 0.0, 1.0);
-        let mut hit_props = Hit::default();
+        let hit_props = Hit::default();
 
         #[inline(always)]
         fn equal(l: f32, r: Vec3f) -> Vec3f {
@@ -2094,77 +1702,8 @@ impl Renderer {
                 break;
             }
 
-            if let Some(model) = region.models.get(&(key.x, key.y, key.z)) {
-                let mut lro = ray.at(dist);
-                lro -= Vec3f::from(key);
-
-                let mut wallfx_offset = Vec3i::zero();
-                let mut alpha = 1.0;
-
-                if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
-                    let mut valid = true;
-                    let mut xx = 0;
-                    let mut yy = 0;
-                    let d =
-                        (update.server_tick - wallfx.at_tick) as f32 + settings.delta_in_tick - 1.0;
-                    if d < 1.0 {
-                        let t = (d * region.grid_size as f32) as i32;
-                        if wallfx.prev_fx != WallFX::Normal {
-                            wallfx.prev_fx.apply(
-                                &mut xx,
-                                &mut yy,
-                                &mut alpha,
-                                &(region.grid_size - t),
-                                &(1.0 - d),
-                            );
-                        } else {
-                            wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
-                        }
-                    } else if wallfx.fx != WallFX::Normal {
-                        valid = false;
-                    }
-
-                    if valid {
-                        wallfx_offset.x -= xx;
-                        wallfx_offset.y -= yy;
-                    } else {
-                        //uv = vec2f(-1.0, -1.0);
-                        wallfx_offset = vec3i(region.grid_size, region.grid_size, region.grid_size);
-                    }
-                }
-
-                if let Some(hit_struct) = model.dda(&Ray::new(lro, ray.d), wallfx_offset) {
-                    hit = true;
-                    color = hit_struct.color;
-                    // color = vec4f(
-                    //     hit_struct.normal.x,
-                    //     hit_struct.normal.y,
-                    //     hit_struct.normal.z,
-                    //     1.0,
-                    // );
-                    dist += hit_struct.distance;
-                    normal = hit_struct.normal;
-                    hit_props = hit_struct.clone();
-                    break;
-                }
-                /*
-                let mut lro = ray.at(dist);
-                lro -= Vec3f::from(key);
-                lro -= rd * 0.01;
-
-                let mut r = ray;
-                r.o = lro;
-
-                if let Some(hit_struct) = model.render(&r, 1.01, i, palette) {
-                    color = hit_struct.color;
-                    hit = true;
-                    //normal = hit_struct.normal;
-                    dist += hit_struct.distance;
-                    break;
-                    }*/
-            }
             // Test against world tiles
-            else if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
+            if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                 let mut uv = self.get_uv_face(normal, ray.at(dist)).0;
                 //pixel = [(uv.x * 255.0) as u8, (uv.y * 255.0) as u8, 0, 255];
                 if let Some(data) = self.textures.get(tile) {
@@ -2437,9 +1976,9 @@ impl Renderer {
                                 if light.color_type == 0 {
                                     light_color *= light.color
                                 }
-                                let roughness = hit_props.roughness;
-                                let metallic = hit_props.metallic;
-                                let reflectance = hit_props.reflectance;
+                                let roughness = hit_props.mat.roughness;
+                                let metallic = hit_props.mat.metallic;
+                                let reflectance = 0.0; //hit_props.reflectance;
                                 let base_color = vec3f(color.x, color.y, color.z);
 
                                 let f0 = 0.16 * reflectance * reflectance * (1.0 - metallic)
