@@ -883,7 +883,7 @@ impl GeoFXNode {
                         ..Default::default()
                     };
 
-                    let p = vec2f(x / width as f32, y / height as f32);
+                    let p = vec2f(x / width as f32, 1.0 - y / height as f32);
                     let p_coord = p + coord;
                     hit.uv = p;
                     hit.global_uv = p_coord;

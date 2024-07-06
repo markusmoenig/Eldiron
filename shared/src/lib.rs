@@ -1,5 +1,6 @@
 pub mod area;
 pub mod asset;
+pub mod bsdf;
 pub mod camera;
 pub mod character;
 pub mod client;
@@ -41,6 +42,7 @@ pub mod prelude {
 
     pub use crate::area::Area;
     pub use crate::asset::*;
+    pub use crate::bsdf::*;
     pub use crate::camera::Camera;
     pub use crate::character::Character;
     pub use crate::client::*;

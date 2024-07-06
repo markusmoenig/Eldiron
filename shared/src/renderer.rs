@@ -287,6 +287,244 @@ impl Renderer {
                             }
                         }
 
+                        // BSDF Pathtracer based on glsl_pathtracer
+                        // https://github.com/knightcrawler25/GLSL-PathTracer
+
+                        let mut dist = 0.0;
+
+                        let mut radiance = Vec3f::zero();
+                        let mut throughput = Vec3f::one();
+
+                        let mut state = BSDFState::default();
+                        let mut light_sample = BSDFLightSampleRec::default();
+                        let mut scatter_sample = BSDFScatterSampleRec::default();
+
+                        let mut alpha = 1.0;
+
+                        let eps = 0.01; //0.0003;
+
+                        // For medium tracking
+                        let mut in_medium = false;
+                        let mut medium_sampled = false;
+                        let mut surface_scatter = false;
+
+                        state.depth = 8;
+
+                        // Choose the light we want to sample for this sample
+                        // We choose one random light per sample
+
+                        let mut sample_light_grid_pos: Option<Vec2i> = None;
+                        let mut direct_light_sample = Vec3f::zero();
+                        let mut possible_lights_to_sample = vec![];
+
+                        for (light_grid, light) in &level.lights {
+                            let light_dist = length(Vec2f::from(*light_grid - *tile));
+
+                            // Is light in distance ?
+                            if light_dist < light.max_distance {
+                                possible_lights_to_sample.push(*light_grid);
+                            }
+                        }
+
+                        if !possible_lights_to_sample.is_empty() {
+                            let index = rng.gen_range(0..possible_lights_to_sample.len());
+                            sample_light_grid_pos = Some(possible_lights_to_sample[index]);
+                        }
+
+                        for depth in 0..8 {
+                            if let Some(hit) = self.prerender_pixel(
+                                ray,
+                                region,
+                                &update,
+                                settings,
+                                max_render_distance,
+                                palette,
+                                &material_params,
+                                &mut rng,
+                            ) {
+                                if depth == 0 {
+                                    dist = hit.distance;
+                                }
+
+                                state.mat.base_color = hit.albedo;
+                                state.mat.roughness = max(hit.roughness, 0.001);
+                                state.mat.metallic = hit.metallic;
+                                //state.mat.spec_trans = 1.0;
+                                state.mat.ior = 1.33;
+                                state.mat.opacity = 1.0;
+
+                                state.mat.clearcoat_roughness = lerp(0.1, 0.001, 0.0); // Remapping from gloss to roughness
+
+                                state.hit_dist = hit.distance;
+                                state.fhp = hit.hit_point;
+
+                                state.normal = hit.normal;
+                                state.ffnormal = if dot(state.normal, ray.d) <= 0.0 {
+                                    state.normal
+                                } else {
+                                    -state.normal
+                                };
+
+                                state.eta = if dot(ray.d, state.normal) < 0.0 {
+                                    1.0 / state.mat.ior
+                                } else {
+                                    state.mat.ior
+                                };
+
+                                onb(state.normal, &mut state.tangent, &mut state.bitangent);
+
+                                let aspect = sqrt(1.0 - state.mat.anisotropic * 0.9);
+                                state.mat.ax = max(0.001, state.mat.roughness / aspect);
+                                state.mat.ay = max(0.001, state.mat.roughness * aspect);
+
+                                surface_scatter = true;
+
+                                // Direct light sampling
+
+                                if let Some(light_grid) = sample_light_grid_pos {
+                                    if let Some(light) = level.lights.get(&light_grid) {
+                                        let light_dist = length(Vec2f::from(light_grid - *tile));
+
+                                        if light_dist < light.max_distance {
+                                            let mut light_sample = BSDFLightSampleRec::default();
+                                            let mut scatter_sample =
+                                                BSDFScatterSampleRec::default();
+
+                                            let scatter_pos = state.fhp + state.normal * eps;
+
+                                            let light_pos = vec3f(
+                                                light_grid.x as f32 + 0.5,
+                                                0.6,
+                                                light_grid.y as f32 + 0.5,
+                                            );
+
+                                            let radius = 0.4;
+
+                                            let l = BSDFLight {
+                                                position: light_pos,
+                                                emission: light.color * light.strength * 5.0,
+                                                radius,
+                                                type_: 1.0,
+                                                u: Vec3f::zero(),
+                                                v: Vec3f::zero(),
+                                                area: 4.0 * f32::pi() * radius * radius,
+                                            };
+
+                                            sample_sphere_light(
+                                                &l,
+                                                scatter_pos,
+                                                &mut light_sample,
+                                                1,
+                                                &mut rng,
+                                            );
+
+                                            let li = light_sample.emission;
+
+                                            if self.shadow_ray(
+                                                Ray::new(scatter_pos, light_sample.direction),
+                                                Vec3i::from(light_pos),
+                                                light,
+                                                region,
+                                                &update,
+                                                settings,
+                                                &material_params,
+                                            ) {
+                                                scatter_sample.f = disney_eval(
+                                                    &state,
+                                                    -ray.d,
+                                                    state.ffnormal,
+                                                    light_sample.direction,
+                                                    &mut scatter_sample.pdf,
+                                                );
+
+                                                let mut mis_weight = 1.0;
+                                                if l.area > 0.0 {
+                                                    // No MIS for distant light
+                                                    mis_weight = power_heuristic(
+                                                        light_sample.pdf,
+                                                        scatter_sample.pdf,
+                                                    );
+                                                }
+
+                                                let falloff = 1.0; // / (light_dist * light_dist);
+                                                                   // Original inverse-square falloff
+                                                                   // let falloff = 1.0 / (distance * distance * distance); // Stronger falloff
+                                                                   // let falloff = 1.0 / (distance + 1.0); // Linear falloff for larger distance
+                                                                   // let falloff = 1.0 / (distance.powf(1.5)); // Custom falloff
+
+                                                if scatter_sample.pdf > 0.0 {
+                                                    direct_light_sample +=
+                                                        (mis_weight * li * scatter_sample.f
+                                                            / (light_sample.pdf * falloff))
+                                                            * throughput;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Next event estimation
+                                //radiance += direct_light * throughput;
+
+                                // Sample BSDF for color and outgoing direction
+                                scatter_sample.f = disney_sample(
+                                    &state,
+                                    -ray.d,
+                                    state.ffnormal,
+                                    &mut scatter_sample.l,
+                                    &mut scatter_sample.pdf,
+                                    &mut rng,
+                                );
+                                if scatter_sample.pdf > 0.0 {
+                                    throughput *= scatter_sample.f / scatter_sample.pdf;
+                                } else {
+                                    break;
+                                }
+
+                                ray.d = scatter_sample.l;
+                                ray.o = state.fhp + ray.d * eps;
+                            } else {
+                                if depth == 0 {
+                                    empty_pixel = true;
+                                } else {
+                                    tile_is_empty = false;
+                                }
+                                break;
+                            }
+                        }
+
+                        if empty_pixel {
+                            break;
+                        }
+
+                        color = radiance;
+                        sky_abso = throughput;
+                        distance = dist;
+
+                        // Store the light sample
+                        if let Some(light_grid) = sample_light_grid_pos {
+                            let mut found_light = false;
+                            for light in lights.iter_mut() {
+                                if light.pos == light_grid {
+                                    light.brdf = lerp(
+                                        light.brdf,
+                                        direct_light_sample,
+                                        1.0 / (sample as f32 + 1.0),
+                                    );
+                                    found_light = true;
+                                    break;
+                                }
+                            }
+
+                            if !found_light {
+                                lights.push(PreRenderedLight {
+                                    pos: light_grid,
+                                    brdf: direct_light_sample,
+                                });
+                            }
+                        }
+
+                        /*
                         if true {
                             let mut acc = Vec3f::zero();
                             let mut mask = Vec3f::one();
@@ -588,7 +826,7 @@ impl Renderer {
                             color = lerp(color, acc, 1.0 / (sample as f32 + 1.0));
                             sky_abso = lerp(sky_abso, abso, 1.0 / (sample as f32 + 1.0));
                             distance = lerp(distance, dist, 1.0 / (sample as f32 + 1.0));
-                        }
+                            }*/
                     }
 
                     buffer.set_pixel_vec3f(w, h, &color);

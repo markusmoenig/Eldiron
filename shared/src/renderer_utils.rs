@@ -194,6 +194,7 @@ pub fn ray_models(ray: &Ray, models: &(Vec<ModelFXFloor>, Vec<ModelFXWall>)) -> 
 }
 */
 
+/*
 fn reflect(i: Vec3f, n: Vec3f) -> Vec3f {
     i - 2.0 * dot(i, n) * n
 }
@@ -533,3 +534,4 @@ pub fn ggx(n: Vec3f, v: Vec3f, l: Vec3f, roughness: f32, f0: f32) -> f32 {
     // '/ dot_nv' - Is canceled due to g
     (d * f * g / 4.0).clamp(0.0, 10.0)
 }
+*/
