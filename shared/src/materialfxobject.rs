@@ -48,6 +48,13 @@ impl MaterialFXObject {
         }
     }
 
+    /// Gives a chance to each node to update its parameters in case things changed.
+    pub fn update_parameters(&mut self) {
+        for n in &mut self.nodes {
+            n.update_parameters();
+        }
+    }
+
     /// Loads the parameters of the nodes into memory for faster access.
     pub fn load_parameters(&self, time: &TheTime) -> Vec<Vec<f32>> {
         let mut data = vec![];
@@ -265,9 +272,6 @@ impl MaterialFXObject {
         textures: &FxHashMap<Uuid, TheRGBATile>,
         mat_obj_params: &[Vec<f32>],
     ) {
-        // hit.noise = None;
-        // hit.noise_scale = 1.0;
-
         let mut connections = vec![];
         for (o, ot, i, it) in &self.connections {
             if *o == node as u16 && *ot == terminal_index as u8 {
@@ -329,6 +333,8 @@ impl MaterialFXObject {
             );
 
             for (node, terminal) in follow_ups {
+                hit.noise = None;
+                hit.noise_scale = 1.0;
                 self.follow_trail(
                     node as usize,
                     terminal as usize,
@@ -368,6 +374,8 @@ impl MaterialFXObject {
                     if let Some(ot) =
                         self.nodes[o].compute(hit, palette, textures, vec![], &mat_obj_params[o])
                     {
+                        hit.noise = None;
+                        hit.noise_scale = 1.0;
                         self.follow_trail(o, ot as usize, hit, palette, textures, mat_obj_params);
                     }
                 }
@@ -397,6 +405,8 @@ impl MaterialFXObject {
                             vec![],
                             &mat_obj_params[o],
                         ) {
+                            hit.noise = None;
+                            hit.noise_scale = 1.0;
                             self.follow_trail(
                                 o,
                                 ot as usize,
@@ -508,6 +518,8 @@ impl MaterialFXObject {
                     hit.global_uv = hit.uv;
 
                     noise2d.compute(&mut hit, palette, textures, vec![], &noise2d_node_params);
+                    hit.value = hit.noise.unwrap();
+                    hit.noise = None;
                     self.get_distance(&time, hit.uv, &mut hit, &geo_object, 1.0, &mat_obj_params);
                     self.compute(&mut hit, palette, textures, &mat_obj_params);
 

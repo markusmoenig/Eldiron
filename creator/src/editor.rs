@@ -1088,6 +1088,11 @@ impl TheTrait for Editor {
                                             }
                                         }
 
+                                        // Update mat_obj parameters if necessary
+                                        for mat_obj in &mut self.project.materials.values_mut() {
+                                            mat_obj.update_parameters();
+                                        }
+
                                         PRERENDERTHREAD
                                             .lock()
                                             .unwrap()

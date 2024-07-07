@@ -13,21 +13,18 @@ pub fn hash21(p: Vec2f) -> f32 {
     ((p3.x + p3.y) * p3.z).fract()
 }
 
-pub fn bricks(coll: &TheCollection, uv: Vec2f, hit: &mut Hit) -> (u8, u8) {
-    //let uv = hit.uv / 100.0;
-
-    let ratio = coll.get_f32_default("Ratio", 2.0);
-    let round = coll.get_f32_default("Rounding", 0.0);
-    let bevel = coll.get_f32_default("Bevel", 0.0);
-    let gap = coll.get_f32_default("Gap", 0.1);
-    let mode = coll.get_i32_default("Mode", 0);
+pub fn bricks(uv: Vec2f, hit: &mut Hit, params: &[f32]) -> (u8, u8) {
+    let ratio = params[0];
+    let round = params[1];
+    let bevel = params[2];
+    let gap = params[3];
+    let cell = params[4];
+    let mode = params[5] as i32;
 
     let mut u = uv; // + vec2f(10000.0, 10000.0);
 
-    let cell = coll.get_f32_default("Cell", 6.0);
-
     let w = vec2f(ratio, 1.0);
-    u *= vec2f(cell, cell) / w; //u.component_mul(&FP2::new(self.cell, self.cell).component_div(&w));
+    u *= vec2f(cell, cell) / w;
 
     if mode == 0 {
         u.x += 0.5 * u.y.floor() % 2.0;

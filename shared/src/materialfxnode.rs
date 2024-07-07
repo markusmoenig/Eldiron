@@ -46,6 +46,16 @@ impl MaterialFXNode {
 
         match role {
             Geometry => {
+                coll.set(
+                    "Profile",
+                    TheValue::TextList(0, vec![str!("None"), str!("Noise"), str!("Rounded")]),
+                );
+                coll.set("Steps", TheValue::FloatRange(0.2, 0.0..=1.0));
+                coll.set(
+                    "Mortar",
+                    TheValue::TextList(0, vec![str!("No"), str!("Yes")]),
+                );
+                coll.set("Displacement", TheValue::FloatRange(0.2, 0.0..=1.0));
                 supports_preview = true;
                 preview_is_open = true;
             }
@@ -91,14 +101,13 @@ impl MaterialFXNode {
             Brick => {
                 coll.set("Ratio", TheValue::FloatRange(2.0, 1.0..=10.0));
                 coll.set("Rounding", TheValue::FloatRange(0.0, 0.0..=0.5));
-                //coll.set("Bevel", TheValue::FloatRange(0.0, 0.0..=0.5));
+                coll.set("Bevel", TheValue::FloatRange(0.0, 0.0..=0.5));
                 coll.set("Gap", TheValue::FloatRange(0.1, 0.0..=0.5));
                 coll.set("Cell", TheValue::FloatRange(6.0, 0.0..=15.0));
                 coll.set(
                     "Mode",
                     TheValue::TextList(0, vec![str!("Bricks"), str!("Tiles")]),
                 );
-                coll.set("Displace", TheValue::FloatRange(0.0, 0.0..=1.0));
             }
             Subdivide => {
                 coll.set(
@@ -173,6 +182,30 @@ impl MaterialFXNode {
         ]
     }
 
+    /// Gives the node a chance to update its parameters in case things changed.
+    pub fn update_parameters(&mut self) {
+        // match self.role {
+        //     Geometry => {
+        //         // if let Some(coll) = self
+        //         //     .timeline
+        //         //     .get_collection_at(&TheTime::default(), str!("Geo"))
+        //         // {
+        //         self.set(
+        //             "Profile",
+        //             TheValue::TextList(0, vec![str!("None"), str!("Rounded")]),
+        //         );
+        //         self.set("Steps", TheValue::FloatRange(0.2, 0.0..=1.0));
+        //         self.set(
+        //             "Mortar",
+        //             TheValue::TextList(0, vec![str!("No"), str!("Yes")]),
+        //         );
+        //         self.set("Displace", TheValue::FloatRange(0.2, 0.0..=1.0));
+        //         //}
+        //     }
+        //     _ => {}
+        // }
+    }
+
     /// Loads the parameters of the nodes into memory for faster access.
     pub fn load_parameters(&self, _time: &TheTime) -> Vec<f32> {
         let mut params = vec![];
@@ -205,6 +238,14 @@ impl MaterialFXNode {
                 params.push(coll.get_f32_default("Gap", 1.0));
                 params.push(coll.get_f32_default("Rotation", 0.15));
                 params.push(coll.get_f32_default("Rounding", 0.15));
+            }
+            MaterialFXNodeRole::Brick => {
+                params.push(coll.get_f32_default("Ratio", 2.0));
+                params.push(coll.get_f32_default("Rounding", 0.0));
+                params.push(coll.get_f32_default("Bevel", 0.0));
+                params.push(coll.get_f32_default("Gap", 0.1));
+                params.push(coll.get_f32_default("Cell", 6.0));
+                params.push(coll.get_i32_default("Mode", 0) as f32);
             }
             MaterialFXNodeRole::Tiles => {
                 params.push(coll.get_f32_default("Size", 0.8));
@@ -483,8 +524,7 @@ impl MaterialFXNode {
                 Some(0)
             }
             Brick => {
-                let collection = self.collection();
-                let (_, terminal) = bricks(&collection, hit.global_uv, hit);
+                let (_, terminal) = bricks(hit.global_uv, hit, params);
                 Some(terminal)
             }
             UVSplitter => {

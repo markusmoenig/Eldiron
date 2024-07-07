@@ -164,8 +164,6 @@ impl Renderer {
             return false;
         }
 
-        println!("tiles {}", tiles.len());
-
         let _start = self.get_time();
 
         let width = size.x as usize;
@@ -670,8 +668,13 @@ impl Renderer {
                                 // }
 
                                 if let Some(material) = material {
-                                    hit.uv = self.get_uv_face(hit.normal, hit.hit_point).0;
-                                    hit.global_uv = hit.uv;
+                                    let f = self.get_uv_face(hit.normal, hit.hit_point);
+                                    hit.uv = f.0;
+                                    hit.global_uv = match f.1 {
+                                        0 => f.0 + vec2f(i.z, i.y),
+                                        1 => f.0 + vec2f(i.x, i.z),
+                                        _ => f.0 + vec2f(i.x, i.y),
+                                    };
                                     material.compute(
                                         &mut hit,
                                         palette,
