@@ -180,6 +180,12 @@ impl MaterialFXNode {
         let coll = self.collection();
 
         match self.role {
+            MaterialFXNodeRole::Noise2D => {
+                params.push(coll.get_f32_default("UV Scale X", 1.0));
+                params.push(coll.get_f32_default("UV Scale Y", 1.0));
+                params.push(coll.get_f32_default("Out Scale", 1.0));
+                params.push(coll.get_i32_default("Octaves", 5) as f32);
+            }
             MaterialFXNodeRole::Material => {
                 params.push(coll.get_i32_default("Color", 0) as f32);
                 params.push(coll.get_f32_default("Rougness", 0.5));
@@ -426,6 +432,7 @@ impl MaterialFXNode {
                 } else if resolved.len() >= 2 {
                     if let Some(noise) = hit.noise {
                         let noise = noise * hit.noise_scale;
+
                         hit.mat.base_color = lerp(
                             resolved[0].mat.base_color,
                             resolved[1].mat.base_color,
@@ -456,13 +463,9 @@ impl MaterialFXNode {
                 None
             }
             Noise2D => {
-                let coll = self.collection();
-                hit.noise_scale = coll.get_f32_default("Out Scale", 1.0);
-                let scale = vec2f(
-                    coll.get_f32_default("UV Scale X", 1.0),
-                    coll.get_f32_default("UV Scale Y", 1.0),
-                );
-                let octaves = coll.get_i32_default("Octaves", 5);
+                hit.noise_scale = params[2];
+                let scale = vec2f(params[0], params[1]);
+                let octaves = params[3] as i32;
                 let value = if hit.two_d {
                     noise2d(&hit.global_uv, scale, octaves)
                 } else {

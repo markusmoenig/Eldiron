@@ -46,7 +46,6 @@ pub struct BSDFMaterial {
     pub ior: f32,
     pub ax: f32,
     pub ay: f32,
-    #[serde(default)]
     pub medium: BSDFMedium,
 }
 

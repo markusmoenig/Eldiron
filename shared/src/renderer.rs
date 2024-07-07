@@ -164,6 +164,8 @@ impl Renderer {
             return false;
         }
 
+        println!("tiles {}", tiles.len());
+
         let _start = self.get_time();
 
         let width = size.x as usize;
@@ -253,8 +255,6 @@ impl Renderer {
                     // Pathtracer
                     // Based on https://www.shadertoy.com/view/Dtl3WS
 
-                    let mut empty_pixel = false;
-
                     let mut ray = if camera_type == CameraType::TiltedIso {
                         camera.create_tilted_isometric_ray2(
                             vec2f(xx / width_f, (height_f - yy) / height_f),
@@ -295,8 +295,6 @@ impl Renderer {
                     let mut scatter_sample = BSDFScatterSampleRec::default();
 
                     //let mut alpha = 1.0;
-
-                    let eps = 0.01; //0.0003;
 
                     // For medium tracking
                     let mut _in_medium = false;
@@ -381,7 +379,7 @@ impl Renderer {
                                         let mut light_sample = BSDFLightSampleRec::default();
                                         let mut scatter_sample = BSDFScatterSampleRec::default();
 
-                                        let scatter_pos = state.fhp + state.normal * eps;
+                                        let scatter_pos = state.fhp + state.normal * hit.eps;
 
                                         let light_pos = vec3f(
                                             light_grid.x as f32 + 0.5,
@@ -473,19 +471,15 @@ impl Renderer {
                             }
 
                             ray.d = scatter_sample.l;
-                            ray.o = state.fhp + ray.d * eps;
+                            ray.o = state.fhp + ray.d * hit.eps
                         } else {
                             if depth == 0 {
-                                empty_pixel = true;
+                                throughput = Vec3f::zero();
                             } else {
                                 tile_is_empty = false;
                             }
                             break;
                         }
-                    }
-
-                    if empty_pixel {
-                        break;
                     }
 
                     let mut lights: Vec<PreRenderedLight> = vec![];
@@ -638,8 +632,8 @@ impl Renderer {
                                 );
                             }
 
-                            if d.0.abs() < 0.001 && dist + t < hit.distance {
-                                hit = h.clone();
+                            if d.0.abs() < h.eps && dist + t < hit.distance {
+                                hit.clone_from(&h);
                                 hit.hit_point = p;
 
                                 if let Some(material) = material {
@@ -665,15 +659,15 @@ impl Renderer {
                                 hit.distance = dist + t;
                                 hit.mat.base_color = vec3f(0.5, 0.5, 0.5);
 
-                                if h.extrusion == GeoFXNodeExtrusion::None {
-                                    hit.value = 1.0;
-                                    geo_obj.nodes[d.1].distance_3d(
-                                        &settings.time,
-                                        p,
-                                        &mut Some(&mut hit),
-                                        &geo_obj_params[d.1],
-                                    );
-                                }
+                                // if h.extrusion == GeoFXNodeExtrusion::None {
+                                //     hit.value = 1.0;
+                                //     geo_obj.nodes[d.1].distance_3d(
+                                //         &settings.time,
+                                //         p,
+                                //         &mut Some(&mut hit),
+                                //         &geo_obj_params[d.1],
+                                //     );
+                                // }
 
                                 if let Some(material) = material {
                                     hit.uv = self.get_uv_face(hit.normal, hit.hit_point).0;
@@ -685,6 +679,7 @@ impl Renderer {
                                         &mat_obj_params,
                                     );
                                 }
+
                                 has_hit = true;
                             }
                             t += d.0;

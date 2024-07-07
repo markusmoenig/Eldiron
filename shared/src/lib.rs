@@ -115,6 +115,8 @@ pub enum HitFace {
 pub struct Hit {
     pub node: usize,
 
+    pub eps: f32,
+
     pub key: Vec3f,
     pub hash: f32,
 
@@ -137,7 +139,6 @@ pub struct Hit {
 
     pub color: Vec4f,
 
-    #[serde(default)]
     pub mat: BSDFMaterial,
 
     pub noise: Option<f32>,
@@ -158,6 +159,8 @@ impl Hit {
     pub fn new() -> Self {
         Self {
             node: 0,
+
+            eps: 0.001, //0.0003,
 
             key: Vec3f::zero(),
             hash: 0.0,

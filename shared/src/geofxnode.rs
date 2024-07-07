@@ -70,7 +70,6 @@ impl GeoFXNode {
                 coll.set("Pos X", TheValue::Float(0.5));
                 coll.set("Pos Y", TheValue::Float(0.5));
                 coll.set("Height", TheValue::FloatRange(0.01, 0.001..=1.0));
-                coll.set("Hole", TheValue::FloatRange(0.0, 0.0..=1.0));
             }
             LeftWall => {
                 coll.set("Pos X", TheValue::Float(0.1));
@@ -190,7 +189,6 @@ impl GeoFXNode {
                 }
                 Floor => {
                     params.push(coll.get_f32_default("Height", 0.01));
-                    params.push(coll.get_f32_default("Hole", 0.0));
                 }
                 Column => {
                     params.push(coll.get_f32_default("Radius", 0.4));
@@ -248,16 +246,8 @@ impl GeoFXNode {
                     return -0.001;
                 }
                 Floor => {
-                    let mut pos = self.position(&coll) * scale;
-                    pos.x = pos.x.floor();
-
-                    let hole = coll.get_f32_default("Hole", 0.0) * scale;
-
-                    let mut d = sdf_box2d(p, pos, 1.0 * scale, 1.0 * scale);
-
-                    if hole > 0.0 {
-                        d = d.abs() - hole;
-                    }
+                    let pos = self.position(&coll) * scale;
+                    let d = sdf_box2d(p, pos, 0.6 * scale, 0.6 * scale);
 
                     return d;
                 }
@@ -457,26 +447,22 @@ impl GeoFXNode {
                 if let Some(hit) = hit {
                     hit.mat.base_color = vec3f(value, value, value);
                     hit.value = value;
+                    hit.eps = 0.15;
                 }
                 p.y - value * 0.05
             }
             Floor => {
                 let height = params[2];
-                let hole = params[3];
 
                 let pos = vec2f(params[0], params[1]);
-                let mut d = sdf_box2d(vec2f(p.x, p.z), pos, 0.5, 0.5);
-
-                if hole > 0.0 {
-                    d = d.abs() - hole;
-                }
+                let d = sdf_box2d(vec2f(p.x, p.z), pos, 0.5, 0.5);
 
                 if let Some(hit) = hit {
                     hit.pattern_pos = vec2f(p.x, p.z);
                     hit.extrusion = GeoFXNodeExtrusion::Y;
                     hit.extrusion_length = height;
                     hit.interior_distance = d;
-                    hit.hit_point = p - vec3f(pos.x.floor(), 0.0, pos.y.floor());
+                    hit.hit_point = p - vec3f(pos.x, 0.0, pos.y);
                 }
 
                 d

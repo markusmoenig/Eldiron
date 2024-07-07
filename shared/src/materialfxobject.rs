@@ -138,7 +138,7 @@ impl MaterialFXObject {
 
                 if let Some(mortar) = hit.interior_distance_mortar {
                     let mortar_distance =
-                        op_extrusion_y(hit.hit_point, mortar, hit.extrusion_length - 0.005);
+                        op_extrusion_y(hit.hit_point, mortar, hit.extrusion_length - 0.01);
                     d.0 = min(distance, mortar_distance);
 
                     if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
@@ -148,6 +148,7 @@ impl MaterialFXObject {
                     }
                 } else {
                     d.0 = distance;
+                    hit.value = 0.0;
                 }
             }
             GeoFXNodeExtrusion::Z => {
@@ -264,8 +265,8 @@ impl MaterialFXObject {
         textures: &FxHashMap<Uuid, TheRGBATile>,
         mat_obj_params: &[Vec<f32>],
     ) {
-        hit.noise = None;
-        hit.noise_scale = 1.0;
+        // hit.noise = None;
+        // hit.noise_scale = 1.0;
 
         let mut connections = vec![];
         for (o, ot, i, it) in &self.connections {
@@ -475,9 +476,11 @@ impl MaterialFXObject {
 
         let mut geo_object = GeoFXObject::default();
         let geo_node = GeoFXNode::new(GeoFXNodeRole::Floor);
+
         geo_object.nodes.push(geo_node);
 
         let noise2d = MaterialFXNode::new(MaterialFXNodeRole::Noise2D);
+        let noise2d_node_params = noise2d.load_parameters(&time);
 
         let mat_obj_params = self.load_parameters(&time);
 
@@ -504,7 +507,7 @@ impl MaterialFXObject {
 
                     hit.global_uv = hit.uv;
 
-                    noise2d.compute(&mut hit, palette, textures, vec![], &mat_obj_params[0]);
+                    noise2d.compute(&mut hit, palette, textures, vec![], &noise2d_node_params);
                     self.get_distance(&time, hit.uv, &mut hit, &geo_object, 1.0, &mat_obj_params);
                     self.compute(&mut hit, palette, textures, &mat_obj_params);
 
