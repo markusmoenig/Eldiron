@@ -120,7 +120,7 @@ impl GeoFXNode {
                     "Align",
                     TheValue::TextList(0, vec![str!("North/South"), str!("West/East")]),
                 );
-                coll.set("Height", TheValue::FloatRange(0.8, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
             }
         }
         let timeline = TheTimeline::collection(coll);
@@ -207,7 +207,7 @@ impl GeoFXNode {
                 }
                 Gate => {
                     params.push(coll.get_i32_default("Align", 0) as f32);
-                    params.push(coll.get_f32_default("Height", 0.8));
+                    params.push(coll.get_f32_default("Height", 1.0));
                 }
             }
         }
@@ -405,12 +405,18 @@ impl GeoFXNode {
                 }
                 Gate => {
                     let mut pos = self.position(&coll) * scale;
-                    let height = coll.get_f32_default("Height", 0.8) * scale;
+                    let h = coll.get_f32_default("Height", 1.0);
+                    let height = h * scale;
                     pos.y -= (height - 1.0 * scale) / 2.0;
 
                     let r = op_rep_lim(p - pos, 0.32 * scale, vec2f(-1., 0.), vec2f(1., 0.));
-
                     let d = sdf_box2d(r, Vec2f::zero(), 0.06 * scale, height / 2.0);
+
+                    if let Some(hit) = hit {
+                        if hit.two_d {
+                            hit.extrusion_length = h;
+                        }
+                    }
 
                     return d;
                 }

@@ -332,10 +332,18 @@ impl TileDrawer {
                         ..Default::default()
                     };
 
+                    // let mut sorted = vec![];
+
+                    let mut had_gate = false;
+
                     for geo_obj in region.geometry.values() {
                         if geo_obj.area.contains(&vec2i(tile_x, tile_y)) {
+                            let mut is_gate = false;
                             let d = geo_obj.distance(&TheTime::default(), p, grid_size, &mut None);
-                            if d.0 < 0.0 && d.0 < hit.distance {
+                            if d.0 < 0.0 && geo_obj.nodes[0].role == GeoFXNodeRole::Gate {
+                                is_gate = true;
+                            }
+                            if d.0 < 0.0 && ((d.0 < hit.distance && !had_gate) || is_gate) {
                                 let mut c = if Some(geo_obj.id) == settings.curr_geo_object {
                                     WHITE
                                 } else {
@@ -345,14 +353,10 @@ impl TileDrawer {
                                 hit.mat.base_color = vec3f(0.5, 0.5, 0.5);
                                 hit.value = 1.0;
 
-                                // geo_obj.nodes[d.1].distance(
-                                //     &TheTime::default(),
-                                //     p,
-                                //     grid_size,
-                                //     &mut Some(&mut hit),
-                                // );
-
                                 hit.distance = d.0;
+                                if is_gate {
+                                    had_gate = true;
+                                }
 
                                 if let Some(material) = self.materials.get(&geo_obj.material_id) {
                                     hit.normal = vec3f(0.0, 1.0, 0.0);
@@ -365,6 +369,7 @@ impl TileDrawer {
                                     {
                                         mat_obj_params.clone_from(m_params);
                                     }
+
                                     material.get_distance(
                                         &TheTime::default(),
                                         p / grid_size,
@@ -374,19 +379,25 @@ impl TileDrawer {
                                         &mat_obj_params,
                                     );
 
-                                    material.compute(
+                                    if material.test_height_profile(
                                         &mut hit,
-                                        palette,
-                                        &self.tiles,
+                                        geo_obj,
                                         &mat_obj_params,
-                                    );
+                                    ) {
+                                        material.compute(
+                                            &mut hit,
+                                            palette,
+                                            &self.tiles,
+                                            &mat_obj_params,
+                                        );
 
-                                    let col =
-                                        TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
-                                    if let Some(cd) = settings.conceptual_display {
-                                        c = self.mix_color(&c, &col, cd);
-                                    } else {
-                                        c = col;
+                                        let col =
+                                            TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
+                                        if let Some(cd) = settings.conceptual_display {
+                                            c = self.mix_color(&c, &col, cd);
+                                        } else {
+                                            c = col;
+                                        }
                                     }
                                 } else {
                                     let col =

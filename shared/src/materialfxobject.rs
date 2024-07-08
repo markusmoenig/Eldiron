@@ -98,6 +98,33 @@ impl MaterialFXObject {
         d
     }
 
+    pub fn test_height_profile(
+        &self,
+        hit: &mut Hit,
+        geo_obj: &GeoFXObject,
+        mat_obj_params: &[Vec<f32>],
+    ) -> bool {
+        if !mat_obj_params.is_empty()
+            && mat_obj_params[0][2] as i32 == 1
+            && geo_obj.nodes[0].role == GeoFXNodeRole::Gate
+        {
+            fn half_circle_profile(x: f32, min_height: f32, max_height: f32) -> f32 {
+                min_height
+                    + (max_height - min_height) * (1.0 + (x * std::f32::consts::PI).cos()) / 2.0
+            }
+
+            let height = hit.extrusion_length;
+            let x = hit.uv.x * 2.0 - 1.0;
+            let h = half_circle_profile(x, height - 0.4, height);
+            //println!("x {} y {}, h {}", x, hit.uv.y, h);
+            if 1.0 - hit.uv.y > h {
+                return false;
+            }
+        }
+
+        true
+    }
+
     pub fn get_distance_3d(
         &self,
         time: &TheTime,
@@ -108,7 +135,46 @@ impl MaterialFXObject {
         mat_obj_params: &[Vec<f32>],
     ) -> (f32, usize) {
         let mut d = geo_obj.distance_3d(time, p, &mut Some(hit), geo_obj_params);
-        _ = self.follow_geo_trail(time, hit, mat_obj_params);
+        let has_geo_trail = self.follow_geo_trail(time, hit, mat_obj_params);
+
+        let geo_noise = hit.noise;
+        let geo_noise_scale = hit.noise_scale;
+
+        hit.noise = None;
+        hit.noise_scale = 1.0;
+
+        // If the geometry node has a noise attached to its input execute it
+        // So that we can later use it for extraction
+        if let Some(noise_index) = self.find_connected_output_node(0, 0) {
+            if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
+                || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
+            {
+                _ = self.nodes[noise_index].compute(
+                    hit,
+                    &ThePalette::default(),
+                    &FxHashMap::default(),
+                    vec![],
+                    &mat_obj_params[noise_index],
+                );
+            }
+        }
+
+        // Set extrusion parameters to zero
+        let mut extrude_add = 0.0;
+        let mut extrude_rounding = 0.0;
+        let mut extrude_mortar = false;
+        let mut extrude_mortar_sub = 0.0;
+
+        if has_geo_trail && !mat_obj_params.is_empty() {
+            // When we have a material fill in the params
+            extrude_add = mat_obj_params[0][0];
+            if let Some(noise) = hit.noise {
+                extrude_add = noise * hit.noise_scale;
+            }
+            extrude_rounding = mat_obj_params[0][1];
+            extrude_mortar = mat_obj_params[0][4] as i32 == 1;
+            extrude_mortar_sub = mat_obj_params[0][5];
+        }
 
         match hit.extrusion {
             GeoFXNodeExtrusion::X => {
@@ -117,21 +183,35 @@ impl MaterialFXObject {
                     min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
                 }
 
-                let distance =
-                    op_extrusion_x(hit.hit_point, hit.interior_distance, hit.extrusion_length);
+                if !mat_obj_params.is_empty() {
+                    let distance = op_extrusion_x(
+                        hit.hit_point,
+                        hit.interior_distance,
+                        hit.extrusion_length + extrude_add - extrude_rounding,
+                    ) - extrude_rounding;
 
-                if let Some(mortar) = hit.interior_distance_mortar {
-                    let mortar_distance =
-                        op_extrusion_x(hit.hit_point, mortar, hit.extrusion_length - 0.005);
-                    d.0 = min(distance, mortar_distance);
+                    if extrude_mortar {
+                        if let Some(mortar) = hit.interior_distance_mortar {
+                            let mortar_distance = op_extrusion_x(
+                                hit.hit_point,
+                                mortar,
+                                hit.extrusion_length + extrude_add - extrude_mortar_sub,
+                            );
+                            d.0 = min(distance, mortar_distance);
 
-                    if hit.interior_distance <= 0.01 {
-                        hit.value = 0.0;
+                            if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
+                                hit.value = 0.0;
+                            } else {
+                                hit.value = 1.0;
+                            }
+                        }
                     } else {
-                        hit.value = 1.0;
+                        d.0 = distance;
+                        hit.value = 0.0;
                     }
                 } else {
-                    d.0 = distance;
+                    d.0 =
+                        op_extrusion_x(hit.hit_point, hit.interior_distance, hit.extrusion_length);
                 }
             }
             GeoFXNodeExtrusion::Y => {
@@ -140,22 +220,35 @@ impl MaterialFXObject {
                     min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
                 }
 
-                let distance =
-                    op_extrusion_y(hit.hit_point, hit.interior_distance, hit.extrusion_length);
+                if !mat_obj_params.is_empty() {
+                    let distance = op_extrusion_y(
+                        hit.hit_point,
+                        hit.interior_distance,
+                        hit.extrusion_length + extrude_add - extrude_rounding,
+                    ) - extrude_rounding;
 
-                if let Some(mortar) = hit.interior_distance_mortar {
-                    let mortar_distance =
-                        op_extrusion_y(hit.hit_point, mortar, hit.extrusion_length - 0.01);
-                    d.0 = min(distance, mortar_distance);
+                    if extrude_mortar {
+                        if let Some(mortar) = hit.interior_distance_mortar {
+                            let mortar_distance = op_extrusion_y(
+                                hit.hit_point,
+                                mortar,
+                                hit.extrusion_length + extrude_add - extrude_mortar_sub,
+                            );
+                            d.0 = min(distance, mortar_distance);
 
-                    if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
-                        hit.value = 0.0;
+                            if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
+                                hit.value = 0.0;
+                            } else {
+                                hit.value = 1.0;
+                            }
+                        }
                     } else {
-                        hit.value = 1.0;
+                        d.0 = distance;
+                        hit.value = 0.0;
                     }
                 } else {
-                    d.0 = distance;
-                    hit.value = 0.0;
+                    d.0 =
+                        op_extrusion_y(hit.hit_point, hit.interior_distance, hit.extrusion_length);
                 }
             }
             GeoFXNodeExtrusion::Z => {
@@ -164,27 +257,43 @@ impl MaterialFXObject {
                     min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
                 }
 
-                let distance =
-                    op_extrusion_z(hit.hit_point, hit.interior_distance, hit.extrusion_length);
+                if !mat_obj_params.is_empty() {
+                    let distance = op_extrusion_z(
+                        hit.hit_point,
+                        hit.interior_distance,
+                        hit.extrusion_length + extrude_add - extrude_rounding,
+                    ) - extrude_rounding;
 
-                if let Some(mortar) = hit.interior_distance_mortar {
-                    let mortar_distance =
-                        op_extrusion_z(hit.hit_point, mortar, hit.extrusion_length - 0.005);
-                    d.0 = min(distance, mortar_distance);
+                    if extrude_mortar {
+                        if let Some(mortar) = hit.interior_distance_mortar {
+                            let mortar_distance = op_extrusion_z(
+                                hit.hit_point,
+                                mortar,
+                                hit.extrusion_length + extrude_add - extrude_mortar_sub,
+                            );
+                            d.0 = min(distance, mortar_distance);
 
-                    if hit.interior_distance <= 0.01 {
-                        hit.value = 0.0;
+                            if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
+                                hit.value = 0.0;
+                            } else {
+                                hit.value = 1.0;
+                            }
+                        }
                     } else {
-                        hit.value = 1.0;
+                        d.0 = distance;
+                        hit.value = 0.0;
                     }
-                    //hit.value = smoothstep(-0.01, 0.01, hit.interior_distance).clamp(0.0, 1.0);
                 } else {
-                    d.0 = distance;
+                    d.0 =
+                        op_extrusion_z(hit.hit_point, hit.interior_distance, hit.extrusion_length);
                 }
             }
 
             _ => {}
         }
+
+        hit.noise = geo_noise;
+        hit.noise_scale = geo_noise_scale;
 
         d
     }
@@ -433,7 +542,7 @@ impl MaterialFXObject {
 
         //let preview_size = 100;
 
-        for node in self.nodes.iter() {
+        for (index, node) in self.nodes.iter().enumerate() {
             // if i >= self.node_previews.len() {
             //     self.node_previews.resize(i + 1, None);
             // }
@@ -462,6 +571,7 @@ impl MaterialFXObject {
                 preview: node.preview.clone(),
                 supports_preview: node.supports_preview,
                 preview_is_open: node.preview_is_open,
+                can_be_deleted: index != 0,
             };
             canvas.nodes.push(n);
         }

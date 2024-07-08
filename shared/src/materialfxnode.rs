@@ -46,16 +46,18 @@ impl MaterialFXNode {
 
         match role {
             Geometry => {
+                coll.set("Add", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Rounding", TheValue::FloatRange(0.0, 0.0..=1.0));
                 coll.set(
                     "Profile",
-                    TheValue::TextList(0, vec![str!("None"), str!("Noise"), str!("Rounded")]),
+                    TheValue::TextList(0, vec![str!("None"), str!("Rounded")]),
                 );
                 coll.set("Steps", TheValue::FloatRange(0.2, 0.0..=1.0));
                 coll.set(
                     "Mortar",
                     TheValue::TextList(0, vec![str!("No"), str!("Yes")]),
                 );
-                coll.set("Displacement", TheValue::FloatRange(0.2, 0.0..=1.0));
+                coll.set("Mortar Sub", TheValue::FloatRange(0.05, 0.0..=1.0));
                 supports_preview = true;
                 preview_is_open = true;
             }
@@ -190,6 +192,11 @@ impl MaterialFXNode {
         //         //     .timeline
         //         //     .get_collection_at(&TheTime::default(), str!("Geo"))
         //         // {
+
+        //         self.clear();
+        //         self.set("Add", TheValue::FloatRange(0.0, 0.0..=1.0));
+        //         self.set("Rounding", TheValue::FloatRange(0.0, 0.0..=1.0));
+
         //         self.set(
         //             "Profile",
         //             TheValue::TextList(0, vec![str!("None"), str!("Rounded")]),
@@ -197,9 +204,9 @@ impl MaterialFXNode {
         //         self.set("Steps", TheValue::FloatRange(0.2, 0.0..=1.0));
         //         self.set(
         //             "Mortar",
-        //             TheValue::TextList(0, vec![str!("No"), str!("Yes")]),
+        //             TheValue::TextList(1, vec![str!("No"), str!("Yes")]),
         //         );
-        //         self.set("Displace", TheValue::FloatRange(0.2, 0.0..=1.0));
+        //         self.set("Mortar Sub", TheValue::FloatRange(0.005, 0.0..=1.0));
         //         //}
         //     }
         //     _ => {}
@@ -213,6 +220,14 @@ impl MaterialFXNode {
         let coll = self.collection();
 
         match self.role {
+            MaterialFXNodeRole::Geometry => {
+                params.push(coll.get_f32_default("Add", 0.0));
+                params.push(coll.get_f32_default("Rounding", 0.0));
+                params.push(coll.get_i32_default("Profile", 0) as f32);
+                params.push(coll.get_f32_default("Steps", 0.2));
+                params.push(coll.get_i32_default("Mortar", 0) as f32);
+                params.push(coll.get_f32_default("Mortar Sub", 0.05));
+            }
             MaterialFXNodeRole::Noise2D => {
                 params.push(coll.get_f32_default("UV Scale X", 1.0));
                 params.push(coll.get_f32_default("UV Scale Y", 1.0));
@@ -261,21 +276,7 @@ impl MaterialFXNode {
 
     pub fn inputs(&self) -> Vec<TheNodeTerminal> {
         match self.role {
-            Brick => {
-                vec![
-                    TheNodeTerminal {
-                        name: str!("in"),
-                        role: str!("Input"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("displace"),
-                        role: str!("Displace"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                ]
-            }
-            Noise3D | Noise2D | UVSplitter | Subdivide | Distance => {
+            Noise3D | Noise2D | UVSplitter | Subdivide | Distance | Brick | Geometry => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
                     role: str!("Input"),
@@ -317,7 +318,6 @@ impl MaterialFXNode {
                     },
                 ]
             }
-            _ => vec![],
         }
     }
 
@@ -682,6 +682,12 @@ impl MaterialFXNode {
         )
     }
 
+    /// Clears the collection.
+    pub fn clear(&mut self) {
+        self.timeline.clear_collection(&TheTime::default(), "Props");
+    }
+
+    /// Sets a value in the collection.
     pub fn set(&mut self, key: &str, value: TheValue) {
         self.timeline.set(&TheTime::default(), key, "Props", value);
     }
