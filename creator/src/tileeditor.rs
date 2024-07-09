@@ -1415,7 +1415,12 @@ impl TileEditor {
         } else if self.editor_mode == EditorMode::Erase {
             let palette = project.palette.clone();
             // If there is a character instance at the position we delete the instance.
+
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                // We only check to delete models and tiles.
+                // Characters, items and areas need to be erased by the Sidebar Region Content List.
+
+                /*
                 if let Some(c) =
                     server.get_character_at(server_ctx.curr_region, vec2i(coord.x, coord.y))
                 {
@@ -1449,131 +1454,124 @@ impl TileEditor {
                         );
                     }
                 } else {
-                    let area_id: Option<Uuid> = None;
+                */
+                //let area_id: Option<Uuid> = None;
 
-                    /*
-                    // Check for area at the given position.
-                    for area in region.areas.values() {
-                        if area.area.contains(&(coord.x, coord.y)) {
-                            // Ask to delete it.
-                            open_delete_confirmation_dialog(
-                                "Delete Area ?",
-                                format!("Permanently delete area '{}' ?", area.name).as_str(),
-                                area.id,
-                                ui,
-                                ctx,
-                            );
-                            area_id = Some(area.id);
-                            break;
-                        }
-                        }*/
+                /*
+                // Check for area at the given position.
+                for area in region.areas.values() {
+                    if area.area.contains(&(coord.x, coord.y)) {
+                        // Ask to delete it.
+                        open_delete_confirmation_dialog(
+                            "Delete Area ?",
+                            format!("Permanently delete area '{}' ?", area.name).as_str(),
+                            area.id,
+                            ui,
+                            ctx,
+                        );
+                        area_id = Some(area.id);
+                        break;
+                    }
+                    }*/
 
-                    let mut region_to_render: Option<Region> = None;
-                    let mut tiles_to_render: Vec<Vec2i> = vec![];
+                let mut region_to_render: Option<Region> = None;
+                let mut tiles_to_render: Vec<Vec2i> = vec![];
 
-                    if area_id.is_none() {
-                        // Delete the tile at the given position.
+                // Delete the tile at the given position.
 
-                        if self.curr_layer_role == Layer2DRole::FX {
-                            if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
-                                tile.tilefx = None;
-                            }
-                        }
+                if self.curr_layer_role == Layer2DRole::FX {
+                    if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
+                        tile.tilefx = None;
+                    }
+                }
 
-                        let mut changed = false;
+                let mut changed = false;
 
-                        // Check for geometry to delete
-                        if let Some(geo_obj_ids) =
-                            region.geometry_areas.get_mut(&vec3i(coord.x, 0, coord.y))
-                        {
-                            let mut objects = vec![];
-                            for obj_id in geo_obj_ids {
-                                let mut remove_it = false;
+                // Check for geometry to delete
+                if let Some(geo_obj_ids) =
+                    region.geometry_areas.get_mut(&vec3i(coord.x, 0, coord.y))
+                {
+                    let mut objects = vec![];
+                    for obj_id in geo_obj_ids {
+                        let mut remove_it = false;
 
-                                if let Some(geo_obj) = region.geometry.get(obj_id) {
-                                    remove_it =
-                                        Some(self.curr_layer_role) == geo_obj.get_layer_role();
-                                }
-
-                                if remove_it {
-                                    if let Some(geo_obj) = region.geometry.remove(obj_id) {
-                                        for a in &geo_obj.area {
-                                            tiles_to_render.push(*a);
-                                        }
-                                        objects.push(geo_obj.clone());
-                                    }
-                                }
-                            }
-
-                            if !objects.is_empty() {
-                                changed = true;
-                                region_to_render = Some(region.clone());
-
-                                region.update_geometry_areas();
-                                let undo = RegionUndoAtom::GeoFXObjectsDeletion(
-                                    objects,
-                                    tiles_to_render.clone(),
-                                );
-                                UNDOMANAGER
-                                    .lock()
-                                    .unwrap()
-                                    .add_region_undo(&region.id, undo, ctx);
-                            }
+                        if let Some(geo_obj) = region.geometry.get(obj_id) {
+                            remove_it = Some(self.curr_layer_role) == geo_obj.get_layer_role();
                         }
 
-                        // Check for tiles to delete
-                        if !changed {
-                            if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
-                                let prev = Some(tile.clone());
-                                if self.curr_layer_role == Layer2DRole::Ground
-                                    && tile.layers[0].is_some()
-                                {
-                                    tile.layers[0] = None;
-                                    changed = true;
-                                } else if self.curr_layer_role == Layer2DRole::Wall
-                                    && tile.layers[1].is_some()
-                                {
-                                    tile.layers[1] = None;
-                                    changed = true;
-                                } else if self.curr_layer_role == Layer2DRole::Ceiling
-                                    && tile.layers[2].is_some()
-                                {
-                                    tile.layers[2] = None;
-                                    changed = true;
+                        if remove_it {
+                            if let Some(geo_obj) = region.geometry.remove(obj_id) {
+                                for a in &geo_obj.area {
+                                    tiles_to_render.push(*a);
                                 }
-                                if changed {
-                                    tiles_to_render.push(coord);
-                                    let undo = RegionUndoAtom::RegionTileEdit(
-                                        vec2i(coord.x, coord.y),
-                                        prev,
-                                        Some(tile.clone()),
-                                    );
-                                    UNDOMANAGER
-                                        .lock()
-                                        .unwrap()
-                                        .add_region_undo(&region.id, undo, ctx);
-                                }
+                                objects.push(geo_obj.clone());
                             }
-
-                            if changed {
-                                region_to_render = Some(region.clone());
-                            }
-                        }
-
-                        if changed {
-                            server.update_region(region);
-                            RENDERER.lock().unwrap().set_region(region);
-                            self.set_icon_previews(region, &palette, coord, ui);
-                            redraw = true;
                         }
                     }
 
-                    if let Some(region) = region_to_render {
-                        PRERENDERTHREAD
+                    if !objects.is_empty() {
+                        changed = true;
+                        region_to_render = Some(region.clone());
+
+                        region.update_geometry_areas();
+                        let undo =
+                            RegionUndoAtom::GeoFXObjectsDeletion(objects, tiles_to_render.clone());
+                        UNDOMANAGER
                             .lock()
                             .unwrap()
-                            .render_region(region, Some(tiles_to_render));
+                            .add_region_undo(&region.id, undo, ctx);
                     }
+                }
+
+                // Check for tiles to delete
+                if !changed {
+                    if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
+                        let prev = Some(tile.clone());
+                        if self.curr_layer_role == Layer2DRole::Ground && tile.layers[0].is_some() {
+                            tile.layers[0] = None;
+                            changed = true;
+                        } else if self.curr_layer_role == Layer2DRole::Wall
+                            && tile.layers[1].is_some()
+                        {
+                            tile.layers[1] = None;
+                            changed = true;
+                        } else if self.curr_layer_role == Layer2DRole::Ceiling
+                            && tile.layers[2].is_some()
+                        {
+                            tile.layers[2] = None;
+                            changed = true;
+                        }
+                        if changed {
+                            tiles_to_render.push(coord);
+                            let undo = RegionUndoAtom::RegionTileEdit(
+                                vec2i(coord.x, coord.y),
+                                prev,
+                                Some(tile.clone()),
+                            );
+                            UNDOMANAGER
+                                .lock()
+                                .unwrap()
+                                .add_region_undo(&region.id, undo, ctx);
+                        }
+                    }
+
+                    if changed {
+                        region_to_render = Some(region.clone());
+                    }
+                }
+
+                if changed {
+                    server.update_region(region);
+                    RENDERER.lock().unwrap().set_region(region);
+                    self.set_icon_previews(region, &palette, coord, ui);
+                    redraw = true;
+                }
+
+                if let Some(region) = region_to_render {
+                    PRERENDERTHREAD
+                        .lock()
+                        .unwrap()
+                        .render_region(region, Some(tiles_to_render));
                 }
             }
         } else if self.editor_mode == EditorMode::Pick {
@@ -1656,9 +1654,8 @@ impl TileEditor {
                 // In Character mode, we need to set the character bundle of the current character.
                 //}
             } else if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                let found_area = false;
+                let mut found_area = false;
 
-                /*
                 // Check for area at the given position.
                 for area in region.areas.values() {
                     if area.area.contains(&(coord.x, coord.y)) {
@@ -1684,7 +1681,7 @@ impl TileEditor {
                             }
                         }
                     }
-                    }*/
+                }
 
                 if !found_area {
                     // No area, set the tile.

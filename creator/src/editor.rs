@@ -705,7 +705,7 @@ impl TheTrait for Editor {
                                 {
                                     let item_id = uuid;
                                     if region.items.remove(&item_id).is_some() {
-                                        self.server.remove_character_instance(region.id, item_id);
+                                        self.server.remove_item_instance(region.id, item_id);
                                         self.server_ctx.curr_item_instance = None;
                                         self.server_ctx.curr_item = None;
                                         redraw = true;

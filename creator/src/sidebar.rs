@@ -881,7 +881,59 @@ impl Sidebar {
                 }
             }
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
-                if item_id.name == "Add Image" {
+                if item_id.name == "Sidebar Delete Character Instance" {
+                    if let Some(char_inst) = server_ctx.curr_character_instance {
+                        if let Some((value, _)) = server.get_character_property(
+                            server_ctx.curr_region,
+                            char_inst,
+                            "name".to_string(),
+                        ) {
+                            open_delete_confirmation_dialog(
+                                "Delete Character Instance ?",
+                                format!("Permanently delete '{}' ?", value.describe()).as_str(),
+                                char_inst,
+                                ui,
+                                ctx,
+                            );
+                        }
+                    }
+                } else if item_id.name == "Sidebar Delete Item Instance" {
+                    if let Some(item_inst) = server_ctx.curr_item_instance {
+                        let mut name = str!("Unknown");
+
+                        if let Some((value, _)) = server.get_item_property(
+                            server_ctx.curr_region,
+                            item_inst,
+                            "name".to_string(),
+                        ) {
+                            name = value.describe();
+                        }
+                        open_delete_confirmation_dialog(
+                            "Delete Item Instance ?",
+                            &format!("Permanently delete '{}' ?", name),
+                            item_inst,
+                            ui,
+                            ctx,
+                        );
+                    }
+                } else if item_id.name == "Sidebar Delete Area" {
+                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                        if let Some(area_id) = server_ctx.curr_area {
+                            for area in region.areas.values() {
+                                if area.id == area_id {
+                                    open_delete_confirmation_dialog(
+                                        "Delete Area ?",
+                                        format!("Permanently delete area '{}' ?", area.name)
+                                            .as_str(),
+                                        area_id,
+                                        ui,
+                                        ctx,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                } else if item_id.name == "Add Image" {
                     ctx.ui.open_file_requester(
                         TheId::named_with_id(item_id.name.as_str(), Uuid::new_v4()),
                         "Open Image".into(),
@@ -2895,6 +2947,13 @@ impl Sidebar {
                             ));
                             item.set_text(name);
                             item.add_value_column(100, TheValue::Text("Character".to_string()));
+                            item.set_context_menu(Some(TheContextMenu {
+                                items: vec![TheContextMenuItem::new(
+                                    "Delete Character...".to_string(),
+                                    TheId::named("Sidebar Delete Character Instance"),
+                                )],
+                                ..Default::default()
+                            }));
                             list.add_item(item, ctx);
                         }
                     }
@@ -2916,6 +2975,13 @@ impl Sidebar {
                             ));
                             item.set_text(name);
                             item.add_value_column(100, TheValue::Text("Item".to_string()));
+                            item.set_context_menu(Some(TheContextMenu {
+                                items: vec![TheContextMenuItem::new(
+                                    "Delete Item...".to_string(),
+                                    TheId::named("Sidebar Delete Item Instance"),
+                                )],
+                                ..Default::default()
+                            }));
                             list.add_item(item, ctx);
                         }
                     }
@@ -2932,6 +2998,13 @@ impl Sidebar {
                             ));
                             item.set_text(name);
                             item.add_value_column(100, TheValue::Text("Area".to_string()));
+                            item.set_context_menu(Some(TheContextMenu {
+                                items: vec![TheContextMenuItem::new(
+                                    "Delete Area...".to_string(),
+                                    TheId::named("Sidebar Delete Area"),
+                                )],
+                                ..Default::default()
+                            }));
                             list.add_item(item, ctx);
                         }
                     }
