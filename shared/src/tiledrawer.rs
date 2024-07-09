@@ -332,65 +332,86 @@ impl TileDrawer {
                         ..Default::default()
                     };
 
-                    // let mut sorted = vec![];
-
-                    let mut had_gate = false;
-
-                    for geo_obj in region.geometry.values() {
-                        if geo_obj.area.contains(&vec2i(tile_x, tile_y)) {
-                            let mut is_gate = false;
-                            let d = geo_obj.distance(&TheTime::default(), p, grid_size, &mut None);
-                            if d.0 < 0.0 && geo_obj.nodes[0].role == GeoFXNodeRole::Gate {
-                                is_gate = true;
-                            }
-                            if d.0 < 0.0 && ((d.0 < hit.distance && !had_gate) || is_gate) {
-                                let mut c = if Some(geo_obj.id) == settings.curr_geo_object {
-                                    WHITE
-                                } else {
-                                    [128, 128, 128, 255]
-                                };
-
-                                hit.mat.base_color = vec3f(0.5, 0.5, 0.5);
-                                hit.value = 1.0;
-
-                                hit.distance = d.0;
-                                if is_gate {
-                                    had_gate = true;
-                                }
-
-                                if let Some(material) = self.materials.get(&geo_obj.material_id) {
-                                    hit.normal = vec3f(0.0, 1.0, 0.0);
-                                    hit.hit_point = vec3f(p.x, 0.0, p.y);
-
-                                    let mut mat_obj_params: Vec<Vec<f32>> = vec![];
-
-                                    if let Some(m_params) =
-                                        material_params.get(&geo_obj.material_id)
+                    if let Some(geo_ids) = region.geometry_areas.get(&vec3i(tile_x, 0, tile_y)) {
+                        let mut ground_dist = f32::INFINITY;
+                        let mut wall_dist = f32::INFINITY;
+                        let mut had_wall = false;
+                        for geo_id in geo_ids {
+                            if let Some(geo_obj) = region.geometry.get(geo_id) {
+                                // We have to make sure walls have priority
+                                let mut is_legit = false;
+                                let d =
+                                    geo_obj.distance(&TheTime::default(), p, grid_size, &mut None);
+                                if d.0 < 0.0 {
+                                    let role = geo_obj.get_layer_role();
+                                    if role == Some(Layer2DRole::Ground)
+                                        && d.0 < ground_dist
+                                        && d.0 < hit.distance
+                                        && !had_wall
                                     {
-                                        mat_obj_params.clone_from(m_params);
+                                        is_legit = true;
+                                        ground_dist = d.0;
+                                    } else if role == Some(Layer2DRole::Wall) {
+                                        is_legit = true;
+                                        had_wall = true;
+                                        wall_dist = d.0;
                                     }
+                                }
+                                if is_legit {
+                                    let mut c = if Some(geo_obj.id) == settings.curr_geo_object {
+                                        WHITE
+                                    } else {
+                                        [128, 128, 128, 255]
+                                    };
 
-                                    material.get_distance(
-                                        &TheTime::default(),
-                                        p / grid_size,
-                                        &mut hit,
-                                        geo_obj,
-                                        grid_size,
-                                        &mat_obj_params,
-                                    );
+                                    hit.mat.base_color = vec3f(0.5, 0.5, 0.5);
+                                    hit.value = 1.0;
 
-                                    if material.test_height_profile(
-                                        &mut hit,
-                                        geo_obj,
-                                        &mat_obj_params,
-                                    ) {
-                                        material.compute(
+                                    hit.distance = min(ground_dist, wall_dist);
+
+                                    if let Some(material) = self.materials.get(&geo_obj.material_id)
+                                    {
+                                        hit.normal = vec3f(0.0, 1.0, 0.0);
+                                        hit.hit_point = vec3f(p.x, 0.0, p.y);
+
+                                        let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+
+                                        if let Some(m_params) =
+                                            material_params.get(&geo_obj.material_id)
+                                        {
+                                            mat_obj_params.clone_from(m_params);
+                                        }
+
+                                        material.get_distance(
+                                            &TheTime::default(),
+                                            p / grid_size,
                                             &mut hit,
-                                            palette,
-                                            &self.tiles,
+                                            geo_obj,
+                                            grid_size,
                                             &mat_obj_params,
                                         );
 
+                                        if material.test_height_profile(
+                                            &mut hit,
+                                            geo_obj,
+                                            &mat_obj_params,
+                                        ) {
+                                            material.compute(
+                                                &mut hit,
+                                                palette,
+                                                &self.tiles,
+                                                &mat_obj_params,
+                                            );
+
+                                            let col = TheColor::from_vec3f(hit.mat.base_color)
+                                                .to_u8_array();
+                                            if let Some(cd) = settings.conceptual_display {
+                                                c = self.mix_color(&c, &col, cd);
+                                            } else {
+                                                c = col;
+                                            }
+                                        }
+                                    } else {
                                         let col =
                                             TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
                                         if let Some(cd) = settings.conceptual_display {
@@ -399,19 +420,11 @@ impl TileDrawer {
                                             c = col;
                                         }
                                     }
-                                } else {
-                                    let col =
-                                        TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
-                                    if let Some(cd) = settings.conceptual_display {
-                                        c = self.mix_color(&c, &col, cd);
-                                    } else {
-                                        c = col;
-                                    }
-                                }
 
-                                //     let t = smoothstep(-1.0, 0.0, d.0);
-                                //     color = self.mix_color(&c, &color, t);
-                                color = c;
+                                    //     let t = smoothstep(-1.0, 0.0, d.0);
+                                    //     color = self.mix_color(&c, &color, t);
+                                    color = c;
+                                }
                             }
                         }
                     }

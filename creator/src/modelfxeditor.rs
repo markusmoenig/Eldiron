@@ -192,7 +192,7 @@ impl ModelFXEditor {
 
         let mut text_layout = TheTextLayout::new(TheId::named("ModelFX Settings"));
         //text_layout.set_fixed_text_width(90);
-        text_layout.limiter_mut().set_max_width(240);
+        text_layout.limiter_mut().set_max_width(248);
         settings_canvas.set_layout(text_layout);
 
         canvas.set_right(settings_canvas);

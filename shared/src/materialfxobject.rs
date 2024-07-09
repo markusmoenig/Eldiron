@@ -86,6 +86,7 @@ impl MaterialFXObject {
         mat_obj_params: &[Vec<f32>],
     ) -> (f32, usize) {
         hit.pattern_pos = p;
+
         let d = geo_obj.distance(time, p, scale, &mut Some(hit));
         if self.follow_geo_trail(time, hit, mat_obj_params) {
             if hit.interior_distance <= 0.01 {
@@ -114,9 +115,18 @@ impl MaterialFXObject {
             }
 
             let height = hit.extrusion_length;
-            let x = hit.uv.x * 2.0 - 1.0;
-            let h = half_circle_profile(x, height - 0.4, height);
-            //println!("x {} y {}, h {}", x, hit.uv.y, h);
+            let step_size = mat_obj_params[0][3];
+
+            let min_height = height - 0.3;
+            let max_height = height;
+
+            let x = if step_size > 0.0 {
+                (((hit.uv.x / step_size).floor()) * step_size) * 2.0 - 1.0
+            } else {
+                hit.uv.x * 2.0 - 1.0
+            };
+            let h = half_circle_profile(x, min_height, max_height);
+
             if 1.0 - hit.uv.y > h {
                 return false;
             }

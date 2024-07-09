@@ -52,7 +52,7 @@ impl MaterialFXNode {
                     "Profile",
                     TheValue::TextList(0, vec![str!("None"), str!("Rounded")]),
                 );
-                coll.set("Steps", TheValue::FloatRange(0.2, 0.0..=1.0));
+                coll.set("Steps", TheValue::FloatRange(0.0, 0.0..=1.0));
                 coll.set(
                     "Mortar",
                     TheValue::TextList(0, vec![str!("No"), str!("Yes")]),
@@ -188,28 +188,32 @@ impl MaterialFXNode {
     pub fn update_parameters(&mut self) {
         // match self.role {
         //     Geometry => {
-        //         // if let Some(coll) = self
-        //         //     .timeline
-        //         //     .get_collection_at(&TheTime::default(), str!("Geo"))
-        //         // {
+        // if let Some(coll) = self
+        //     .timeline
+        //     .get_collection_at(&TheTime::default(), str!("Geo"))
+        // {
 
-        //         self.clear();
-        //         self.set("Add", TheValue::FloatRange(0.0, 0.0..=1.0));
-        //         self.set("Rounding", TheValue::FloatRange(0.0, 0.0..=1.0));
+        // self.clear();
+        // self.set("Add", TheValue::FloatRange(0.0, 0.0..=1.0));
+        // self.set("Rounding", TheValue::FloatRange(0.0, 0.0..=1.0));
 
-        //         self.set(
-        //             "Profile",
-        //             TheValue::TextList(0, vec![str!("None"), str!("Rounded")]),
-        //         );
-        //         self.set("Steps", TheValue::FloatRange(0.2, 0.0..=1.0));
-        //         self.set(
-        //             "Mortar",
-        //             TheValue::TextList(1, vec![str!("No"), str!("Yes")]),
-        //         );
-        //         self.set("Mortar Sub", TheValue::FloatRange(0.005, 0.0..=1.0));
-        //         //}
-        //     }
-        //     _ => {}
+        // self.set(
+        //     "Profile",
+        //     TheValue::TextList(0, vec![str!("None"), str!("Rounded")]),
+        // );
+        // self.set("Steps", TheValue::FloatRange(0.2, 0.0..=1.0));
+        // self.set(
+        //     "Mortar",
+        //     TheValue::TextList(1, vec![str!("No"), str!("Yes")]),
+        // );
+        // self.set("Mortar Sub", TheValue::FloatRange(0.005, 0.0..=1.0));
+        //}
+        // self.set(
+        //     "2D Mode",
+        //     TheValue::TextList(0, vec![str!("Normal"), str!("Full")]),
+        // );
+        // }
+        // _ => {}
         // }
     }
 
@@ -224,7 +228,7 @@ impl MaterialFXNode {
                 params.push(coll.get_f32_default("Add", 0.0));
                 params.push(coll.get_f32_default("Rounding", 0.0));
                 params.push(coll.get_i32_default("Profile", 0) as f32);
-                params.push(coll.get_f32_default("Steps", 0.2));
+                params.push(coll.get_f32_default("Steps", 0.0));
                 params.push(coll.get_i32_default("Mortar", 0) as f32);
                 params.push(coll.get_f32_default("Mortar Sub", 0.05));
             }
@@ -530,7 +534,7 @@ impl MaterialFXNode {
             UVSplitter => {
                 if hit.two_d {
                     // In 2D mode, we akways return the top face, UV is already set
-                    return Some(0);
+                    return Some(2);
                 }
                 let normal = hit.normal;
                 let hp = hit.hit_point;
