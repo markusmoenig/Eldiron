@@ -106,6 +106,12 @@ impl Client {
             .unwrap()
             .set_tiles(project.extract_tiles());
 
+        TILEDRAWER
+            .write()
+            .unwrap()
+            .materials
+            .clone_from(&project.materials);
+
         RENDERER
             .write()
             .unwrap()
@@ -231,8 +237,22 @@ impl Client {
         // }
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, handle_states: bool) {
         DRAWSETTINGS.write().unwrap().anim_counter += 1;
+
+        // If we run in the editor w/o screen updates we need to handle state changes here
+        // This is only used if run in the conceptual display in the editor.
+        if handle_states {
+            let server_tick = UPDATE.read().unwrap().server_tick;
+            if let Some(clicked) = &self.clicked.clone() {
+                if self.clicked_continues {
+                    self.execute_widget_function(clicked, str!("onClick"));
+                } else if self.clicked_on < server_tick {
+                    self.set_widget_state(clicked, str!("normal"));
+                    self.clicked = None;
+                }
+            }
+        }
     }
 
     /// Extract the assets and make them available via the static accessors.
@@ -413,6 +433,7 @@ impl Client {
         if self.clicked.is_some() {
             return;
         }
+
         if let Some(screen) = self.project.screens.get(uuid) {
             for widget in &screen.widget_list {
                 if let Some(object) = self.sandbox.objects.get_mut(&widget.id) {

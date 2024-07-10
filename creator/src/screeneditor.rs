@@ -262,66 +262,70 @@ impl ScreenEditor {
                     }
                 }
             }
-            TheEvent::TileEditorClicked(_id, coord) => {
-                if self.editor_mode == ScreenEditorMode::Draw {
-                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
-                        if let Some(tile_id) = self.curr_tile_uuid {
-                            if self.drawing_mode == ScreenEditorDrawingMode::Background {
-                                screen.add_background_tile((coord.x, coord.y), tile_id);
-                            } else if self.drawing_mode == ScreenEditorDrawingMode::Foreground {
-                                screen.add_foreground_tile((coord.x, coord.y), tile_id);
-                            }
-                            client.update_screen(screen);
-                            redraw = true;
-                        }
-                    }
-                } else if self.editor_mode == ScreenEditorMode::Pick
-                    || self.editor_mode == ScreenEditorMode::Erase
-                {
-                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
-                        if self.editor_mode == ScreenEditorMode::Erase {
-                            if self.drawing_mode == ScreenEditorDrawingMode::Background {
-                                screen.erase_background_tile((coord.x, coord.y));
-                            } else if self.drawing_mode == ScreenEditorDrawingMode::Foreground {
-                                screen.erase_foreground_tile((coord.x, coord.y));
-                            }
-                            client.update_screen(screen);
-                            redraw = true;
-                        }
-
-                        let sorted_widgets = screen.sorted_widgets_by_size();
-                        for widget in sorted_widgets.iter() {
-                            if widget.is_inside(coord) && self.editor_mode == ScreenEditorMode::Pick
-                            {
-                                if let Some(layout) = ui.get_list_layout("Screen Content List") {
-                                    layout.select_item(widget.id, ctx, true);
+            TheEvent::TileEditorClicked(id, coord) => {
+                if id.name == "Screen Editor View" {
+                    if self.editor_mode == ScreenEditorMode::Draw {
+                        if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                            if let Some(tile_id) = self.curr_tile_uuid {
+                                if self.drawing_mode == ScreenEditorDrawingMode::Background {
+                                    screen.add_background_tile((coord.x, coord.y), tile_id);
+                                } else if self.drawing_mode == ScreenEditorDrawingMode::Foreground {
+                                    screen.add_foreground_tile((coord.x, coord.y), tile_id);
                                 }
-                                /*else if self.editor_mode == ScreenEditorMode::Erase {
-                                open_delete_confirmation_dialog(
-                                    "Delete Widget ?",
-                                    format!("Permanently delete '{}' ?", widget.name).as_str(),
-                                    widget.id,
-                                    ui,
-                                    ctx,
-                                    );
-                                    }*/
+                                client.update_screen(screen);
+                                redraw = true;
+                            }
+                        }
+                    } else if self.editor_mode == ScreenEditorMode::Pick
+                        || self.editor_mode == ScreenEditorMode::Erase
+                    {
+                        if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                            if self.editor_mode == ScreenEditorMode::Erase {
+                                if self.drawing_mode == ScreenEditorDrawingMode::Background {
+                                    screen.erase_background_tile((coord.x, coord.y));
+                                } else if self.drawing_mode == ScreenEditorDrawingMode::Foreground {
+                                    screen.erase_foreground_tile((coord.x, coord.y));
+                                }
+                                client.update_screen(screen);
+                                redraw = true;
+                            }
+
+                            let sorted_widgets = screen.sorted_widgets_by_size();
+                            for widget in sorted_widgets.iter() {
+                                if widget.is_inside(coord)
+                                    && self.editor_mode == ScreenEditorMode::Pick
+                                {
+                                    if let Some(layout) = ui.get_list_layout("Screen Content List")
+                                    {
+                                        layout.select_item(widget.id, ctx, true);
+                                    }
+                                    /*else if self.editor_mode == ScreenEditorMode::Erase {
+                                    open_delete_confirmation_dialog(
+                                        "Delete Widget ?",
+                                        format!("Permanently delete '{}' ?", widget.name).as_str(),
+                                        widget.id,
+                                        ui,
+                                        ctx,
+                                        );
+                                        }*/
+                                }
                             }
                         }
                     }
-                }
 
-                // Handle actual game interaction
-                if self.editor_mode == ScreenEditorMode::Pick {
-                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
-                        client.touch_down(
-                            &server_ctx.curr_screen,
-                            vec2i(coord.x * screen.grid_size, coord.y * screen.grid_size),
-                        );
+                    // Handle actual game interaction
+                    if self.editor_mode == ScreenEditorMode::Pick {
+                        if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                            client.touch_down(
+                                &server_ctx.curr_screen,
+                                vec2i(coord.x * screen.grid_size, coord.y * screen.grid_size),
+                            );
+                        }
                     }
                 }
             }
-            TheEvent::TileEditorUp(_id) => {
-                if self.editor_mode == ScreenEditorMode::Pick {
+            TheEvent::TileEditorUp(id) => {
+                if id.name == "Screen Editor View" && self.editor_mode == ScreenEditorMode::Pick {
                     client.touch_up(&server_ctx.curr_screen);
                 }
             }

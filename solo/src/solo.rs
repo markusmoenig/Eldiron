@@ -128,7 +128,7 @@ impl TheTrait for Solo {
         );
 
         if tick_update && self.server.state == ServerState::Running {
-            self.client.tick();
+            self.client.tick(false);
             let _debug = self.server.tick();
             //let interactions = self.server.get_interactions();
             // self.server_ctx.add_interactions(interactions);

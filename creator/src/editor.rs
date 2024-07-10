@@ -394,7 +394,8 @@ impl TheTrait for Editor {
             }
             if self.server.state == ServerState::Running {
                 // Ticks
-                self.client.tick();
+                self.client
+                    .tick(self.active_editor == ActiveEditor::TileEditor);
                 let debug = self.server.tick();
                 if !debug.is_empty() {
                     self.sidebar.add_debug_messages(debug, ui, ctx);
@@ -1074,12 +1075,18 @@ impl TheTrait for Editor {
                                 if let Ok(contents) = std::fs::read_to_string(p) {
                                     //if let Ok(project) =
                                     //    postcard::from_bytes::<Project>(contents.deref())
-                                    let pr: Result<Project, serde_json::Error> =
-                                        serde_json::from_str(&contents);
-                                    println!("{:?}", pr.err());
+                                    // let pr: Result<Project, serde_json::Error> =
+                                    //     serde_json::from_str(&contents);
+                                    // println!("{:?}", pr.err());
 
                                     if let Ok(project) = serde_json::from_str(&contents) {
                                         self.project = project;
+
+                                        // RENDERER
+                                        //     .lock()
+                                        //     .unwrap()
+                                        //     .materials
+                                        //     .clone_from(&self.project.materials);
 
                                         // Update geo_obj parameters if necessary
                                         for r in &mut self.project.regions {
@@ -1328,7 +1335,8 @@ impl TheTrait for Editor {
                                 ));
                                 update_server_icons = true;
                             } else if self.server.state == ServerState::Paused {
-                                self.client.tick();
+                                self.client
+                                    .tick(self.active_editor == ActiveEditor::TileEditor);
                                 let debug = self.server.tick();
                                 if !debug.is_empty() {
                                     self.sidebar.add_debug_messages(debug, ui, ctx);
