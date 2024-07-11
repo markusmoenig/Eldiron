@@ -14,9 +14,19 @@ Classic RPG Creation
 
 ## Vision
 
-Eldiron aims to revolutionize the creation and experience of classical role-playing games (RPGs) by blending the nostalgic charm of timeless RPGs with the cutting-edge capabilities of modern technology. My mission is to empower creators with an intuitive, yet profoundly flexible platform, while enchanting players with immersive, dynamic worlds that breathe life into every adventure.
+Eldiron focuses on making the creation of classic RPGs easier and more enjoyable by combining the charm of old-school games with modern technology. Our goal is to provide creators with a flexible and user-friendly platform, enabling them to design immersive and dynamic worlds for players to explore.
 
-## Core Features:
+## Core Features
+
+### Create worlds using tiles or model with geometrical shapes and nodes.
+
+Either draw in pixel-perfect precision using 2D tilemaps or model worlds procedurally in 2D and 3D using geometrical shapes and procedural materials.
+
+In 3D graphics get pre-rendered utilizing an integrated Disney BSDF pathtracer.
+
+Eldiron also ships with an integrated Ultima like tilemap to get you started.
+
+![Model](images/procedural.png)
 
 ### Grid based Visual Coding System
 
@@ -24,13 +34,6 @@ Eldiron aims to revolutionize the creation and experience of classical role-play
 
 Code character and game behavior in a grid based visual node system. Combining the power and speed of real code with the ease of use and visual debugging of a true node system.
 
-### Create worlds using tiles or model with nodes.
-
-Either draw in pixel-perfect precision using 2D tilemaps or model worlds procedurally with an integrated powerful node system.
-
-Both ways allow you to create world regions in both 2D and 3D. Eldiron ships with an integrated Ultima like tilemap to get you started.
-
-![Model](images/model.png)
 
 ### Visual effects made easy
 
