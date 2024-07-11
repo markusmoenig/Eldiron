@@ -3,6 +3,8 @@ v 0.8.10
 
 - Add multi selection as anim or as multi tile in the tile editor.
 - Fix for positioning in 3D view when selecting Draw mode.
+- Completely new procedural world editing system for geometric shapes and materials.
+- Disney BSDF pathtracer for rendering 3D content.
 
 v 0.8.9
 -------

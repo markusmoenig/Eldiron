@@ -86,7 +86,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
                         let mut upscaled_buffer =
                             TheRGBABuffer::new(TheDim::new(0, 0, scaled_width, scaled_height));
 
-                        renderer.render(
+                        renderer.rendered(
                             &mut upscaled_buffer,
                             region,
                             &mut update,
@@ -98,7 +98,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
                         upscaled_buffer.scaled_into(&mut buffer);
                         // upscaled_buffer.scaled_into_linear(&mut buffer);
                     } else {
-                        renderer.render(
+                        renderer.rendered(
                             &mut buffer,
                             region,
                             &mut update,
