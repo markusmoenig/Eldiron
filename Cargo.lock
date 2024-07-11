@@ -547,7 +547,7 @@ dependencies = [
 
 [[package]]
 name = "creator"
-version = "0.8.9"
+version = "0.8.10"
 dependencies = [
  "fontdue",
  "lazy_static",
@@ -2708,7 +2708,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.8.9"
+version = "0.8.10"
 dependencies = [
  "fontdue",
  "indexmap 2.2.6",
@@ -2797,7 +2797,7 @@ dependencies = [
 
 [[package]]
 name = "solo"
-version = "0.8.9"
+version = "0.8.10"
 dependencies = [
  "fontdue",
  "lazy_static",
@@ -2958,6 +2958,7 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
+source = "git+https://github.com/markusmoenig/TheFramework#7c2c3e1a39c5e53efad261b4f6197e1803a31c88"
 dependencies = [
  "arboard",
  "console_error_panic_hook",
