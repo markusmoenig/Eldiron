@@ -379,6 +379,7 @@ impl Sidebar {
         let mut grid_text = TheText::new(TheId::empty());
         grid_text.set_text("Grid Size".to_string());
         let mut grid_edit = TheTextLineEdit::new(TheId::named("Tilemap Grid Edit"));
+        grid_edit.set_range(TheValue::RangeI32(1..=100));
         grid_edit.limiter_mut().set_max_width(50);
         grid_edit.set_status_text("Edit the grid size of the tilemap.");
 
