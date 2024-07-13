@@ -441,6 +441,7 @@ impl TileEditor {
                             project.map_mode = MapMode::TwoD;
                             shared.set_mode(TheSharedHLayoutMode::Left);
                             *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
+                            PRERENDERTHREAD.lock().unwrap().set_paused(true);
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 if let Some(layout) = ui.get_rgba_layout("Region Editor") {
                                     layout.set_zoom(region.zoom);
@@ -451,10 +452,12 @@ impl TileEditor {
                             project.map_mode = MapMode::Mixed;
                             shared.set_mode(TheSharedHLayoutMode::Shared);
                             *RENDERMODE.lock().unwrap() = EditorDrawMode::DrawMixed;
+                            PRERENDERTHREAD.lock().unwrap().set_paused(false);
                         } else if *index == 2 {
                             project.map_mode = MapMode::ThreeD;
                             shared.set_mode(TheSharedHLayoutMode::Right);
                             *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw3D;
+                            PRERENDERTHREAD.lock().unwrap().set_paused(false);
                         }
                         ctx.ui.relayout = true;
 

@@ -7,6 +7,7 @@ pub enum PreRenderCmd {
     SetTextures(FxHashMap<Uuid, TheRGBATile>),
     SetMaterials(IndexMap<Uuid, MaterialFXObject>),
     SetPalette(ThePalette),
+    SetPaused(bool),
     MaterialChanged(MaterialFXObject),
     RenderRegionCoordTree(Region),
     RenderRegion(Region, Option<Vec<Vec2i>>),
@@ -83,6 +84,10 @@ impl PreRenderThread {
         self.send(PreRenderCmd::SetPalette(palette));
     }
 
+    pub fn set_paused(&self, paused: bool) {
+        self.send(PreRenderCmd::SetPaused(paused));
+    }
+
     pub fn material_changed(&self, material: MaterialFXObject) {
         self.send(PreRenderCmd::MaterialChanged(material));
     }
@@ -123,6 +128,7 @@ impl PreRenderThread {
 
             let mut in_progress = false;
             let mut exit_loop = false;
+            let mut paused = false;
 
             loop {
                 if exit_loop {
@@ -141,6 +147,10 @@ impl PreRenderThread {
                         PreRenderCmd::SetPalette(new_palette) => {
                             println!("PreRenderCmd::SetPalette");
                             palette = new_palette;
+                        }
+                        PreRenderCmd::SetPaused(p) => {
+                            println!("PreRenderCmd::SetPaused ({})", p);
+                            paused = p;
                         }
                         PreRenderCmd::MaterialChanged(changed_material) => {
                             println!("PreRenderCmd::MaterialChanged");
@@ -219,7 +229,7 @@ impl PreRenderThread {
 
                 // Rendering in progress ?
 
-                if in_progress {
+                if in_progress && !paused {
                     //let mut reset = false;
 
                     let w = (curr_region.width as f32 * curr_region.grid_size as f32) as i32;

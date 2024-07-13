@@ -1138,16 +1138,28 @@ impl TheTrait for Editor {
                                                     *RENDERMODE.lock().unwrap() =
                                                         EditorDrawMode::Draw2D;
                                                     shared.set_mode(TheSharedHLayoutMode::Left);
+                                                    PRERENDERTHREAD
+                                                        .lock()
+                                                        .unwrap()
+                                                        .set_paused(true);
                                                 }
                                                 MapMode::Mixed => {
                                                     *RENDERMODE.lock().unwrap() =
                                                         EditorDrawMode::DrawMixed;
                                                     shared.set_mode(TheSharedHLayoutMode::Shared);
+                                                    PRERENDERTHREAD
+                                                        .lock()
+                                                        .unwrap()
+                                                        .set_paused(false);
                                                 }
                                                 MapMode::ThreeD => {
                                                     *RENDERMODE.lock().unwrap() =
                                                         EditorDrawMode::Draw3D;
                                                     shared.set_mode(TheSharedHLayoutMode::Right);
+                                                    PRERENDERTHREAD
+                                                        .lock()
+                                                        .unwrap()
+                                                        .set_paused(false);
                                                 }
                                             }
                                         }
