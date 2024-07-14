@@ -37,7 +37,7 @@ impl ModelFXEditor {
             materials: FxHashMap::default(),
 
             editing_mode: EditingMode::Geometry,
-            curr_layer_role: Layer2DRole::Ground,
+            curr_layer_role: Layer2DRole::Wall,
 
             current_material: None,
 

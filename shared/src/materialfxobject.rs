@@ -144,17 +144,9 @@ impl MaterialFXObject {
         geo_obj_params: &[Vec<f32>],
         mat_obj_params: &[Vec<f32>],
     ) -> (f32, usize) {
-        let mut d = geo_obj.distance_3d(time, p, &mut Some(hit), geo_obj_params);
-        let has_geo_trail = self.follow_geo_trail(time, hit, mat_obj_params);
-
-        let geo_noise = hit.noise;
-        let geo_noise_scale = hit.noise_scale;
-
         hit.noise = None;
         hit.noise_scale = 1.0;
 
-        // If the geometry node has a noise attached to its input execute it
-        // So that we can later use it for extraction
         if let Some(noise_index) = self.find_connected_output_node(0, 0) {
             if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
                 || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
@@ -169,6 +161,21 @@ impl MaterialFXObject {
             }
         }
 
+        let noise_buffer = hit.noise;
+        let noise_buffer_scale = hit.noise_scale;
+
+        let mut d = geo_obj.distance_3d(time, p, &mut Some(hit), geo_obj_params);
+        let has_geo_trail = self.follow_geo_trail(time, hit, mat_obj_params);
+
+        let geo_noise = hit.noise;
+        let geo_noise_scale = hit.noise_scale;
+
+        // hit.noise = None;
+        // hit.noise_scale = 1.0;
+
+        hit.noise = noise_buffer;
+        hit.noise_scale = noise_buffer_scale;
+
         // Set extrusion parameters to zero
         let mut extrude_add = 0.0;
         let mut extrude_rounding = 0.0;
@@ -178,12 +185,13 @@ impl MaterialFXObject {
         if has_geo_trail && !mat_obj_params.is_empty() {
             // When we have a material fill in the params
             extrude_add = mat_obj_params[0][0];
-            if let Some(noise) = hit.noise {
-                extrude_add = noise * hit.noise_scale;
-            }
             extrude_rounding = mat_obj_params[0][1];
             extrude_mortar = mat_obj_params[0][4] as i32 == 1;
             extrude_mortar_sub = mat_obj_params[0][5];
+        }
+
+        if let Some(noise) = hit.noise {
+            extrude_add += ((noise * 2.) - 1.0) * hit.noise_scale;
         }
 
         match hit.extrusion {

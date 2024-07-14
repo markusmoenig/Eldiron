@@ -10,6 +10,8 @@ pub struct GeoFXObject {
     pub nodes: Vec<GeoFXNode>,
     pub area: Vec<Vec2i>,
 
+    #[serde(default)]
+    pub height: i32,
     pub level: i32,
 }
 
@@ -28,6 +30,7 @@ impl GeoFXObject {
             nodes: Vec::new(),
             area: Vec::new(),
 
+            height: 0,
             level: 0,
         }
     }
@@ -130,6 +133,7 @@ impl GeoFXObject {
 
         for geo in &self.nodes {
             let area = geo.area();
+            self.height = geo.height();
             for p in area {
                 if !self.area.contains(&p) {
                     self.area.push(p);

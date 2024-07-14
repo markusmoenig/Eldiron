@@ -76,7 +76,7 @@ impl GeoFXNode {
                 coll.set("Pos Y", TheValue::Float(0.5));
                 coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
-                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
                 coll.set(
                     "2D Mode",
                     TheValue::TextList(0, vec![str!("Normal"), str!("Full Thickness")]),
@@ -87,7 +87,7 @@ impl GeoFXNode {
                 coll.set("Pos Y", TheValue::Float(0.1));
                 coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
-                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
                 coll.set(
                     "2D Mode",
                     TheValue::TextList(0, vec![str!("Normal"), str!("Full Thickness")]),
@@ -98,7 +98,7 @@ impl GeoFXNode {
                 coll.set("Pos Y", TheValue::Float(0.5));
                 coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
-                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
                 coll.set(
                     "2D Mode",
                     TheValue::TextList(0, vec![str!("Normal"), str!("Full Thickness")]),
@@ -109,7 +109,7 @@ impl GeoFXNode {
                 coll.set("Pos Y", TheValue::Float(0.9));
                 coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
-                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
                 coll.set(
                     "2D Mode",
                     TheValue::TextList(0, vec![str!("Normal"), str!("Full Thickness")]),
@@ -120,13 +120,13 @@ impl GeoFXNode {
                 coll.set("Pos Y", TheValue::Float(0.5));
                 coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
                 coll.set("Rounding", TheValue::FloatRange(0.3, 0.0..=1.0));
-                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
             }
             Column => {
                 coll.set("Pos X", TheValue::Float(0.5));
                 coll.set("Pos Y", TheValue::Float(0.5));
                 coll.set("Radius", TheValue::FloatRange(0.4, 0.001..=2.0));
-                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
                 coll.set("Hole", TheValue::FloatRange(0.0, 0.0..=1.0));
             }
             Gate => {
@@ -136,7 +136,7 @@ impl GeoFXNode {
                     "Align",
                     TheValue::TextList(0, vec![str!("North/South"), str!("West/East")]),
                 );
-                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
             }
         }
         let timeline = TheTimeline::collection(coll);
@@ -521,7 +521,13 @@ impl GeoFXNode {
             LeftWall => {
                 let thick = params[2];
                 let len = params[3];
-                let height = params[4];
+                let mut height = params[4];
+
+                if let Some(hit) = hit {
+                    if let Some(noise) = hit.noise {
+                        height += ((noise * 2.) - 1.0) * hit.noise_scale;
+                    }
+                }
 
                 let pos = vec2f(params[0], params[1]);
                 let d = sdf_box2d(
@@ -544,7 +550,13 @@ impl GeoFXNode {
             TopWall => {
                 let thick = params[2];
                 let len = params[3];
-                let height = params[4];
+                let mut height = params[4];
+
+                if let Some(hit) = hit {
+                    if let Some(noise) = hit.noise {
+                        height += ((noise * 2.) - 1.0) * hit.noise_scale;
+                    }
+                }
 
                 let pos = vec2f(params[0], params[1]);
                 let d = sdf_box2d(
@@ -568,7 +580,13 @@ impl GeoFXNode {
             RightWall => {
                 let thick = params[2];
                 let len = params[3];
-                let height = params[4];
+                let mut height = params[4];
+
+                if let Some(hit) = hit {
+                    if let Some(noise) = hit.noise {
+                        height += ((noise * 2.) - 1.0) * hit.noise_scale;
+                    }
+                }
 
                 let pos = vec2f(params[0], params[1]);
                 let d = sdf_box2d(
@@ -591,7 +609,13 @@ impl GeoFXNode {
             BottomWall => {
                 let thick = params[2];
                 let len = params[3];
-                let height = params[4];
+                let mut height = params[4];
+
+                if let Some(hit) = hit {
+                    if let Some(noise) = hit.noise {
+                        height += ((noise * 2.) - 1.0) * hit.noise_scale;
+                    }
+                }
 
                 let pos = vec2f(params[0], params[1]);
                 let d = sdf_box2d(
@@ -806,6 +830,23 @@ impl GeoFXNode {
             }
         }
         area
+    }
+
+    /// Returns all tiles which are touched by this geometry.
+    pub fn height(&self) -> i32 {
+        let mut height = 1;
+        if let Some(coll) = self
+            .timeline
+            .get_collection_at(&TheTime::default(), str!("Geo"))
+        {
+            if let Some(h) = coll.get("Height") {
+                if let Some(h) = h.to_f32() {
+                    height = h.ceil() as i32;
+                    println!("{} {}", h, height);
+                }
+            }
+        }
+        height
     }
 
     #[inline(always)]

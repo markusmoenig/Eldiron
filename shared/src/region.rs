@@ -237,13 +237,16 @@ impl Region {
     pub fn update_geometry_areas(&mut self) {
         self.geometry_areas.clear();
         for (id, geo_obj) in self.geometry.iter() {
+            let height = max(geo_obj.height, 1);
             for p2d in &geo_obj.area {
-                let p3d = Vec3i::new(p2d.x, geo_obj.level, p2d.y);
+                for h in 0..height {
+                    let p3d = Vec3i::new(p2d.x, geo_obj.level + h, p2d.y);
 
-                if let Some(list) = self.geometry_areas.get_mut(&p3d) {
-                    list.push(*id);
-                } else {
-                    self.geometry_areas.insert(p3d, vec![*id]);
+                    if let Some(list) = self.geometry_areas.get_mut(&p3d) {
+                        list.push(*id);
+                    } else {
+                        self.geometry_areas.insert(p3d, vec![*id]);
+                    }
                 }
             }
         }

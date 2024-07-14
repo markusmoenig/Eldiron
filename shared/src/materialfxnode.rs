@@ -280,7 +280,14 @@ impl MaterialFXNode {
 
     pub fn inputs(&self) -> Vec<TheNodeTerminal> {
         match self.role {
-            Noise3D | Noise2D | UVSplitter | Subdivide | Distance | Brick | Geometry => {
+            Geometry => {
+                vec![TheNodeTerminal {
+                    name: str!("noise"),
+                    role: str!("Noise"),
+                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                }]
+            }
+            Noise3D | Noise2D | UVSplitter | Subdivide | Distance | Brick => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
                     role: str!("Input"),
@@ -449,7 +456,12 @@ impl MaterialFXNode {
                         hit.mat.base_color.y = color.g;
                         hit.mat.base_color.z = color.b;
                         if let Some(noise) = hit.noise {
-                            let noise = (noise * 2.0 - 1.0) * hit.noise_scale;
+                            let hash = if hit.hash != 1.0 {
+                                hit.hash * 2.0 - 1.0
+                            } else {
+                                0.0
+                            };
+                            let noise = (noise * 2.0 - 1.0 + hash) * hit.noise_scale;
                             hit.mat.base_color.x += noise;
                             hit.mat.base_color.y += noise;
                             hit.mat.base_color.z += noise;

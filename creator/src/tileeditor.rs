@@ -44,7 +44,7 @@ impl TileEditor {
 
             curr_tile_uuid: None,
 
-            curr_layer_role: Layer2DRole::Ground,
+            curr_layer_role: Layer2DRole::Wall,
 
             icon_normal_border_color: [100, 100, 100, 255],
             icon_selected_border_color: [255, 255, 255, 255],
@@ -110,14 +110,14 @@ impl TileEditor {
         ground_icon.set_text_size(10.0);
         ground_icon.set_text_color([200, 200, 200, 255]);
         ground_icon.limiter_mut().set_max_size(vec2i(48, 48));
-        ground_icon.set_border_color(Some(self.icon_selected_border_color));
+        ground_icon.set_border_color(Some(self.icon_normal_border_color));
 
         let mut wall_icon = TheIconView::new(TheId::named("Wall Icon"));
         wall_icon.set_text(Some("WALL".to_string()));
         wall_icon.set_text_size(10.0);
         wall_icon.set_text_color([200, 200, 200, 255]);
         wall_icon.limiter_mut().set_max_size(vec2i(48, 48));
-        wall_icon.set_border_color(Some(self.icon_normal_border_color));
+        wall_icon.set_border_color(Some(self.icon_selected_border_color));
 
         let mut ceiling_icon = TheIconView::new(TheId::named("Ceiling Icon"));
         ceiling_icon.set_text(Some("CEILING".to_string()));
@@ -1657,34 +1657,34 @@ impl TileEditor {
                 // In Character mode, we need to set the character bundle of the current character.
                 //}
             } else if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                let mut found_area = false;
+                let found_area = false;
 
                 // Check for area at the given position.
-                for area in region.areas.values() {
-                    if area.area.contains(&(coord.x, coord.y)) {
-                        for grid in area.bundle.grids.values() {
-                            if grid.name == "main" {
-                                if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
-                                    || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
-                                {
-                                    CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
-                                    ctx.ui.send(TheEvent::Custom(
-                                        TheId::named("Set CodeGrid Panel"),
-                                        TheValue::Empty,
-                                    ));
-                                }
-                                found_area = true;
-                                server_ctx.curr_character_instance = None;
-                                server_ctx.curr_character = None;
-                                server_ctx.curr_area = Some(area.id);
-                                if let Some(layout) = ui.get_list_layout("Region Content List") {
-                                    layout.select_item(area.id, ctx, false);
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
+                // for area in region.areas.values() {
+                //     if area.area.contains(&(coord.x, coord.y)) {
+                //         for grid in area.bundle.grids.values() {
+                //             if grid.name == "main" {
+                //                 if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
+                //                     || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
+                //                 {
+                //                     CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                //                     ctx.ui.send(TheEvent::Custom(
+                //                         TheId::named("Set CodeGrid Panel"),
+                //                         TheValue::Empty,
+                //                     ));
+                //                 }
+                //                 found_area = true;
+                //                 server_ctx.curr_character_instance = None;
+                //                 server_ctx.curr_character = None;
+                //                 server_ctx.curr_area = Some(area.id);
+                //                 if let Some(layout) = ui.get_list_layout("Region Content List") {
+                //                     layout.select_item(area.id, ctx, false);
+                //                 }
+                //                 break;
+                //             }
+                //         }
+                //     }
+                // }
 
                 if !found_area {
                     // No area, set the tile.
