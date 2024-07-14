@@ -270,15 +270,15 @@ impl Renderer {
                         )
                     };
 
-                    let plane_normal = vec3f(0.0, 1.0, 0.0);
-                    let denom = dot(plane_normal, ray.d);
+                    // let plane_normal = vec3f(0.0, 1.0, 0.0);
+                    // let denom = dot(plane_normal, ray.d);
 
-                    if denom.abs() > 0.0001 {
-                        let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
-                        if t >= 0.0 {
-                            ray.o += ray.d * t;
-                        }
-                    }
+                    // if denom.abs() > 0.0001 {
+                    //     let t = dot(vec3f(0.0, 2.1, 0.0) - ray.o, plane_normal) / denom;
+                    //     if t >= 0.0 {
+                    //         ray.o += ray.d * t;
+                    //     }
+                    // }
 
                     // BSDF Pathtracer based on glsl_pathtracer
                     // https://github.com/knightcrawler25/GLSL-PathTracer
@@ -1090,37 +1090,9 @@ impl Renderer {
                 if let Some(data) = region.prerendered.tree.nearest_neighbor(&[p.x, p.z]) {
                     start_x = data.pixel_location.0;
                     start_y = data.pixel_location.1;
-
-                    // if let Some(tile_coords) = &region.prerendered.tile_coords {
-                    //     fn bilinear_interpolate(corners: &[Vec2f; 4], u: f32, v: f32) -> Vec2f {
-                    //         Vec2f {
-                    //             x: corners[0].x * (1.0 - u) * (1.0 - v)
-                    //                 + corners[1].x * u * (1.0 - v)
-                    //                 + corners[2].x * (1.0 - u) * v
-                    //                 + corners[3].x * u * v,
-                    //             y: corners[0].y * (1.0 - u) * (1.0 - v)
-                    //                 + corners[1].y * u * (1.0 - v)
-                    //                 + corners[2].y * (1.0 - u) * v
-                    //                 + corners[3].y * u * v,
-                    //         }
-                    //     }
-                    //     let size_x = width_f / (region.width as f32 * region.grid_size as f32);
-                    //     let size_y = height_f / (region.height as f32 * region.grid_size as f32);
-
-                    //     let x = p.x / size_x;
-                    //     let y = p.y / size_y;
-
-                    //     let uv = bilinear_interpolate(tile_coords, x, y) * vec2f(size_x, size_y);
-
-                    //     println!("{} {}", start_x, uv.x);
-                    // } else {
-                    //     println!("No coords!");
-                    // }
                 }
             }
         }
-
-        // TEMP TESTING
 
         // Render loop
 
