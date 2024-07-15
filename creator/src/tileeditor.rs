@@ -424,11 +424,6 @@ impl TileEditor {
                             PRERENDERTHREAD.lock().unwrap().set_paused(false);
                         } else if item_id.name == "Pause Renderer" {
                             PRERENDERTHREAD.lock().unwrap().set_paused(true);
-                            ui.set_widget_value(
-                                "Render Button",
-                                ctx,
-                                TheValue::Text(str!("Paused")),
-                            );
                         } else if item_id.name == "Restart Renderer" {
                             PRERENDERTHREAD.lock().unwrap().set_paused(false);
                             region.prerendered.invalidate();
@@ -479,11 +474,6 @@ impl TileEditor {
                             shared.set_mode(TheSharedHLayoutMode::Left);
                             *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
                             PRERENDERTHREAD.lock().unwrap().set_paused(true);
-                            ui.set_widget_value(
-                                "Render Button",
-                                ctx,
-                                TheValue::Text(str!("Paused")),
-                            );
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 if let Some(layout) = ui.get_rgba_layout("Region Editor") {
                                     layout.set_zoom(region.zoom);

@@ -29,6 +29,7 @@ pub enum PreRenderResult {
     Clear(Uuid),
     Progress(String),
     Finished,
+    Paused,
     Quit,
 }
 
@@ -153,6 +154,9 @@ impl PreRenderThread {
                         PreRenderCmd::SetPaused(p) => {
                             println!("PreRenderCmd::SetPaused ({})", p);
                             paused = p;
+                            if paused {
+                                result_tx.send(PreRenderResult::Paused).unwrap();
+                            }
                         }
                         PreRenderCmd::MaterialChanged(changed_material) => {
                             println!("PreRenderCmd::MaterialChanged");

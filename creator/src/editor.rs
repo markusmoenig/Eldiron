@@ -514,6 +514,9 @@ impl TheTrait for Editor {
                 PreRenderResult::Progress(text) => {
                     ui.set_widget_value("Render Button", ctx, TheValue::Text(text));
                 }
+                PreRenderResult::Paused => {
+                    ui.set_widget_value("Render Button", ctx, TheValue::Text(str!("Paused")));
+                }
                 PreRenderResult::Finished => {
                     ui.set_widget_value("Render Button", ctx, TheValue::Text(str!("Finished")));
                 }
@@ -1155,11 +1158,6 @@ impl TheTrait for Editor {
                                                         .lock()
                                                         .unwrap()
                                                         .set_paused(true);
-                                                    ui.set_widget_value(
-                                                        "Render Button",
-                                                        ctx,
-                                                        TheValue::Text(str!("Paused")),
-                                                    );
                                                 }
                                                 MapMode::Mixed => {
                                                     *RENDERMODE.lock().unwrap() =
