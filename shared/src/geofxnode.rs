@@ -503,6 +503,9 @@ impl GeoFXNode {
                 p.y - value * 0.05
             }
             Floor => {
+                if params.len() < 2 {
+                    println!("Missing paramaters for {:?}", self.role);
+                }
                 let height = params[2];
 
                 let pos = vec2f(params[0], params[1]);
@@ -842,7 +845,6 @@ impl GeoFXNode {
             if let Some(h) = coll.get("Height") {
                 if let Some(h) = h.to_f32() {
                     height = h.ceil() as i32;
-                    println!("{} {}", h, height);
                 }
             }
         }

@@ -27,6 +27,8 @@ pub enum PreRenderResult {
     ),
     RenderedRTree(Uuid, RTree<PreRenderedData>),
     Clear(Uuid),
+    Progress(String),
+    Finished,
     Quit,
 }
 
@@ -265,7 +267,33 @@ impl PreRenderThread {
                                 result_tx.clone(),
                             );
                             if !in_progress {
+                                result_tx.send(PreRenderResult::Finished).unwrap();
                                 println!("finished");
+                            } else {
+                                // Calculate progress text
+
+                                let w = curr_region.width;
+                                let h = curr_region.height;
+                                let mut togo = 0;
+                                for x in 0..w {
+                                    for y in 0..h {
+                                        let tile = Vec2i::new(x, y);
+                                        if let Some(samples) = prerendered.tile_samples.get(&tile) {
+                                            if (*samples as i32) < curr_region.pathtracer_samples {
+                                                togo += 1;
+                                            }
+                                        } else {
+                                            togo += 1;
+                                        }
+                                    }
+                                }
+
+                                let progress = if togo == 0 {
+                                    str!("Finished")
+                                } else {
+                                    format!("{}", togo)
+                                };
+                                result_tx.send(PreRenderResult::Progress(progress)).unwrap();
                             }
                         });
                     }

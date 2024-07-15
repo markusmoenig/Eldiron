@@ -225,6 +225,13 @@ impl Renderer {
             material_params.insert(*id, params);
         }
 
+        // Collect the geo_object params
+        let mut geo_params: FxHashMap<Uuid, Vec<Vec<f32>>> = FxHashMap::default();
+        for (id, geo_obj) in &region.geometry {
+            let params = geo_obj.load_parameters(&settings.time);
+            geo_params.insert(*id, params);
+        }
+
         let prerendered_mutex = Arc::new(Mutex::new(prerendered));
 
         let _start = self.get_time();
@@ -331,6 +338,7 @@ impl Renderer {
                             max_render_distance,
                             palette,
                             &material_params,
+                            &geo_params,
                             &mut rng,
                         ) {
                             if depth == 0 {
@@ -415,6 +423,7 @@ impl Renderer {
                                             &update,
                                             settings,
                                             &material_params,
+                                            &geo_params,
                                         ) {
                                             scatter_sample.f = disney_eval(
                                                 &state,
@@ -548,6 +557,7 @@ impl Renderer {
         max_render_distance: i32,
         palette: &ThePalette,
         material_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
+        geo_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
         _rng: &mut ThreadRng,
     ) -> Option<Hit> {
         let mut hit = Hit::default();
@@ -588,104 +598,105 @@ impl Renderer {
                 for geo_id in geo_ids {
                     let mut h = Hit::default();
                     if let Some(geo_obj) = region.geometry.get(geo_id) {
-                        let geo_obj_params = geo_obj.load_parameters(&settings.time);
-                        let material = self.materials.get(&geo_obj.material_id);
-                        let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+                        if let Some(geo_obj_params) = geo_params.get(&geo_obj.id) {
+                            let material = self.materials.get(&geo_obj.material_id);
+                            let mut mat_obj_params: Vec<Vec<f32>> = vec![];
 
-                        if let Some(m_params) = material_params.get(&geo_obj.material_id) {
-                            mat_obj_params.clone_from(m_params);
-                        }
-
-                        let lro = ray.at(dist);
-
-                        let r = Ray::new(lro, ray.d);
-                        let mut t = 0.01;
-
-                        for _ in 0..20 {
-                            // Max distance a ray can travel in a unit cube
-                            if t > 1.732 {
-                                break;
+                            if let Some(m_params) = material_params.get(&geo_obj.material_id) {
+                                mat_obj_params.clone_from(m_params);
                             }
 
-                            let p = r.at(t);
+                            let lro = ray.at(dist);
 
-                            let d; // = (f32::INFINITY, 0);
-                            if let Some(material) = material {
-                                d = material.get_distance_3d(
-                                    &settings.time,
-                                    p,
-                                    &mut h,
-                                    geo_obj,
-                                    &geo_obj_params,
-                                    &mat_obj_params,
-                                );
-                            } else {
-                                d = MaterialFXObject::default().get_distance_3d(
-                                    &settings.time,
-                                    p,
-                                    &mut h,
-                                    geo_obj,
-                                    &geo_obj_params,
-                                    &mat_obj_params,
-                                );
-                            }
+                            let r = Ray::new(lro, ray.d);
+                            let mut t = 0.01;
 
-                            if d.0.abs() < h.eps && dist + t < hit.distance {
-                                hit.clone_from(&h);
-                                hit.hit_point = p;
+                            for _ in 0..20 {
+                                // Max distance a ray can travel in a unit cube
+                                if t > 1.732 {
+                                    break;
+                                }
 
+                                let p = r.at(t);
+
+                                let d; // = (f32::INFINITY, 0);
                                 if let Some(material) = material {
-                                    hit.normal = material.normal(
+                                    d = material.get_distance_3d(
                                         &settings.time,
                                         p,
                                         &mut h,
                                         geo_obj,
-                                        &geo_obj_params,
+                                        geo_obj_params,
                                         &mat_obj_params,
                                     );
                                 } else {
-                                    hit.normal = MaterialFXObject::default().normal(
+                                    d = MaterialFXObject::default().get_distance_3d(
                                         &settings.time,
                                         p,
                                         &mut h,
                                         geo_obj,
-                                        &geo_obj_params,
+                                        geo_obj_params,
                                         &mat_obj_params,
                                     );
                                 }
 
-                                hit.distance = dist + t;
-                                hit.mat.base_color = vec3f(0.5, 0.5, 0.5);
+                                if d.0.abs() < h.eps && dist + t < hit.distance {
+                                    hit.clone_from(&h);
+                                    hit.hit_point = p;
 
-                                // if h.extrusion == GeoFXNodeExtrusion::None {
-                                //     hit.value = 1.0;
-                                //     geo_obj.nodes[d.1].distance_3d(
-                                //         &settings.time,
-                                //         p,
-                                //         &mut Some(&mut hit),
-                                //         &geo_obj_params[d.1],
-                                //     );
-                                // }
+                                    if let Some(material) = material {
+                                        hit.normal = material.normal(
+                                            &settings.time,
+                                            p,
+                                            &mut h,
+                                            geo_obj,
+                                            geo_obj_params,
+                                            &mat_obj_params,
+                                        );
+                                    } else {
+                                        hit.normal = MaterialFXObject::default().normal(
+                                            &settings.time,
+                                            p,
+                                            &mut h,
+                                            geo_obj,
+                                            geo_obj_params,
+                                            &mat_obj_params,
+                                        );
+                                    }
 
-                                if let Some(material) = material {
-                                    let f = self.get_uv_face(hit.normal, hit.hit_point);
-                                    hit.uv = f.0;
-                                    hit.global_uv = match f.1 {
-                                        0 => f.0 + vec2f(i.z, i.y),
-                                        1 => f.0 + vec2f(i.x, i.z),
-                                        _ => f.0 + vec2f(i.x, i.y),
-                                    };
-                                    material.compute(
-                                        &mut hit,
-                                        palette,
-                                        &self.textures,
-                                        &mat_obj_params,
-                                    );
+                                    hit.distance = dist + t;
+                                    hit.mat.base_color = vec3f(0.5, 0.5, 0.5);
+
+                                    // if h.extrusion == GeoFXNodeExtrusion::None {
+                                    //     hit.value = 1.0;
+                                    //     geo_obj.nodes[d.1].distance_3d(
+                                    //         &settings.time,
+                                    //         p,
+                                    //         &mut Some(&mut hit),
+                                    //         &geo_obj_params[d.1],
+                                    //     );
+                                    // }
+
+                                    if let Some(material) = material {
+                                        let f = self.get_uv_face(hit.normal, hit.hit_point);
+                                        hit.uv = f.0;
+                                        hit.global_uv = match f.1 {
+                                            0 => f.0 + vec2f(i.z, i.y),
+                                            1 => f.0 + vec2f(i.x, i.z),
+                                            _ => f.0 + vec2f(i.x, i.y),
+                                        };
+                                        material.compute(
+                                            &mut hit,
+                                            palette,
+                                            &self.textures,
+                                            &mat_obj_params,
+                                        );
+                                    }
+
+                                    has_hit = true;
                                 }
-
-                                has_hit = true;
+                                t += d.0;
                             }
-                            t += d.0;
                         }
                     }
                 }
@@ -1553,6 +1564,13 @@ impl Renderer {
             material_params.insert(*id, params);
         }
 
+        // Collect the geo_object params
+        let mut geo_params: FxHashMap<Uuid, Vec<Vec<f32>>> = FxHashMap::default();
+        for (id, geo_obj) in &region.geometry {
+            let params = geo_obj.load_parameters(&settings.time);
+            geo_params.insert(*id, params);
+        }
+
         let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
         let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
         let camera = Camera::new(ro, rd, fov);
@@ -1611,6 +1629,7 @@ impl Renderer {
                         max_render_distance,
                         palette,
                         &material_params,
+                        &geo_params,
                     ));
                 }
             });
@@ -1633,6 +1652,7 @@ impl Renderer {
         max_render_distance: i32,
         palette: &ThePalette,
         material_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
+        geo_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
     ) -> RGBA {
         let mut hit = Hit::default();
 
@@ -2057,6 +2077,7 @@ impl Renderer {
                             update,
                             settings,
                             material_params,
+                            geo_params,
                         ) {
                             let c = if settings.pbr {
                                 let mut light_color = Vec3f::from(1.5 * light_strength);
@@ -2153,6 +2174,7 @@ impl Renderer {
         _update: &RegionUpdate,
         settings: &RegionDrawSettings,
         material_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
+        geo_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
     ) -> bool {
         #[inline(always)]
         fn equal(l: f32, r: Vec3f) -> Vec3f {
@@ -2210,52 +2232,53 @@ impl Renderer {
                 for geo_id in geo_ids {
                     let mut h = Hit::default();
                     if let Some(geo_obj) = region.geometry.get(geo_id) {
-                        let geo_obj_params = geo_obj.load_parameters(&settings.time);
-                        let material = self.materials.get(&geo_obj.material_id);
-                        let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+                        if let Some(geo_obj_params) = geo_params.get(&geo_obj.id) {
+                            let material = self.materials.get(&geo_obj.material_id);
+                            let mut mat_obj_params: Vec<Vec<f32>> = vec![];
 
-                        if let Some(m_params) = material_params.get(&geo_obj.material_id) {
-                            mat_obj_params.clone_from(m_params);
-                        }
-
-                        let lro = ray.at(dist);
-
-                        let r = Ray::new(lro, ray.d);
-                        let mut t = 0.00;
-
-                        for _ in 0..20 {
-                            // Max distance a ray can travel in a unit cube
-                            if t > 1.732 {
-                                break;
+                            if let Some(m_params) = material_params.get(&geo_obj.material_id) {
+                                mat_obj_params.clone_from(m_params);
                             }
 
-                            let p = r.at(t);
+                            let lro = ray.at(dist);
 
-                            let d; // = (f32::INFINITY, 0);
-                            if let Some(material) = material {
-                                d = material.get_distance_3d(
-                                    &settings.time,
-                                    p,
-                                    &mut h,
-                                    geo_obj,
-                                    &geo_obj_params,
-                                    &mat_obj_params,
-                                );
-                            } else {
-                                d = MaterialFXObject::default().get_distance_3d(
-                                    &settings.time,
-                                    p,
-                                    &mut h,
-                                    geo_obj,
-                                    &geo_obj_params,
-                                    &mat_obj_params,
-                                );
-                            }
+                            let r = Ray::new(lro, ray.d);
+                            let mut t = 0.00;
 
-                            if d.0.abs() < 0.15 {
-                                return false;
+                            for _ in 0..20 {
+                                // Max distance a ray can travel in a unit cube
+                                if t > 1.732 {
+                                    break;
+                                }
+
+                                let p = r.at(t);
+
+                                let d; // = (f32::INFINITY, 0);
+                                if let Some(material) = material {
+                                    d = material.get_distance_3d(
+                                        &settings.time,
+                                        p,
+                                        &mut h,
+                                        geo_obj,
+                                        geo_obj_params,
+                                        &mat_obj_params,
+                                    );
+                                } else {
+                                    d = MaterialFXObject::default().get_distance_3d(
+                                        &settings.time,
+                                        p,
+                                        &mut h,
+                                        geo_obj,
+                                        geo_obj_params,
+                                        &mat_obj_params,
+                                    );
+                                }
+
+                                if d.0.abs() < 0.15 {
+                                    return false;
+                                }
+                                t += d.0;
                             }
-                            t += d.0;
                         }
                     }
                 }

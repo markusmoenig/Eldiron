@@ -166,12 +166,27 @@ impl TileEditor {
         let mut spacer = TheSpacer::new(TheId::empty());
         spacer.limiter_mut().set_max_width(40);
 
+        let mut render_button = TheTraybarButton::new(TheId::named("Render Button"));
+        render_button.set_text("Starting...".to_string());
+        render_button.set_status_text("Controls the 3D background renderer. During rendering it displays how many tiles are left to render.");
+        render_button.set_fixed_size(true);
+        render_button.limiter_mut().set_max_width(80);
+
+        render_button.set_context_menu(Some(TheContextMenu {
+            items: vec![
+                TheContextMenuItem::new("Start".to_string(), TheId::named("Start Renderer")),
+                TheContextMenuItem::new("Pause".to_string(), TheId::named("Pause Renderer")),
+                TheContextMenuItem::new("Restart".to_string(), TheId::named("Restart Renderer")),
+            ],
+            ..Default::default()
+        }));
+
         let mut zoom = TheTextLineEdit::new(TheId::named("Region Editor Zoom"));
         zoom.set_value(TheValue::Float(1.0));
         //zoom.set_default_value(TheValue::Float(1.0));
         zoom.set_range(TheValue::RangeF32(1.0..=5.0));
         zoom.set_continuous(true);
-        zoom.limiter_mut().set_max_width(120);
+        zoom.limiter_mut().set_max_width(60);
         zoom.set_status_text("Set the camera zoom.");
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
@@ -180,8 +195,9 @@ impl TileEditor {
         toolbar_hlayout.add_widget(Box::new(gb));
         toolbar_hlayout.add_widget(Box::new(spacer));
         toolbar_hlayout.add_widget(Box::new(time_slider));
+        toolbar_hlayout.add_widget(Box::new(render_button));
         toolbar_hlayout.add_widget(Box::new(zoom));
-        toolbar_hlayout.set_reverse_index(Some(1));
+        toolbar_hlayout.set_reverse_index(Some(2));
 
         top_toolbar.set_layout(toolbar_hlayout);
         center.set_top(top_toolbar);
@@ -402,7 +418,28 @@ impl TileEditor {
                 }
             }
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
-                if widget_id.name == "Camera Button" {
+                if widget_id.name == "Render Button" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if item_id.name == "Start Renderer" {
+                            PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                        } else if item_id.name == "Pause Renderer" {
+                            PRERENDERTHREAD.lock().unwrap().set_paused(true);
+                            ui.set_widget_value(
+                                "Render Button",
+                                ctx,
+                                TheValue::Text(str!("Paused")),
+                            );
+                        } else if item_id.name == "Restart Renderer" {
+                            PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                            region.prerendered.invalidate();
+                            PRERENDERTHREAD
+                                .lock()
+                                .unwrap()
+                                .render_region(region.shallow_clone(), None);
+                        }
+                        redraw = true;
+                    }
+                } else if widget_id.name == "Camera Button" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if item_id.name == "Camera First Person" {
                             region.camera_type = CameraType::FirstPerson;
@@ -442,6 +479,11 @@ impl TileEditor {
                             shared.set_mode(TheSharedHLayoutMode::Left);
                             *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
                             PRERENDERTHREAD.lock().unwrap().set_paused(true);
+                            ui.set_widget_value(
+                                "Render Button",
+                                ctx,
+                                TheValue::Text(str!("Paused")),
+                            );
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 if let Some(layout) = ui.get_rgba_layout("Region Editor") {
                                     layout.set_zoom(region.zoom);

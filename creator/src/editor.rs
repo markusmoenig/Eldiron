@@ -511,6 +511,12 @@ impl TheTrait for Editor {
                         region.prerendered.clear();
                     }
                 }
+                PreRenderResult::Progress(text) => {
+                    ui.set_widget_value("Render Button", ctx, TheValue::Text(text));
+                }
+                PreRenderResult::Finished => {
+                    ui.set_widget_value("Render Button", ctx, TheValue::Text(str!("Finished")));
+                }
                 _ => {}
             }
         }
@@ -1149,6 +1155,11 @@ impl TheTrait for Editor {
                                                         .lock()
                                                         .unwrap()
                                                         .set_paused(true);
+                                                    ui.set_widget_value(
+                                                        "Render Button",
+                                                        ctx,
+                                                        TheValue::Text(str!("Paused")),
+                                                    );
                                                 }
                                                 MapMode::Mixed => {
                                                     *RENDERMODE.lock().unwrap() =
