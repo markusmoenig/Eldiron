@@ -302,8 +302,8 @@ impl PreRenderThread {
                         });
                     }
                 }
-                std::thread::yield_now();
-                //std::thread::sleep(std::time::Duration::from_millis(10));
+                // std::thread::yield_now();
+                std::thread::sleep(std::time::Duration::from_millis(10));
             }
 
             println!("Renderer thread exiting")
