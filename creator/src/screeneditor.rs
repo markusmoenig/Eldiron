@@ -579,6 +579,7 @@ impl ScreenEditor {
                             380,
                             Some(200),
                         );
+                        CODEEDITOR.lock().unwrap().code_id = str!("Screen");
 
                         if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                             if let Some(canvas) =

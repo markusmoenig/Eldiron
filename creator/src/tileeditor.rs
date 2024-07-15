@@ -649,12 +649,15 @@ impl TileEditor {
                             server.set_editing_position_3d(region.editing_position_3d);
                         }
 
-                        // Set the character bundle of the current character instance.
+                        // Set the character codegrid of the current character instance.
                         if let Some(region) = project.get_region(&server_ctx.curr_region) {
                             if let Some(character) = region.characters.get(&id.uuid) {
                                 for grid in character.instance.grids.values() {
                                     if grid.name == "init" {
                                         CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                        CODEEDITOR.lock().unwrap().code_id =
+                                            str!("Character Instance");
+
                                         ctx.ui.send(TheEvent::Custom(
                                             TheId::named("Set CodeGrid Panel"),
                                             TheValue::Empty,
@@ -685,12 +688,13 @@ impl TileEditor {
                         server_ctx.curr_item = Some(item_id);
                         server_ctx.curr_area = None;
 
-                        // Set the character bundle of the current character instance.
+                        // Set the item codegrid of the current item instance.
                         if let Some(region) = project.get_region(&server_ctx.curr_region) {
                             if let Some(character) = region.items.get(&id.uuid) {
                                 for grid in character.instance.grids.values() {
                                     if grid.name == "init" {
                                         CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                        CODEEDITOR.lock().unwrap().code_id = str!("Item Instance");
                                         ctx.ui.send(TheEvent::Custom(
                                             TheId::named("Set CodeGrid Panel"),
                                             TheValue::Empty,
@@ -723,6 +727,7 @@ impl TileEditor {
                             for grid in area.bundle.grids.values() {
                                 if grid.name == "main" {
                                     CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                    CODEEDITOR.lock().unwrap().code_id = str!("Area Instance");
                                     ctx.ui.send(TheEvent::Custom(
                                         TheId::named("Set CodeGrid Panel"),
                                         TheValue::Empty,
@@ -1608,6 +1613,7 @@ impl TileEditor {
                             for grid in character.instance.grids.values() {
                                 if grid.name == "init" {
                                     CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                    CODEEDITOR.lock().unwrap().code_id = str!("Character Instance");
                                     ctx.ui.send(TheEvent::Custom(
                                         TheId::named("Set CodeGrid Panel"),
                                         TheValue::Empty,
@@ -1643,6 +1649,7 @@ impl TileEditor {
                             for grid in item.instance.grids.values() {
                                 if grid.name == "init" {
                                     CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                    CODEEDITOR.lock().unwrap().code_id = str!("Item Instance");
                                     ctx.ui.send(TheEvent::Custom(
                                         TheId::named("Set CodeGrid Panel"),
                                         TheValue::Empty,

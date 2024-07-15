@@ -2244,7 +2244,7 @@ impl Sidebar {
 
                                 // Successfully compiled, transfer the bundle to the server.
 
-                                if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
+                                if CODEEDITOR.lock().unwrap().code_id == "Character Instance" {
                                     if let Some(character_instance) =
                                         server_ctx.curr_character_instance
                                     {
@@ -2270,14 +2270,34 @@ impl Sidebar {
                                                         character_instance,
                                                         character.instance.clone(),
                                                     );
+
+                                                    // Just in case the user changed the name of the character
+                                                    // we update the character instance name in the list
+                                                    if let Some((TheValue::Text(name), _)) = server
+                                                        .get_character_property(
+                                                            server_ctx.curr_region,
+                                                            character.instance.id,
+                                                            "name".into(),
+                                                        )
+                                                    {
+                                                        if let Some(list) = ui
+                                                            .get_list_layout("Region Content List")
+                                                        {
+                                                            list.set_item_text(
+                                                                character.instance.id,
+                                                                name,
+                                                            );
+                                                            //println!("new name {:?}", name);
+                                                        }
+                                                    }
                                                 } else {
                                                     println!("Character instance does not contain grid: {:?}", grid.name);
                                                 }
                                             }
                                         }
-                                    } else if let Some(item_instance) =
-                                        server_ctx.curr_item_instance
-                                    {
+                                    }
+                                } else if CODEEDITOR.lock().unwrap().code_id == "Item Instance" {
+                                    if let Some(item_instance) = server_ctx.curr_item_instance {
                                         // This is an item instance bundle
 
                                         if let Some(region) =
@@ -2313,7 +2333,9 @@ impl Sidebar {
                                                 }
                                             }
                                         }
-                                    } else if let Some(area) = server_ctx.curr_area {
+                                    }
+                                } else if CODEEDITOR.lock().unwrap().code_id == "Area Instance" {
+                                    if let Some(area) = server_ctx.curr_area {
                                         // This is a region bundle
 
                                         if let Some(region) =
@@ -2338,7 +2360,7 @@ impl Sidebar {
                                             }
                                         }
                                     }
-                                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                                } else if CODEEDITOR.lock().unwrap().code_id == "Character" {
                                     if let Some(name) = server.insert_character(bundle.clone()) {
                                         if let Some(widget) = ui.get_widget_id(bundle.id) {
                                             if let Some(list_item) = widget.as_list_item() {
@@ -2350,7 +2372,7 @@ impl Sidebar {
                                             bundle.name = name;
                                         }
                                     }
-                                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Item {
+                                } else if CODEEDITOR.lock().unwrap().code_id == "Item" {
                                     if let Some(name) = server.insert_item(bundle.clone()) {
                                         if let Some(widget) = ui.get_widget_id(bundle.id) {
                                             if let Some(list_item) = widget.as_list_item() {
@@ -2361,7 +2383,7 @@ impl Sidebar {
                                             bundle.name = name;
                                         }
                                     }
-                                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Module {
+                                } else if CODEEDITOR.lock().unwrap().code_id == "Module" {
                                     // Update the bundle in the server
                                     server.update_bundle(bundle.clone());
 
@@ -2378,7 +2400,7 @@ impl Sidebar {
                                         TheId::named("Update Code Menu"),
                                         TheValue::Empty,
                                     ));
-                                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Screen {
+                                } else if CODEEDITOR.lock().unwrap().code_id == "Screen" {
                                     if let Some(screen) =
                                         project.screens.get_mut(&server_ctx.curr_screen)
                                     {
@@ -2623,6 +2645,7 @@ impl Sidebar {
                     .lock()
                     .unwrap()
                     .set_bundle(character.clone(), ctx, self.width, None);
+            CODEEDITOR.lock().unwrap().code_id = str!("Character");
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(1) {
@@ -2656,6 +2679,7 @@ impl Sidebar {
                     .lock()
                     .unwrap()
                     .set_bundle(item.clone(), ctx, self.width, None);
+            CODEEDITOR.lock().unwrap().code_id = str!("Item");
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(2) {
@@ -2689,6 +2713,7 @@ impl Sidebar {
                     .lock()
                     .unwrap()
                     .set_bundle(code.clone(), ctx, self.width, None);
+            CODEEDITOR.lock().unwrap().code_id = str!("Module");
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(4) {
