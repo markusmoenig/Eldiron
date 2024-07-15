@@ -1503,7 +1503,7 @@ impl Sidebar {
                         };
                         init.insert_atom(
                             (0, 0),
-                            TheCodeAtom::Set(":self.name".to_string(), TheValueAssignment::Assign),
+                            TheCodeAtom::Set("@self.name".to_string(), TheValueAssignment::Assign),
                         );
                         init.insert_atom(
                             (1, 0),
@@ -1516,7 +1516,7 @@ impl Sidebar {
 
                         init.insert_atom(
                             (0, 2),
-                            TheCodeAtom::Set(":self.tile".to_string(), TheValueAssignment::Assign),
+                            TheCodeAtom::Set("@self.tile".to_string(), TheValueAssignment::Assign),
                         );
                         init.insert_atom(
                             (1, 2),
@@ -1580,7 +1580,7 @@ impl Sidebar {
                         };
                         init.insert_atom(
                             (0, 0),
-                            TheCodeAtom::Set(":self.name".to_string(), TheValueAssignment::Assign),
+                            TheCodeAtom::Set("@self.name".to_string(), TheValueAssignment::Assign),
                         );
                         init.insert_atom(
                             (1, 0),
@@ -1593,7 +1593,7 @@ impl Sidebar {
 
                         init.insert_atom(
                             (0, 2),
-                            TheCodeAtom::Set(":self.tile".to_string(), TheValueAssignment::Assign),
+                            TheCodeAtom::Set("@self.tile".to_string(), TheValueAssignment::Assign),
                         );
                         init.insert_atom(
                             (1, 2),

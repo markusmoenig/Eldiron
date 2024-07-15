@@ -861,7 +861,7 @@ impl TheTrait for Editor {
                             init.insert_atom(
                                 (0, 0),
                                 TheCodeAtom::Set(
-                                    ":self.position".to_string(),
+                                    "@self.position".to_string(),
                                     TheValueAssignment::Assign,
                                 ),
                             );
@@ -910,6 +910,13 @@ impl TheTrait for Editor {
                                 item.add_value_column(100, TheValue::Text("Character".to_string()));
 
                                 list.deselect_all();
+                                item.set_context_menu(Some(TheContextMenu {
+                                    items: vec![TheContextMenuItem::new(
+                                        "Delete Character...".to_string(),
+                                        TheId::named("Sidebar Delete Character Instance"),
+                                    )],
+                                    ..Default::default()
+                                }));
                                 list.add_item(item, ctx);
                                 list.select_item(character.id, ctx, true);
                             }
@@ -956,7 +963,7 @@ impl TheTrait for Editor {
                             init.insert_atom(
                                 (0, 0),
                                 TheCodeAtom::Set(
-                                    ":self.position".to_string(),
+                                    "@self.position".to_string(),
                                     TheValueAssignment::Assign,
                                 ),
                             );

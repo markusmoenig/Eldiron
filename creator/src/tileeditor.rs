@@ -1191,7 +1191,7 @@ impl TileEditor {
         }
     }
 
-    /// Perform the given click action at the given coordinate.
+    /// Perform the given action at the given coordinate.
     #[allow(clippy::too_many_arguments)]
     pub fn action_at(
         &mut self,
