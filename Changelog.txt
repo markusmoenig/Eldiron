@@ -1,3 +1,11 @@
+v 0.8.11
+--------
+
+- Bugfix setting tilemap grid size.
+- Bugfixes regarding character and item creation.
+- Render button which displays tiles left to render.
+- Some render optimisations.
+
 v 0.8.10
 --------
 

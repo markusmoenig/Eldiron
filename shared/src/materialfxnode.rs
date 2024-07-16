@@ -58,6 +58,7 @@ impl MaterialFXNode {
                     TheValue::TextList(0, vec![str!("No"), str!("Yes")]),
                 );
                 coll.set("Mortar Sub", TheValue::FloatRange(0.05, 0.0..=1.0));
+                coll.set("Hash Weight", TheValue::FloatRange(0.0, 0.0..=1.0));
                 supports_preview = true;
                 preview_is_open = true;
             }
@@ -188,32 +189,9 @@ impl MaterialFXNode {
     pub fn update_parameters(&mut self) {
         // match self.role {
         //     Geometry => {
-        // if let Some(coll) = self
-        //     .timeline
-        //     .get_collection_at(&TheTime::default(), str!("Geo"))
-        // {
-
-        // self.clear();
-        // self.set("Add", TheValue::FloatRange(0.0, 0.0..=1.0));
-        // self.set("Rounding", TheValue::FloatRange(0.0, 0.0..=1.0));
-
-        // self.set(
-        //     "Profile",
-        //     TheValue::TextList(0, vec![str!("None"), str!("Rounded")]),
-        // );
-        // self.set("Steps", TheValue::FloatRange(0.2, 0.0..=1.0));
-        // self.set(
-        //     "Mortar",
-        //     TheValue::TextList(1, vec![str!("No"), str!("Yes")]),
-        // );
-        // self.set("Mortar Sub", TheValue::FloatRange(0.005, 0.0..=1.0));
-        //}
-        // self.set(
-        //     "2D Mode",
-        //     TheValue::TextList(0, vec![str!("Normal"), str!("Full")]),
-        // );
-        // }
-        // _ => {}
+        //         self.set("Hash Weight", TheValue::FloatRange(0.0, 0.0..=1.0));
+        //     }
+        //     _ => {}
         // }
     }
 
@@ -231,6 +209,7 @@ impl MaterialFXNode {
                 params.push(coll.get_f32_default("Steps", 0.0));
                 params.push(coll.get_i32_default("Mortar", 0) as f32);
                 params.push(coll.get_f32_default("Mortar Sub", 0.05));
+                params.push(coll.get_f32_default("Hash Weight", 0.0));
             }
             MaterialFXNodeRole::Noise2D => {
                 params.push(coll.get_f32_default("UV Scale X", 1.0));
@@ -456,7 +435,7 @@ impl MaterialFXNode {
                         hit.mat.base_color.y = color.g;
                         hit.mat.base_color.z = color.b;
                         if let Some(noise) = hit.noise {
-                            let hash = if hit.hash != 1.0 {
+                            let hash = if hit.hash != 0.0 {
                                 hit.hash * 2.0 - 1.0
                             } else {
                                 0.0

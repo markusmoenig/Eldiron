@@ -186,17 +186,6 @@ impl ModelFXEditor {
 
         canvas.set_top(toolbar_canvas);
 
-        // ModelFX Settings (Right)
-
-        let mut settings_canvas = TheCanvas::default();
-
-        let mut text_layout = TheTextLayout::new(TheId::named("ModelFX Settings"));
-        //text_layout.set_fixed_text_width(90);
-        text_layout.limiter_mut().set_max_width(248);
-        settings_canvas.set_layout(text_layout);
-
-        canvas.set_right(settings_canvas);
-
         // - ModelFX View
 
         let mut modelfx_stack = TheStackLayout::new(TheId::named("ModelFX Stack"));
@@ -930,6 +919,7 @@ impl ModelFXEditor {
         self.palette_indices.clear();
 
         let mut collection: Option<TheCollection> = None;
+        //let mut node_name = String::new();
 
         if let Some(curr_geo_node) = server_ctx.curr_geo_node {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -937,13 +927,19 @@ impl ModelFXEditor {
                     collection = Some(geo_obj.nodes[index].collection());
                 }
             }
+            //node_name = curr_geo_node.d
         } else if let Some(geo) = self.get_geo_node(ui) {
             collection = Some(geo.collection());
         }
 
         if let Some(collection) = collection {
-            if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
+            if let Some(text_layout) = ui.get_text_layout("Node Settings") {
                 text_layout.clear();
+
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Show Node Settings"),
+                    TheValue::Text("Geometry Node".to_string()),
+                ));
 
                 for (name, value) in &collection.keys {
                     if let TheValue::FloatRange(value, range) = value {
@@ -997,7 +993,7 @@ impl ModelFXEditor {
                 }
                 ctx.ui.relayout = true;
             }
-        } else if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
+        } else if let Some(text_layout) = ui.get_text_layout("Node Settings") {
             text_layout.clear();
         }
     }
@@ -1007,10 +1003,15 @@ impl ModelFXEditor {
         server_ctx: &mut ServerContext,
         project: &mut Project,
         ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
     ) {
-        if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
+        if let Some(text_layout) = ui.get_text_layout("Node Settings") {
             text_layout.clear();
+
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Show Node Settings"),
+                TheValue::Text("Material".to_string()),
+            ));
 
             // let mut add_button = TheTraybarButton::new(TheId::named("MaterialFX Add"));
             // add_button.set_text("New Material".to_string());
@@ -1047,8 +1048,14 @@ impl ModelFXEditor {
 
                     let collection = material.nodes[selected_index].collection();
 
-                    if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
+                    if let Some(text_layout) = ui.get_text_layout("Node Settings") {
                         text_layout.clear();
+
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Show Node Settings"),
+                            TheValue::Text("Material Node".to_string()),
+                        ));
+
                         for (name, value) in &collection.keys {
                             if let TheValue::Text(text) = value {
                                 let mut edit = TheTextLineEdit::new(TheId::named(
@@ -1116,7 +1123,7 @@ impl ModelFXEditor {
                 //     );
                 // }
             }
-        } else if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
+        } else if let Some(text_layout) = ui.get_text_layout("Node Settings") {
             text_layout.clear();
         }
     }

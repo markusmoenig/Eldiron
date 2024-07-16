@@ -12,7 +12,7 @@ pub enum SidebarMode {
     Module,
     Screen,
     Asset,
-    Model,
+    Node,
     Debug,
     Palette,
 }
@@ -92,9 +92,9 @@ impl Sidebar {
             "Manage assets in the asset library, such as images, sounds, and fonts.",
         );
 
-        // let mut model_sectionbar_button = TheSectionbarButton::new(TheId::named("Model Section"));
-        // model_sectionbar_button.set_text("Model".to_string());
-        // model_sectionbar_button.set_status_text("Add and manage models in the model library.");
+        let mut node_sectionbar_button = TheSectionbarButton::new(TheId::named("Node Section"));
+        node_sectionbar_button.set_text("Node".to_string());
+        node_sectionbar_button.set_status_text("The UI of the currently selected node.");
 
         let mut debug_sectionbar_button = TheSectionbarButton::new(TheId::named("Debug Section"));
         debug_sectionbar_button.set_text("Debug".to_string());
@@ -116,7 +116,7 @@ impl Sidebar {
         vlayout.add_widget(Box::new(module_sectionbar_button));
         vlayout.add_widget(Box::new(screen_sectionbar_button));
         vlayout.add_widget(Box::new(asset_sectionbar_button));
-        //vlayout.add_widget(Box::new(model_sectionbar_button));
+        vlayout.add_widget(Box::new(node_sectionbar_button));
         vlayout.add_widget(Box::new(debug_sectionbar_button));
         vlayout.add_widget(Box::new(palette_sectionbar_button));
         vlayout.set_margin(vec4i(5, 10, 5, 5));
@@ -693,8 +693,17 @@ impl Sidebar {
 
         stack_layout.add_canvas(asset_canvas);
 
-        // Model
+        // Node UI
 
+        let mut node_ui_canvas = TheCanvas::default();
+
+        let mut text_layout = TheTextLayout::new(TheId::named("Node Settings"));
+        //text_layout.set_fixed_text_width(90);
+        text_layout.limiter_mut().set_max_width(self.width);
+        text_layout.set_fixed_text_width(100);
+        node_ui_canvas.set_layout(text_layout);
+
+        /*
         let mut model_canvas = TheCanvas::default();
 
         let mut rgba_model_canvas = TheCanvas::default();
@@ -731,8 +740,9 @@ impl Sidebar {
         rgba_model_canvas.set_bottom(toolbar_canvas);
         model_canvas.set_center(rgba_model_canvas);
         model_canvas.set_bottom(model_preview_canvas);
+        */
 
-        stack_layout.add_canvas(model_canvas);
+        stack_layout.add_canvas(node_ui_canvas);
 
         // Debug
 
@@ -831,9 +841,29 @@ impl Sidebar {
             TheEvent::Resize => {
                 ctx.ui.redraw_all = true;
             }
-            TheEvent::Custom(id, _) => {
+            TheEvent::Custom(id, value) => {
                 if id.name == "Update Tiles" {
                     self.update_tiles(ui, ctx, project, server, client);
+                }
+                if id.name == "Show Node Settings" {
+                    self.deselect_sections_buttons(ui, "Node Section".to_string());
+                    self.select_section_button(ui, "Node Section".to_string());
+
+                    if let TheValue::Text(text) = value {
+                        if let Some(widget) = ui
+                            .canvas
+                            .get_widget(Some(&"Switchbar Section Header".into()), None)
+                        {
+                            widget.set_value(TheValue::Text(text.clone()));
+                        }
+                    }
+
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Node;
+
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        self.stack_layout_id.clone(),
+                        SidebarMode::Node as usize,
+                    ));
                 }
             }
             TheEvent::PaletteIndexChanged(_, index) => {
@@ -2156,31 +2186,22 @@ impl Sidebar {
                         SidebarMode::Asset as usize,
                     ));
                     redraw = true;
-                } else if id.name == "Model Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Node Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
                     {
-                        widget.set_value(TheValue::Text("Model".to_string()));
+                        widget.set_value(TheValue::Text("Node".to_string()));
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Model;
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Node;
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
-                        SidebarMode::Model as usize,
+                        SidebarMode::Node as usize,
                     ));
-
-                    // MODELFXEDITOR
-                    //     .lock()
-                    //     .unwrap()
-                    //     .render_preview(ui, &project.palette);
-                    // MODELFXEDITOR
-                    //     .lock()
-                    //     .unwrap()
-                    //     .redraw_modelfx_library(project, ui, ctx);
 
                     redraw = true;
                 } else if id.name == "Debug Section" && *state == TheWidgetState::Selected {
@@ -3296,6 +3317,16 @@ impl Sidebar {
             for w in layout.widgets() {
                 if !w.id().name.starts_with(&except) {
                     w.set_state(TheWidgetState::None);
+                }
+            }
+        }
+    }
+
+    pub fn select_section_button(&mut self, ui: &mut TheUI, name: String) {
+        if let Some(layout) = ui.canvas.get_layout(Some(&"Section Buttons".into()), None) {
+            for w in layout.widgets() {
+                if w.id().name.starts_with(&name) {
+                    w.set_state(TheWidgetState::Selected);
                 }
             }
         }

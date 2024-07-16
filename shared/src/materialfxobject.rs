@@ -181,6 +181,7 @@ impl MaterialFXObject {
         let mut extrude_rounding = 0.0;
         let mut extrude_mortar = false;
         let mut extrude_mortar_sub = 0.0;
+        let mut extrude_hash_weight = 0.0;
 
         if has_geo_trail && !mat_obj_params.is_empty() {
             // When we have a material fill in the params
@@ -188,10 +189,15 @@ impl MaterialFXObject {
             extrude_rounding = mat_obj_params[0][1];
             extrude_mortar = mat_obj_params[0][4] as i32 == 1;
             extrude_mortar_sub = mat_obj_params[0][5];
+            extrude_hash_weight = mat_obj_params[0][6];
         }
 
         if let Some(noise) = hit.noise {
-            extrude_add += ((noise * 2.) - 1.0) * hit.noise_scale;
+            extrude_add += (((noise * 2.) - 1.0) + hit.hash) * hit.noise_scale;
+        }
+
+        if has_geo_trail && hit.interior_distance < PATTERN2D_DISTANCE_BORDER {
+            extrude_add += hit.hash * extrude_hash_weight;
         }
 
         match hit.extrusion {
