@@ -86,7 +86,7 @@ impl ModelFXEditor {
         material_button.set_context_menu(Some(TheContextMenu {
             items: vec![
                 TheContextMenuItem::new_submenu(
-                    "Geometry".to_string(),
+                    "Patterns".to_string(),
                     TheId::named("Extrusion Patterns"),
                     TheContextMenu {
                         items: vec![
@@ -94,33 +94,23 @@ impl ModelFXEditor {
                                 "Box Subdivision".to_string(),
                                 TheId::named("Box Subdivision"),
                             ),
-                            TheContextMenuItem::new("Tiles".to_string(), TheId::named("Tiles")),
+                            TheContextMenuItem::new(
+                                "Bricks & Tiles".to_string(),
+                                TheId::named("Bricks"),
+                            ),
+                            //TheContextMenuItem::new("Tiles".to_string(), TheId::named("Tiles")),
                         ],
                         ..Default::default()
                     },
                 ),
                 TheContextMenuItem::new_submenu(
-                    "Patterns".to_string(),
+                    "Utility".to_string(),
                     TheId::named("MaterialFX Nodes Patterns"),
                     TheContextMenu {
-                        items: vec![
-                            TheContextMenuItem::new(
-                                "Bricks & Tiles".to_string(),
-                                TheId::named("Bricks"),
-                            ),
-                            // TheContextMenuItem::new(
-                            //     "Steepness".to_string(),
-                            //     TheId::named("Steepness"),
-                            // ),
-                            // TheContextMenuItem::new(
-                            //     "Subdivide".to_string(),
-                            //     TheId::named("Subdivide"),
-                            // ),
-                            TheContextMenuItem::new(
-                                "Distance".to_string(),
-                                TheId::named("Distance"),
-                            ),
-                        ],
+                        items: vec![TheContextMenuItem::new(
+                            "Distance".to_string(),
+                            TheId::named("Distance"),
+                        )],
                         ..Default::default()
                     },
                 ),

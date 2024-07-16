@@ -38,6 +38,8 @@ pub enum GeoFXNodeRole {
     TopWall,
     RightWall,
     BottomWall,
+    MiddleWallH,
+    MiddleWallV,
     BendWallNW,
     BendWallNE,
     BendWallSW,
@@ -115,6 +117,28 @@ impl GeoFXNode {
                     TheValue::TextList(0, vec![str!("Normal"), str!("Full Thickness")]),
                 );
             }
+            MiddleWallH => {
+                coll.set("Pos X", TheValue::Float(0.5));
+                coll.set("Pos Y", TheValue::Float(0.5));
+                coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
+                coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
+                coll.set(
+                    "2D Mode",
+                    TheValue::TextList(0, vec![str!("Normal"), str!("Full Thickness")]),
+                );
+            }
+            MiddleWallV => {
+                coll.set("Pos X", TheValue::Float(0.5));
+                coll.set("Pos Y", TheValue::Float(0.5));
+                coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
+                coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
+                coll.set(
+                    "2D Mode",
+                    TheValue::TextList(0, vec![str!("Normal"), str!("Full Thickness")]),
+                );
+            }
             BendWallNW | BendWallNE | BendWallSW | BendWallSE => {
                 coll.set("Pos X", TheValue::Float(0.5));
                 coll.set("Pos Y", TheValue::Float(0.5));
@@ -156,6 +180,8 @@ impl GeoFXNode {
             Self::new(GeoFXNodeRole::TopWall),
             Self::new(GeoFXNodeRole::RightWall),
             Self::new(GeoFXNodeRole::BottomWall),
+            Self::new(GeoFXNodeRole::MiddleWallH),
+            Self::new(GeoFXNodeRole::MiddleWallV),
             Self::new(GeoFXNodeRole::BendWallNW),
             Self::new(GeoFXNodeRole::BendWallNE),
             Self::new(GeoFXNodeRole::BendWallSW),
@@ -215,7 +241,7 @@ impl GeoFXNode {
                     params.push(coll.get_f32_default("Height", 1.0));
                     params.push(coll.get_f32_default("Hole", 0.0));
                 }
-                LeftWall | TopWall | RightWall | BottomWall => {
+                LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
                     params.push(coll.get_f32_default("Thickness", 0.2));
                     params.push(coll.get_f32_default("Length", 1.0) / 2.0 + 0.1);
                     params.push(coll.get_f32_default("Height", 1.0));
@@ -329,6 +355,34 @@ impl GeoFXNode {
 
                     let mut pos = self.position(&coll) * scale;
                     pos.y = pos.y.floor() + 1.0 - thick.fract() / 2.0;
+
+                    return sdf_box2d(p, pos, len, thick);
+                }
+                MiddleWallH => {
+                    let t = if coll.get_i32_default("2D Mode", 0) == 1 {
+                        1.0
+                    } else {
+                        coll.get_f32_default("Thickness", 0.2)
+                    };
+
+                    let thick = t * scale;
+                    let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
+
+                    let pos = self.position(&coll) * scale;
+
+                    return sdf_box2d(p, pos, thick, len);
+                }
+                MiddleWallV => {
+                    let t = if coll.get_i32_default("2D Mode", 0) == 1 {
+                        1.0
+                    } else {
+                        coll.get_f32_default("Thickness", 0.2)
+                    };
+
+                    let thick = t * scale;
+                    let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
+
+                    let pos = self.position(&coll) * scale;
 
                     return sdf_box2d(p, pos, len, thick);
                 }
@@ -498,7 +552,7 @@ impl GeoFXNode {
                 if let Some(hit) = hit {
                     hit.mat.base_color = vec3f(value, value, value);
                     hit.value = value;
-                    hit.eps = 0.15;
+                    //hit.eps = 0.001; //0.15;
                 }
                 p.y - value * 0.05
             }
@@ -638,6 +692,64 @@ impl GeoFXNode {
                         0.0,
                         pos.y.floor() + 1.0 - hit.extrusion_length.fract() / 2.0,
                     );
+                }
+
+                d
+            }
+            MiddleWallH => {
+                let thick = params[2];
+                let len = params[3];
+                let mut height = params[4];
+
+                if let Some(hit) = hit {
+                    if let Some(noise) = hit.noise {
+                        height += ((noise * 2.) - 1.0) * hit.noise_scale;
+                    }
+                }
+
+                let pos = vec2f(params[0], params[1]);
+                let d = sdf_box2d(
+                    vec2f(p.z, p.y),
+                    vec2f(pos.y, height / 2.0),
+                    len,
+                    height / 2.0,
+                );
+
+                if let Some(hit) = hit {
+                    hit.pattern_pos = vec2f(p.z, p.y);
+                    hit.extrusion = GeoFXNodeExtrusion::X;
+                    hit.extrusion_length = thick;
+                    hit.interior_distance = d;
+                    hit.hit_point = p - vec3f(pos.x, 0.0, 0.0);
+                }
+
+                d
+            }
+            MiddleWallV => {
+                let thick = params[2];
+                let len = params[3];
+                let mut height = params[4];
+
+                if let Some(hit) = hit {
+                    if let Some(noise) = hit.noise {
+                        height += ((noise * 2.) - 1.0) * hit.noise_scale;
+                    }
+                }
+
+                let pos = vec2f(params[0], params[1]);
+                let d = sdf_box2d(
+                    vec2f(p.x, p.y),
+                    vec2f(pos.x, height / 2.0),
+                    len,
+                    height / 2.0,
+                );
+
+                if let Some(hit) = hit {
+                    hit.pattern_pos = vec2f(p.x, p.y);
+                    hit.extrusion = GeoFXNodeExtrusion::Z;
+                    hit.extrusion_length = thick;
+                    hit.interior_distance = d;
+                    hit.hit_point = p - vec3f(0.0, 0.0, pos.y);
                 }
 
                 d

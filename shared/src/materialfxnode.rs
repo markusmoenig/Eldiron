@@ -219,7 +219,7 @@ impl MaterialFXNode {
             }
             MaterialFXNodeRole::Material => {
                 params.push(coll.get_i32_default("Color", 0) as f32);
-                params.push(coll.get_f32_default("Rougness", 0.5));
+                params.push(coll.get_f32_default("Roughness", 0.5));
                 params.push(coll.get_f32_default("Metallic", 0.0));
                 params.push(coll.get_f32_default("Anisotropic", 0.0));
                 params.push(coll.get_f32_default("Subsurface", 0.0));
@@ -588,18 +588,32 @@ impl MaterialFXNode {
 
     pub fn geometry(&self, hit: &mut Hit, params: &[f32]) -> Option<u8> {
         #[allow(clippy::single_match)]
-        match self.role {
+        match &self.role {
+            Brick => {
+                if hit.interior_distance < 0.0 || hit.two_d {
+                    let p = hit.pattern_pos; // / (5.0);
+                    let d = bricks_geo(p, hit, params);
+                    hit.interior_distance_mortar = Some(hit.interior_distance);
+                    hit.interior_distance = d;
+                } else {
+                    hit.interior_distance_mortar = Some(hit.interior_distance);
+                }
+            }
             BoxSubdivision => {
-                let scale = params[0];
-                let gap = params[1];
-                let rotation = params[2];
-                let rounding = params[3];
+                if hit.interior_distance < 0.0 || hit.two_d {
+                    let scale = params[0];
+                    let gap = params[1];
+                    let rotation = params[2];
+                    let rounding = params[3];
 
-                let p = hit.pattern_pos / (5.0 * scale);
-                let rc = box_divide(p, gap, rotation, rounding);
-                hit.interior_distance_mortar = Some(hit.interior_distance);
-                hit.interior_distance = rc.0;
-                hit.hash = rc.1;
+                    let p = hit.pattern_pos / (5.0 * scale);
+                    let rc = box_divide(p, gap, rotation, rounding);
+                    hit.interior_distance_mortar = Some(hit.interior_distance);
+                    hit.interior_distance = rc.0;
+                    hit.hash = rc.1;
+                } else {
+                    hit.interior_distance_mortar = Some(hit.interior_distance);
+                }
             }
             Tiles => {
                 let size = params[0];

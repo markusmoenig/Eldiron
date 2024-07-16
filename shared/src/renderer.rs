@@ -607,9 +607,9 @@ impl Renderer {
                             }
 
                             let lro = ray.at(dist);
-
                             let r = Ray::new(lro, ray.d);
-                            let mut t = 0.01;
+
+                            let mut t = 0.001;
 
                             for _ in 0..20 {
                                 // Max distance a ray can travel in a unit cube
@@ -640,7 +640,7 @@ impl Renderer {
                                     );
                                 }
 
-                                if d.0.abs() < h.eps && dist + t < hit.distance {
+                                if d.0 < h.eps && dist + t < hit.distance {
                                     hit.clone_from(&h);
                                     hit.hit_point = p;
 

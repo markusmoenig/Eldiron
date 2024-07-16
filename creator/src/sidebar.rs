@@ -698,9 +698,10 @@ impl Sidebar {
         let mut node_ui_canvas = TheCanvas::default();
 
         let mut text_layout = TheTextLayout::new(TheId::named("Node Settings"));
-        //text_layout.set_fixed_text_width(90);
         text_layout.limiter_mut().set_max_width(self.width);
-        text_layout.set_fixed_text_width(100);
+        //text_layout.set_fixed_text_width(110);
+        text_layout.set_text_margin(20);
+        text_layout.set_text_align(TheHorizontalAlign::Right);
         node_ui_canvas.set_layout(text_layout);
 
         /*

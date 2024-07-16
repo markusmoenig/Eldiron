@@ -1,6 +1,8 @@
 v 0.8.11
 --------
 
+- Moved node settings into a new node section area.
+- New "Hash Weight" Geometry node setting which adjusts hash extrusion strength.
 - Bugfix setting tilemap grid size.
 - Bugfixes regarding character and item creation.
 - Render button which displays tiles left to render.

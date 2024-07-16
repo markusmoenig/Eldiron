@@ -346,7 +346,6 @@ impl TheTrait for Editor {
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
 
         // Startup the prerender thread.
-        //VOXELTHREAD.lock().unwrap().startup();
         PRERENDERTHREAD.lock().unwrap().startup();
     }
 
