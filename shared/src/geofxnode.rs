@@ -305,11 +305,12 @@ impl GeoFXNode {
                         coll.get_f32_default("Thickness", 0.2)
                     };
 
-                    let thick = t * scale;
+                    let thick = (t / 2.0) * scale + 0.1;
                     let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
 
-                    let mut pos = self.position(&coll) * scale;
-                    pos.x = pos.x.floor() + thick.fract() / 2.0;
+                    let mut pos = self.position(&coll);
+                    pos.x = pos.x.floor() + t / 2.0;
+                    pos *= scale;
 
                     return sdf_box2d(p, pos, thick, len);
                 }
@@ -320,11 +321,12 @@ impl GeoFXNode {
                         coll.get_f32_default("Thickness", 0.2)
                     };
 
-                    let thick = t * scale;
+                    let thick = (t / 2.0) * scale + 0.1;
                     let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
 
-                    let mut pos = self.position(&coll) * scale;
-                    pos.y = pos.y.floor() + thick.fract() / 2.0;
+                    let mut pos = self.position(&coll);
+                    pos.y = pos.y.floor() + t / 2.0;
+                    pos *= scale;
 
                     return sdf_box2d(p, pos, len, thick);
                 }
@@ -335,11 +337,12 @@ impl GeoFXNode {
                         coll.get_f32_default("Thickness", 0.2)
                     };
 
-                    let thick = t * scale;
+                    let thick = (t / 2.0) * scale + 0.1;
                     let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
 
-                    let mut pos = self.position(&coll) * scale;
-                    pos.x = pos.x.floor() + 1.0 - thick.fract() / 2.0;
+                    let mut pos = self.position(&coll);
+                    pos.x = pos.x.floor() + 1.0 - t / 2.0;
+                    pos *= scale;
 
                     return sdf_box2d(p, pos, thick, len);
                 }
@@ -350,27 +353,14 @@ impl GeoFXNode {
                         coll.get_f32_default("Thickness", 0.2)
                     };
 
-                    let thick = t * scale;
+                    let thick = (t / 2.0) * scale + 0.1;
                     let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
 
-                    let mut pos = self.position(&coll) * scale;
-                    pos.y = pos.y.floor() + 1.0 - thick.fract() / 2.0;
+                    let mut pos = self.position(&coll);
+                    pos.y = pos.y.floor() + 1.0 - t / 2.0;
+                    pos *= scale;
 
                     return sdf_box2d(p, pos, len, thick);
-                }
-                MiddleWallH => {
-                    let t = if coll.get_i32_default("2D Mode", 0) == 1 {
-                        1.0
-                    } else {
-                        coll.get_f32_default("Thickness", 0.2)
-                    };
-
-                    let thick = t * scale;
-                    let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
-
-                    let pos = self.position(&coll) * scale;
-
-                    return sdf_box2d(p, pos, thick, len);
                 }
                 MiddleWallV => {
                     let t = if coll.get_i32_default("2D Mode", 0) == 1 {
@@ -379,7 +369,21 @@ impl GeoFXNode {
                         coll.get_f32_default("Thickness", 0.2)
                     };
 
-                    let thick = t * scale;
+                    let thick = t * scale / 2.0 + 0.1;
+                    let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
+
+                    let pos = self.position(&coll) * scale;
+
+                    return sdf_box2d(p, pos, thick, len);
+                }
+                MiddleWallH => {
+                    let t = if coll.get_i32_default("2D Mode", 0) == 1 {
+                        1.0
+                    } else {
+                        coll.get_f32_default("Thickness", 0.2)
+                    };
+
+                    let thick = t * scale / 2.0 + 0.1;
                     let len = coll.get_f32_default("Length", 1.0) * scale / 2.0 + 0.1;
 
                     let pos = self.position(&coll) * scale;
@@ -387,7 +391,7 @@ impl GeoFXNode {
                     return sdf_box2d(p, pos, len, thick);
                 }
                 BendWallNW => {
-                    let thick = coll.get_f32_default("Thickness", 0.2) * scale;
+                    let thick = coll.get_f32_default("Thickness", 0.2) * scale / 2.0 + 0.1;
                     let round = coll.get_f32_default("Rounding", 0.3) * scale;
 
                     let pos = self.position(&coll) * scale + 1.0 * scale;
@@ -406,7 +410,7 @@ impl GeoFXNode {
                     return d.abs() - thick;
                 }
                 BendWallNE => {
-                    let thick = coll.get_f32_default("Thickness", 0.2) * scale;
+                    let thick = coll.get_f32_default("Thickness", 0.2) * scale / 2.0 + 0.1;
                     let round = coll.get_f32_default("Rounding", 0.3) * scale;
 
                     let mut pos = self.position(&coll) * scale;
@@ -431,7 +435,7 @@ impl GeoFXNode {
                     return d.abs() - thick;
                 }
                 BendWallSW => {
-                    let thick = coll.get_f32_default("Thickness", 0.2) * scale;
+                    let thick = coll.get_f32_default("Thickness", 0.2) * scale / 2.0 + 0.1;
                     let round = coll.get_f32_default("Rounding", 0.3) * scale;
 
                     let mut pos = self.position(&coll) * scale;
@@ -455,7 +459,7 @@ impl GeoFXNode {
                     return d.abs() - thick;
                 }
                 BendWallSE => {
-                    let thick = coll.get_f32_default("Thickness", 0.2) * scale;
+                    let thick = coll.get_f32_default("Thickness", 0.2) * scale / 2.0 + 0.1;
                     let round = coll.get_f32_default("Rounding", 0.3) * scale;
 
                     let mut pos = self.position(&coll) * scale;
@@ -576,7 +580,7 @@ impl GeoFXNode {
                 d
             }
             LeftWall => {
-                let thick = params[2];
+                let thick = params[2] / 2.0;
                 let len = params[3];
                 let mut height = params[4];
 
@@ -599,13 +603,13 @@ impl GeoFXNode {
                     hit.extrusion = GeoFXNodeExtrusion::X;
                     hit.extrusion_length = thick;
                     hit.interior_distance = d;
-                    hit.hit_point = p - vec3f(pos.x.floor() + thick.fract() / 2.0, 0.0, 0.0);
+                    hit.hit_point = p - vec3f(pos.x.floor() + thick.fract(), 0.0, 0.0);
                 }
 
                 d
             }
             TopWall => {
-                let thick = params[2];
+                let thick = params[2] / 2.0;
                 let len = params[3];
                 let mut height = params[4];
 
@@ -629,13 +633,13 @@ impl GeoFXNode {
                     hit.extrusion_length = thick;
                     hit.interior_distance = d;
                     hit.hit_point =
-                        p - vec3f(0.0, 0.0, pos.y.floor() + hit.extrusion_length.fract() / 2.0);
+                        p - vec3f(0.0, 0.0, pos.y.floor() + hit.extrusion_length.fract());
                 }
 
                 d
             }
             RightWall => {
-                let thick = params[2];
+                let thick = params[2] / 2.0;
                 let len = params[3];
                 let mut height = params[4];
 
@@ -658,13 +662,13 @@ impl GeoFXNode {
                     hit.extrusion = GeoFXNodeExtrusion::X;
                     hit.extrusion_length = thick;
                     hit.interior_distance = d;
-                    hit.hit_point = p - vec3f(pos.x.floor() + 1.0 - thick.fract() / 2.0, 0.0, 0.0);
+                    hit.hit_point = p - vec3f(pos.x.floor() + 1.0 - thick.fract(), 0.0, 0.0);
                 }
 
                 d
             }
             BottomWall => {
-                let thick = params[2];
+                let thick = params[2] / 2.0;
                 let len = params[3];
                 let mut height = params[4];
 
@@ -687,17 +691,14 @@ impl GeoFXNode {
                     hit.extrusion = GeoFXNodeExtrusion::Z;
                     hit.extrusion_length = thick;
                     hit.interior_distance = d;
-                    hit.hit_point = p - vec3f(
-                        0.0,
-                        0.0,
-                        pos.y.floor() + 1.0 - hit.extrusion_length.fract() / 2.0,
-                    );
+                    hit.hit_point =
+                        p - vec3f(0.0, 0.0, pos.y.floor() + 1.0 - hit.extrusion_length.fract());
                 }
 
                 d
             }
-            MiddleWallH => {
-                let thick = params[2];
+            MiddleWallV => {
+                let thick = params[2] / 2.0;
                 let len = params[3];
                 let mut height = params[4];
 
@@ -725,8 +726,8 @@ impl GeoFXNode {
 
                 d
             }
-            MiddleWallV => {
-                let thick = params[2];
+            MiddleWallH => {
+                let thick = params[2] / 2.0;
                 let len = params[3];
                 let mut height = params[4];
 
@@ -755,7 +756,7 @@ impl GeoFXNode {
                 d
             }
             BendWallNW => {
-                let thick = params[2];
+                let thick = params[2] / 2.0;
                 let round = params[3];
                 let height = params[4];
 
@@ -778,7 +779,7 @@ impl GeoFXNode {
                 max(-plane, d)
             }
             BendWallNE => {
-                let thick = params[2];
+                let thick = params[2] / 2.0;
                 let round = params[3];
                 let height = params[4];
 
@@ -801,7 +802,7 @@ impl GeoFXNode {
                 max(-plane, d)
             }
             BendWallSW => {
-                let thick = params[2];
+                let thick = params[2] / 2.0;
                 let round = params[3];
                 let height = params[4];
 
@@ -824,7 +825,7 @@ impl GeoFXNode {
                 max(-plane, d)
             }
             BendWallSE => {
-                let thick = params[2];
+                let thick = params[2] / 2.0;
                 let round = params[3];
                 let height = params[4];
 

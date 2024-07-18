@@ -193,11 +193,11 @@ impl MaterialFXObject {
         }
 
         if let Some(noise) = hit.noise {
-            extrude_add -= ((noise * 2.) - 1.0) * hit.noise_scale;
+            extrude_add += ((noise * 2.) - 1.0) * hit.noise_scale;
         }
 
         if has_geo_trail && hit.interior_distance < PATTERN2D_DISTANCE_BORDER {
-            extrude_add -= hit.hash * extrude_hash_weight;
+            extrude_add += hit.hash * extrude_hash_weight;
         }
 
         match hit.extrusion {

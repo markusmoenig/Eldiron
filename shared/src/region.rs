@@ -63,6 +63,9 @@ pub struct Region {
     pub items: FxHashMap<Uuid, Item>,
 
     #[serde(default)]
+    pub heightmap: Heightmap,
+
+    #[serde(default)]
     pub prerendered: PreRendered,
 
     pub width: i32,
@@ -120,6 +123,8 @@ impl Region {
             areas: FxHashMap::default(),
             characters: FxHashMap::default(),
             items: FxHashMap::default(),
+
+            heightmap: Heightmap::default(),
 
             prerendered: PreRendered::default(),
 
