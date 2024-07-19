@@ -579,7 +579,7 @@ impl Renderer {
             let terrain_hit = ray.at(terrain_dist);
             let tile_id = vec2i(terrain_hit.x.floor() as i32, terrain_hit.z.floor() as i32);
             let key = Vec3i::new(tile_id.x, 0, tile_id.y);
-            let mut uv = vec2f(terrain_hit.x.fract(), terrain_hit.z.fract());
+            //let uv = vec2f(terrain_hit.x.fract(), terrain_hit.z.fract());
 
             hit.normal = region
                 .heightmap

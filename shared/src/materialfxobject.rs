@@ -618,10 +618,10 @@ impl MaterialFXObject {
 
         let time = TheTime::default();
 
-        let mut geo_object = GeoFXObject::default();
-        let geo_node = GeoFXNode::new(GeoFXNodeRole::Floor);
+        //let mut geo_object = GeoFXObject::default();
+        // let geo_node = GeoFXNode::new(GeoFXNodeRole::Floor);
 
-        geo_object.nodes.push(geo_node);
+        // geo_object.nodes.push(geo_node);
 
         let noise2d = MaterialFXNode::new(MaterialFXNodeRole::Noise2D);
         let noise2d_node_params = noise2d.load_parameters(&time);
@@ -655,7 +655,7 @@ impl MaterialFXObject {
                     noise2d.compute(&mut hit, palette, textures, vec![], &noise2d_node_params);
                     hit.value = hit.noise.unwrap();
                     hit.noise = None;
-                    self.get_distance(&time, hit.uv, &mut hit, &geo_object, 1.0, &mat_obj_params);
+                    //self.get_distance(&time, hit.uv, &mut hit, &geo_object, 1.0, &mat_obj_params);
                     self.compute(&mut hit, palette, textures, &mat_obj_params);
 
                     color.x = hit.mat.base_color.x;

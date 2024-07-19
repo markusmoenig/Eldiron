@@ -31,8 +31,9 @@ pub enum GeoFXNodeFacing {
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum GeoFXNodeRole {
-    Ground,
-    Floor,
+    AddHeight,
+    RemoveHeight,
+    SetHeight,
     Column,
     LeftWall,
     TopWall,
@@ -61,17 +62,14 @@ impl GeoFXNode {
         let mut coll = TheCollection::named(str!("Geo"));
 
         match role {
-            Ground => {
-                coll.set("Pos X", TheValue::Float(0.5));
-                coll.set("Pos Y", TheValue::Float(0.5));
-                coll.set("UV Scale X", TheValue::FloatRange(1.0, 0.0..=10.0));
-                coll.set("UV Scale Y", TheValue::FloatRange(1.0, 0.0..=10.0));
-                coll.set("Octaves", TheValue::IntRange(5, 0..=5));
+            AddHeight => {
+                coll.set("Add Height", TheValue::Float(0.2));
             }
-            Floor => {
-                coll.set("Pos X", TheValue::Float(0.5));
-                coll.set("Pos Y", TheValue::Float(0.5));
-                coll.set("Height", TheValue::FloatRange(0.01, 0.001..=1.0));
+            RemoveHeight => {
+                coll.set("Remove Height", TheValue::Float(0.2));
+            }
+            SetHeight => {
+                coll.set("Height", TheValue::Float(0.0));
             }
             LeftWall => {
                 coll.set("Pos X", TheValue::Float(0.1));
@@ -174,8 +172,9 @@ impl GeoFXNode {
 
     pub fn nodes() -> Vec<Self> {
         vec![
-            Self::new(GeoFXNodeRole::Ground),
-            Self::new(GeoFXNodeRole::Floor),
+            Self::new(GeoFXNodeRole::AddHeight),
+            Self::new(GeoFXNodeRole::RemoveHeight),
+            Self::new(GeoFXNodeRole::SetHeight),
             Self::new(GeoFXNodeRole::LeftWall),
             Self::new(GeoFXNodeRole::TopWall),
             Self::new(GeoFXNodeRole::RightWall),
@@ -191,10 +190,12 @@ impl GeoFXNode {
         ]
     }
 
-    /// Returns the layer role (Ground, Wall etc) for this node.
+    /// Returns the layer role (RemoveHeightBrush, Wall etc) for this node.
     pub fn get_layer_role(&self) -> Layer2DRole {
         match self.role {
-            GeoFXNodeRole::Ground | GeoFXNodeRole::Floor => Layer2DRole::Ground,
+            GeoFXNodeRole::AddHeight | GeoFXNodeRole::RemoveHeight | GeoFXNodeRole::SetHeight => {
+                Layer2DRole::Ground
+            }
             _ => Layer2DRole::Wall,
         }
     }
@@ -228,14 +229,6 @@ impl GeoFXNode {
             params.push(coll.get_f32_default("Pos X", 0.0));
             params.push(coll.get_f32_default("Pos Y", 0.0));
             match self.role {
-                Ground => {
-                    params.push(coll.get_f32_default("UV Scale X", 1.0));
-                    params.push(coll.get_f32_default("UV Scale Y", 1.0));
-                    params.push(coll.get_i32_default("Octaves", 5) as f32);
-                }
-                Floor => {
-                    params.push(coll.get_f32_default("Height", 0.01));
-                }
                 Column => {
                     params.push(coll.get_f32_default("Radius", 0.4));
                     params.push(coll.get_f32_default("Height", 1.0));
@@ -256,6 +249,7 @@ impl GeoFXNode {
                     params.push(coll.get_i32_default("Align", 0) as f32);
                     params.push(coll.get_f32_default("Height", 1.0));
                 }
+                _ => {}
             }
         }
 
@@ -275,29 +269,6 @@ impl GeoFXNode {
             .get_collection_at(&TheTime::default(), str!("Geo"))
         {
             match self.role {
-                Ground => {
-                    if let Some(hit) = hit {
-                        let scale = vec2f(
-                            coll.get_f32_default("UV Scale X", 1.0),
-                            coll.get_f32_default("UV Scale Y", 1.0),
-                        );
-                        let octaves = coll.get_i32_default("Octaves", 5);
-                        let value = if hit.two_d {
-                            noise2d(&hit.global_uv, scale, octaves)
-                        } else {
-                            noise2d(&hit.uv, scale, octaves)
-                        };
-                        hit.mat.base_color = vec3f(value, value, value);
-                        hit.value = value;
-                    }
-                    return -0.001;
-                }
-                Floor => {
-                    let pos = self.position(&coll) * scale;
-                    let d = sdf_box2d(p, pos, 0.6 * scale, 0.6 * scale);
-
-                    return d;
-                }
                 LeftWall => {
                     let t = if coll.get_i32_default("2D Mode", 0) == 1 {
                         1.0
@@ -523,6 +494,7 @@ impl GeoFXNode {
 
                     return d;
                 }
+                _ => {}
             }
         }
 
@@ -550,35 +522,6 @@ impl GeoFXNode {
         }
 
         match self.role {
-            Ground => {
-                let uv = p.xz();
-                let value = noise2d(&uv, vec2f(params[2], params[3]), params[4] as i32);
-                if let Some(hit) = hit {
-                    hit.mat.base_color = vec3f(value, value, value);
-                    hit.value = value;
-                    //hit.eps = 0.001; //0.15;
-                }
-                p.y - value * 0.05
-            }
-            Floor => {
-                if params.len() < 2 {
-                    println!("Missing paramaters for {:?}", self.role);
-                }
-                let height = params[2];
-
-                let pos = vec2f(params[0], params[1]);
-                let d = sdf_box2d(vec2f(p.x, p.z), pos, 0.5, 0.5);
-
-                if let Some(hit) = hit {
-                    hit.pattern_pos = vec2f(p.x, p.z);
-                    hit.extrusion = GeoFXNodeExtrusion::Y;
-                    hit.extrusion_length = height;
-                    hit.interior_distance = d;
-                    hit.hit_point = p - vec3f(pos.x, 0.0, pos.y);
-                }
-
-                d
-            }
             LeftWall => {
                 let thick = params[2] / 2.0;
                 let len = params[3];
@@ -890,6 +833,43 @@ impl GeoFXNode {
 
                 d
             }
+            _ => f32::MAX,
+        }
+    }
+
+    /// For ground nodes which edit the heightmap.
+    pub fn heightmap_edit(&self, pos: &Vec2i, heightmap: &mut Heightmap) {
+        match &self.role {
+            GeoFXNodeRole::AddHeight => {
+                if let Some(coll) = self
+                    .timeline
+                    .get_collection_at(&TheTime::default(), str!("Geo"))
+                {
+                    let add = coll.get_f32_default("Add Height", 0.2);
+                    let height = heightmap.get_height(pos.x, pos.y);
+                    heightmap.set_height(pos.x, pos.y, height + add);
+                }
+            }
+            GeoFXNodeRole::RemoveHeight => {
+                if let Some(coll) = self
+                    .timeline
+                    .get_collection_at(&TheTime::default(), str!("Geo"))
+                {
+                    let add = coll.get_f32_default("Remove Height", 0.2);
+                    let height = heightmap.get_height(pos.x, pos.y);
+                    heightmap.set_height(pos.x, pos.y, height - add);
+                }
+            }
+            GeoFXNodeRole::SetHeight => {
+                if let Some(coll) = self
+                    .timeline
+                    .get_collection_at(&TheTime::default(), str!("Geo"))
+                {
+                    let value = coll.get_f32_default("Height", 0.0);
+                    heightmap.set_height(pos.x, pos.y, value);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -1015,21 +995,22 @@ impl GeoFXNode {
     }
 
     pub fn is_blocking(&self) -> bool {
-        match self.role {
-            Ground => false,
-            Floor => {
-                if let Some(coll) = self
-                    .timeline
-                    .get_collection_at(&TheTime::default(), str!("Geo"))
-                {
-                    let height = coll.get_f32_default("Height", 0.01);
-                    height > 0.3
-                } else {
-                    false
-                }
-            }
-            _ => true,
-        }
+        // match self.role {
+        //     RemoveHeightBrush => false,
+        //     AddHeightBrush => {
+        //         if let Some(coll) = self
+        //             .timeline
+        //             .get_collection_at(&TheTime::default(), str!("Geo"))
+        //         {
+        //             let height = coll.get_f32_default("Height", 0.01);
+        //             height > 0.3
+        //         } else {
+        //             false
+        //         }
+        //     }
+        //     _ => true,
+        // }
+        true
     }
 
     pub fn preview(
@@ -1088,30 +1069,22 @@ impl GeoFXNode {
 
                     if let Some(material) = material {
                         material.follow_geo_trail(&TheTime::default(), &mut hit, &mat_obj_params);
-                        if self.role != GeoFXNodeRole::Ground {
-                            if hit.interior_distance <= 0.01 {
-                                hit.value = 0.0;
-                            } else {
-                                hit.value = 1.0;
-                            }
+                        if hit.interior_distance <= 0.01 {
+                            hit.value = 0.0;
+                        } else {
+                            hit.value = 1.0;
                         }
                         material.compute(&mut hit, palette, tiles, &mat_obj_params);
                     };
 
                     let t = smoothstep(-0.04, 0.0, d);
 
-                    if self.role == GeoFXNodeRole::Ground {
-                        pixel.copy_from_slice(
-                            &TheColor::from_vec3f(hit.mat.base_color).to_u8_array(),
-                        );
+                    let color = if material.is_some() {
+                        TheColor::from_vec3f(hit.mat.base_color).to_u8_array()
                     } else {
-                        let color = if material.is_some() {
-                            TheColor::from_vec3f(hit.mat.base_color).to_u8_array()
-                        } else {
-                            [209, 209, 209, 255]
-                        };
-                        pixel.copy_from_slice(&mix_color(&color, &[81, 81, 81, 255], t));
-                    }
+                        [209, 209, 209, 255]
+                    };
+                    pixel.copy_from_slice(&mix_color(&color, &[81, 81, 81, 255], t));
                 }
             });
     }

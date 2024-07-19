@@ -7,6 +7,7 @@ use crate::editor::PRERENDERTHREAD;
 pub enum RegionUndoAtom {
     GeoFXObjectsDeletion(Vec<GeoFXObject>, Vec<Vec2i>),
     GeoFXObjectEdit(Uuid, Option<GeoFXObject>, Option<GeoFXObject>, Vec<Vec2i>),
+    HeightmapEdit(Heightmap, Heightmap, Vec<Vec2i>),
     RegionTileEdit(Vec2i, Option<RegionTile>, Option<RegionTile>),
 }
 
@@ -30,6 +31,13 @@ impl RegionUndoAtom {
                     region.geometry.remove(id);
                 }
                 region.update_geometry_areas();
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), Some(tiles.clone()));
+            }
+            RegionUndoAtom::HeightmapEdit(prev, _, tiles) => {
+                region.heightmap = prev.clone();
                 PRERENDERTHREAD
                     .lock()
                     .unwrap()
@@ -64,6 +72,13 @@ impl RegionUndoAtom {
                     region.geometry.remove(id);
                 }
                 region.update_geometry_areas();
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), Some(tiles.clone()));
+            }
+            RegionUndoAtom::HeightmapEdit(_, next, tiles) => {
+                region.heightmap = next.clone();
                 PRERENDERTHREAD
                     .lock()
                     .unwrap()

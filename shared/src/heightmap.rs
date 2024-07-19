@@ -1,9 +1,23 @@
 use crate::prelude::*;
 use theframework::prelude::*;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Copy)]
+pub enum HeightmapInterpolation {
+    Linear,
+    Smoothstep,
+    Step(f32),
+}
+
+use HeightmapInterpolation::*;
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct Heightmap {
+    #[serde(with = "vectorize")]
     data: FxHashMap<(i32, i32), f32>,
+    #[serde(with = "vectorize")]
+    materials: FxHashMap<(i32, i32), TheRGBBuffer>,
+    #[serde(with = "vectorize")]
+    interpolation: FxHashMap<(i32, i32), HeightmapInterpolation>,
 }
 
 impl Default for Heightmap {
@@ -16,6 +30,8 @@ impl Heightmap {
     pub fn new() -> Self {
         Self {
             data: FxHashMap::default(),
+            materials: FxHashMap::default(),
+            interpolation: FxHashMap::default(),
         }
     }
 
@@ -27,67 +43,54 @@ impl Heightmap {
         *self.data.get(&(x, y)).unwrap_or(&0.0)
     }
 
-    // fn cubic_interpolate(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
-    //     let a = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3;
-    //     let b = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
-    //     let c = -0.5 * p0 + 0.5 * p2;
-    //     let d = p1;
-    //     a * t * t * t + b * t * t + c * t + d
-    // }
+    pub fn set_interpolation(&mut self, x: i32, y: i32, inter: HeightmapInterpolation) {
+        self.interpolation.insert((x, y), inter);
+    }
 
-    // pub fn interpolate_height(&self, x: f32, y: f32) -> f32 {
-    //     let x0 = x.floor() as i32 - 1;
-    //     let y0 = y.floor() as i32 - 1;
+    pub fn get_interpolation(&self, x: i32, y: i32) -> HeightmapInterpolation {
+        *self.interpolation.get(&(x, y)).unwrap_or(&Linear)
+    }
 
-    //     let mut patch = [[0.0; 4]; 4];
-    //     for (j, row) in patch.iter_mut().enumerate() {
-    //         for (i, cell) in row.iter_mut().enumerate() {
-    //             *cell = self.get_height(x0 + i as i32, y0 + j as i32);
-    //         }
-    //     }
-
-    //     let tx = x - x.floor();
-    //     let ty = y - y.floor();
-
-    //     let mut col = [0.0; 4];
-    //     for (i, col_val) in col.iter_mut().enumerate() {
-    //         *col_val =
-    //             Self::cubic_interpolate(patch[0][i], patch[1][i], patch[2][i], patch[3][i], ty);
-    //     }
-    //     Self::cubic_interpolate(col[0], col[1], col[2], col[3], tx)
-    // }
+    #[inline(always)]
+    fn step_interpolate(value: f32, step_size: f32) -> f32 {
+        (value / step_size).floor() * step_size
+    }
 
     pub fn interpolate_height(&self, x: f32, y: f32) -> f32 {
-        // Get the base tile indices
         let x0 = x.floor() as i32;
         let x1 = x0 + 1;
         let y0 = y.floor() as i32;
         let y1 = y0 + 1;
 
-        // fn step_interpolate(value: f32, step_size: f32) -> f32 {
-        //     (value / step_size).floor() * step_size
-        // }
-        // Get the fractional parts
-
-        let frac_x = x - x.floor();
-        let frac_y = y - y.floor();
-
-        // let frac_x = smoothstep(0.0, 1.0, x - x.floor());
-        // let frac_y = smoothstep(0.0, 1.0, y - y.floor());
-
-        // let frac_x = step_interpolate(x - x0 as f32, 0.2);
-        // let frac_y = step_interpolate(y - y0 as f32, 0.2);
-
-        // Get the heights at the four corners
         let h00 = self.get_height(x0, y0);
         let h10 = self.get_height(x1, y0);
         let h01 = self.get_height(x0, y1);
         let h11 = self.get_height(x1, y1);
 
-        // Perform bilinear interpolation
-        let h0 = h00 * (1.0 - frac_x) + h10 * frac_x;
-        let h1 = h01 * (1.0 - frac_x) + h11 * frac_x;
-        h0 * (1.0 - frac_y) + h1 * frac_y
+        let tx = x - x0 as f32;
+        let ty = y - y0 as f32;
+
+        match self.get_interpolation(x0, y0) {
+            Linear => {
+                let h0 = h00 * (1.0 - tx) + h10 * tx;
+                let h1 = h01 * (1.0 - tx) + h11 * tx;
+                h0 * (1.0 - ty) + h1 * ty
+            }
+            Smoothstep => {
+                let tx = smoothstep(0.0, 1.0, tx);
+                let ty = smoothstep(0.0, 1.0, ty);
+                let h0 = h00 * (1.0 - tx) + h10 * tx;
+                let h1 = h01 * (1.0 - tx) + h11 * tx;
+                h0 * (1.0 - ty) + h1 * ty
+            }
+            Step(step_size) => {
+                let tx = Self::step_interpolate(tx, step_size);
+                let ty = Self::step_interpolate(ty, step_size);
+                let h0 = h00 * (1.0 - tx) + h10 * tx;
+                let h1 = h01 * (1.0 - tx) + h11 * tx;
+                h0 * (1.0 - ty) + h1 * ty
+            }
+        }
     }
 
     pub fn calculate_normal(&self, x: f32, y: f32, epsilon: f32) -> Vec3f {
