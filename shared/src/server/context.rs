@@ -39,6 +39,12 @@ pub struct ServerContext {
     /// The logged interactions of the characters.
     pub interactions: FxHashMap<Uuid, Vec<Interaction>>,
 
+    /// The currently selected tile
+    pub curr_tile_id: Option<Uuid>,
+
+    /// The currently selected layer role
+    pub curr_layer_role: Layer2DRole,
+
     /// The conceptual display range [0..1] of the 2D preview.
     /// Only relevent in Model view. 0 is full conceptual display. 1 is full detail.
     pub conceptual_display: Option<f32>,
@@ -78,6 +84,9 @@ impl ServerContext {
             show_fx_marker: false,
 
             interactions: FxHashMap::default(),
+
+            curr_tile_id: None,
+            curr_layer_role: Layer2DRole::Wall,
 
             conceptual_display: None,
 

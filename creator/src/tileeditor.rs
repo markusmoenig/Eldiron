@@ -818,6 +818,7 @@ impl TileEditor {
                 // An item in the tile list was selected
                 else if id.name == "Tilemap Tile" {
                     self.curr_tile_uuid = Some(id.uuid);
+                    server_ctx.curr_tile_id = Some(id.uuid);
 
                     if let Some(t) = TILEDRAWER.lock().unwrap().tiles.get(&id.uuid) {
                         if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
@@ -831,6 +832,8 @@ impl TileEditor {
                     server.update_tiles(project.extract_tiles());
                 } else if id.name == "Ground Icon" {
                     self.curr_layer_role = Layer2DRole::Ground;
+                    server_ctx.curr_layer_role = Layer2DRole::Ground;
+
                     self.set_icon_colors(ui);
                     server_ctx.show_fx_marker = false;
                     redraw = true;
@@ -850,6 +853,8 @@ impl TileEditor {
                     );
                 } else if id.name == "Wall Icon" {
                     self.curr_layer_role = Layer2DRole::Wall;
+                    server_ctx.curr_layer_role = Layer2DRole::Wall;
+
                     self.set_icon_colors(ui);
                     server_ctx.show_fx_marker = false;
                     redraw = true;
@@ -869,6 +874,8 @@ impl TileEditor {
                     );
                 } else if id.name == "Ceiling Icon" {
                     self.curr_layer_role = Layer2DRole::Ceiling;
+                    server_ctx.curr_layer_role = Layer2DRole::Ceiling;
+
                     self.set_icon_colors(ui);
                     server_ctx.show_fx_marker = false;
                     redraw = true;
@@ -1834,77 +1841,6 @@ impl TileEditor {
                 self.set_editor_group_index(EditorMode::Draw, ui, ctx);
             }
         } else if self.editor_mode == EditorMode::Draw {
-            if let Some(curr_tile_uuid) = self.curr_tile_uuid {
-                if TILEDRAWER
-                    .lock()
-                    .unwrap()
-                    .tiles
-                    .contains_key(&curr_tile_uuid)
-                {
-                    if self.curr_layer_role == Layer2DRole::FX {
-                        // Set the tile preview.
-                        if let Some(widget) = ui.get_widget("TileFX RGBA") {
-                            if let Some(tile_rgba) = widget.as_rgba_view() {
-                                if let Some(tile) = project
-                                    .extract_region_tile(server_ctx.curr_region, (coord.x, coord.y))
-                                {
-                                    let preview_size = TILEFXEDITOR.lock().unwrap().preview_size;
-                                    tile_rgba
-                                        .set_grid(Some(preview_size / tile.buffer[0].dim().width));
-                                    tile_rgba.set_buffer(
-                                        tile.buffer[0].scaled(preview_size, preview_size),
-                                    );
-                                }
-                            }
-                        }
-                    }
-
-                    let palette = project.palette.clone();
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if self.curr_layer_role == Layer2DRole::FX {
-                            if !TILEFXEDITOR.lock().unwrap().curr_timeline.is_empty() {
-                                region.set_tilefx(
-                                    (coord.x, coord.y),
-                                    TILEFXEDITOR.lock().unwrap().curr_timeline.clone(),
-                                )
-                            } else if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
-                                tile.tilefx = None;
-                            }
-                        } else {
-                            let mut prev = None;
-                            if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
-                                prev = Some(tile.clone());
-                            }
-
-                            region.set_tile(
-                                (coord.x, coord.y),
-                                self.curr_layer_role,
-                                self.curr_tile_uuid,
-                            );
-
-                            if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
-                                if prev != Some(tile.clone()) {
-                                    let undo = RegionUndoAtom::RegionTileEdit(
-                                        vec2i(coord.x, coord.y),
-                                        prev,
-                                        Some(tile.clone()),
-                                    );
-
-                                    UNDOMANAGER
-                                        .lock()
-                                        .unwrap()
-                                        .add_region_undo(&region.id, undo, ctx);
-                                }
-                            }
-                        }
-                        self.set_icon_previews(region, &palette, coord, ui);
-
-                        server.update_region(region);
-                        RENDERER.lock().unwrap().set_region(region);
-                    }
-                }
-                //self.redraw_region(ui, server, ctx, server_ctx);
-            }
         }
         redraw
     }

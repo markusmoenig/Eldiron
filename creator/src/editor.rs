@@ -27,11 +27,12 @@ lazy_static! {
     // pub static ref VOXELTHREAD: Mutex<VoxelThread> = Mutex::new(VoxelThread::default());
     pub static ref PRERENDERTHREAD: Mutex<PreRenderThread> = Mutex::new(PreRenderThread::default());
     pub static ref UNDOMANAGER: Mutex<UndoManager> = Mutex::new(UndoManager::default());
+    pub static ref TOOLLIST: Mutex<ToolList> = Mutex::new(ToolList::default());
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
-enum ActiveEditor {
-    TileEditor,
+pub enum ActiveEditor {
+    GameEditor,
     ScreenEditor,
 }
 
@@ -74,7 +75,7 @@ impl TheTrait for Editor {
             project: Project::new(),
             project_path: None,
 
-            active_editor: ActiveEditor::TileEditor,
+            active_editor: ActiveEditor::GameEditor,
 
             sidebar: Sidebar::new(),
             panels: Panels::new(),
@@ -324,6 +325,36 @@ impl TheTrait for Editor {
         let mut shared_canvas = TheCanvas::new();
         shared_canvas.set_layout(vsplitlayout);
 
+        // Tool List
+        let mut tool_list_canvas: TheCanvas = TheCanvas::new();
+
+        let mut tool_list_bar_canvas = TheCanvas::new();
+        tool_list_bar_canvas.set_widget(TheToolListBar::new(TheId::empty()));
+        tool_list_canvas.set_top(tool_list_bar_canvas);
+
+        let mut v_tool_list_layout = TheVLayout::new(TheId::named("Tool List Layout"));
+        v_tool_list_layout.limiter_mut().set_max_width(51);
+        v_tool_list_layout.set_margin(vec4i(2, 2, 2, 2));
+        v_tool_list_layout.set_padding(1);
+
+        TOOLLIST.lock().unwrap().set_active_editor(
+            ActiveEditor::GameEditor,
+            &mut v_tool_list_layout,
+            ctx,
+        );
+
+        tool_list_canvas.set_layout(v_tool_list_layout);
+
+        let mut tool_list_border_canvas = TheCanvas::new();
+        let mut border_widget = TheIconView::new(TheId::empty());
+        border_widget.set_border_color(Some([82, 82, 82, 255]));
+        border_widget.limiter_mut().set_max_width(1);
+        border_widget.limiter_mut().set_max_height(i32::MAX);
+        tool_list_border_canvas.set_widget(border_widget);
+
+        tool_list_canvas.set_right(tool_list_border_canvas);
+        shared_canvas.set_left(tool_list_canvas);
+
         ui.canvas.set_center(shared_canvas);
 
         let mut status_canvas = TheCanvas::new();
@@ -394,7 +425,7 @@ impl TheTrait for Editor {
             if self.server.state == ServerState::Running {
                 // Ticks
                 self.client
-                    .tick(self.active_editor == ActiveEditor::TileEditor);
+                    .tick(self.active_editor == ActiveEditor::GameEditor);
                 let debug = self.server.tick();
                 if !debug.is_empty() {
                     self.sidebar.add_debug_messages(debug, ui, ctx);
@@ -523,7 +554,7 @@ impl TheTrait for Editor {
             }
         }
 
-        if self.active_editor == ActiveEditor::TileEditor
+        if self.active_editor == ActiveEditor::GameEditor
             && redraw_update
             && !self.project.regions.is_empty()
         {
@@ -565,6 +596,17 @@ impl TheTrait for Editor {
                     &mut self.client,
                     &mut self.server_ctx,
                 );
+                if TOOLLIST.lock().unwrap().handle_event(
+                    &event,
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.server,
+                    &mut self.client,
+                    &mut self.server_ctx,
+                ) {
+                    redraw = true;
+                }
                 if self.panels.handle_event(
                     &event,
                     ui,
@@ -671,7 +713,7 @@ impl TheTrait for Editor {
                     TheEvent::IndexChanged(id, index) => {
                         if id.name == "Editor Tab Tabbar" {
                             if index == 0 {
-                                self.active_editor = ActiveEditor::TileEditor;
+                                self.active_editor = ActiveEditor::GameEditor;
                             } else if index == 1 {
                                 self.active_editor = ActiveEditor::ScreenEditor;
                             }
@@ -1369,7 +1411,7 @@ impl TheTrait for Editor {
                                 update_server_icons = true;
                             } else if self.server.state == ServerState::Paused {
                                 self.client
-                                    .tick(self.active_editor == ActiveEditor::TileEditor);
+                                    .tick(self.active_editor == ActiveEditor::GameEditor);
                                 let debug = self.server.tick();
                                 if !debug.is_empty() {
                                     self.sidebar.add_debug_messages(debug, ui, ctx);

@@ -584,7 +584,6 @@ impl Renderer {
             hit.normal = region
                 .heightmap
                 .calculate_normal(terrain_hit.x, terrain_hit.z, 0.001);
-            // let terrain_normal = hit.normal;
             hit.hit_point = terrain_hit;
             //hit.distance = terrain_dist;
 
