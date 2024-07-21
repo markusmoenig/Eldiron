@@ -51,7 +51,7 @@ impl TilemapEditor {
         tile_name_text.set_text("Tags".to_string());
 
         let mut tile_name_edit = TheTextLineEdit::new(TheId::named("Tilemap Editor Name Edit"));
-        tile_name_edit.limiter_mut().set_max_width(130);
+        tile_name_edit.limiter_mut().set_max_width(80);
 
         let mut block_name_text = TheText::new(TheId::empty());
         block_name_text.set_text("Blocking".to_string());

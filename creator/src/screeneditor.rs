@@ -4,21 +4,12 @@ use crate::editor::CODEEDITOR;
 use crate::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
-enum ScreenEditorMode {
-    Draw,
-    Code,
-    Pick,
-    Erase,
-}
-
-#[derive(PartialEq, Clone, Copy, Debug)]
 enum ScreenEditorDrawingMode {
     Background,
     Foreground,
 }
 
 pub struct ScreenEditor {
-    editor_mode: ScreenEditorMode,
     drawing_mode: ScreenEditorDrawingMode,
     draw_outlines: bool,
     curr_tile_uuid: Option<Uuid>,
@@ -28,7 +19,6 @@ pub struct ScreenEditor {
 impl ScreenEditor {
     pub fn new() -> Self {
         Self {
-            editor_mode: ScreenEditorMode::Draw,
             drawing_mode: ScreenEditorDrawingMode::Background,
             draw_outlines: true,
             curr_tile_uuid: None,
@@ -63,11 +53,6 @@ impl ScreenEditor {
         let mut top_toolbar = TheCanvas::new();
         top_toolbar.set_widget(TheTraybar::new(TheId::empty()));
 
-        // let mut gb = TheGroupButton::new(TheId::named("2D3D Group"));
-        // gb.add_text("2D Map".to_string());
-        // gb.add_text("Mixed".to_string());
-        // gb.add_text("3D Map".to_string());
-
         let mut max_text = TheText::new(TheId::named("Screen Grid Size Text"));
         //max_text.set_text_size(12.0);
         max_text.set_text(format!("Screen Grid: {0} x {1}", 0, 0));
@@ -94,29 +79,6 @@ impl ScreenEditor {
         let mut bottom_toolbar = TheCanvas::new();
         bottom_toolbar.set_widget(TheTraybar::new(TheId::empty()));
 
-        let mut gb = TheGroupButton::new(TheId::named("Screen Editor Group"));
-        gb.add_text_status_icon(
-            "Draw".to_string(),
-            "Draw a tile into the screen, either in the background or foreground.".to_string(),
-            "draw".to_string(),
-        );
-        gb.add_text_status_icon(
-            "Code".to_string(),
-            "Code character and region behavior.".to_string(),
-            "code".to_string(),
-        );
-        gb.add_text_status_icon(
-            "Pick".to_string(),
-            "Pick a widget in the screen.".to_string(),
-            "pick".to_string(),
-        );
-        gb.add_text_status_icon(
-            "Erase".to_string(),
-            "Delete a widget in the screen.".to_string(),
-            "eraser".to_string(),
-        );
-        gb.set_item_width(75);
-
         let mut layer_gb = TheGroupButton::new(TheId::named("Screen Editor Layer Group"));
         layer_gb.add_text_status(
             "Background".to_string(),
@@ -136,11 +98,6 @@ impl ScreenEditor {
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(10, 4, 10, 4));
-        toolbar_hlayout.add_widget(Box::new(gb));
-
-        let mut spacer = TheSpacer::new(TheId::empty());
-        spacer.limiter_mut().set_max_size(vec2i(10, 5));
-        toolbar_hlayout.add_widget(Box::new(spacer));
 
         toolbar_hlayout.add_widget(Box::new(layer_gb));
         toolbar_hlayout.add_widget(Box::new(drop_down));
@@ -235,100 +192,103 @@ impl ScreenEditor {
                 } else if id.name == "Screen Editor Layer Group" {
                     if *index == ScreenEditorDrawingMode::Background as usize {
                         self.drawing_mode = ScreenEditorDrawingMode::Background;
+                        server_ctx.screen_editor_mode_foreground = false;
                     } else if *index == ScreenEditorDrawingMode::Foreground as usize {
                         self.drawing_mode = ScreenEditorDrawingMode::Foreground;
-                    }
-                } else if id.name == "Screen Editor Group" {
-                    if let Some(rgba_layout) = ui.get_rgba_layout("Screen Editor") {
-                        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                            if *index == ScreenEditorMode::Draw as usize {
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Set Tilepicker Panel"),
-                                    TheValue::Empty,
-                                ));
-                                self.editor_mode = ScreenEditorMode::Draw;
-                            } else if *index == ScreenEditorMode::Code as usize {
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Set CodeGrid Panel"),
-                                    TheValue::Empty,
-                                ));
-                                rgba_view.set_mode(TheRGBAViewMode::TileEditor);
-                            } else if *index == ScreenEditorMode::Pick as usize {
-                                self.editor_mode = ScreenEditorMode::Pick;
-                            } else if *index == ScreenEditorMode::Erase as usize {
-                                self.editor_mode = ScreenEditorMode::Erase;
-                            }
-                        }
+                        server_ctx.screen_editor_mode_foreground = true;
                     }
                 }
+                // else if id.name == "Screen Editor Group" {
+                //     if let Some(rgba_layout) = ui.get_rgba_layout("Screen Editor") {
+                //         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                //             if *index == ScreenEditorMode::Draw as usize {
+                //                 ctx.ui.send(TheEvent::Custom(
+                //                     TheId::named("Set Tilepicker Panel"),
+                //                     TheValue::Empty,
+                //                 ));
+                //                 self.editor_mode = ScreenEditorMode::Draw;
+                //             } else if *index == ScreenEditorMode::Code as usize {
+                //                 ctx.ui.send(TheEvent::Custom(
+                //                     TheId::named("Set CodeGrid Panel"),
+                //                     TheValue::Empty,
+                //                 ));
+                //                 rgba_view.set_mode(TheRGBAViewMode::TileEditor);
+                //             } else if *index == ScreenEditorMode::Pick as usize {
+                //                 self.editor_mode = ScreenEditorMode::Pick;
+                //             } else if *index == ScreenEditorMode::Erase as usize {
+                //                 self.editor_mode = ScreenEditorMode::Erase;
+                //             }
+                //         }
+                //     }
+                // }
             }
-            TheEvent::TileEditorClicked(id, coord) => {
-                if id.name == "Screen Editor View" {
-                    if self.editor_mode == ScreenEditorMode::Draw {
-                        if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
-                            if let Some(tile_id) = self.curr_tile_uuid {
-                                if self.drawing_mode == ScreenEditorDrawingMode::Background {
-                                    screen.add_background_tile((coord.x, coord.y), tile_id);
-                                } else if self.drawing_mode == ScreenEditorDrawingMode::Foreground {
-                                    screen.add_foreground_tile((coord.x, coord.y), tile_id);
-                                }
-                                client.update_screen(screen);
-                                redraw = true;
-                            }
-                        }
-                    } else if self.editor_mode == ScreenEditorMode::Pick
-                        || self.editor_mode == ScreenEditorMode::Erase
-                    {
-                        if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
-                            if self.editor_mode == ScreenEditorMode::Erase {
-                                if self.drawing_mode == ScreenEditorDrawingMode::Background {
-                                    screen.erase_background_tile((coord.x, coord.y));
-                                } else if self.drawing_mode == ScreenEditorDrawingMode::Foreground {
-                                    screen.erase_foreground_tile((coord.x, coord.y));
-                                }
-                                client.update_screen(screen);
-                                redraw = true;
-                            }
+            // TheEvent::TileEditorClicked(id, coord) => {
+            //     if id.name == "Screen Editor View" {
+            //         if self.editor_mode == ScreenEditorMode::Draw {
+            //             if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+            //                 if let Some(tile_id) = self.curr_tile_uuid {
+            //                     if self.drawing_mode == ScreenEditorDrawingMode::Background {
+            //                         screen.add_background_tile((coord.x, coord.y), tile_id);
+            //                     } else if self.drawing_mode == ScreenEditorDrawingMode::Foreground {
+            //                         screen.add_foreground_tile((coord.x, coord.y), tile_id);
+            //                     }
+            //                     client.update_screen(screen);
+            //                     redraw = true;
+            //                 }
+            //             }
+            //         } else if self.editor_mode == ScreenEditorMode::Pick
+            //             || self.editor_mode == ScreenEditorMode::Erase
+            //         {
+            //             if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+            //                 if self.editor_mode == ScreenEditorMode::Erase {
+            //                     if self.drawing_mode == ScreenEditorDrawingMode::Background {
+            //                         screen.erase_background_tile((coord.x, coord.y));
+            //                     } else if self.drawing_mode == ScreenEditorDrawingMode::Foreground {
+            //                         screen.erase_foreground_tile((coord.x, coord.y));
+            //                     }
+            //                     client.update_screen(screen);
+            //                     redraw = true;
+            //                 }
 
-                            let sorted_widgets = screen.sorted_widgets_by_size();
-                            for widget in sorted_widgets.iter() {
-                                if widget.is_inside(coord)
-                                    && self.editor_mode == ScreenEditorMode::Pick
-                                {
-                                    if let Some(layout) = ui.get_list_layout("Screen Content List")
-                                    {
-                                        layout.select_item(widget.id, ctx, true);
-                                    }
-                                    /*else if self.editor_mode == ScreenEditorMode::Erase {
-                                    open_delete_confirmation_dialog(
-                                        "Delete Widget ?",
-                                        format!("Permanently delete '{}' ?", widget.name).as_str(),
-                                        widget.id,
-                                        ui,
-                                        ctx,
-                                        );
-                                        }*/
-                                }
-                            }
-                        }
-                    }
+            //                 let sorted_widgets = screen.sorted_widgets_by_size();
+            //                 for widget in sorted_widgets.iter() {
+            //                     if widget.is_inside(coord)
+            //                         && self.editor_mode == ScreenEditorMode::Pick
+            //                     {
+            //                         if let Some(layout) = ui.get_list_layout("Screen Content List")
+            //                         {
+            //                             layout.select_item(widget.id, ctx, true);
+            //                         }
+            //                         /*else if self.editor_mode == ScreenEditorMode::Erase {
+            //                         open_delete_confirmation_dialog(
+            //                             "Delete Widget ?",
+            //                             format!("Permanently delete '{}' ?", widget.name).as_str(),
+            //                             widget.id,
+            //                             ui,
+            //                             ctx,
+            //                             );
+            //                             }*/
+            //                     }
+            //                 }
+            //             }
+            //         }
 
-                    // Handle actual game interaction
-                    if self.editor_mode == ScreenEditorMode::Pick {
-                        if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
-                            client.touch_down(
-                                &server_ctx.curr_screen,
-                                vec2i(coord.x * screen.grid_size, coord.y * screen.grid_size),
-                            );
-                        }
-                    }
-                }
-            }
-            TheEvent::TileEditorUp(id) => {
-                if id.name == "Screen Editor View" && self.editor_mode == ScreenEditorMode::Pick {
-                    client.touch_up(&server_ctx.curr_screen);
-                }
-            }
+            //         // Handle actual game interaction
+            //         if self.editor_mode == ScreenEditorMode::Pick {
+            //             if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+            //                 client.touch_down(
+            //                     &server_ctx.curr_screen,
+            //                     vec2i(coord.x * screen.grid_size, coord.y * screen.grid_size),
+            //                 );
+            //             }
+            //         }
+            //     }
+            // }
+            // TheEvent::TileEditorUp(id) => {
+            //     if id.name == "Screen Editor View" && self.editor_mode == ScreenEditorMode::Pick {
+            //         client.touch_up(&server_ctx.curr_screen);
+            //     }
+            // }
             /*
             TheEvent::TileSelectionChanged(id) => {
                 if id.name == "Screen Editor View" {

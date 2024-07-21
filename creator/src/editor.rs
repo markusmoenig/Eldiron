@@ -717,10 +717,17 @@ impl TheTrait for Editor {
                             } else if index == 1 {
                                 self.active_editor = ActiveEditor::ScreenEditor;
                             }
+                            if let Some(list) = ui.get_vlayout("Tool List Layout") {
+                                TOOLLIST.lock().unwrap().set_active_editor(
+                                    self.active_editor,
+                                    list,
+                                    ctx,
+                                );
+                            }
                             redraw = true;
                         }
                     }
-                    TheEvent::DialogValueOnClose(role, name, uuid, value) => {
+                    TheEvent::DialogValueOnClose(role, name, uuid, _value) => {
                         //println!("Dialog Value On Close: {} -> {:?}", name, value);
 
                         if name == "Delete Character Instance ?" {
@@ -821,48 +828,6 @@ impl TheTrait for Editor {
                                     self.sidebar.apply_screen(ui, ctx, Some(screen));
                                 }
                             }
-                        } else if name == "New Area Name" {
-                            // Create a new area
-
-                            if let Some(tiles) = &self.server_ctx.tile_selection {
-                                let mut area = Area {
-                                    area: tiles.tiles(),
-                                    name: value.describe(),
-                                    ..Default::default()
-                                };
-
-                                let main = TheCodeGrid {
-                                    name: "main".into(),
-                                    ..Default::default()
-                                };
-
-                                area.bundle.insert_grid(main);
-
-                                if let Some(list) = ui.get_list_layout("Region Content List") {
-                                    let mut item = TheListItem::new(TheId::named_with_id(
-                                        "Region Content List Item",
-                                        area.id,
-                                    ));
-                                    item.set_text(area.name.clone());
-                                    item.set_state(TheWidgetState::Selected);
-                                    item.add_value_column(100, TheValue::Text("Area".to_string()));
-
-                                    list.deselect_all();
-                                    list.add_item(item, ctx);
-                                    list.select_item(area.id, ctx, true);
-                                }
-
-                                self.server_ctx.curr_area = Some(area.id);
-                                self.server_ctx.curr_character_instance = None;
-                                self.server_ctx.curr_character = None;
-
-                                if let Some(region) =
-                                    self.project.get_region_mut(&self.server_ctx.curr_region)
-                                {
-                                    region.areas.insert(area.id, area);
-                                }
-                            }
-                            self.server_ctx.tile_selection = None;
                         } else if name == "Update Eldiron" && role == TheDialogButtonRole::Accept {
                             let updater = self.self_updater.lock().unwrap();
 

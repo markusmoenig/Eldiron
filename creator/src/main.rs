@@ -50,7 +50,18 @@ pub mod prelude {
     pub use crate::undo::region_undo::*;
     pub use crate::undo::*;
 
+    pub use crate::tools::code::CodeTool;
+    pub use crate::tools::draw::DrawTool;
+    pub use crate::tools::eraser::EraserTool;
+    pub use crate::tools::mapobjects::MapObjectsTool;
+    pub use crate::tools::picker::PickerTool;
+    pub use crate::tools::render::RenderTool;
+    pub use crate::tools::screen::eraser::ScreenEraserTool;
+    pub use crate::tools::screen::picker::ScreenPickerTool;
+    pub use crate::tools::screen::tiledrawer::ScreenTileDrawerTool;
+    pub use crate::tools::selection::SelectionTool;
     pub use crate::tools::tiledrawer::TileDrawerTool;
+    pub use crate::tools::tilemap::TilemapTool;
     pub use crate::tools::*;
 }
 

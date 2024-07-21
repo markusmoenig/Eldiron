@@ -1,6 +1,5 @@
 use crate::editor::{
-    CODEEDITOR, MODELFXEDITOR, PRERENDERTHREAD, RENDERER, RENDERMODE, SIDEBARMODE, TILEDRAWER,
-    TILEFXEDITOR, UNDOMANAGER,
+    CODEEDITOR, MODELFXEDITOR, PRERENDERTHREAD, RENDERER, RENDERMODE, TILEDRAWER, UNDOMANAGER,
 };
 use crate::prelude::*;
 
@@ -32,8 +31,6 @@ pub struct TileEditor {
 
     icon_normal_border_color: RGBA,
     icon_selected_border_color: RGBA,
-
-    processed_coords: FxHashSet<Vec2i>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -48,8 +45,6 @@ impl TileEditor {
 
             icon_normal_border_color: [100, 100, 100, 255],
             icon_selected_border_color: [255, 255, 255, 255],
-
-            processed_coords: FxHashSet::default(),
         }
     }
 
@@ -164,7 +159,7 @@ impl TileEditor {
         time_slider.limiter_mut().set_max_width(400);
 
         let mut spacer = TheSpacer::new(TheId::empty());
-        spacer.limiter_mut().set_max_width(40);
+        spacer.limiter_mut().set_max_width(2);
 
         let mut render_button = TheTraybarButton::new(TheId::named("Render Button"));
         render_button.set_text("Starting...".to_string());
@@ -276,7 +271,7 @@ impl TileEditor {
         toolbar_hlayout.set_reverse_index(Some(1));
 
         bottom_toolbar.set_layout(toolbar_hlayout);
-        center.set_bottom(bottom_toolbar);
+        //center.set_bottom(bottom_toolbar);
 
         center
     }
@@ -349,74 +344,74 @@ impl TileEditor {
                     }
                 }
             }
-            TheEvent::RenderViewClicked(id, coord) => {
-                if id.name == "RenderView" {
-                    self.processed_coords.clear();
-                    if let Some(render_view) = ui.get_render_view("RenderView") {
-                        let dim = render_view.dim();
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            let pos = RENDERER.lock().unwrap().get_hit_position_at(
-                                *coord,
-                                region,
-                                &mut server.get_instance_draw_settings(server_ctx.curr_region),
-                                dim.width as usize,
-                                dim.height as usize,
-                            );
+            // TheEvent::RenderViewClicked(id, coord) => {
+            //     if id.name == "RenderView" {
+            //         self.processed_coords.clear();
+            //         if let Some(render_view) = ui.get_render_view("RenderView") {
+            //             let dim = render_view.dim();
+            //             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+            //                 let pos = RENDERER.lock().unwrap().get_hit_position_at(
+            //                     *coord,
+            //                     region,
+            //                     &mut server.get_instance_draw_settings(server_ctx.curr_region),
+            //                     dim.width as usize,
+            //                     dim.height as usize,
+            //                 );
 
-                            if let Some(pos) = pos {
-                                redraw = self.action_at(
-                                    vec2i(pos.x, pos.z),
-                                    ui,
-                                    ctx,
-                                    project,
-                                    server,
-                                    server_ctx,
-                                    true,
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            TheEvent::RenderViewDragged(id, coord) => {
-                if id.name == "RenderView" {
-                    if let Some(render_view) = ui.get_render_view("RenderView") {
-                        let dim = render_view.dim();
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            let pos = RENDERER.lock().unwrap().get_hit_position_at(
-                                *coord,
-                                region,
-                                &mut server.get_instance_draw_settings(server_ctx.curr_region),
-                                dim.width as usize,
-                                dim.height as usize,
-                            );
+            //                 if let Some(pos) = pos {
+            //                     redraw = self.action_at(
+            //                         vec2i(pos.x, pos.z),
+            //                         ui,
+            //                         ctx,
+            //                         project,
+            //                         server,
+            //                         server_ctx,
+            //                         true,
+            //                     );
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
+            // TheEvent::RenderViewDragged(id, coord) => {
+            //     if id.name == "RenderView" {
+            //         if let Some(render_view) = ui.get_render_view("RenderView") {
+            //             let dim = render_view.dim();
+            //             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+            //                 let pos = RENDERER.lock().unwrap().get_hit_position_at(
+            //                     *coord,
+            //                     region,
+            //                     &mut server.get_instance_draw_settings(server_ctx.curr_region),
+            //                     dim.width as usize,
+            //                     dim.height as usize,
+            //                 );
 
-                            if let Some(pos) = pos {
-                                redraw = self.action_at(
-                                    vec2i(pos.x, pos.z),
-                                    ui,
-                                    ctx,
-                                    project,
-                                    server,
-                                    server_ctx,
-                                    true,
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            TheEvent::TileEditorClicked(id, coord) => {
-                if id.name == "Region Editor View" {
-                    self.processed_coords.clear();
-                    redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx, false);
-                }
-            }
-            TheEvent::TileEditorDragged(id, coord) => {
-                if id.name == "Region Editor View" {
-                    redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx, false);
-                }
-            }
+            //                 if let Some(pos) = pos {
+            //                     redraw = self.action_at(
+            //                         vec2i(pos.x, pos.z),
+            //                         ui,
+            //                         ctx,
+            //                         project,
+            //                         server,
+            //                         server_ctx,
+            //                         true,
+            //                     );
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
+            // TheEvent::TileEditorClicked(id, coord) => {
+            //     if id.name == "Region Editor View" {
+            //         self.processed_coords.clear();
+            //         redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx, false);
+            //     }
+            // }
+            // TheEvent::TileEditorDragged(id, coord) => {
+            //     if id.name == "Region Editor View" {
+            //         redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx, false);
+            //     }
+            // }
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
                 if widget_id.name == "Render Button" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -455,16 +450,17 @@ impl TileEditor {
                             .render_region(region.shallow_clone(), None);
                         redraw = true;
                     }
-                } else if item_id.name == "Create Area" {
-                    open_text_dialog(
-                        "New Area Name",
-                        "Area Name",
-                        "New Area",
-                        Uuid::new_v4(),
-                        ui,
-                        ctx,
-                    );
                 }
+                // else if item_id.name == "Create Area" {
+                //     open_text_dialog(
+                //         "New Area Name",
+                //         "Area Name",
+                //         "New Area",
+                //         Uuid::new_v4(),
+                //         ui,
+                //         ctx,
+                //     );
+                // }
             }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "2D3D Group" {
@@ -1235,6 +1231,7 @@ impl TileEditor {
         }
     }
 
+    /*
     /// Perform the given action at the given coordinate.
     #[allow(clippy::too_many_arguments)]
     pub fn action_at(
@@ -1843,7 +1840,7 @@ impl TileEditor {
         } else if self.editor_mode == EditorMode::Draw {
         }
         redraw
-    }
+        }*/
 
     /// Sets the index of the editor group.
     fn set_editor_group_index(&mut self, mode: EditorMode, ui: &mut TheUI, ctx: &mut TheContext) {

@@ -1,12 +1,23 @@
 pub use crate::prelude::*;
 
+pub mod code;
+pub mod draw;
+pub mod eraser;
+pub mod mapobjects;
+pub mod picker;
+pub mod render;
+pub mod screen;
+pub mod selection;
 pub mod tiledrawer;
+pub mod tilemap;
 
 #[derive(PartialEq, Clone, Debug, Copy)]
 pub enum ToolEvent {
+    Activate,
+    DeActivate,
     TileDown(Vec2i),
     TileDrag(Vec2i),
-    TileUp(Vec2i),
+    TileUp,
 }
 
 #[derive(PartialEq, Clone, Debug, Copy)]

@@ -1,10 +1,7 @@
 use crate::prelude::*;
 use ToolEvent::*;
 
-use crate::editor::{
-    CODEEDITOR, MODELFXEDITOR, PRERENDERTHREAD, RENDERER, RENDERMODE, SIDEBARMODE, TILEDRAWER,
-    TILEFXEDITOR, UNDOMANAGER,
-};
+use crate::editor::{PRERENDERTHREAD, RENDERER, TILEDRAWER, TILEFXEDITOR, UNDOMANAGER};
 
 pub struct TileDrawerTool {
     id: TheId,
@@ -44,6 +41,22 @@ impl Tool for TileDrawerTool {
         let coord = match tool_event {
             TileDown(c) => c,
             TileDrag(c) => c,
+            Activate => {
+                // Display the tile edit panel.
+                ctx.ui
+                    .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
+
+                if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                    layout.set_mode(TheSharedHLayoutMode::Right);
+                    ctx.ui.relayout = true;
+                }
+
+                server_ctx.curr_character_instance = None;
+                server_ctx.curr_item_instance = None;
+                server_ctx.curr_area = None;
+
+                return true;
+            }
             _ => {
                 return false;
             }
@@ -68,6 +81,9 @@ impl Tool for TileDrawerTool {
                 }
 
                 if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    let mut region_to_render: Option<Region> = None;
+                    let mut tiles_to_render: Vec<Vec2i> = vec![];
+
                     if server_ctx.curr_layer_role == Layer2DRole::FX {
                         if !TILEFXEDITOR.lock().unwrap().curr_timeline.is_empty() {
                             region.set_tilefx(
@@ -89,6 +105,9 @@ impl Tool for TileDrawerTool {
                             server_ctx.curr_tile_id,
                         );
 
+                        tiles_to_render.push(coord);
+                        region_to_render = Some(region.clone());
+
                         if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
                             if prev != Some(tile.clone()) {
                                 let undo = RegionUndoAtom::RegionTileEdit(
@@ -108,6 +127,13 @@ impl Tool for TileDrawerTool {
 
                     server.update_region(region);
                     RENDERER.lock().unwrap().set_region(region);
+
+                    if let Some(region) = region_to_render {
+                        PRERENDERTHREAD
+                            .lock()
+                            .unwrap()
+                            .render_region(region, Some(tiles_to_render));
+                    }
                 }
             }
             //self.redraw_region(ui, server, ctx, server_ctx);

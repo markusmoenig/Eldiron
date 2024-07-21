@@ -49,6 +49,10 @@ impl RegionUndoAtom {
                 } else {
                     region.tiles.remove(&(pos.x, pos.y));
                 }
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), Some(vec![*pos]));
             }
         }
     }
@@ -90,6 +94,10 @@ impl RegionUndoAtom {
                 } else {
                     region.tiles.remove(&(pos.x, pos.y));
                 }
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), Some(vec![*pos]));
             }
         }
     }

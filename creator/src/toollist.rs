@@ -1,6 +1,4 @@
-use std::any::Any;
-
-use crate::editor::{PRERENDERTHREAD, TILEDRAWER, UNDOMANAGER};
+use crate::editor::RENDERER;
 use crate::prelude::*;
 
 pub use ActiveEditor::*;
@@ -23,8 +21,23 @@ impl Default for ToolList {
 
 impl ToolList {
     pub fn new() -> Self {
-        let game_tools: Vec<Box<dyn Tool>> = vec![Box::new(TileDrawerTool::new())];
-        let screen_tools: Vec<Box<dyn Tool>> = vec![Box::new(TileDrawerTool::new())];
+        let game_tools: Vec<Box<dyn Tool>> = vec![
+            Box::new(TileDrawerTool::new()),
+            Box::new(DrawTool::new()),
+            Box::new(MapObjectsTool::new()),
+            Box::new(CodeTool::new()),
+            Box::new(PickerTool::new()),
+            Box::new(EraserTool::new()),
+            Box::new(SelectionTool::new()),
+            Box::new(TilemapTool::new()),
+            Box::new(RenderTool::new()),
+        ];
+        let screen_tools: Vec<Box<dyn Tool>> = vec![
+            Box::new(ScreenTileDrawerTool::new()),
+            Box::new(CodeTool::new()),
+            Box::new(ScreenPickerTool::new()),
+            Box::new(ScreenEraserTool::new()),
+        ];
 
         Self {
             active_editor: ActiveEditor::GameEditor,
@@ -41,10 +54,12 @@ impl ToolList {
     pub fn set_active_editor(
         &mut self,
         active_editor: ActiveEditor,
-        list: &mut TheVLayout,
-        _ctx: &mut TheContext,
+        list: &mut dyn TheVLayoutTrait,
+        ctx: &mut TheContext,
     ) {
         self.active_editor = active_editor;
+        list.clear();
+        ctx.ui.relayout = true;
 
         match active_editor {
             GameEditor => {
@@ -59,7 +74,18 @@ impl ToolList {
                     list.add_widget(Box::new(b));
                 }
             }
-            ScreenEditor => {}
+            ScreenEditor => {
+                for (index, tool) in self.screen_tools.iter().enumerate() {
+                    let mut b = TheToolListButton::new(tool.id());
+
+                    b.set_icon_name(tool.icon_name());
+                    b.set_status_text(&tool.info());
+                    if index == self.curr_screen_tool {
+                        b.set_state(TheWidgetState::Selected);
+                    }
+                    list.add_widget(Box::new(b));
+                }
+            }
         }
     }
 
@@ -76,62 +102,183 @@ impl ToolList {
     ) -> bool {
         let mut redraw = false;
         match event {
-            TheEvent::TileEditorClicked(id, coord) => {
-                if id.name == "Region Editor View" {
-                    match &self.active_editor {
+            TheEvent::StateChanged(id, state) => {
+                if id.name.contains("Tool") && *state == TheWidgetState::Selected {
+                    let mut switched_tool = false;
+
+                    match self.active_editor {
                         GameEditor => {
-                            redraw = self.game_tools[self.curr_game_tool].tool_event(
-                                ToolEvent::TileDown(*coord),
-                                ToolContext::TwoD,
-                                ui,
-                                ctx,
-                                project,
-                                server,
-                                client,
-                                server_ctx,
-                            );
+                            let mut old_tool_index = 0;
+                            for (index, tool) in self.game_tools.iter().enumerate() {
+                                if tool.id().uuid == id.uuid && index != self.curr_game_tool {
+                                    switched_tool = true;
+                                    old_tool_index = self.curr_game_tool;
+                                    self.curr_game_tool = index;
+                                    redraw = true;
+                                }
+                            }
+                            if switched_tool {
+                                for tool in self.game_tools.iter() {
+                                    if tool.id().uuid != id.uuid {
+                                        ctx.ui.set_widget_state(
+                                            tool.id().name.clone(),
+                                            TheWidgetState::None,
+                                        );
+                                    }
+                                }
+                                self.game_tools[old_tool_index].tool_event(
+                                    ToolEvent::DeActivate,
+                                    ToolContext::TwoD,
+                                    ui,
+                                    ctx,
+                                    project,
+                                    server,
+                                    client,
+                                    server_ctx,
+                                );
+                            }
                         }
                         ScreenEditor => {
-                            redraw = self.screen_tools[self.curr_screen_tool].tool_event(
-                                ToolEvent::TileDown(*coord),
-                                ToolContext::TwoD,
-                                ui,
-                                ctx,
-                                project,
-                                server,
-                                client,
-                                server_ctx,
+                            let mut old_tool_index = 0;
+                            for (index, tool) in self.screen_tools.iter().enumerate() {
+                                if tool.id().uuid == id.uuid && index != self.curr_screen_tool {
+                                    switched_tool = true;
+                                    old_tool_index = self.curr_screen_tool;
+                                    self.curr_screen_tool = index;
+                                    redraw = true;
+                                }
+                            }
+                            if switched_tool {
+                                for tool in self.screen_tools.iter() {
+                                    if tool.id().uuid != id.uuid {
+                                        ctx.ui.set_widget_state(
+                                            tool.id().name.clone(),
+                                            TheWidgetState::None,
+                                        );
+                                    }
+                                }
+                                self.screen_tools[old_tool_index].tool_event(
+                                    ToolEvent::DeActivate,
+                                    ToolContext::TwoD,
+                                    ui,
+                                    ctx,
+                                    project,
+                                    server,
+                                    client,
+                                    server_ctx,
+                                );
+                            }
+                        }
+                    }
+
+                    self.get_current_tool().tool_event(
+                        ToolEvent::Activate,
+                        ToolContext::TwoD,
+                        ui,
+                        ctx,
+                        project,
+                        server,
+                        client,
+                        server_ctx,
+                    );
+                }
+            }
+            TheEvent::TileEditorClicked(id, coord) => {
+                if id.name == "Region Editor View" || id.name == "Screen Editor View" {
+                    self.get_current_tool().tool_event(
+                        ToolEvent::TileDown(*coord),
+                        ToolContext::TwoD,
+                        ui,
+                        ctx,
+                        project,
+                        server,
+                        client,
+                        server_ctx,
+                    );
+                }
+            }
+            TheEvent::TileEditorDragged(id, coord) => {
+                if id.name == "Region Editor View" || id.name == "Screen Editor View" {
+                    self.get_current_tool().tool_event(
+                        ToolEvent::TileDrag(*coord),
+                        ToolContext::TwoD,
+                        ui,
+                        ctx,
+                        project,
+                        server,
+                        client,
+                        server_ctx,
+                    );
+                }
+            }
+            TheEvent::TileEditorUp(id) => {
+                if id.name == "Region Editor View" || id.name == "Screen Editor View" {
+                    self.get_current_tool().tool_event(
+                        ToolEvent::TileUp,
+                        ToolContext::TwoD,
+                        ui,
+                        ctx,
+                        project,
+                        server,
+                        client,
+                        server_ctx,
+                    );
+                }
+            }
+            TheEvent::RenderViewClicked(id, coord) => {
+                if id.name == "RenderView" {
+                    if let Some(render_view) = ui.get_render_view("RenderView") {
+                        let dim = render_view.dim();
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            let pos = RENDERER.lock().unwrap().get_hit_position_at(
+                                *coord,
+                                region,
+                                &mut server.get_instance_draw_settings(server_ctx.curr_region),
+                                dim.width as usize,
+                                dim.height as usize,
                             );
+
+                            if let Some(pos) = pos {
+                                redraw = self.get_current_tool().tool_event(
+                                    ToolEvent::TileDown(Vec2i::new(pos.x, pos.z)),
+                                    ToolContext::ThreeD,
+                                    ui,
+                                    ctx,
+                                    project,
+                                    server,
+                                    client,
+                                    server_ctx,
+                                );
+                            }
                         }
                     }
                 }
             }
-            TheEvent::TileEditorDragged(id, coord) => {
-                if id.name == "Region Editor View" {
-                    match &self.active_editor {
-                        GameEditor => {
-                            redraw = self.game_tools[self.curr_game_tool].tool_event(
-                                ToolEvent::TileDrag(*coord),
-                                ToolContext::TwoD,
-                                ui,
-                                ctx,
-                                project,
-                                server,
-                                client,
-                                server_ctx,
+            TheEvent::RenderViewDragged(id, coord) => {
+                if id.name == "RenderView" {
+                    if let Some(render_view) = ui.get_render_view("RenderView") {
+                        let dim = render_view.dim();
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            let pos = RENDERER.lock().unwrap().get_hit_position_at(
+                                *coord,
+                                region,
+                                &mut server.get_instance_draw_settings(server_ctx.curr_region),
+                                dim.width as usize,
+                                dim.height as usize,
                             );
-                        }
-                        ScreenEditor => {
-                            redraw = self.screen_tools[self.curr_screen_tool].tool_event(
-                                ToolEvent::TileDown(*coord),
-                                ToolContext::TwoD,
-                                ui,
-                                ctx,
-                                project,
-                                server,
-                                client,
-                                server_ctx,
-                            );
+
+                            if let Some(pos) = pos {
+                                redraw = self.get_current_tool().tool_event(
+                                    ToolEvent::TileDrag(Vec2i::new(pos.x, pos.z)),
+                                    ToolContext::ThreeD,
+                                    ui,
+                                    ctx,
+                                    project,
+                                    server,
+                                    client,
+                                    server_ctx,
+                                );
+                            }
                         }
                     }
                 }
@@ -140,14 +287,19 @@ impl ToolList {
         }
 
         if !redraw {
-            redraw = match &self.active_editor {
-                GameEditor => self.game_tools[self.curr_game_tool]
-                    .handle_event(event, ui, ctx, project, server, client, server_ctx),
-                ScreenEditor => self.screen_tools[self.curr_screen_tool]
-                    .handle_event(event, ui, ctx, project, server, client, server_ctx),
-            };
+            redraw = self
+                .get_current_tool()
+                .handle_event(event, ui, ctx, project, server, client, server_ctx);
         }
 
         redraw
+    }
+
+    /// Returns the curently active tool.
+    fn get_current_tool(&mut self) -> &mut Box<dyn Tool> {
+        match &self.active_editor {
+            GameEditor => &mut self.game_tools[self.curr_game_tool],
+            ScreenEditor => &mut self.screen_tools[self.curr_screen_tool],
+        }
     }
 }
