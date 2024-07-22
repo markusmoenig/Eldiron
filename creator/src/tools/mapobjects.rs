@@ -48,6 +48,7 @@ impl Tool for MapObjectsTool {
             }
             TileDrag(c) => c,
             Activate => {
+                MODELFXEDITOR.lock().unwrap().set_geometry_mode(true);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Set Region Modeler"),
                     TheValue::Empty,

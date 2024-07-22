@@ -10,21 +10,7 @@ pub enum EditorDrawMode {
     Draw3D,
 }
 
-#[derive(PartialEq, Clone, Copy, Debug)]
-pub enum EditorMode {
-    Draw,
-    Model,
-    Code,
-    Pick,
-    Erase,
-    Select,
-    Tilemap,
-    Render,
-}
-
 pub struct TileEditor {
-    editor_mode: EditorMode,
-
     curr_tile_uuid: Option<Uuid>,
 
     curr_layer_role: Layer2DRole,
@@ -37,8 +23,6 @@ pub struct TileEditor {
 impl TileEditor {
     pub fn new() -> Self {
         Self {
-            editor_mode: EditorMode::Draw,
-
             curr_tile_uuid: None,
 
             curr_layer_role: Layer2DRole::Wall,
@@ -500,116 +484,118 @@ impl TileEditor {
                             }
                         }
                     }
-                } else if id.name == "Editor Group" {
-                    server_ctx.conceptual_display = None;
-                    if *index == EditorMode::Draw as usize {
-                        self.editor_mode = EditorMode::Draw;
-                        server_ctx.tile_selection = None;
-
-                        // Set the 3D editing position to selected character position
-                        // before voiding it. Otherwise the 3D view will just jump to an empty region.
-                        if let Some(character_instance_id) = server_ctx.curr_character_instance {
-                            if let Some((TheValue::Position(p), _)) = server.get_character_property(
-                                server_ctx.curr_region,
-                                character_instance_id,
-                                "position".into(),
-                            ) {
-                                if let Some(region) =
-                                    project.get_region_mut(&server_ctx.curr_region)
-                                {
-                                    region.editing_position_3d = p;
-                                    server.set_editing_position_3d(region.editing_position_3d);
-                                }
-                            }
-                        }
-
-                        // Set the icon for the current brush
-                        if let Some(id) = self.curr_tile_uuid {
-                            if let Some(t) = TILEDRAWER.lock().unwrap().tiles.get(&id) {
-                                if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
-                                    icon_view.set_rgba_tile(t.clone());
-                                }
-                            }
-                        }
-
-                        if self.curr_layer_role == Layer2DRole::FX {
-                            ctx.ui
-                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
-                        } else {
-                            ctx.ui
-                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
-                        }
-
-                        if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
-                            layout.set_mode(TheSharedHLayoutMode::Right);
-                            ctx.ui.relayout = true;
-                            redraw = true;
-                        }
-
-                        server_ctx.curr_character_instance = None;
-                        server_ctx.curr_item_instance = None;
-                        server_ctx.curr_area = None;
-                    } else if *index == EditorMode::Pick as usize {
-                        self.editor_mode = EditorMode::Pick;
-                        server_ctx.tile_selection = None;
-                    } else if *index == EditorMode::Erase as usize {
-                        self.editor_mode = EditorMode::Erase;
-                        server_ctx.tile_selection = None;
-                    } else if *index == EditorMode::Select as usize {
-                        ui.set_widget_context_menu(
-                            "Region Editor View",
-                            Some(TheContextMenu {
-                                items: vec![TheContextMenuItem::new(
-                                    "Create Area...".to_string(),
-                                    TheId::named("Create Area"),
-                                )],
-                                ..Default::default()
-                            }),
-                        );
-                        self.editor_mode = EditorMode::Select;
-                    }
-
-                    if *index == EditorMode::Code as usize {
-                        self.editor_mode = EditorMode::Code;
-                        server_ctx.tile_selection = None;
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Set CodeGrid Panel"),
-                            TheValue::Empty,
-                        ));
-                    } else if *index == EditorMode::Model as usize {
-                        self.editor_mode = EditorMode::Model;
-                        server_ctx.tile_selection = None;
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Set Region Modeler"),
-                            TheValue::Empty,
-                        ));
-                        if let Some(TheValue::Float(f)) = ui.get_widget_value("ModelFX Blend") {
-                            server_ctx.conceptual_display = Some(f);
-                        }
-                    } else if *index == EditorMode::Tilemap as usize {
-                        self.editor_mode = EditorMode::Tilemap;
-                        server_ctx.tile_selection = None;
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Set Tilemap Panel"),
-                            TheValue::Empty,
-                        ));
-                    } else if *index == EditorMode::Render as usize {
-                        self.editor_mode = EditorMode::Render;
-                        server_ctx.tile_selection = None;
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Set Region Render"),
-                            TheValue::Empty,
-                        ));
-                    }
                 }
             }
-            TheEvent::TileEditorUp(_id) => {
-                if self.editor_mode == EditorMode::Select {
-                    if let Some(tilearea) = &mut server_ctx.tile_selection {
-                        tilearea.ongoing = false;
-                    }
-                }
-            }
+            // else if id.name == "Editor Group" {
+            //         server_ctx.conceptual_display = None;
+            //         if *index == EditorMode::Draw as usize {
+            //             // self.editor_mode = EditorMode::Draw;
+            //             server_ctx.tile_selection = None;
+
+            //             // Set the 3D editing position to selected character position
+            //             // before voiding it. Otherwise the 3D view will just jump to an empty region.
+            //             if let Some(character_instance_id) = server_ctx.curr_character_instance {
+            //                 if let Some((TheValue::Position(p), _)) = server.get_character_property(
+            //                     server_ctx.curr_region,
+            //                     character_instance_id,
+            //                     "position".into(),
+            //                 ) {
+            //                     if let Some(region) =
+            //                         project.get_region_mut(&server_ctx.curr_region)
+            //                     {
+            //                         region.editing_position_3d = p;
+            //                         server.set_editing_position_3d(region.editing_position_3d);
+            //                     }
+            //                 }
+            //             }
+
+            //             // Set the icon for the current brush
+            //             if let Some(id) = self.curr_tile_uuid {
+            //                 if let Some(t) = TILEDRAWER.lock().unwrap().tiles.get(&id) {
+            //                     if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
+            //                         icon_view.set_rgba_tile(t.clone());
+            //                     }
+            //                 }
+            //             }
+
+            //             // if self.curr_layer_role == Layer2DRole::FX {
+            //             //     ctx.ui
+            //             //         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
+            //             // } else {
+            //             //     ctx.ui
+            //             //         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
+            //             // }
+
+            //             if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+            //                 layout.set_mode(TheSharedHLayoutMode::Right);
+            //                 ctx.ui.relayout = true;
+            //                 redraw = true;
+            //             }
+
+            //             server_ctx.curr_character_instance = None;
+            //             server_ctx.curr_item_instance = None;
+            //             server_ctx.curr_area = None;
+            //         } else if *index == EditorMode::Pick as usize {
+            //             // self.editor_mode = EditorMode::Pick;
+            //             server_ctx.tile_selection = None;
+            //         } else if *index == EditorMode::Erase as usize {
+            //             // self.editor_mode = EditorMode::Erase;
+            //             server_ctx.tile_selection = None;
+            //         } else if *index == EditorMode::Select as usize {
+            //             ui.set_widget_context_menu(
+            //                 "Region Editor View",
+            //                 Some(TheContextMenu {
+            //                     items: vec![TheContextMenuItem::new(
+            //                         "Create Area...".to_string(),
+            //                         TheId::named("Create Area"),
+            //                     )],
+            //                     ..Default::default()
+            //                 }),
+            //             );
+            //             // self.editor_mode = EditorMode::Select;
+            //         }
+
+            //         if *index == EditorMode::Code as usize {
+            //             // self.editor_mode = EditorMode::Code;
+            //             server_ctx.tile_selection = None;
+            //             ctx.ui.send(TheEvent::Custom(
+            //                 TheId::named("Set CodeGrid Panel"),
+            //                 TheValue::Empty,
+            //             ));
+            //         } else if *index == EditorMode::Model as usize {
+            //             // self.editor_mode = EditorMode::Model;
+            //             server_ctx.tile_selection = None;
+            //             ctx.ui.send(TheEvent::Custom(
+            //                 TheId::named("Set Region Modeler"),
+            //                 TheValue::Empty,
+            //             ));
+            //             if let Some(TheValue::Float(f)) = ui.get_widget_value("ModelFX Blend") {
+            //                 server_ctx.conceptual_display = Some(f);
+            //             }
+            //         } else if *index == EditorMode::Tilemap as usize {
+            //             // self.editor_mode = EditorMode::Tilemap;
+            //             server_ctx.tile_selection = None;
+            //             ctx.ui.send(TheEvent::Custom(
+            //                 TheId::named("Set Tilemap Panel"),
+            //                 TheValue::Empty,
+            //             ));
+            //         } else if *index == EditorMode::Render as usize {
+            //             // self.editor_mode = EditorMode::Render;
+            //             server_ctx.tile_selection = None;
+            //             ctx.ui.send(TheEvent::Custom(
+            //                 TheId::named("Set Region Render"),
+            //                 TheValue::Empty,
+            //             ));
+            //         }
+            //     }
+            // }
+            // TheEvent::TileEditorUp(_id) => {
+            //     if self.editor_mode == EditorMode::Select {
+            //         if let Some(tilearea) = &mut server_ctx.tile_selection {
+            //             tilearea.ongoing = false;
+            //         }
+            //     }
+            // }
             TheEvent::TileEditorHoverChanged(id, coord) => {
                 if id.name == "Region Editor View" {
                     if let Some(text) = ui.get_text("Cursor Position") {
@@ -662,14 +648,14 @@ impl TileEditor {
                         server_ctx.curr_item = None;
                         server_ctx.curr_area = None;
 
-                        self.editor_mode = EditorMode::Pick;
-                        if let Some(button) = ui.get_group_button("Editor Group") {
-                            button.set_index(EditorMode::Pick as i32);
-                            ctx.ui.send(TheEvent::IndexChanged(
-                                button.id().clone(),
-                                EditorMode::Pick as usize,
-                            ));
-                        }
+                        // self.editor_mode = EditorMode::Pick;
+                        // if let Some(button) = ui.get_group_button("Editor Group") {
+                        //     button.set_index(EditorMode::Pick as i32);
+                        //     ctx.ui.send(TheEvent::IndexChanged(
+                        //         button.id().clone(),
+                        //         EditorMode::Pick as usize,
+                        //     ));
+                        // }
 
                         // Set 3D editing position to Zero.
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -686,11 +672,11 @@ impl TileEditor {
                                         CODEEDITOR.lock().unwrap().code_id =
                                             str!("Character Instance");
 
-                                        ctx.ui.send(TheEvent::Custom(
-                                            TheId::named("Set CodeGrid Panel"),
-                                            TheValue::Empty,
-                                        ));
-                                        self.set_editor_group_index(EditorMode::Code, ui, ctx)
+                                        // ctx.ui.send(TheEvent::Custom(
+                                        //     TheId::named("Set CodeGrid Panel"),
+                                        //     TheValue::Empty,
+                                        // ));
+                                        // self.set_editor_group_index(EditorMode::Code, ui, ctx)
                                     }
                                 }
                             }
@@ -723,11 +709,11 @@ impl TileEditor {
                                     if grid.name == "init" {
                                         CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
                                         CODEEDITOR.lock().unwrap().code_id = str!("Item Instance");
-                                        ctx.ui.send(TheEvent::Custom(
-                                            TheId::named("Set CodeGrid Panel"),
-                                            TheValue::Empty,
-                                        ));
-                                        self.set_editor_group_index(EditorMode::Code, ui, ctx)
+                                        // ctx.ui.send(TheEvent::Custom(
+                                        //     TheId::named("Set CodeGrid Panel"),
+                                        //     TheValue::Empty,
+                                        // ));
+                                        // self.set_editor_group_index(EditorMode::Code, ui, ctx)
                                     }
                                 }
                             }
@@ -756,11 +742,11 @@ impl TileEditor {
                                 if grid.name == "main" {
                                     CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
                                     CODEEDITOR.lock().unwrap().code_id = str!("Area Instance");
-                                    ctx.ui.send(TheEvent::Custom(
-                                        TheId::named("Set CodeGrid Panel"),
-                                        TheValue::Empty,
-                                    ));
-                                    self.set_editor_group_index(EditorMode::Code, ui, ctx)
+                                    // ctx.ui.send(TheEvent::Custom(
+                                    //     TheId::named("Set CodeGrid Panel"),
+                                    //     TheValue::Empty,
+                                    // ));
+                                    // self.set_editor_group_index(EditorMode::Code, ui, ctx)
                                 }
                             }
 
@@ -837,10 +823,10 @@ impl TileEditor {
                         TheId::named("Floor Selected"),
                         TheValue::Empty,
                     ));
-                    if self.editor_mode == EditorMode::Draw {
-                        ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
-                    }
+                    // if self.editor_mode == EditorMode::Draw {
+                    //     ctx.ui
+                    //         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
+                    // }
                     MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
                         Layer2DRole::Ground,
                         &project.palette,
@@ -858,10 +844,10 @@ impl TileEditor {
                         TheId::named("Wall Selected"),
                         TheValue::Empty,
                     ));
-                    if self.editor_mode == EditorMode::Draw {
-                        ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
-                    }
+                    // if self.editor_mode == EditorMode::Draw {
+                    //     ctx.ui
+                    //         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
+                    // }
                     MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
                         Layer2DRole::Wall,
                         &project.palette,
@@ -879,10 +865,10 @@ impl TileEditor {
                         TheId::named("Ceiling Selected"),
                         TheValue::Empty,
                     ));
-                    if self.editor_mode == EditorMode::Draw {
-                        ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
-                    }
+                    // if self.editor_mode == EditorMode::Draw {
+                    //     ctx.ui
+                    //         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
+                    // }
                     MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
                         Layer2DRole::Ceiling,
                         &project.palette,
@@ -894,10 +880,10 @@ impl TileEditor {
                     self.set_icon_colors(ui);
                     server_ctx.show_fx_marker = true;
                     redraw = true;
-                    if self.editor_mode == EditorMode::Draw {
-                        ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
-                    }
+                    // if self.editor_mode == EditorMode::Draw {
+                    //     ctx.ui
+                    //         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
+                    // }
                     MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
                         Layer2DRole::FX,
                         &project.palette,
@@ -1842,12 +1828,12 @@ impl TileEditor {
         redraw
         }*/
 
-    /// Sets the index of the editor group.
-    fn set_editor_group_index(&mut self, mode: EditorMode, ui: &mut TheUI, ctx: &mut TheContext) {
-        if let Some(widget) = ui.get_group_button("Editor Group") {
-            widget.set_index(mode as i32);
-            ctx.ui
-                .send(TheEvent::IndexChanged(widget.id().clone(), mode as usize));
-        }
-    }
+    // Sets the index of the editor group.
+    // fn set_editor_group_index(&mut self, mode: EditorMode, ui: &mut TheUI, ctx: &mut TheContext) {
+    //     if let Some(widget) = ui.get_group_button("Editor Group") {
+    //         widget.set_index(mode as i32);
+    //         ctx.ui
+    //             .send(TheEvent::IndexChanged(widget.id().clone(), mode as usize));
+    //     }
+    // }
 }

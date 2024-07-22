@@ -38,7 +38,15 @@ impl Panels {
         main_stack.add_canvas(CODEEDITOR.lock().unwrap().build_canvas(ctx));
         main_stack.add_canvas(TILEMAPEDITOR.lock().unwrap().build());
         main_stack.add_canvas(TILEFXEDITOR.lock().unwrap().build(ctx));
-        main_stack.add_canvas(MODELFXEDITOR.lock().unwrap().build(ctx));
+        main_stack.add_canvas(MODELFXEDITOR.lock().unwrap().build_mapobjects(ctx));
+        main_stack.add_canvas(MODELFXEDITOR.lock().unwrap().build_material(ctx));
+        // let mut code_canvas = TheCanvas::new();
+        // let mut widget = TheTextAreaEdit::new(TheId::named("Text"));
+        // widget.set_value(TheValue::Text("Your Code".to_string()));
+        // // If we ignore code type, it's a plain text edit area
+        // widget.set_code_type("glsl");
+        // code_canvas.set_widget(widget);
+        // main_stack.add_canvas(code_canvas);
         main_stack.add_canvas(REGIONFXEDITOR.lock().unwrap().build(ctx));
 
         main_stack.set_index(0);
@@ -256,7 +264,7 @@ impl Panels {
                         .lock()
                         .unwrap()
                         .activated(server_ctx, project, ui, ctx);
-                } else if id.name == "Set Region Render" {
+                } else if id.name == "Set Region Material" {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 5));
                     if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
@@ -264,131 +272,144 @@ impl Panels {
                         ctx.ui.relayout = true;
                         redraw = true;
                     }
-                } else if id.name == "Set Region Panel" {
-                    let mut shared_left = true;
-
-                    if let Some(character) = server_ctx.curr_character_instance {
-                        // Character
-                        ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Details Stack"), 1));
-                        ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
-
-                        shared_left = false;
-
-                        // If in Pick mode show the instance
-                        if self.get_editor_group_index(ui) == EditorMode::Pick as i32 {
-                            ctx.ui
-                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
-
-                            if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
-                                layout.set_mode(TheSharedHLayoutMode::Shared);
-                                ctx.ui.relayout = true;
-                                redraw = true;
-                            }
-
-                            ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
-
-                            if let Some((name, _)) = server.get_character_property(
-                                server_ctx.curr_region,
-                                character,
-                                "name".into(),
-                            ) {
-                                if let Some(text) = ui.get_text("Panel Object Text") {
-                                    text.set_text(name.describe());
-                                }
-                            }
-
-                            self.update_code_object(ui, ctx, server, server_ctx);
-                        }
-                    } else if let Some(item) = server_ctx.curr_item_instance {
-                        // Item
-                        ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Details Stack"), 1));
-                        ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
-
-                        shared_left = false;
-
-                        // If in Pick mode show the instance
-                        if self.get_editor_group_index(ui) == EditorMode::Pick as i32 {
-                            ctx.ui
-                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
-
-                            if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
-                                layout.set_mode(TheSharedHLayoutMode::Shared);
-                                ctx.ui.relayout = true;
-                                redraw = true;
-                            }
-
-                            ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
-
-                            if let Some((name, _)) = server.get_item_property(
-                                server_ctx.curr_region,
-                                item,
-                                "name".into(),
-                            ) {
-                                if let Some(text) = ui.get_text("Panel Object Text") {
-                                    text.set_text(name.describe());
-                                }
-                            }
-
-                            self.update_code_object(ui, ctx, server, server_ctx);
-                        }
-                    } else if let Some(area_id) = server_ctx.curr_area {
-                        // Area
-                        ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Details Stack"), 1));
-
-                        // If in Pick mode show the instance
-                        if self.get_editor_group_index(ui) == EditorMode::Pick as i32 {
-                            ctx.ui
-                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
-
-                            if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
-                                layout.set_mode(TheSharedHLayoutMode::Shared);
-                                ctx.ui.relayout = true;
-                                redraw = true;
-                                shared_left = false;
-                            }
-
-                            ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
-
-                            if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                                if let Some(area) = region.areas.get(&area_id) {
-                                    if let Some(text) = ui.get_text("Panel Object Text") {
-                                        text.set_text(area.name.clone());
-                                    }
-                                }
-                            }
-
-                            self.update_code_object(ui, ctx, server, server_ctx);
-                        }
-                    } else if !self.tilefx_visible {
-                        // Tile Picker
-                        let editor_group_index = self.get_editor_group_index(ui);
-                        if editor_group_index == EditorMode::Draw as i32 {
-                            ctx.ui
-                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
-                        } else if editor_group_index == EditorMode::Model as i32 {
-                            ctx.ui
-                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 4));
-                        } else if editor_group_index == EditorMode::Render as i32 {
-                            ctx.ui
-                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 5));
-                        }
-                    } else {
-                        // Tile CC
-                        ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
+                    MODELFXEDITOR
+                        .lock()
+                        .unwrap()
+                        .activated(server_ctx, project, ui, ctx);
+                } else if id.name == "Set Region Render" {
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 6));
+                    if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                        layout.set_mode(TheSharedHLayoutMode::Right);
+                        ctx.ui.relayout = true;
+                        redraw = true;
                     }
+                }
+                // else if id.name == "Set Region Panel" {
+                //     let mut shared_left = true;
 
-                    if shared_left {
-                        if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
-                            layout.set_mode(TheSharedHLayoutMode::Right);
-                            ctx.ui.relayout = true;
-                            redraw = true;
-                        }
-                    }
-                } else if id.name == "Set CodeGrid Panel" {
+                //     if let Some(character) = server_ctx.curr_character_instance {
+                //         // Character
+                //         ctx.ui
+                //             .send(TheEvent::SetStackIndex(TheId::named("Details Stack"), 1));
+                //         ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
+
+                //         shared_left = false;
+
+                //         // If in Pick mode show the instance
+                //         if self.get_editor_group_index(ui) == EditorMode::Pick as i32 {
+                //             ctx.ui
+                //                 .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
+
+                //             if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                //                 layout.set_mode(TheSharedHLayoutMode::Shared);
+                //                 ctx.ui.relayout = true;
+                //                 redraw = true;
+                //             }
+
+                //             ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
+
+                //             if let Some((name, _)) = server.get_character_property(
+                //                 server_ctx.curr_region,
+                //                 character,
+                //                 "name".into(),
+                //             ) {
+                //                 if let Some(text) = ui.get_text("Panel Object Text") {
+                //                     text.set_text(name.describe());
+                //                 }
+                //             }
+
+                //             self.update_code_object(ui, ctx, server, server_ctx);
+                //         }
+                //     } else if let Some(item) = server_ctx.curr_item_instance {
+                //         // Item
+                //         ctx.ui
+                //             .send(TheEvent::SetStackIndex(TheId::named("Details Stack"), 1));
+                //         ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
+
+                //         shared_left = false;
+
+                //         // If in Pick mode show the instance
+                //         if self.get_editor_group_index(ui) == EditorMode::Pick as i32 {
+                //             ctx.ui
+                //                 .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
+
+                //             if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                //                 layout.set_mode(TheSharedHLayoutMode::Shared);
+                //                 ctx.ui.relayout = true;
+                //                 redraw = true;
+                //             }
+
+                //             ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
+
+                //             if let Some((name, _)) = server.get_item_property(
+                //                 server_ctx.curr_region,
+                //                 item,
+                //                 "name".into(),
+                //             ) {
+                //                 if let Some(text) = ui.get_text("Panel Object Text") {
+                //                     text.set_text(name.describe());
+                //                 }
+                //             }
+
+                //             self.update_code_object(ui, ctx, server, server_ctx);
+                //         }
+                //     } else if let Some(area_id) = server_ctx.curr_area {
+                //         // Area
+                //         ctx.ui
+                //             .send(TheEvent::SetStackIndex(TheId::named("Details Stack"), 1));
+
+                //         // If in Pick mode show the instance
+                //         if self.get_editor_group_index(ui) == EditorMode::Pick as i32 {
+                //             ctx.ui
+                //                 .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
+
+                //             if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                //                 layout.set_mode(TheSharedHLayoutMode::Shared);
+                //                 ctx.ui.relayout = true;
+                //                 redraw = true;
+                //                 shared_left = false;
+                //             }
+
+                //             ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
+
+                //             if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                //                 if let Some(area) = region.areas.get(&area_id) {
+                //                     if let Some(text) = ui.get_text("Panel Object Text") {
+                //                         text.set_text(area.name.clone());
+                //                     }
+                //                 }
+                //             }
+
+                //             self.update_code_object(ui, ctx, server, server_ctx);
+                //         }
+                //     } else if !self.tilefx_visible {
+                //         // Tile Picker
+                //         let editor_group_index = self.get_editor_group_index(ui);
+                //         if editor_group_index == EditorMode::Draw as i32 {
+                //             ctx.ui
+                //                 .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
+                //         } else if editor_group_index == EditorMode::Model as i32 {
+                //             ctx.ui
+                //                 .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 4));
+                //         } else if editor_group_index == EditorMode::Render as i32 {
+                //             ctx.ui
+                //                 .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 5));
+                //         }
+                //     } else {
+                //         // Tile CC
+                //         ctx.ui
+                //             .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
+                //     }
+
+                //     if shared_left {
+                //         if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                //             layout.set_mode(TheSharedHLayoutMode::Right);
+                //             ctx.ui.relayout = true;
+                //             redraw = true;
+                //         }
+                //     }
+                else if id.name == "Set CodeGrid Panel" {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
                     if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
@@ -518,12 +539,12 @@ impl Panels {
         }
     }
 
-    /// Returns the current index of the editor group.
-    fn get_editor_group_index(&self, ui: &mut TheUI) -> i32 {
-        let mut index = 0;
-        if let Some(widget) = ui.get_group_button("Editor Group") {
-            index = widget.index();
-        }
-        index
-    }
+    // Returns the current index of the editor group.
+    // fn get_editor_group_index(&self, ui: &mut TheUI) -> i32 {
+    //     let mut index = 0;
+    //     if let Some(widget) = ui.get_group_button("Editor Group") {
+    //         index = widget.index();
+    //     }
+    //     index
+    // }
 }

@@ -2023,11 +2023,11 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Regions".to_string()));
                     }
 
-                    if let Some(button) = ui.get_group_button("Editor Group") {
-                        if button.index() == EditorMode::Pick as i32 {
-                            ctx.ui.send(TheEvent::IndexChanged(button.id().clone(), 1));
-                        }
-                    }
+                    // if let Some(button) = ui.get_group_button("Editor Group") {
+                    //     if button.index() == EditorMode::Pick as i32 {
+                    //         ctx.ui.send(TheEvent::IndexChanged(button.id().clone(), 1));
+                    //     }
+                    // }
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Region;
 

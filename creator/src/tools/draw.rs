@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use ToolEvent::*;
 
-use crate::editor::{PRERENDERTHREAD, UNDOMANAGER};
+use crate::editor::{MODELFXEDITOR, PRERENDERTHREAD, UNDOMANAGER};
 
 pub struct DrawTool {
     id: TheId,
@@ -48,8 +48,9 @@ impl Tool for DrawTool {
             }
             TileDrag(c) => c,
             Activate => {
+                MODELFXEDITOR.lock().unwrap().set_geometry_mode(false);
                 ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Set Region Modeler"),
+                    TheId::named("Set Region Material"),
                     TheValue::Empty,
                 ));
                 return true;

@@ -9,8 +9,7 @@ pub enum ModelFXMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum EditingMode {
-    Geometry,
+pub enum MaterialMode {
     Material,
     MaterialNodes,
 }
@@ -20,7 +19,9 @@ pub struct ModelFXEditor {
     pub geos: FxHashMap<(i32, i32), GeoFXNode>,
     pub materials: FxHashMap<(i32, i32), Uuid>,
 
-    pub editing_mode: EditingMode,
+    pub geometry_mode: bool,
+    pub material_mode: MaterialMode,
+
     pub curr_layer_role: Layer2DRole,
 
     pub current_material: Option<Uuid>,
@@ -36,7 +37,8 @@ impl ModelFXEditor {
             geos: FxHashMap::default(),
             materials: FxHashMap::default(),
 
-            editing_mode: EditingMode::Geometry,
+            geometry_mode: true,
+            material_mode: MaterialMode::Material,
             curr_layer_role: Layer2DRole::Wall,
 
             current_material: None,
@@ -46,7 +48,70 @@ impl ModelFXEditor {
     }
 
     /// Build the UI
-    pub fn build(&self, _ctx: &mut TheContext) -> TheCanvas {
+    pub fn build_mapobjects(&self, _ctx: &mut TheContext) -> TheCanvas {
+        let mut canvas = TheCanvas::new();
+
+        // Toolbar
+        let mut toolbar_canvas = TheCanvas::default();
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.limiter_mut().set_max_height(25);
+        toolbar_hlayout.set_margin(vec4i(10, 2, 5, 3));
+
+        let mut blend = TheSlider::new(TheId::named("ModelFX Blend"));
+        blend.set_value(TheValue::Float(0.5));
+        blend.set_default_value(TheValue::Float(0.5));
+        blend.set_range(TheValue::RangeF32(0.0..=1.0));
+        blend.set_continuous(true);
+        blend.limiter_mut().set_max_width(120);
+        blend.set_status_text("Sets the blend factor for the preview in the 2D Map. 0 only shows the conceptual preview, 1 the fully rendered preview.");
+
+        toolbar_hlayout.add_widget(Box::new(blend));
+        toolbar_hlayout.set_reverse_index(Some(1));
+
+        /*
+        let mut time_slider = TheTimeSlider::new(TheId::named("ModelFX Timeline"));
+        time_slider.set_status_text("The timeline for models.");
+        time_slider.limiter_mut().set_max_width(400);
+        toolbar_hlayout.add_widget(Box::new(time_slider));
+
+        let mut add_button = TheTraybarButton::new(TheId::named("ModelFX Clear Marker"));
+        //add_button.set_icon_name("icon_role_add".to_string());
+        add_button.set_text(str!("Clear"));
+        add_button.set_status_text("Clears the currently selected marker.");
+
+        let mut clear_button = TheTraybarButton::new(TheId::named("ModelFX Clear All"));
+        //add_button.set_icon_name("icon_role_add".to_string());
+        clear_button.set_text(str!("Clear All"));
+        clear_button.set_status_text("Clears all markers from the timeline.");
+
+        toolbar_hlayout.add_widget(Box::new(add_button));
+        toolbar_hlayout.add_widget(Box::new(clear_button));
+        // toolbar_hlayout.set_reverse_index(Some(1));
+        */
+
+        toolbar_canvas.set_layout(toolbar_hlayout);
+
+        canvas.set_top(toolbar_canvas);
+
+        // - ModelFX View
+
+        let mut geometry_canvas = TheCanvas::new();
+        let mut rgba_layout = TheRGBALayout::new(TheId::named("GeoFX RGBA Layout"));
+        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+            rgba_view.set_grid(Some(24));
+            rgba_view.set_mode(TheRGBAViewMode::TilePicker);
+            let mut c = WHITE;
+            c[3] = 128;
+            rgba_view.set_hover_color(Some(c));
+        }
+        geometry_canvas.set_layout(rgba_layout);
+        canvas.set_center(geometry_canvas);
+
+        canvas
+    }
+
+    /// Build the UI
+    pub fn build_material(&self, _ctx: &mut TheContext) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
         // Toolbar
@@ -65,10 +130,6 @@ impl ModelFXEditor {
         // move_button.set_status_text("Moves the model to the library.");
 
         let mut gb = TheGroupButton::new(TheId::named("ModelFX Mode Group"));
-        gb.add_text_status(
-            str!("Geometry"),
-            str!("Nodes which model geometry like floors, walls and ceilings."),
-        );
         gb.add_text_status(
             str!("Materials"),
             str!("Materials which can be applied to geometry nodes."),
@@ -180,17 +241,6 @@ impl ModelFXEditor {
 
         let mut modelfx_stack = TheStackLayout::new(TheId::named("ModelFX Stack"));
 
-        let mut geometry_canvas = TheCanvas::new();
-        let mut rgba_layout = TheRGBALayout::new(TheId::named("GeoFX RGBA Layout"));
-        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-            rgba_view.set_grid(Some(24));
-            rgba_view.set_mode(TheRGBAViewMode::TilePicker);
-            let mut c = WHITE;
-            c[3] = 128;
-            rgba_view.set_hover_color(Some(c));
-        }
-        geometry_canvas.set_layout(rgba_layout);
-
         let mut material_canvas = TheCanvas::new();
         let mut rgba_layout = TheRGBALayout::new(TheId::named("MaterialFX RGBA Layout"));
         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
@@ -206,7 +256,6 @@ impl ModelFXEditor {
         let node_view = TheNodeCanvasView::new(TheId::named("MaterialFX NodeCanvas"));
         texture_node_canvas.set_widget(node_view);
 
-        modelfx_stack.add_canvas(geometry_canvas);
         modelfx_stack.add_canvas(material_canvas);
         modelfx_stack.add_canvas(texture_node_canvas);
 
@@ -289,7 +338,7 @@ impl ModelFXEditor {
                 //let prev = self.modelfx.to_json();
                 #[allow(clippy::collapsible_if)]
                 if id.name == "MaterialFX Nodes" || id.name.is_empty() {
-                    if self.editing_mode == EditingMode::MaterialNodes {
+                    if self.material_mode == MaterialMode::MaterialNodes {
                         if let Some(material_id) = server_ctx.curr_material_object {
                             if let Some(material) = project.materials.get_mut(&material_id) {
                                 let prev = material.to_json();
@@ -517,7 +566,7 @@ impl ModelFXEditor {
                     if let Some(name) = id.name.strip_prefix(":MODELFX: ") {
                         let mut value = value.clone();
 
-                        if self.editing_mode == EditingMode::Geometry {
+                        if self.geometry_mode {
                             if let Some(curr_geo_node) = server_ctx.curr_geo_node {
                                 let mut region_to_render: Option<Region> = None;
                                 let mut old_tiles_to_render: Vec<Vec2i> = vec![];
@@ -574,7 +623,7 @@ impl ModelFXEditor {
                                     }
                                 }
                             }
-                        } else if self.editing_mode == EditingMode::MaterialNodes {
+                        } else if self.material_mode == MaterialMode::MaterialNodes {
                             let mut region_to_render: Option<Region> = None;
                             let mut tiles_to_render: Vec<Vec2i> = vec![];
                             if let Some(material_id) = server_ctx.curr_material_object {
@@ -756,14 +805,15 @@ impl ModelFXEditor {
                         stack.set_index(*index);
                         redraw = true;
                         ctx.ui.relayout = true;
+                        // if *index == 0 {
+                        //     self.editing_mode = EditingMode::Geometry;
+                        //     self.set_geo_node_ui(server_ctx, project, ui, ctx);
+                        // } else
                         if *index == 0 {
-                            self.editing_mode = EditingMode::Geometry;
-                            self.set_geo_node_ui(server_ctx, project, ui, ctx);
-                        } else if *index == 1 {
-                            self.editing_mode = EditingMode::Material;
+                            self.material_mode = MaterialMode::Material;
                             self.set_material_node_ui(server_ctx, project, ui, ctx);
                         } else {
-                            self.editing_mode = EditingMode::MaterialNodes;
+                            self.material_mode = MaterialMode::MaterialNodes;
                             self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
                         }
                     }
@@ -857,7 +907,7 @@ impl ModelFXEditor {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
-        if self.editing_mode == EditingMode::Geometry {
+        if self.geometry_mode {
             if let Some(curr_geo_node) = self.get_geo_node(ui) {
                 let mut buffer = TheRGBABuffer::new(TheDim::sized(65, 65));
                 curr_geo_node.preview(
@@ -881,6 +931,10 @@ impl ModelFXEditor {
         }
     }
 
+    pub fn set_geometry_mode(&mut self, geometry_mode: bool) {
+        self.geometry_mode = geometry_mode;
+    }
+
     /// Modeler got activated, set the UI
     pub fn activated(
         &mut self,
@@ -890,9 +944,9 @@ impl ModelFXEditor {
         ctx: &mut TheContext,
     ) {
         self.set_current_brush(ui, project, server_ctx);
-        if self.editing_mode == EditingMode::Geometry {
+        if self.geometry_mode {
             self.set_geo_node_ui(server_ctx, project, ui, ctx);
-        } else if self.editing_mode == EditingMode::Material {
+        } else if self.material_mode == MaterialMode::Material {
             self.set_material_node_ui(server_ctx, project, ui, ctx);
         } else {
             self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
