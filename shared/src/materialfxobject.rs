@@ -135,6 +135,7 @@ impl MaterialFXObject {
         true
     }
 
+    /// Get the distance for the given position from the geometry & material objects.
     pub fn get_distance_3d(
         &self,
         time: &TheTime,
@@ -176,6 +177,77 @@ impl MaterialFXObject {
         hit.noise = noise_buffer;
         hit.noise_scale = noise_buffer_scale;
 
+        d.0 = self.extrude_material(hit, mat_obj_params, has_geo_trail, d.0);
+
+        hit.noise = geo_noise;
+        hit.noise_scale = geo_noise_scale;
+
+        d
+    }
+
+    /// Get the distance for the given position from the heightmap & material objects.
+    pub fn get_heightmap_distance_3d(
+        &self,
+        time: &TheTime,
+        p: Vec3f,
+        hit: &mut Hit,
+        _heightmap: &Heightmap,
+        mat_obj_params: &[Vec<f32>],
+    ) -> f32 {
+        hit.noise = None;
+        hit.noise_scale = 1.0;
+
+        if let Some(noise_index) = self.find_connected_output_node(0, 0) {
+            if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
+                || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
+            {
+                _ = self.nodes[noise_index].compute(
+                    hit,
+                    &ThePalette::default(),
+                    &FxHashMap::default(),
+                    vec![],
+                    &mat_obj_params[noise_index],
+                );
+            }
+        }
+
+        let noise_buffer = hit.noise;
+        let noise_buffer_scale = hit.noise_scale;
+
+        hit.pattern_pos = vec2f(p.x, p.z);
+        hit.extrusion = GeoFXNodeExtrusion::Y;
+        hit.extrusion_length = 0.0;
+        hit.interior_distance = -0.1;
+        hit.hit_point = p;
+
+        let mut d = p.y; // - heightmap.interpolate_height(p.x, p.z);
+        let has_geo_trail = self.follow_geo_trail(time, hit, mat_obj_params);
+
+        let geo_noise = hit.noise;
+        let geo_noise_scale = hit.noise_scale;
+
+        // hit.noise = None;
+        // hit.noise_scale = 1.0;
+
+        hit.noise = noise_buffer;
+        hit.noise_scale = noise_buffer_scale;
+
+        d = self.extrude_material(hit, mat_obj_params, has_geo_trail, d);
+
+        hit.noise = geo_noise;
+        hit.noise_scale = geo_noise_scale;
+
+        d
+    }
+
+    /// Extrude the geometry from the hit.
+    pub fn extrude_material(
+        &self,
+        hit: &mut Hit,
+        mat_obj_params: &[Vec<f32>],
+        has_geo_trail: bool,
+        mut d: f32,
+    ) -> f32 {
         // Set extrusion parameters to zero
         let mut extrude_add = 0.0;
         let mut extrude_rounding = 0.0;
@@ -221,7 +293,7 @@ impl MaterialFXObject {
                                 mortar,
                                 hit.extrusion_length + extrude_add - extrude_mortar_sub,
                             );
-                            d.0 = min(distance, mortar_distance);
+                            d = min(distance, mortar_distance);
 
                             if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
                                 hit.value = 0.0;
@@ -230,12 +302,11 @@ impl MaterialFXObject {
                             }
                         }
                     } else {
-                        d.0 = distance;
+                        d = distance;
                         hit.value = 0.0;
                     }
                 } else {
-                    d.0 =
-                        op_extrusion_x(hit.hit_point, hit.interior_distance, hit.extrusion_length);
+                    d = op_extrusion_x(hit.hit_point, hit.interior_distance, hit.extrusion_length);
                 }
             }
             GeoFXNodeExtrusion::Y => {
@@ -258,8 +329,7 @@ impl MaterialFXObject {
                                 mortar,
                                 hit.extrusion_length + extrude_add - extrude_mortar_sub,
                             );
-                            d.0 = min(distance, mortar_distance);
-
+                            d = min(distance, mortar_distance);
                             if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
                                 hit.value = 0.0;
                             } else {
@@ -267,12 +337,11 @@ impl MaterialFXObject {
                             }
                         }
                     } else {
-                        d.0 = distance;
+                        d = distance;
                         hit.value = 0.0;
                     }
                 } else {
-                    d.0 =
-                        op_extrusion_y(hit.hit_point, hit.interior_distance, hit.extrusion_length);
+                    d = op_extrusion_y(hit.hit_point, hit.interior_distance, hit.extrusion_length);
                 }
             }
             GeoFXNodeExtrusion::Z => {
@@ -295,7 +364,7 @@ impl MaterialFXObject {
                                 mortar,
                                 hit.extrusion_length + extrude_add - extrude_mortar_sub,
                             );
-                            d.0 = min(distance, mortar_distance);
+                            d = min(distance, mortar_distance);
 
                             if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
                                 hit.value = 0.0;
@@ -304,24 +373,21 @@ impl MaterialFXObject {
                             }
                         }
                     } else {
-                        d.0 = distance;
+                        d = distance;
                         hit.value = 0.0;
                     }
                 } else {
-                    d.0 =
-                        op_extrusion_z(hit.hit_point, hit.interior_distance, hit.extrusion_length);
+                    d = op_extrusion_z(hit.hit_point, hit.interior_distance, hit.extrusion_length);
                 }
             }
 
             _ => {}
         }
 
-        hit.noise = geo_noise;
-        hit.noise_scale = geo_noise_scale;
-
         d
     }
 
+    /// Compute the materials geometry extrusion.
     pub fn follow_geo_trail(
         &self,
         _time: &TheTime,
@@ -330,6 +396,14 @@ impl MaterialFXObject {
     ) -> bool {
         if let Some((index, _input)) = self.find_connected_input_node(0, 1) {
             self.nodes[index as usize].geometry(hit, &mat_obj_params[index as usize]);
+            return true;
+        }
+        false
+    }
+
+    /// Returns true if the material supports geometry extrusion.
+    pub fn has_geometry_trail(&self) -> bool {
+        if let Some((_, _)) = self.find_connected_input_node(0, 1) {
             return true;
         }
         false
@@ -368,6 +442,32 @@ impl MaterialFXObject {
             + e4 * self
                 .get_distance_3d(time, p + e4, hit, geo_obj, geo_obj_params, mat_obj_params)
                 .0;
+        normalize(n)
+    }
+
+    /// Calculate normal
+    pub fn heightmap_normal(
+        &self,
+        time: &TheTime,
+        p: Vec3f,
+        hit: &mut Hit,
+        heightmap: &Heightmap,
+        mat_obj_params: &[Vec<f32>],
+    ) -> Vec3f {
+        let scale = 0.5773 * 0.0005;
+        let e = vec2f(1.0 * scale, -1.0 * scale);
+
+        // IQs normal function
+
+        let e1 = vec3f(e.x, e.y, e.y);
+        let e2 = vec3f(e.y, e.y, e.x);
+        let e3 = vec3f(e.y, e.x, e.y);
+        let e4 = vec3f(e.x, e.x, e.x);
+
+        let n = e1 * self.get_heightmap_distance_3d(time, p + e1, hit, heightmap, mat_obj_params)
+            + e2 * self.get_heightmap_distance_3d(time, p + e2, hit, heightmap, mat_obj_params)
+            + e3 * self.get_heightmap_distance_3d(time, p + e3, hit, heightmap, mat_obj_params)
+            + e4 * self.get_heightmap_distance_3d(time, p + e4, hit, heightmap, mat_obj_params);
         normalize(n)
     }
 

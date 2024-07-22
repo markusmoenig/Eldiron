@@ -14,8 +14,9 @@ use HeightmapInterpolation::*;
 pub struct Heightmap {
     #[serde(with = "vectorize")]
     data: FxHashMap<(i32, i32), f32>,
+    #[serde(default)]
     #[serde(with = "vectorize")]
-    materials: FxHashMap<(i32, i32), TheRGBBuffer>,
+    material_mask: FxHashMap<(i32, i32), TheRGBBuffer>,
     #[serde(with = "vectorize")]
     interpolation: FxHashMap<(i32, i32), HeightmapInterpolation>,
 }
@@ -30,9 +31,21 @@ impl Heightmap {
     pub fn new() -> Self {
         Self {
             data: FxHashMap::default(),
-            materials: FxHashMap::default(),
+            material_mask: FxHashMap::default(),
             interpolation: FxHashMap::default(),
         }
+    }
+
+    pub fn set_material_mask(&mut self, x: i32, y: i32, material: TheRGBBuffer) {
+        self.material_mask.insert((x, y), material);
+    }
+
+    pub fn get_material_mask(&self, x: i32, y: i32) -> Option<&TheRGBBuffer> {
+        self.material_mask.get(&(x, y))
+    }
+
+    pub fn get_material_mask_mut(&mut self, x: i32, y: i32) -> Option<&mut TheRGBBuffer> {
+        self.material_mask.get_mut(&(x, y))
     }
 
     pub fn set_height(&mut self, x: i32, y: i32, height: f32) {
