@@ -6,6 +6,8 @@ pub use ActiveEditor::*;
 pub struct ToolList {
     pub active_editor: ActiveEditor,
 
+    pub brushes: Vec<Box<dyn Brush>>,
+
     pub game_tools: Vec<Box<dyn Tool>>,
     pub curr_game_tool: usize,
 
@@ -21,6 +23,9 @@ impl Default for ToolList {
 
 impl ToolList {
     pub fn new() -> Self {
+        let brushes: Vec<Box<dyn Brush>> =
+            vec![Box::new(RectBrush::new()), Box::new(DiscBrush::new())];
+
         let game_tools: Vec<Box<dyn Tool>> = vec![
             Box::new(TileDrawerTool::new()),
             Box::new(DrawTool::new()),
@@ -31,6 +36,7 @@ impl ToolList {
             Box::new(SelectionTool::new()),
             Box::new(TilemapTool::new()),
             Box::new(RenderTool::new()),
+            Box::new(ZoomTool::new()),
         ];
         let screen_tools: Vec<Box<dyn Tool>> = vec![
             Box::new(ScreenTileDrawerTool::new()),
@@ -41,6 +47,8 @@ impl ToolList {
 
         Self {
             active_editor: ActiveEditor::GameEditor,
+
+            brushes,
 
             game_tools,
             curr_game_tool: 0,
@@ -181,6 +189,8 @@ impl ToolList {
                         client,
                         server_ctx,
                     );
+
+                    ctx.ui.relayout = true;
                 }
             }
             TheEvent::TileEditorClicked(id, coord) => {

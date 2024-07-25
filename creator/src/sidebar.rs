@@ -1,5 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, PRERENDERTHREAD, REGIONFXEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR,
+    CODEEDITOR, MODELFXEDITOR, PRERENDERTHREAD, REGIONFXEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER,
+    TILEMAPEDITOR,
 };
 use crate::prelude::*;
 
@@ -2649,6 +2650,11 @@ impl Sidebar {
             TheId::named("Update Tilepicker"),
             TheValue::Empty,
         ));
+
+        MODELFXEDITOR
+            .lock()
+            .unwrap()
+            .set_materials(ui, ctx, project, None);
     }
 
     /// Apply the given character to the UI

@@ -10,6 +10,7 @@ pub mod screen;
 pub mod selection;
 pub mod tiledrawer;
 pub mod tilemap;
+pub mod zoom;
 
 #[derive(PartialEq, Clone, Debug, Copy)]
 pub enum ToolEvent {

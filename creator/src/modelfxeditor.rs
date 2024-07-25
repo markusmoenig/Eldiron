@@ -1,4 +1,4 @@
-use crate::editor::{PRERENDERTHREAD, TILEDRAWER, UNDOMANAGER};
+use crate::editor::{PRERENDERTHREAD, TILEDRAWER, TOOLLIST, UNDOMANAGER};
 use crate::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -111,7 +111,12 @@ impl ModelFXEditor {
     }
 
     /// Build the UI
-    pub fn build_material(&self, _ctx: &mut TheContext) -> TheCanvas {
+    pub fn build_material(
+        &self,
+        project: &Project,
+        _ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
         // Toolbar
@@ -135,6 +140,10 @@ impl ModelFXEditor {
             str!("Materials which can be applied to geometry nodes."),
         );
         gb.add_text_status(str!("Editor"), str!("Edit the current material."));
+        gb.add_text_status(
+            str!("Brushes"),
+            str!("Select the brush to paint materials with."),
+        );
         gb.set_item_width(75);
 
         let mut material_button = TheTraybarButton::new(TheId::named("MaterialFX Nodes"));
@@ -241,23 +250,53 @@ impl ModelFXEditor {
 
         let mut modelfx_stack = TheStackLayout::new(TheId::named("ModelFX Stack"));
 
+        // Materials
         let mut material_canvas = TheCanvas::new();
-        let mut rgba_layout = TheRGBALayout::new(TheId::named("MaterialFX RGBA Layout"));
-        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-            rgba_view.set_grid(Some(48));
-            rgba_view.set_mode(TheRGBAViewMode::TilePicker);
-            let mut c = WHITE;
-            c[3] = 128;
-            rgba_view.set_hover_color(Some(c));
-        }
-        material_canvas.set_layout(rgba_layout);
+        let mut material_rowlist_layout =
+            TheRowListLayout::new(TheId::named("ModelFX Material List"));
 
+        for material in project.materials.values() {
+            let mut item = TheRowListItem::new(TheId::named_with_id(&material.name, material.id));
+            item.set_text(material.name.clone());
+
+            material_rowlist_layout.add_item(item, _ctx);
+        }
+
+        material_canvas.set_layout(material_rowlist_layout);
+
+        // Material Editor
         let mut texture_node_canvas = TheCanvas::new();
         let node_view = TheNodeCanvasView::new(TheId::named("MaterialFX NodeCanvas"));
         texture_node_canvas.set_widget(node_view);
 
+        // Brushes
+        let mut brushes_canvas = TheCanvas::new();
+        let mut brushes_rowlist_layout =
+            TheRowListLayout::new(TheId::named("ModelFX Brushes List"));
+
+        let tools = TOOLLIST.lock().unwrap();
+        for (index, brush) in tools.brushes.iter().enumerate() {
+            let mut item = TheRowListItem::new(brush.id().clone());
+            item.set_text(brush.info().clone());
+            //item.set_icon(material.get_preview());
+
+            if index == 0 {
+                item.set_state(TheWidgetState::Selected);
+                server_ctx.curr_brush = Some(brush.id().uuid);
+            }
+
+            let mut buffer = TheRGBABuffer::new(TheDim::sized(300, 300));
+            brush.preview(&mut buffer);
+            item.set_icon(buffer);
+
+            brushes_rowlist_layout.add_item(item, _ctx);
+        }
+
+        brushes_canvas.set_layout(brushes_rowlist_layout);
+
         modelfx_stack.add_canvas(material_canvas);
         modelfx_stack.add_canvas(texture_node_canvas);
+        modelfx_stack.add_canvas(brushes_canvas);
 
         canvas.set_layout(modelfx_stack);
 
@@ -284,7 +323,16 @@ impl ModelFXEditor {
                 }
             }
             TheEvent::StateChanged(id, state) => {
-                if id.name == "MaterialFX Add" {
+                if id.name == "Material" {
+                    if let Some(material) = project.materials.get(&id.uuid) {
+                        server_ctx.curr_material_object = Some(material.id);
+                    } else {
+                        server_ctx.curr_material_object = None;
+                        ui.set_node_canvas("MaterialFX NodeCanvas", TheNodeCanvas::default());
+                    }
+                    self.set_material_node_ui(server_ctx, project, ui, ctx);
+                    self.set_current_brush(ui, project, server_ctx);
+                } else if id.name == "MaterialFX Add" {
                     let mut material = MaterialFXObject::default();
                     let node = MaterialFXNode::new(MaterialFXNodeRole::Geometry);
                     material.nodes.push(node);
@@ -311,7 +359,7 @@ impl ModelFXEditor {
 
                     project.materials.insert(material.id, material);
                     server_ctx.curr_material_object = Some(material_id);
-                    self.set_material_tiles(ui, ctx, project, Some(material_id));
+                    self.set_materials(ui, ctx, project, Some(material_id));
                     self.set_material_node_ui(server_ctx, project, ui, ctx);
                     TILEDRAWER
                         .lock()
@@ -775,6 +823,7 @@ impl ModelFXEditor {
             TheEvent::Custom(id, _) => {
                 if id.name == "Update Materials" {
                     println!("Update Materials");
+                    self.set_materials(ui, ctx, project, None);
                     self.set_material_tiles(ui, ctx, project, None);
                 } else if id.name == "Floor Selected" {
                     if let Some(stack) = ui.get_stack_layout("ModelFX Stack Layout") {
@@ -1269,18 +1318,43 @@ impl ModelFXEditor {
         None
     }
 
-    /// Set the tiles for the picker.
-    pub fn set_material_tiles(
+    /// Set the materials for the project.
+    pub fn set_materials(
         &mut self,
         ui: &mut TheUI,
         _ctx: &mut TheContext,
         project: &Project,
         set_selection: Option<Uuid>,
     ) {
-        let tile_size = 100;
+        if let Some(list) = ui.get_rowlist_layout("ModelFX Material List") {
+            list.clear();
 
-        self.materials.clear();
+            for material in project.materials.values() {
+                let mut item = TheRowListItem::new(TheId::named_with_id("Material", material.id));
+                item.set_text(material.name.clone());
+                item.set_icon(material.get_preview());
 
+                if Some(material.id) == set_selection {
+                    item.set_state(TheWidgetState::Selected);
+                }
+
+                list.add_item(item, _ctx);
+            }
+        }
+    }
+
+    /// Set the tiles for the picker.
+    pub fn set_material_tiles(
+        &mut self,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _project: &Project,
+        _set_selection: Option<Uuid>,
+    ) {
+        //let tile_size = 100;
+
+        //self.materials.clear();
+        /*
         if let Some(editor) = ui.get_rgba_layout("MaterialFX RGBA Layout") {
             if editor.dim().width == 0 {
                 return;
@@ -1347,6 +1421,7 @@ impl ModelFXEditor {
                 rgba_view.set_buffer(buffer);
             }
         }
+        */
     }
 
     pub fn render_material_changes(

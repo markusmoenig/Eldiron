@@ -105,17 +105,17 @@ impl TileEditor {
         ceiling_icon.limiter_mut().set_max_size(vec2i(48, 48));
         ceiling_icon.set_border_color(Some(self.icon_normal_border_color));
 
-        let mut cc_icon = TheIconView::new(TheId::named("Tile FX Icon"));
-        cc_icon.set_text(Some("FX".to_string()));
-        cc_icon.set_text_size(10.0);
-        cc_icon.set_text_color([200, 200, 200, 255]);
-        cc_icon.limiter_mut().set_max_size(vec2i(48, 48));
-        cc_icon.set_border_color(Some(self.icon_normal_border_color));
+        // let mut cc_icon = TheIconView::new(TheId::named("Tile FX Icon"));
+        // cc_icon.set_text(Some("FX".to_string()));
+        // cc_icon.set_text_size(10.0);
+        // cc_icon.set_text_color([200, 200, 200, 255]);
+        // cc_icon.limiter_mut().set_max_size(vec2i(48, 48));
+        // cc_icon.set_border_color(Some(self.icon_normal_border_color));
 
         vlayout.add_widget(Box::new(ground_icon));
         vlayout.add_widget(Box::new(wall_icon));
         vlayout.add_widget(Box::new(ceiling_icon));
-        vlayout.add_widget(Box::new(cc_icon));
+        //vlayout.add_widget(Box::new(cc_icon));
 
         let mut spacer = TheIconView::new(TheId::empty());
         spacer.limiter_mut().set_max_height(2);
@@ -143,7 +143,7 @@ impl TileEditor {
         time_slider.limiter_mut().set_max_width(400);
 
         let mut spacer = TheSpacer::new(TheId::empty());
-        spacer.limiter_mut().set_max_width(2);
+        spacer.limiter_mut().set_max_width(30);
 
         let mut render_button = TheTraybarButton::new(TheId::named("Render Button"));
         render_button.set_text("Starting...".to_string());
@@ -160,23 +160,14 @@ impl TileEditor {
             ..Default::default()
         }));
 
-        let mut zoom = TheTextLineEdit::new(TheId::named("Region Editor Zoom"));
-        zoom.set_value(TheValue::Float(1.0));
-        //zoom.set_default_value(TheValue::Float(1.0));
-        zoom.set_range(TheValue::RangeF32(1.0..=5.0));
-        zoom.set_continuous(true);
-        zoom.limiter_mut().set_max_width(60);
-        zoom.set_status_text("Set the camera zoom.");
-
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(10, 4, 10, 4));
+        toolbar_hlayout.set_margin(vec4i(10, 4, 5, 4));
         toolbar_hlayout.add_widget(Box::new(gb));
         toolbar_hlayout.add_widget(Box::new(spacer));
         toolbar_hlayout.add_widget(Box::new(time_slider));
         toolbar_hlayout.add_widget(Box::new(render_button));
-        toolbar_hlayout.add_widget(Box::new(zoom));
-        toolbar_hlayout.set_reverse_index(Some(2));
+        toolbar_hlayout.set_reverse_index(Some(1));
 
         top_toolbar.set_layout(toolbar_hlayout);
         center.set_top(top_toolbar);
@@ -247,15 +238,26 @@ impl TileEditor {
             ..Default::default()
         }));
 
-        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
-        toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(10, 4, 10, 4));
-        toolbar_hlayout.add_widget(Box::new(gb));
-        toolbar_hlayout.add_widget(Box::new(camera_button));
-        toolbar_hlayout.set_reverse_index(Some(1));
+        // let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        // toolbar_hlayout.set_background_color(None);
+        // toolbar_hlayout.set_margin(vec4i(10, 4, 10, 4));
+        // toolbar_hlayout.add_widget(Box::new(gb));
+        // toolbar_hlayout.add_widget(Box::new(camera_button));
+        // toolbar_hlayout.set_reverse_index(Some(1));
 
-        bottom_toolbar.set_layout(toolbar_hlayout);
+        // bottom_toolbar.set_layout(toolbar_hlayout);
         //center.set_bottom(bottom_toolbar);
+
+        // Tool Params
+        let mut toolbar_hlayout = TheHLayout::new(TheId::named("Game Tool Params"));
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(vec4i(10, 2, 5, 2));
+
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        toolbar_canvas.set_layout(toolbar_hlayout);
+
+        center.set_top(toolbar_canvas);
 
         center
     }
@@ -610,20 +612,6 @@ impl TileEditor {
                         if r.id == server_ctx.curr_region {
                             self.set_icon_previews(r, &project.palette, *coord, ui);
                             break;
-                        }
-                    }
-                }
-            }
-            TheEvent::ValueChanged(id, value) => {
-                if id.name == "Region Editor Zoom" {
-                    if let Some(v) = value.to_f32() {
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            server.set_zoom(region.id, v);
-                            region.zoom = v;
-                        }
-                        if let Some(layout) = ui.get_rgba_layout("Region Editor") {
-                            layout.set_zoom(v);
-                            layout.relayout(ctx);
                         }
                     }
                 }

@@ -302,7 +302,9 @@ impl TheTrait for Editor {
             .init_ui(ui, ctx, &mut self.project, &mut self.server);
 
         // Panels
-        let bottom_panels = self.panels.init_ui(ui, ctx, &mut self.project);
+        let bottom_panels = self
+            .panels
+            .init_ui(ui, ctx, &mut self.project, &mut self.server_ctx);
 
         // Editor
         let mut tab_canvas: TheCanvas = TheCanvas::new();

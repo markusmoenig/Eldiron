@@ -21,7 +21,8 @@ impl Panels {
         &mut self,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
     ) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
@@ -39,7 +40,12 @@ impl Panels {
         main_stack.add_canvas(TILEMAPEDITOR.lock().unwrap().build());
         main_stack.add_canvas(TILEFXEDITOR.lock().unwrap().build(ctx));
         main_stack.add_canvas(MODELFXEDITOR.lock().unwrap().build_mapobjects(ctx));
-        main_stack.add_canvas(MODELFXEDITOR.lock().unwrap().build_material(ctx));
+        main_stack.add_canvas(
+            MODELFXEDITOR
+                .lock()
+                .unwrap()
+                .build_material(project, ctx, server_ctx),
+        );
         // let mut code_canvas = TheCanvas::new();
         // let mut widget = TheTextAreaEdit::new(TheId::named("Text"));
         // widget.set_value(TheValue::Text("Your Code".to_string()));

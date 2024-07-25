@@ -7,6 +7,10 @@ pub struct DrawTool {
     id: TheId,
 
     processed_coords: FxHashSet<Vec2i>,
+
+    align_index: i32,
+    brush_size: f32,
+    falloff: f32,
 }
 
 impl Tool for DrawTool {
@@ -17,6 +21,10 @@ impl Tool for DrawTool {
         Self {
             id: TheId::named("Draw Tool"),
             processed_coords: FxHashSet::default(),
+
+            align_index: 0,
+            brush_size: 1.0,
+            falloff: 0.0,
         }
     }
 
@@ -53,12 +61,67 @@ impl Tool for DrawTool {
                     TheId::named("Set Region Material"),
                     TheValue::Empty,
                 ));
+
+                if let Some(layout) = ui.get_hlayout("Game Tool Params") {
+                    layout.clear();
+
+                    // Align Group
+                    let mut gb = TheGroupButton::new(TheId::named("Draw Align Group"));
+                    gb.add_text_status(
+                        str!("Tile Align"),
+                        str!("Draw aligned to the tiles of the regions."),
+                    );
+                    gb.add_text_status(str!("Freeform"), str!("Draw without any restrictions."));
+                    gb.set_item_width(75);
+
+                    gb.set_index(self.align_index);
+
+                    layout.add_widget(Box::new(gb));
+
+                    // Brush Size
+
+                    let mut text = TheText::new(TheId::empty());
+                    text.set_text("Brush Size".to_string());
+                    layout.add_widget(Box::new(text));
+
+                    let mut brush_size = TheSlider::new(TheId::named("Brush Size"));
+                    brush_size.set_value(TheValue::Float(self.brush_size));
+                    brush_size.set_default_value(TheValue::Float(1.0));
+                    brush_size.set_range(TheValue::RangeF32(0.01..=5.0));
+                    brush_size.set_continuous(true);
+                    brush_size.limiter_mut().set_max_width(140);
+                    brush_size.set_status_text("The brush size.");
+                    layout.add_widget(Box::new(brush_size));
+
+                    // Falloff
+
+                    let mut text = TheText::new(TheId::empty());
+                    text.set_text("Falloff".to_string());
+                    layout.add_widget(Box::new(text));
+
+                    let mut falloff = TheSlider::new(TheId::named("Falloff"));
+                    falloff.set_value(TheValue::Float(self.falloff));
+                    falloff.set_default_value(TheValue::Float(0.0));
+                    falloff.set_range(TheValue::RangeF32(0.0..=1.0));
+                    falloff.set_continuous(true);
+                    falloff.limiter_mut().set_max_width(140);
+                    falloff.set_status_text("The falloff off the brush.");
+                    layout.add_widget(Box::new(falloff));
+                }
+
                 return true;
             }
             _ => {
                 return false;
             }
         };
+
+        if let Some(editor) = ui.get_rgba_layout("Region Editor") {
+            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                let f = rgba_view.float_pos();
+                println!("f {}", f);
+            }
+        }
 
         let mut index = 0;
         if let Some(material_id) = server_ctx.curr_material_object {
@@ -180,6 +243,40 @@ impl Tool for DrawTool {
             }
         }
 
+        false
+    }
+
+    fn handle_event(
+        &mut self,
+        event: &TheEvent,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _project: &mut Project,
+        _server: &mut Server,
+        _client: &mut Client,
+        _server_ctx: &mut ServerContext,
+    ) -> bool {
+        #[allow(clippy::single_match)]
+        match &event {
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == "Draw Align Group" {
+                    self.align_index = *index as i32;
+                }
+            }
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == "Brush Size" {
+                    if let Some(size) = value.to_f32() {
+                        self.brush_size = size;
+                    }
+                }
+                if id.name == "Falloff" {
+                    if let Some(size) = value.to_f32() {
+                        self.falloff = size;
+                    }
+                }
+            }
+            _ => {}
+        }
         false
     }
 }

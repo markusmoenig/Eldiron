@@ -2,6 +2,7 @@
 
 use theframework::*;
 
+pub mod brushes;
 pub mod editor;
 pub mod externals;
 pub mod misc;
@@ -62,7 +63,12 @@ pub mod prelude {
     pub use crate::tools::selection::SelectionTool;
     pub use crate::tools::tiledrawer::TileDrawerTool;
     pub use crate::tools::tilemap::TilemapTool;
+    pub use crate::tools::zoom::ZoomTool;
     pub use crate::tools::*;
+
+    pub use crate::brushes::disc::DiscBrush;
+    pub use crate::brushes::rect::RectBrush;
+    pub use crate::brushes::*;
 }
 
 use crate::editor::Editor;

@@ -53,6 +53,7 @@ pub struct ServerContext {
     pub curr_geo_node: Option<Uuid>,
 
     pub curr_material_object: Option<Uuid>,
+    pub curr_brush: Option<Uuid>,
 
     /// The screen editor drawing mode.
     pub screen_editor_mode_foreground: bool,
@@ -97,6 +98,7 @@ impl ServerContext {
             curr_geo_node: None,
 
             curr_material_object: None,
+            curr_brush: None,
 
             screen_editor_mode_foreground: false,
         }
