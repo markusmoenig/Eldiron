@@ -8,6 +8,8 @@ pub struct DrawTool {
 
     processed_coords: FxHashSet<Vec2i>,
 
+    material_index: i32,
+
     align_index: i32,
     brush_size: f32,
     falloff: f32,
@@ -22,6 +24,7 @@ impl Tool for DrawTool {
             id: TheId::named("Draw Tool"),
             processed_coords: FxHashSet::default(),
 
+            material_index: 0,
             align_index: 0,
             brush_size: 1.0,
             falloff: 0.0,
@@ -65,18 +68,23 @@ impl Tool for DrawTool {
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();
 
-                    // Align Group
-                    let mut gb = TheGroupButton::new(TheId::named("Draw Align Group"));
+                    // Material Group
+                    let mut gb = TheGroupButton::new(TheId::named("Material Group"));
                     gb.add_text_status(
-                        str!("Tile Align"),
+                        str!("Material #1"),
                         str!("Draw aligned to the tiles of the regions."),
                     );
-                    gb.add_text_status(str!("Freeform"), str!("Draw without any restrictions."));
-                    gb.set_item_width(75);
+                    gb.add_text_status(str!("Material #2"), str!("Draw without any restrictions."));
+                    gb.set_item_width(85);
 
                     gb.set_index(self.align_index);
 
                     layout.add_widget(Box::new(gb));
+
+                    //
+                    let mut spacer = TheIconView::new(TheId::empty());
+                    spacer.limiter_mut().set_max_width(5);
+                    layout.add_widget(Box::new(spacer));
 
                     // Brush Size
 
@@ -89,7 +97,7 @@ impl Tool for DrawTool {
                     brush_size.set_default_value(TheValue::Float(1.0));
                     brush_size.set_range(TheValue::RangeF32(0.01..=5.0));
                     brush_size.set_continuous(true);
-                    brush_size.limiter_mut().set_max_width(140);
+                    brush_size.limiter_mut().set_max_width(120);
                     brush_size.set_status_text("The brush size.");
                     layout.add_widget(Box::new(brush_size));
 
@@ -104,11 +112,33 @@ impl Tool for DrawTool {
                     falloff.set_default_value(TheValue::Float(0.0));
                     falloff.set_range(TheValue::RangeF32(0.0..=1.0));
                     falloff.set_continuous(true);
-                    falloff.limiter_mut().set_max_width(140);
+                    falloff.limiter_mut().set_max_width(120);
                     falloff.set_status_text("The falloff off the brush.");
                     layout.add_widget(Box::new(falloff));
+
+                    // Align Group
+                    let mut gb = TheGroupButton::new(TheId::named("Draw Align Group"));
+                    gb.add_text_status(
+                        str!("Tile Align"),
+                        str!("Draw aligned to the tiles of the regions."),
+                    );
+                    gb.add_text_status(str!("Freeform"), str!("Draw without any restrictions."));
+                    gb.set_item_width(75);
+
+                    gb.set_index(self.align_index);
+
+                    layout.add_widget(Box::new(gb));
+
+                    layout.set_reverse_index(Some(1));
                 }
 
+                return true;
+            }
+            DeActivate => {
+                if let Some(layout) = ui.get_hlayout("Game Tool Params") {
+                    layout.clear();
+                    layout.set_reverse_index(None);
+                }
                 return true;
             }
             _ => {
@@ -256,10 +286,11 @@ impl Tool for DrawTool {
         _client: &mut Client,
         _server_ctx: &mut ServerContext,
     ) -> bool {
-        #[allow(clippy::single_match)]
         match &event {
             TheEvent::IndexChanged(id, index) => {
-                if id.name == "Draw Align Group" {
+                if id.name == "Material Group" {
+                    self.material_index = *index as i32;
+                } else if id.name == "Draw Align Group" {
                     self.align_index = *index as i32;
                 }
             }

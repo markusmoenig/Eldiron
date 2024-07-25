@@ -56,7 +56,12 @@ impl Tool for ZoomTool {
             }
 
             return true;
-        };
+        } else if let DeActivate = tool_event {
+            if let Some(layout) = ui.get_hlayout("Game Tool Params") {
+                layout.clear();
+            }
+            return true;
+        }
 
         false
     }
