@@ -1195,7 +1195,12 @@ impl TheTrait for Editor {
                                             }
                                         }
 
-                                        self.sidebar.load_from_project(ui, ctx, &self.project);
+                                        self.sidebar.load_from_project(
+                                            ui,
+                                            ctx,
+                                            &mut self.server_ctx,
+                                            &self.project,
+                                        );
                                         self.tileeditor.load_from_project(ui, ctx, &self.project);
                                         let packages =
                                             self.server.set_project(self.project.clone());

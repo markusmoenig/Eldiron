@@ -2512,7 +2512,13 @@ impl Sidebar {
     }
 
     /// Apply th given project to the UI
-    pub fn load_from_project(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
+    pub fn load_from_project(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        project: &Project,
+    ) {
         if let Some(list_layout) = ui.get_list_layout("Region List") {
             list_layout.clear();
             for region in &project.regions {
@@ -2651,10 +2657,21 @@ impl Sidebar {
             TheValue::Empty,
         ));
 
+        // Set the current material
+        let selected_material = if project.materials.is_empty() {
+            None
+        } else if let Some((id, _)) = project.materials.get_index(0) {
+            Some(*id)
+        } else {
+            None
+        };
+
+        server_ctx.curr_material_object = selected_material;
+
         MODELFXEDITOR
             .lock()
             .unwrap()
-            .set_materials(ui, ctx, project, None);
+            .set_materials(ui, ctx, project, selected_material);
     }
 
     /// Apply the given character to the UI
