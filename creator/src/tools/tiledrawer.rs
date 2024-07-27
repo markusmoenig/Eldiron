@@ -39,8 +39,8 @@ impl Tool for TileDrawerTool {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let coord = match tool_event {
-            TileDown(c) => c,
-            TileDrag(c) => c,
+            TileDown(c, _) => c,
+            TileDrag(c, _) => c,
             Activate => {
                 // Display the tile edit panel.
                 ctx.ui

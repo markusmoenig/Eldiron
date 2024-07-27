@@ -23,6 +23,10 @@ impl Brush for DiscBrush {
         str!("Disc")
     }
 
+    fn distance(&self, p: Vec2f, pos: Vec2f, settings: &BrushSettings) -> f32 {
+        length(p - pos) - settings.size / 2.0
+    }
+
     fn preview(&self, buffer: &mut TheRGBABuffer) {
         fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
             [

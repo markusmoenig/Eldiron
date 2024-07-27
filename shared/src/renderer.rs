@@ -949,6 +949,26 @@ impl Renderer {
                                 }
                             }
                         }
+
+                        // Overlay the 2nd material
+                        if has_hit {
+                            let index = (material_mask[1] - 1) as usize;
+                            if let Some((_id, material)) = self.materials.get_index(index) {
+                                let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+
+                                if let Some(m_params) = material_params.get(&material.id) {
+                                    mat_obj_params.clone_from(m_params);
+                                }
+
+                                //let mut h = hit.clone();
+                                material.compute(
+                                    &mut hit,
+                                    palette,
+                                    &self.textures,
+                                    &mat_obj_params,
+                                );
+                            }
+                        }
                     }
                 }
             }
@@ -2490,7 +2510,7 @@ impl Renderer {
         settings: &mut RegionDrawSettings,
         width: usize,
         height: usize,
-    ) -> Option<Vec3i> {
+    ) -> Option<(Vec3i, Vec3f)> {
         let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
 
         let width_f = width as f32;
@@ -2551,7 +2571,7 @@ impl Renderer {
                 //Some(Vec3i::from(hit))
 
                 let key = Vec3i::from(hit);
-                return Some(vec3i(key.x, key.y, key.z));
+                return Some((vec3i(key.x, key.y, key.z), hit));
             }
         }
         None

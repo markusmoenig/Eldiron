@@ -6,8 +6,6 @@ pub use ActiveEditor::*;
 pub struct ToolList {
     pub active_editor: ActiveEditor,
 
-    pub brushes: Vec<Box<dyn Brush>>,
-
     pub game_tools: Vec<Box<dyn Tool>>,
     pub curr_game_tool: usize,
 
@@ -23,9 +21,6 @@ impl Default for ToolList {
 
 impl ToolList {
     pub fn new() -> Self {
-        let brushes: Vec<Box<dyn Brush>> =
-            vec![Box::new(RectBrush::new()), Box::new(DiscBrush::new())];
-
         let game_tools: Vec<Box<dyn Tool>> = vec![
             Box::new(TileDrawerTool::new()),
             Box::new(DrawTool::new()),
@@ -47,8 +42,6 @@ impl ToolList {
 
         Self {
             active_editor: ActiveEditor::GameEditor,
-
-            brushes,
 
             game_tools,
             curr_game_tool: 0,
@@ -195,8 +188,17 @@ impl ToolList {
             }
             TheEvent::TileEditorClicked(id, coord) => {
                 if id.name == "Region Editor View" || id.name == "Screen Editor View" {
+                    let mut coord_f = Vec2f::from(*coord);
+                    if id.name == "Region Editor View" {
+                        if let Some(editor) = ui.get_rgba_layout("Region Editor") {
+                            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                                coord_f = rgba_view.float_pos();
+                            }
+                        }
+                    }
+
                     self.get_current_tool().tool_event(
-                        ToolEvent::TileDown(*coord),
+                        ToolEvent::TileDown(*coord, coord_f),
                         ToolContext::TwoD,
                         ui,
                         ctx,
@@ -209,8 +211,17 @@ impl ToolList {
             }
             TheEvent::TileEditorDragged(id, coord) => {
                 if id.name == "Region Editor View" || id.name == "Screen Editor View" {
+                    let mut coord_f = Vec2f::from(*coord);
+                    if id.name == "Region Editor View" {
+                        if let Some(editor) = ui.get_rgba_layout("Region Editor") {
+                            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                                coord_f = rgba_view.float_pos();
+                            }
+                        }
+                    }
+
                     self.get_current_tool().tool_event(
-                        ToolEvent::TileDrag(*coord),
+                        ToolEvent::TileDrag(*coord, coord_f),
                         ToolContext::TwoD,
                         ui,
                         ctx,
@@ -248,9 +259,12 @@ impl ToolList {
                                 dim.height as usize,
                             );
 
-                            if let Some(pos) = pos {
+                            if let Some((pos, pos_f)) = pos {
                                 redraw = self.get_current_tool().tool_event(
-                                    ToolEvent::TileDown(Vec2i::new(pos.x, pos.z)),
+                                    ToolEvent::TileDown(
+                                        vec2i(pos.x, pos.z),
+                                        vec2f(pos_f.x, pos_f.z),
+                                    ),
                                     ToolContext::ThreeD,
                                     ui,
                                     ctx,
@@ -277,9 +291,12 @@ impl ToolList {
                                 dim.height as usize,
                             );
 
-                            if let Some(pos) = pos {
+                            if let Some((pos, pos_f)) = pos {
                                 redraw = self.get_current_tool().tool_event(
-                                    ToolEvent::TileDrag(Vec2i::new(pos.x, pos.z)),
+                                    ToolEvent::TileDrag(
+                                        vec2i(pos.x, pos.z),
+                                        vec2f(pos_f.x, pos_f.z),
+                                    ),
                                     ToolContext::ThreeD,
                                     ui,
                                     ctx,

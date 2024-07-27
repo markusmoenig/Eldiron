@@ -3,6 +3,7 @@
 use theframework::*;
 
 pub mod brushes;
+pub mod brushlist;
 pub mod editor;
 pub mod externals;
 pub mod misc;
@@ -35,6 +36,7 @@ pub mod prelude {
 
     pub use crate::editor::ActiveEditor;
 
+    pub use crate::brushlist::*;
     pub use crate::externals::*;
     pub use crate::misc::*;
     pub use crate::modelfxeditor::*;

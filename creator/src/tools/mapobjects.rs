@@ -42,11 +42,11 @@ impl Tool for MapObjectsTool {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let coord = match tool_event {
-            TileDown(c) => {
+            TileDown(c, _) => {
                 self.processed_coords.clear();
                 c
             }
-            TileDrag(c) => c,
+            TileDrag(c, _) => c,
             Activate => {
                 MODELFXEDITOR.lock().unwrap().set_geometry_mode(true);
                 ctx.ui.send(TheEvent::Custom(

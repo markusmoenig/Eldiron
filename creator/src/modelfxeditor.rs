@@ -1,4 +1,4 @@
-use crate::editor::{PRERENDERTHREAD, TILEDRAWER, TOOLLIST, UNDOMANAGER};
+use crate::editor::{BRUSHLIST, PRERENDERTHREAD, TILEDRAWER, UNDOMANAGER};
 use crate::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -255,9 +255,14 @@ impl ModelFXEditor {
         let mut material_rowlist_layout =
             TheRowListLayout::new(TheId::named("ModelFX Material List"));
 
-        for material in project.materials.values() {
+        for (index, material) in project.materials.values().enumerate() {
             let mut item = TheRowListItem::new(TheId::named_with_id(&material.name, material.id));
             item.set_text(material.name.clone());
+
+            if index == 0 {
+                item.set_state(TheWidgetState::Selected);
+                server_ctx.curr_material_object = Some(material.id);
+            }
 
             material_rowlist_layout.add_item(item, _ctx);
         }
@@ -274,15 +279,15 @@ impl ModelFXEditor {
         let mut brushes_rowlist_layout =
             TheRowListLayout::new(TheId::named("ModelFX Brushes List"));
 
-        let tools = TOOLLIST.lock().unwrap();
-        for (index, brush) in tools.brushes.iter().enumerate() {
-            let mut item = TheRowListItem::new(brush.id().clone());
+        let tools = BRUSHLIST.lock().unwrap();
+        for (index, brush) in tools.brushes.values().enumerate() {
+            let mut item = TheRowListItem::new(TheId::named_with_id("Brush", brush.id().uuid));
             item.set_text(brush.info().clone());
             //item.set_icon(material.get_preview());
 
             if index == 0 {
                 item.set_state(TheWidgetState::Selected);
-                server_ctx.curr_brush = Some(brush.id().uuid);
+                server_ctx.curr_brush = brush.id().uuid;
             }
 
             let mut buffer = TheRGBABuffer::new(TheDim::sized(300, 300));
@@ -323,7 +328,9 @@ impl ModelFXEditor {
                 }
             }
             TheEvent::StateChanged(id, state) => {
-                if id.name == "Material" {
+                if id.name == "Brush" {
+                    server_ctx.curr_brush = id.uuid;
+                } else if id.name == "Material" {
                     if let Some(material) = project.materials.get(&id.uuid) {
                         server_ctx.curr_material_object = Some(material.id);
                     } else {

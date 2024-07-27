@@ -16,8 +16,8 @@ pub mod zoom;
 pub enum ToolEvent {
     Activate,
     DeActivate,
-    TileDown(Vec2i),
-    TileDrag(Vec2i),
+    TileDown(Vec2i, Vec2f),
+    TileDrag(Vec2i, Vec2f),
     TileUp,
 }
 
@@ -64,5 +64,18 @@ pub trait Tool: Send {
         server_ctx: &mut ServerContext,
     ) -> bool {
         false
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn fill_mask(
+        &self,
+        material_offset: usize,
+        buffer: &mut TheRGBBuffer,
+        p: Vec2f,
+        coord: Vec2f,
+        material_index: u8,
+        brush: &dyn Brush,
+        settings: &BrushSettings,
+    ) {
     }
 }

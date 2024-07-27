@@ -37,8 +37,8 @@ impl Tool for SelectionTool {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let coord = match tool_event {
-            TileDown(c) => c,
-            TileDrag(c) => c,
+            TileDown(c, _) => c,
+            TileDrag(c, _) => c,
             Activate => {
                 ui.set_widget_context_menu(
                     "Region Editor View",

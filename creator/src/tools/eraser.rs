@@ -39,8 +39,8 @@ impl Tool for EraserTool {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let coord = match tool_event {
-            TileDown(c) => c,
-            TileDrag(c) => c,
+            TileDown(c, _) => c,
+            TileDrag(c, _) => c,
             Activate => {
                 return true;
             }

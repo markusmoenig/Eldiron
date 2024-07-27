@@ -170,6 +170,18 @@ impl TileEditor {
         toolbar_hlayout.set_reverse_index(Some(1));
 
         top_toolbar.set_layout(toolbar_hlayout);
+
+        // Tool Params
+        let mut toolbar_hlayout = TheHLayout::new(TheId::named("Game Tool Params"));
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(vec4i(10, 2, 5, 2));
+
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        toolbar_canvas.set_layout(toolbar_hlayout);
+
+        center.set_bottom(toolbar_canvas);
+
         center.set_top(top_toolbar);
 
         // Bottom Toolbar
@@ -248,17 +260,6 @@ impl TileEditor {
         // bottom_toolbar.set_layout(toolbar_hlayout);
         //center.set_bottom(bottom_toolbar);
 
-        // Tool Params
-        let mut toolbar_hlayout = TheHLayout::new(TheId::named("Game Tool Params"));
-        toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(10, 2, 5, 2));
-
-        let mut toolbar_canvas = TheCanvas::default();
-        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
-        toolbar_canvas.set_layout(toolbar_hlayout);
-
-        center.set_top(toolbar_canvas);
-
         center
     }
 
@@ -313,7 +314,7 @@ impl TileEditor {
                                 dim.width as usize,
                                 dim.height as usize,
                             );
-                            if let Some(pos) = pos {
+                            if let Some((pos, _)) = pos {
                                 RENDERER.lock().unwrap().hover_pos = Some(pos);
 
                                 if let Some(text) = ui.get_text("Cursor Position") {

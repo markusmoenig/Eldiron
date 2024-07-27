@@ -717,15 +717,6 @@ impl MaterialFXObject {
         let mut buffer = TheRGBABuffer::new(TheDim::sized(width as i32, height));
 
         let time = TheTime::default();
-
-        //let mut geo_object = GeoFXObject::default();
-        // let geo_node = GeoFXNode::new(GeoFXNodeRole::Floor);
-
-        // geo_object.nodes.push(geo_node);
-
-        let noise2d = MaterialFXNode::new(MaterialFXNodeRole::Noise2D);
-        let noise2d_node_params = noise2d.load_parameters(&time);
-
         let mat_obj_params = self.load_parameters(&time);
 
         buffer
@@ -750,12 +741,18 @@ impl MaterialFXObject {
                         ..Default::default()
                     };
 
+                    hit.hit_point = vec3f(hit.uv.x, 0.0, hit.uv.y);
                     hit.global_uv = hit.uv;
+                    hit.pattern_pos = hit.global_uv;
 
-                    noise2d.compute(&mut hit, palette, textures, vec![], &noise2d_node_params);
-                    hit.value = hit.noise.unwrap();
-                    hit.noise = None;
-                    //self.get_distance(&time, hit.uv, &mut hit, &geo_object, 1.0, &mat_obj_params);
+                    if self.follow_geo_trail(&time, &mut hit, &mat_obj_params) {
+                        if hit.interior_distance <= 0.01 {
+                            hit.value = 0.0;
+                        } else {
+                            hit.value = 1.0;
+                        }
+                    }
+
                     self.compute(&mut hit, palette, textures, &mat_obj_params);
 
                     color.x = hit.mat.base_color.x;

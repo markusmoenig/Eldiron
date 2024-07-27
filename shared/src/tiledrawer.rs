@@ -169,6 +169,8 @@ impl TileDrawer {
             material_params.insert(*id, params);
         }
 
+        let time = TheTime::default();
+
         let pixels = buffer.pixels_mut();
         pixels
             .par_rchunks_exact_mut(width * 4)
@@ -183,6 +185,9 @@ impl TileDrawer {
                     let tile_x = x / region.grid_size;
                     let tile_y = y / region.grid_size;
 
+                    let tile_x_f = x as f32 / region.grid_size as f32;
+                    let tile_y_f = y as f32 / region.grid_size as f32;
+
                     let mut xx = x % region.grid_size;
                     let mut yy = y % region.grid_size;
 
@@ -193,7 +198,65 @@ impl TileDrawer {
 
                     let mut mirror: Option<(i32, i32)> = None;
 
-                    if let Some(tile) = region.tiles.get(&(tile_x, tile_y)) {
+                    let mut has_hit = false;
+                    if let Some(mask) = region.heightmap.get_material_mask(tile_x, tile_y) {
+                        let mut hit = Hit {
+                            two_d: true,
+                            ..Default::default()
+                        };
+                        let terrain_uv = vec2f(tile_x_f.fract(), tile_y_f.fract());
+
+                        if let Some(material_mask) = mask.at_f(terrain_uv) {
+                            let index = (material_mask[0] - 1) as usize;
+                            if let Some((_id, material)) = self.materials.get_index(index) {
+                                let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+
+                                if let Some(m_params) = material_params.get(&material.id) {
+                                    mat_obj_params.clone_from(m_params);
+                                }
+
+                                hit.normal = vec3f(0.0, 1.0, 0.0);
+                                hit.hit_point = vec3f(tile_x_f, 0.0, tile_y_f);
+
+                                hit.uv = terrain_uv;
+                                hit.global_uv = vec2f(tile_x_f, tile_y_f);
+                                hit.pattern_pos = hit.global_uv;
+
+                                if material.follow_geo_trail(&time, &mut hit, &mat_obj_params) {
+                                    if hit.interior_distance <= 0.01 {
+                                        hit.value = 0.0;
+                                    } else {
+                                        hit.value = 1.0;
+                                    }
+                                }
+                                material.compute(&mut hit, palette, &self.tiles, &mat_obj_params);
+
+                                color = TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
+                                has_hit = true;
+                            }
+
+                            // Overlay the 2nd material
+                            if has_hit {
+                                let index = (material_mask[1] - 1) as usize;
+                                if let Some((_id, material)) = self.materials.get_index(index) {
+                                    let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+
+                                    if let Some(m_params) = material_params.get(&material.id) {
+                                        mat_obj_params.clone_from(m_params);
+                                    }
+
+                                    //let mut h = hit.clone();
+                                    material.compute(
+                                        &mut hit,
+                                        palette,
+                                        &self.tiles,
+                                        &mat_obj_params,
+                                    );
+                                    color = TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
+                                }
+                            }
+                        }
+                    } else if let Some(tile) = region.tiles.get(&(tile_x, tile_y)) {
                         for tile_index in 0..tile.layers.len() {
                             if let Some(tile_uuid) = tile.layers[tile_index] {
                                 if let Some(data) = self.tiles.get(&tile_uuid) {

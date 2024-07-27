@@ -28,6 +28,7 @@ lazy_static! {
     pub static ref PRERENDERTHREAD: Mutex<PreRenderThread> = Mutex::new(PreRenderThread::default());
     pub static ref UNDOMANAGER: Mutex<UndoManager> = Mutex::new(UndoManager::default());
     pub static ref TOOLLIST: Mutex<ToolList> = Mutex::new(ToolList::default());
+    pub static ref BRUSHLIST: Mutex<BrushList> = Mutex::new(BrushList::default());
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
