@@ -19,10 +19,13 @@ impl Tool for ScreenTileDrawerTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Tile Drawer Tool. Draw tiles on the current widget.")
+        str!("Pen Tool (P). Draw tiles on the current widget.")
     }
     fn icon_name(&self) -> String {
         str!("pen")
+    }
+    fn accel(&self) -> Option<char> {
+        Some('p')
     }
 
     fn tool_event(

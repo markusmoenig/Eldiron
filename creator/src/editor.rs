@@ -464,6 +464,7 @@ impl TheTrait for Editor {
 
                 if let Some(widget) = ui.get_widget("Server Time Slider") {
                     widget.set_value(TheValue::Time(self.server.world.time));
+                    TOOLLIST.lock().unwrap().server_time = self.server.world.time;
                 }
             }
 
@@ -550,12 +551,15 @@ impl TheTrait for Editor {
                     }
                 }
                 PreRenderResult::Progress(text) => {
+                    TOOLLIST.lock().unwrap().render_button_text = text.clone();
                     ui.set_widget_value("Render Button", ctx, TheValue::Text(text));
                 }
                 PreRenderResult::Paused => {
+                    TOOLLIST.lock().unwrap().render_button_text = "Paused".to_string();
                     ui.set_widget_value("Render Button", ctx, TheValue::Text(str!("Paused")));
                 }
                 PreRenderResult::Finished => {
+                    TOOLLIST.lock().unwrap().render_button_text = "Finished".to_string();
                     ui.set_widget_value("Render Button", ctx, TheValue::Text(str!("Finished")));
                 }
                 _ => {}
@@ -1160,6 +1164,8 @@ impl TheTrait for Editor {
 
                                         if let Some(widget) = ui.get_widget("Server Time Slider") {
                                             widget.set_value(TheValue::Time(self.project.time));
+                                            TOOLLIST.lock().unwrap().server_time =
+                                                self.server.world.time;
                                         }
                                         self.server.set_time(self.project.time);
 
@@ -1479,6 +1485,7 @@ impl TheTrait for Editor {
                             if let TheValue::Time(time) = value {
                                 self.server.set_time(time);
                                 self.project.time = time;
+                                TOOLLIST.lock().unwrap().server_time = time;
                             }
                         }
                     }

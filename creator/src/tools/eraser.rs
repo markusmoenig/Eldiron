@@ -21,10 +21,13 @@ impl Tool for EraserTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("I draw tiles")
+        str!("Eraser Tool (E). Erase content in the region editors.")
     }
     fn icon_name(&self) -> String {
         str!("eraser")
+    }
+    fn accel(&self) -> Option<char> {
+        Some('e')
     }
 
     fn tool_event(

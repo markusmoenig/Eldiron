@@ -21,10 +21,13 @@ impl Tool for TileDrawerTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("I draw tiles")
+        str!("Pen Tool (P). Draw tiles.")
     }
     fn icon_name(&self) -> String {
         str!("pen")
+    }
+    fn accel(&self) -> Option<char> {
+        Some('p')
     }
 
     fn tool_event(

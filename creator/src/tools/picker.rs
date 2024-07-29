@@ -21,10 +21,13 @@ impl Tool for PickerTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Picker Tool.")
+        str!("Picker Tool (K). Pick content in the region editor.")
     }
     fn icon_name(&self) -> String {
         str!("picker")
+    }
+    fn accel(&self) -> Option<char> {
+        Some('k')
     }
 
     fn tool_event(

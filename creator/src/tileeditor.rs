@@ -129,48 +129,6 @@ impl TileEditor {
         tile_picker.set_layout(vlayout);
         center.set_left(tile_picker);
 
-        // Top Toolbar
-        let mut top_toolbar = TheCanvas::new();
-        top_toolbar.set_widget(TheTraybar::new(TheId::empty()));
-
-        let mut gb = TheGroupButton::new(TheId::named("2D3D Group"));
-        gb.add_text("2D Map".to_string());
-        gb.add_text("Mixed".to_string());
-        gb.add_text("3D Map".to_string());
-
-        let mut time_slider = TheTimeSlider::new(TheId::named("Server Time Slider"));
-        time_slider.set_continuous(true);
-        time_slider.limiter_mut().set_max_width(400);
-
-        let mut spacer = TheSpacer::new(TheId::empty());
-        spacer.limiter_mut().set_max_width(30);
-
-        let mut render_button = TheTraybarButton::new(TheId::named("Render Button"));
-        render_button.set_text("Starting...".to_string());
-        render_button.set_status_text("Controls the 3D background renderer. During rendering it displays how many tiles are left to render.");
-        render_button.set_fixed_size(true);
-        render_button.limiter_mut().set_max_width(80);
-
-        render_button.set_context_menu(Some(TheContextMenu {
-            items: vec![
-                TheContextMenuItem::new("Start".to_string(), TheId::named("Start Renderer")),
-                TheContextMenuItem::new("Pause".to_string(), TheId::named("Pause Renderer")),
-                TheContextMenuItem::new("Restart".to_string(), TheId::named("Restart Renderer")),
-            ],
-            ..Default::default()
-        }));
-
-        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
-        toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(10, 4, 5, 4));
-        toolbar_hlayout.add_widget(Box::new(gb));
-        toolbar_hlayout.add_widget(Box::new(spacer));
-        toolbar_hlayout.add_widget(Box::new(time_slider));
-        toolbar_hlayout.add_widget(Box::new(render_button));
-        toolbar_hlayout.set_reverse_index(Some(1));
-
-        top_toolbar.set_layout(toolbar_hlayout);
-
         // Tool Params
         let mut toolbar_hlayout = TheHLayout::new(TheId::named("Game Tool Params"));
         toolbar_hlayout.set_background_color(None);
@@ -181,8 +139,6 @@ impl TileEditor {
         toolbar_canvas.set_layout(toolbar_hlayout);
 
         center.set_top(toolbar_canvas);
-
-        //center.set_top(top_toolbar);
 
         // Bottom Toolbar
         let mut bottom_toolbar = TheCanvas::new();

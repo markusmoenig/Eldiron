@@ -36,10 +36,13 @@ impl Tool for DrawTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Draw Tool. Draw with materials.")
+        str!("Draw Tool (D). Draw with materials on the heightmap and objects.")
     }
     fn icon_name(&self) -> String {
         str!("brush")
+    }
+    fn accel(&self) -> Option<char> {
+        Some('d')
     }
 
     fn tool_event(

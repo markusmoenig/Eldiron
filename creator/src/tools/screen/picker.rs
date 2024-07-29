@@ -19,10 +19,13 @@ impl Tool for ScreenPickerTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Picker Tool. Selects the widget at the click position.")
+        str!("Picker Tool (K). Selects the widget at the click position.")
     }
     fn icon_name(&self) -> String {
         str!("picker")
+    }
+    fn accel(&self) -> Option<char> {
+        Some('k')
     }
 
     fn tool_event(

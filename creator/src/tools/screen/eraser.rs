@@ -19,10 +19,13 @@ impl Tool for ScreenEraserTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Eraser Tool. Erase tiles drawn on widgets.")
+        str!("Eraser Tool (E). Erase tiles drawn on widgets.")
     }
     fn icon_name(&self) -> String {
         str!("eraser")
+    }
+    fn accel(&self) -> Option<char> {
+        Some('e')
     }
 
     fn tool_event(

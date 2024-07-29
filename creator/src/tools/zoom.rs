@@ -19,10 +19,13 @@ impl Tool for ZoomTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Zoom Tool.")
+        str!("Zoom Tool (Z).")
     }
     fn icon_name(&self) -> String {
         str!("zoom")
+    }
+    fn accel(&self) -> Option<char> {
+        Some('z')
     }
 
     fn tool_event(

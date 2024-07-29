@@ -37,6 +37,10 @@ pub trait Tool: Send {
     fn info(&self) -> String;
     fn icon_name(&self) -> String;
 
+    fn accel(&self) -> Option<char> {
+        None
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn tool_event(
         &mut self,

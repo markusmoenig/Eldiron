@@ -19,10 +19,13 @@ impl Tool for RenderTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Render Setings.")
+        str!("Render Setings (R).")
     }
     fn icon_name(&self) -> String {
         str!("faders")
+    }
+    fn accel(&self) -> Option<char> {
+        Some('r')
     }
 
     fn tool_event(

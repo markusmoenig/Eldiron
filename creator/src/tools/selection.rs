@@ -19,10 +19,13 @@ impl Tool for SelectionTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Select Tool.")
+        str!("Selection Tool (S). Select areas in the region editor.")
     }
     fn icon_name(&self) -> String {
         str!("selection")
+    }
+    fn accel(&self) -> Option<char> {
+        Some('s')
     }
 
     fn tool_event(

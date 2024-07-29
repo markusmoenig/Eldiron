@@ -15,7 +15,7 @@ impl Tool for MapObjectsTool {
         Self: Sized,
     {
         Self {
-            id: TheId::named("Map Objects Tool"),
+            id: TheId::named("Model Tool"),
             processed_coords: FxHashSet::default(),
         }
     }
@@ -24,10 +24,13 @@ impl Tool for MapObjectsTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Map Object Tool. Place 3D objects onto the map like walls.")
+        str!("Model Tool (M). Place 3D objects on the map (Walls, Furniture...).")
     }
     fn icon_name(&self) -> String {
         str!("mapobjects")
+    }
+    fn accel(&self) -> Option<char> {
+        Some('m')
     }
 
     fn tool_event(

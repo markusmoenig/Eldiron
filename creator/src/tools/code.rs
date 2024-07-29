@@ -19,10 +19,13 @@ impl Tool for CodeTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("I draw tiles")
+        str!("Code Tool (C).")
     }
     fn icon_name(&self) -> String {
         str!("code")
+    }
+    fn accel(&self) -> Option<char> {
+        Some('c')
     }
 
     fn tool_event(

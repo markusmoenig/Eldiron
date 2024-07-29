@@ -1,9 +1,12 @@
-use crate::editor::{PRERENDERTHREAD, RENDERER};
+use crate::editor::{PRERENDERTHREAD, RENDERER, RENDERMODE};
 use crate::prelude::*;
 
 pub use ActiveEditor::*;
 
 pub struct ToolList {
+    pub server_time: TheTime,
+    pub render_button_text: String,
+
     pub active_editor: ActiveEditor,
 
     pub game_tools: Vec<Box<dyn Tool>>,
@@ -41,6 +44,9 @@ impl ToolList {
         ];
 
         Self {
+            server_time: TheTime::default(),
+            render_button_text: "Starting...".to_string(),
+
             active_editor: ActiveEditor::GameEditor,
 
             game_tools,
@@ -103,6 +109,53 @@ impl ToolList {
     ) -> bool {
         let mut redraw = false;
         match event {
+            TheEvent::KeyDown(TheValue::Char(c)) => {
+                let mut acc = true;
+                if let Some(id) = &ctx.ui.focus {
+                    if let Some(widget) = ui.get_widget_abs(None, Some(&id.uuid)) {
+                        acc = !widget.supports_text_input();
+                    }
+                }
+
+                if acc {
+                    match self.active_editor {
+                        GameEditor => {
+                            let mut tool_uuid = None;
+                            for tool in self.game_tools.iter() {
+                                if tool.accel() == Some(*c) {
+                                    tool_uuid = Some(tool.id().uuid);
+                                    ctx.ui.set_widget_state(
+                                        self.game_tools[self.curr_game_tool].id().name,
+                                        TheWidgetState::None,
+                                    );
+                                    ctx.ui
+                                        .set_widget_state(tool.id().name, TheWidgetState::Selected);
+                                }
+                            }
+                            if let Some(uuid) = tool_uuid {
+                                self.set_tool(uuid, ui, ctx, project, server, client, server_ctx);
+                            }
+                        }
+                        ScreenEditor => {
+                            let mut tool_uuid = None;
+                            for tool in self.screen_tools.iter() {
+                                if tool.accel() == Some(*c) {
+                                    tool_uuid = Some(tool.id().uuid);
+                                    ctx.ui.set_widget_state(
+                                        self.screen_tools[self.curr_screen_tool].id().name,
+                                        TheWidgetState::None,
+                                    );
+                                    ctx.ui
+                                        .set_widget_state(tool.id().name, TheWidgetState::Selected);
+                                }
+                            }
+                            if let Some(uuid) = tool_uuid {
+                                self.set_tool(uuid, ui, ctx, project, server, client, server_ctx);
+                            }
+                        }
+                    }
+                }
+            }
             TheEvent::StateChanged(id, state) => {
                 if id.name.contains("Tool") && *state == TheWidgetState::Selected {
                     redraw = self.set_tool(id.uuid, ui, ctx, project, server, client, server_ctx);
@@ -383,15 +436,22 @@ impl ToolList {
                 gb.add_text("Mixed".to_string());
                 gb.add_text("3D Map".to_string());
 
+                match *RENDERMODE.lock().unwrap() {
+                    EditorDrawMode::Draw2D => gb.set_index(0),
+                    EditorDrawMode::DrawMixed => gb.set_index(1),
+                    EditorDrawMode::Draw3D => gb.set_index(2),
+                }
+
                 let mut time_slider = TheTimeSlider::new(TheId::named("Server Time Slider"));
                 time_slider.set_continuous(true);
                 time_slider.limiter_mut().set_max_width(400);
+                time_slider.set_value(TheValue::Time(self.server_time));
 
                 let mut spacer = TheSpacer::new(TheId::empty());
                 spacer.limiter_mut().set_max_width(30);
 
                 let mut render_button = TheTraybarButton::new(TheId::named("Render Button"));
-                render_button.set_text("Starting...".to_string());
+                render_button.set_text(self.render_button_text.clone());
                 render_button.set_status_text("Controls the 3D background renderer. During rendering it displays how many tiles are left to render.");
                 render_button.set_fixed_size(true);
                 render_button.limiter_mut().set_max_width(80);

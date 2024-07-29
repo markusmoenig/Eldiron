@@ -19,10 +19,13 @@ impl Tool for TilemapTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Tilemap Tool.")
+        str!("Tilemap Tool (T). Create new tiles from your tilemaps.")
     }
     fn icon_name(&self) -> String {
         str!("square")
+    }
+    fn accel(&self) -> Option<char> {
+        Some('t')
     }
 
     fn tool_event(
