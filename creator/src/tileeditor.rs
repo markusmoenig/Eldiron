@@ -180,9 +180,9 @@ impl TileEditor {
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
         toolbar_canvas.set_layout(toolbar_hlayout);
 
-        center.set_bottom(toolbar_canvas);
+        center.set_top(toolbar_canvas);
 
-        center.set_top(top_toolbar);
+        //center.set_top(top_toolbar);
 
         // Bottom Toolbar
         let mut bottom_toolbar = TheCanvas::new();
@@ -400,23 +400,7 @@ impl TileEditor {
             //     }
             // }
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
-                if widget_id.name == "Render Button" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if item_id.name == "Start Renderer" {
-                            PRERENDERTHREAD.lock().unwrap().set_paused(false);
-                        } else if item_id.name == "Pause Renderer" {
-                            PRERENDERTHREAD.lock().unwrap().set_paused(true);
-                        } else if item_id.name == "Restart Renderer" {
-                            PRERENDERTHREAD.lock().unwrap().set_paused(false);
-                            region.prerendered.invalidate();
-                            PRERENDERTHREAD
-                                .lock()
-                                .unwrap()
-                                .render_region(region.shallow_clone(), None);
-                        }
-                        redraw = true;
-                    }
-                } else if widget_id.name == "Camera Button" {
+                if widget_id.name == "Camera Button" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if item_id.name == "Camera First Person" {
                             region.camera_type = CameraType::FirstPerson;

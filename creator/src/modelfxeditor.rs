@@ -544,7 +544,13 @@ impl ModelFXEditor {
                                         if let Some(region) =
                                             project.get_region(&server_ctx.curr_region)
                                         {
-                                            let area = region.get_material_area(material_id);
+                                            let area = region.get_material_area(
+                                                material_id,
+                                                project
+                                                    .materials
+                                                    .get_index_of(&material_id)
+                                                    .unwrap(),
+                                            );
                                             PRERENDERTHREAD
                                                 .lock()
                                                 .unwrap()
@@ -746,11 +752,16 @@ impl ModelFXEditor {
                                             .unwrap()
                                             .set_materials(project.materials.clone());
 
-                                        if let Some(region) =
-                                            project.get_region_mut(&server_ctx.curr_region)
+                                        if let Some(material_index) =
+                                            project.materials.get_index_of(&material_id)
                                         {
-                                            tiles_to_render = region.get_material_area(material_id);
-                                            region_to_render = Some(region.shallow_clone());
+                                            if let Some(region) =
+                                                project.get_region_mut(&server_ctx.curr_region)
+                                            {
+                                                tiles_to_render = region
+                                                    .get_material_area(material_id, material_index);
+                                                region_to_render = Some(region.shallow_clone());
+                                            }
                                         }
 
                                         let undo =
@@ -1451,9 +1462,11 @@ impl ModelFXEditor {
             .unwrap()
             .set_materials(project.materials.clone());
 
-        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-            tiles_to_render = region.get_material_area(material_id);
-            region_to_render = Some(region.shallow_clone());
+        if let Some(material_index) = project.materials.get_index_of(&material_id) {
+            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                tiles_to_render = region.get_material_area(material_id, material_index);
+                region_to_render = Some(region.shallow_clone());
+            }
         }
         if let Some(region) = region_to_render {
             PRERENDERTHREAD

@@ -226,12 +226,27 @@ impl Region {
     }
 
     /// Collects the area which needs to be rerendered if the given material changes.
-    pub fn get_material_area(&self, material_id: Uuid) -> Vec<Vec2i> {
+    pub fn get_material_area(&self, material_id: Uuid, material_index: usize) -> Vec<Vec2i> {
         let mut areas = FxHashSet::default();
         for (_, geo_obj) in self.geometry.iter() {
             if geo_obj.material_id == material_id {
                 for p2d in &geo_obj.area {
                     areas.insert(*p2d);
+                }
+            }
+        }
+        // Iterate the heightfield material masks and check for the material.
+        let u_id = (material_index - 1) as u8;
+        for (key, buffer) in &self.heightmap.material_mask {
+            let rgb_slices: Vec<&[u8]> = buffer
+                .pixels()
+                .chunks(3)
+                .filter(|chunk| chunk.len() == 3)
+                .collect();
+            for chunk in rgb_slices {
+                if chunk[0] == u_id || chunk[1] == u_id {
+                    areas.insert(vec2i(key.0, key.1));
+                    break;
                 }
             }
         }

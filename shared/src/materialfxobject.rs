@@ -177,7 +177,7 @@ impl MaterialFXObject {
         hit.noise = noise_buffer;
         hit.noise_scale = noise_buffer_scale;
 
-        d.0 = self.extrude_material(hit, mat_obj_params, has_geo_trail, d.0);
+        d.0 = self.extrude_material(hit, mat_obj_params, has_geo_trail);
 
         hit.noise = geo_noise;
         hit.noise_scale = geo_noise_scale;
@@ -191,7 +191,6 @@ impl MaterialFXObject {
         time: &TheTime,
         p: Vec3f,
         hit: &mut Hit,
-        _heightmap: &Heightmap,
         mat_obj_params: &[Vec<f32>],
     ) -> f32 {
         hit.noise = None;
@@ -220,7 +219,6 @@ impl MaterialFXObject {
         hit.interior_distance = -0.1;
         hit.hit_point = p;
 
-        let mut d = p.y; // - heightmap.interpolate_height(p.x, p.z);
         let has_geo_trail = self.follow_geo_trail(time, hit, mat_obj_params);
 
         let geo_noise = hit.noise;
@@ -232,7 +230,7 @@ impl MaterialFXObject {
         hit.noise = noise_buffer;
         hit.noise_scale = noise_buffer_scale;
 
-        d = self.extrude_material(hit, mat_obj_params, has_geo_trail, d);
+        let d = self.extrude_material(hit, mat_obj_params, has_geo_trail);
 
         hit.noise = geo_noise;
         hit.noise_scale = geo_noise_scale;
@@ -246,8 +244,9 @@ impl MaterialFXObject {
         hit: &mut Hit,
         mat_obj_params: &[Vec<f32>],
         has_geo_trail: bool,
-        mut d: f32,
     ) -> f32 {
+        let mut d = 0.0;
+
         // Set extrusion parameters to zero
         let mut extrude_add = 0.0;
         let mut extrude_rounding = 0.0;
@@ -451,7 +450,6 @@ impl MaterialFXObject {
         time: &TheTime,
         p: Vec3f,
         hit: &mut Hit,
-        heightmap: &Heightmap,
         mat_obj_params: &[Vec<f32>],
     ) -> Vec3f {
         let scale = 0.5773 * 0.0005;
@@ -464,10 +462,10 @@ impl MaterialFXObject {
         let e3 = vec3f(e.y, e.x, e.y);
         let e4 = vec3f(e.x, e.x, e.x);
 
-        let n = e1 * self.get_heightmap_distance_3d(time, p + e1, hit, heightmap, mat_obj_params)
-            + e2 * self.get_heightmap_distance_3d(time, p + e2, hit, heightmap, mat_obj_params)
-            + e3 * self.get_heightmap_distance_3d(time, p + e3, hit, heightmap, mat_obj_params)
-            + e4 * self.get_heightmap_distance_3d(time, p + e4, hit, heightmap, mat_obj_params);
+        let n = e1 * self.get_heightmap_distance_3d(time, p + e1, hit, mat_obj_params)
+            + e2 * self.get_heightmap_distance_3d(time, p + e2, hit, mat_obj_params)
+            + e3 * self.get_heightmap_distance_3d(time, p + e3, hit, mat_obj_params)
+            + e4 * self.get_heightmap_distance_3d(time, p + e4, hit, mat_obj_params);
         normalize(n)
     }
 

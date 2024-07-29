@@ -298,6 +298,11 @@ impl TheTrait for Editor {
         top_canvas.set_top(menu_canvas);
         ui.canvas.set_top(top_canvas);
 
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Set Game Tool"),
+            TheValue::Text(str!("Tile Drawer Tool")),
+        ));
+
         // Sidebar
         self.sidebar
             .init_ui(ui, ctx, &mut self.project, &mut self.server);

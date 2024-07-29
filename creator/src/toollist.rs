@@ -1,4 +1,4 @@
-use crate::editor::RENDERER;
+use crate::editor::{PRERENDERTHREAD, RENDERER};
 use crate::prelude::*;
 
 pub use ActiveEditor::*;
@@ -105,85 +105,7 @@ impl ToolList {
         match event {
             TheEvent::StateChanged(id, state) => {
                 if id.name.contains("Tool") && *state == TheWidgetState::Selected {
-                    let mut switched_tool = false;
-
-                    match self.active_editor {
-                        GameEditor => {
-                            let mut old_tool_index = 0;
-                            for (index, tool) in self.game_tools.iter().enumerate() {
-                                if tool.id().uuid == id.uuid && index != self.curr_game_tool {
-                                    switched_tool = true;
-                                    old_tool_index = self.curr_game_tool;
-                                    self.curr_game_tool = index;
-                                    redraw = true;
-                                }
-                            }
-                            if switched_tool {
-                                for tool in self.game_tools.iter() {
-                                    if tool.id().uuid != id.uuid {
-                                        ctx.ui.set_widget_state(
-                                            tool.id().name.clone(),
-                                            TheWidgetState::None,
-                                        );
-                                    }
-                                }
-                                self.game_tools[old_tool_index].tool_event(
-                                    ToolEvent::DeActivate,
-                                    ToolContext::TwoD,
-                                    ui,
-                                    ctx,
-                                    project,
-                                    server,
-                                    client,
-                                    server_ctx,
-                                );
-                            }
-                        }
-                        ScreenEditor => {
-                            let mut old_tool_index = 0;
-                            for (index, tool) in self.screen_tools.iter().enumerate() {
-                                if tool.id().uuid == id.uuid && index != self.curr_screen_tool {
-                                    switched_tool = true;
-                                    old_tool_index = self.curr_screen_tool;
-                                    self.curr_screen_tool = index;
-                                    redraw = true;
-                                }
-                            }
-                            if switched_tool {
-                                for tool in self.screen_tools.iter() {
-                                    if tool.id().uuid != id.uuid {
-                                        ctx.ui.set_widget_state(
-                                            tool.id().name.clone(),
-                                            TheWidgetState::None,
-                                        );
-                                    }
-                                }
-                                self.screen_tools[old_tool_index].tool_event(
-                                    ToolEvent::DeActivate,
-                                    ToolContext::TwoD,
-                                    ui,
-                                    ctx,
-                                    project,
-                                    server,
-                                    client,
-                                    server_ctx,
-                                );
-                            }
-                        }
-                    }
-
-                    self.get_current_tool().tool_event(
-                        ToolEvent::Activate,
-                        ToolContext::TwoD,
-                        ui,
-                        ctx,
-                        project,
-                        server,
-                        client,
-                        server_ctx,
-                    );
-
-                    ctx.ui.relayout = true;
+                    redraw = self.set_tool(id.uuid, ui, ctx, project, server, client, server_ctx);
                 }
             }
             TheEvent::TileEditorClicked(id, coord) => {
@@ -310,6 +232,34 @@ impl ToolList {
                     }
                 }
             }
+            TheEvent::ContextMenuSelected(widget_id, item_id) => {
+                if widget_id.name == "Render Button" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if item_id.name == "Start Renderer" {
+                            PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                        } else if item_id.name == "Pause Renderer" {
+                            PRERENDERTHREAD.lock().unwrap().set_paused(true);
+                        } else if item_id.name == "Restart Renderer" {
+                            PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                            region.prerendered.invalidate();
+                            PRERENDERTHREAD
+                                .lock()
+                                .unwrap()
+                                .render_region(region.shallow_clone(), None);
+                        }
+                        redraw = true;
+                    }
+                }
+            }
+            TheEvent::Custom(id, value) => {
+                if id.name == "Set Game Tool" {
+                    if let TheValue::Text(name) = value {
+                        if let Some(tool_id) = self.get_game_tool_uuid_of_name(name) {
+                            self.set_tool(tool_id, ui, ctx, project, server, client, server_ctx);
+                        }
+                    }
+                }
+            }
             _ => {}
         }
 
@@ -328,5 +278,162 @@ impl ToolList {
             GameEditor => &mut self.game_tools[self.curr_game_tool],
             ScreenEditor => &mut self.screen_tools[self.curr_screen_tool],
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_tool(
+        &mut self,
+        tool_id: Uuid,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server: &mut Server,
+        client: &mut Client,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        let mut redraw = false;
+        let mut switched_tool = false;
+        let layout_name;
+
+        match self.active_editor {
+            GameEditor => {
+                layout_name = "Game Tool Params";
+                let mut old_tool_index = 0;
+                for (index, tool) in self.game_tools.iter().enumerate() {
+                    if tool.id().uuid == tool_id && index != self.curr_game_tool {
+                        switched_tool = true;
+                        old_tool_index = self.curr_game_tool;
+                        self.curr_game_tool = index;
+                        redraw = true;
+                    }
+                }
+                if switched_tool {
+                    for tool in self.game_tools.iter() {
+                        if tool.id().uuid != tool_id {
+                            ctx.ui
+                                .set_widget_state(tool.id().name.clone(), TheWidgetState::None);
+                        }
+                    }
+                    self.game_tools[old_tool_index].tool_event(
+                        ToolEvent::DeActivate,
+                        ToolContext::TwoD,
+                        ui,
+                        ctx,
+                        project,
+                        server,
+                        client,
+                        server_ctx,
+                    );
+                }
+            }
+            ScreenEditor => {
+                layout_name = "Screen Tool Params";
+                let mut old_tool_index = 0;
+                for (index, tool) in self.screen_tools.iter().enumerate() {
+                    if tool.id().uuid == tool_id && index != self.curr_screen_tool {
+                        switched_tool = true;
+                        old_tool_index = self.curr_screen_tool;
+                        self.curr_screen_tool = index;
+                        redraw = true;
+                    }
+                }
+                if switched_tool {
+                    for tool in self.screen_tools.iter() {
+                        if tool.id().uuid != tool_id {
+                            ctx.ui
+                                .set_widget_state(tool.id().name.clone(), TheWidgetState::None);
+                        }
+                    }
+                    self.screen_tools[old_tool_index].tool_event(
+                        ToolEvent::DeActivate,
+                        ToolContext::TwoD,
+                        ui,
+                        ctx,
+                        project,
+                        server,
+                        client,
+                        server_ctx,
+                    );
+                }
+            }
+        }
+
+        if let Some(layout) = ui.get_hlayout(layout_name) {
+            layout.clear();
+            layout.set_reverse_index(None);
+        }
+
+        self.get_current_tool().tool_event(
+            ToolEvent::Activate,
+            ToolContext::TwoD,
+            ui,
+            ctx,
+            project,
+            server,
+            client,
+            server_ctx,
+        );
+
+        if let Some(layout) = ui.get_hlayout(layout_name) {
+            if layout.widgets().is_empty() {
+                // Add default widgets
+
+                let mut gb = TheGroupButton::new(TheId::named("2D3D Group"));
+                gb.add_text("2D Map".to_string());
+                gb.add_text("Mixed".to_string());
+                gb.add_text("3D Map".to_string());
+
+                let mut time_slider = TheTimeSlider::new(TheId::named("Server Time Slider"));
+                time_slider.set_continuous(true);
+                time_slider.limiter_mut().set_max_width(400);
+
+                let mut spacer = TheSpacer::new(TheId::empty());
+                spacer.limiter_mut().set_max_width(30);
+
+                let mut render_button = TheTraybarButton::new(TheId::named("Render Button"));
+                render_button.set_text("Starting...".to_string());
+                render_button.set_status_text("Controls the 3D background renderer. During rendering it displays how many tiles are left to render.");
+                render_button.set_fixed_size(true);
+                render_button.limiter_mut().set_max_width(80);
+
+                render_button.set_context_menu(Some(TheContextMenu {
+                    items: vec![
+                        TheContextMenuItem::new(
+                            "Start".to_string(),
+                            TheId::named("Start Renderer"),
+                        ),
+                        TheContextMenuItem::new(
+                            "Pause".to_string(),
+                            TheId::named("Pause Renderer"),
+                        ),
+                        TheContextMenuItem::new(
+                            "Restart".to_string(),
+                            TheId::named("Restart Renderer"),
+                        ),
+                    ],
+                    ..Default::default()
+                }));
+
+                layout.add_widget(Box::new(gb));
+                layout.add_widget(Box::new(spacer));
+                layout.add_widget(Box::new(time_slider));
+                layout.add_widget(Box::new(render_button));
+                layout.set_reverse_index(Some(1));
+            }
+        }
+
+        ctx.ui.relayout = true;
+
+        redraw
+    }
+
+    // Return the uuid given game tool.
+    pub fn get_game_tool_uuid_of_name(&self, name: &str) -> Option<Uuid> {
+        for tool in self.game_tools.iter() {
+            if tool.id().name == name {
+                return Some(tool.id().uuid);
+            }
+        }
+        None
     }
 }
