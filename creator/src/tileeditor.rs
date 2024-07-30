@@ -126,6 +126,11 @@ impl TileEditor {
         text.set_text_color([200, 200, 200, 255]);
         vlayout.add_widget(Box::new(text));
 
+        let mut text = TheText::new(TheId::named("Cursor Height"));
+        text.set_text("H: -".to_string());
+        text.set_text_color([200, 200, 200, 255]);
+        vlayout.add_widget(Box::new(text));
+
         tile_picker.set_layout(vlayout);
         center.set_left(tile_picker);
 
@@ -139,82 +144,6 @@ impl TileEditor {
         toolbar_canvas.set_layout(toolbar_hlayout);
 
         center.set_top(toolbar_canvas);
-
-        // Bottom Toolbar
-        let mut bottom_toolbar = TheCanvas::new();
-        bottom_toolbar.set_widget(TheTraybar::new(TheId::empty()));
-
-        let mut gb = TheGroupButton::new(TheId::named("Editor Group"));
-        gb.add_text_status_icon(
-            "Draw".to_string(),
-            "Draw tiles in the region.".to_string(),
-            "draw".to_string(),
-        );
-        gb.add_text_status_icon(
-            "Model".to_string(),
-            "Model the region.".to_string(),
-            "cube".to_string(),
-        );
-        gb.add_text_status_icon(
-            "Code".to_string(),
-            "Code character and region behavior.".to_string(),
-            "code".to_string(),
-        );
-        gb.add_text_status_icon(
-            "Pick".to_string(),
-            "Pick content in the region.".to_string(),
-            "pick".to_string(),
-        );
-        gb.add_text_status_icon(
-            "Erase".to_string(),
-            "Delete content in the region.".to_string(),
-            "eraser".to_string(),
-        );
-        gb.add_text_status_icon(
-            "Select".to_string(),
-            "Select an area in the region.".to_string(),
-            "selection".to_string(),
-        );
-        gb.add_text_status_icon(
-            "Tilemap".to_string(),
-            "Add tiles from the current tilemap.".to_string(),
-            "square".to_string(),
-        );
-        gb.add_text_status_icon(
-            "Render".to_string(),
-            "Display the render settings of the region.".to_string(),
-            "faders".to_string(),
-        );
-        gb.set_item_width(76);
-
-        let mut camera_button = TheTraybarButton::new(TheId::named("Camera Button"));
-        camera_button.set_icon_name("camera".to_string());
-        camera_button.set_status_text("Set the camera type for the 3D Map.");
-
-        camera_button.set_context_menu(Some(TheContextMenu {
-            items: vec![
-                TheContextMenuItem::new(
-                    "First Person Camera".to_string(),
-                    TheId::named("Camera First Person"),
-                ),
-                TheContextMenuItem::new(
-                    "Top Down Iso".to_string(),
-                    TheId::named("Camera Top Down"),
-                ),
-                TheContextMenuItem::new("Tilted Iso".to_string(), TheId::named("Camera Tilted")),
-            ],
-            ..Default::default()
-        }));
-
-        // let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
-        // toolbar_hlayout.set_background_color(None);
-        // toolbar_hlayout.set_margin(vec4i(10, 4, 10, 4));
-        // toolbar_hlayout.add_widget(Box::new(gb));
-        // toolbar_hlayout.add_widget(Box::new(camera_button));
-        // toolbar_hlayout.set_reverse_index(Some(1));
-
-        // bottom_toolbar.set_layout(toolbar_hlayout);
-        //center.set_bottom(bottom_toolbar);
 
         center
     }
@@ -276,12 +205,26 @@ impl TileEditor {
                                 if let Some(text) = ui.get_text("Cursor Position") {
                                     text.set_text(format!("({}, {})", pos.x, pos.z));
                                     redraw = true;
-                                    if let Some(layout) = ui.get_layout("Editor Icon Layout") {
-                                        layout.relayout(ctx);
-                                    }
                                 }
 
-                                self.set_icon_previews(region, &palette, vec2i(pos.x, pos.z), ui);
+                                if let Some(text) = ui.get_text("Cursor Height") {
+                                    let h =
+                                        region.heightmap.data.get(&(pos.x, pos.z)).unwrap_or(&0.0);
+                                    text.set_text(format!("H: {}", h));
+                                    redraw = true;
+                                }
+
+                                if let Some(layout) = ui.get_layout("Editor Icon Layout") {
+                                    layout.relayout(ctx);
+                                }
+
+                                self.set_icon_previews(
+                                    region,
+                                    &palette,
+                                    vec2i(pos.x, pos.z),
+                                    ui,
+                                    ctx,
+                                );
                             }
                         }
                     }
@@ -544,14 +487,27 @@ impl TileEditor {
                     if let Some(text) = ui.get_text("Cursor Position") {
                         text.set_text(format!("({}, {})", coord.x, coord.y));
                         redraw = true;
-                        if let Some(layout) = ui.get_layout("Editor Icon Layout") {
-                            layout.relayout(ctx);
+                    }
+
+                    if let Some(text) = ui.get_text("Cursor Height") {
+                        if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                            let h = region
+                                .heightmap
+                                .data
+                                .get(&(coord.x, coord.y))
+                                .unwrap_or(&0.0);
+                            text.set_text(format!("H: {}", h));
                         }
+                        redraw = true;
+                    }
+
+                    if let Some(layout) = ui.get_layout("Editor Icon Layout") {
+                        layout.relayout(ctx);
                     }
 
                     for r in &mut project.regions {
                         if r.id == server_ctx.curr_region {
-                            self.set_icon_previews(r, &project.palette, *coord, ui);
+                            self.set_icon_previews(r, &project.palette, *coord, ui, ctx);
                             break;
                         }
                     }
@@ -832,6 +788,7 @@ impl TileEditor {
         palette: &ThePalette,
         coord: Vec2i,
         ui: &mut TheUI,
+        ctx: &mut TheContext,
     ) {
         let mut found_ground_icon = false;
         let mut found_wall_icon = false;
@@ -853,6 +810,7 @@ impl TileEditor {
                                     palette,
                                     &tiledrawer.tiles,
                                     tile_coord,
+                                    ctx,
                                 );
                             } else {
                                 node.preview(
@@ -861,6 +819,7 @@ impl TileEditor {
                                     palette,
                                     &FxHashMap::default(),
                                     tile_coord,
+                                    ctx,
                                 );
                             }
                             if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
@@ -876,6 +835,7 @@ impl TileEditor {
                                     palette,
                                     &tiledrawer.tiles,
                                     tile_coord,
+                                    ctx,
                                 );
                             } else {
                                 node.preview(
@@ -884,6 +844,7 @@ impl TileEditor {
                                     palette,
                                     &FxHashMap::default(),
                                     tile_coord,
+                                    ctx,
                                 );
                             }
                             if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
@@ -901,6 +862,7 @@ impl TileEditor {
                                     palette,
                                     &tiledrawer.tiles,
                                     tile_coord,
+                                    ctx,
                                 );
                             } else {
                                 node.preview(
@@ -909,6 +871,7 @@ impl TileEditor {
                                     palette,
                                     &FxHashMap::default(),
                                     tile_coord,
+                                    ctx,
                                 );
                             }
                             if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
@@ -1085,18 +1048,19 @@ impl TileEditor {
         if let Some(render_view) = ui.get_render_view("RenderView") {
             let dim = *render_view.dim();
 
-            let mut upscale: f32 = 1.5;
+            let mut upscale: f32 = 1.0; //1.5;
             if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                if let Some(v) = region.regionfx.get(
-                    str!("Renderer"),
-                    str!("Upscale"),
-                    &project.time,
-                    TheInterpolation::Linear,
-                ) {
-                    if let Some(value) = v.to_f32() {
-                        upscale = value;
-                    }
-                }
+                // if let Some(v) = region.regionfx.get(
+                //     str!("Renderer"),
+                //     str!("Upscale"),
+                //     &project.time,
+                //     TheInterpolation::Linear,
+                // ) {
+                //     if let Some(value) = v.to_f32() {
+                //         upscale = value;
+                //     }
+                // }
+                upscale = (region.zoom / 2.0).max(1.0);
             }
 
             if upscale != 1.0 {

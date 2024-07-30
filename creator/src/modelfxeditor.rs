@@ -338,7 +338,7 @@ impl ModelFXEditor {
                         ui.set_node_canvas("MaterialFX NodeCanvas", TheNodeCanvas::default());
                     }
                     self.set_material_node_ui(server_ctx, project, ui, ctx);
-                    self.set_current_brush(ui, project, server_ctx);
+                    self.set_current_brush(ui, project, server_ctx, ctx);
                 } else if id.name == "MaterialFX Add" {
                     let mut material = MaterialFXObject::default();
                     let node = MaterialFXNode::new(MaterialFXNodeRole::Geometry);
@@ -430,7 +430,7 @@ impl ModelFXEditor {
                     server_ctx.curr_geo_object = None;
                     server_ctx.curr_geo_node = None;
                     self.set_geo_node_ui(server_ctx, project, ui, ctx);
-                    self.set_current_brush(ui, project, server_ctx);
+                    self.set_current_brush(ui, project, server_ctx, ctx);
                 } else if id.name == "MaterialFX RGBA Layout View" {
                     if let Some(material) = self.materials.get(&(coord.x, coord.y)) {
                         server_ctx.curr_material_object = Some(*material);
@@ -439,7 +439,7 @@ impl ModelFXEditor {
                         ui.set_node_canvas("MaterialFX NodeCanvas", TheNodeCanvas::default());
                     }
                     self.set_material_node_ui(server_ctx, project, ui, ctx);
-                    self.set_current_brush(ui, project, server_ctx);
+                    self.set_current_brush(ui, project, server_ctx, ctx);
                     redraw = true;
                 }
             }
@@ -973,6 +973,7 @@ impl ModelFXEditor {
         ui: &mut TheUI,
         project: &Project,
         server_ctx: &mut ServerContext,
+        ctx: &mut TheContext,
     ) {
         if self.geometry_mode {
             if let Some(curr_geo_node) = self.get_geo_node(ui) {
@@ -983,6 +984,7 @@ impl ModelFXEditor {
                     &project.palette,
                     &TILEDRAWER.lock().unwrap().tiles,
                     Vec2f::zero(),
+                    ctx,
                 );
 
                 if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
@@ -1010,7 +1012,7 @@ impl ModelFXEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) {
-        self.set_current_brush(ui, project, server_ctx);
+        self.set_current_brush(ui, project, server_ctx, ctx);
         if self.geometry_mode {
             self.set_geo_node_ui(server_ctx, project, ui, ctx);
         } else if self.material_mode == MaterialMode::Material {
@@ -1251,7 +1253,7 @@ impl ModelFXEditor {
     }
 
     /// Set the tiles for the picker.
-    pub fn set_geo_tiles(&mut self, palette: &ThePalette, ui: &mut TheUI, _ctx: &mut TheContext) {
+    pub fn set_geo_tiles(&mut self, palette: &ThePalette, ui: &mut TheUI, ctx: &mut TheContext) {
         let tile_size = 48;
 
         //let mut set_default_selection = false;
@@ -1304,6 +1306,7 @@ impl ModelFXEditor {
                         palette,
                         &FxHashMap::default(),
                         Vec2f::zero(),
+                        ctx,
                     );
                     buffer.copy_into(x * grid, y * grid, &tile_buffer);
                     self.geos.insert((x, y), tile.clone());

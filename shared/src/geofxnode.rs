@@ -1013,6 +1013,15 @@ impl GeoFXNode {
         true
     }
 
+    pub fn get_icon_description(&self) -> Option<&str> {
+        match self.role {
+            GeoFXNodeRole::AddHeight => Some("+"),
+            GeoFXNodeRole::RemoveHeight => Some("-"),
+            GeoFXNodeRole::SetHeight => Some("="),
+            _ => None,
+        }
+    }
+
     pub fn preview(
         &self,
         buffer: &mut TheRGBABuffer,
@@ -1020,7 +1029,24 @@ impl GeoFXNode {
         palette: &ThePalette,
         tiles: &FxHashMap<Uuid, TheRGBATile>,
         coord: Vec2f,
+        ctx: &mut TheContext,
     ) {
+        if let Some(text) = self.get_icon_description() {
+            if let Some(font) = &ctx.ui.font {
+                buffer.fill([0, 0, 0, 0]);
+                buffer.draw_text(
+                    vec2i(0, 0),
+                    font,
+                    text,
+                    25.0,
+                    WHITE,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                )
+            }
+            return;
+        }
+
         fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
             [
                 (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,

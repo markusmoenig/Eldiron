@@ -248,6 +248,7 @@ impl MaterialFXObject {
         let mut d = 0.0;
 
         // Set extrusion parameters to zero
+        let mut extrude_add_tile_only = 0.0;
         let mut extrude_add = 0.0;
         let mut extrude_rounding = 0.0;
         let mut extrude_mortar = false;
@@ -268,7 +269,7 @@ impl MaterialFXObject {
         }
 
         if has_geo_trail && hit.interior_distance < PATTERN2D_DISTANCE_BORDER {
-            extrude_add += hit.hash * extrude_hash_weight;
+            extrude_add_tile_only += hit.hash * extrude_hash_weight;
         }
 
         match hit.extrusion {
@@ -282,7 +283,8 @@ impl MaterialFXObject {
                     let distance = op_extrusion_x(
                         hit.hit_point,
                         hit.interior_distance,
-                        hit.extrusion_length + extrude_add - extrude_rounding,
+                        hit.extrusion_length + extrude_add + extrude_add_tile_only
+                            - extrude_rounding,
                     ) - extrude_rounding;
 
                     if extrude_mortar {
@@ -318,7 +320,8 @@ impl MaterialFXObject {
                     let distance = op_extrusion_y(
                         hit.hit_point,
                         hit.interior_distance,
-                        hit.extrusion_length + extrude_add - extrude_rounding,
+                        hit.extrusion_length + extrude_add + extrude_add_tile_only
+                            - extrude_rounding,
                     ) - extrude_rounding;
 
                     if extrude_mortar {
@@ -353,7 +356,8 @@ impl MaterialFXObject {
                     let distance = op_extrusion_z(
                         hit.hit_point,
                         hit.interior_distance,
-                        hit.extrusion_length + extrude_add - extrude_rounding,
+                        hit.extrusion_length + extrude_add + extrude_add_tile_only
+                            - extrude_rounding,
                     ) - extrude_rounding;
 
                     if extrude_mortar {
@@ -555,6 +559,23 @@ impl MaterialFXObject {
 
                 resolved.push(h);
             }
+
+            // Noise in for the resolver,
+            if let Some(noise_index) = self.find_connected_output_node(resolver as usize, 1) {
+                if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
+                    || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
+                {
+                    _ = self.nodes[noise_index].compute(
+                        hit,
+                        palette,
+                        textures,
+                        vec![],
+                        &mat_obj_params[noise_index],
+                    );
+                }
+            }
+
+            // Execute the resolver
             _ = self.nodes[resolver as usize].compute(
                 hit,
                 palette,

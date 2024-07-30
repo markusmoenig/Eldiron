@@ -13,7 +13,7 @@ use HeightmapInterpolation::*;
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct Heightmap {
     #[serde(with = "vectorize")]
-    data: FxHashMap<(i32, i32), f32>,
+    pub data: FxHashMap<(i32, i32), f32>,
     #[serde(default)]
     #[serde(with = "vectorize")]
     pub material_mask: FxHashMap<(i32, i32), TheRGBBuffer>,

@@ -35,12 +35,14 @@ impl ToolList {
             Box::new(TilemapTool::new()),
             Box::new(RenderTool::new()),
             Box::new(ZoomTool::new()),
+            Box::new(GameTool::new()),
         ];
         let screen_tools: Vec<Box<dyn Tool>> = vec![
             Box::new(ScreenTileDrawerTool::new()),
             Box::new(CodeTool::new()),
             Box::new(ScreenPickerTool::new()),
             Box::new(ScreenEraserTool::new()),
+            Box::new(GameTool::new()),
         ];
 
         Self {
@@ -111,10 +113,15 @@ impl ToolList {
         match event {
             TheEvent::KeyDown(TheValue::Char(c)) => {
                 let mut acc = true;
+
                 if let Some(id) = &ctx.ui.focus {
                     if let Some(widget) = ui.get_widget_abs(None, Some(&id.uuid)) {
                         acc = !widget.supports_text_input();
                     }
+                }
+
+                if self.get_current_tool().id().name == "Game Tool" {
+                    acc = false;
                 }
 
                 if acc {
@@ -286,7 +293,28 @@ impl ToolList {
                 }
             }
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
-                if widget_id.name == "Render Button" {
+                if widget_id.name == "Render Button" && item_id.name.starts_with("Camera") {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if item_id.name == "Camera First Person" {
+                            region.camera_type = CameraType::FirstPerson;
+                        } else if item_id.name == "Camera Top Down" {
+                            region.camera_type = CameraType::TopDown;
+                        } else if item_id.name == "Camera Tilted" {
+                            region.camera_type = CameraType::TiltedIso;
+                        }
+                        region.prerendered.invalidate();
+                        server.update_region(region);
+                        PRERENDERTHREAD
+                            .lock()
+                            .unwrap()
+                            .render_region_coord_tree(region.shallow_clone());
+                        PRERENDERTHREAD
+                            .lock()
+                            .unwrap()
+                            .render_region(region.shallow_clone(), None);
+                        redraw = true;
+                    }
+                } else if widget_id.name == "Render Button" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if item_id.name == "Start Renderer" {
                             PRERENDERTHREAD.lock().unwrap().set_paused(false);
@@ -452,14 +480,27 @@ impl ToolList {
 
                 let mut render_button = TheTraybarButton::new(TheId::named("Render Button"));
                 render_button.set_text(self.render_button_text.clone());
-                render_button.set_status_text("Controls the 3D background renderer. During rendering it displays how many tiles are left to render.");
+                render_button.set_status_text("Controls the camera perspective and the 3D background renderer. During rendering it displays how many tiles are left to render.");
                 render_button.set_fixed_size(true);
                 render_button.limiter_mut().set_max_width(80);
 
                 render_button.set_context_menu(Some(TheContextMenu {
                     items: vec![
+                        // TheContextMenuItem::new(
+                        //     "First Person Camera".to_string(),
+                        //     TheId::named("Camera First Person"),
+                        // ),
                         TheContextMenuItem::new(
-                            "Start".to_string(),
+                            "Top Down Iso".to_string(),
+                            TheId::named("Camera Top Down"),
+                        ),
+                        TheContextMenuItem::new(
+                            "Tilted Iso".to_string(),
+                            TheId::named("Camera Tilted"),
+                        ),
+                        TheContextMenuItem::new("".to_string(), TheId::empty()),
+                        TheContextMenuItem::new(
+                            "Start Renderer".to_string(),
                             TheId::named("Start Renderer"),
                         ),
                         TheContextMenuItem::new(

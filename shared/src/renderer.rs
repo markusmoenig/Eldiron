@@ -572,6 +572,7 @@ impl Renderer {
         }
 
         let mut has_hit = false;
+        let mut has_heightmap_material = false;
 
         let dist = 0.0;
 
@@ -586,7 +587,6 @@ impl Renderer {
                     .calculate_normal(terrain_hit.x, terrain_hit.z, 0.001);
             hit.normal = terrain_normal;
             hit.hit_point = terrain_hit;
-            //hit.distance = terrain_dist;
 
             let mut geo_ids: Vec<Uuid> = vec![];
             {
@@ -606,6 +606,10 @@ impl Renderer {
                 for _ii in 0..max_render_distance {
                     key = Vec3i::from(i);
 
+                    if key.y < -1 {
+                        break;
+                    }
+
                     if dist > hit.distance {
                         break;
                     }
@@ -621,6 +625,7 @@ impl Renderer {
 
                     // Raymarch (extruded) materials to see if they intersect.
                     if let Some(mask) = region.heightmap.get_material_mask(key.x, key.z) {
+                        has_heightmap_material = true;
                         let mut h = hit.clone();
 
                         let mut t = dist;
@@ -630,8 +635,9 @@ impl Renderer {
                                 break;
                             }
 
-                            let p = ray.at(t);
+                            let mut p = ray.at(t);
                             let t_dist = region.heightmap.interpolate_height(p.x, p.z);
+                            p -= t_dist;
 
                             if let Some(material_mask) = mask.at_f(vec2f(p.x.fract(), p.z.fract()))
                             {
@@ -649,7 +655,7 @@ impl Renderer {
                                         p,
                                         &mut h,
                                         &mat_obj_params,
-                                    ) - t_dist;
+                                    );
 
                                     if dist < h.eps && dist < h.distance {
                                         hit.clone_from(&h);
@@ -665,11 +671,13 @@ impl Renderer {
 
                                         let f = self.get_uv_face(hit.normal, hit.hit_point);
                                         hit.uv = f.0;
-                                        hit.global_uv = match f.1 {
-                                            0 => f.0 + vec2f(p.z, p.y),
-                                            1 => f.0 + vec2f(p.x, p.z),
-                                            _ => f.0 + vec2f(p.x, p.y),
-                                        };
+                                        hit.global_uv = vec2f(p.x.floor(), p.z.floor()) + hit.uv;
+
+                                        // hit.global_uv = match f.1 {
+                                        //     0 => f.0 + vec2f(p.z, p.y),
+                                        //     1 => f.0 + vec2f(p.x, p.z),
+                                        //     _ => f.0 + vec2f(p.x, p.y),
+                                        // };
                                         hit.pattern_pos = hit.global_uv;
                                         material.compute(
                                             &mut hit,
@@ -870,11 +878,11 @@ impl Renderer {
                             //     break;
                             // }
 
-                            let p = ray.at(t);
+                            let mut p = ray.at(t);
                             let t_dist = region.heightmap.interpolate_height(p.x, p.z);
-                            //p.y -= region.heightmap.interpolate_height(p.x, p.z);
+                            p.y -= t_dist;
 
-                            let mut d; // = (f32::INFINITY, 0);
+                            let d; // = (f32::INFINITY, 0);
                             if let Some(material) = material {
                                 d = material.get_distance_3d(
                                     &settings.time,
@@ -895,7 +903,7 @@ impl Renderer {
                                 );
                             }
 
-                            d.0 -= t_dist;
+                            //d.0 -= t_dist;
 
                             if d.0 < h.eps && t < hit.distance {
                                 hit.clone_from(&h);
@@ -937,11 +945,12 @@ impl Renderer {
                                 if let Some(material) = material {
                                     let f = self.get_uv_face(hit.normal, hit.hit_point);
                                     hit.uv = f.0;
-                                    hit.global_uv = match f.1 {
-                                        0 => f.0 + vec2f(terrain_hit.z, terrain_hit.y),
-                                        1 => f.0 + vec2f(terrain_hit.x, terrain_hit.z),
-                                        _ => f.0 + vec2f(terrain_hit.x, terrain_hit.y),
-                                    };
+                                    hit.global_uv = vec2f(p.x.floor(), p.z.floor()) + hit.uv;
+                                    //match f.1 {
+                                    //0 => f.0 + vec2f(hit.hit_point.z, hit.hit_point.y),
+                                    //1 => f.0 + vec2f(hit.hit_point.x, hit.hit_point.z),
+                                    //_ => f.0 + vec2f(hit.hit_point.x, hit.hit_point.y),
+                                    //};
                                     material.compute(
                                         &mut hit,
                                         palette,
@@ -955,6 +964,30 @@ impl Renderer {
                             t += d.0;
                         }
                     }
+                }
+            }
+
+            // If no hit, we draw the material at index #0
+            if !has_hit && has_heightmap_material {
+                hit.hit_point = terrain_hit;
+                hit.normal = terrain_normal;
+                hit.distance = terrain_dist;
+
+                if let Some((id, material)) = self.materials.get_index(0) {
+                    let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+
+                    if let Some(m_params) = material_params.get(id) {
+                        mat_obj_params.clone_from(m_params);
+                    }
+
+                    let f = self.get_uv_face(hit.normal, hit.hit_point);
+                    hit.uv = f.0;
+                    hit.global_uv = vec2f(terrain_hit.x.floor(), terrain_hit.z.floor()) + hit.uv;
+                    hit.pattern_pos = hit.global_uv;
+                    hit.two_d = true;
+                    material.compute(&mut hit, palette, &self.textures, &mat_obj_params);
+
+                    has_hit = true;
                 }
             }
 
