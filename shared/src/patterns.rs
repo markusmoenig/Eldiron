@@ -228,15 +228,20 @@ pub fn box_divide(p: Vec2f, gap: f32, rotation: f32, rounding: f32) -> (f32, f32
     (c, id)
 }
 
-pub fn bricks_geo(uv: Vec2f, hit: &mut Hit, params: &[f32]) -> f32 {
+pub fn bricks(uv: Vec2f, hit: &mut Hit, params: &[f32]) -> f32 {
+    fn s_box(p: Vec2f, b: Vec2f, r: f32) -> f32 {
+        let d = abs(p) - b + vec2f(r, r);
+        d.x.max(d.y).min(0.0) + length(max(d, vec2f(0.0, 0.0))) - r
+    }
+
     let ratio = params[0];
     let round = params[1];
-    let bevel = params[2];
+    let rotation = params[2];
     let gap = params[3];
     let cell = params[4];
     let mode = params[5] as i32;
 
-    let mut u = uv; // + vec2f(10000.0, 10000.0);
+    let mut u = uv;
 
     let w = vec2f(ratio, 1.0);
     u *= vec2f(cell, cell) / w;
@@ -245,63 +250,13 @@ pub fn bricks_geo(uv: Vec2f, hit: &mut Hit, params: &[f32]) -> f32 {
         u.x += 0.5 * u.y.floor() % 2.0;
     }
 
-    let new_uv = frac(u);
-    hit.uv = new_uv;
-    hit.hash = hash21(floor(u));
+    let id = hash21(floor(u));
 
-    let t = new_uv - vec2f(1.0, 1.0) / 2.0;
-    let s = w * t;
+    let mut p = frac(u);
+    p = rot((id - 0.5) * rotation) * (p - 0.5);
 
-    let a = w / 2.0 - gap - abs(s);
-    let b = a * vec2f(2.0, 2.0) / bevel; ////a.component_mul(&FP2::new(2.0, 2.0)).component_div(&bevel);
-    let mut m = b.x.min(b.y);
-    if a.x < round && a.y < round {
-        m = (round - length(vec2f(round, round) - a)) * 2.0; //
-        dot(vec2f(bevel, bevel), normalize(vec2f(round, round) - a));
-    }
+    hit.hash = id;
+    hit.uv = p;
 
-    (1.0 - m.clamp(0.0, 1.0)) - 0.5
-}
-
-pub fn bricks(uv: Vec2f, hit: &mut Hit, params: &[f32]) -> (u8, u8) {
-    let ratio = params[0];
-    let round = params[1];
-    let bevel = params[2];
-    let gap = params[3];
-    let cell = params[4];
-    let mode = params[5] as i32;
-
-    let mut u = uv; // + vec2f(10000.0, 10000.0);
-
-    let w = vec2f(ratio, 1.0);
-    u *= vec2f(cell, cell) / w;
-
-    if mode == 0 {
-        u.x += 0.5 * u.y.floor() % 2.0;
-    }
-
-    let new_uv = frac(u);
-    hit.uv = new_uv;
-    hit.hash = hash21(floor(u));
-
-    let t = new_uv - vec2f(1.0, 1.0) / 2.0;
-    let s = w * t;
-
-    let a = w / 2.0 - gap - abs(s);
-    let b = a * vec2f(2.0, 2.0) / bevel; ////a.component_mul(&FP2::new(2.0, 2.0)).component_div(&bevel);
-    let mut m = b.x.min(b.y);
-    if a.x < round && a.y < round {
-        m = (round - length(vec2f(round, round) - a)) * 2.0; //
-        dot(vec2f(bevel, bevel), normalize(vec2f(round, round) - a));
-    }
-
-    //(m.clamp(0.0, 1.0), self.hash21(glm::floor(&u)));
-
-    let m = m.clamp(0.0, 1.0);
-
-    if m == 1.0 {
-        (0, 0)
-    } else {
-        (5, 1)
-    }
+    s_box(p, vec2f(0.5, 0.5) - gap, round)
 }

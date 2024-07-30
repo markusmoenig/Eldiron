@@ -104,7 +104,7 @@ impl MaterialFXNode {
             Brick => {
                 coll.set("Ratio", TheValue::FloatRange(2.0, 1.0..=10.0));
                 coll.set("Rounding", TheValue::FloatRange(0.0, 0.0..=0.5));
-                coll.set("Bevel", TheValue::FloatRange(0.0, 0.0..=0.5));
+                coll.set("Rotation", TheValue::FloatRange(0.15, 0.0..=2.0));
                 coll.set("Gap", TheValue::FloatRange(0.1, 0.0..=0.5));
                 coll.set("Cell", TheValue::FloatRange(6.0, 0.0..=15.0));
                 coll.set(
@@ -240,7 +240,7 @@ impl MaterialFXNode {
             MaterialFXNodeRole::Brick => {
                 params.push(coll.get_f32_default("Ratio", 2.0));
                 params.push(coll.get_f32_default("Rounding", 0.0));
-                params.push(coll.get_f32_default("Bevel", 0.0));
+                params.push(coll.get_f32_default("Rotation", 0.15));
                 params.push(coll.get_f32_default("Gap", 0.1));
                 params.push(coll.get_f32_default("Cell", 6.0));
                 params.push(coll.get_i32_default("Mode", 0) as f32);
@@ -519,8 +519,12 @@ impl MaterialFXNode {
                 Some(0)
             }
             Brick => {
-                let (_, terminal) = bricks(hit.global_uv, hit, params);
-                Some(terminal)
+                let dist = bricks(hit.global_uv, hit, params);
+                if dist < 0.0 {
+                    Some(0)
+                } else {
+                    Some(1)
+                }
             }
             UVSplitter => {
                 if hit.two_d {
@@ -592,7 +596,7 @@ impl MaterialFXNode {
             Brick => {
                 if hit.interior_distance < 0.0 || hit.two_d {
                     let p = hit.pattern_pos; // / (5.0);
-                    let d = bricks_geo(p, hit, params);
+                    let d = bricks(p, hit, params);
                     hit.interior_distance_mortar = Some(hit.interior_distance);
                     hit.interior_distance = d;
                 } else {

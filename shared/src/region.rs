@@ -236,7 +236,7 @@ impl Region {
             }
         }
         // Iterate the heightfield material masks and check for the material.
-        let u_id = (material_index - 1) as u8;
+        let u_id = (material_index + 1) as u8;
         for (key, buffer) in &self.heightmap.material_mask {
             let rgb_slices: Vec<&[u8]> = buffer
                 .pixels()
