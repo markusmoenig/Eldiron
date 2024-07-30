@@ -362,95 +362,86 @@ impl GeoFXNode {
                     return sdf_box2d(p, pos, len, thick);
                 }
                 BendWallNW => {
-                    let thick = coll.get_f32_default("Thickness", 0.2) * scale / 2.0 + 0.1;
+                    let t = if coll.get_i32_default("2D Mode", 0) == 1 {
+                        1.0
+                    } else {
+                        coll.get_f32_default("Thickness", 0.2)
+                    };
+
+                    let thick = t * scale / 2.0 + 0.1;
                     let round = coll.get_f32_default("Rounding", 0.3) * scale;
 
-                    let pos = self.position(&coll) * scale + 1.0 * scale;
+                    let mut pos = self.position(&coll);
+                    pos += 1.0;
+                    pos *= scale;
+
                     let rounding = (round, round, round, round);
 
                     let p = p - pos;
-
-                    let size = if scale != 1.0 {
-                        1.0 * scale
-                    } else {
-                        1.5 * scale
-                    };
-
-                    let d = sdf_rounded_box2d(p, size, thick, rounding);
+                    let d = sdf_rounded_box2d(p, 1.5 * scale, thick, rounding);
 
                     return d.abs() - thick;
                 }
                 BendWallNE => {
-                    let thick = coll.get_f32_default("Thickness", 0.2) * scale / 2.0 + 0.1;
+                    let t = if coll.get_i32_default("2D Mode", 0) == 1 {
+                        1.0
+                    } else {
+                        coll.get_f32_default("Thickness", 0.2)
+                    };
+
+                    let thick = t * scale / 2.0 + 0.1;
                     let round = coll.get_f32_default("Rounding", 0.3) * scale;
 
-                    let mut pos = self.position(&coll) * scale;
-                    pos += if scale != 1.0 {
-                        vec2f(0.0, 1.0) * scale
-                    } else {
-                        vec2f(-1.0, 1.0) * scale
-                    };
+                    let mut pos = self.position(&coll);
+                    pos += vec2f(-1.0, 1.0);
+                    pos *= scale;
 
                     let rounding = (round, round, round, round);
 
                     let p = p - pos;
-
-                    let size = if scale != 1.0 {
-                        1.0 * scale
-                    } else {
-                        1.5 * scale
-                    };
-
-                    let d = sdf_rounded_box2d(p, size, thick, rounding);
+                    let d = sdf_rounded_box2d(p, 1.5 * scale, thick, rounding);
 
                     return d.abs() - thick;
                 }
                 BendWallSW => {
-                    let thick = coll.get_f32_default("Thickness", 0.2) * scale / 2.0 + 0.1;
+                    let t = if coll.get_i32_default("2D Mode", 0) == 1 {
+                        1.0
+                    } else {
+                        coll.get_f32_default("Thickness", 0.2)
+                    };
+
+                    let thick = t * scale / 2.0 + 0.1;
                     let round = coll.get_f32_default("Rounding", 0.3) * scale;
 
-                    let mut pos = self.position(&coll) * scale;
-                    pos += if scale != 1.0 {
-                        vec2f(1.0, 0.0) * scale
-                    } else {
-                        vec2f(1.0, -1.0) * scale
-                    };
+                    let mut pos = self.position(&coll);
+                    pos += vec2f(1.0, -1.0);
+                    pos *= scale;
+
                     let rounding = (round, round, round, round);
 
                     let p = p - pos;
-
-                    let size = if scale != 1.0 {
-                        1.0 * scale
-                    } else {
-                        1.5 * scale
-                    };
-
-                    let d = sdf_rounded_box2d(p, size, thick, rounding);
+                    let d = sdf_rounded_box2d(p, 1.5 * scale, thick, rounding);
 
                     return d.abs() - thick;
                 }
                 BendWallSE => {
-                    let thick = coll.get_f32_default("Thickness", 0.2) * scale / 2.0 + 0.1;
+                    let t = if coll.get_i32_default("2D Mode", 0) == 1 {
+                        1.0
+                    } else {
+                        coll.get_f32_default("Thickness", 0.2)
+                    };
+
+                    let thick = t * scale / 2.0 + 0.1;
                     let round = coll.get_f32_default("Rounding", 0.3) * scale;
 
-                    let mut pos = self.position(&coll) * scale;
-                    pos += if scale != 1.0 {
-                        vec2f(0.0, 0.0) * scale
-                    } else {
-                        vec2f(-1.0, -1.0) * scale
-                    };
+                    let mut pos = self.position(&coll);
+                    pos += vec2f(-1.0, -1.0);
+                    pos *= scale;
 
                     let rounding = (round, round, round, round);
 
                     let p = p - pos;
-
-                    let size = if scale != 1.0 {
-                        1.0 * scale
-                    } else {
-                        1.5 * scale
-                    };
-
-                    let d = sdf_rounded_box2d(p, size, thick, rounding);
+                    let d = sdf_rounded_box2d(p, 1.5 * scale, thick, rounding);
 
                     return d.abs() - thick;
                 }
@@ -714,12 +705,16 @@ impl GeoFXNode {
                 d = d.abs() - thick;
 
                 if let Some(hit) = hit {
+                    hit.pattern_pos = vec2f(p.x, p.z);
+                    hit.extrusion = GeoFXNodeExtrusion::Y;
+                    hit.extrusion_length = height;
                     hit.interior_distance = d;
+                    hit.hit_point = p - vec3f(pos.x.floor(), 0.0, pos.y.floor());
                 }
 
-                let d = op_extrusion_y(p, d, height);
-                let plane = dot(p, vec3f(0.0, 1.0, 0.0));
-                max(-plane, d)
+                op_extrusion_y(p, d, height)
+                // let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                // max(-plane, d)
             }
             BendWallNE => {
                 let thick = params[2] / 2.0;
@@ -737,12 +732,16 @@ impl GeoFXNode {
                 d = d.abs() - thick;
 
                 if let Some(hit) = hit {
+                    hit.pattern_pos = vec2f(p.x, p.z);
+                    hit.extrusion = GeoFXNodeExtrusion::Y;
+                    hit.extrusion_length = height;
                     hit.interior_distance = d;
+                    hit.hit_point = p - vec3f(pos.x.floor(), 0.0, pos.y.floor());
                 }
 
-                let d = op_extrusion_y(p, d, height);
-                let plane = dot(p, vec3f(0.0, 1.0, 0.0));
-                max(-plane, d)
+                op_extrusion_y(p, d, height)
+                // let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                // max(-plane, d)
             }
             BendWallSW => {
                 let thick = params[2] / 2.0;
@@ -760,12 +759,16 @@ impl GeoFXNode {
                 d = d.abs() - thick;
 
                 if let Some(hit) = hit {
+                    hit.pattern_pos = vec2f(p.x, p.z);
+                    hit.extrusion = GeoFXNodeExtrusion::Y;
+                    hit.extrusion_length = height;
                     hit.interior_distance = d;
+                    hit.hit_point = p - vec3f(pos.x.floor(), 0.0, pos.y.floor());
                 }
 
-                let d = op_extrusion_y(p, d, height);
-                let plane = dot(p, vec3f(0.0, 1.0, 0.0));
-                max(-plane, d)
+                op_extrusion_y(p, d, height)
+                // let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                // max(-plane, d)
             }
             BendWallSE => {
                 let thick = params[2] / 2.0;
@@ -783,12 +786,16 @@ impl GeoFXNode {
                 d = d.abs() - thick;
 
                 if let Some(hit) = hit {
+                    hit.pattern_pos = vec2f(p.x, p.z);
+                    hit.extrusion = GeoFXNodeExtrusion::Y;
+                    hit.extrusion_length = height;
                     hit.interior_distance = d;
+                    hit.hit_point = p - vec3f(pos.x.floor(), 0.0, pos.y.floor());
                 }
 
-                let d = op_extrusion_y(p, d, height);
-                let plane = dot(p, vec3f(0.0, 1.0, 0.0));
-                max(-plane, d)
+                op_extrusion_y(p, d, height)
+                //let plane = dot(p, vec3f(0.0, 1.0, 0.0));
+                //max(-plane, d)
             }
             Column => {
                 let radius = params[2];

@@ -968,28 +968,28 @@ impl Renderer {
             }
 
             // If no hit, we draw the material at index #0
-            if !has_hit && has_heightmap_material {
-                hit.hit_point = terrain_hit;
-                hit.normal = terrain_normal;
-                hit.distance = terrain_dist;
+            // if !has_hit && has_heightmap_material {
+            //     hit.hit_point = terrain_hit;
+            //     hit.normal = terrain_normal;
+            //     hit.distance = terrain_dist;
 
-                if let Some((id, material)) = self.materials.get_index(0) {
-                    let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+            //     if let Some((id, material)) = self.materials.get_index(0) {
+            //         let mut mat_obj_params: Vec<Vec<f32>> = vec![];
 
-                    if let Some(m_params) = material_params.get(id) {
-                        mat_obj_params.clone_from(m_params);
-                    }
+            //         if let Some(m_params) = material_params.get(id) {
+            //             mat_obj_params.clone_from(m_params);
+            //         }
 
-                    let f = self.get_uv_face(hit.normal, hit.hit_point);
-                    hit.uv = f.0;
-                    hit.global_uv = vec2f(terrain_hit.x.floor(), terrain_hit.z.floor()) + hit.uv;
-                    hit.pattern_pos = hit.global_uv;
-                    hit.two_d = true;
-                    material.compute(&mut hit, palette, &self.textures, &mat_obj_params);
+            //         let f = self.get_uv_face(hit.normal, hit.hit_point);
+            //         hit.uv = f.0;
+            //         hit.global_uv = vec2f(terrain_hit.x.floor(), terrain_hit.z.floor()) + hit.uv;
+            //         hit.pattern_pos = hit.global_uv;
+            //         hit.two_d = true;
+            //         material.compute(&mut hit, palette, &self.textures, &mat_obj_params);
 
-                    has_hit = true;
-                }
-            }
+            //         has_hit = true;
+            //     }
+            // }
 
             // If no hit, we render the heightmap with its painted materials.
             if false {
