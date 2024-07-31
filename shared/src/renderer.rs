@@ -572,7 +572,7 @@ impl Renderer {
         }
 
         let mut has_hit = false;
-        let mut has_heightmap_material = false;
+        //let mut has_heightmap_material = false;
 
         let dist = 0.0;
 
@@ -625,7 +625,7 @@ impl Renderer {
 
                     // Raymarch (extruded) materials to see if they intersect.
                     if let Some(mask) = region.heightmap.get_material_mask(key.x, key.z) {
-                        has_heightmap_material = true;
+                        //has_heightmap_material = true;
                         let mut h = hit.clone();
 
                         let mut t = dist;

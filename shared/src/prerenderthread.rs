@@ -8,6 +8,7 @@ pub enum PreRenderCmd {
     SetMaterials(IndexMap<Uuid, MaterialFXObject>),
     SetPalette(ThePalette),
     SetPaused(bool),
+    Restart,
     MaterialChanged(MaterialFXObject),
     RenderRegionCoordTree(Region),
     RenderRegion(Region, Option<Vec<Vec2i>>),
@@ -103,6 +104,10 @@ impl PreRenderThread {
         self.send(PreRenderCmd::RenderRegionCoordTree(region));
     }
 
+    pub fn restart(&self) {
+        self.send(PreRenderCmd::Restart);
+    }
+
     pub fn startup(&mut self) {
         let (tx, rx) = mpsc::channel::<PreRenderCmd>();
 
@@ -156,6 +161,12 @@ impl PreRenderThread {
                             paused = p;
                             if paused {
                                 result_tx.send(PreRenderResult::Paused).unwrap();
+                            }
+                        }
+                        PreRenderCmd::Restart => {
+                            if let Some(data) = prerendered_region_data.get_mut(&curr_region.id) {
+                                data.tile_samples.clear();
+                                in_progress = true;
                             }
                         }
                         PreRenderCmd::MaterialChanged(changed_material) => {

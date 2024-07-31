@@ -314,10 +314,7 @@ impl TileEditor {
                             .lock()
                             .unwrap()
                             .render_region_coord_tree(region.shallow_clone());
-                        PRERENDERTHREAD
-                            .lock()
-                            .unwrap()
-                            .render_region(region.shallow_clone(), None);
+                        PRERENDERTHREAD.lock().unwrap().restart();
                         redraw = true;
                     }
                 }
@@ -518,6 +515,8 @@ impl TileEditor {
                     UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
                 } else if id.name == "ModelFX RGBA Layout View" {
                     UNDOMANAGER.lock().unwrap().context = UndoManagerContext::MaterialFX;
+                } else if id.name == "Palette Picker" {
+                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Palette;
                 }
             }
             TheEvent::StateChanged(id, _state) => {

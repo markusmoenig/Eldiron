@@ -50,6 +50,7 @@ pub mod prelude {
     pub use crate::tilepicker::*;
     pub use crate::toollist::*;
     pub use crate::undo::materialfx_undo::*;
+    pub use crate::undo::palette_undo::*;
     pub use crate::undo::region_undo::*;
     pub use crate::undo::*;
 

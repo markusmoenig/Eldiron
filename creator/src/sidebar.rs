@@ -1,6 +1,6 @@
 use crate::editor::{
     CODEEDITOR, MODELFXEDITOR, PRERENDERTHREAD, REGIONFXEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER,
-    TILEMAPEDITOR,
+    TILEMAPEDITOR, UNDOMANAGER,
 };
 use crate::prelude::*;
 
@@ -781,11 +781,17 @@ impl Sidebar {
         import_button.set_icon_name("import".to_string());
         import_button.set_status_text("Import a palette in .txt format.");
 
+        let mut clear_all_button: TheTraybarButton =
+            TheTraybarButton::new(TheId::named("Palette Clear"));
+        clear_all_button.set_icon_name("trash".to_string());
+        clear_all_button.set_status_text("Clear all colors in the current palette.");
+
         let mut picker_layout = TheVLayout::new(TheId::empty());
 
         toolbar_hlayout.add_widget(Box::new(hex_edit));
         toolbar_hlayout.add_widget(Box::new(import_button));
-        toolbar_hlayout.set_reverse_index(Some(1));
+        toolbar_hlayout.add_widget(Box::new(clear_all_button));
+        toolbar_hlayout.set_reverse_index(Some(2));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
         picker_canvas.set_top(toolbar_canvas);
@@ -1440,7 +1446,35 @@ impl Sidebar {
                 }
             }
             TheEvent::StateChanged(id, state) => {
-                if id.name == "Palette Import" {
+                if id.name == "Palette Clear" {
+                    let prev = project.palette.clone();
+                    project.palette.clear();
+                    if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
+                        let index = palette_picker.index();
+
+                        palette_picker.set_palette(project.palette.clone());
+                        if let Some(widget) = ui.get_widget("Palette Color Picker") {
+                            if let Some(color) = &project.palette[index] {
+                                widget.set_value(TheValue::ColorObject(color.clone()));
+                            }
+                        }
+                        if let Some(widget) = ui.get_widget("Palette Hex Edit") {
+                            if let Some(color) = &project.palette[index] {
+                                widget.set_value(TheValue::Text(color.to_hex()));
+                            }
+                        }
+                    }
+                    server.set_palette(&project.palette);
+                    PRERENDERTHREAD
+                        .lock()
+                        .unwrap()
+                        .set_palette(project.palette.clone());
+                    PRERENDERTHREAD.lock().unwrap().restart();
+                    redraw = true;
+
+                    let undo = PaletteUndoAtom::Edit(prev, project.palette.clone());
+                    UNDOMANAGER.lock().unwrap().add_palette_undo(undo, ctx);
+                } else if id.name == "Palette Import" {
                     ctx.ui.open_file_requester(
                         TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                         "Open".into(),

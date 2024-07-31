@@ -24,7 +24,6 @@ lazy_static! {
     pub static ref TILEFXEDITOR: Mutex<TileFXEditor> = Mutex::new(TileFXEditor::new());
     pub static ref MODELFXEDITOR: Mutex<ModelFXEditor> = Mutex::new(ModelFXEditor::new());
     pub static ref REGIONFXEDITOR: Mutex<RegionFXEditor> = Mutex::new(RegionFXEditor::new());
-    // pub static ref VOXELTHREAD: Mutex<VoxelThread> = Mutex::new(VoxelThread::default());
     pub static ref PRERENDERTHREAD: Mutex<PreRenderThread> = Mutex::new(PreRenderThread::default());
     pub static ref UNDOMANAGER: Mutex<UndoManager> = Mutex::new(UndoManager::default());
     pub static ref TOOLLIST: Mutex<ToolList> = Mutex::new(ToolList::default());
@@ -1073,6 +1072,7 @@ impl TheTrait for Editor {
                         if id.name == "Palette Import" {
                             for p in paths {
                                 let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
+                                let prev = self.project.palette.clone();
                                 self.project.palette.load_from_txt(contents);
                                 if let Some(palette_picker) =
                                     ui.get_palette_picker("Palette Picker")
@@ -1092,7 +1092,16 @@ impl TheTrait for Editor {
                                     }
                                 }
                                 self.server.set_palette(&self.project.palette);
+                                PRERENDERTHREAD
+                                    .lock()
+                                    .unwrap()
+                                    .set_palette(self.project.palette.clone());
+                                PRERENDERTHREAD.lock().unwrap().restart();
                                 redraw = true;
+
+                                let undo =
+                                    PaletteUndoAtom::Edit(prev, self.project.palette.clone());
+                                UNDOMANAGER.lock().unwrap().add_palette_undo(undo, ctx);
                             }
                         } else if id.name == "Open" {
                             for p in paths {
@@ -1448,6 +1457,30 @@ impl TheTrait for Editor {
                                             ctx,
                                         );
                                     }
+                                } else if manager.context == UndoManagerContext::Palette {
+                                    if id.name == "Undo" {
+                                        manager.undo(
+                                            Uuid::nil(),
+                                            &mut self.server_ctx,
+                                            &mut self.project,
+                                            ui,
+                                            ctx,
+                                        );
+                                    } else {
+                                        manager.redo(
+                                            Uuid::nil(),
+                                            &mut self.server_ctx,
+                                            &mut self.project,
+                                            ui,
+                                            ctx,
+                                        );
+                                    }
+                                    self.server.set_palette(&self.project.palette);
+                                    PRERENDERTHREAD
+                                        .lock()
+                                        .unwrap()
+                                        .set_palette(self.project.palette.clone());
+                                    PRERENDERTHREAD.lock().unwrap().restart();
                                 }
                             }
                         }

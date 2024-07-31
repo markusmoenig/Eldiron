@@ -330,7 +330,7 @@ impl ModelFXEditor {
             TheEvent::StateChanged(id, state) => {
                 if id.name == "Brush" {
                     server_ctx.curr_brush = id.uuid;
-                } else if id.name == "Material" {
+                } else if id.name == "Material Object" {
                     if let Some(material) = project.materials.get(&id.uuid) {
                         server_ctx.curr_material_object = Some(material.id);
                     } else {
@@ -346,6 +346,9 @@ impl ModelFXEditor {
                     material.selected_node = Some(material.nodes.len() - 1);
                     material.render_preview(&project.palette, &TILEDRAWER.lock().unwrap().tiles);
                     ui.set_node_preview("MaterialFX NodeCanvas", 0, material.get_preview());
+                    if let Some(list) = ui.get_rowlist_layout("ModelFX Material List") {
+                        list.set_item_image(material.id, material.get_preview());
+                    }
 
                     PRERENDERTHREAD
                         .lock()
@@ -528,6 +531,14 @@ impl ModelFXEditor {
                                             0,
                                             material.get_preview(),
                                         );
+                                        if let Some(list) =
+                                            ui.get_rowlist_layout("ModelFX Material List")
+                                        {
+                                            list.set_item_image(
+                                                material.id,
+                                                material.get_preview(),
+                                            );
+                                        }
 
                                         let next = material.to_json();
 
@@ -730,6 +741,14 @@ impl ModelFXEditor {
                                                 selected_index,
                                                 material.nodes[selected_index].preview.clone(),
                                             );
+                                            if let Some(list) =
+                                                ui.get_rowlist_layout("ModelFX Material List")
+                                            {
+                                                list.set_item_image(
+                                                    material.id,
+                                                    material.nodes[selected_index].preview.clone(),
+                                                );
+                                            }
                                         }
                                         material.render_preview(
                                             &project.palette,
@@ -740,6 +759,14 @@ impl ModelFXEditor {
                                             0,
                                             material.get_preview(),
                                         );
+                                        if let Some(list) =
+                                            ui.get_rowlist_layout("ModelFX Material List")
+                                        {
+                                            list.set_item_image(
+                                                material.id,
+                                                material.get_preview(),
+                                            );
+                                        }
                                         let next = material.to_json();
 
                                         PRERENDERTHREAD
@@ -917,6 +944,9 @@ impl ModelFXEditor {
                                 &TILEDRAWER.lock().unwrap().tiles,
                             );
                             ui.set_node_preview("MaterialFX NodeCanvas", 0, material.get_preview());
+                            if let Some(list) = ui.get_rowlist_layout("ModelFX Material List") {
+                                list.set_item_image(material.id, material.get_preview());
+                            }
                             let undo =
                                 MaterialFXUndoAtom::Edit(material.id, prev, material.to_json());
                             UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
@@ -940,7 +970,11 @@ impl ModelFXEditor {
                                 &project.palette,
                                 &TILEDRAWER.lock().unwrap().tiles,
                             );
-                            ui.set_node_preview("MaterialFX NodeCanvas", 0, material.get_preview());
+                            let preview = material.get_preview();
+                            ui.set_node_preview("MaterialFX NodeCanvas", 0, preview.clone());
+                            if let Some(list) = ui.get_rowlist_layout("ModelFX Material List") {
+                                list.set_item_image(material.id, preview);
+                            }
                             let undo =
                                 MaterialFXUndoAtom::Edit(material.id, prev, material.to_json());
                             UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
@@ -1351,7 +1385,8 @@ impl ModelFXEditor {
             list.clear();
 
             for material in project.materials.values() {
-                let mut item = TheRowListItem::new(TheId::named_with_id("Material", material.id));
+                let mut item =
+                    TheRowListItem::new(TheId::named_with_id("Material Object", material.id));
                 item.set_text(material.name.clone());
                 item.set_icon(material.get_preview());
 

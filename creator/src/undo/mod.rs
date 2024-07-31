@@ -1,4 +1,5 @@
 pub mod materialfx_undo;
+pub mod palette_undo;
 pub mod region_undo;
 
 use crate::prelude::*;
@@ -13,6 +14,7 @@ pub enum UndoManagerContext {
     Region,
     MaterialFX,
     CodeGridFX,
+    Palette,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -21,6 +23,7 @@ pub struct UndoManager {
 
     regions: FxHashMap<Uuid, RegionUndo>,
     materialfx: MaterialFXUndo,
+    palette: PaletteUndo,
 }
 
 impl Default for UndoManager {
@@ -36,6 +39,7 @@ impl UndoManager {
 
             regions: FxHashMap::default(),
             materialfx: MaterialFXUndo::default(),
+            palette: PaletteUndo::default(),
         }
     }
 
@@ -50,6 +54,13 @@ impl UndoManager {
     pub fn add_materialfx_undo(&mut self, atom: MaterialFXUndoAtom, ctx: &mut TheContext) {
         self.context = UndoManagerContext::MaterialFX;
         self.materialfx.add(atom);
+        ctx.ui.set_enabled("Undo");
+        self.can_save(ctx);
+    }
+
+    pub fn add_palette_undo(&mut self, atom: PaletteUndoAtom, ctx: &mut TheContext) {
+        self.context = UndoManagerContext::Palette;
+        self.palette.add(atom);
         ctx.ui.set_enabled("Undo");
         self.can_save(ctx);
     }
@@ -95,6 +106,21 @@ impl UndoManager {
                 }
 
                 if !self.materialfx.has_redo() {
+                    ctx.ui.set_disabled("Redo");
+                } else {
+                    ctx.ui.set_enabled("Redo");
+                }
+            }
+            UndoManagerContext::Palette => {
+                self.palette.undo(server_ctx, project, ui, ctx);
+
+                if !self.palette.has_undo() {
+                    ctx.ui.set_disabled("Undo");
+                } else {
+                    ctx.ui.set_enabled("Undo");
+                }
+
+                if !self.palette.has_redo() {
                     ctx.ui.set_disabled("Redo");
                 } else {
                     ctx.ui.set_enabled("Redo");
@@ -146,6 +172,21 @@ impl UndoManager {
                 }
 
                 if !self.materialfx.has_redo() {
+                    ctx.ui.set_disabled("Redo");
+                } else {
+                    ctx.ui.set_enabled("Redo");
+                }
+            }
+            UndoManagerContext::Palette => {
+                self.palette.redo(server_ctx, project, ui, ctx);
+
+                if !self.palette.has_undo() {
+                    ctx.ui.set_disabled("Undo");
+                } else {
+                    ctx.ui.set_enabled("Undo");
+                }
+
+                if !self.palette.has_redo() {
                     ctx.ui.set_disabled("Redo");
                 } else {
                     ctx.ui.set_enabled("Redo");
