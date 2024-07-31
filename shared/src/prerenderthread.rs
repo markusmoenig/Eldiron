@@ -10,11 +10,11 @@ pub enum PreRenderCmd {
     SetPaused(bool),
     Restart,
     MaterialChanged(MaterialFXObject),
-    RenderRegionCoordTree(Region),
     RenderRegion(Region, Option<Vec<Vec2i>>),
     Quit,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum PreRenderResult {
     RenderedRegionTile(
         Uuid,
@@ -25,8 +25,8 @@ pub enum PreRenderResult {
         TheRGBBuffer,
         TheFlattenedMap<f32>,
         TheFlattenedMap<Vec<PreRenderedLight>>,
+        TheFlattenedMap<(half::f16, half::f16)>,
     ),
-    RenderedRTree(Uuid, RTree<PreRenderedData>),
     Clear(Uuid),
     Progress(String),
     Finished,
@@ -100,10 +100,6 @@ impl PreRenderThread {
         self.send(PreRenderCmd::RenderRegion(region, tiles));
     }
 
-    pub fn render_region_coord_tree(&self, region: Region) {
-        self.send(PreRenderCmd::RenderRegionCoordTree(region));
-    }
-
     pub fn restart(&self) {
         self.send(PreRenderCmd::Restart);
     }
@@ -175,58 +171,28 @@ impl PreRenderThread {
                                 .materials
                                 .insert(changed_material.id, changed_material);
                         }
-                        PreRenderCmd::RenderRegionCoordTree(region) => {
-                            println!("PreRenderCmd::RenderRegionCoordTree");
-
-                            let w = (region.width as f32 * region.grid_size as f32) as i32;
-                            let h = (region.height as f32 * region.grid_size as f32) as i32;
-
-                            renderer.set_region(&region);
-                            renderer.position =
-                                vec3f(region.width as f32 / 2.0, 0.0, region.height as f32 / 2.0);
-
-                            let mut tree: RTree<PreRenderedData> = RTree::new();
-
-                            background_pool.install(|| {
-                                tree = renderer.prerender_rtree(
-                                    vec2i(w, h),
-                                    &region,
-                                    &mut draw_settings,
-                                );
-                            });
-
-                            if let Some(data) = prerendered_region_data.get_mut(&region.id) {
-                                data.tree = tree.clone();
-                                data.tile_samples.clear()
-                            } else {
-                                let mut prerendered = PreRendered::zero();
-                                prerendered.tree = tree.clone();
-                                prerendered
-                                    .tile_samples
-                                    .clone_from(&region.prerendered.tile_samples);
-                                prerendered_region_data.insert(region.id, prerendered);
-                            }
-
-                            result_tx
-                                .send(PreRenderResult::RenderedRTree(region.id, tree))
-                                .unwrap();
-
-                            curr_region = region;
-                            in_progress = true;
-
-                            println!("finished");
-                        }
                         PreRenderCmd::RenderRegion(region, tiles) => {
-                            println!("PreRenderCmd::RenderRegion");
+                            println!(
+                                "PreRenderCmd::RenderRegion {}",
+                                if let Some(tiles) = &tiles {
+                                    tiles.len().to_string()
+                                } else {
+                                    "None".to_string()
+                                }
+                            );
 
                             renderer.set_region(&region);
                             renderer.position =
                                 vec3f(region.width as f32 / 2.0, 0.0, region.height as f32 / 2.0);
                             curr_region = region;
+
+                            prerendered_region_data
+                                .entry(curr_region.id)
+                                .or_insert_with(|| curr_region.prerendered.clone());
 
                             if let Some(pre) = prerendered_region_data.get_mut(&curr_region.id) {
                                 if let Some(tiles) = tiles {
-                                    pre.remove_tiles(tiles, curr_region.grid_size);
+                                    pre.remove_tiles(tiles.clone(), curr_region.grid_size);
                                 } else {
                                     pre.tile_samples.clear();
                                     result_tx
@@ -245,31 +211,9 @@ impl PreRenderThread {
                 }
 
                 // Rendering in progress ?
-
                 if in_progress && !paused {
-                    //let mut reset = false;
-
                     let w = (curr_region.width as f32 * curr_region.grid_size as f32) as i32;
                     let h = (curr_region.height as f32 * curr_region.grid_size as f32) as i32;
-
-                    // if curr_region.prerendered.albedo.dim().width != w
-                    //     || curr_region.prerendered.albedo.dim().height != h
-                    // {
-                    //     reset = true;
-                    // }
-
-                    // let mut prerendered = if reset {
-                    //     PreRendered::zero()
-                    // } else {
-                    //     let prerendered =
-                    //         if let Some(pre) = prerendered_region_data.get(&curr_region.id) {
-                    //             pre.clone()
-                    //         } else {
-                    //             PreRendered::zero()
-                    //             //curr_region.prerendered.clone()
-                    //         };
-                    //     prerendered
-                    // };
 
                     if let Some(prerendered) = prerendered_region_data.get_mut(&curr_region.id) {
                         background_pool.install(|| {

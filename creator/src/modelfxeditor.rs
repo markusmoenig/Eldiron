@@ -565,7 +565,7 @@ impl ModelFXEditor {
                                             PRERENDERTHREAD
                                                 .lock()
                                                 .unwrap()
-                                                .render_region(region.shallow_clone(), Some(area));
+                                                .render_region(region.clone(), Some(area));
                                         }
 
                                         if let Some(widget) = ui.get_widget(&id.name) {
@@ -672,7 +672,7 @@ impl ModelFXEditor {
 
                                         region.update_geometry_areas();
 
-                                        region_to_render = Some(region.shallow_clone());
+                                        region_to_render = Some(region.clone());
 
                                         server.update_region(region);
                                     }
@@ -787,7 +787,7 @@ impl ModelFXEditor {
                                             {
                                                 tiles_to_render = region
                                                     .get_material_area(material_id, material_index);
-                                                region_to_render = Some(region.shallow_clone());
+                                                region_to_render = Some(region.clone());
                                             }
                                         }
 
@@ -1503,7 +1503,7 @@ impl ModelFXEditor {
         if let Some(material_index) = project.materials.get_index_of(&material_id) {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 tiles_to_render = region.get_material_area(material_id, material_index);
-                region_to_render = Some(region.shallow_clone());
+                region_to_render = Some(region.clone());
             }
         }
         if let Some(region) = region_to_render {

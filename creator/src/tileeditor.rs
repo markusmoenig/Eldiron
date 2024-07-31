@@ -310,10 +310,6 @@ impl TileEditor {
                         }
                         region.prerendered.invalidate();
                         server.update_region(region);
-                        PRERENDERTHREAD
-                            .lock()
-                            .unwrap()
-                            .render_region_coord_tree(region.shallow_clone());
                         PRERENDERTHREAD.lock().unwrap().restart();
                         redraw = true;
                     }

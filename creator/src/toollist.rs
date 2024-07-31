@@ -47,7 +47,7 @@ impl ToolList {
 
         Self {
             server_time: TheTime::default(),
-            render_button_text: "Starting...".to_string(),
+            render_button_text: "Finished".to_string(),
 
             active_editor: ActiveEditor::GameEditor,
 
@@ -307,11 +307,7 @@ impl ToolList {
                         PRERENDERTHREAD
                             .lock()
                             .unwrap()
-                            .render_region_coord_tree(region.shallow_clone());
-                        PRERENDERTHREAD
-                            .lock()
-                            .unwrap()
-                            .render_region(region.shallow_clone(), None);
+                            .render_region(region.clone(), None);
                         redraw = true;
                     }
                 } else if widget_id.name == "Render Button" {
@@ -326,7 +322,7 @@ impl ToolList {
                             PRERENDERTHREAD
                                 .lock()
                                 .unwrap()
-                                .render_region(region.shallow_clone(), None);
+                                .render_region(region.clone(), None);
                         }
                         redraw = true;
                     }

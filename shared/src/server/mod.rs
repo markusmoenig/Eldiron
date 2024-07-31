@@ -775,12 +775,6 @@ impl Server {
         }
     }
 
-    pub fn set_prerendered_tree(&mut self, region: Uuid, tree: RTree<PreRenderedData>) {
-        if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
-            region.prerendered.tree = tree;
-        }
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub fn set_prerendered_tile(
         &mut self,
@@ -792,6 +786,7 @@ impl Server {
         sky_abso: &TheRGBBuffer,
         distance: &TheFlattenedMap<f32>,
         lights: &TheFlattenedMap<Vec<PreRenderedLight>>,
+        grid_map: &TheFlattenedMap<(half::f16, half::f16)>,
     ) {
         if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
             region.prerendered.apply_tile(
@@ -803,6 +798,7 @@ impl Server {
                 sky_abso,
                 distance,
                 lights,
+                grid_map,
             );
         }
     }

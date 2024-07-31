@@ -1,5 +1,9 @@
+use core::f32;
+use rayon::prelude::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+
 //use crate::prelude::*;
-use rstar::{PointDistance, RTree, RTreeObject, AABB};
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -8,32 +12,14 @@ pub struct PreRenderedData {
     pub pixel_location: (i32, i32),
 }
 
-impl PointDistance for PreRenderedData {
-    // Calculate the squared distance to a point
-    fn distance_2(&self, point: &[f32; 2]) -> f32 {
-        let dx = self.location.0 - point[0];
-        let dy = self.location.1 - point[1];
-        dx * dx + dy * dy
-    }
-
-    // This optional method improves performance by eliminating objects quickly from consideration
-    fn contains_point(&self, point: &[f32; 2]) -> bool {
-        self.location.0 == point[0] && self.location.1 == point[1]
-    }
-}
-
-impl RTreeObject for PreRenderedData {
-    type Envelope = AABB<[f32; 2]>;
-
-    fn envelope(&self) -> Self::Envelope {
-        AABB::from_point([self.location.0, self.location.1])
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PreRenderedLight {
     pub pos: Vec2i,
     pub brdf: Vec3f,
+}
+
+fn default_grid_map() -> TheFlattenedMap<(half::f16, half::f16)> {
+    TheFlattenedMap::new(0, 0)
 }
 
 fn default_prerendered_lights() -> TheFlattenedMap<Vec<PreRenderedLight>> {
@@ -46,11 +32,11 @@ pub struct PreRendered {
     pub sky_absorption: TheRGBBuffer,
     pub distance: TheFlattenedMap<f32>,
 
+    #[serde(default = "default_grid_map")]
+    pub grid_map: TheFlattenedMap<(half::f16, half::f16)>,
+
     #[serde(default = "default_prerendered_lights")]
     pub lights: TheFlattenedMap<Vec<PreRenderedLight>>,
-
-    #[serde(skip)]
-    pub tree: RTree<PreRenderedData>,
 
     #[serde(default)]
     #[serde(with = "vectorize")]
@@ -68,11 +54,10 @@ impl PreRendered {
         Self {
             distance: TheFlattenedMap::new(albedo.dim().width, albedo.dim().height),
             lights: TheFlattenedMap::new(albedo.dim().width, albedo.dim().height),
+            grid_map: TheFlattenedMap::new(albedo.dim().width, albedo.dim().height),
 
             albedo,
             sky_absorption,
-
-            tree: RTree::new(),
 
             tile_samples: FxHashMap::default(),
         }
@@ -83,10 +68,9 @@ impl PreRendered {
             albedo: TheRGBBuffer::default(),
             sky_absorption: TheRGBBuffer::default(),
             distance: TheFlattenedMap::new(0, 0),
+            grid_map: TheFlattenedMap::new(0, 0),
 
             lights: TheFlattenedMap::new(0, 0),
-
-            tree: RTree::new(),
 
             tile_samples: FxHashMap::default(),
         }
@@ -98,6 +82,7 @@ impl PreRendered {
         self.distance.clear();
         self.lights.clear();
         self.tile_samples.clear();
+        //self.grid_map.clear();
     }
 
     pub fn resize(&mut self, width: i32, height: i32) {
@@ -105,6 +90,7 @@ impl PreRendered {
         self.sky_absorption.resize(width, height);
         self.distance.resize(width, height);
         self.lights.resize(width, height);
+        self.grid_map.resize(width, height);
     }
 
     pub fn invalidate(&mut self) {
@@ -112,23 +98,22 @@ impl PreRendered {
         self.sky_absorption.fill([0, 0, 0]);
         self.distance.clear();
         self.lights.clear();
+        //self.grid_map.clear();
     }
 
     /// Add the given tiles to be rendered in grid space, we map them to local space.
     pub fn remove_tiles(&mut self, tiles: Vec<Vec2i>, grid_size: i32) {
         for tile in tiles {
-            if let Some(data) = self.tree.nearest_neighbor(&[tile.x as f32, tile.y as f32]) {
-                let tile = Vec2i::new(
-                    data.pixel_location.0 / grid_size,
-                    data.pixel_location.1 / grid_size,
-                );
-
+            if let Some(data) = self.get_pixel_coord(vec2f(tile.x as f32, tile.y as f32)) {
+                let tile = Vec2i::new(data.x / grid_size, data.y / grid_size);
                 for y in tile.y - 2..=tile.y + 2 {
                     for x in tile.x - 2..=tile.x + 2 {
                         let t = Vec2i::new(x, y);
                         self.tile_samples.remove(&t);
                     }
                 }
+            } else {
+                println!("Could not map tile coord {tile}");
             }
         }
     }
@@ -144,6 +129,7 @@ impl PreRendered {
         sky_absorption: &TheRGBBuffer,
         distance: &TheFlattenedMap<f32>,
         lights: &TheFlattenedMap<Vec<PreRenderedLight>>,
+        grid_map: &TheFlattenedMap<(half::f16, half::f16)>,
     ) {
         self.resize(size.x, size.y);
 
@@ -198,9 +184,85 @@ impl PreRendered {
                         self.lights.set((w + tile_x, h + tile_y), new_samp.clone());
                     }
                 }
+
+                // gridmap
+                if let Some(new_samp) = grid_map.get((w, h)) {
+                    self.grid_map.set((w + tile_x, h + tile_y), *new_samp);
+                }
             }
         }
 
         self.tile_samples.insert(*tile, sample);
+    }
+
+    // pub fn get_pixel_coord(&self, mut pos: Vec2f) -> Option<Vec2i> {
+    //     pos.x = (pos.x * 1000.0).trunc() / 1000.0;
+    //     pos.y = (pos.y * 1000.0).trunc() / 1000.0;
+
+    //     let max_dist = Arc::new(AtomicUsize::new(f32::to_bits(f32::MAX) as usize));
+    //     let res_x = Arc::new(AtomicUsize::new(usize::MAX));
+    //     let res_y = Arc::new(AtomicUsize::new(usize::MAX));
+
+    //     (0..self.grid_map.width).into_par_iter().for_each(|x| {
+    //         for y in 0..self.grid_map.height {
+    //             if let Some(tupe_f16) = self.grid_map.get((x, y)) {
+    //                 let p = vec2f(tupe_f16.0.to_f32(), tupe_f16.1.to_f32());
+    //                 let t = distance(pos, p);
+
+    //                 if t < 0.005 {
+    //                     res_x.store(x as usize, Ordering::SeqCst);
+    //                     res_y.store(y as usize, Ordering::SeqCst);
+    //                     max_dist.store(f32::to_bits(0.0) as usize, Ordering::SeqCst);
+    //                     return;
+    //                 }
+
+    //                 let current_max_dist = f32::from_bits(max_dist.load(Ordering::SeqCst) as u32);
+    //                 if t < current_max_dist {
+    //                     res_x.store(x as usize, Ordering::SeqCst);
+    //                     res_y.store(y as usize, Ordering::SeqCst);
+    //                     max_dist.store(f32::to_bits(t) as usize, Ordering::SeqCst);
+    //                 }
+    //             }
+    //         }
+    //     });
+
+    //     let x = res_x.load(Ordering::SeqCst);
+    //     let y = res_y.load(Ordering::SeqCst);
+
+    //     if (x == usize::MAX && y == usize::MAX)
+    //         || f32::from_bits(max_dist.load(Ordering::SeqCst) as u32) > 5.0
+    //     {
+    //         None
+    //     } else {
+    //         Some(vec2i(x as i32, y as i32))
+    //     }
+    // }
+
+    pub fn get_pixel_coord(&self, mut pos: Vec2f) -> Option<Vec2i> {
+        let mut max_dist = f32::MAX;
+        let mut res = None;
+
+        pos.x = (pos.x * 1000.0).trunc() / 1000.0;
+        pos.y = (pos.y * 1000.0).trunc() / 1000.0;
+
+        for x in 0..self.grid_map.width {
+            for y in 0..self.grid_map.height {
+                if let Some(tupe_f16) = self.grid_map.get((x, y)) {
+                    let p = vec2f(tupe_f16.0.to_f32(), tupe_f16.1.to_f32());
+                    let t = distance(pos, p);
+
+                    if t < 0.005 {
+                        return Some(vec2i(x, y));
+                    }
+
+                    if t < max_dist {
+                        res = Some(vec2i(x, y));
+                        max_dist = t;
+                    }
+                }
+            }
+        }
+
+        res
     }
 }

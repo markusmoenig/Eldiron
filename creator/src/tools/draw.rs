@@ -203,7 +203,7 @@ impl Tool for DrawTool {
 
                                 region.heightmap.set_material_mask(coord.x, coord.y, mask);
                                 server.update_region(region);
-                                region_to_render = Some(region.shallow_clone());
+                                region_to_render = Some(region.clone());
                                 tiles_to_render = vec![coord];
 
                                 let undo = RegionUndoAtom::HeightmapEdit(
@@ -252,7 +252,7 @@ impl Tool for DrawTool {
                             }
 
                             server.update_region(region);
-                            region_to_render = Some(region.shallow_clone());
+                            region_to_render = Some(region.clone());
 
                             let undo = RegionUndoAtom::HeightmapEdit(
                                 prev,

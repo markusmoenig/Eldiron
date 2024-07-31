@@ -73,7 +73,6 @@ pub mod prelude {
     pub use crate::{do_intersect, Hit, HitFace, Ray, RenderTile, AABB2D};
     pub use indexmap::IndexMap;
     pub use rand::prelude::*;
-    pub use rstar::*;
 }
 
 use bsdf::BSDFMaterial;

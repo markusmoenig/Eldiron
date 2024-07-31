@@ -26,110 +26,6 @@ impl Renderer {
         }
     }
 
-    pub fn prerender_rtree(
-        &mut self,
-        size: Vec2i,
-        region: &Region,
-        settings: &mut RegionDrawSettings,
-    ) -> RTree<PreRenderedData> {
-        let _start = self.get_time();
-
-        let width = size.x as usize;
-        let height = size.y as usize;
-
-        let width_f = width as f32;
-        let height_f = height as f32;
-
-        let mut tilted_iso_alignment = 0;
-        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
-            str!("Camera"),
-            str!("Tilted Iso Alignment"),
-            &settings.time,
-            TheInterpolation::Switch,
-        ) {
-            tilted_iso_alignment = value;
-        }
-
-        let (ro, rd, fov, _, camera_type) = self.create_camera_setup(region, settings);
-        let camera = Camera::new(ro, rd, fov);
-
-        // --
-        let mut tiles = vec![];
-        let w = size.x / region.grid_size;
-        let h = size.y / region.grid_size;
-        for x in 0..w {
-            for y in 0..h {
-                let tile = Vec2i::new(x, y);
-                tiles.push(tile);
-            }
-        }
-
-        let _start = self.get_time();
-
-        // Temporary array to store the rtree values, we bulk_load the content at the end
-        let dest_tree = vec![];
-        let dest_tree_mutex = Arc::new(Mutex::new(dest_tree));
-
-        tiles.par_iter_mut().for_each(|tile| {
-            let mut tree = vec![];
-
-            for h in 0..region.grid_size {
-                for w in 0..region.grid_size {
-                    let x = tile.x * region.grid_size + w;
-                    let y = tile.y * region.grid_size + h;
-                    let xx = x as f32;
-                    let yy = y as f32;
-
-                    let ray = if camera_type == CameraType::TiltedIso {
-                        camera.create_tilted_isometric_ray2(
-                            vec2f(xx / width_f, (height_f - yy) / height_f),
-                            vec2f(width_f, height_f),
-                            vec2f(region.width as f32, region.height as f32),
-                            vec2f(1.0, 1.0),
-                            tilted_iso_alignment,
-                        )
-                    } else {
-                        camera.create_ortho_ray2(
-                            vec2f(xx / width_f, (height_f - yy) / height_f),
-                            vec2f(width_f, height_f),
-                            vec2f(region.width as f32, region.height as f32),
-                            vec2f(1.0, 1.0),
-                        )
-                    };
-
-                    let plane_normal = vec3f(0.0, 1.0, 0.0);
-                    let denom = dot(plane_normal, ray.d);
-
-                    if denom.abs() > 0.0001 {
-                        let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
-                        if t >= 0.0 {
-                            let p = ray.o + ray.d * t;
-                            tree.push(PreRenderedData {
-                                location: (p.x, p.z),
-                                pixel_location: (xx as i32, (yy) as i32),
-                            });
-                        }
-                    }
-                }
-            }
-
-            let mut dest_tree_mutex = dest_tree_mutex.lock().unwrap();
-            dest_tree_mutex.append(&mut tree);
-
-            std::thread::yield_now();
-        });
-
-        let _stop = self.get_time();
-        //println!("render time {:?}", _stop - _start);
-
-        RTree::bulk_load(
-            Arc::try_unwrap(dest_tree_mutex)
-                .unwrap()
-                .into_inner()
-                .unwrap(),
-        )
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub fn prerender(
         &mut self,
@@ -245,6 +141,9 @@ impl Renderer {
             let mut distance_buffer: TheFlattenedMap<f32> =
                 TheFlattenedMap::new(region.grid_size, region.grid_size);
 
+            let mut grid_map_buffer: TheFlattenedMap<(half::f16, half::f16)> =
+                TheFlattenedMap::new(region.grid_size, region.grid_size);
+
             let mut lights_buffer: TheFlattenedMap<Vec<PreRenderedLight>> =
                 TheFlattenedMap::new(region.grid_size, region.grid_size);
 
@@ -286,6 +185,18 @@ impl Renderer {
                     //         ray.o += ray.d * t;
                     //     }
                     // }
+
+                    let plane_normal = vec3f(0.0, 1.0, 0.0);
+                    let denom = dot(plane_normal, ray.d);
+
+                    if denom.abs() > 0.0001 {
+                        let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
+                        if t >= 0.0 {
+                            let p = ray.o + ray.d * t;
+                            grid_map_buffer
+                                .set((w, h), (half::f16::from_f32(p.x), half::f16::from_f32(p.z)));
+                        }
+                    }
 
                     // BSDF Pathtracer based on glsl_pathtracer
                     // https://github.com/knightcrawler25/GLSL-PathTracer
@@ -517,16 +428,33 @@ impl Renderer {
                 sample = *sampled as i32;
             }
 
+            // Copy the grid_map coords
+            {
+                prerendered.grid_map.resize(size.x, size.y);
+                let tile_x = tile.x * region.grid_size;
+                let tile_y = tile.y * region.grid_size;
+                for h in 0..region.grid_size {
+                    for w in 0..region.grid_size {
+                        if let Some(new_samp) = grid_map_buffer.get((w, h)) {
+                            prerendered
+                                .grid_map
+                                .set((w + tile_x, h + tile_y), *new_samp);
+                        }
+                    }
+                }
+            }
+
             sender
                 .send(PreRenderResult::RenderedRegionTile(
                     region.id,
                     size,
                     *tile,
                     sample as u16,
-                    buffer.clone(),
-                    sky_abso_buffer.clone(),
-                    distance_buffer.clone(),
-                    lights_buffer.clone(),
+                    buffer,
+                    sky_abso_buffer,
+                    distance_buffer,
+                    lights_buffer,
+                    grid_map_buffer,
                 ))
                 .unwrap();
 
@@ -1263,9 +1191,9 @@ impl Renderer {
             let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
             if t >= 0.0 {
                 let p = ray.o + ray.d * t;
-                if let Some(data) = region.prerendered.tree.nearest_neighbor(&[p.x, p.z]) {
-                    start_x = data.pixel_location.0;
-                    start_y = data.pixel_location.1;
+                if let Some(coord) = region.prerendered.get_pixel_coord(vec2f(p.x, p.z)) {
+                    start_x = coord.x;
+                    start_y = coord.y;
                 }
             }
         }

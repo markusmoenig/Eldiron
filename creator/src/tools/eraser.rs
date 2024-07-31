@@ -146,7 +146,7 @@ impl Tool for EraserTool {
 
                 if !objects.is_empty() {
                     changed = true;
-                    region_to_render = Some(region.shallow_clone());
+                    region_to_render = Some(region.clone());
 
                     region.update_geometry_areas();
                     let undo =
@@ -170,7 +170,7 @@ impl Tool for EraserTool {
                 if let Some(mask) = region.heightmap.material_mask.get_mut(&(coord.x, coord.y)) {
                     mask.fill([0, 0, 0]);
                 }
-                region_to_render = Some(region.shallow_clone());
+                region_to_render = Some(region.clone());
                 tiles_to_render.push(vec2i(coord.x, coord.y));
 
                 let undo = RegionUndoAtom::HeightmapEdit(

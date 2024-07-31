@@ -508,13 +508,6 @@ impl TheTrait for Editor {
         // Get prerendered results
         while let Some(rendered) = PRERENDERTHREAD.lock().unwrap().receive() {
             match rendered {
-                PreRenderResult::RenderedRTree(id, tree) => {
-                    if let Some(region) = self.project.get_region_mut(&id) {
-                        region.prerendered.tree = tree.clone();
-                    }
-                    self.server.set_prerendered_tree(id, tree);
-                    redraw = true;
-                }
                 PreRenderResult::RenderedRegionTile(
                     id,
                     size,
@@ -524,6 +517,7 @@ impl TheTrait for Editor {
                     sky_abso,
                     distance,
                     lights,
+                    grid_map,
                 ) => {
                     if let Some(region) = self.project.get_region_mut(&id) {
                         region.prerendered.apply_tile(
@@ -535,10 +529,12 @@ impl TheTrait for Editor {
                             &sky_abso,
                             &distance,
                             &lights,
+                            &grid_map,
                         );
 
                         self.server.set_prerendered_tile(
                             id, &size, &tile, sample, &albedo, &sky_abso, &distance, &lights,
+                            &grid_map,
                         );
                     }
                     redraw = true;
@@ -1156,13 +1152,6 @@ impl TheTrait for Editor {
                                             .lock()
                                             .unwrap()
                                             .set_materials(self.project.materials.clone());
-
-                                        for region in &mut self.project.regions {
-                                            PRERENDERTHREAD
-                                                .lock()
-                                                .unwrap()
-                                                .render_region_coord_tree(region.clone());
-                                        }
 
                                         if let Some(widget) = ui.get_widget("Server Time Slider") {
                                             widget.set_value(TheValue::Time(self.project.time));
