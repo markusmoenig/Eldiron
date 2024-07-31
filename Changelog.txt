@@ -1,6 +1,10 @@
 v 0.8.11
 --------
 
+- Drawing with two materials on the heightmap (including fall-off).
+- New heightmap systems as basis for ground materials.
+- Moved all tools into a new modular tool system.
+- Undo for palette operations.
 - Moved node settings into a new node section area.
 - New "Hash Weight" Geometry node setting which adjusts hash extrusion strength.
 - Bugfix setting tilemap grid size.
