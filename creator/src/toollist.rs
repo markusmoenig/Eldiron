@@ -42,7 +42,7 @@ impl ToolList {
             Box::new(CodeTool::new()),
             Box::new(ScreenPickerTool::new()),
             Box::new(ScreenEraserTool::new()),
-            Box::new(GameTool::new()),
+            Box::new(ScreenGameTool::new()),
         ];
 
         Self {

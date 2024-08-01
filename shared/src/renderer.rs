@@ -138,7 +138,7 @@ impl Renderer {
                 TheRGBBuffer::new(TheDim::sized(region.grid_size, region.grid_size));
             let mut rng = rand::thread_rng();
 
-            let mut distance_buffer: TheFlattenedMap<f32> =
+            let mut distance_buffer: TheFlattenedMap<half::f16> =
                 TheFlattenedMap::new(region.grid_size, region.grid_size);
 
             let mut grid_map_buffer: TheFlattenedMap<(half::f16, half::f16)> =
@@ -156,8 +156,42 @@ impl Renderer {
                     let xx = x as f32;
                     let yy = y as f32;
 
+                    {
+                        let ray = if camera_type == CameraType::TiltedIso {
+                            camera.create_tilted_isometric_ray2(
+                                vec2f(xx / width_f, (height_f - yy) / height_f),
+                                vec2f(width_f, height_f),
+                                vec2f(region.width as f32, region.height as f32),
+                                vec2f(0.0, 0.0),
+                                tilted_iso_alignment,
+                            )
+                        } else {
+                            camera.create_ortho_ray2(
+                                vec2f(xx / width_f, (height_f - yy) / height_f),
+                                vec2f(width_f, height_f),
+                                vec2f(region.width as f32, region.height as f32),
+                                vec2f(0.0, 0.0),
+                            )
+                        };
+
+                        let plane_normal = vec3f(0.0, 1.0, 0.0);
+                        let denom = dot(plane_normal, ray.d);
+
+                        if denom.abs() > 0.0001 {
+                            let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
+                            if t >= 0.0 {
+                                let p = ray.o + ray.d * t;
+                                grid_map_buffer.set(
+                                    (w, h),
+                                    (half::f16::from_f32(p.x), half::f16::from_f32(p.z)),
+                                );
+                            }
+                        }
+                    }
+
                     // Pathtracer
-                    // Based on https://www.shadertoy.com/view/Dtl3WS
+                    // Based on GLSL_pathtracer (https://github.com/knightcrawler25/GLSL-PathTracer)
+                    //
 
                     let mut ray = if camera_type == CameraType::TiltedIso {
                         camera.create_tilted_isometric_ray2(
@@ -185,18 +219,6 @@ impl Renderer {
                     //         ray.o += ray.d * t;
                     //     }
                     // }
-
-                    let plane_normal = vec3f(0.0, 1.0, 0.0);
-                    let denom = dot(plane_normal, ray.d);
-
-                    if denom.abs() > 0.0001 {
-                        let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
-                        if t >= 0.0 {
-                            let p = ray.o + ray.d * t;
-                            grid_map_buffer
-                                .set((w, h), (half::f16::from_f32(p.x), half::f16::from_f32(p.z)));
-                        }
-                    }
 
                     // BSDF Pathtracer based on glsl_pathtracer
                     // https://github.com/knightcrawler25/GLSL-PathTracer
@@ -414,7 +436,7 @@ impl Renderer {
 
                     buffer.set_pixel_vec3f(w, h, &radiance);
                     sky_abso_buffer.set_pixel_vec3f(w, h, &throughput);
-                    distance_buffer.set((w, h), dist);
+                    distance_buffer.set((w, h), half::f16::from_f32(dist));
                     lights_buffer.set((w, h), lights);
 
                     // -- End
@@ -1307,7 +1329,7 @@ impl Renderer {
                 color.z += settings.daylight.z * abso.z;
 
                 if let Some(d) = region.prerendered.distance.get((pos.x, pos.y)) {
-                    dist = *d;
+                    dist = d.to_f32();
                 }
 
                 if let Some(lights) = region.prerendered.lights.get((pos.x, pos.y)) {

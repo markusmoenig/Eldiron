@@ -784,7 +784,7 @@ impl Server {
         sample: u16,
         albedo: &TheRGBBuffer,
         sky_abso: &TheRGBBuffer,
-        distance: &TheFlattenedMap<f32>,
+        distance: &TheFlattenedMap<half::f16>,
         lights: &TheFlattenedMap<Vec<PreRenderedLight>>,
         grid_map: &TheFlattenedMap<(half::f16, half::f16)>,
     ) {

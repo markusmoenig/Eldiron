@@ -1,16 +1,10 @@
 use core::f32;
-use rayon::prelude::*;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+//use rayon::prelude::*;
+//use std::sync::atomic::{AtomicUsize, Ordering};
+//use std::sync::Arc;
 
 //use crate::prelude::*;
 use theframework::prelude::*;
-
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-pub struct PreRenderedData {
-    pub location: (f32, f32),
-    pub pixel_location: (i32, i32),
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PreRenderedLight {
@@ -30,7 +24,7 @@ fn default_prerendered_lights() -> TheFlattenedMap<Vec<PreRenderedLight>> {
 pub struct PreRendered {
     pub albedo: TheRGBBuffer,
     pub sky_absorption: TheRGBBuffer,
-    pub distance: TheFlattenedMap<f32>,
+    pub distance: TheFlattenedMap<half::f16>,
 
     #[serde(default = "default_grid_map")]
     pub grid_map: TheFlattenedMap<(half::f16, half::f16)>,
@@ -127,7 +121,7 @@ impl PreRendered {
         sample: u16,
         albedo: &TheRGBBuffer,
         sky_absorption: &TheRGBBuffer,
-        distance: &TheFlattenedMap<f32>,
+        distance: &TheFlattenedMap<half::f16>,
         lights: &TheFlattenedMap<Vec<PreRenderedLight>>,
         grid_map: &TheFlattenedMap<(half::f16, half::f16)>,
     ) {
@@ -160,8 +154,8 @@ impl PreRendered {
                 // distance
                 if let Some(new_samp) = distance.get((w, h)) {
                     if let Some(existing) = self.distance.get_mut((w + tile_x, h + tile_y)) {
-                        let d = lerp(*existing, *new_samp, s);
-                        *existing = d;
+                        let d = lerp(existing.to_f32(), new_samp.to_f32(), s);
+                        *existing = half::f16::from_f32(d);
                     } else {
                         self.distance.set((w + tile_x, h + tile_y), *new_samp);
                     }
@@ -186,6 +180,16 @@ impl PreRendered {
                 }
 
                 // gridmap
+                // if let Some(new_samp) = grid_map.get((w, h)) {
+                //     if let Some(existing) = self.grid_map.get_mut((w + tile_x, h + tile_y)) {
+                //         let x = lerp(existing.0.to_f32(), new_samp.0.to_f32(), s);
+                //         let y = lerp(existing.1.to_f32(), new_samp.1.to_f32(), s);
+                //         *existing = (half::f16::from_f32(x), half::f16::from_f32(y));
+                //     } else {
+                //         self.grid_map.set((w + tile_x, h + tile_y), *new_samp);
+                //     }
+                // }
+
                 if let Some(new_samp) = grid_map.get((w, h)) {
                     self.grid_map.set((w + tile_x, h + tile_y), *new_samp);
                 }
@@ -238,12 +242,9 @@ impl PreRendered {
     //     }
     // }
 
-    pub fn get_pixel_coord(&self, mut pos: Vec2f) -> Option<Vec2i> {
+    pub fn get_pixel_coord(&self, pos: Vec2f) -> Option<Vec2i> {
         let mut max_dist = f32::MAX;
         let mut res = None;
-
-        pos.x = (pos.x * 1000.0).trunc() / 1000.0;
-        pos.y = (pos.y * 1000.0).trunc() / 1000.0;
 
         for x in 0..self.grid_map.width {
             for y in 0..self.grid_map.height {

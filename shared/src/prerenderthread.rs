@@ -23,7 +23,7 @@ pub enum PreRenderResult {
         u16,
         TheRGBBuffer,
         TheRGBBuffer,
-        TheFlattenedMap<f32>,
+        TheFlattenedMap<half::f16>,
         TheFlattenedMap<Vec<PreRenderedLight>>,
         TheFlattenedMap<(half::f16, half::f16)>,
     ),
@@ -188,7 +188,7 @@ impl PreRenderThread {
 
                             prerendered_region_data
                                 .entry(curr_region.id)
-                                .or_insert_with(|| curr_region.prerendered.clone());
+                                .or_insert_with(PreRendered::zero);
 
                             if let Some(pre) = prerendered_region_data.get_mut(&curr_region.id) {
                                 if let Some(tiles) = tiles {
