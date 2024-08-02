@@ -55,6 +55,14 @@ impl Tool for PickerTool {
         //let mut clicked_tile = false;
         let mut found_geo = false;
 
+        // If no character selected set the 3D editing position to the current position.
+        if server_ctx.curr_character_instance.is_none() {
+            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                region.editing_position_3d = Vec3f::new(coord.x as f32, 0.0, coord.y as f32);
+                server.set_editing_position_3d(region.editing_position_3d);
+            }
+        }
+
         // Check for character at the given position.
         if let Some(c) = server.get_character_at(server_ctx.curr_region, coord) {
             server_ctx.curr_character_instance = Some(c.0);

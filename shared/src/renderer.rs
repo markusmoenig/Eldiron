@@ -68,21 +68,7 @@ impl Renderer {
         let width_f = width as f32;
         let height_f = height as f32;
 
-        settings.pbr = false;
-        if let Some(v) = region.regionfx.get(
-            str!("Renderer"),
-            str!("Shading"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_i32() {
-                if value == 1 {
-                    settings.pbr = true;
-                }
-            }
-        }
-
-        let mut max_render_distance = 20;
+        let mut max_render_distance = 50;
         if let Some(v) = region.regionfx.get(
             str!("Distance / Fog"),
             str!("Maximum Render Distance"),
@@ -110,8 +96,8 @@ impl Renderer {
         let mut level = Level::new(region.width, region.height, settings.time);
         region.fill_code_level(&mut level, &self.textures, &update);
 
-        let (ro, rd, fov, _, camera_type) = self.create_camera_setup(region, settings);
-        //let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
+        let (ro, rd, fov, _, camera_type, camera_scale_factor) =
+            self.create_camera_setup(region, settings);
         let camera = Camera::new(ro, rd, fov);
 
         // Collect the material params
@@ -132,27 +118,28 @@ impl Renderer {
 
         let _start = self.get_time();
 
+        let tile_size = region.tile_size;
+
         tiles.par_iter_mut().for_each(|tile| {
-            let mut buffer = TheRGBBuffer::new(TheDim::sized(region.grid_size, region.grid_size));
-            let mut sky_abso_buffer =
-                TheRGBBuffer::new(TheDim::sized(region.grid_size, region.grid_size));
+            let mut buffer = TheRGBBuffer::new(TheDim::sized(tile_size, tile_size));
+            let mut sky_abso_buffer = TheRGBBuffer::new(TheDim::sized(tile_size, tile_size));
             let mut rng = rand::thread_rng();
 
             let mut distance_buffer: TheFlattenedMap<half::f16> =
-                TheFlattenedMap::new(region.grid_size, region.grid_size);
+                TheFlattenedMap::new(tile_size, tile_size);
 
             let mut grid_map_buffer: TheFlattenedMap<(half::f16, half::f16)> =
-                TheFlattenedMap::new(region.grid_size, region.grid_size);
+                TheFlattenedMap::new(tile_size, tile_size);
 
             let mut lights_buffer: TheFlattenedMap<Vec<PreRenderedLight>> =
-                TheFlattenedMap::new(region.grid_size, region.grid_size);
+                TheFlattenedMap::new(tile_size, tile_size);
 
             let mut tile_is_empty = true;
 
-            for h in 0..region.grid_size {
-                for w in 0..region.grid_size {
-                    let x = tile.x * region.grid_size + w;
-                    let y = tile.y * region.grid_size + h;
+            for h in 0..tile_size {
+                for w in 0..tile_size {
+                    let x = tile.x * tile_size + w;
+                    let y = tile.y * tile_size + h;
                     let xx = x as f32;
                     let yy = y as f32;
 
@@ -164,6 +151,7 @@ impl Renderer {
                                 vec2f(region.width as f32, region.height as f32),
                                 vec2f(0.0, 0.0),
                                 tilted_iso_alignment,
+                                camera_scale_factor,
                             )
                         } else {
                             camera.create_ortho_ray2(
@@ -171,6 +159,7 @@ impl Renderer {
                                 vec2f(width_f, height_f),
                                 vec2f(region.width as f32, region.height as f32),
                                 vec2f(0.0, 0.0),
+                                camera_scale_factor,
                             )
                         };
 
@@ -185,6 +174,21 @@ impl Renderer {
                                     (w, h),
                                     (half::f16::from_f32(p.x), half::f16::from_f32(p.z)),
                                 );
+
+                                // let tx = (p.x * region.grid_size as f32) as i32;
+                                //let tz = (p.z * region.grid_size as f32) as i32;
+
+                                //target_pixel = Some(vec2i(tx, tz));
+                                // println!(
+                                //     "{} {} {} {} {} {} {}",
+                                //     ray.o,
+                                //     ray.d,
+                                //     vec2f(p.x, p.z),
+                                //     tile.x * region.grid_size + w - tx,
+                                //     tile.y * region.grid_size + h - tz,
+                                //     tx,
+                                //     tz,
+                                // );
                             }
                         }
                     }
@@ -200,6 +204,7 @@ impl Renderer {
                             vec2f(region.width as f32, region.height as f32),
                             vec2f(rng.gen(), rng.gen()),
                             tilted_iso_alignment,
+                            camera_scale_factor,
                         )
                     } else {
                         camera.create_ortho_ray2(
@@ -207,6 +212,7 @@ impl Renderer {
                             vec2f(width_f, height_f),
                             vec2f(region.width as f32, region.height as f32),
                             vec2f(rng.gen(), rng.gen()),
+                            camera_scale_factor,
                         )
                     };
 
@@ -330,7 +336,7 @@ impl Renderer {
 
                                         let l = BSDFLight {
                                             position: light_pos,
-                                            emission: light.color * light.strength * 5.0,
+                                            emission: light.color * light.strength * 3.0,
                                             radius,
                                             type_: 1.0,
                                             u: Vec3f::zero(),
@@ -344,6 +350,7 @@ impl Renderer {
                                             &mut light_sample,
                                             1,
                                             &mut rng,
+                                            light.max_distance,
                                         );
 
                                         let li = light_sample.emission;
@@ -453,10 +460,10 @@ impl Renderer {
             // Copy the grid_map coords
             {
                 prerendered.grid_map.resize(size.x, size.y);
-                let tile_x = tile.x * region.grid_size;
-                let tile_y = tile.y * region.grid_size;
-                for h in 0..region.grid_size {
-                    for w in 0..region.grid_size {
+                let tile_x = tile.x * tile_size;
+                let tile_y = tile.y * tile_size;
+                for h in 0..tile_size {
+                    for w in 0..tile_size {
                         if let Some(new_samp) = grid_map_buffer.get((w, h)) {
                             prerendered
                                 .grid_map
@@ -1105,20 +1112,16 @@ impl Renderer {
         let width = buffer.dim().width as usize;
         let height = buffer.dim().height as usize;
 
-        //let stride = buffer.stride();
         let pixels = buffer.pixels_mut();
-        //let height = dim.height;
 
         let width_f = width as f32;
         let height_f = height as f32;
 
         let region_height = region.height * region.grid_size;
 
-        let grid_size = region.grid_size as f32;
-
         if compute_delta {
             update.generate_character_pixel_positions(
-                grid_size,
+                region.grid_size as f32,
                 &self.textures,
                 vec2i(width as i32, height as i32),
                 region_height,
@@ -1178,11 +1181,11 @@ impl Renderer {
         let mut level = Level::new(region.width, region.height, settings.time);
         region.fill_code_level(&mut level, &self.textures, update);
 
-        let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
-        //let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
+        let (ro, rd, fov, camera_mode, camera_type, camera_scale_factor) =
+            self.create_camera_setup(region, settings);
         let camera = Camera::new(ro, rd, fov);
 
-        let ppt = region.grid_size as f32;
+        let ppt = region.tile_size as f32;
 
         let mut start_x = 0;
         let mut start_y = 0;
@@ -1191,18 +1194,20 @@ impl Renderer {
 
         let ray = if camera_type == CameraType::TiltedIso {
             camera.create_tilted_isometric_ray2(
-                vec2f(0.0, 1.0),
+                vec2f(0.5, 0.5),
                 vec2f(width_f, height_f),
                 vec2f(width_f / ppt, height_f / ppt),
-                vec2f(1.0, 1.0),
+                vec2f(0.5, 0.5),
                 tilted_iso_alignment,
+                camera_scale_factor,
             )
         } else {
             camera.create_ortho_ray2(
-                vec2f(0.0, 1.0),
+                vec2f(0.5, 0.5),
                 vec2f(width_f, height_f),
                 vec2f(width_f / ppt, height_f / ppt),
-                vec2f(1.0, 1.0),
+                vec2f(0.5, 0.5),
+                camera_scale_factor,
             )
         };
 
@@ -1213,9 +1218,14 @@ impl Renderer {
             let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
             if t >= 0.0 {
                 let p = ray.o + ray.d * t;
+                //println!("Trying to get {} {}", p.x, p.z);
                 if let Some(coord) = region.prerendered.get_pixel_coord(vec2f(p.x, p.z)) {
-                    start_x = coord.x;
-                    start_y = coord.y;
+                    start_x = coord.x - width as i32 / 2;
+                    start_y = coord.y - height as i32 / 2;
+
+                    //println!("{} {} {} {}", p.x, p.z, start_x, start_y);
+                } else {
+                    println!("get pixel failed");
                 }
             }
         }
@@ -1239,6 +1249,7 @@ impl Renderer {
                             vec2f(width_f / ppt, height_f / ppt),
                             vec2f(1.0, 1.0),
                             tilted_iso_alignment,
+                            camera_scale_factor,
                         )
                     } else if camera_mode == CameraMode::Pinhole {
                         camera.create_ray(
@@ -1252,22 +1263,9 @@ impl Renderer {
                             vec2f(width_f, height_f),
                             vec2f(width_f / ppt, height_f / ppt),
                             vec2f(1.0, 1.0),
+                            camera_scale_factor,
                         )
                     };
-
-                    // In top down view, intersect ray with plane at 1.1 y
-                    // to speed up the ray / voxel casting
-                    if camera_type != CameraType::FirstPerson {
-                        let plane_normal = vec3f(0.0, 1.0, 0.0);
-                        let denom = dot(plane_normal, ray.d);
-
-                        if denom.abs() > 0.0001 {
-                            let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
-                            if t >= 0.0 {
-                                ray.o += ray.d * t;
-                            }
-                        }
-                    }
 
                     // --
                     //
@@ -1362,14 +1360,7 @@ impl Renderer {
         }
 
         // Test against characters
-        for (pos, tile_id, character_id, _facing) in &update.characters_pixel_pos {
-            if camera_type == CameraType::FirstPerson
-                && Some(*character_id) == settings.center_on_character
-            {
-                // Skip the character itself in first person mode.
-                continue;
-            }
-
+        for (pos, tile_id, _character_id, _facing) in &update.characters_pixel_pos {
             let xx = pos.x as f32 / region.grid_size as f32 + 0.5;
             let zz = pos.y as f32 / region.grid_size as f32 + 0.5;
 
@@ -1686,7 +1677,8 @@ impl Renderer {
             geo_params.insert(*id, params);
         }
 
-        let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
+        let (ro, rd, fov, camera_mode, camera_type, _camera_scale_factor) =
+            self.create_camera_setup(region, settings);
         let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
         let camera = Camera::new(ro, rd, fov);
 
@@ -2469,7 +2461,7 @@ impl Renderer {
         &mut self,
         region: &Region,
         settings: &mut RegionDrawSettings,
-    ) -> (Vec3f, Vec3f, f32, CameraMode, CameraType) {
+    ) -> (Vec3f, Vec3f, f32, CameraMode, CameraType, f32) {
         let mut position = self.position;
         let mut facing = vec3f(0.0, 0.0, -1.0);
         if settings.center_on_character.is_some() {
@@ -2481,12 +2473,12 @@ impl Renderer {
 
         let camera_type = region.camera_type;
         let mut first_person_height = 0.5;
-        let mut top_down_height = 4.0;
-        let mut top_down_x_offset = -5.0;
-        let mut top_down_z_offset = 5.0;
+        let mut top_down_height = 14.0;
+        let mut top_down_x_offset = -1.0;
+        let mut top_down_z_offset = 1.0;
         let mut first_person_fov = 70.0;
         let top_down_fov = 75.0;
-        let tilted_iso_height = 3.0;
+        let tilted_iso_height = 4.0;
         let tilted_iso_fov = 75.0;
 
         if let Some(v) = region.regionfx.get(
@@ -2551,6 +2543,8 @@ impl Renderer {
         let fov;
         let mut camera_mode = CameraMode::Pinhole;
 
+        let scale_factor;
+
         if camera_type == CameraType::TopDown {
             rd = ro;
             ro.y = top_down_height;
@@ -2558,11 +2552,13 @@ impl Renderer {
             ro.z += top_down_z_offset;
             fov = top_down_fov;
             camera_mode = CameraMode::Orthogonal;
+            scale_factor = top_down_height / 1.5;
         } else if camera_type == CameraType::FirstPerson {
             // First person
             ro.y = first_person_height;
             rd = ro + facing * 2.0;
             fov = first_person_fov;
+            scale_factor = 1.0;
         } else {
             // Tilted iso
             rd = ro;
@@ -2570,6 +2566,7 @@ impl Renderer {
             ro.z += 1.0;
             fov = tilted_iso_fov;
             camera_mode = CameraMode::Orthogonal;
+            scale_factor = tilted_iso_height;
         }
 
         fn transform_zoom(z: f32, power: f32) -> f32 {
@@ -2582,6 +2579,7 @@ impl Renderer {
             fov / (transform_zoom(region.zoom, 2.0)),
             camera_mode,
             camera_type,
+            scale_factor,
         )
     }
 
@@ -2612,7 +2610,8 @@ impl Renderer {
         width: usize,
         height: usize,
     ) -> Option<(Vec3i, Vec3f)> {
-        let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
+        let (ro, rd, fov, camera_mode, camera_type, camera_scale_factor) =
+            self.create_camera_setup(region, settings);
 
         let width_f = width as f32;
         let height_f = height as f32;
@@ -2627,7 +2626,7 @@ impl Renderer {
             tilted_iso_alignment = value;
         }
 
-        let ppt = region.grid_size as f32;
+        let ppt = region.tile_size as f32;
 
         let camera = Camera::new(ro, rd, fov);
         let ray = if camera_type == CameraType::TiltedIso {
@@ -2640,6 +2639,7 @@ impl Renderer {
                 vec2f(width_f / ppt, height_f / ppt),
                 vec2f(1.0, 1.0),
                 tilted_iso_alignment,
+                camera_scale_factor,
             )
         } else if camera_mode == CameraMode::Pinhole {
             camera.create_ray(
@@ -2659,6 +2659,7 @@ impl Renderer {
                 vec2f(width_f, height_f),
                 vec2f(width_f / ppt, height_f / ppt),
                 vec2f(1.0, 1.0),
+                camera_scale_factor,
             )
         };
 
@@ -2676,50 +2677,6 @@ impl Renderer {
             }
         }
         None
-
-        /*
-        fn equal(l: f32, r: Vec3f) -> Vec3f {
-            vec3f(
-                if l == r.x { 1.0 } else { 0.0 },
-                if l == r.y { 1.0 } else { 0.0 },
-                if l == r.z { 1.0 } else { 0.0 },
-            )
-        }
-
-        let ro = ray.o;
-        let rd = ray.d;
-
-        let mut i = floor(ro);
-        let mut dist;
-
-        let mut normal;
-        let srd = signum(rd);
-
-        let rdi = 1.0 / (2.0 * rd);
-
-        let mut key: Vec3<i32>;
-
-        for _ii in 0..50 {
-            key = Vec3i::from(i);
-
-            if key.y < -1 {
-                break;
-            }
-
-            if region.models.get(&(key.x, key.y, key.z)).is_some() {
-                return Some(vec3i(key.x, key.y, key.z));
-            }
-            // Test against world tiles
-            if self.tiles.get((key.x, key.y, key.z)).is_some() {
-                return Some(vec3i(key.x, 0, key.z));
-            }
-
-            let plain = (1.0 + srd - 2.0 * (ro - i)) * rdi;
-            dist = min(plain.x, min(plain.y, plain.z));
-            normal = equal(dist, plain) * srd;
-            i += normal;
-        }
-        None*/
     }
 
     fn g1v(&self, dot_nv: f32, k: f32) -> f32 {

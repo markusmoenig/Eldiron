@@ -482,10 +482,10 @@ impl ToolList {
 
                 render_button.set_context_menu(Some(TheContextMenu {
                     items: vec![
-                        // TheContextMenuItem::new(
-                        //     "First Person Camera".to_string(),
-                        //     TheId::named("Camera First Person"),
-                        // ),
+                        TheContextMenuItem::new(
+                            "First Person Camera".to_string(),
+                            TheId::named("Camera First Person"),
+                        ),
                         TheContextMenuItem::new(
                             "Top Down Iso".to_string(),
                             TheId::named("Camera Top Down"),

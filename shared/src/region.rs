@@ -13,6 +13,10 @@ fn default_pathtracer_samples() -> i32 {
     30
 }
 
+fn default_tile_size() -> i32 {
+    36
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub enum RegionType {
     Region2D,
@@ -72,6 +76,8 @@ pub struct Region {
     pub width: i32,
     pub height: i32,
     pub grid_size: i32,
+    #[serde(default = "default_tile_size")]
+    pub tile_size: i32,
     pub scroll_offset: Vec2i,
     pub zoom: f32,
 
@@ -132,6 +138,7 @@ impl Region {
             width: 80,
             height: 80,
             grid_size: 24,
+            tile_size: 36,
             scroll_offset: Vec2i::zero(),
             zoom: 1.0,
 

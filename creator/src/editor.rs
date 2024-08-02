@@ -521,7 +521,7 @@ impl TheTrait for Editor {
                 ) => {
                     if let Some(region) = self.project.get_region_mut(&id) {
                         region.prerendered.apply_tile(
-                            region.grid_size,
+                            region.tile_size,
                             &size,
                             &tile,
                             sample,
@@ -531,7 +531,6 @@ impl TheTrait for Editor {
                             &lights,
                             &grid_map,
                         );
-
                         self.server.set_prerendered_tile(
                             id, &size, &tile, sample, &albedo, &sky_abso, &distance, &lights,
                             &grid_map,

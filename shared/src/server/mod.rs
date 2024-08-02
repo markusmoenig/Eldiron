@@ -790,7 +790,7 @@ impl Server {
     ) {
         if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
             region.prerendered.apply_tile(
-                region.grid_size,
+                region.tile_size,
                 size,
                 tile,
                 sample,

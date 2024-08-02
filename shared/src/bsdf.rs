@@ -353,6 +353,7 @@ pub fn sample_sphere_light(
     light_sample: &mut BSDFLightSampleRec,
     num_of_lights: i32,
     rng: &mut ThreadRng,
+    max_distance: f32,
 ) {
     let r1 = rng.gen();
     let r2 = rng.gen();
@@ -377,8 +378,8 @@ pub fn sample_sphere_light(
     light_sample.direction /= light_sample.dist;
     light_sample.normal = normalize(light_surface_pos - light.position);
     light_sample.emission = light.emission * num_of_lights as f32;
-    light_sample.pdf =
-        dist_sq / (light.area * 0.5 * dot(light_sample.normal, light_sample.direction).abs());
+    light_sample.pdf = dist_sq
+        / (light.area * /*0.5*/ max_distance * dot(light_sample.normal, light_sample.direction).abs());
 }
 
 pub fn sample_rect_light(

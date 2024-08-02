@@ -239,10 +239,16 @@ impl Sidebar {
         height_edit.set_range(TheValue::RangeI32(1..=100000));
         height_edit.set_status_text("The height of the region in grid units.");
         text_layout.add_pair("Height (Grid)".to_string(), Box::new(height_edit));
+
         let mut grid_edit = TheTextLineEdit::new(TheId::named("Region Grid Edit"));
         grid_edit.set_range(TheValue::RangeI32(1..=1000));
-        grid_edit.set_status_text("The size of the region grid in pixels.");
+        grid_edit.set_status_text("The size of the region grid in pixels for the 2D renderer.");
         text_layout.add_pair("Grid Size".to_string(), Box::new(grid_edit));
+
+        let mut tile_size = TheTextLineEdit::new(TheId::named("Region Tile Size"));
+        tile_size.set_range(TheValue::RangeI32(1..=100));
+        tile_size.set_status_text("The tile size for the 3D renderer.");
+        text_layout.add_pair("Tile Size".to_string(), Box::new(tile_size));
 
         let mut tracer_edit = TheTextLineEdit::new(TheId::named("Region Tracer Samples Edit"));
         tracer_edit.set_range(TheValue::RangeI32(1..=100));
@@ -1001,6 +1007,10 @@ impl Sidebar {
                             ctx,
                         );
                     }
+                } else if item_id.name == "Copy Prerendered" {
+                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                        region.prerendered.albedo.to_clipboard();
+                    }
                 } else if item_id.name == "Rename Module" {
                     if let Some(module) = project.codes.get(&widget_id.uuid) {
                         open_text_dialog(
@@ -1194,6 +1204,18 @@ impl Sidebar {
                                     rgba.set_grid(Some(v));
                                 }
                             }
+                        }
+                    }
+                } else if id.name == "Region Tile Size" {
+                    if let Some(v) = value.to_i32() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.tile_size = v;
+                            region.prerendered.invalidate();
+                            server.update_region(region);
+                            PRERENDERTHREAD
+                                .lock()
+                                .unwrap()
+                                .render_region(region.clone(), None);
                         }
                     }
                 } else if id.name == "Region Tracer Samples Edit" {
@@ -1532,6 +1554,7 @@ impl Sidebar {
                         ctx.ui
                             .send_widget_state_changed(&id, TheWidgetState::Selected);
 
+                        server_ctx.clear();
                         server_ctx.curr_region = region.id;
                         project.regions.push(region);
                         server.set_project(project.clone());
@@ -2551,10 +2574,16 @@ impl Sidebar {
                 let mut item = TheListItem::new(TheId::named_with_id("Region Item", region.id));
                 item.set_text(region.name.clone());
                 item.set_context_menu(Some(TheContextMenu {
-                    items: vec![TheContextMenuItem::new(
-                        "Rename Region...".to_string(),
-                        TheId::named("Rename Region"),
-                    )],
+                    items: vec![
+                        TheContextMenuItem::new(
+                            "Rename Region...".to_string(),
+                            TheId::named("Rename Region"),
+                        ),
+                        TheContextMenuItem::new(
+                            "Copy Prerendered...".to_string(),
+                            TheId::named("Copy Prerendered"),
+                        ),
+                    ],
                     ..Default::default()
                 }));
                 list_layout.add_item(item, ctx);
@@ -3139,6 +3168,18 @@ impl Sidebar {
         {
             if let Some(region) = region {
                 widget.set_value(TheValue::Text(region.grid_size.clone().to_string()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Region Tile Size".to_string()), None)
+        {
+            if let Some(region) = region {
+                widget.set_value(TheValue::Text(region.tile_size.clone().to_string()));
                 widget.set_disabled(false);
             } else {
                 widget.set_value(TheValue::Empty);

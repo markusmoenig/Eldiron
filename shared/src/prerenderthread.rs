@@ -192,7 +192,7 @@ impl PreRenderThread {
 
                             if let Some(pre) = prerendered_region_data.get_mut(&curr_region.id) {
                                 if let Some(tiles) = tiles {
-                                    pre.remove_tiles(tiles.clone(), curr_region.grid_size);
+                                    pre.remove_tiles(tiles.clone(), curr_region.tile_size);
                                 } else {
                                     pre.tile_samples.clear();
                                     result_tx
@@ -212,8 +212,8 @@ impl PreRenderThread {
 
                 // Rendering in progress ?
                 if in_progress && !paused {
-                    let w = (curr_region.width as f32 * curr_region.grid_size as f32) as i32;
-                    let h = (curr_region.height as f32 * curr_region.grid_size as f32) as i32;
+                    let w = curr_region.width * curr_region.tile_size;
+                    let h = curr_region.height * curr_region.tile_size;
 
                     if let Some(prerendered) = prerendered_region_data.get_mut(&curr_region.id) {
                         background_pool.install(|| {
