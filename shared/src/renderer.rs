@@ -1242,7 +1242,7 @@ impl Renderer {
                     let xx = (i % width) as f32;
                     let yy = (i / width) as f32;
 
-                    let mut ray = if camera_type == CameraType::TiltedIso {
+                    let ray = if camera_type == CameraType::TiltedIso {
                         camera.create_tilted_isometric_ray2(
                             vec2f(xx / width_f, yy / height_f),
                             vec2f(width_f, height_f),
@@ -1300,7 +1300,7 @@ impl Renderer {
         region: &Region,
         update: &RegionUpdate,
         settings: &RegionDrawSettings,
-        camera_type: CameraType,
+        _camera_type: CameraType,
         _level: &Level,
         saturation: &Option<f32>,
         _max_render_distance: i32,
