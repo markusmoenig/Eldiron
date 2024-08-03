@@ -502,11 +502,12 @@ impl MaterialFXNode {
                 hit.noise_scale = params[2];
                 let scale = vec2f(params[0], params[1]);
                 let octaves = params[3] as i32;
-                let value = if hit.two_d {
-                    noise2d(&hit.global_uv, scale, octaves)
-                } else {
-                    noise2d(&hit.uv, scale, octaves)
-                };
+                // let value = if hit.two_d {
+                //     noise2d(&hit.global_uv, scale, octaves)
+                // } else {
+                //     noise2d(&hit.global_uv, scale, octaves)
+                // };
+                let value = noise2d(&hit.global_uv, scale, octaves);
                 hit.noise = Some(value);
                 hit.mat.base_color = vec3f(hit.value, hit.value, hit.value);
                 Some(0)
