@@ -256,7 +256,9 @@ impl TileDrawer {
                                 }
                             }
                         }
-                    } else if let Some(tile) = region.tiles.get(&(tile_x, tile_y)) {
+                    }
+
+                    if let Some(tile) = region.tiles.get(&(tile_x, tile_y)) {
                         for tile_index in 0..tile.layers.len() {
                             if let Some(tile_uuid) = tile.layers[tile_index] {
                                 if let Some(data) = self.tiles.get(&tile_uuid) {
