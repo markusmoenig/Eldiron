@@ -253,13 +253,6 @@ impl Tool for PickerTool {
                 }
             }
         }
-        // MODELFXEDITOR
-        //     .lock()
-        //     .unwrap()
-        //     .set_geo_node_ui(server_ctx, project, ui, ctx);
-        // if clicked_tile {
-        //     self.set_editor_group_index(EditorMode::Draw, ui, ctx);
-        // }
         false
     }
 }

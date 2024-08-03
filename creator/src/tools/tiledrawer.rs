@@ -33,7 +33,7 @@ impl Tool for TileDrawerTool {
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,
-        _tool_context: ToolContext,
+        tool_context: ToolContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
@@ -64,6 +64,14 @@ impl Tool for TileDrawerTool {
                 return false;
             }
         };
+
+        // When we draw in 2D, move the 3D view to the pen position
+        if tool_context == ToolContext::TwoD && server_ctx.curr_character_instance.is_none() {
+            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                region.editing_position_3d = Vec3f::new(coord.x as f32, 0.0, coord.y as f32);
+                server.set_editing_position_3d(region.editing_position_3d);
+            }
+        }
 
         if let Some(curr_tile_id) = server_ctx.curr_tile_id {
             if TILEDRAWER.lock().unwrap().tiles.contains_key(&curr_tile_id) {
