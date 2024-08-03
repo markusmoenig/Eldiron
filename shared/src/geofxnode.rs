@@ -190,6 +190,26 @@ impl GeoFXNode {
         ]
     }
 
+    pub fn description(&self) -> String {
+        match &self.role {
+            AddHeight => str!("Add height to the ground tile (height map)."),
+            RemoveHeight => str!("Remove height from the ground tile (height map)."),
+            SetHeight => str!("Set the height of the ground tile (height map)."),
+            LeftWall => str!("A wall on the left side of the tile."),
+            TopWall => str!("A wall on the top side of the tile."),
+            RightWall => str!("A wall on the right side of the tile."),
+            BottomWall => str!("A wall on the bottom side of the tile."),
+            MiddleWallH => str!("A horizontal wall in the middle of the tile."),
+            MiddleWallV => str!("A vertical wall in the middle of the tile."),
+            BendWallNW => str!("A rounded wall from the left to the top side of the tile."),
+            BendWallNE => str!("A rounded wall from the top to the right side of the tile."),
+            BendWallSE => str!("A rounded wall from the right to the bottom side of the tile."),
+            BendWallSW => str!("A rounded wall from the bottom to the left side of the tile."),
+            Column => str!("A column (disc) with an optional profile."),
+            Gate => str!("A gate."),
+        }
+    }
+
     /// Returns the layer role (RemoveHeightBrush, Wall etc) for this node.
     pub fn get_layer_role(&self) -> Layer2DRole {
         match self.role {

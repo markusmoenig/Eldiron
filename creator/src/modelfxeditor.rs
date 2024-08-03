@@ -17,6 +17,8 @@ pub enum MaterialMode {
 pub struct ModelFXEditor {
     pub mode: ModelFXMode,
     pub geos: FxHashMap<(i32, i32), GeoFXNode>,
+    pub geos_description: FxHashMap<(i32, i32), String>,
+
     pub materials: FxHashMap<(i32, i32), Uuid>,
 
     pub geometry_mode: bool,
@@ -35,6 +37,7 @@ impl ModelFXEditor {
         Self {
             mode: ModelFXMode::Floor,
             geos: FxHashMap::default(),
+            geos_description: FxHashMap::default(),
             materials: FxHashMap::default(),
 
             geometry_mode: true,
@@ -473,9 +476,15 @@ impl ModelFXEditor {
                     redraw = true;
                 }
             }
-            TheEvent::TileEditorHoverChanged(id, _coord) => {
+            TheEvent::TileEditorHoverChanged(id, coord) => {
                 if id.name == "GeoFX RGBA Layout View" {
-                    //&& self.modelfx.hovered(*coord, ui, ctx) {
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        id.clone(),
+                        self.geos_description
+                            .get(&(coord.x, coord.y))
+                            .unwrap_or(&"".to_string())
+                            .to_string(),
+                    ));
                     redraw = true;
                 }
             }
@@ -1293,6 +1302,7 @@ impl ModelFXEditor {
         //let mut set_default_selection = false;
 
         let geo_tiles = GeoFXNode::nodes();
+        self.geos_description.clear();
 
         self.geos.clear();
         let mut amount = 0;
@@ -1331,6 +1341,8 @@ impl ModelFXEditor {
 
                     let x = i % tiles_per_row;
                     let y = i / tiles_per_row;
+
+                    self.geos_description.insert((x, y), tile.description());
 
                     i += 1;
 
