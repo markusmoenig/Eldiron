@@ -1199,9 +1199,15 @@ impl Sidebar {
                                 .unwrap()
                                 .render_region(region.clone(), None);
 
+                            server.update_region(region);
                             if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
                                 if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
                                     rgba.set_grid(Some(v));
+                                    let width = region.width * region.grid_size;
+                                    let height = region.height * region.grid_size;
+                                    let buffer =
+                                        TheRGBABuffer::new(TheDim::new(0, 0, width, height));
+                                    rgba.set_buffer(buffer);
                                 }
                             }
                         }
