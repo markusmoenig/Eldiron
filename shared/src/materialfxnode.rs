@@ -583,6 +583,8 @@ impl MaterialFXNode {
                 if resolved.len() == 1 {
                     hit.mat.base_color =
                         lerp(resolved[0].mat.base_color, hit.mat.base_color, value);
+                    hit.mat.roughness = lerp(resolved[0].mat.roughness, hit.mat.roughness, value);
+                    hit.mat.metallic = lerp(resolved[0].mat.metallic, hit.mat.metallic, value);
                 }
 
                 Some(0)
@@ -596,7 +598,7 @@ impl MaterialFXNode {
         match &self.role {
             Brick => {
                 if hit.interior_distance < 0.0 || hit.two_d {
-                    let p = hit.pattern_pos; // / (5.0);
+                    let p = hit.pattern_pos;
                     let d = bricks(p, hit, params);
                     hit.interior_distance_mortar = Some(hit.interior_distance);
                     hit.interior_distance = d;

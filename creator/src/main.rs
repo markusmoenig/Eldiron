@@ -57,6 +57,7 @@ pub mod prelude {
     pub use crate::tools::code::CodeTool;
     pub use crate::tools::draw::DrawTool;
     pub use crate::tools::eraser::EraserTool;
+    pub use crate::tools::fx::FXTool;
     pub use crate::tools::game::GameTool;
     pub use crate::tools::mapobjects::MapObjectsTool;
     pub use crate::tools::picker::PickerTool;

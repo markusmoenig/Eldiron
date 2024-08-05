@@ -3,6 +3,7 @@ pub use crate::prelude::*;
 pub mod code;
 pub mod draw;
 pub mod eraser;
+pub mod fx;
 pub mod game;
 pub mod mapobjects;
 pub mod picker;

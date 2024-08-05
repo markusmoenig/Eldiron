@@ -27,105 +27,149 @@ impl TileFXEditor {
         let mut toolbar_canvas = TheCanvas::default();
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.limiter_mut().set_max_height(25);
-        toolbar_hlayout.set_margin(vec4i(120, 2, 5, 3));
+        toolbar_hlayout.set_margin(vec4i(10, 2, 5, 3));
 
-        let mut time_slider = TheTimeSlider::new(TheId::named("TileFX Timeline"));
-        time_slider.set_status_text("The timeline for the tile based effects.");
-        time_slider.limiter_mut().set_max_width(400);
-        toolbar_hlayout.add_widget(Box::new(time_slider));
-
-        let mut add_button = TheTraybarButton::new(TheId::named("TileFX Clear Marker"));
+        let mut nodes_button = TheTraybarButton::new(TheId::named("RegionFX Nodes"));
         //add_button.set_icon_name("icon_role_add".to_string());
-        add_button.set_text(str!("Clear"));
-        add_button.set_status_text("Clears the currently selected marker.");
+        nodes_button.set_text(str!("Effect Nodes"));
+        nodes_button.set_status_text("Available effect nodes.");
+        nodes_button.set_context_menu(Some(TheContextMenu {
+            items: vec![
+                TheContextMenuItem::new_submenu(
+                    "Effects".to_string(),
+                    TheId::named("Effect Nodes"),
+                    TheContextMenu {
+                        items: vec![TheContextMenuItem::new(
+                            "Brightness".to_string(),
+                            TheId::named("Brightness"),
+                        )],
+                        ..Default::default()
+                    },
+                ),
+                // TheContextMenuItem::new("Noise2D".to_string(), TheId::named("Noise2D")),
+                // TheContextMenuItem::new("Noise3D".to_string(), TheId::named("Noise3D")),
+            ],
+            ..Default::default()
+        }));
 
-        let mut clear_button = TheTraybarButton::new(TheId::named("TileFX Clear"));
-        //add_button.set_icon_name("icon_role_add".to_string());
-        clear_button.set_text(str!("Clear All"));
-        clear_button.set_status_text("Clears all markers from the timeline.");
-
-        let mut clear_mask_button = TheTraybarButton::new(TheId::named("TileFX Clear Mask"));
-        clear_mask_button.set_text(str!("Clear Mask"));
-        clear_mask_button.set_status_text("Clear the pixel mask. If there are pixels selected the FX will only be applied to those pixels.");
-
-        toolbar_hlayout.add_widget(Box::new(add_button));
-        toolbar_hlayout.add_widget(Box::new(clear_button));
-        toolbar_hlayout.add_widget(Box::new(clear_mask_button));
+        toolbar_hlayout.add_widget(Box::new(nodes_button));
         toolbar_hlayout.set_reverse_index(Some(1));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
 
         canvas.set_top(toolbar_canvas);
 
-        // Left FX List
+        // Node Editor
+        let mut node_canvas = TheCanvas::new();
+        let node_view = TheNodeCanvasView::new(TheId::named("RegionFX NodeCanvas"));
+        node_canvas.set_widget(node_view);
 
-        let mut list_canvas = TheCanvas::default();
-        let mut list_layout = TheListLayout::new(TheId::named("TileFX List"));
+        canvas.set_center(node_canvas);
 
-        let mut item = TheListItem::new(TheId::named("TileFX Brightness"));
-        item.set_text(str!("Brightness"));
-        list_layout.add_item(item, ctx);
+        /*
+                // Toolbar
+                let mut toolbar_canvas = TheCanvas::default();
+                let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+                toolbar_hlayout.limiter_mut().set_max_height(25);
+                toolbar_hlayout.set_margin(vec4i(120, 2, 5, 3));
 
-        let mut item = TheListItem::new(TheId::named("TileFX Daylight"));
-        item.set_text(str!("Daylight"));
-        list_layout.add_item(item, ctx);
+                let mut time_slider = TheTimeSlider::new(TheId::named("TileFX Timeline"));
+                time_slider.set_status_text("The timeline for the tile based effects.");
+                time_slider.limiter_mut().set_max_width(400);
+                toolbar_hlayout.add_widget(Box::new(time_slider));
 
-        let mut item = TheListItem::new(TheId::named("TileFX Light Emitter"));
-        item.set_text(str!("Light Emitter"));
-        list_layout.add_item(item, ctx);
+                let mut add_button = TheTraybarButton::new(TheId::named("TileFX Clear Marker"));
+                //add_button.set_icon_name("icon_role_add".to_string());
+                add_button.set_text(str!("Clear"));
+                add_button.set_status_text("Clears the currently selected marker.");
 
-        let mut item = TheListItem::new(TheId::named("TileFX Mirror"));
-        item.set_text(str!("Mirror"));
-        list_layout.add_item(item, ctx);
+                let mut clear_button = TheTraybarButton::new(TheId::named("TileFX Clear"));
+                //add_button.set_icon_name("icon_role_add".to_string());
+                clear_button.set_text(str!("Clear All"));
+                clear_button.set_status_text("Clears all markers from the timeline.");
 
-        list_layout.limiter_mut().set_max_width(130);
-        list_layout.select_first_item(ctx);
-        list_canvas.set_layout(list_layout);
+                let mut clear_mask_button = TheTraybarButton::new(TheId::named("TileFX Clear Mask"));
+                clear_mask_button.set_text(str!("Clear Mask"));
+                clear_mask_button.set_status_text("Clear the pixel mask. If there are pixels selected the FX will only be applied to those pixels.");
 
-        canvas.set_left(list_canvas);
+                toolbar_hlayout.add_widget(Box::new(add_button));
+                toolbar_hlayout.add_widget(Box::new(clear_button));
+                toolbar_hlayout.add_widget(Box::new(clear_mask_button));
+                toolbar_hlayout.set_reverse_index(Some(1));
 
-        // Tile FX Center
+                toolbar_canvas.set_layout(toolbar_hlayout);
 
-        let mut center_canvas = TheCanvas::default();
+                canvas.set_top(toolbar_canvas);
 
-        let mut text_layout = TheTextLayout::new(TheId::named("TileFX Settings"));
-        text_layout.limiter_mut().set_max_width(300);
-        center_canvas.set_layout(text_layout);
+                // Left FX List
 
-        let mut center_color_canvas = TheCanvas::default();
-        let mut color_layout = TheVLayout::new(TheId::named("TileFX Color Settings"));
-        color_layout.limiter_mut().set_max_width(140);
-        color_layout.set_background_color(Some(ListLayoutBackground));
-        center_color_canvas.set_layout(color_layout);
+                let mut list_canvas = TheCanvas::default();
+                let mut list_layout = TheListLayout::new(TheId::named("TileFX List"));
 
-        center_canvas.set_right(center_color_canvas);
-        canvas.set_center(center_canvas);
+                let mut item = TheListItem::new(TheId::named("TileFX Brightness"));
+                item.set_text(str!("Brightness"));
+                list_layout.add_item(item, ctx);
 
-        // Tile Preview
+                let mut item = TheListItem::new(TheId::named("TileFX Daylight"));
+                item.set_text(str!("Daylight"));
+                list_layout.add_item(item, ctx);
 
-        let mut preview_canvas = TheCanvas::default();
-        let mut tile_rgba = TheRGBAView::new(TheId::named("TileFX RGBA"));
-        tile_rgba.set_mode(TheRGBAViewMode::TileSelection);
-        tile_rgba.set_grid(Some(self.preview_size / 24));
-        tile_rgba.set_grid_color([40, 40, 40, 255]);
-        tile_rgba.set_buffer(TheRGBABuffer::new(TheDim::new(
-            0,
-            0,
-            self.preview_size,
-            self.preview_size,
-        )));
-        tile_rgba
-            .limiter_mut()
-            .set_max_size(vec2i(self.preview_size, self.preview_size));
+                let mut item = TheListItem::new(TheId::named("TileFX Light Emitter"));
+                item.set_text(str!("Light Emitter"));
+                list_layout.add_item(item, ctx);
 
-        let mut vlayout = TheVLayout::new(TheId::empty());
-        vlayout.limiter_mut().set_max_width(200);
-        vlayout.add_widget(Box::new(tile_rgba));
+                let mut item = TheListItem::new(TheId::named("TileFX Mirror"));
+                item.set_text(str!("Mirror"));
+                list_layout.add_item(item, ctx);
 
-        preview_canvas.set_layout(vlayout);
+                list_layout.limiter_mut().set_max_width(130);
+                list_layout.select_first_item(ctx);
+                list_canvas.set_layout(list_layout);
 
-        canvas.set_right(preview_canvas);
+                canvas.set_left(list_canvas);
 
+                // Tile FX Center
+
+                let mut center_canvas = TheCanvas::default();
+
+                let mut text_layout = TheTextLayout::new(TheId::named("TileFX Settings"));
+                text_layout.limiter_mut().set_max_width(300);
+                center_canvas.set_layout(text_layout);
+
+                let mut center_color_canvas = TheCanvas::default();
+                let mut color_layout = TheVLayout::new(TheId::named("TileFX Color Settings"));
+                color_layout.limiter_mut().set_max_width(140);
+                color_layout.set_background_color(Some(ListLayoutBackground));
+                center_color_canvas.set_layout(color_layout);
+
+                center_canvas.set_right(center_color_canvas);
+                canvas.set_center(center_canvas);
+
+                // Tile Preview
+
+                let mut preview_canvas = TheCanvas::default();
+                let mut tile_rgba = TheRGBAView::new(TheId::named("TileFX RGBA"));
+                tile_rgba.set_mode(TheRGBAViewMode::TileSelection);
+                tile_rgba.set_grid(Some(self.preview_size / 24));
+                tile_rgba.set_grid_color([40, 40, 40, 255]);
+                tile_rgba.set_buffer(TheRGBABuffer::new(TheDim::new(
+                    0,
+                    0,
+                    self.preview_size,
+                    self.preview_size,
+                )));
+                tile_rgba
+                    .limiter_mut()
+                    .set_max_size(vec2i(self.preview_size, self.preview_size));
+
+                let mut vlayout = TheVLayout::new(TheId::empty());
+                vlayout.limiter_mut().set_max_width(200);
+                vlayout.add_widget(Box::new(tile_rgba));
+
+                preview_canvas.set_layout(vlayout);
+
+                canvas.set_right(preview_canvas);
+        */
         canvas
     }
 

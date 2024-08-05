@@ -947,6 +947,12 @@ impl GeoFXNode {
                         }
                     }
                 }
+                BottomWall => {
+                    let mut pos = self.position(&coll);
+                    area.push(Vec2i::from(pos));
+                    pos.y += 1.0;
+                    area.push(Vec2i::from(pos));
+                }
                 _ => {
                     area.push(Vec2i::from(self.position(&coll)));
                 }

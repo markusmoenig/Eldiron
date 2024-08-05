@@ -58,6 +58,10 @@ pub struct Region {
     pub geometry_areas: FxHashMap<Vec3i, Vec<Uuid>>,
 
     #[serde(default)]
+    #[serde(with = "vectorize")]
+    pub effects: FxHashMap<Vec3i, TileFXObject>,
+
+    #[serde(default)]
     pub areas: FxHashMap<Uuid, Area>,
 
     #[serde(default)]
@@ -126,6 +130,8 @@ impl Region {
 
             geometry: FxHashMap::default(),
             geometry_areas: FxHashMap::default(),
+
+            effects: FxHashMap::default(),
 
             areas: FxHashMap::default(),
             characters: FxHashMap::default(),

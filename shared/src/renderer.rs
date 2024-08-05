@@ -174,21 +174,6 @@ impl Renderer {
                                     (w, h),
                                     (half::f16::from_f32(p.x), half::f16::from_f32(p.z)),
                                 );
-
-                                // let tx = (p.x * region.grid_size as f32) as i32;
-                                //let tz = (p.z * region.grid_size as f32) as i32;
-
-                                //target_pixel = Some(vec2i(tx, tz));
-                                // println!(
-                                //     "{} {} {} {} {} {} {}",
-                                //     ray.o,
-                                //     ray.d,
-                                //     vec2f(p.x, p.z),
-                                //     tile.x * region.grid_size + w - tx,
-                                //     tile.y * region.grid_size + h - tz,
-                                //     tx,
-                                //     tz,
-                                // );
                             }
                         }
                     }
@@ -245,7 +230,7 @@ impl Renderer {
                     let mut _medium_sampled = false;
                     let mut _surface_scatter = false;
 
-                    state.depth = 8;
+                    state.depth = 0;
 
                     // Choose the light we want to sample for this sample
                     // We choose one random light per sample
@@ -283,6 +268,8 @@ impl Renderer {
                             if depth == 0 {
                                 dist = hit.distance;
                             }
+
+                            state.depth = depth;
 
                             state.mat.clone_from(&hit.mat);
                             state.mat.roughness = max(state.mat.roughness, 0.001);
@@ -382,16 +369,10 @@ impl Renderer {
                                                 );
                                             }
 
-                                            let falloff = 1.0; // / (light_dist * light_dist);
-                                                               // Original inverse-square falloff
-                                                               // let falloff = 1.0 / (distance * distance * distance); // Stronger falloff
-                                                               // let falloff = 1.0 / (distance + 1.0); // Linear falloff for larger distance
-                                                               // let falloff = 1.0 / (distance.powf(1.5)); // Custom falloff
-
                                             if scatter_sample.pdf > 0.0 {
                                                 direct_light_sample +=
                                                     (mis_weight * li * scatter_sample.f
-                                                        / (light_sample.pdf * falloff))
+                                                        / light_sample.pdf)
                                                         * throughput;
                                             }
                                         }
@@ -418,7 +399,7 @@ impl Renderer {
                             }
 
                             ray.d = scatter_sample.l;
-                            ray.o = state.fhp + ray.d * hit.eps
+                            ray.o = state.fhp + ray.d * hit.eps;
                         } else {
                             if depth == 0 {
                                 throughput = Vec3f::zero();
@@ -583,7 +564,7 @@ impl Renderer {
                     // Raymarch (extruded) materials to see if they intersect.
                     if let Some(mask) = region.heightmap.get_material_mask(key.x, key.z) {
                         //has_heightmap_material = true;
-                        let mut h = hit.clone();
+                        let mut h = Hit::default(); //hit.clone();
 
                         let mut t = dist;
                         for _ in 0..20 {
@@ -622,7 +603,7 @@ impl Renderer {
                                         hit.normal = material.heightmap_normal(
                                             &settings.time,
                                             p,
-                                            &mut hit,
+                                            &mut h,
                                             &mat_obj_params,
                                         );
 
@@ -636,6 +617,7 @@ impl Renderer {
                                         //     _ => f.0 + vec2f(p.x, p.y),
                                         // };
                                         hit.pattern_pos = hit.global_uv;
+                                        h.clone_from(&hit);
                                         material.compute(
                                             &mut hit,
                                             palette,
@@ -827,7 +809,7 @@ impl Renderer {
                             mat_obj_params.clone_from(m_params);
                         }
 
-                        let mut t = 0.001;
+                        let mut t = 0.0;
 
                         for _ in 0..20 {
                             // Max distance a ray can travel in a unit cube
@@ -863,9 +845,9 @@ impl Renderer {
                             //d.0 -= t_dist;
 
                             if d.0 < h.eps && t < hit.distance {
-                                hit.clone_from(&h);
-                                hit.hit_point = p;
+                                h.hit_point = p;
 
+                                hit.clone_from(&h);
                                 if let Some(material) = material {
                                     hit.normal = material.normal(
                                         &settings.time,

@@ -12,6 +12,29 @@ pub struct PreRenderedLight {
     pub brdf: Vec3f,
 }
 
+/// Contains the data for a prerendered tile.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PreRenderedTileData {
+    pub albedo: TheRGBBuffer,
+    pub sky_absorption: TheRGBBuffer,
+    pub distance: TheFlattenedMap<half::f16>,
+
+    #[serde(default = "default_prerendered_lights")]
+    pub lights: TheFlattenedMap<Vec<PreRenderedLight>>,
+}
+
+impl PreRenderedTileData {
+    pub fn new(width: i32, height: i32) -> Self {
+        Self {
+            albedo: TheRGBBuffer::new(TheDim::sized(width, height)),
+            sky_absorption: TheRGBBuffer::new(TheDim::sized(width, height)),
+            distance: TheFlattenedMap::new(width, height),
+
+            lights: TheFlattenedMap::new(0, 0),
+        }
+    }
+}
+
 fn default_grid_map() -> TheFlattenedMap<(half::f16, half::f16)> {
     TheFlattenedMap::new(0, 0)
 }
@@ -25,6 +48,10 @@ pub struct PreRendered {
     pub albedo: TheRGBBuffer,
     pub sky_absorption: TheRGBBuffer,
     pub distance: TheFlattenedMap<half::f16>,
+
+    #[serde(default)]
+    #[serde(with = "vectorize")]
+    pub tiles: FxHashMap<Vec2i, PreRenderedTileData>,
 
     #[serde(default = "default_grid_map")]
     pub grid_map: TheFlattenedMap<(half::f16, half::f16)>,
@@ -50,6 +77,8 @@ impl PreRendered {
             lights: TheFlattenedMap::new(albedo.dim().width, albedo.dim().height),
             grid_map: TheFlattenedMap::new(albedo.dim().width, albedo.dim().height),
 
+            tiles: FxHashMap::default(),
+
             albedo,
             sky_absorption,
 
@@ -62,6 +91,9 @@ impl PreRendered {
             albedo: TheRGBBuffer::default(),
             sky_absorption: TheRGBBuffer::default(),
             distance: TheFlattenedMap::new(0, 0),
+
+            tiles: FxHashMap::default(),
+
             grid_map: TheFlattenedMap::new(0, 0),
 
             lights: TheFlattenedMap::new(0, 0),

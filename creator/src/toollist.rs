@@ -29,6 +29,7 @@ impl ToolList {
             Box::new(DrawTool::new()),
             Box::new(MapObjectsTool::new()),
             Box::new(CodeTool::new()),
+            Box::new(FXTool::new()),
             Box::new(PickerTool::new()),
             Box::new(EraserTool::new()),
             Box::new(SelectionTool::new()),
