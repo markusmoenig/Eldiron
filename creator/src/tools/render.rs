@@ -32,18 +32,23 @@ impl Tool for RenderTool {
         &mut self,
         tool_event: ToolEvent,
         _tool_context: ToolContext,
-        _ui: &mut TheUI,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         _server: &mut Server,
         _client: &mut Client,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) -> bool {
         if let Activate = tool_event {
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Set Region Render"),
                 TheValue::Empty,
             ));
+
+            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                let node_canvas = region.render_settings.to_canvas();
+                ui.set_node_canvas("RegionFX NodeCanvas", node_canvas);
+            }
 
             return true;
         };

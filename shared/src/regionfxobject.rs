@@ -3,15 +3,13 @@ use theframework::prelude::*;
 
 /// A character instance.
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-pub struct TileFXObject {
+pub struct RegionFXObject {
     /// The nodes which make up the effect.
-    pub nodes: Vec<MaterialFXNode>,
+    pub nodes: Vec<RegionFXNode>,
 
     /// The node connections: Source node index, source terminal, dest node index, dest terminal
     pub connections: Vec<(u16, u8, u16, u8)>,
 
-    //#[serde(skip)]
-    //pub node_previews: Vec<Option<TheRGBABuffer>>,
     pub zoom: f32,
     pub selected_node: Option<usize>,
 
@@ -19,19 +17,30 @@ pub struct TileFXObject {
     pub scroll_offset: Vec2i,
 }
 
-impl Default for TileFXObject {
+impl Default for RegionFXObject {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl TileFXObject {
+impl RegionFXObject {
     pub fn new() -> Self {
-        Self {
-            nodes: Vec::new(),
-            connections: Vec::new(),
+        let mut nodes = vec![];
 
-            // node_previews: Vec::new(),
+        let mut node = RegionFXNode::new_from_name(str!("Renderer"));
+        node.position = vec2i(220, 50);
+        nodes.push(node);
+
+        let mut node = RegionFXNode::new_from_name(str!("Tilted Iso Camera"));
+        node.position = vec2i(20, 20);
+        nodes.push(node);
+
+        let connections = vec![(1, 0, 0, 0)];
+
+        Self {
+            nodes,
+            connections,
+
             zoom: 1.0,
             selected_node: None,
 
@@ -56,6 +65,30 @@ impl TileFXObject {
         data
     }
 
+    /// Create a cameray ray
+    pub fn create_ray(
+        &self,
+        uv: Vec2f,
+        position: Vec3f,
+        size: Vec2f,
+        tiles: Vec2f,
+        offset: Vec2f,
+        params: &[Vec<f32>],
+    ) -> Ray {
+        if let Some(node_index) = self.find_connected_output_node(0, 0) {
+            self.nodes[node_index].create_ray(
+                uv,
+                position,
+                size,
+                tiles,
+                offset,
+                &params[node_index],
+            )
+        } else {
+            Ray::new(Vec3f::zero(), Vec3f::zero())
+        }
+    }
+
     /// Computes the material
     pub fn compute(
         &self,
@@ -67,8 +100,18 @@ impl TileFXObject {
         //self.follow_trail(0, 0, hit, palette, textures, mat_obj_params);
     }
 
+    /// Returns the connected output node for the given input node and terminal.
+    pub fn find_connected_output_node(&self, node: usize, terminal_index: usize) -> Option<usize> {
+        for (o, _, i, it) in &self.connections {
+            if *i == node as u16 && *it == terminal_index as u8 {
+                return Some(*o as usize);
+            }
+        }
+        None
+    }
+
     /// Convert the model to a node canvas.
-    pub fn to_canvas(&mut self, _palette: &ThePalette) -> TheNodeCanvas {
+    pub fn to_canvas(&mut self) -> TheNodeCanvas {
         let mut canvas = TheNodeCanvas {
             node_width: 136,
             selected_node: self.selected_node,
@@ -76,7 +119,7 @@ impl TileFXObject {
             ..Default::default()
         };
 
-        for node in self.nodes.iter() {
+        for (index, node) in self.nodes.iter().enumerate() {
             let n = TheNode {
                 name: node.name(),
                 position: node.position,
@@ -85,7 +128,7 @@ impl TileFXObject {
                 preview: node.preview.clone(),
                 supports_preview: node.supports_preview,
                 preview_is_open: node.preview_is_open,
-                can_be_deleted: true,
+                can_be_deleted: index != 0,
             };
             canvas.nodes.push(n);
         }

@@ -45,6 +45,9 @@ pub struct Region {
     pub name: String,
 
     #[serde(default)]
+    pub render_settings: RegionFXObject,
+
+    #[serde(default)]
     pub camera_type: CameraType,
 
     #[serde(with = "vectorize")]
@@ -123,6 +126,8 @@ impl Region {
             region_type: RegionType::Region2D,
 
             name: "New Region".to_string(),
+
+            render_settings: RegionFXObject::default(),
 
             camera_type: CameraType::TiltedIso,
 

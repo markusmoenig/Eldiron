@@ -19,6 +19,8 @@ pub mod prerenderthread;
 pub mod project;
 pub mod region;
 pub mod regionfx;
+pub mod regionfxnode;
+pub mod regionfxobject;
 pub mod renderer;
 pub mod renderer_utils;
 pub mod screen;
@@ -60,6 +62,8 @@ pub mod prelude {
     pub use crate::project::{MapMode, Project};
     pub use crate::region::{CameraMode, CameraType, Layer2DRole, Region, RegionTile};
     pub use crate::regionfx::*;
+    pub use crate::regionfxnode::*;
+    pub use crate::regionfxobject::*;
     pub use crate::renderer::Renderer;
     pub use crate::screen::*;
     pub use crate::sdf::*;

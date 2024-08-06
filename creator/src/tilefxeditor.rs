@@ -20,7 +20,7 @@ impl TileFXEditor {
     }
 
     /// Build the tile fx UI
-    pub fn build(&self, ctx: &mut TheContext) -> TheCanvas {
+    pub fn build(&self, _ctx: &mut TheContext) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
         // Toolbar
@@ -29,7 +29,7 @@ impl TileFXEditor {
         toolbar_hlayout.limiter_mut().set_max_height(25);
         toolbar_hlayout.set_margin(vec4i(10, 2, 5, 3));
 
-        let mut nodes_button = TheTraybarButton::new(TheId::named("RegionFX Nodes"));
+        let mut nodes_button = TheTraybarButton::new(TheId::named("TileFX Nodes"));
         //add_button.set_icon_name("icon_role_add".to_string());
         nodes_button.set_text(str!("Effect Nodes"));
         nodes_button.set_status_text("Available effect nodes.");
@@ -61,7 +61,7 @@ impl TileFXEditor {
 
         // Node Editor
         let mut node_canvas = TheCanvas::new();
-        let node_view = TheNodeCanvasView::new(TheId::named("RegionFX NodeCanvas"));
+        let node_view = TheNodeCanvasView::new(TheId::named("TileFX NodeCanvas"));
         node_canvas.set_widget(node_view);
 
         canvas.set_center(node_canvas);

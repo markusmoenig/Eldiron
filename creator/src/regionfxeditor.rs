@@ -3,6 +3,8 @@ use crate::prelude::*;
 pub struct RegionFXEditor {
     pub curr_collection: TheCollection,
     pub curr_marker: Option<TheTime>,
+
+    pub palette_indices: FxHashMap<String, Vec<u16>>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -11,13 +13,78 @@ impl RegionFXEditor {
         Self {
             curr_collection: TheCollection::default(),
             curr_marker: None,
+
+            palette_indices: FxHashMap::default(),
         }
     }
 
     /// Build the UI
-    pub fn build(&self, ctx: &mut TheContext) -> TheCanvas {
+    pub fn build(&self, _ctx: &mut TheContext) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
+        // Toolbar
+        let mut toolbar_canvas = TheCanvas::default();
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.limiter_mut().set_max_height(25);
+        toolbar_hlayout.set_margin(vec4i(10, 2, 5, 3));
+
+        let mut cameras_button = TheTraybarButton::new(TheId::named("RegionFX Camera Nodes"));
+        //add_button.set_icon_name("icon_role_add".to_string());
+        cameras_button.set_text(str!("Cameras"));
+        cameras_button.set_status_text("Available cameras.");
+        cameras_button.set_context_menu(Some(TheContextMenu {
+            items: vec![
+                TheContextMenuItem::new(
+                    "Tilted Iso".to_string(),
+                    TheId::named("Tilted Iso Camera"),
+                ),
+                TheContextMenuItem::new(
+                    "Top Down Iso".to_string(),
+                    TheId::named("Top Down Iso Camera"),
+                ),
+            ],
+            ..Default::default()
+        }));
+
+        let mut nodes_button = TheTraybarButton::new(TheId::named("RegionFX Nodes"));
+        //add_button.set_icon_name("icon_role_add".to_string());
+        nodes_button.set_text(str!("Effect Nodes"));
+        nodes_button.set_status_text("Available effect nodes.");
+        nodes_button.set_context_menu(Some(TheContextMenu {
+            items: vec![
+                TheContextMenuItem::new_submenu(
+                    "Effects".to_string(),
+                    TheId::named("Effect Nodes"),
+                    TheContextMenu {
+                        items: vec![TheContextMenuItem::new(
+                            "Brightness".to_string(),
+                            TheId::named("Brightness"),
+                        )],
+                        ..Default::default()
+                    },
+                ),
+                // TheContextMenuItem::new("Noise2D".to_string(), TheId::named("Noise2D")),
+                // TheContextMenuItem::new("Noise3D".to_string(), TheId::named("Noise3D")),
+            ],
+            ..Default::default()
+        }));
+
+        toolbar_hlayout.add_widget(Box::new(cameras_button));
+        toolbar_hlayout.add_widget(Box::new(nodes_button));
+        toolbar_hlayout.set_reverse_index(Some(2));
+
+        toolbar_canvas.set_layout(toolbar_hlayout);
+
+        canvas.set_top(toolbar_canvas);
+
+        // Node Editor
+        let mut node_canvas = TheCanvas::new();
+        let node_view = TheNodeCanvasView::new(TheId::named("RegionFX NodeCanvas"));
+        node_canvas.set_widget(node_view);
+
+        canvas.set_center(node_canvas);
+
+        /*
         // Toolbar
         let mut toolbar_canvas = TheCanvas::default();
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
@@ -92,6 +159,7 @@ impl RegionFXEditor {
 
         center_canvas.set_right(center_add_canvas);
         canvas.set_center(center_canvas);
+        */
 
         canvas
     }
@@ -108,6 +176,45 @@ impl RegionFXEditor {
         let mut redraw = false;
 
         match event {
+            TheEvent::ContextMenuSelected(id, item) => {
+                //let prev = self.modelfx.to_json();
+                #[allow(clippy::collapsible_if)]
+                if id.name == "RegionFX Camera Nodes" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        // let prev = material.to_json();
+                        // let material_id = material.id;
+                        let mut node = RegionFXNode::new_from_name(item.name.clone());
+                        node.position = vec2i(
+                            region.render_settings.scroll_offset.x + 220,
+                            region.render_settings.scroll_offset.y + 10,
+                        );
+                        region.render_settings.nodes.push(node);
+                        region.render_settings.selected_node =
+                            Some(region.render_settings.nodes.len() - 1);
+
+                        let node_canvas = region.render_settings.to_canvas();
+                        ui.set_node_canvas("RegionFX NodeCanvas", node_canvas);
+
+                        self.set_selected_node_ui(server_ctx, project, ui, ctx);
+                        // let undo =
+                        //     MaterialFXUndoAtom::AddNode(material.id, prev, material.to_json());
+                        // UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
+                        // let node_canvas = material.to_canvas(&project.palette);
+                        // ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
+                        // self.set_material_tiles(ui, ctx, project, Some(material_id));
+                        // self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
+                    }
+                    redraw = true;
+                }
+            }
+            TheEvent::NodeSelectedIndexChanged(id, index) => {
+                if id.name == "RegionFX NodeCanvas" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        region.render_settings.selected_node = *index;
+                    }
+                    self.set_selected_node_ui(server_ctx, project, ui, ctx);
+                }
+            }
             TheEvent::TimelineMarkerSelected(id, time) => {
                 if id.name == "RegionFX Timeline" {
                     self.curr_marker = Some(*time);
@@ -315,6 +422,92 @@ impl RegionFXEditor {
         }
 
         redraw
+    }
+
+    pub fn set_selected_node_ui(
+        &mut self,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        self.palette_indices.clear();
+
+        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+            if let Some(selected_index) = region.render_settings.selected_node {
+                // Safeguard, not actually needed
+                if selected_index >= region.render_settings.nodes.len() {
+                    region.render_settings.selected_node = None;
+                    return;
+                }
+
+                let collection = region.render_settings.nodes[selected_index].collection();
+
+                if let Some(text_layout) = ui.get_text_layout("Node Settings") {
+                    text_layout.clear();
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Show Node Settings"),
+                        TheValue::Text("RegionFX Node".to_string()),
+                    ));
+
+                    for (name, value) in &collection.keys {
+                        if let TheValue::Text(text) = value {
+                            let mut edit = TheTextLineEdit::new(TheId::named(
+                                (":REGIONFX: ".to_owned() + name).as_str(),
+                            ));
+                            edit.set_value(TheValue::Text(text.clone()));
+                            text_layout.add_pair(name.clone(), Box::new(edit));
+                        } else if let TheValue::FloatRange(value, range) = value {
+                            let mut slider = TheTextLineEdit::new(TheId::named(
+                                (":REGIONFX: ".to_owned() + name).as_str(),
+                            ));
+                            slider.set_value(TheValue::Float(*value));
+                            //slider.set_default_value(TheValue::Float(0.0));
+                            slider.set_range(TheValue::RangeF32(range.clone()));
+                            //slider.set_continuous(true);
+                            text_layout.add_pair(name.clone(), Box::new(slider));
+                        } else if let TheValue::IntRange(value, range) = value {
+                            let mut slider = TheTextLineEdit::new(TheId::named(
+                                (":REGIONFX: ".to_owned() + name).as_str(),
+                            ));
+                            slider.set_value(TheValue::Int(*value));
+                            slider.set_range(TheValue::RangeI32(range.clone()));
+                            //slider.set_continuous(true);
+                            text_layout.add_pair(name.clone(), Box::new(slider));
+                        } else if let TheValue::TextList(index, list) = value {
+                            let mut dropdown = TheDropdownMenu::new(TheId::named(
+                                (":REGIONFX: ".to_owned() + name).as_str(),
+                            ));
+                            for item in list {
+                                dropdown.add_option(item.clone());
+                            }
+                            dropdown.set_selected_index(*index);
+                            text_layout.add_pair(name.clone(), Box::new(dropdown));
+                        } else if let TheValue::PaletteIndex(index) = value {
+                            let name_id = ":MODELFX: ".to_owned() + name;
+                            let mut color_picker =
+                                TheColorButton::new(TheId::named(name_id.as_str()));
+                            color_picker.limiter_mut().set_max_size(vec2i(80, 20));
+                            if let Some(color) = &project.palette[*index as usize] {
+                                color_picker.set_color(color.to_u8_array());
+                            }
+
+                            if let Some(indices) = self.palette_indices.get_mut(&name_id) {
+                                indices.push(*index);
+                            } else {
+                                self.palette_indices
+                                    .insert(name_id.to_string(), vec![*index]);
+                            }
+                            text_layout.add_pair(name.clone(), Box::new(color_picker));
+                        }
+                    }
+                    ctx.ui.relayout = true;
+                }
+            }
+        } else if let Some(text_layout) = ui.get_text_layout("Node Settings") {
+            text_layout.clear();
+        }
     }
 
     /// Set the timeline from the picker

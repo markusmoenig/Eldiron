@@ -114,6 +114,11 @@ impl Renderer {
             geo_params.insert(*id, params);
         }
 
+        // Collect the render settings params
+        let render_settings_params: Vec<Vec<f32>> =
+            region.render_settings.load_parameters(&settings.time);
+
+        //
         let prerendered_mutex = Arc::new(Mutex::new(prerendered));
 
         let _start = self.get_time();
@@ -176,24 +181,33 @@ impl Renderer {
                     // Based on GLSL_pathtracer (https://github.com/knightcrawler25/GLSL-PathTracer)
                     //
 
-                    let mut ray = if camera_type == CameraType::TiltedIso {
-                        camera.create_tilted_isometric_ray2(
-                            vec2f(xx / width_f, (height_f - yy) / height_f),
-                            vec2f(width_f, height_f),
-                            vec2f(region.width as f32, region.height as f32),
-                            vec2f(rng.gen(), rng.gen()),
-                            tilted_iso_alignment,
-                            camera_scale_factor,
-                        )
-                    } else {
-                        camera.create_ortho_ray2(
-                            vec2f(xx / width_f, (height_f - yy) / height_f),
-                            vec2f(width_f, height_f),
-                            vec2f(region.width as f32, region.height as f32),
-                            vec2f(rng.gen(), rng.gen()),
-                            camera_scale_factor,
-                        )
-                    };
+                    let mut ray = region.render_settings.create_ray(
+                        vec2f(xx / width_f, (height_f - yy) / height_f),
+                        self.position,
+                        vec2f(width_f, height_f),
+                        vec2f(region.width as f32, region.height as f32),
+                        vec2f(rng.gen(), rng.gen()),
+                        &render_settings_params,
+                    );
+
+                    // let mut ray = if camera_type == CameraType::TiltedIso {
+                    //     camera.create_tilted_isometric_ray2(
+                    //         vec2f(xx / width_f, (height_f - yy) / height_f),
+                    //         vec2f(width_f, height_f),
+                    //         vec2f(region.width as f32, region.height as f32),
+                    //         vec2f(rng.gen(), rng.gen()),
+                    //         tilted_iso_alignment,
+                    //         camera_scale_factor,
+                    //     )
+                    // } else {
+                    //     camera.create_ortho_ray2(
+                    //         vec2f(xx / width_f, (height_f - yy) / height_f),
+                    //         vec2f(width_f, height_f),
+                    //         vec2f(region.width as f32, region.height as f32),
+                    //         vec2f(rng.gen(), rng.gen()),
+                    //         camera_scale_factor,
+                    //     )
+                    // };
 
                     // let plane_normal = vec3f(0.0, 1.0, 0.0);
                     // let denom = dot(plane_normal, ray.d);
@@ -2465,7 +2479,7 @@ impl Renderer {
 
         let camera_type = region.camera_type;
         let mut first_person_height = 0.5;
-        let mut top_down_height = 14.0;
+        let mut top_down_height = 7.0;
         let mut top_down_x_offset = -1.0;
         let mut top_down_z_offset = 1.0;
         let mut first_person_fov = 70.0;
