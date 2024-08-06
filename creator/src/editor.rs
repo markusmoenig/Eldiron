@@ -513,28 +513,20 @@ impl TheTrait for Editor {
                     size,
                     tile,
                     sample,
-                    albedo,
-                    sky_abso,
-                    distance,
-                    lights,
+                    tile_data,
                     grid_map,
                 ) => {
                     if let Some(region) = self.project.get_region_mut(&id) {
-                        region.prerendered.apply_tile(
+                        region.prerendered.merge_tile_data(
                             region.tile_size,
                             &size,
                             &tile,
                             sample,
-                            &albedo,
-                            &sky_abso,
-                            &distance,
-                            &lights,
+                            &tile_data,
                             &grid_map,
                         );
-                        self.server.set_prerendered_tile(
-                            id, &size, &tile, sample, &albedo, &sky_abso, &distance, &lights,
-                            &grid_map,
-                        );
+                        self.server
+                            .set_prerendered_tile(id, &size, &tile, sample, &tile_data, &grid_map);
                     }
                     redraw = true;
                 }

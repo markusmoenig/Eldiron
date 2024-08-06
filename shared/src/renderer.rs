@@ -121,18 +121,12 @@ impl Renderer {
         let tile_size = region.tile_size;
 
         tiles.par_iter_mut().for_each(|tile| {
-            let mut buffer = TheRGBBuffer::new(TheDim::sized(tile_size, tile_size));
-            let mut sky_abso_buffer = TheRGBBuffer::new(TheDim::sized(tile_size, tile_size));
-            let mut rng = rand::thread_rng();
-
-            let mut distance_buffer: TheFlattenedMap<half::f16> =
-                TheFlattenedMap::new(tile_size, tile_size);
+            let mut tile_data = PreRenderedTileData::new(tile_size, tile_size);
 
             let mut grid_map_buffer: TheFlattenedMap<(half::f16, half::f16)> =
                 TheFlattenedMap::new(tile_size, tile_size);
 
-            let mut lights_buffer: TheFlattenedMap<Vec<PreRenderedLight>> =
-                TheFlattenedMap::new(tile_size, tile_size);
+            let mut rng = rand::thread_rng();
 
             let mut tile_is_empty = true;
 
@@ -417,15 +411,19 @@ impl Renderer {
                         if !direct_light_sample.x.is_nan() {
                             lights.push(PreRenderedLight {
                                 pos: light_grid,
-                                brdf: direct_light_sample,
+                                brdf: (
+                                    half::f16::from_f32(direct_light_sample.x),
+                                    half::f16::from_f32(direct_light_sample.y),
+                                    half::f16::from_f32(direct_light_sample.z),
+                                ),
                             });
                         }
                     }
 
-                    buffer.set_pixel_vec3f(w, h, &radiance);
-                    sky_abso_buffer.set_pixel_vec3f(w, h, &throughput);
-                    distance_buffer.set((w, h), half::f16::from_f32(dist));
-                    lights_buffer.set((w, h), lights);
+                    tile_data.albedo.set_pixel_vec3f(w, h, &radiance);
+                    tile_data.sky_absorption.set_pixel_vec3f(w, h, &throughput);
+                    tile_data.distance.set((w, h), half::f16::from_f32(dist));
+                    tile_data.lights.set((w, h), lights);
 
                     // -- End
                 }
@@ -460,10 +458,11 @@ impl Renderer {
                     size,
                     *tile,
                     sample as u16,
-                    buffer,
-                    sky_abso_buffer,
-                    distance_buffer,
-                    lights_buffer,
+                    if !tile_is_empty {
+                        Some(tile_data)
+                    } else {
+                        None
+                    },
                     grid_map_buffer,
                 ))
                 .unwrap();
@@ -1296,49 +1295,60 @@ impl Renderer {
         //let normal = Vec3f::zero();
         let mut hit = false;
 
-        if let Some(c) = region.prerendered.albedo.at_vec3(pos) {
-            color = c;
+        let tile_pos = vec2i(pos.x / region.tile_size, pos.y / region.tile_size);
+        let pixel_pos = vec2i(pos.x % region.tile_size, pos.y % region.tile_size);
 
-            if let Some(abso) = region.prerendered.sky_absorption.at_vec3(pos) {
-                // color.x += powf(settings.daylight.x * abso.x, 1.0 / 2.2);
-                // color.y += powf(settings.daylight.y * abso.y, 1.0 / 2.2);
-                // color.z += powf(settings.daylight.z * abso.z, 1.0 / 2.2);
+        if let Some(tile_data) = &region.prerendered.tiles.get(&tile_pos) {
+            if let Some(c) = tile_data.albedo.at_vec3(pixel_pos) {
+                color = c;
 
-                color.x += settings.daylight.x * abso.x;
-                color.y += settings.daylight.y * abso.y;
-                color.z += settings.daylight.z * abso.z;
+                if let Some(abso) = tile_data.sky_absorption.at_vec3(pixel_pos) {
+                    // color.x += powf(settings.daylight.x * abso.x, 1.0 / 2.2);
+                    // color.y += powf(settings.daylight.y * abso.y, 1.0 / 2.2);
+                    // color.z += powf(settings.daylight.z * abso.z, 1.0 / 2.2);
 
-                if let Some(d) = region.prerendered.distance.get((pos.x, pos.y)) {
-                    dist = d.to_f32();
-                }
+                    color.x += settings.daylight.x * abso.x;
+                    color.y += settings.daylight.y * abso.y;
+                    color.z += settings.daylight.z * abso.z;
 
-                if let Some(lights) = region.prerendered.lights.get((pos.x, pos.y)) {
-                    for light in lights.iter() {
-                        fn hash_u32(seed: u32) -> u32 {
-                            let mut state = seed;
-                            state = (state ^ 61) ^ (state >> 16);
-                            state = state.wrapping_add(state << 3);
-                            state ^= state >> 4;
-                            state = state.wrapping_mul(0x27d4eb2d);
-                            state ^= state >> 15;
-                            state
+                    if let Some(d) = tile_data.distance.get((pixel_pos.x, pixel_pos.y)) {
+                        dist = d.to_f32();
+                    }
+
+                    if let Some(lights) = tile_data.lights.get((pixel_pos.x, pixel_pos.y)) {
+                        for light in lights.iter() {
+                            fn hash_u32(seed: u32) -> u32 {
+                                let mut state = seed;
+                                state = (state ^ 61) ^ (state >> 16);
+                                state = state.wrapping_add(state << 3);
+                                state ^= state >> 4;
+                                state = state.wrapping_mul(0x27d4eb2d);
+                                state ^= state >> 15;
+                                state
+                            }
+
+                            fn flicker_value(anim_counter: u32, intensity: f32) -> f32 {
+                                let hash = hash_u32(anim_counter);
+                                let flicker_value = (hash as f32 / u32::MAX as f32).clamp(0.0, 1.0);
+
+                                let flicker_range = intensity * (flicker_value - 0.5) * 2.0;
+                                (1.0 + flicker_range).clamp(0.0, 1.0)
+                            }
+
+                            let brdf = vec3f(
+                                light.brdf.0.to_f32(),
+                                light.brdf.1.to_f32(),
+                                light.brdf.2.to_f32(),
+                            );
+
+                            let l = brdf * flicker_value(settings.anim_counter as u32, 0.2);
+                            color += l;
                         }
-
-                        fn flicker_value(anim_counter: u32, intensity: f32) -> f32 {
-                            let hash = hash_u32(anim_counter);
-                            let flicker_value = (hash as f32 / u32::MAX as f32).clamp(0.0, 1.0);
-
-                            let flicker_range = intensity * (flicker_value - 0.5) * 2.0;
-                            (1.0 + flicker_range).clamp(0.0, 1.0)
-                        }
-
-                        let l = light.brdf * flicker_value(settings.anim_counter as u32, 0.2);
-                        color += l;
                     }
                 }
-            }
 
-            hit = true;
+                hit = true;
+            }
         }
 
         // Test against characters

@@ -9,7 +9,7 @@ use theframework::prelude::*;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PreRenderedLight {
     pub pos: Vec2i,
-    pub brdf: Vec3f,
+    pub brdf: (half::f16, half::f16, half::f16),
 }
 
 /// Contains the data for a prerendered tile.
@@ -29,8 +29,7 @@ impl PreRenderedTileData {
             albedo: TheRGBBuffer::new(TheDim::sized(width, height)),
             sky_absorption: TheRGBBuffer::new(TheDim::sized(width, height)),
             distance: TheFlattenedMap::new(width, height),
-
-            lights: TheFlattenedMap::new(0, 0),
+            lights: TheFlattenedMap::new(width, height),
         }
     }
 }
@@ -45,19 +44,12 @@ fn default_prerendered_lights() -> TheFlattenedMap<Vec<PreRenderedLight>> {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PreRendered {
-    pub albedo: TheRGBBuffer,
-    pub sky_absorption: TheRGBBuffer,
-    pub distance: TheFlattenedMap<half::f16>,
-
     #[serde(default)]
     #[serde(with = "vectorize")]
     pub tiles: FxHashMap<Vec2i, PreRenderedTileData>,
 
     #[serde(default = "default_grid_map")]
     pub grid_map: TheFlattenedMap<(half::f16, half::f16)>,
-
-    #[serde(default = "default_prerendered_lights")]
-    pub lights: TheFlattenedMap<Vec<PreRenderedLight>>,
 
     #[serde(default)]
     #[serde(with = "vectorize")]
@@ -71,59 +63,34 @@ impl Default for PreRendered {
 }
 
 impl PreRendered {
-    pub fn new(albedo: TheRGBBuffer, sky_absorption: TheRGBBuffer) -> Self {
+    pub fn new(width: i32, height: i32) -> Self {
         Self {
-            distance: TheFlattenedMap::new(albedo.dim().width, albedo.dim().height),
-            lights: TheFlattenedMap::new(albedo.dim().width, albedo.dim().height),
-            grid_map: TheFlattenedMap::new(albedo.dim().width, albedo.dim().height),
+            grid_map: TheFlattenedMap::new(width, height),
 
             tiles: FxHashMap::default(),
-
-            albedo,
-            sky_absorption,
-
             tile_samples: FxHashMap::default(),
         }
     }
 
     pub fn zero() -> Self {
         Self {
-            albedo: TheRGBBuffer::default(),
-            sky_absorption: TheRGBBuffer::default(),
-            distance: TheFlattenedMap::new(0, 0),
-
             tiles: FxHashMap::default(),
-
             grid_map: TheFlattenedMap::new(0, 0),
-
-            lights: TheFlattenedMap::new(0, 0),
-
             tile_samples: FxHashMap::default(),
         }
     }
 
     pub fn clear(&mut self) {
-        self.albedo.fill([0, 0, 0]);
-        self.sky_absorption.fill([0, 0, 0]);
-        self.distance.clear();
-        self.lights.clear();
+        self.tiles.clear();
         self.tile_samples.clear();
         //self.grid_map.clear();
     }
 
     pub fn resize(&mut self, width: i32, height: i32) {
-        self.albedo.resize(width, height);
-        self.sky_absorption.resize(width, height);
-        self.distance.resize(width, height);
-        self.lights.resize(width, height);
         self.grid_map.resize(width, height);
     }
 
     pub fn invalidate(&mut self) {
-        self.albedo.fill([0, 0, 0]);
-        self.sky_absorption.fill([0, 0, 0]);
-        self.distance.clear();
-        self.lights.clear();
         //self.grid_map.clear();
     }
 
@@ -145,16 +112,13 @@ impl PreRendered {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn apply_tile(
+    pub fn merge_tile_data(
         &mut self,
         grid_size: i32,
         size: &Vec2i,
         tile: &Vec2i,
         sample: u16,
-        albedo: &TheRGBBuffer,
-        sky_absorption: &TheRGBBuffer,
-        distance: &TheFlattenedMap<half::f16>,
-        lights: &TheFlattenedMap<Vec<PreRenderedLight>>,
+        tile_data: &Option<PreRenderedTileData>,
         grid_map: &TheFlattenedMap<(half::f16, half::f16)>,
     ) {
         self.resize(size.x, size.y);
@@ -164,71 +128,87 @@ impl PreRendered {
 
         let s = 1.0 / (sample as f32 + 1.0);
 
-        for h in 0..grid_size {
-            for w in 0..grid_size {
-                // albedo
-                if let Some(existing) = self.albedo.at_vec3(vec2i(w + tile_x, h + tile_y)) {
-                    if let Some(new_samp) = albedo.at_vec3(vec2i(w, h)) {
-                        let p = lerp(existing, new_samp, s);
-                        self.albedo.set_pixel_vec3f(w + tile_x, h + tile_y, &p);
-                    }
-                }
-
-                // sky abso
-                if let Some(existing) = self.sky_absorption.at_vec3(vec2i(w + tile_x, h + tile_y)) {
-                    if let Some(new_samp) = sky_absorption.at_vec3(vec2i(w, h)) {
-                        let p = lerp(existing, new_samp, s);
-                        self.sky_absorption
-                            .set_pixel_vec3f(w + tile_x, h + tile_y, &p);
-                    }
-                }
-
-                // distance
-                if let Some(new_samp) = distance.get((w, h)) {
-                    if let Some(existing) = self.distance.get_mut((w + tile_x, h + tile_y)) {
-                        let d = lerp(existing.to_f32(), new_samp.to_f32(), s);
-                        *existing = half::f16::from_f32(d);
-                    } else {
-                        self.distance.set((w + tile_x, h + tile_y), *new_samp);
-                    }
-                }
-
-                // lights
-                if let Some(new_samp) = lights.get((w, h)) {
-                    if let Some(existing) = self.lights.get_mut((w + tile_x, h + tile_y)) {
-                        for nl in new_samp {
-                            for ex in existing.iter_mut() {
-                                if nl.pos == ex.pos {
-                                    let e = ex.brdf;
-                                    let n = nl.brdf;
-
-                                    ex.brdf = lerp(e, n, s);
-                                }
+        if let Some(existing_tile) = self.tiles.get_mut(tile) {
+            if let Some(tile_data) = &tile_data {
+                for h in 0..grid_size {
+                    for w in 0..grid_size {
+                        // albedo
+                        if let Some(existing) = existing_tile.albedo.at_vec3(vec2i(w, h)) {
+                            if let Some(new_samp) = tile_data.albedo.at_vec3(vec2i(w, h)) {
+                                let p = lerp(existing, new_samp, s);
+                                existing_tile.albedo.set_pixel_vec3f(w, h, &p);
                             }
                         }
-                    } else {
-                        self.lights.set((w + tile_x, h + tile_y), new_samp.clone());
+
+                        // sky abso
+                        if let Some(existing) = existing_tile.sky_absorption.at_vec3(vec2i(w, h)) {
+                            if let Some(new_samp) = tile_data.sky_absorption.at_vec3(vec2i(w, h)) {
+                                let p = lerp(existing, new_samp, s);
+                                existing_tile.sky_absorption.set_pixel_vec3f(w, h, &p);
+                            }
+                        }
+
+                        // distance
+                        if let Some(new_samp) = tile_data.distance.get((w, h)) {
+                            if let Some(existing) = existing_tile.distance.get_mut((w, h)) {
+                                let d = lerp(existing.to_f32(), new_samp.to_f32(), s);
+                                *existing = half::f16::from_f32(d);
+                            } else {
+                                existing_tile.distance.set((w, h), *new_samp);
+                            }
+                        }
+
+                        // lights
+                        if let Some(new_samp) = tile_data.lights.get((w, h)) {
+                            if let Some(existing) = existing_tile.lights.get_mut((w, h)) {
+                                for nl in new_samp {
+                                    for ex in existing.iter_mut() {
+                                        if nl.pos == ex.pos {
+                                            let e = vec3f(
+                                                ex.brdf.0.to_f32(),
+                                                ex.brdf.1.to_f32(),
+                                                ex.brdf.2.to_f32(),
+                                            );
+                                            let n = vec3f(
+                                                nl.brdf.0.to_f32(),
+                                                nl.brdf.1.to_f32(),
+                                                nl.brdf.2.to_f32(),
+                                            );
+
+                                            let rc = lerp(e, n, s);
+                                            ex.brdf = (
+                                                half::f16::from_f32(rc.x),
+                                                half::f16::from_f32(rc.y),
+                                                half::f16::from_f32(rc.z),
+                                            );
+                                        }
+                                    }
+                                }
+                            } else {
+                                existing_tile.lights.set((w, h), new_samp.clone());
+                            }
+                        }
                     }
                 }
+            }
+        } else if let Some(tile_data) = &tile_data {
+            self.tiles.insert(*tile, tile_data.clone());
+        }
 
-                // gridmap
-                // if let Some(new_samp) = grid_map.get((w, h)) {
-                //     if let Some(existing) = self.grid_map.get_mut((w + tile_x, h + tile_y)) {
-                //         let x = lerp(existing.0.to_f32(), new_samp.0.to_f32(), s);
-                //         let y = lerp(existing.1.to_f32(), new_samp.1.to_f32(), s);
-                //         *existing = (half::f16::from_f32(x), half::f16::from_f32(y));
-                //     } else {
-                //         self.grid_map.set((w + tile_x, h + tile_y), *new_samp);
-                //     }
-                // }
-
+        // Always copy the grid_map
+        for h in 0..grid_size {
+            for w in 0..grid_size {
                 if let Some(new_samp) = grid_map.get((w, h)) {
                     self.grid_map.set((w + tile_x, h + tile_y), *new_samp);
                 }
             }
         }
 
-        self.tile_samples.insert(*tile, sample);
+        if tile_data.is_some() {
+            self.tile_samples.insert(*tile, sample);
+        } else {
+            self.tile_samples.remove(tile);
+        }
     }
 
     // pub fn get_pixel_coord(&self, mut pos: Vec2f) -> Option<Vec2i> {

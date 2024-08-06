@@ -782,22 +782,16 @@ impl Server {
         size: &Vec2i,
         tile: &Vec2i,
         sample: u16,
-        albedo: &TheRGBBuffer,
-        sky_abso: &TheRGBBuffer,
-        distance: &TheFlattenedMap<half::f16>,
-        lights: &TheFlattenedMap<Vec<PreRenderedLight>>,
+        tile_data: &Option<PreRenderedTileData>,
         grid_map: &TheFlattenedMap<(half::f16, half::f16)>,
     ) {
         if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
-            region.prerendered.apply_tile(
+            region.prerendered.merge_tile_data(
                 region.tile_size,
                 size,
                 tile,
                 sample,
-                albedo,
-                sky_abso,
-                distance,
-                lights,
+                tile_data,
                 grid_map,
             );
         }
