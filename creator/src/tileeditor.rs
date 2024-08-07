@@ -297,34 +297,6 @@ impl TileEditor {
             //     if id.name == "Region Editor View" {
             //         redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx, false);
             //     }
-            // }
-            TheEvent::ContextMenuSelected(widget_id, item_id) => {
-                if widget_id.name == "Camera Button" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if item_id.name == "Camera First Person" {
-                            region.camera_type = CameraType::FirstPerson;
-                        } else if item_id.name == "Camera Top Down" {
-                            region.camera_type = CameraType::TopDown;
-                        } else if item_id.name == "Camera Tilted" {
-                            region.camera_type = CameraType::TiltedIso;
-                        }
-                        region.prerendered.invalidate();
-                        server.update_region(region);
-                        PRERENDERTHREAD.lock().unwrap().restart();
-                        redraw = true;
-                    }
-                }
-                // else if item_id.name == "Create Area" {
-                //     open_text_dialog(
-                //         "New Area Name",
-                //         "Area Name",
-                //         "New Area",
-                //         Uuid::new_v4(),
-                //         ui,
-                //         ctx,
-                //     );
-                // }
-            }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "2D3D Group" {
                     if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {

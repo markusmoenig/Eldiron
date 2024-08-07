@@ -4,6 +4,7 @@ use theframework::prelude::*;
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum RegionFXNodeRole {
     TiltedIsoCamera,
+    TopDownIsoCamera,
     Renderer,
 }
 
@@ -39,6 +40,11 @@ impl RegionFXNode {
                     TheValue::TextList(0, vec![str!("Right"), str!("Left")]),
                 );
             }
+            TopDownIsoCamera => {
+                coll.set("Height", TheValue::FloatRange(4.0, 1.0..=10.0));
+                coll.set("X Offset", TheValue::FloatRange(-1.0, -5.0..=5.0));
+                coll.set("Z Offset", TheValue::FloatRange(1.0, -5.0..=5.0));
+            }
             Renderer => {}
         }
 
@@ -58,6 +64,7 @@ impl RegionFXNode {
     pub fn name(&self) -> String {
         match self.role {
             TiltedIsoCamera => str!("Tilted Iso Camera"),
+            TopDownIsoCamera => str!("Top Down Iso Camera"),
             Renderer => str!("Renderer"),
         }
     }
@@ -65,6 +72,7 @@ impl RegionFXNode {
     pub fn nodes() -> Vec<Self> {
         vec![
             Self::new(RegionFXNodeRole::TiltedIsoCamera),
+            Self::new(RegionFXNodeRole::TopDownIsoCamera),
             Self::new(RegionFXNodeRole::Renderer),
         ]
     }
@@ -90,6 +98,11 @@ impl RegionFXNode {
                 params.push(coll.get_f32_default("Height", 0.0));
                 params.push(coll.get_i32_default("Alignment", 0) as f32);
             }
+            RegionFXNodeRole::TopDownIsoCamera => {
+                params.push(coll.get_f32_default("Height", 0.0));
+                params.push(coll.get_f32_default("X Offset", -1.0));
+                params.push(coll.get_f32_default("Z Offset", 1.0));
+            }
             RegionFXNodeRole::Renderer => {} //_ => {}
         }
 
@@ -98,7 +111,7 @@ impl RegionFXNode {
 
     pub fn inputs(&self) -> Vec<TheNodeTerminal> {
         match self.role {
-            TiltedIsoCamera => {
+            TiltedIsoCamera | TopDownIsoCamera => {
                 vec![]
             }
             Renderer => {
@@ -113,7 +126,7 @@ impl RegionFXNode {
 
     pub fn outputs(&self) -> Vec<TheNodeTerminal> {
         match self.role {
-            TiltedIsoCamera => {
+            TiltedIsoCamera | TopDownIsoCamera => {
                 vec![TheNodeTerminal {
                     name: str!("cam"),
                     role: str!("Camera"),
@@ -176,6 +189,41 @@ impl RegionFXNode {
                         -0.35,
                     )),
                 )
+            }
+            TopDownIsoCamera => {
+                let height = params[0];
+
+                let mut ro = vec3f(position.x + 0.5, 0.0, position.z + 0.5);
+                let rd = ro;
+
+                ro.y = height;
+                ro.x += params[1];
+                ro.z += params[2];
+
+                let scale_factor = height / 1.5;
+
+                let pixel_size = Vec2f::new(1.0 / size.x, 1.0 / size.y);
+
+                let cam_origin = ro;
+                let cam_look_at = rd;
+
+                let half_width = tiles.x;
+                let half_height = tiles.y;
+
+                let up_vector = Vec3f::new(0.0, 1.0, 0.0);
+
+                let w = normalize(cam_origin - cam_look_at);
+                let u = cross(up_vector, w);
+                let v = cross(w, u);
+
+                let horizontal = u * half_width * scale_factor;
+                let vertical = v * half_height * scale_factor;
+
+                let mut out_origin = cam_origin;
+                out_origin += horizontal * (pixel_size.x * offset.x + uv.x - 0.5);
+                out_origin += vertical * (pixel_size.y * offset.y + uv.y - 0.5);
+
+                Ray::new(out_origin, normalize(-w))
             }
             _ => Ray::new(Vec3f::zero(), Vec3f::zero()),
         }

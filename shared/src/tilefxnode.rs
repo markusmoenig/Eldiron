@@ -1,4 +1,4 @@
-use crate::prelude::*;
+//use crate::prelude::*;
 use rayon::prelude::*;
 use theframework::prelude::*;
 
@@ -30,9 +30,9 @@ pub struct TileFXNode {
 impl TileFXNode {
     pub fn new(role: TileFXNodeRole) -> Self {
         let mut coll = TheCollection::named(str!("Props"));
-        let mut supports_preview = false;
-        let mut preview_is_open = false;
-        let mut resolve_branches = false;
+        let supports_preview = false;
+        let preview_is_open = false;
+        let resolve_branches = false;
 
         match role {
             Brightness => {
@@ -49,8 +49,6 @@ impl TileFXNode {
                 );
                 coll.set("Mortar Sub", TheValue::FloatRange(0.05, 0.0..=1.0));
                 coll.set("Hash Weight", TheValue::FloatRange(0.0, 0.0..=1.0));
-                supports_preview = true;
-                preview_is_open = true;
             }
         }
 
@@ -95,6 +93,7 @@ impl TileFXNode {
 
         let coll = self.collection();
 
+        #[allow(clippy::single_match)]
         match self.role {
             TileFXNodeRole::Brightness => {
                 params.push(coll.get_f32_default("Add", 0.0));
@@ -104,8 +103,7 @@ impl TileFXNode {
                 params.push(coll.get_i32_default("Mortar", 0) as f32);
                 params.push(coll.get_f32_default("Mortar Sub", 0.05));
                 params.push(coll.get_f32_default("Hash Weight", 0.0));
-            }
-            _ => {}
+            } //_ => {}
         }
 
         params
@@ -128,16 +126,16 @@ impl TileFXNode {
     }
 
     /// Computes the node.
-    pub fn compute(
-        &self,
-        hit: &mut Hit,
-        palette: &ThePalette,
-        textures: &FxHashMap<Uuid, TheRGBATile>,
-        resolved: Vec<Hit>,
-        params: &[f32],
-    ) -> Vec4f {
-        Vec4f::zero()
-    }
+    // pub fn compute(
+    //     &self,
+    //     hit: &mut Hit,
+    //     palette: &ThePalette,
+    //     textures: &FxHashMap<Uuid, TheRGBATile>,
+    //     resolved: Vec<Hit>,
+    //     params: &[f32],
+    // ) -> Vec4f {
+    //     Vec4f::zero()
+    // }
 
     /// Creates a new node from a name.
     pub fn new_from_name(name: String) -> Self {
@@ -185,7 +183,7 @@ impl TileFXNode {
         let height = 104;
 
         let mut buffer = TheRGBABuffer::new(TheDim::sized(width as i32, height));
-        let collection = self.collection();
+        //let collection = self.collection();
 
         buffer
             .pixels_mut()
@@ -195,15 +193,15 @@ impl TileFXNode {
                 for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
                     let i = j * width + i;
 
-                    let xx = (i % width) as f32;
-                    let yy = (i / width) as f32;
+                    let _xx = (i % width) as f32;
+                    let _yy = (i / width) as f32;
 
-                    let mut color = Vec4f::zero();
+                    let color = Vec4f::zero();
 
-                    match &self.role {
-                        Brightness => {}
-                        _ => {}
-                    }
+                    // match &self.role {
+                    //     Brightness => {}
+                    //     _ => {}
+                    // }
 
                     pixel.copy_from_slice(&TheColor::from_vec4f(color).to_u8_array());
                 }

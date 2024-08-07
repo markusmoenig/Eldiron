@@ -68,37 +68,14 @@ impl Renderer {
         let width_f = width as f32;
         let height_f = height as f32;
 
-        let mut max_render_distance = 50;
-        if let Some(v) = region.regionfx.get(
-            str!("Distance / Fog"),
-            str!("Maximum Render Distance"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_i32() {
-                max_render_distance = value;
-            }
-        }
-
-        let mut tilted_iso_alignment = 0;
-        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
-            str!("Camera"),
-            str!("Tilted Iso Alignment"),
-            &settings.time,
-            TheInterpolation::Switch,
-        ) {
-            tilted_iso_alignment = value;
-        }
+        let max_render_distance = 50;
+        // TODO: Get Setting from Render Node
 
         let update = RegionUpdate::default();
 
         // Fill the code level with the blocking info and collect lights
         let mut level = Level::new(region.width, region.height, settings.time);
         region.fill_code_level(&mut level, &self.textures, &update);
-
-        let (ro, rd, fov, _, camera_type, camera_scale_factor) =
-            self.create_camera_setup(region, settings);
-        let camera = Camera::new(ro, rd, fov);
 
         // Collect the material params
         let mut material_params: FxHashMap<Uuid, Vec<Vec<f32>>> = FxHashMap::default();
@@ -115,8 +92,7 @@ impl Renderer {
         }
 
         // Collect the render settings params
-        let render_settings_params: Vec<Vec<f32>> =
-            region.render_settings.load_parameters(&settings.time);
+        let render_settings_params: Vec<Vec<f32>> = region.regionfx.load_parameters(&settings.time);
 
         //
         let prerendered_mutex = Arc::new(Mutex::new(prerendered));
@@ -143,24 +119,14 @@ impl Renderer {
                     let yy = y as f32;
 
                     {
-                        let ray = if camera_type == CameraType::TiltedIso {
-                            camera.create_tilted_isometric_ray2(
-                                vec2f(xx / width_f, (height_f - yy) / height_f),
-                                vec2f(width_f, height_f),
-                                vec2f(region.width as f32, region.height as f32),
-                                vec2f(0.0, 0.0),
-                                tilted_iso_alignment,
-                                camera_scale_factor,
-                            )
-                        } else {
-                            camera.create_ortho_ray2(
-                                vec2f(xx / width_f, (height_f - yy) / height_f),
-                                vec2f(width_f, height_f),
-                                vec2f(region.width as f32, region.height as f32),
-                                vec2f(0.0, 0.0),
-                                camera_scale_factor,
-                            )
-                        };
+                        let ray = region.regionfx.create_ray(
+                            vec2f(xx / width_f, (height_f - yy) / height_f),
+                            self.position,
+                            vec2f(width_f, height_f),
+                            vec2f(region.width as f32, region.height as f32),
+                            vec2f(0.0, 0.0),
+                            &render_settings_params,
+                        );
 
                         let plane_normal = vec3f(0.0, 1.0, 0.0);
                         let denom = dot(plane_normal, ray.d);
@@ -181,7 +147,7 @@ impl Renderer {
                     // Based on GLSL_pathtracer (https://github.com/knightcrawler25/GLSL-PathTracer)
                     //
 
-                    let mut ray = region.render_settings.create_ray(
+                    let mut ray = region.regionfx.create_ray(
                         vec2f(xx / width_f, (height_f - yy) / height_f),
                         self.position,
                         vec2f(width_f, height_f),
@@ -189,25 +155,6 @@ impl Renderer {
                         vec2f(rng.gen(), rng.gen()),
                         &render_settings_params,
                     );
-
-                    // let mut ray = if camera_type == CameraType::TiltedIso {
-                    //     camera.create_tilted_isometric_ray2(
-                    //         vec2f(xx / width_f, (height_f - yy) / height_f),
-                    //         vec2f(width_f, height_f),
-                    //         vec2f(region.width as f32, region.height as f32),
-                    //         vec2f(rng.gen(), rng.gen()),
-                    //         tilted_iso_alignment,
-                    //         camera_scale_factor,
-                    //     )
-                    // } else {
-                    //     camera.create_ortho_ray2(
-                    //         vec2f(xx / width_f, (height_f - yy) / height_f),
-                    //         vec2f(width_f, height_f),
-                    //         vec2f(region.width as f32, region.height as f32),
-                    //         vec2f(rng.gen(), rng.gen()),
-                    //         camera_scale_factor,
-                    //     )
-                    // };
 
                     // let plane_normal = vec3f(0.0, 1.0, 0.0);
                     // let denom = dot(plane_normal, ray.d);
@@ -1124,61 +1071,14 @@ impl Renderer {
             );
         }
 
-        settings.pbr = false;
-        if let Some(v) = region.regionfx.get(
-            str!("Renderer"),
-            str!("Shading"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_i32() {
-                if value == 1 {
-                    settings.pbr = true;
-                }
-            }
-        }
-
-        let mut max_render_distance = 20;
-        if let Some(v) = region.regionfx.get(
-            str!("Distance / Fog"),
-            str!("Maximum Render Distance"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_i32() {
-                max_render_distance = value;
-            }
-        }
-
-        let mut saturation = None;
-        if let Some(v) = region.regionfx.get(
-            str!("Saturation"),
-            str!("Saturation"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_f32() {
-                saturation = Some(value);
-            }
-        }
-
-        let mut tilted_iso_alignment = 0;
-        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
-            str!("Camera"),
-            str!("Tilted Iso Alignment"),
-            &settings.time,
-            TheInterpolation::Switch,
-        ) {
-            tilted_iso_alignment = value;
-        }
+        let max_render_distance = 20;
 
         // Fill the code level with the blocking info and collect lights
         let mut level = Level::new(region.width, region.height, settings.time);
         region.fill_code_level(&mut level, &self.textures, update);
 
-        let (ro, rd, fov, camera_mode, camera_type, camera_scale_factor) =
-            self.create_camera_setup(region, settings);
-        let camera = Camera::new(ro, rd, fov);
+        // Collect the render settings params
+        let render_settings_params: Vec<Vec<f32>> = region.regionfx.load_parameters(&settings.time);
 
         let ppt = region.tile_size as f32;
 
@@ -1187,24 +1087,20 @@ impl Renderer {
 
         // Find the location in the prerendered map
 
-        let ray = if camera_type == CameraType::TiltedIso {
-            camera.create_tilted_isometric_ray2(
-                vec2f(0.5, 0.5),
-                vec2f(width_f, height_f),
-                vec2f(width_f / ppt, height_f / ppt),
-                vec2f(0.5, 0.5),
-                tilted_iso_alignment,
-                camera_scale_factor,
-            )
+        let position = if settings.center_on_character.is_some() {
+            settings.center_3d + self.position
         } else {
-            camera.create_ortho_ray2(
-                vec2f(0.5, 0.5),
-                vec2f(width_f, height_f),
-                vec2f(width_f / ppt, height_f / ppt),
-                vec2f(0.5, 0.5),
-                camera_scale_factor,
-            )
+            self.position
         };
+
+        let ray = region.regionfx.create_ray(
+            vec2f(0.5, 0.5),
+            position,
+            vec2f(width_f, height_f),
+            vec2f(width_f / ppt, height_f / ppt),
+            vec2f(0.0, 0.0),
+            &render_settings_params,
+        );
 
         let plane_normal = vec3f(0.0, 1.0, 0.0);
         let denom = dot(plane_normal, ray.d);
@@ -1237,33 +1133,16 @@ impl Renderer {
                     let xx = (i % width) as f32;
                     let yy = (i / width) as f32;
 
-                    let ray = if camera_type == CameraType::TiltedIso {
-                        camera.create_tilted_isometric_ray2(
-                            vec2f(xx / width_f, yy / height_f),
-                            vec2f(width_f, height_f),
-                            vec2f(width_f / ppt, height_f / ppt),
-                            vec2f(1.0, 1.0),
-                            tilted_iso_alignment,
-                            camera_scale_factor,
-                        )
-                    } else if camera_mode == CameraMode::Pinhole {
-                        camera.create_ray(
-                            vec2f(xx / width_f, yy / height_f),
-                            vec2f(width_f, height_f),
-                            vec2f(1.0, 1.0),
-                        )
-                    } else {
-                        camera.create_ortho_ray2(
-                            vec2f(xx / width_f, yy / height_f),
-                            vec2f(width_f, height_f),
-                            vec2f(width_f / ppt, height_f / ppt),
-                            vec2f(1.0, 1.0),
-                            camera_scale_factor,
-                        )
-                    };
+                    let ray = region.regionfx.create_ray(
+                        vec2f(xx / width_f, yy / height_f),
+                        position,
+                        vec2f(width_f, height_f),
+                        vec2f(width_f / ppt, height_f / ppt),
+                        vec2f(0.0, 0.0),
+                        &render_settings_params,
+                    );
 
                     // --
-                    //
 
                     let pos = vec2i(start_x + xx as i32, start_y + (height_f - yy) as i32);
 
@@ -1273,9 +1152,7 @@ impl Renderer {
                         region,
                         update,
                         settings,
-                        camera_type,
                         &level,
-                        &saturation,
                         max_render_distance,
                         palette,
                     ));
@@ -1295,9 +1172,7 @@ impl Renderer {
         region: &Region,
         update: &RegionUpdate,
         settings: &RegionDrawSettings,
-        _camera_type: CameraType,
         _level: &Level,
-        saturation: &Option<f32>,
         _max_render_distance: i32,
         _palette: &ThePalette,
     ) -> RGBA {
@@ -1552,11 +1427,11 @@ impl Renderer {
             }
             }*/
 
-        if let Some(saturation) = saturation {
-            let mut hsl = TheColor::from_vec3f(color).as_hsl();
-            hsl.y *= saturation;
-            color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec3f();
-        }
+        // if let Some(saturation) = saturation {
+        //     let mut hsl = TheColor::from_vec3f(color).as_hsl();
+        //     hsl.y *= saturation;
+        //     color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec3f();
+        // }
 
         // Show hover
         if let Some(hover) = self.hover_pos {
@@ -1617,53 +1492,7 @@ impl Renderer {
             );
         }
 
-        settings.pbr = false;
-        if let Some(v) = region.regionfx.get(
-            str!("Renderer"),
-            str!("Shading"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_i32() {
-                if value == 1 {
-                    settings.pbr = true;
-                }
-            }
-        }
-
-        let mut max_render_distance = 20;
-        if let Some(v) = region.regionfx.get(
-            str!("Distance / Fog"),
-            str!("Maximum Render Distance"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_i32() {
-                max_render_distance = value;
-            }
-        }
-
-        let mut saturation = None;
-        if let Some(v) = region.regionfx.get(
-            str!("Saturation"),
-            str!("Saturation"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_f32() {
-                saturation = Some(value);
-            }
-        }
-
-        let mut tilted_iso_alignment = 0;
-        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
-            str!("Camera"),
-            str!("Tilted Iso Alignment"),
-            &settings.time,
-            TheInterpolation::Switch,
-        ) {
-            tilted_iso_alignment = value;
-        }
+        let max_render_distance = 20;
 
         // Fill the code level with the blocking info and collect lights
         let mut level = Level::new(region.width, region.height, settings.time);
@@ -1676,17 +1505,15 @@ impl Renderer {
             material_params.insert(*id, params);
         }
 
+        // Collect the render settings params
+        let render_settings_params: Vec<Vec<f32>> = region.regionfx.load_parameters(&settings.time);
+
         // Collect the geo_object params
         let mut geo_params: FxHashMap<Uuid, Vec<Vec<f32>>> = FxHashMap::default();
         for (id, geo_obj) in &region.geometry {
             let params = geo_obj.load_parameters(&settings.time);
             geo_params.insert(*id, params);
         }
-
-        let (ro, rd, fov, camera_mode, camera_type, _camera_scale_factor) =
-            self.create_camera_setup(region, settings);
-        let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
-        let camera = Camera::new(ro, rd, fov);
 
         pixels
             .par_rchunks_exact_mut(width * 4)
@@ -1698,47 +1525,27 @@ impl Renderer {
                     let xx = (i % width) as f32;
                     let yy = (i / width) as f32;
 
-                    let mut ray = if camera_type == CameraType::TiltedIso {
-                        camera.create_tilted_isometric_ray_prerendered(
-                            vec2f(xx / width_f, yy / height_f),
-                            tilted_iso_alignment,
-                            &prerender_camera,
-                        )
-                    } else if camera_mode == CameraMode::Pinhole {
-                        camera.create_ray(
-                            vec2f(xx / width_f, yy / height_f),
-                            vec2f(width_f, height_f),
-                            vec2f(1.0, 1.0),
-                        )
+                    let position = if settings.center_on_character.is_some() {
+                        settings.center_3d + self.position
                     } else {
-                        camera.create_ortho_ray_prerendered(
-                            vec2f(xx / width_f, yy / height_f),
-                            &prerender_camera,
-                        )
+                        self.position
                     };
 
-                    // In top down view, intersect ray with plane at 1.1 y
-                    // to speed up the ray / voxel casting
-                    if camera_type != CameraType::FirstPerson {
-                        let plane_normal = vec3f(0.0, 1.0, 0.0);
-                        let denom = dot(plane_normal, ray.d);
-
-                        if denom.abs() > 0.0001 {
-                            let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
-                            if t >= 0.0 {
-                                ray.o += ray.d * t;
-                            }
-                        }
-                    }
+                    let ray = region.regionfx.create_ray(
+                        vec2f(xx / width_f, yy / height_f),
+                        position,
+                        vec2f(width_f, height_f),
+                        vec2f(region.grid_size as f32, region.grid_size as f32),
+                        vec2f(0.0, 0.0),
+                        &render_settings_params,
+                    );
 
                     pixel.copy_from_slice(&self.render_pixel(
                         ray,
                         region,
                         update,
                         settings,
-                        camera_type,
                         &level,
-                        &saturation,
                         max_render_distance,
                         palette,
                         &material_params,
@@ -1759,9 +1566,7 @@ impl Renderer {
         region: &Region,
         update: &RegionUpdate,
         settings: &RegionDrawSettings,
-        camera_type: CameraType,
         level: &Level,
-        saturation: &Option<f32>,
         max_render_distance: i32,
         palette: &ThePalette,
         material_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
@@ -1803,7 +1608,9 @@ impl Renderer {
             }
 
             // First person is limited to 1 y
-            if camera_type == CameraType::FirstPerson && key.y > 1 {
+            if
+            /*camera_type == CameraType::FirstPerson &&*/
+            key.y > 1 {
                 break;
             }
 
@@ -2050,9 +1857,10 @@ impl Renderer {
 
         // Test against characters
         for (pos, tile_id, character_id, _facing) in &update.characters_pixel_pos {
-            if camera_type == CameraType::FirstPerson
-                && Some(*character_id) == settings.center_on_character
-            {
+            if
+            /*camera_type == CameraType::FirstPerson
+            &&*/
+            Some(*character_id) == settings.center_on_character {
                 // Skip the character itself in first person mode.
                 continue;
             }
@@ -2249,11 +2057,11 @@ impl Renderer {
             }
         }
 
-        if let Some(saturation) = saturation {
-            let mut hsl = TheColor::from_vec4f(color).as_hsl();
-            hsl.y *= saturation;
-            color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec4f();
-        }
+        // if let Some(saturation) = saturation {
+        //     let mut hsl = TheColor::from_vec4f(color).as_hsl();
+        //     hsl.y *= saturation;
+        //     color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec4f();
+        // }
 
         // Show hover
         if let Some(hover) = self.hover_pos {
@@ -2462,6 +2270,7 @@ impl Renderer {
         self.position = position;
     }
 
+    /*
     /// Create the camera setup.
     pub fn create_camera_setup(
         &mut self,
@@ -2587,7 +2396,7 @@ impl Renderer {
             camera_type,
             scale_factor,
         )
-    }
+        }*/
 
     /// Gets the current time in milliseconds
     fn get_time(&self) -> u128 {
@@ -2616,58 +2425,31 @@ impl Renderer {
         width: usize,
         height: usize,
     ) -> Option<(Vec3i, Vec3f)> {
-        let (ro, rd, fov, camera_mode, camera_type, camera_scale_factor) =
-            self.create_camera_setup(region, settings);
+        // Collect the render settings params
+        let render_settings_params: Vec<Vec<f32>> = region.regionfx.load_parameters(&settings.time);
 
         let width_f = width as f32;
         let height_f = height as f32;
 
-        let mut tilted_iso_alignment = 0;
-        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
-            str!("Camera"),
-            str!("Tilted Iso Alignment"),
-            &settings.time,
-            TheInterpolation::Switch,
-        ) {
-            tilted_iso_alignment = value;
-        }
-
         let ppt = region.tile_size as f32;
 
-        let camera = Camera::new(ro, rd, fov);
-        let ray = if camera_type == CameraType::TiltedIso {
-            camera.create_tilted_isometric_ray2(
-                vec2f(
-                    screen_coord.x as f32 / width_f,
-                    1.0 - screen_coord.y as f32 / height_f,
-                ),
-                vec2f(width_f, height_f),
-                vec2f(width_f / ppt, height_f / ppt),
-                vec2f(1.0, 1.0),
-                tilted_iso_alignment,
-                camera_scale_factor,
-            )
-        } else if camera_mode == CameraMode::Pinhole {
-            camera.create_ray(
-                vec2f(
-                    screen_coord.x as f32 / width_f,
-                    1.0 - screen_coord.y as f32 / height_f,
-                ),
-                vec2f(width_f, height_f),
-                vec2f(1.0, 1.0),
-            )
+        let position = if settings.center_on_character.is_some() {
+            settings.center_3d + self.position
         } else {
-            camera.create_ortho_ray2(
-                vec2f(
-                    screen_coord.x as f32 / width_f,
-                    1.0 - screen_coord.y as f32 / height_f,
-                ),
-                vec2f(width_f, height_f),
-                vec2f(width_f / ppt, height_f / ppt),
-                vec2f(1.0, 1.0),
-                camera_scale_factor,
-            )
+            self.position
         };
+
+        let ray = region.regionfx.create_ray(
+            vec2f(
+                screen_coord.x as f32 / width_f,
+                1.0 - screen_coord.y as f32 / height_f,
+            ),
+            position,
+            vec2f(width_f, height_f),
+            vec2f(width_f / ppt, height_f / ppt),
+            vec2f(0.0, 0.0),
+            &render_settings_params,
+        );
 
         let plane_normal = vec3f(0.0, 1.0, 0.0);
         let denom = dot(plane_normal, ray.d);
@@ -2676,8 +2458,6 @@ impl Renderer {
             let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
             if t >= 0.0 {
                 let hit = ray.o + ray.d * t;
-                //Some(Vec3i::from(hit))
-
                 let key = Vec3i::from(hit);
                 return Some((vec3i(key.x, key.y, key.z), hit));
             }

@@ -68,17 +68,8 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
 
                     let mut renderer = RENDERER.write().unwrap();
 
-                    let mut upscale = 2.0;
-                    if let Some(v) = region.regionfx.get(
-                        str!("Renderer"),
-                        str!("Upscale"),
-                        &settings.time,
-                        TheInterpolation::Linear,
-                    ) {
-                        if let Some(value) = v.to_f32() {
-                            upscale = value;
-                        }
-                    }
+                    let upscale = 1.0;
+                    // TODO: Read from render settings
 
                     if upscale != 1.0 {
                         let scaled_width = (buffer.dim().width as f32 / upscale) as i32;

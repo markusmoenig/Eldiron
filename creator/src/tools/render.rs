@@ -46,7 +46,7 @@ impl Tool for RenderTool {
             ));
 
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                let node_canvas = region.render_settings.to_canvas();
+                let node_canvas = region.regionfx.to_canvas();
                 ui.set_node_canvas("RegionFX NodeCanvas", node_canvas);
             }
 

@@ -1,6 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, MODELFXEDITOR, PRERENDERTHREAD, REGIONFXEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER,
-    TILEMAPEDITOR, UNDOMANAGER,
+    CODEEDITOR, MODELFXEDITOR, PRERENDERTHREAD, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR,
+    UNDOMANAGER,
 };
 use crate::prelude::*;
 
@@ -3272,7 +3272,6 @@ impl Sidebar {
 
         // Apply the region's timeline to the editor.
         if let Some(region) = region {
-            REGIONFXEDITOR.lock().unwrap().set_region(region, ui);
             PRERENDERTHREAD
                 .lock()
                 .unwrap()

@@ -22,15 +22,6 @@ pub enum RegionType {
     Region2D,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug, Default)]
-
-pub enum CameraType {
-    FirstPerson,
-    TopDown,
-    #[default]
-    TiltedIso,
-}
-
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub enum CameraMode {
     Pinhole,
@@ -45,10 +36,7 @@ pub struct Region {
     pub name: String,
 
     #[serde(default)]
-    pub render_settings: RegionFXObject,
-
-    #[serde(default)]
-    pub camera_type: CameraType,
+    pub regionfx: RegionFXObject,
 
     #[serde(with = "vectorize")]
     pub tiles: FxHashMap<(i32, i32), RegionTile>,
@@ -108,9 +96,6 @@ pub struct Region {
     pub property_3: String,
     #[serde(default)]
     pub property_4: String,
-
-    #[serde(default)]
-    pub regionfx: TheTimeline,
 }
 
 impl Default for Region {
@@ -127,9 +112,7 @@ impl Region {
 
             name: "New Region".to_string(),
 
-            render_settings: RegionFXObject::default(),
-
-            camera_type: CameraType::TiltedIso,
+            regionfx: RegionFXObject::default(),
 
             tiles: FxHashMap::default(),
 
@@ -164,8 +147,6 @@ impl Region {
             property_2: String::default(),
             property_3: String::default(),
             property_4: String::default(),
-
-            regionfx: TheTimeline::default(),
         }
     }
 

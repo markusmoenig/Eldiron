@@ -1,3 +1,4 @@
+use crate::editor::PRERENDERTHREAD;
 use crate::prelude::*;
 
 pub struct RegionFXEditor {
@@ -170,7 +171,7 @@ impl RegionFXEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut Server,
+        _server: &mut Server,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
@@ -185,14 +186,13 @@ impl RegionFXEditor {
                         // let material_id = material.id;
                         let mut node = RegionFXNode::new_from_name(item.name.clone());
                         node.position = vec2i(
-                            region.render_settings.scroll_offset.x + 220,
-                            region.render_settings.scroll_offset.y + 10,
+                            region.regionfx.scroll_offset.x + 220,
+                            region.regionfx.scroll_offset.y + 10,
                         );
-                        region.render_settings.nodes.push(node);
-                        region.render_settings.selected_node =
-                            Some(region.render_settings.nodes.len() - 1);
+                        region.regionfx.nodes.push(node);
+                        region.regionfx.selected_node = Some(region.regionfx.nodes.len() - 1);
 
-                        let node_canvas = region.render_settings.to_canvas();
+                        let node_canvas = region.regionfx.to_canvas();
                         ui.set_node_canvas("RegionFX NodeCanvas", node_canvas);
 
                         self.set_selected_node_ui(server_ctx, project, ui, ctx);
@@ -210,9 +210,64 @@ impl RegionFXEditor {
             TheEvent::NodeSelectedIndexChanged(id, index) => {
                 if id.name == "RegionFX NodeCanvas" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        region.render_settings.selected_node = *index;
+                        region.regionfx.selected_node = *index;
                     }
                     self.set_selected_node_ui(server_ctx, project, ui, ctx);
+                }
+            }
+            TheEvent::NodeDragged(id, index, position) => {
+                if id.name == "RegionFX NodeCanvas" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        region.regionfx.nodes[*index].position = *position;
+                    }
+                }
+            }
+            TheEvent::NodeConnectionAdded(id, connections)
+            | TheEvent::NodeConnectionRemoved(id, connections) => {
+                if id.name == "RegionFX NodeCanvas" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        //let prev = material.to_json();
+                        region.regionfx.connections.clone_from(connections);
+                        // let undo = MaterialFXUndoAtom::Edit(material.id, prev, material.to_json());
+                        // UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
+                        redraw = true;
+
+                        PRERENDERTHREAD
+                            .lock()
+                            .unwrap()
+                            .render_region(region.clone(), None);
+                    }
+                }
+            }
+            TheEvent::NodeDeleted(id, deleted_node_index, connections) => {
+                if id.name == "RegionFX NodeCanvas" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        //let prev = material.to_json();
+                        region.regionfx.nodes.remove(*deleted_node_index);
+                        //material.node_previews.remove(*deleted_node_index);
+                        region.regionfx.connections.clone_from(connections);
+                        region.regionfx.selected_node = None;
+                        //let preview = region.render_settings.get_preview();
+                        // let undo =
+                        //     MaterialFXUndoAtom::Edit(material.id, prev, material.to_json());
+                        // UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
+                        redraw = true;
+
+                        PRERENDERTHREAD
+                            .lock()
+                            .unwrap()
+                            .render_region(region.clone(), None);
+                    }
+                    self.set_selected_node_ui(server_ctx, project, ui, ctx);
+                }
+            }
+            TheEvent::NodeViewScrolled(id, offset) => {
+                if id.name == "RegionFX NodeCanvas" {
+                    if let Some(material_id) = server_ctx.curr_material_object {
+                        if let Some(material) = project.materials.get_mut(&material_id) {
+                            material.scroll_offset = *offset;
+                        }
+                    }
                 }
             }
             TheEvent::TimelineMarkerSelected(id, time) => {
@@ -222,202 +277,195 @@ impl RegionFXEditor {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name.starts_with(":REGIONFX:") {
+                if id.name == "Palette Color Picker" {
+                    let index = project.palette.current_index;
+                    let mut widget_ids = Vec::new();
+                    for (id, indices) in &self.palette_indices {
+                        if indices.contains(&index) {
+                            widget_ids.push(id.clone());
+                        }
+                    }
+
+                    for widget_id in widget_ids {
+                        if let Some(widget) = ui.get_widget(&widget_id) {
+                            if let TheValue::ColorObject(color) = value {
+                                widget.set_value(TheValue::ColorObject(color.clone()));
+                            }
+                        }
+                    }
+                } else if id.name.starts_with(":REGIONFX:") {
                     if let Some(name) = id.name.strip_prefix(":REGIONFX: ") {
                         let mut value = value.clone();
 
-                        // Correct values to their range variants if necessary as TheSlider strips them
-                        // of the range
-                        if let Some(TheValue::FloatRange(_, range)) = self.curr_collection.get(name)
-                        {
-                            if let Some(v) = value.to_f32() {
-                                value = TheValue::FloatRange(v, range.clone());
-                            }
-                        } else if let Some(TheValue::IntRange(_, range)) =
-                            self.curr_collection.get(name)
-                        {
-                            if let Some(v) = value.to_i32() {
-                                value = TheValue::IntRange(v, range.clone());
-                            }
-                        } else if let Some(TheValue::TextList(_, list)) =
-                            self.curr_collection.get(name)
-                        {
-                            if let Some(v) = value.to_i32() {
-                                value = TheValue::TextList(v, list.clone());
-                            }
-                        }
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            if let Some(selected_index) = region.regionfx.selected_node {
+                                //let prev = material.to_json();
 
-                        self.curr_collection.set(name, value);
-
-                        if let Some(time_slider) = ui.get_time_slider("RegionFX Timeline") {
-                            if let TheValue::Time(time) = time_slider.value() {
-                                if let Some(region) =
-                                    project.get_region_mut(&server_ctx.curr_region)
+                                // Convert TextList back
+                                if let Some(TheValue::TextList(_, list)) =
+                                    region.regionfx.nodes[selected_index].get(name)
                                 {
-                                    region.regionfx.add(time, self.curr_collection.clone());
-                                    server.update_region(region);
-                                    if let Some(names) =
-                                        region.regionfx.get_collection_names_at(&time)
-                                    {
-                                        time_slider.add_marker(time, names);
+                                    if let Some(v) = value.to_i32() {
+                                        value = TheValue::TextList(v, list.clone());
                                     }
                                 }
-                                redraw = true;
+
+                                region.regionfx.nodes[selected_index].set(name, value);
+
+                                if region.regionfx.nodes[selected_index].supports_preview {
+                                    //region.render_settings.nodes[selected_index]
+                                    //    .render_preview(&project.palette);
+                                    // ui.set_node_preview(
+                                    //     "MaterialFX NodeCanvas",
+                                    //     selected_index,
+                                    //     material.nodes[selected_index].preview.clone(),
+                                    // );
+                                }
+
+                                //let next = material.to_json();
+
+                                PRERENDERTHREAD
+                                    .lock()
+                                    .unwrap()
+                                    .render_region(region.clone(), None);
+
+                                //let undo = MaterialFXUndoAtom::Edit(material_id, prev, next);
+                                //UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
                             }
                         }
                     }
                 }
             }
-            TheEvent::StateChanged(id, state) => {
-                if id.name == "RegionFX Clear Marker" && *state == TheWidgetState::Clicked {
-                    if let Some(time_slider) = ui.get_time_slider("RegionFX Timeline") {
-                        if let Some(marker_time) = self.curr_marker {
-                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                                region.regionfx.remove(&marker_time);
-                                time_slider.remove_marker(marker_time);
-                                self.curr_marker = None;
-                                server.update_region(region);
-                            }
+            /*TheEvent::StateChanged(id, state) => {
+
+            else if id.name.starts_with("RegionFX ") && *state == TheWidgetState::Selected {
+                let fx_name = id.name.strip_prefix("RegionFX ").unwrap();
+                let mut c = None;
+
+                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    c = region
+                        .regionfx
+                        .get_collection_at(&TheTime::default(), fx_name.to_string());
+                }
+                let fx = Some(RegionFX::new_fx(fx_name, c));
+
+                if let Some(fx) = fx {
+                    if let Some(collection) = fx.collection() {
+                        self.curr_collection = collection.clone();
+                        if let Some(text_layout) = ui.get_text_layout("RegionFX Settings") {
+                            text_layout.clear();
                         }
-                        redraw = true;
-                    }
-                } else if id.name == "RegionFX Clear All" && *state == TheWidgetState::Clicked {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        region.regionfx.clear();
-                        server.update_region(region);
-                    }
-                    if let Some(time_slider) = ui.get_time_slider("RegionFX Timeline") {
-                        time_slider.clear_marker();
-                        redraw = true;
-                    }
-                } else if id.name.starts_with("RegionFX ") && *state == TheWidgetState::Selected {
-                    let fx_name = id.name.strip_prefix("RegionFX ").unwrap();
-                    let mut c = None;
-
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        c = region
-                            .regionfx
-                            .get_collection_at(&TheTime::default(), fx_name.to_string());
-                    }
-                    let fx = Some(RegionFX::new_fx(fx_name, c));
-
-                    if let Some(fx) = fx {
-                        if let Some(collection) = fx.collection() {
-                            self.curr_collection = collection.clone();
-                            if let Some(text_layout) = ui.get_text_layout("RegionFX Settings") {
-                                text_layout.clear();
+                        if let Some(text_layout) = ui.get_text_layout("RegionFX Add Settings") {
+                            text_layout.clear();
+                        }
+                        for (name, value) in &collection.keys {
+                            if let TheValue::FloatRange(value, range) = value {
+                                let mut slider = TheTextLineEdit::new(TheId::named(
+                                    (":REGIONFX: ".to_owned() + name).as_str(),
+                                ));
+                                slider.set_value(TheValue::Float(*value));
+                                //slider.set_default_value(TheValue::Float(0.0));
+                                slider.set_range(TheValue::RangeF32(range.clone()));
+                                slider.set_continuous(true);
+                                slider.set_status_text(fx.get_description(name).as_str());
+                                // if let Some(meta) = fx.meta_data() {
+                                //     if meta.is_second_column(name) {
+                                //         if let Some(text_layout) =
+                                //             ui.get_text_layout("RegionFX Add Settings")
+                                //         {
+                                //             text_layout
+                                //                 .add_pair(name.clone(), Box::new(slider));
+                                //         }
+                                //     } else if let Some(text_layout) =
+                                //         ui.get_text_layout("RegionFX Settings")
+                                //     {
+                                //         text_layout.add_pair(name.clone(), Box::new(slider));
+                                //     }
+                                // }
+                            } else if let TheValue::IntRange(value, range) = value {
+                                let mut slider = TheTextLineEdit::new(TheId::named(
+                                    (":REGIONFX: ".to_owned() + name).as_str(),
+                                ));
+                                slider.set_value(TheValue::Int(*value));
+                                slider.set_range(TheValue::RangeI32(range.clone()));
+                                slider.set_status_text(fx.get_description(name).as_str());
+                                // if let Some(meta) = fx.meta_data() {
+                                //     if meta.is_second_column(name) {
+                                //         if let Some(text_layout) =
+                                //             ui.get_text_layout("RegionFX Add Settings")
+                                //         {
+                                //             text_layout
+                                //                 .add_pair(name.clone(), Box::new(slider));
+                                //         }
+                                //     } else if let Some(text_layout) =
+                                //         ui.get_text_layout("RegionFX Settings")
+                                //     {
+                                //         text_layout.add_pair(name.clone(), Box::new(slider));
+                                //     }
+                                // }
+                            } else if let TheValue::TextList(index, list) = value {
+                                let mut dropdown = TheDropdownMenu::new(TheId::named(
+                                    (":REGIONFX: ".to_owned() + name).as_str(),
+                                ));
+                                for item in list {
+                                    dropdown.add_option(item.clone());
+                                }
+                                dropdown.set_selected_index(*index);
+                                dropdown.set_status_text(fx.get_description(name).as_str());
+                                // if let Some(meta) = fx.meta_data() {
+                                //     if meta.is_second_column(name) {
+                                //         if let Some(text_layout) =
+                                //             ui.get_text_layout("RegionFX Add Settings")
+                                //         {
+                                //             text_layout
+                                //                 .add_pair(name.clone(), Box::new(dropdown));
+                                //         }
+                                //     } else if let Some(text_layout) =
+                                //         ui.get_text_layout("RegionFX Settings")
+                                //     {
+                                //         text_layout.add_pair(name.clone(), Box::new(dropdown));
+                                //     }
+                                // }
+                            } else if let TheValue::Empty = value {
+                                let mut spacer = TheSpacer::new(TheId::empty());
+                                spacer.limiter_mut().set_max_size(vec2i(10, 5));
+                                // if let Some(meta) = fx.meta_data() {
+                                //     if meta.is_second_column(name) {
+                                //         if let Some(text_layout) =
+                                //             ui.get_text_layout("RegionFX Add Settings")
+                                //         {
+                                //             text_layout
+                                //                 .add_pair(name.clone(), Box::new(spacer));
+                                //         }
+                                //     } else if let Some(text_layout) =
+                                //         ui.get_text_layout("RegionFX Settings")
+                                //     {
+                                //         text_layout.add_pair(name.clone(), Box::new(spacer));
+                                //     }
+                                // }
                             }
-                            if let Some(text_layout) = ui.get_text_layout("RegionFX Add Settings") {
-                                text_layout.clear();
-                            }
+                            redraw = true;
+                            ctx.ui.relayout = true;
+                        }
+                        if let Some(vlayout) = ui.get_vlayout("RegionFX Color Settings") {
+                            vlayout.clear();
                             for (name, value) in &collection.keys {
-                                if let TheValue::FloatRange(value, range) = value {
-                                    let mut slider = TheTextLineEdit::new(TheId::named(
+                                if let TheValue::ColorObject(color) = value {
+                                    let mut color_picker = TheColorPicker::new(TheId::named(
                                         (":REGIONFX: ".to_owned() + name).as_str(),
                                     ));
-                                    slider.set_value(TheValue::Float(*value));
-                                    //slider.set_default_value(TheValue::Float(0.0));
-                                    slider.set_range(TheValue::RangeF32(range.clone()));
-                                    slider.set_continuous(true);
-                                    slider.set_status_text(fx.get_description(name).as_str());
-                                    if let Some(meta) = fx.meta_data() {
-                                        if meta.is_second_column(name) {
-                                            if let Some(text_layout) =
-                                                ui.get_text_layout("RegionFX Add Settings")
-                                            {
-                                                text_layout
-                                                    .add_pair(name.clone(), Box::new(slider));
-                                            }
-                                        } else if let Some(text_layout) =
-                                            ui.get_text_layout("RegionFX Settings")
-                                        {
-                                            text_layout.add_pair(name.clone(), Box::new(slider));
-                                        }
-                                    }
-                                } else if let TheValue::IntRange(value, range) = value {
-                                    let mut slider = TheTextLineEdit::new(TheId::named(
-                                        (":REGIONFX: ".to_owned() + name).as_str(),
-                                    ));
-                                    slider.set_value(TheValue::Int(*value));
-                                    slider.set_range(TheValue::RangeI32(range.clone()));
-                                    slider.set_status_text(fx.get_description(name).as_str());
-                                    if let Some(meta) = fx.meta_data() {
-                                        if meta.is_second_column(name) {
-                                            if let Some(text_layout) =
-                                                ui.get_text_layout("RegionFX Add Settings")
-                                            {
-                                                text_layout
-                                                    .add_pair(name.clone(), Box::new(slider));
-                                            }
-                                        } else if let Some(text_layout) =
-                                            ui.get_text_layout("RegionFX Settings")
-                                        {
-                                            text_layout.add_pair(name.clone(), Box::new(slider));
-                                        }
-                                    }
-                                } else if let TheValue::TextList(index, list) = value {
-                                    let mut dropdown = TheDropdownMenu::new(TheId::named(
-                                        (":REGIONFX: ".to_owned() + name).as_str(),
-                                    ));
-                                    for item in list {
-                                        dropdown.add_option(item.clone());
-                                    }
-                                    dropdown.set_selected_index(*index);
-                                    dropdown.set_status_text(fx.get_description(name).as_str());
-                                    if let Some(meta) = fx.meta_data() {
-                                        if meta.is_second_column(name) {
-                                            if let Some(text_layout) =
-                                                ui.get_text_layout("RegionFX Add Settings")
-                                            {
-                                                text_layout
-                                                    .add_pair(name.clone(), Box::new(dropdown));
-                                            }
-                                        } else if let Some(text_layout) =
-                                            ui.get_text_layout("RegionFX Settings")
-                                        {
-                                            text_layout.add_pair(name.clone(), Box::new(dropdown));
-                                        }
-                                    }
-                                } else if let TheValue::Empty = value {
-                                    let mut spacer = TheSpacer::new(TheId::empty());
-                                    spacer.limiter_mut().set_max_size(vec2i(10, 5));
-                                    if let Some(meta) = fx.meta_data() {
-                                        if meta.is_second_column(name) {
-                                            if let Some(text_layout) =
-                                                ui.get_text_layout("RegionFX Add Settings")
-                                            {
-                                                text_layout
-                                                    .add_pair(name.clone(), Box::new(spacer));
-                                            }
-                                        } else if let Some(text_layout) =
-                                            ui.get_text_layout("RegionFX Settings")
-                                        {
-                                            text_layout.add_pair(name.clone(), Box::new(spacer));
-                                        }
-                                    }
+                                    color_picker.limiter_mut().set_max_size(vec2i(120, 120));
+                                    color_picker.set_color(color.to_vec3f());
+                                    vlayout.add_widget(Box::new(color_picker));
                                 }
-                                redraw = true;
-                                ctx.ui.relayout = true;
                             }
-                            if let Some(vlayout) = ui.get_vlayout("RegionFX Color Settings") {
-                                vlayout.clear();
-                                for (name, value) in &collection.keys {
-                                    if let TheValue::ColorObject(color) = value {
-                                        let mut color_picker = TheColorPicker::new(TheId::named(
-                                            (":REGIONFX: ".to_owned() + name).as_str(),
-                                        ));
-                                        color_picker.limiter_mut().set_max_size(vec2i(120, 120));
-                                        color_picker.set_color(color.to_vec3f());
-                                        vlayout.add_widget(Box::new(color_picker));
-                                    }
-                                }
-                                redraw = true;
-                                ctx.ui.relayout = true;
-                            }
+                            redraw = true;
+                            ctx.ui.relayout = true;
                         }
                     }
-                }
-            }
+                    }
+                    }
+                    }*/
             _ => {}
         }
 
@@ -434,14 +482,14 @@ impl RegionFXEditor {
         self.palette_indices.clear();
 
         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-            if let Some(selected_index) = region.render_settings.selected_node {
+            if let Some(selected_index) = region.regionfx.selected_node {
                 // Safeguard, not actually needed
-                if selected_index >= region.render_settings.nodes.len() {
-                    region.render_settings.selected_node = None;
+                if selected_index >= region.regionfx.nodes.len() {
+                    region.regionfx.selected_node = None;
                     return;
                 }
 
-                let collection = region.render_settings.nodes[selected_index].collection();
+                let collection = region.regionfx.nodes[selected_index].collection();
 
                 if let Some(text_layout) = ui.get_text_layout("Node Settings") {
                     text_layout.clear();
@@ -507,18 +555,6 @@ impl RegionFXEditor {
             }
         } else if let Some(text_layout) = ui.get_text_layout("Node Settings") {
             text_layout.clear();
-        }
-    }
-
-    /// Set the timeline from the picker
-    pub fn set_region(&mut self, region: &Region, ui: &mut TheUI) {
-        if let Some(time_slider) = ui.get_time_slider("RegionFX Timeline") {
-            time_slider.clear_marker();
-            for time in region.regionfx.events.keys() {
-                if let Some(names) = region.regionfx.get_collection_names_at(time) {
-                    time_slider.add_marker(*time, names);
-                }
-            }
         }
     }
 }

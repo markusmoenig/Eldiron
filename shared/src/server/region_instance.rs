@@ -221,25 +221,24 @@ impl RegionInstance {
                 self.draw_settings.center_on_character = server_ctx.curr_character_instance;
                 renderer.set_position(region.editing_position_3d);
 
-                if region.camera_type == CameraType::FirstPerson {
-                    renderer.render(
-                        buffer,
-                        region,
-                        update,
-                        &mut self.draw_settings,
-                        compute_delta,
-                        &self.palette,
-                    );
-                } else {
-                    renderer.rendered(
-                        buffer,
-                        region,
-                        update,
-                        &mut self.draw_settings,
-                        compute_delta,
-                        &self.palette,
-                    );
-                }
+                //if region.camera_type == CameraType::FirstPerson {
+                //     renderer.render(
+                //         buffer,
+                //         region,
+                //         update,
+                //         &mut self.draw_settings,
+                //         compute_delta,
+                //         &self.palette,
+                //     );
+                // } else {
+                renderer.rendered(
+                    buffer,
+                    region,
+                    update,
+                    &mut self.draw_settings,
+                    compute_delta,
+                    &self.palette,
+                );
             }
         }
     }
