@@ -154,10 +154,13 @@ impl RegionFXNode {
                 let height = params[0];
                 let alignment = params[1] as i32;
 
-                let mut ro = vec3f(position.x + 0.5, 0.0, position.z + 0.5);
-                let rd = ro;
-                ro.y = params[0];
-                ro.z += 1.0;
+                let mut ro = vec3f(position.x, height, position.z + 1.0);
+                let mut rd = vec3f(position.x, 0.5, position.z);
+
+                if alignment == 0 {
+                    ro.x += height / 2.0;
+                    rd.x += height / 2.0;
+                }
 
                 let pixel_size = Vec2f::new(1.0 / size.x, 1.0 / size.y);
 
@@ -193,12 +196,8 @@ impl RegionFXNode {
             TopDownIsoCamera => {
                 let height = params[0];
 
-                let mut ro = vec3f(position.x + 0.5, 0.0, position.z + 0.5);
-                let rd = ro;
-
-                ro.y = height;
-                ro.x += params[1];
-                ro.z += params[2];
+                let ro = vec3f(position.x + params[1], height, position.z + params[2]);
+                let rd = vec3f(position.x, 0.0, position.z);
 
                 let scale_factor = height / 1.5;
 

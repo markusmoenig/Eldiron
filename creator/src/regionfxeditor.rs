@@ -1,4 +1,4 @@
-use crate::editor::PRERENDERTHREAD;
+use crate::editor::{PRERENDERTHREAD, UNDOMANAGER};
 use crate::prelude::*;
 
 pub struct RegionFXEditor {
@@ -171,7 +171,7 @@ impl RegionFXEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut Server,
+        server: &mut Server,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
@@ -182,7 +182,7 @@ impl RegionFXEditor {
                 #[allow(clippy::collapsible_if)]
                 if id.name == "RegionFX Camera Nodes" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        // let prev = material.to_json();
+                        let prev = region.regionfx.clone();
                         // let material_id = material.id;
                         let mut node = RegionFXNode::new_from_name(item.name.clone());
                         node.position = vec2i(
@@ -192,17 +192,18 @@ impl RegionFXEditor {
                         region.regionfx.nodes.push(node);
                         region.regionfx.selected_node = Some(region.regionfx.nodes.len() - 1);
 
+                        let next = region.regionfx.clone();
+                        let region_id = region.id;
+
                         let node_canvas = region.regionfx.to_canvas();
                         ui.set_node_canvas("RegionFX NodeCanvas", node_canvas);
 
                         self.set_selected_node_ui(server_ctx, project, ui, ctx);
-                        // let undo =
-                        //     MaterialFXUndoAtom::AddNode(material.id, prev, material.to_json());
-                        // UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
-                        // let node_canvas = material.to_canvas(&project.palette);
-                        // ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
-                        // self.set_material_tiles(ui, ctx, project, Some(material_id));
-                        // self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
+                        let undo = RegionUndoAtom::RegionFXEdit(prev, next);
+                        UNDOMANAGER
+                            .lock()
+                            .unwrap()
+                            .add_region_undo(&region_id, undo, ctx);
                     }
                     redraw = true;
                 }
@@ -226,11 +227,21 @@ impl RegionFXEditor {
             | TheEvent::NodeConnectionRemoved(id, connections) => {
                 if id.name == "RegionFX NodeCanvas" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        //let prev = material.to_json();
+                        let prev = region.regionfx.clone();
+
                         region.regionfx.connections.clone_from(connections);
-                        // let undo = MaterialFXUndoAtom::Edit(material.id, prev, material.to_json());
-                        // UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
+
+                        let next = region.regionfx.clone();
+                        let region_id = region.id;
+
                         redraw = true;
+                        server.update_region(region);
+
+                        let undo = RegionUndoAtom::RegionFXEdit(prev, next);
+                        UNDOMANAGER
+                            .lock()
+                            .unwrap()
+                            .add_region_undo(&region_id, undo, ctx);
 
                         PRERENDERTHREAD
                             .lock()
@@ -242,16 +253,22 @@ impl RegionFXEditor {
             TheEvent::NodeDeleted(id, deleted_node_index, connections) => {
                 if id.name == "RegionFX NodeCanvas" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        //let prev = material.to_json();
+                        let prev = region.regionfx.clone();
                         region.regionfx.nodes.remove(*deleted_node_index);
-                        //material.node_previews.remove(*deleted_node_index);
                         region.regionfx.connections.clone_from(connections);
                         region.regionfx.selected_node = None;
-                        //let preview = region.render_settings.get_preview();
-                        // let undo =
-                        //     MaterialFXUndoAtom::Edit(material.id, prev, material.to_json());
-                        // UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
+
+                        let next = region.regionfx.clone();
+                        let region_id = region.id;
+
+                        let undo = RegionUndoAtom::RegionFXEdit(prev, next);
+                        UNDOMANAGER
+                            .lock()
+                            .unwrap()
+                            .add_region_undo(&region_id, undo, ctx);
+
                         redraw = true;
+                        server.update_region(region);
 
                         PRERENDERTHREAD
                             .lock()
@@ -268,12 +285,6 @@ impl RegionFXEditor {
                             material.scroll_offset = *offset;
                         }
                     }
-                }
-            }
-            TheEvent::TimelineMarkerSelected(id, time) => {
-                if id.name == "RegionFX Timeline" {
-                    self.curr_marker = Some(*time);
-                    redraw = true;
                 }
             }
             TheEvent::ValueChanged(id, value) => {
@@ -299,7 +310,7 @@ impl RegionFXEditor {
 
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             if let Some(selected_index) = region.regionfx.selected_node {
-                                //let prev = material.to_json();
+                                let prev = region.regionfx.clone();
 
                                 // Convert TextList back
                                 if let Some(TheValue::TextList(_, list)) =
@@ -312,16 +323,7 @@ impl RegionFXEditor {
 
                                 region.regionfx.nodes[selected_index].set(name, value);
 
-                                if region.regionfx.nodes[selected_index].supports_preview {
-                                    //region.render_settings.nodes[selected_index]
-                                    //    .render_preview(&project.palette);
-                                    // ui.set_node_preview(
-                                    //     "MaterialFX NodeCanvas",
-                                    //     selected_index,
-                                    //     material.nodes[selected_index].preview.clone(),
-                                    // );
-                                }
-
+                                server.update_region(region);
                                 //let next = material.to_json();
 
                                 PRERENDERTHREAD
@@ -329,11 +331,22 @@ impl RegionFXEditor {
                                     .unwrap()
                                     .render_region(region.clone(), None);
 
-                                //let undo = MaterialFXUndoAtom::Edit(material_id, prev, next);
-                                //UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
+                                let next = region.regionfx.clone();
+                                let region_id = region.id;
+
+                                let undo = RegionUndoAtom::RegionFXEdit(prev, next);
+                                UNDOMANAGER
+                                    .lock()
+                                    .unwrap()
+                                    .add_region_undo(&region_id, undo, ctx);
                             }
                         }
                     }
+                }
+            }
+            TheEvent::Custom(id, _) => {
+                if id.name == "Show RegionFX Node" {
+                    self.set_selected_node_ui(server_ctx, project, ui, ctx);
                 }
             }
             /*TheEvent::StateChanged(id, state) => {

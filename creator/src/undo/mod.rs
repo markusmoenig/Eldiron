@@ -79,7 +79,7 @@ impl UndoManager {
                 if let Some(region_undo) = self.regions.get_mut(&context_id) {
                     if let Some(region) = project.get_region_mut(&context_id) {
                         if region_undo.has_undo() {
-                            region_undo.undo(region);
+                            region_undo.undo(region, ui, ctx);
                         }
 
                         if !region_undo.has_undo() {
@@ -145,7 +145,7 @@ impl UndoManager {
                 if let Some(region_undo) = self.regions.get_mut(&context_id) {
                     if let Some(region) = project.get_region_mut(&context_id) {
                         if region_undo.has_redo() {
-                            region_undo.redo(region);
+                            region_undo.redo(region, ui, ctx);
                         }
 
                         if !region_undo.has_undo() {

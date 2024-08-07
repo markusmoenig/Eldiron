@@ -45,6 +45,11 @@ impl Tool for RenderTool {
                 TheValue::Empty,
             ));
 
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Show RegionFX Node"),
+                TheValue::Empty,
+            ));
+
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 let node_canvas = region.regionfx.to_canvas();
                 ui.set_node_canvas("RegionFX NodeCanvas", node_canvas);

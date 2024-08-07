@@ -321,8 +321,8 @@ impl MaterialFXNode {
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
-                        name: str!("geo"),
-                        role: str!("Geometry"),
+                        name: str!("pattern"),
+                        role: str!("Pattern"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]

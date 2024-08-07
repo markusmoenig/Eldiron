@@ -9,10 +9,11 @@ pub enum RegionUndoAtom {
     GeoFXObjectEdit(Uuid, Option<GeoFXObject>, Option<GeoFXObject>, Vec<Vec2i>),
     HeightmapEdit(Heightmap, Heightmap, Vec<Vec2i>),
     RegionTileEdit(Vec2i, Option<RegionTile>, Option<RegionTile>),
+    RegionFXEdit(RegionFXObject, RegionFXObject),
 }
 
 impl RegionUndoAtom {
-    pub fn undo(&self, region: &mut Region) {
+    pub fn undo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             RegionUndoAtom::GeoFXObjectsDeletion(objects, tiles) => {
                 for object in objects {
@@ -54,9 +55,25 @@ impl RegionUndoAtom {
                     .unwrap()
                     .render_region(region.clone(), Some(vec![*pos]));
             }
+            RegionUndoAtom::RegionFXEdit(prev, _) => {
+                region.regionfx = prev.clone();
+
+                let node_canvas = region.regionfx.to_canvas();
+                ui.set_node_canvas("RegionFX NodeCanvas", node_canvas);
+
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Show RegionFX Node"),
+                    TheValue::Empty,
+                ));
+
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), None);
+            }
         }
     }
-    pub fn redo(&self, region: &mut Region) {
+    pub fn redo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             RegionUndoAtom::GeoFXObjectsDeletion(objects, tiles) => {
                 for object in objects {
@@ -98,6 +115,22 @@ impl RegionUndoAtom {
                     .lock()
                     .unwrap()
                     .render_region(region.clone(), Some(vec![*pos]));
+            }
+            RegionUndoAtom::RegionFXEdit(_, next) => {
+                region.regionfx = next.clone();
+
+                let node_canvas = region.regionfx.to_canvas();
+                ui.set_node_canvas("RegionFX NodeCanvas", node_canvas);
+
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Show RegionFX Node"),
+                    TheValue::Empty,
+                ));
+
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), None);
             }
         }
     }
@@ -152,17 +185,17 @@ impl RegionUndo {
         self.index += 1;
     }
 
-    pub fn undo(&mut self, region: &mut Region) {
+    pub fn undo(&mut self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
         if self.index >= 0 {
-            self.stack[self.index as usize].undo(region);
+            self.stack[self.index as usize].undo(region, ui, ctx);
             self.index -= 1;
         }
     }
 
-    pub fn redo(&mut self, region: &mut Region) {
+    pub fn redo(&mut self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
         if self.index < self.stack.len() as isize - 1 {
             self.index += 1;
-            self.stack[self.index as usize].redo(region);
+            self.stack[self.index as usize].redo(region, ui, ctx);
         }
     }
 }
