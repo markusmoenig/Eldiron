@@ -182,7 +182,7 @@ impl PreRenderThread {
 
                             if let Some(pre) = prerendered_region_data.get_mut(&curr_region.id) {
                                 if let Some(tiles) = tiles {
-                                    pre.remove_tiles(&curr_region, tiles.clone());
+                                    pre.remove_tiles(&tiles);
                                 } else {
                                     pre.tile_samples.clear();
                                     result_tx

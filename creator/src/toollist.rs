@@ -302,7 +302,6 @@ impl ToolList {
                             PRERENDERTHREAD.lock().unwrap().set_paused(true);
                         } else if item_id.name == "Restart Renderer" {
                             PRERENDERTHREAD.lock().unwrap().set_paused(false);
-                            region.prerendered.invalidate();
                             PRERENDERTHREAD
                                 .lock()
                                 .unwrap()

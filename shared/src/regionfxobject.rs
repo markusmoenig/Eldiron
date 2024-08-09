@@ -98,9 +98,17 @@ impl RegionFXObject {
         size: Vec2f,
         offset: Vec2f,
         params: &[Vec<f32>],
+        ray_type: CameraRayType,
     ) -> Ray {
         if let Some(node_index) = self.find_connected_output_node(0, 0) {
-            self.nodes[node_index].cam_create_ray(uv, position, size, offset, &params[node_index])
+            self.nodes[node_index].cam_create_ray(
+                uv,
+                position,
+                size,
+                offset,
+                &params[node_index],
+                ray_type,
+            )
         } else {
             Ray::new(Vec3f::zero(), Vec3f::zero())
         }

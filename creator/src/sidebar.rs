@@ -1196,7 +1196,6 @@ impl Sidebar {
                     if let Some(v) = value.to_i32() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.grid_size = v;
-                            region.prerendered.invalidate();
                             server.update_region(region);
                             PRERENDERTHREAD
                                 .lock()
@@ -1220,7 +1219,6 @@ impl Sidebar {
                     if let Some(v) = value.to_i32() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.tile_size = v;
-                            region.prerendered.invalidate();
                             server.update_region(region);
                             PRERENDERTHREAD
                                 .lock()
@@ -1232,7 +1230,6 @@ impl Sidebar {
                     if let Some(v) = value.to_i32() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.pathtracer_samples = v;
-                            region.prerendered.invalidate();
                             server.update_region(region);
                             PRERENDERTHREAD
                                 .lock()

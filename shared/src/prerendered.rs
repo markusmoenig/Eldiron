@@ -1,8 +1,5 @@
 //use rayon::prelude::*;
 //use std::sync::atomic::{AtomicUsize, Ordering};
-//use std::sync::Arc;
-
-use crate::prelude::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -58,39 +55,17 @@ impl PreRendered {
     pub fn clear(&mut self) {
         self.tiles.clear();
         self.tile_samples.clear();
-        //self.grid_map.clear();
-    }
-
-    pub fn invalidate(&mut self) {
-        //self.grid_map.clear();
     }
 
     /// Add the given tiles to be rendered in grid space, we map them to local space.
-    pub fn remove_tiles(&mut self, region: &Region, tiles: Vec<Vec2i>) {
+    pub fn remove_tiles(&mut self, tiles: &Vec<Vec2i>) {
         for tile in tiles {
-            let data = region
-                .regionfx
-                .cam_world_to_canvas(region, vec3f(tile.x as f32, 0.0, tile.y as f32));
-            println!("tile {:?} {:?}", data, tile);
-            let tile = Vec2i::new(data.x / region.tile_size, data.y / region.tile_size);
             for y in tile.y - 2..=tile.y + 2 {
                 for x in tile.x - 2..=tile.x + 2 {
                     let t = Vec2i::new(x, y);
                     self.tile_samples.remove(&t);
                 }
             }
-            /*
-            if let Some(data) = self.get_pixel_coord(vec2f(tile.x as f32, tile.y as f32)) {
-                let tile = Vec2i::new(data.x / grid_size, data.y / grid_size);
-                for y in tile.y - 2..=tile.y + 2 {
-                    for x in tile.x - 2..=tile.x + 2 {
-                        let t = Vec2i::new(x, y);
-                        self.tile_samples.remove(&t);
-                    }
-                }
-            } else {
-                println!("Could not map tile coord {tile}");
-            }*/
         }
     }
 

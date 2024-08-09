@@ -127,6 +127,7 @@ impl Renderer {
                             vec2f(width_f, height_f),
                             vec2f(0.0, 0.0),
                             &render_settings_params,
+                            CameraRayType::Tile,
                         );
 
                         let plane_normal = vec3f(0.0, 1.0, 0.0);
@@ -155,6 +156,7 @@ impl Renderer {
                         vec2f(tile_size_f, tile_size_f),
                         vec2f(rng.gen(), rng.gen()),
                         &render_settings_params,
+                        CameraRayType::Tile,
                     );
 
                     // BSDF Pathtracer based on glsl_pathtracer
@@ -1064,6 +1066,7 @@ impl Renderer {
             vec2f(width_f, height_f),
             vec2f(0.0, 0.0),
             &render_settings_params,
+            CameraRayType::Tile,
         );
 
         let plane_normal = vec3f(0.0, 1.0, 0.0);
@@ -1098,6 +1101,7 @@ impl Renderer {
                         vec2f(width_f, height_f),
                         vec2f(0.0, 0.0),
                         &render_settings_params,
+                        CameraRayType::Scene,
                     );
 
                     // --
@@ -1365,6 +1369,7 @@ impl Renderer {
                         vec2f(width_f, height_f),
                         vec2f(0.0, 0.0),
                         &render_settings_params,
+                        CameraRayType::Tile,
                     );
 
                     pixel.copy_from_slice(&self.render_pixel(
@@ -2278,6 +2283,7 @@ impl Renderer {
             vec2f(width_f, height_f),
             vec2f(0.0, 0.0),
             &render_settings_params,
+            CameraRayType::Scene,
         );
 
         let plane_normal = vec3f(0.0, 1.0, 0.0);

@@ -2,6 +2,12 @@ use crate::prelude::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub enum CameraRayType {
+    Tile,
+    Scene,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum RegionFXNodeRole {
     TiltedIsoCamera,
     TopDownIsoCamera,
@@ -141,15 +147,22 @@ impl RegionFXNode {
 
     /// Convert a world position into a pixel offset in the canvas.
     pub fn cam_world_to_canvas(&self, region: &Region, world_pos: Vec3f) -> Vec2i {
-        let tile_size = region.tile_size;
-        let tile_size_half = tile_size as f32;
+        match self.role {
+            TopDownIsoCamera => {
+                let tile_size = region.tile_size;
+                let tile_size_half = tile_size as f32;
 
-        let sx = tile_size * region.width;
+                let sx = tile_size * region.width;
 
-        let x = sx + ((world_pos.x - world_pos.z) * tile_size_half) as i32;
-        let y = ((world_pos.x + world_pos.z) * (tile_size_half / 2.0)) as i32;
-
-        vec2i(x, y)
+                let x = sx + ((world_pos.x - world_pos.z) * tile_size_half) as i32;
+                let y = ((world_pos.x + world_pos.z) * (tile_size_half / 2.0)) as i32;
+                vec2i(x, y)
+            }
+            _ => vec2i(
+                (world_pos.x * region.tile_size as f32) as i32,
+                (world_pos.z * region.tile_size as f32) as i32,
+            ),
+        }
     }
 
     /// Convert a canvas pixel position into a world position.
@@ -159,7 +172,15 @@ impl RegionFXNode {
 
     pub fn cam_render_canvas(&self, region: &Region, canvas: &mut GameCanvas) {
         match self.role {
-            TiltedIsoCamera => {}
+            TiltedIsoCamera => {
+                for (key, tile) in &region.prerendered.tiles {
+                    let x = key.x * region.tile_size;
+                    let y = key.y * region.tile_size;
+                    canvas.canvas.copy_into(x, y, &tile.albedo.to_rgba());
+                    canvas.distance_canvas.copy_into(x, y, &tile.distance);
+                    canvas.lights_canvas.copy_into(x, y, &tile.lights);
+                }
+            }
             TopDownIsoCamera => {
                 let tile_size = region.tile_size;
                 let tile_size_half = tile_size;
@@ -208,6 +229,7 @@ impl RegionFXNode {
         size: Vec2f,
         offset: Vec2f,
         params: &[f32],
+        ray_type: CameraRayType,
     ) -> Ray {
         match self.role {
             TiltedIsoCamera => {
@@ -228,7 +250,12 @@ impl RegionFXNode {
                 let cam_origin = ro;
                 let cam_look_at = rd;
 
-                let half_width = ((120.0_f32).to_radians() * 0.5).tan();
+                let fov: f32 = match ray_type {
+                    CameraRayType::Tile => 120.0,
+                    CameraRayType::Scene => 175.0,
+                };
+
+                let half_width = ((fov).to_radians() * 0.5).tan();
                 let half_height = half_width / ratio;
 
                 let up_vector = Vec3f::new(0.0, 1.0, 0.0);
@@ -253,38 +280,6 @@ impl RegionFXNode {
                         -0.35,
                     )),
                 )
-
-                /*
-                let pixel_size = Vec2f::new(1.0 / size.x, 1.0 / size.y);
-
-                let cam_origin = ro;
-                let cam_look_at = rd;
-
-                let half_width = tiles.x;
-                let half_height = tiles.y;
-
-                let up_vector = Vec3f::new(0.0, 1.0, 0.0);
-
-                let w = normalize(cam_origin - cam_look_at);
-                let u = cross(up_vector, w);
-                let v = cross(w, u);
-
-                let horizontal = u * half_width * height;
-                let vertical = v * half_height * height;
-
-                let mut out_origin = cam_origin;
-                out_origin += horizontal * (pixel_size.x * offset.x + uv.x - 0.5);
-                out_origin += vertical * (pixel_size.y * offset.y + uv.y - 0.5);
-                out_origin.y = cam_origin.y;
-
-                Ray::new(
-                    out_origin,
-                    normalize(vec3f(
-                        if alignment == 0 { -0.35 } else { 0.35 },
-                        -1.0,
-                        -0.35,
-                    )),
-                    )*/
             }
             TopDownIsoCamera => {
                 let height = params[0];
@@ -299,7 +294,12 @@ impl RegionFXNode {
                 let cam_origin = ro;
                 let cam_look_at = rd;
 
-                let half_width = ((47.0_f32).to_radians() * 0.5).tan();
+                let fov: f32 = match ray_type {
+                    CameraRayType::Tile => 47.0,
+                    CameraRayType::Scene => 155.0,
+                };
+
+                let half_width = ((fov).to_radians() * 0.5).tan();
                 let half_height = half_width / ratio;
 
                 let up_vector = Vec3f::new(0.0, 1.0, 0.0);
@@ -316,32 +316,6 @@ impl RegionFXNode {
                 out_origin += vertical * (pixel_size.y * offset.y + uv.y - 0.5);
 
                 Ray::new(out_origin, normalize(-w))
-
-                /*
-                let scale_factor = height / 1.5;
-
-                let pixel_size = Vec2f::new(1.0 / size.x, 1.0 / size.y);
-
-                let cam_origin = ro;
-                let cam_look_at = rd;
-
-                let half_width = tiles.x;
-                let half_height = tiles.y;
-
-                let up_vector = Vec3f::new(0.0, 1.0, 0.0);
-
-                let w = normalize(cam_origin - cam_look_at);
-                let u = cross(up_vector, w);
-                let v = cross(w, u);
-
-                let horizontal = u * half_width * scale_factor;
-                let vertical = v * half_height * scale_factor;
-
-                let mut out_origin = cam_origin;
-                out_origin += horizontal * (pixel_size.x * offset.x + uv.x - 0.5);
-                out_origin += vertical * (pixel_size.y * offset.y + uv.y - 0.5);
-
-                Ray::new(out_origin, normalize(-w))*/
             }
             _ => Ray::new(Vec3f::zero(), Vec3f::zero()),
         }
