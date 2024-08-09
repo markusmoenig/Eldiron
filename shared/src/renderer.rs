@@ -8,9 +8,10 @@ pub struct Renderer {
     pub textures: FxHashMap<Uuid, TheRGBATile>,
     pub materials: IndexMap<Uuid, MaterialFXObject>,
     pub tiles: TheFlattenedMap3D<Uuid>,
-    pub models: FxHashMap<(i32, i32), TheTimeline>,
     pub position: Vec3f,
     pub hover_pos: Option<Vec3i>,
+
+    pub canvas: GameCanvas,
 }
 
 #[allow(clippy::new_without_default)]
@@ -20,9 +21,10 @@ impl Renderer {
             textures: FxHashMap::default(),
             materials: IndexMap::default(),
             tiles: TheFlattenedMap3D::new((0, -1, 0), (80, 2, 80)),
-            models: FxHashMap::default(),
             position: Vec3f::zero(),
             hover_pos: None,
+
+            canvas: GameCanvas::default(),
         }
     }
 
@@ -100,6 +102,7 @@ impl Renderer {
         let _start = self.get_time();
 
         let tile_size = region.tile_size;
+        let tile_size_f = region.tile_size as f32;
 
         tiles.par_iter_mut().for_each(|tile| {
             let mut tile_data = PreRenderedTileData::new(tile_size, tile_size);
@@ -108,7 +111,6 @@ impl Renderer {
                 TheFlattenedMap::new(tile_size, tile_size);
 
             let mut rng = rand::thread_rng();
-
             let mut tile_is_empty = true;
 
             for h in 0..tile_size {
@@ -119,11 +121,10 @@ impl Renderer {
                     let yy = y as f32;
 
                     {
-                        let ray = region.regionfx.create_ray(
+                        let ray = region.regionfx.cam_create_ray(
                             vec2f(xx / width_f, (height_f - yy) / height_f),
                             self.position,
                             vec2f(width_f, height_f),
-                            vec2f(region.width as f32, region.height as f32),
                             vec2f(0.0, 0.0),
                             &render_settings_params,
                         );
@@ -147,31 +148,21 @@ impl Renderer {
                     // Based on GLSL_pathtracer (https://github.com/knightcrawler25/GLSL-PathTracer)
                     //
 
-                    let mut ray = region.regionfx.create_ray(
-                        vec2f(xx / width_f, (height_f - yy) / height_f),
-                        self.position,
-                        vec2f(width_f, height_f),
-                        vec2f(region.width as f32, region.height as f32),
+                    let mut ray = region.regionfx.cam_create_ray(
+                        vec2f(w as f32 / tile_size_f, 1.0 - (h as f32 / tile_size_f)),
+                        //self.position, //vec3f(0.5, 0.5, 0.5),
+                        vec3f(tile.x as f32 + 0.5, 0.0, tile.y as f32 + 0.5),
+                        vec2f(tile_size_f, tile_size_f),
                         vec2f(rng.gen(), rng.gen()),
                         &render_settings_params,
                     );
-
-                    // let plane_normal = vec3f(0.0, 1.0, 0.0);
-                    // let denom = dot(plane_normal, ray.d);
-
-                    // if denom.abs() > 0.0001 {
-                    //     let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
-                    //     if t >= 0.0 {
-                    //         ray.o += ray.d * t;
-                    //     }
-                    // }
 
                     // BSDF Pathtracer based on glsl_pathtracer
                     // https://github.com/knightcrawler25/GLSL-PathTracer
 
                     let mut dist = 0.0;
 
-                    let radiance = Vec3f::zero();
+                    let _radiance = Vec3f::zero();
                     let mut throughput = Vec3f::one();
 
                     let mut state = BSDFState::default();
@@ -381,8 +372,7 @@ impl Renderer {
                         }
                     }
 
-                    tile_data.albedo.set_pixel_vec3f(w, h, &radiance);
-                    tile_data.sky_absorption.set_pixel_vec3f(w, h, &throughput);
+                    tile_data.albedo.set_pixel_vec3f(w, h, &throughput);
                     tile_data.distance.set((w, h), half::f16::from_f32(dist));
                     tile_data.lights.set((w, h), lights);
 
@@ -397,38 +387,15 @@ impl Renderer {
                 sample = *sampled as i32;
             }
 
-            // Copy the grid_map coords
-            {
-                prerendered.grid_map.resize(size.x, size.y);
-                let tile_x = tile.x * tile_size;
-                let tile_y = tile.y * tile_size;
-                for h in 0..tile_size {
-                    for w in 0..tile_size {
-                        if let Some(new_samp) = grid_map_buffer.get((w, h)) {
-                            prerendered
-                                .grid_map
-                                .set((w + tile_x, h + tile_y), *new_samp);
-                        }
-                    }
-                }
-            }
-
-            sender
-                .send(PreRenderResult::RenderedRegionTile(
-                    region.id,
-                    size,
-                    *tile,
-                    sample as u16,
-                    if !tile_is_empty {
-                        Some(tile_data)
-                    } else {
-                        None
-                    },
-                    grid_map_buffer,
-                ))
-                .unwrap();
-
             if !tile_is_empty {
+                sender
+                    .send(PreRenderResult::RenderedRegionTile(
+                        region.id,
+                        *tile,
+                        sample as u16,
+                        tile_data,
+                    ))
+                    .unwrap();
                 sample += 1;
             } else {
                 sample = region.pathtracer_samples;
@@ -1080,12 +1047,10 @@ impl Renderer {
         // Collect the render settings params
         let render_settings_params: Vec<Vec<f32>> = region.regionfx.load_parameters(&settings.time);
 
-        let ppt = region.tile_size as f32;
-
         let mut start_x = 0;
         let mut start_y = 0;
 
-        // Find the location in the prerendered map
+        // Find the location in the game canvas
 
         let position = if settings.center_on_character.is_some() {
             settings.center_3d + self.position
@@ -1093,11 +1058,10 @@ impl Renderer {
             self.position
         };
 
-        let ray = region.regionfx.create_ray(
+        let ray = region.regionfx.cam_create_ray(
             vec2f(0.5, 0.5),
             position,
             vec2f(width_f, height_f),
-            vec2f(width_f / ppt, height_f / ppt),
             vec2f(0.0, 0.0),
             &render_settings_params,
         );
@@ -1109,15 +1073,10 @@ impl Renderer {
             let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
             if t >= 0.0 {
                 let p = ray.o + ray.d * t;
-                //println!("Trying to get {} {}", p.x, p.z);
-                if let Some(coord) = region.prerendered.get_pixel_coord(vec2f(p.x, p.z)) {
-                    start_x = coord.x - width as i32 / 2;
-                    start_y = coord.y - height as i32 / 2;
 
-                    //println!("{} {} {} {}", p.x, p.z, start_x, start_y);
-                } else {
-                    println!("get pixel failed");
-                }
+                let screen_pos = region.regionfx.cam_world_to_canvas(region, p);
+                start_x = screen_pos.x - width as i32 / 2;
+                start_y = screen_pos.y - height as i32 / 2;
             }
         }
 
@@ -1133,11 +1092,10 @@ impl Renderer {
                     let xx = (i % width) as f32;
                     let yy = (i / width) as f32;
 
-                    let ray = region.regionfx.create_ray(
+                    let ray = region.regionfx.cam_create_ray(
                         vec2f(xx / width_f, yy / height_f),
                         position,
                         vec2f(width_f, height_f),
-                        vec2f(width_f / ppt, height_f / ppt),
                         vec2f(0.0, 0.0),
                         &render_settings_params,
                     );
@@ -1184,60 +1142,56 @@ impl Renderer {
         //let normal = Vec3f::zero();
         let mut hit = false;
 
-        let tile_pos = vec2i(pos.x / region.tile_size, pos.y / region.tile_size);
-        let pixel_pos = vec2i(pos.x % region.tile_size, pos.y % region.tile_size);
+        // let tile_pos = vec2i(pos.x / region.tile_size, pos.y / region.tile_size);
+        // let pixel_pos = vec2i(pos.x % region.tile_size, pos.y % region.tile_size);
 
-        if let Some(tile_data) = &region.prerendered.tiles.get(&tile_pos) {
-            if let Some(c) = tile_data.albedo.at_vec3(pixel_pos) {
-                color = c;
+        //if let Some(tile_data) = &region.prerendered.tiles.get(&tile_pos) {
+        if let Some(albedo) = &self.canvas.canvas.get_pixel(pos.x, pos.y) {
+            let abso = TheColor::from_u8_array(*albedo).to_vec3f();
 
-                if let Some(abso) = tile_data.sky_absorption.at_vec3(pixel_pos) {
-                    // color.x += powf(settings.daylight.x * abso.x, 1.0 / 2.2);
-                    // color.y += powf(settings.daylight.y * abso.y, 1.0 / 2.2);
-                    // color.z += powf(settings.daylight.z * abso.z, 1.0 / 2.2);
+            // color.x = powf(settings.daylight.x * abso.x, 1.0 / 2.2);
+            // color.y = powf(settings.daylight.y * abso.y, 1.0 / 2.2);
+            // color.z = powf(settings.daylight.z * abso.z, 1.0 / 2.2);
+            color.x = settings.daylight.x * abso.x;
+            color.y = settings.daylight.y * abso.y;
+            color.z = settings.daylight.z * abso.z;
 
-                    color.x += settings.daylight.x * abso.x;
-                    color.y += settings.daylight.y * abso.y;
-                    color.z += settings.daylight.z * abso.z;
-
-                    if let Some(d) = tile_data.distance.get((pixel_pos.x, pixel_pos.y)) {
-                        dist = d.to_f32();
-                    }
-
-                    if let Some(lights) = tile_data.lights.get((pixel_pos.x, pixel_pos.y)) {
-                        for light in lights.iter() {
-                            fn hash_u32(seed: u32) -> u32 {
-                                let mut state = seed;
-                                state = (state ^ 61) ^ (state >> 16);
-                                state = state.wrapping_add(state << 3);
-                                state ^= state >> 4;
-                                state = state.wrapping_mul(0x27d4eb2d);
-                                state ^= state >> 15;
-                                state
-                            }
-
-                            fn flicker_value(anim_counter: u32, intensity: f32) -> f32 {
-                                let hash = hash_u32(anim_counter);
-                                let flicker_value = (hash as f32 / u32::MAX as f32).clamp(0.0, 1.0);
-
-                                let flicker_range = intensity * (flicker_value - 0.5) * 2.0;
-                                (1.0 + flicker_range).clamp(0.0, 1.0)
-                            }
-
-                            let brdf = vec3f(
-                                light.brdf.0.to_f32(),
-                                light.brdf.1.to_f32(),
-                                light.brdf.2.to_f32(),
-                            );
-
-                            let l = brdf * flicker_value(settings.anim_counter as u32, 0.2);
-                            color += l;
-                        }
-                    }
-                }
-
-                hit = true;
+            if let Some(d) = &self.canvas.distance_canvas.get((pos.x, pos.y)) {
+                dist = d.to_f32();
             }
+
+            if let Some(lights) = &self.canvas.lights_canvas.get((pos.x, pos.y)) {
+                for light in lights.iter() {
+                    fn hash_u32(seed: u32) -> u32 {
+                        let mut state = seed;
+                        state = (state ^ 61) ^ (state >> 16);
+                        state = state.wrapping_add(state << 3);
+                        state ^= state >> 4;
+                        state = state.wrapping_mul(0x27d4eb2d);
+                        state ^= state >> 15;
+                        state
+                    }
+
+                    fn flicker_value(anim_counter: u32, intensity: f32) -> f32 {
+                        let hash = hash_u32(anim_counter);
+                        let flicker_value = (hash as f32 / u32::MAX as f32).clamp(0.0, 1.0);
+
+                        let flicker_range = intensity * (flicker_value - 0.5) * 2.0;
+                        (1.0 + flicker_range).clamp(0.0, 1.0)
+                    }
+
+                    let brdf = vec3f(
+                        light.brdf.0.to_f32(),
+                        light.brdf.1.to_f32(),
+                        light.brdf.2.to_f32(),
+                    );
+
+                    let l = brdf * flicker_value(settings.anim_counter as u32, 0.2);
+                    color += l;
+                }
+            }
+
+            hit = true;
         }
 
         // Test against characters
@@ -1306,132 +1260,6 @@ impl Renderer {
                 }
             }
         }
-
-        // Light Sampling
-        //
-        /*
-        if false {
-            //hit {
-            if level.lights.is_empty() {
-                color *= settings.daylight;
-            } else {
-                // Sample the lights
-                let mut total_light = Vec3f::new(0.0, 0.0, 0.0);
-                for (light_grid, light) in &level.lights {
-                    let light_pos =
-                        vec3f(light_grid.x as f32 + 0.5, 0.8, light_grid.y as f32 + 0.5);
-                    let mut light_strength = light.strength;
-
-                    if light.color_type == 1 {
-                        light_strength = settings.daylight.x;
-                    }
-
-                    let mut ro = ray.at(dist);
-
-                    if light.limiter == 1 && ro.y > light_pos.y {
-                        continue;
-                    }
-                    if light.limiter == 2 && ro.x < light_pos.x {
-                        continue;
-                    }
-                    if light.limiter == 3 && ro.y < light_pos.y {
-                        continue;
-                    }
-                    if light.limiter == 4 && ro.x > light_pos.x {
-                        continue;
-                    }
-
-                    let light_dir = light_pos - ro;
-                    let light_dist = length(light_dir);
-                    if light_dist < light.max_distance {
-                        ro += light_dir * 0.01;
-
-                        let light_ray = Ray::new(ro, light_dir);
-
-                        /*
-                        let intensity = 1.0 - (light_dist / light.max_distance).clamp(0.0, 1.0);
-                        //intensity *= if s == 0 { 2.0 } else { 1.0 };
-                        let mut light_color =
-                            Vec3f::from(intensity * light_strength / light.samples as f32);
-                        if light.color_type == 0 {
-                            light_color *= light.color
-                        }
-                        total_light += light_color;
-                        */
-
-                        if self.shadow_ray(
-                            light_ray,
-                            Vec3i::from(light_pos),
-                            light,
-                            region,
-                            update,
-                            settings,
-                        ) {
-                            let c = if settings.pbr {
-                                let mut light_color = Vec3f::from(1.5 * light_strength);
-                                if light.color_type == 0 {
-                                    light_color *= light.color
-                                }
-                                let roughness = hit_props.roughness;
-                                let metallic = hit_props.metallic;
-                                let reflectance = hit_props.reflectance;
-                                let base_color = vec3f(color.x, color.y, color.z);
-
-                                let f0 = 0.16 * reflectance * reflectance * (1.0 - metallic)
-                                    + base_color * metallic;
-
-                                self.compute_pbr_lighting(
-                                    light_pos,
-                                    light_color,
-                                    ro,
-                                    abs(normal),
-                                    -rd,
-                                    base_color,
-                                    roughness,
-                                    f0,
-                                )
-                            } else {
-                                let mut light_color = Vec3f::from(light_strength);
-                                if light.color_type == 0 {
-                                    light_color *= light.color
-                                }
-                                let intensity =
-                                    1.0 - (light_dist / light.max_distance).clamp(0.0, 1.0);
-
-                                light_color * intensity
-                            };
-
-                            total_light += c;
-                        }
-                    }
-                }
-
-                // color = color * daylight + vec4f(total_light.x, total_light.y, total_light.z, 1.0);
-
-                let min_color = color;
-                color += color * vec3f(total_light.x, total_light.y, total_light.z);
-                color = clamp(color, min_color, color);
-                /*
-                let min_color = vec3f(
-                    color.x * settings.daylight.x,
-                    color.y * settings.daylight.y,
-                    color.z * settings.daylight.z,
-                );
-
-                color = clamp(
-                    color // * settings.daylight
-                    + color * vec3f(total_light.x, total_light.y, total_light.z),
-                    min_color,
-                    color,
-                    );*/
-            }
-            }*/
-
-        // if let Some(saturation) = saturation {
-        //     let mut hsl = TheColor::from_vec3f(color).as_hsl();
-        //     hsl.y *= saturation;
-        //     color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec3f();
-        // }
 
         // Show hover
         if let Some(hover) = self.hover_pos {
@@ -1531,11 +1359,10 @@ impl Renderer {
                         self.position
                     };
 
-                    let ray = region.regionfx.create_ray(
+                    let ray = region.regionfx.cam_create_ray(
                         vec2f(xx / width_f, yy / height_f),
                         position,
                         vec2f(width_f, height_f),
-                        vec2f(region.grid_size as f32, region.grid_size as f32),
                         vec2f(0.0, 0.0),
                         &render_settings_params,
                     );
@@ -2270,6 +2097,11 @@ impl Renderer {
         self.position = position;
     }
 
+    /// The current camera renders the prerendered tiles into the game canvas.
+    pub fn render_canvas(&mut self, region: &Region) {
+        region.regionfx.cam_render_canvas(region, &mut self.canvas);
+    }
+
     /*
     /// Create the camera setup.
     pub fn create_camera_setup(
@@ -2431,22 +2263,19 @@ impl Renderer {
         let width_f = width as f32;
         let height_f = height as f32;
 
-        let ppt = region.tile_size as f32;
-
         let position = if settings.center_on_character.is_some() {
             settings.center_3d + self.position
         } else {
             self.position
         };
 
-        let ray = region.regionfx.create_ray(
+        let ray = region.regionfx.cam_create_ray(
             vec2f(
                 screen_coord.x as f32 / width_f,
                 1.0 - screen_coord.y as f32 / height_f,
             ),
             position,
             vec2f(width_f, height_f),
-            vec2f(width_f / ppt, height_f / ppt),
             vec2f(0.0, 0.0),
             &render_settings_params,
         );

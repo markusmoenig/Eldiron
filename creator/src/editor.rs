@@ -508,25 +508,16 @@ impl TheTrait for Editor {
         // Get prerendered results
         while let Some(rendered) = PRERENDERTHREAD.lock().unwrap().receive() {
             match rendered {
-                PreRenderResult::RenderedRegionTile(
-                    id,
-                    size,
-                    tile,
-                    sample,
-                    tile_data,
-                    grid_map,
-                ) => {
+                PreRenderResult::RenderedRegionTile(id, tile, sample, tile_data) => {
                     if let Some(region) = self.project.get_region_mut(&id) {
                         region.prerendered.merge_tile_data(
                             region.tile_size,
-                            &size,
                             &tile,
                             sample,
                             &tile_data,
-                            &grid_map,
                         );
                         self.server
-                            .set_prerendered_tile(id, &size, &tile, sample, &tile_data, &grid_map);
+                            .set_prerendered_tile(id, &tile, sample, &tile_data);
                     }
                     redraw = true;
                 }
@@ -536,7 +527,10 @@ impl TheTrait for Editor {
                         region.prerendered.clear();
                     }
                 }
-                PreRenderResult::Progress(text) => {
+                PreRenderResult::Progress(id, text) => {
+                    if let Some(region) = self.project.get_region_mut(&id) {
+                        RENDERER.lock().unwrap().render_canvas(region);
+                    }
                     TOOLLIST.lock().unwrap().render_button_text = text.clone();
                     ui.set_widget_value("Render Button", ctx, TheValue::Text(text));
                 }

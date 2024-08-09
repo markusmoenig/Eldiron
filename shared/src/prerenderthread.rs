@@ -16,16 +16,9 @@ pub enum PreRenderCmd {
 
 #[allow(clippy::large_enum_variant)]
 pub enum PreRenderResult {
-    RenderedRegionTile(
-        Uuid,
-        Vec2i,
-        Vec2i,
-        u16,
-        Option<PreRenderedTileData>,
-        TheFlattenedMap<(half::f16, half::f16)>,
-    ),
+    RenderedRegionTile(Uuid, Vec2i, u16, PreRenderedTileData),
     Clear(Uuid),
-    Progress(String),
+    Progress(Uuid, String),
     Finished,
     Paused,
     Quit,
@@ -189,7 +182,7 @@ impl PreRenderThread {
 
                             if let Some(pre) = prerendered_region_data.get_mut(&curr_region.id) {
                                 if let Some(tiles) = tiles {
-                                    pre.remove_tiles(tiles.clone(), curr_region.tile_size);
+                                    pre.remove_tiles(&curr_region, tiles.clone());
                                 } else {
                                     pre.tile_samples.clear();
                                     result_tx
@@ -249,7 +242,9 @@ impl PreRenderThread {
                                 } else {
                                     format!("{}", togo)
                                 };
-                                result_tx.send(PreRenderResult::Progress(progress)).unwrap();
+                                result_tx
+                                    .send(PreRenderResult::Progress(curr_region.id, progress))
+                                    .unwrap();
                             }
                         });
                     }

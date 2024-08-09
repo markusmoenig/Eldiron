@@ -1,9 +1,8 @@
-use core::f32;
 //use rayon::prelude::*;
 //use std::sync::atomic::{AtomicUsize, Ordering};
 //use std::sync::Arc;
 
-//use crate::prelude::*;
+use crate::prelude::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -16,10 +15,8 @@ pub struct PreRenderedLight {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PreRenderedTileData {
     pub albedo: TheRGBBuffer,
-    pub sky_absorption: TheRGBBuffer,
     pub distance: TheFlattenedMap<half::f16>,
 
-    #[serde(default = "default_prerendered_lights")]
     pub lights: TheFlattenedMap<Vec<PreRenderedLight>>,
 }
 
@@ -27,19 +24,10 @@ impl PreRenderedTileData {
     pub fn new(width: i32, height: i32) -> Self {
         Self {
             albedo: TheRGBBuffer::new(TheDim::sized(width, height)),
-            sky_absorption: TheRGBBuffer::new(TheDim::sized(width, height)),
             distance: TheFlattenedMap::new(width, height),
             lights: TheFlattenedMap::new(width, height),
         }
     }
-}
-
-fn default_grid_map() -> TheFlattenedMap<(half::f16, half::f16)> {
-    TheFlattenedMap::new(0, 0)
-}
-
-fn default_prerendered_lights() -> TheFlattenedMap<Vec<PreRenderedLight>> {
-    TheFlattenedMap::new(0, 0)
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -47,9 +35,6 @@ pub struct PreRendered {
     #[serde(default)]
     #[serde(with = "vectorize")]
     pub tiles: FxHashMap<Vec2i, PreRenderedTileData>,
-
-    #[serde(default = "default_grid_map")]
-    pub grid_map: TheFlattenedMap<(half::f16, half::f16)>,
 
     #[serde(default)]
     #[serde(with = "vectorize")]
@@ -63,19 +48,9 @@ impl Default for PreRendered {
 }
 
 impl PreRendered {
-    pub fn new(width: i32, height: i32) -> Self {
-        Self {
-            grid_map: TheFlattenedMap::new(width, height),
-
-            tiles: FxHashMap::default(),
-            tile_samples: FxHashMap::default(),
-        }
-    }
-
     pub fn zero() -> Self {
         Self {
             tiles: FxHashMap::default(),
-            grid_map: TheFlattenedMap::new(0, 0),
             tile_samples: FxHashMap::default(),
         }
     }
@@ -86,17 +61,25 @@ impl PreRendered {
         //self.grid_map.clear();
     }
 
-    pub fn resize(&mut self, width: i32, height: i32) {
-        self.grid_map.resize(width, height);
-    }
-
     pub fn invalidate(&mut self) {
         //self.grid_map.clear();
     }
 
     /// Add the given tiles to be rendered in grid space, we map them to local space.
-    pub fn remove_tiles(&mut self, tiles: Vec<Vec2i>, grid_size: i32) {
+    pub fn remove_tiles(&mut self, region: &Region, tiles: Vec<Vec2i>) {
         for tile in tiles {
+            let data = region
+                .regionfx
+                .cam_world_to_canvas(region, vec3f(tile.x as f32, 0.0, tile.y as f32));
+            println!("tile {:?} {:?}", data, tile);
+            let tile = Vec2i::new(data.x / region.tile_size, data.y / region.tile_size);
+            for y in tile.y - 2..=tile.y + 2 {
+                for x in tile.x - 2..=tile.x + 2 {
+                    let t = Vec2i::new(x, y);
+                    self.tile_samples.remove(&t);
+                }
+            }
+            /*
             if let Some(data) = self.get_pixel_coord(vec2f(tile.x as f32, tile.y as f32)) {
                 let tile = Vec2i::new(data.x / grid_size, data.y / grid_size);
                 for y in tile.y - 2..=tile.y + 2 {
@@ -107,7 +90,7 @@ impl PreRendered {
                 }
             } else {
                 println!("Could not map tile coord {tile}");
-            }
+            }*/
         }
     }
 
@@ -115,167 +98,72 @@ impl PreRendered {
     pub fn merge_tile_data(
         &mut self,
         grid_size: i32,
-        size: &Vec2i,
         tile: &Vec2i,
         sample: u16,
-        tile_data: &Option<PreRenderedTileData>,
-        grid_map: &TheFlattenedMap<(half::f16, half::f16)>,
+        tile_data: &PreRenderedTileData,
     ) {
-        self.resize(size.x, size.y);
-
-        let tile_x = tile.x * grid_size;
-        let tile_y = tile.y * grid_size;
+        // let tile_x = tile.x * grid_size;
+        // let tile_y = tile.y * grid_size;
 
         let s = 1.0 / (sample as f32 + 1.0);
 
         if let Some(existing_tile) = self.tiles.get_mut(tile) {
-            if let Some(tile_data) = &tile_data {
-                for h in 0..grid_size {
-                    for w in 0..grid_size {
-                        // albedo
-                        if let Some(existing) = existing_tile.albedo.at_vec3(vec2i(w, h)) {
-                            if let Some(new_samp) = tile_data.albedo.at_vec3(vec2i(w, h)) {
-                                let p = lerp(existing, new_samp, s);
-                                existing_tile.albedo.set_pixel_vec3f(w, h, &p);
-                            }
+            for h in 0..grid_size {
+                for w in 0..grid_size {
+                    // albedo
+                    if let Some(existing) = existing_tile.albedo.at_vec3(vec2i(w, h)) {
+                        if let Some(new_samp) = tile_data.albedo.at_vec3(vec2i(w, h)) {
+                            let p = lerp(existing, new_samp, s);
+                            existing_tile.albedo.set_pixel_vec3f(w, h, &p);
                         }
+                    }
 
-                        // sky abso
-                        if let Some(existing) = existing_tile.sky_absorption.at_vec3(vec2i(w, h)) {
-                            if let Some(new_samp) = tile_data.sky_absorption.at_vec3(vec2i(w, h)) {
-                                let p = lerp(existing, new_samp, s);
-                                existing_tile.sky_absorption.set_pixel_vec3f(w, h, &p);
-                            }
+                    // distance
+                    if let Some(new_samp) = tile_data.distance.get((w, h)) {
+                        if let Some(existing) = existing_tile.distance.get_mut((w, h)) {
+                            let d = lerp(existing.to_f32(), new_samp.to_f32(), s);
+                            *existing = half::f16::from_f32(d);
+                        } else {
+                            existing_tile.distance.set((w, h), *new_samp);
                         }
+                    }
 
-                        // distance
-                        if let Some(new_samp) = tile_data.distance.get((w, h)) {
-                            if let Some(existing) = existing_tile.distance.get_mut((w, h)) {
-                                let d = lerp(existing.to_f32(), new_samp.to_f32(), s);
-                                *existing = half::f16::from_f32(d);
-                            } else {
-                                existing_tile.distance.set((w, h), *new_samp);
-                            }
-                        }
+                    // lights
+                    if let Some(new_samp) = tile_data.lights.get((w, h)) {
+                        if let Some(existing) = existing_tile.lights.get_mut((w, h)) {
+                            for nl in new_samp {
+                                for ex in existing.iter_mut() {
+                                    if nl.pos == ex.pos {
+                                        let e = vec3f(
+                                            ex.brdf.0.to_f32(),
+                                            ex.brdf.1.to_f32(),
+                                            ex.brdf.2.to_f32(),
+                                        );
+                                        let n = vec3f(
+                                            nl.brdf.0.to_f32(),
+                                            nl.brdf.1.to_f32(),
+                                            nl.brdf.2.to_f32(),
+                                        );
 
-                        // lights
-                        if let Some(new_samp) = tile_data.lights.get((w, h)) {
-                            if let Some(existing) = existing_tile.lights.get_mut((w, h)) {
-                                for nl in new_samp {
-                                    for ex in existing.iter_mut() {
-                                        if nl.pos == ex.pos {
-                                            let e = vec3f(
-                                                ex.brdf.0.to_f32(),
-                                                ex.brdf.1.to_f32(),
-                                                ex.brdf.2.to_f32(),
-                                            );
-                                            let n = vec3f(
-                                                nl.brdf.0.to_f32(),
-                                                nl.brdf.1.to_f32(),
-                                                nl.brdf.2.to_f32(),
-                                            );
-
-                                            let rc = lerp(e, n, s);
-                                            ex.brdf = (
-                                                half::f16::from_f32(rc.x),
-                                                half::f16::from_f32(rc.y),
-                                                half::f16::from_f32(rc.z),
-                                            );
-                                        }
+                                        let rc = lerp(e, n, s);
+                                        ex.brdf = (
+                                            half::f16::from_f32(rc.x),
+                                            half::f16::from_f32(rc.y),
+                                            half::f16::from_f32(rc.z),
+                                        );
                                     }
                                 }
-                            } else {
-                                existing_tile.lights.set((w, h), new_samp.clone());
                             }
+                        } else {
+                            existing_tile.lights.set((w, h), new_samp.clone());
                         }
                     }
                 }
             }
-        } else if let Some(tile_data) = &tile_data {
+        } else {
             self.tiles.insert(*tile, tile_data.clone());
         }
 
-        // Always copy the grid_map
-        for h in 0..grid_size {
-            for w in 0..grid_size {
-                if let Some(new_samp) = grid_map.get((w, h)) {
-                    self.grid_map.set((w + tile_x, h + tile_y), *new_samp);
-                }
-            }
-        }
-
-        if tile_data.is_some() {
-            self.tile_samples.insert(*tile, sample);
-        } else {
-            self.tile_samples.remove(tile);
-        }
-    }
-
-    // pub fn get_pixel_coord(&self, mut pos: Vec2f) -> Option<Vec2i> {
-    //     pos.x = (pos.x * 1000.0).trunc() / 1000.0;
-    //     pos.y = (pos.y * 1000.0).trunc() / 1000.0;
-
-    //     let max_dist = Arc::new(AtomicUsize::new(f32::to_bits(f32::MAX) as usize));
-    //     let res_x = Arc::new(AtomicUsize::new(usize::MAX));
-    //     let res_y = Arc::new(AtomicUsize::new(usize::MAX));
-
-    //     (0..self.grid_map.width).into_par_iter().for_each(|x| {
-    //         for y in 0..self.grid_map.height {
-    //             if let Some(tupe_f16) = self.grid_map.get((x, y)) {
-    //                 let p = vec2f(tupe_f16.0.to_f32(), tupe_f16.1.to_f32());
-    //                 let t = distance(pos, p);
-
-    //                 if t < 0.005 {
-    //                     res_x.store(x as usize, Ordering::SeqCst);
-    //                     res_y.store(y as usize, Ordering::SeqCst);
-    //                     max_dist.store(f32::to_bits(0.0) as usize, Ordering::SeqCst);
-    //                     return;
-    //                 }
-
-    //                 let current_max_dist = f32::from_bits(max_dist.load(Ordering::SeqCst) as u32);
-    //                 if t < current_max_dist {
-    //                     res_x.store(x as usize, Ordering::SeqCst);
-    //                     res_y.store(y as usize, Ordering::SeqCst);
-    //                     max_dist.store(f32::to_bits(t) as usize, Ordering::SeqCst);
-    //                 }
-    //             }
-    //         }
-    //     });
-
-    //     let x = res_x.load(Ordering::SeqCst);
-    //     let y = res_y.load(Ordering::SeqCst);
-
-    //     if (x == usize::MAX && y == usize::MAX)
-    //         || f32::from_bits(max_dist.load(Ordering::SeqCst) as u32) > 5.0
-    //     {
-    //         None
-    //     } else {
-    //         Some(vec2i(x as i32, y as i32))
-    //     }
-    // }
-
-    pub fn get_pixel_coord(&self, pos: Vec2f) -> Option<Vec2i> {
-        let mut max_dist = f32::MAX;
-        let mut res = None;
-
-        for x in 0..self.grid_map.width {
-            for y in 0..self.grid_map.height {
-                if let Some(tupe_f16) = self.grid_map.get((x, y)) {
-                    let p = vec2f(tupe_f16.0.to_f32(), tupe_f16.1.to_f32());
-                    let t = distance(pos, p);
-
-                    if t < 0.005 {
-                        return Some(vec2i(x, y));
-                    }
-
-                    if t < max_dist {
-                        res = Some(vec2i(x, y));
-                        max_dist = t;
-                    }
-                }
-            }
-        }
-
-        res
+        self.tile_samples.insert(*tile, sample);
     }
 }

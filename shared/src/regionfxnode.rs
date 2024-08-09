@@ -1,4 +1,4 @@
-//use crate::prelude::*;
+use crate::prelude::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -139,13 +139,73 @@ impl RegionFXNode {
         }
     }
 
+    /// Convert a world position into a pixel offset in the canvas.
+    pub fn cam_world_to_canvas(&self, region: &Region, world_pos: Vec3f) -> Vec2i {
+        let tile_size = region.tile_size;
+        let tile_size_half = tile_size as f32;
+
+        let sx = tile_size * region.width;
+
+        let x = sx + ((world_pos.x - world_pos.z) * tile_size_half) as i32;
+        let y = ((world_pos.x + world_pos.z) * (tile_size_half / 2.0)) as i32;
+
+        vec2i(x, y)
+    }
+
+    /// Convert a canvas pixel position into a world position.
+    pub fn cam_canvas_to_world(&self, _region: &Region, _canvas_pos: Vec2i) -> Vec3f {
+        Vec3f::zero()
+    }
+
+    pub fn cam_render_canvas(&self, region: &Region, canvas: &mut GameCanvas) {
+        match self.role {
+            TiltedIsoCamera => {}
+            TopDownIsoCamera => {
+                let tile_size = region.tile_size;
+                let tile_size_half = tile_size;
+
+                let width = tile_size * region.width * 2;
+                let height = tile_size * region.height;
+
+                canvas.canvas.resize(width, height);
+                canvas.distance_canvas.resize(width, height);
+                canvas.lights_canvas.resize(width, height);
+
+                let sx = tile_size * region.width;
+
+                let mut keys: Vec<Vec2i> = region.prerendered.tiles.keys().cloned().collect();
+
+                keys.sort_by(|a, b| {
+                    let sum_a = a.x + a.y;
+                    let sum_b = b.x + b.y;
+                    if sum_a == sum_b {
+                        a.x.cmp(&b.x)
+                    } else {
+                        sum_a.cmp(&sum_b)
+                    }
+                });
+
+                for key in keys {
+                    if let Some(tile) = &region.prerendered.tiles.get(&key) {
+                        let x = sx + (key.x - key.y) * tile_size_half;
+                        let y = (key.x + key.y) * (tile_size_half / 2);
+
+                        canvas.canvas.copy_into(x, y, &tile.albedo.to_rgba());
+                        canvas.distance_canvas.copy_into(x, y, &tile.distance);
+                        canvas.lights_canvas.copy_into(x, y, &tile.lights);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     /// Create a cameray ray
-    pub fn create_ray(
+    pub fn cam_create_ray(
         &self,
         uv: Vec2f,
         position: Vec3f,
         size: Vec2f,
-        tiles: Vec2f,
         offset: Vec2f,
         params: &[f32],
     ) -> Ray {
@@ -162,6 +222,39 @@ impl RegionFXNode {
                     rd.x += height / 2.0;
                 }
 
+                let ratio = size.x / size.y;
+                let pixel_size = Vec2f::new(1.0 / size.x, 1.0 / size.y);
+
+                let cam_origin = ro;
+                let cam_look_at = rd;
+
+                let half_width = ((120.0_f32).to_radians() * 0.5).tan();
+                let half_height = half_width / ratio;
+
+                let up_vector = Vec3f::new(0.0, 1.0, 0.0);
+
+                let w = normalize(cam_origin - cam_look_at);
+                let u = cross(up_vector, w);
+                let v = cross(w, u);
+
+                let horizontal = u * half_width * 2.0;
+                let vertical = v * half_height * 2.0;
+
+                let mut out_origin = cam_origin;
+                out_origin += horizontal * (pixel_size.x * offset.x + uv.x - 0.5);
+                out_origin += vertical * (pixel_size.y * offset.y + uv.y - 0.5);
+                out_origin.y = cam_origin.y;
+
+                Ray::new(
+                    out_origin,
+                    normalize(vec3f(
+                        if alignment == 0 { -0.35 } else { 0.35 },
+                        -1.0,
+                        -0.35,
+                    )),
+                )
+
+                /*
                 let pixel_size = Vec2f::new(1.0 / size.x, 1.0 / size.y);
 
                 let cam_origin = ro;
@@ -191,14 +284,40 @@ impl RegionFXNode {
                         -1.0,
                         -0.35,
                     )),
-                )
+                    )*/
             }
             TopDownIsoCamera => {
                 let height = params[0];
 
-                let ro = vec3f(position.x + params[1], height, position.z + params[2]);
+                // let ro = vec3f(position.x + params[1], height, position.z + params[2]);
+                let ro = vec3f(position.x + height, height - 0.5, position.z + height);
                 let rd = vec3f(position.x, 0.0, position.z);
 
+                let ratio = size.x / size.y;
+                let pixel_size = Vec2f::new(1.0 / size.x, 1.0 / size.y);
+
+                let cam_origin = ro;
+                let cam_look_at = rd;
+
+                let half_width = ((47.0_f32).to_radians() * 0.5).tan();
+                let half_height = half_width / ratio;
+
+                let up_vector = Vec3f::new(0.0, 1.0, 0.0);
+
+                let w = normalize(cam_origin - cam_look_at);
+                let u = cross(up_vector, w);
+                let v = cross(w, u);
+
+                let horizontal = u * half_width * 2.0;
+                let vertical = v * half_height * 2.0;
+
+                let mut out_origin = cam_origin;
+                out_origin += horizontal * (pixel_size.x * offset.x + uv.x - 0.5);
+                out_origin += vertical * (pixel_size.y * offset.y + uv.y - 0.5);
+
+                Ray::new(out_origin, normalize(-w))
+
+                /*
                 let scale_factor = height / 1.5;
 
                 let pixel_size = Vec2f::new(1.0 / size.x, 1.0 / size.y);
@@ -222,7 +341,7 @@ impl RegionFXNode {
                 out_origin += horizontal * (pixel_size.x * offset.x + uv.x - 0.5);
                 out_origin += vertical * (pixel_size.y * offset.y + uv.y - 0.5);
 
-                Ray::new(out_origin, normalize(-w))
+                Ray::new(out_origin, normalize(-w))*/
             }
             _ => Ray::new(Vec3f::zero(), Vec3f::zero()),
         }

@@ -5,6 +5,7 @@ pub mod camera;
 pub mod character;
 pub mod client;
 pub mod fx;
+pub mod gamecanvas;
 pub mod geofxnode;
 pub mod geofxobject;
 pub mod heightmap;
@@ -47,6 +48,7 @@ pub mod prelude {
     pub use crate::character::Character;
     pub use crate::client::*;
     pub use crate::fx::*;
+    pub use crate::gamecanvas::GameCanvas;
     pub use crate::geofxnode::*;
     pub use crate::geofxobject::*;
     pub use crate::heightmap::*;

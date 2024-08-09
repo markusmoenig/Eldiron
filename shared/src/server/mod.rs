@@ -779,21 +779,14 @@ impl Server {
     pub fn set_prerendered_tile(
         &mut self,
         region: Uuid,
-        size: &Vec2i,
         tile: &Vec2i,
         sample: u16,
-        tile_data: &Option<PreRenderedTileData>,
-        grid_map: &TheFlattenedMap<(half::f16, half::f16)>,
+        tile_data: &PreRenderedTileData,
     ) {
         if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
-            region.prerendered.merge_tile_data(
-                region.tile_size,
-                size,
-                tile,
-                sample,
-                tile_data,
-                grid_map,
-            );
+            region
+                .prerendered
+                .merge_tile_data(region.tile_size, tile, sample, tile_data);
         }
     }
 

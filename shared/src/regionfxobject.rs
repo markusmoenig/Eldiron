@@ -65,25 +65,42 @@ impl RegionFXObject {
         data
     }
 
-    /// Create a cameray ray
-    pub fn create_ray(
+    /// Convert a world position into a pixel offset in the canvas.
+    pub fn cam_world_to_canvas(&self, region: &Region, world_pos: Vec3f) -> Vec2i {
+        if let Some(node_index) = self.find_connected_output_node(0, 0) {
+            self.nodes[node_index].cam_world_to_canvas(region, world_pos)
+        } else {
+            Vec2i::zero()
+        }
+    }
+
+    /// Convert a canvas pixel position into a world position.
+    pub fn cam_canvas_to_world(&self, region: &Region, canvas_pos: Vec2i) -> Vec3f {
+        if let Some(node_index) = self.find_connected_output_node(0, 0) {
+            self.nodes[node_index].cam_canvas_to_world(region, canvas_pos)
+        } else {
+            Vec3f::zero()
+        }
+    }
+
+    /// Render the prerendered tiles into the game canvas.
+    pub fn cam_render_canvas(&self, region: &Region, canvas: &mut GameCanvas) {
+        if let Some(node_index) = self.find_connected_output_node(0, 0) {
+            self.nodes[node_index].cam_render_canvas(region, canvas)
+        }
+    }
+
+    /// Create a camera ray
+    pub fn cam_create_ray(
         &self,
         uv: Vec2f,
         position: Vec3f,
         size: Vec2f,
-        tiles: Vec2f,
         offset: Vec2f,
         params: &[Vec<f32>],
     ) -> Ray {
         if let Some(node_index) = self.find_connected_output_node(0, 0) {
-            self.nodes[node_index].create_ray(
-                uv,
-                position,
-                size,
-                tiles,
-                offset,
-                &params[node_index],
-            )
+            self.nodes[node_index].cam_create_ray(uv, position, size, offset, &params[node_index])
         } else {
             Ray::new(Vec3f::zero(), Vec3f::zero())
         }
