@@ -49,24 +49,13 @@ impl RegionFXEditor {
 
         let mut nodes_button = TheTraybarButton::new(TheId::named("RegionFX Nodes"));
         //add_button.set_icon_name("icon_role_add".to_string());
-        nodes_button.set_text(str!("Effect Nodes"));
-        nodes_button.set_status_text("Available effect nodes.");
+        nodes_button.set_text(str!("Region FX"));
+        nodes_button.set_status_text("Available region effect nodes.");
         nodes_button.set_context_menu(Some(TheContextMenu {
-            items: vec![
-                TheContextMenuItem::new_submenu(
-                    "Effects".to_string(),
-                    TheId::named("Effect Nodes"),
-                    TheContextMenu {
-                        items: vec![TheContextMenuItem::new(
-                            "Brightness".to_string(),
-                            TheId::named("Brightness"),
-                        )],
-                        ..Default::default()
-                    },
-                ),
-                // TheContextMenuItem::new("Noise2D".to_string(), TheId::named("Noise2D")),
-                // TheContextMenuItem::new("Noise3D".to_string(), TheId::named("Noise3D")),
-            ],
+            items: vec![TheContextMenuItem::new(
+                "Saturation".to_string(),
+                TheId::named("Saturation"),
+            )],
             ..Default::default()
         }));
 
@@ -179,8 +168,9 @@ impl RegionFXEditor {
         match event {
             TheEvent::ContextMenuSelected(id, item) => {
                 //let prev = self.modelfx.to_json();
+                println!("id.name {}", id.name);
                 #[allow(clippy::collapsible_if)]
-                if id.name == "RegionFX Camera Nodes" {
+                if id.name == "RegionFX Camera Nodes" || id.name == "RegionFX Nodes" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         let prev = region.regionfx.clone();
                         // let material_id = material.id;
@@ -326,10 +316,12 @@ impl RegionFXEditor {
                                 server.update_region(region);
                                 //let next = material.to_json();
 
-                                PRERENDERTHREAD
-                                    .lock()
-                                    .unwrap()
-                                    .render_region(region.clone(), None);
+                                if region.regionfx.nodes[selected_index].is_camera() {
+                                    PRERENDERTHREAD
+                                        .lock()
+                                        .unwrap()
+                                        .render_region(region.clone(), None);
+                                }
 
                                 let next = region.regionfx.clone();
                                 let region_id = region.id;

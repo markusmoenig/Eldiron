@@ -11,6 +11,8 @@ pub struct Renderer {
     pub position: Vec3f,
     pub hover_pos: Option<Vec3i>,
 
+    screen_offset: Vec2i,
+
     pub canvas: GameCanvas,
 }
 
@@ -24,6 +26,8 @@ impl Renderer {
             position: Vec3f::zero(),
             hover_pos: None,
 
+            screen_offset: Vec2i::zero(),
+
             canvas: GameCanvas::default(),
         }
     }
@@ -31,7 +35,7 @@ impl Renderer {
     #[allow(clippy::too_many_arguments)]
     pub fn prerender(
         &mut self,
-        size: Vec2i,
+        _size: Vec2i,
         prerendered: &mut PreRendered,
         region: &Region,
         settings: &mut RegionDrawSettings,
@@ -63,12 +67,6 @@ impl Renderer {
         }
 
         let _start = self.get_time();
-
-        let width = size.x as usize;
-        let height = size.y as usize;
-
-        let width_f = width as f32;
-        let height_f = height as f32;
 
         let max_render_distance = 50;
         // TODO: Get Setting from Render Node
@@ -107,43 +105,15 @@ impl Renderer {
         tiles.par_iter_mut().for_each(|tile| {
             let mut tile_data = PreRenderedTileData::new(tile_size, tile_size);
 
-            let mut grid_map_buffer: TheFlattenedMap<(half::f16, half::f16)> =
-                TheFlattenedMap::new(tile_size, tile_size);
-
             let mut rng = rand::thread_rng();
             let mut tile_is_empty = true;
 
             for h in 0..tile_size {
                 for w in 0..tile_size {
-                    let x = tile.x * tile_size + w;
-                    let y = tile.y * tile_size + h;
-                    let xx = x as f32;
-                    let yy = y as f32;
-
-                    {
-                        let ray = region.regionfx.cam_create_ray(
-                            vec2f(xx / width_f, (height_f - yy) / height_f),
-                            self.position,
-                            vec2f(width_f, height_f),
-                            vec2f(0.0, 0.0),
-                            &render_settings_params,
-                            CameraRayType::Tile,
-                        );
-
-                        let plane_normal = vec3f(0.0, 1.0, 0.0);
-                        let denom = dot(plane_normal, ray.d);
-
-                        if denom.abs() > 0.0001 {
-                            let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
-                            if t >= 0.0 {
-                                let p = ray.o + ray.d * t;
-                                grid_map_buffer.set(
-                                    (w, h),
-                                    (half::f16::from_f32(p.x), half::f16::from_f32(p.z)),
-                                );
-                            }
-                        }
-                    }
+                    // let x = tile.x * tile_size + w;
+                    // let y = tile.y * tile_size + h;
+                    // let xx = x as f32;
+                    // let yy = y as f32;
 
                     // Pathtracer
                     // Based on GLSL_pathtracer (https://github.com/knightcrawler25/GLSL-PathTracer)
@@ -156,7 +126,6 @@ impl Renderer {
                         vec2f(tile_size_f, tile_size_f),
                         vec2f(rng.gen(), rng.gen()),
                         &render_settings_params,
-                        CameraRayType::Tile,
                     );
 
                     // BSDF Pathtracer based on glsl_pathtracer
@@ -1040,8 +1009,6 @@ impl Renderer {
             );
         }
 
-        let max_render_distance = 20;
-
         // Fill the code level with the blocking info and collect lights
         let mut level = Level::new(region.width, region.height, settings.time);
         region.fill_code_level(&mut level, &self.textures, update);
@@ -1066,8 +1033,9 @@ impl Renderer {
             vec2f(width_f, height_f),
             vec2f(0.0, 0.0),
             &render_settings_params,
-            CameraRayType::Tile,
         );
+
+        //let mut screen_pos = Vec2i::zero();
 
         let plane_normal = vec3f(0.0, 1.0, 0.0);
         let denom = dot(plane_normal, ray.d);
@@ -1076,10 +1044,12 @@ impl Renderer {
             let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
             if t >= 0.0 {
                 let p = ray.o + ray.d * t;
-
                 let screen_pos = region.regionfx.cam_world_to_canvas(region, p);
                 start_x = screen_pos.x - width as i32 / 2;
                 start_y = screen_pos.y - height as i32 / 2;
+
+                self.screen_offset.x = start_x;
+                self.screen_offset.y = start_y;
             }
         }
 
@@ -1095,28 +1065,28 @@ impl Renderer {
                     let xx = (i % width) as f32;
                     let yy = (i / width) as f32;
 
+                    let canvas_pos = vec2i(start_x + xx as i32, start_y + (height_f - yy) as i32);
+                    let pos = region.regionfx.cam_canvas_to_world(region, canvas_pos);
+
+                    let tile_size_f = region.tile_size as f32;
                     let ray = region.regionfx.cam_create_ray(
-                        vec2f(xx / width_f, yy / height_f),
-                        position,
-                        vec2f(width_f, height_f),
+                        vec2f(0.5, 0.5),
+                        pos,
+                        vec2f(tile_size_f, tile_size_f),
                         vec2f(0.0, 0.0),
                         &render_settings_params,
-                        CameraRayType::Scene,
                     );
 
                     // --
 
-                    let pos = vec2i(start_x + xx as i32, start_y + (height_f - yy) as i32);
-
                     pixel.copy_from_slice(&self.rendered_pixel(
                         ray,
-                        pos,
+                        canvas_pos,
                         region,
                         update,
                         settings,
-                        &level,
-                        max_render_distance,
                         palette,
+                        &render_settings_params,
                     ));
                 }
             });
@@ -1134,9 +1104,8 @@ impl Renderer {
         region: &Region,
         update: &RegionUpdate,
         settings: &RegionDrawSettings,
-        _level: &Level,
-        _max_render_distance: i32,
-        _palette: &ThePalette,
+        palette: &ThePalette,
+        fx_params: &[Vec<f32>],
     ) -> RGBA {
         let mut color = vec3f(0.0, 0.0, 0.0);
         //let hit_props = Hit::default();
@@ -1265,6 +1234,10 @@ impl Renderer {
             }
         }
 
+        region
+            .regionfx
+            .fx_3d(region, palette, pos, &mut color, fx_params);
+
         // Show hover
         if let Some(hover) = self.hover_pos {
             let plane_normal = vec3f(0.0, 1.0, 0.0);
@@ -1369,7 +1342,6 @@ impl Renderer {
                         vec2f(width_f, height_f),
                         vec2f(0.0, 0.0),
                         &render_settings_params,
-                        CameraRayType::Tile,
                     );
 
                     pixel.copy_from_slice(&self.render_pixel(
@@ -2258,46 +2230,16 @@ impl Renderer {
         &mut self,
         screen_coord: Vec2i,
         region: &Region,
-        settings: &mut RegionDrawSettings,
-        width: usize,
-        height: usize,
+        _settings: &mut RegionDrawSettings,
+        _width: usize,
+        _height: usize,
     ) -> Option<(Vec3i, Vec3f)> {
-        // Collect the render settings params
-        let render_settings_params: Vec<Vec<f32>> = region.regionfx.load_parameters(&settings.time);
-
-        let width_f = width as f32;
-        let height_f = height as f32;
-
-        let position = if settings.center_on_character.is_some() {
-            settings.center_3d + self.position
-        } else {
-            self.position
-        };
-
-        let ray = region.regionfx.cam_create_ray(
-            vec2f(
-                screen_coord.x as f32 / width_f,
-                1.0 - screen_coord.y as f32 / height_f,
-            ),
-            position,
-            vec2f(width_f, height_f),
-            vec2f(0.0, 0.0),
-            &render_settings_params,
-            CameraRayType::Scene,
+        let screen = vec2i(
+            self.screen_offset.x + screen_coord.x,
+            self.screen_offset.y + screen_coord.y,
         );
-
-        let plane_normal = vec3f(0.0, 1.0, 0.0);
-        let denom = dot(plane_normal, ray.d);
-
-        if denom.abs() > 0.0001 {
-            let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
-            if t >= 0.0 {
-                let hit = ray.o + ray.d * t;
-                let key = Vec3i::from(hit);
-                return Some((vec3i(key.x, key.y, key.z), hit));
-            }
-        }
-        None
+        let p = region.regionfx.cam_canvas_to_world(region, screen);
+        Some((Vec3i::from(p), p))
     }
 
     fn g1v(&self, dot_nv: f32, k: f32) -> f32 {

@@ -98,31 +98,90 @@ impl RegionFXObject {
         size: Vec2f,
         offset: Vec2f,
         params: &[Vec<f32>],
-        ray_type: CameraRayType,
     ) -> Ray {
         if let Some(node_index) = self.find_connected_output_node(0, 0) {
-            self.nodes[node_index].cam_create_ray(
-                uv,
-                position,
-                size,
-                offset,
-                &params[node_index],
-                ray_type,
-            )
+            self.nodes[node_index].cam_create_ray(uv, position, size, offset, &params[node_index])
         } else {
             Ray::new(Vec3f::zero(), Vec3f::zero())
         }
     }
 
-    /// Computes the material
-    pub fn compute(
+    /// Computes the 2D region fx.
+    pub fn fx_2d(
         &self,
-        _hit: &mut Hit,
-        _palette: &ThePalette,
-        _textures: &FxHashMap<Uuid, TheRGBATile>,
-        _fx_obj_params: &[Vec<f32>],
+        region: &Region,
+        palette: &ThePalette,
+        canvas_pos: Vec2i,
+        color: &mut Vec3f,
+        fx_obj_params: &[Vec<f32>],
     ) {
-        //self.follow_trail(0, 0, hit, palette, textures, mat_obj_params);
+        self.follow_trail(0, 0, region, palette, canvas_pos, color, fx_obj_params)
+    }
+
+    /// Computes the 3D region fx.
+    pub fn fx_3d(
+        &self,
+        region: &Region,
+        palette: &ThePalette,
+        canvas_pos: Vec2i,
+        color: &mut Vec3f,
+        fx_obj_params: &[Vec<f32>],
+    ) {
+        self.follow_trail(0, 1, region, palette, canvas_pos, color, fx_obj_params)
+    }
+
+    /// After exiting a geometry node follow the trail of material nodes to calculate the final material.
+    #[allow(clippy::too_many_arguments)]
+    pub fn follow_trail(
+        &self,
+        node: usize,
+        terminal_index: usize,
+        region: &Region,
+        palette: &ThePalette,
+        canvas_pos: Vec2i,
+        color: &mut Vec3f,
+        fx_obj_params: &[Vec<f32>],
+    ) {
+        let mut connections = vec![];
+        for (o, ot, i, it) in &self.connections {
+            if *o == node as u16 && *ot == terminal_index as u8 {
+                connections.push((*i, *it));
+            }
+        }
+
+        for (o, _) in connections {
+            if let Some(ot) = self.nodes[o as usize].fx(
+                region,
+                palette,
+                canvas_pos,
+                color,
+                &fx_obj_params[o as usize],
+            ) {
+                self.follow_trail(
+                    o as usize,
+                    ot as usize,
+                    region,
+                    palette,
+                    canvas_pos,
+                    color,
+                    fx_obj_params,
+                );
+            }
+        }
+    }
+
+    /// Returns the connected input node and terminal for the given output node and terminal.
+    pub fn find_connected_input_node(
+        &self,
+        node: usize,
+        terminal_index: usize,
+    ) -> Option<(u16, u8)> {
+        for (o, ot, i, it) in &self.connections {
+            if *o == node as u16 && *ot == terminal_index as u8 {
+                return Some((*i, *it));
+            }
+        }
+        None
     }
 
     /// Returns the connected output node for the given input node and terminal.

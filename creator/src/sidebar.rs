@@ -3273,10 +3273,11 @@ impl Sidebar {
 
         // Apply the region's timeline to the editor.
         if let Some(region) = region {
-            PRERENDERTHREAD
-                .lock()
-                .unwrap()
-                .render_region(region.clone(), Some(vec![]));
+            // PRERENDERTHREAD
+            //     .lock()
+            //     .unwrap()
+            //     .render_region(region.clone(), Some(vec![]));
+            RENDERER.lock().unwrap().render_canvas(region);
         }
     }
 

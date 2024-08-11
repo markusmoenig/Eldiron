@@ -65,7 +65,6 @@ pub struct Region {
     pub heightmap: Heightmap,
 
     #[serde(default)]
-    #[serde(skip)]
     pub prerendered: PreRendered,
 
     pub width: i32,
