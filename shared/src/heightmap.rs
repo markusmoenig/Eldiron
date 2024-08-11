@@ -120,7 +120,7 @@ impl Heightmap {
     pub fn raymarch(&self, ray: &Ray) -> Option<f32> {
         let mut t = 0.0;
 
-        for _ in 0..20 {
+        for _ in 0..30 {
             //while t < max_dist {
             let pos = ray.at(t);
 

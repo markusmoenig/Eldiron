@@ -2239,7 +2239,10 @@ impl Renderer {
             self.screen_offset.y + screen_coord.y,
         );
         let p = region.regionfx.cam_canvas_to_world(region, screen);
-        Some((Vec3i::from(p), p))
+        Some((
+            Vec3i::new(p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32),
+            p,
+        ))
     }
 
     fn g1v(&self, dot_nv: f32, k: f32) -> f32 {
