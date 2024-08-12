@@ -2239,10 +2239,15 @@ impl Renderer {
             self.screen_offset.y + screen_coord.y,
         );
         let p = region.regionfx.cam_canvas_to_world(region, screen);
-        Some((
-            Vec3i::new(p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32),
-            p,
-        ))
+
+        if let Some(RegionFXNodeRole::TiltedIsoCamera) = region.regionfx.get_camera_role() {
+            Some((
+                Vec3i::new((p.x + 0.5) as i32, p.y.floor() as i32, (p.z - 0.5) as i32),
+                p,
+            ))
+        } else {
+            Some((Vec3i::new(p.x as i32, p.y.floor() as i32, p.z as i32), p))
+        }
     }
 
     fn g1v(&self, dot_nv: f32, k: f32) -> f32 {

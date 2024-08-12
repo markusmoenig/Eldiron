@@ -1011,9 +1011,6 @@ impl Sidebar {
                     if let Some(region) = project.get_region(&server_ctx.curr_region) {
                         RENDERER.lock().unwrap().render_canvas(region);
                         RENDERER.lock().unwrap().canvas.canvas.to_clipboard();
-                        // if let Some(tile) = region.prerendered.tiles.get(&vec2i(28, 32)) {
-                        //     tile.sky_absorption.to_clipboard();
-                        // }
                     }
                 } else if item_id.name == "Rename Module" {
                     if let Some(module) = project.codes.get(&widget_id.uuid) {

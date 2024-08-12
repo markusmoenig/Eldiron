@@ -226,6 +226,14 @@ impl RegionFXNode {
     pub fn cam_render_canvas(&self, region: &Region, canvas: &mut GameCanvas) {
         match self.role {
             TiltedIsoCamera => {
+                let tile_size = region.tile_size;
+                let width = tile_size * region.width;
+                let height = tile_size * region.height;
+
+                canvas.canvas.resize(width, height);
+                canvas.distance_canvas.resize(width, height);
+                canvas.lights_canvas.resize(width, height);
+
                 for (key, tile) in &region.prerendered.tiles {
                     let x = key.x * region.tile_size;
                     let y = key.y * region.tile_size;

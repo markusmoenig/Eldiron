@@ -675,10 +675,6 @@ impl TileEditor {
                         TheId::named("Floor Selected"),
                         TheValue::Empty,
                     ));
-                    // if self.editor_mode == EditorMode::Draw {
-                    //     ctx.ui
-                    //         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
-                    // }
                     MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
                         Layer2DRole::Ground,
                         &project.palette,

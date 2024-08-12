@@ -90,6 +90,12 @@ impl RegionFXObject {
         }
     }
 
+    /// Get the camera role.
+    pub fn get_camera_role(&self) -> Option<RegionFXNodeRole> {
+        self.find_connected_output_node(0, 0)
+            .map(|node_index| self.nodes[node_index].role.clone())
+    }
+
     /// Create a camera ray
     pub fn cam_create_ray(
         &self,
