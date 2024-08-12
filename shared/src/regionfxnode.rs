@@ -302,6 +302,9 @@ impl RegionFXNode {
                 if alignment == 0 {
                     ro.x += height / 2.0;
                     rd.x += height / 2.0;
+                } else {
+                    ro.x -= height / 4.0;
+                    rd.x -= height / 4.0;
                 }
 
                 let ratio = size.x / size.y;
@@ -310,7 +313,7 @@ impl RegionFXNode {
                 let cam_origin = ro;
                 let cam_look_at = rd;
 
-                let fov: f32 = 120.0;
+                let fov: f32 = 124.0;
                 let half_width = (fov.to_radians() * 0.5).tan();
                 let half_height = half_width / ratio;
 

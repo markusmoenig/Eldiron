@@ -2240,14 +2240,16 @@ impl Renderer {
         );
         let p = region.regionfx.cam_canvas_to_world(region, screen);
 
-        if let Some(RegionFXNodeRole::TiltedIsoCamera) = region.regionfx.get_camera_role() {
-            Some((
-                Vec3i::new((p.x + 0.5) as i32, p.y.floor() as i32, (p.z - 0.5) as i32),
-                p,
-            ))
-        } else {
-            Some((Vec3i::new(p.x as i32, p.y.floor() as i32, p.z as i32), p))
+        if let Some(cam_node) = region.regionfx.get_camera_node() {
+            if cam_node.role == RegionFXNodeRole::TiltedIsoCamera {
+                return Some((
+                    Vec3i::new((p.x + 0.5) as i32, p.y.floor() as i32, (p.z - 0.5) as i32),
+                    p,
+                ));
+            }
         }
+
+        Some((Vec3i::new(p.x as i32, p.y.floor() as i32, p.z as i32), p))
     }
 
     fn g1v(&self, dot_nv: f32, k: f32) -> f32 {
