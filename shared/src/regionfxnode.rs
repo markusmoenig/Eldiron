@@ -293,7 +293,7 @@ impl RegionFXNode {
     ) -> Ray {
         match self.role {
             TiltedIsoCamera => {
-                let height = params[0];
+                let height = 4.0; //params[0];
                 let alignment = params[1] as i32;
 
                 let mut ro = vec3f(position.x, height, position.z + 1.0);

@@ -182,6 +182,9 @@ impl MaterialFXObject {
         hit.noise = geo_noise;
         hit.noise_scale = geo_noise_scale;
 
+        // let sp = length(p - vec3f(p.x.floor() + 0.5, 0.5, p.z.floor() + 0.5)) - 0.3;
+        // d.0 = min(d.0, sp);
+
         d
     }
 

@@ -1014,7 +1014,7 @@ impl Renderer {
         region.fill_code_level(&mut level, &self.textures, update);
 
         // Collect the render settings params
-        let render_settings_params: Vec<Vec<f32>> = region.regionfx.load_parameters(&settings.time);
+        let regionfx_params: Vec<Vec<f32>> = region.regionfx.load_parameters(&settings.time);
 
         let mut start_x = 0;
         let mut start_y = 0;
@@ -1032,10 +1032,8 @@ impl Renderer {
             position,
             vec2f(width_f, height_f),
             vec2f(0.0, 0.0),
-            &render_settings_params,
+            &regionfx_params,
         );
-
-        //let mut screen_pos = Vec2i::zero();
 
         let plane_normal = vec3f(0.0, 1.0, 0.0);
         let denom = dot(plane_normal, ray.d);
@@ -1051,6 +1049,13 @@ impl Renderer {
                 self.screen_offset.x = start_x;
                 self.screen_offset.y = start_y;
             }
+        }
+
+        // Collect the tilefx params
+        let mut tilefx_params: FxHashMap<Vec3i, Vec<Vec<f32>>> = FxHashMap::default();
+        for (pos, tilefx) in &region.effects {
+            let params = tilefx.load_parameters(&settings.time);
+            tilefx_params.insert(*pos, params);
         }
 
         // Render loop
@@ -1074,7 +1079,7 @@ impl Renderer {
                         pos,
                         vec2f(tile_size_f, tile_size_f),
                         vec2f(0.0, 0.0),
-                        &render_settings_params,
+                        &regionfx_params,
                     );
 
                     // --
@@ -1086,7 +1091,8 @@ impl Renderer {
                         update,
                         settings,
                         palette,
-                        &render_settings_params,
+                        &regionfx_params,
+                        &tilefx_params,
                     ));
                 }
             });
@@ -1105,7 +1111,8 @@ impl Renderer {
         update: &RegionUpdate,
         settings: &RegionDrawSettings,
         palette: &ThePalette,
-        fx_params: &[Vec<f32>],
+        regionfx_params: &[Vec<f32>],
+        tilefx_params: &FxHashMap<Vec3i, Vec<Vec<f32>>>,
     ) -> RGBA {
         let mut color = vec3f(0.0, 0.0, 0.0);
         //let hit_props = Hit::default();
@@ -1234,9 +1241,26 @@ impl Renderer {
             }
         }
 
+        // TileFX
+        let tile_pos = vec2i(pos.x / region.tile_size, pos.y / region.tile_size);
+        if let Some(tilefx) = region.effects.get(&vec3i(tile_pos.x, 0, tile_pos.y)) {
+            // Execute Effects
+            if let Some(params) = tilefx_params.get(&vec3i(tile_pos.x, 0, tile_pos.y)) {
+                tilefx.fx(
+                    region,
+                    palette,
+                    vec3f(0.0, 0.0, 0.0),
+                    &mut color,
+                    false,
+                    params,
+                );
+            }
+        }
+
+        // RegionFX
         region
             .regionfx
-            .fx_3d(region, palette, pos, &mut color, fx_params);
+            .fx_3d(region, palette, pos, &mut color, regionfx_params);
 
         // Show hover
         if let Some(hover) = self.hover_pos {

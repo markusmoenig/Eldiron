@@ -5,7 +5,7 @@ use theframework::prelude::*;
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct TileFXObject {
     /// The nodes which make up the effect.
-    pub nodes: Vec<MaterialFXNode>,
+    pub nodes: Vec<TileFXNode>,
 
     /// The node connections: Source node index, source terminal, dest node index, dest terminal
     pub connections: Vec<(u16, u8, u16, u8)>,
@@ -56,19 +56,23 @@ impl TileFXObject {
         data
     }
 
-    /// Computes the material
-    pub fn compute(
+    /// Computes the 3D region fx.
+    pub fn fx(
         &self,
-        _hit: &mut Hit,
-        _palette: &ThePalette,
-        _textures: &FxHashMap<Uuid, TheRGBATile>,
-        _fx_obj_params: &[Vec<f32>],
+        region: &Region,
+        palette: &ThePalette,
+        pos: Vec3f,
+        color: &mut Vec3f,
+        three_d: bool,
+        fx_obj_params: &[Vec<f32>],
     ) {
-        //self.follow_trail(0, 0, hit, palette, textures, mat_obj_params);
+        for (index, node) in self.nodes.iter().enumerate() {
+            node.fx(region, palette, pos, color, three_d, &fx_obj_params[index]);
+        }
     }
 
     /// Convert the model to a node canvas.
-    pub fn to_canvas(&mut self, _palette: &ThePalette) -> TheNodeCanvas {
+    pub fn to_canvas(&mut self) -> TheNodeCanvas {
         let mut canvas = TheNodeCanvas {
             node_width: 136,
             selected_node: self.selected_node,

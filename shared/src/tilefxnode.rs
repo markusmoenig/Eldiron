@@ -1,10 +1,11 @@
-//use crate::prelude::*;
+use crate::prelude::*;
 use rayon::prelude::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum TileFXNodeRole {
-    Brightness,
+    LightEmitter,
+    Saturation,
 }
 
 use TileFXNodeRole::*;
@@ -35,20 +36,33 @@ impl TileFXNode {
         let resolve_branches = false;
 
         match role {
-            Brightness => {
-                coll.set("Add", TheValue::FloatRange(0.0, 0.0..=1.0));
-                coll.set("Rounding", TheValue::FloatRange(0.0, 0.0..=1.0));
+            LightEmitter => {
+                coll.set("Emission Strength", TheValue::FloatRange(1.0, 0.1..=3.0));
+                coll.set("Maximum Distance", TheValue::IntRange(10, 1..=20));
+                coll.set("Samples #", TheValue::IntRange(5, 1..=7));
+                coll.set("Sample Offset", TheValue::FloatRange(0.5, 0.01..=0.5));
                 coll.set(
-                    "Profile",
-                    TheValue::TextList(0, vec![str!("None"), str!("Rounded")]),
+                    "Limit Direction",
+                    TheValue::TextList(
+                        0,
+                        vec![
+                            str!("No"),
+                            str!("Only North"),
+                            str!("Only East"),
+                            str!("Only South"),
+                            str!("Only West"),
+                        ],
+                    ),
                 );
-                coll.set("Steps", TheValue::FloatRange(0.0, 0.0..=1.0));
                 coll.set(
-                    "Mortar",
-                    TheValue::TextList(0, vec![str!("No"), str!("Yes")]),
+                    "Light Color",
+                    TheValue::TextList(0, vec![str!("Color"), str!("Daylight")]),
                 );
-                coll.set("Mortar Sub", TheValue::FloatRange(0.05, 0.0..=1.0));
-                coll.set("Hash Weight", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Color", TheValue::ColorObject(TheColor::white()));
+                coll.set("Mask", TheValue::TileMask(TheTileMask::default()));
+            }
+            Saturation => {
+                coll.set("Saturation", TheValue::FloatRange(1.0, 0.0..=2.0));
             }
         }
 
@@ -69,12 +83,13 @@ impl TileFXNode {
 
     pub fn name(&self) -> String {
         match self.role {
-            Brightness => str!("Brightness"),
+            LightEmitter => str!("Light Emitter"),
+            Saturation => str!("Saturation"),
         }
     }
 
     pub fn nodes() -> Vec<Self> {
-        vec![Self::new(TileFXNodeRole::Brightness)]
+        vec![Self::new(TileFXNodeRole::Saturation)]
     }
 
     /// Gives the node a chance to update its parameters in case things changed.
@@ -95,14 +110,9 @@ impl TileFXNode {
 
         #[allow(clippy::single_match)]
         match self.role {
-            TileFXNodeRole::Brightness => {
-                params.push(coll.get_f32_default("Add", 0.0));
-                params.push(coll.get_f32_default("Rounding", 0.0));
-                params.push(coll.get_i32_default("Profile", 0) as f32);
-                params.push(coll.get_f32_default("Steps", 0.0));
-                params.push(coll.get_i32_default("Mortar", 0) as f32);
-                params.push(coll.get_f32_default("Mortar Sub", 0.05));
-                params.push(coll.get_f32_default("Hash Weight", 0.0));
+            TileFXNodeRole::LightEmitter => {}
+            TileFXNodeRole::Saturation => {
+                params.push(coll.get_f32_default("Saturation", 1.0));
             } //_ => {}
         }
 
@@ -111,7 +121,7 @@ impl TileFXNode {
 
     pub fn inputs(&self) -> Vec<TheNodeTerminal> {
         match self.role {
-            Brightness => {
+            Saturation | LightEmitter => {
                 vec![]
             }
         }
@@ -119,23 +129,37 @@ impl TileFXNode {
 
     pub fn outputs(&self) -> Vec<TheNodeTerminal> {
         match self.role {
-            Brightness => {
+            Saturation | LightEmitter => {
+                // vec![TheNodeTerminal {
+                //     name: str!("out"),
+                //     role: str!("Out"),
+                //     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                // }]
                 vec![]
             } //_ => vec![],
         }
     }
 
-    /// Computes the node.
-    // pub fn compute(
-    //     &self,
-    //     hit: &mut Hit,
-    //     palette: &ThePalette,
-    //     textures: &FxHashMap<Uuid, TheRGBATile>,
-    //     resolved: Vec<Hit>,
-    //     params: &[f32],
-    // ) -> Vec4f {
-    //     Vec4f::zero()
-    // }
+    /// Computes the FX.
+    pub fn fx(
+        &self,
+        _region: &Region,
+        _palette: &ThePalette,
+        _pos: Vec3f,
+        color: &mut Vec3f,
+        _three_d: bool,
+        params: &[f32],
+    ) {
+        #[allow(clippy::single_match)]
+        match self.role {
+            TileFXNodeRole::Saturation => {
+                let mut hsl = TheColor::from_vec3f(*color).as_hsl();
+                hsl.y *= params[0];
+                *color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec3f();
+            }
+            _ => {}
+        }
+    }
 
     /// Creates a new node from a name.
     pub fn new_from_name(name: String) -> Self {
@@ -145,7 +169,7 @@ impl TileFXNode {
                 return n;
             }
         }
-        TileFXNode::new(Brightness)
+        TileFXNode::new(Saturation)
     }
 
     pub fn collection(&self) -> TheCollection {

@@ -169,6 +169,16 @@ impl TileDrawer {
             material_params.insert(*id, params);
         }
 
+        // Collect the regionfx params
+        let regionfx_params: Vec<Vec<f32>> = region.regionfx.load_parameters(&settings.time);
+
+        // Collect the tilefx params
+        let mut tilefx_params: FxHashMap<Vec3i, Vec<Vec<f32>>> = FxHashMap::default();
+        for (pos, tilefx) in &region.effects {
+            let params = tilefx.load_parameters(&settings.time);
+            tilefx_params.insert(*pos, params);
+        }
+
         let time = TheTime::default();
 
         let pixels = buffer.pixels_mut();
@@ -193,10 +203,10 @@ impl TileDrawer {
 
                     let mut color = BLACK;
 
-                    let mut daylight = settings.daylight;
+                    // let mut daylight = settings.daylight;
                     let mut show_fx_marker = false;
 
-                    let mut mirror: Option<(i32, i32)> = None;
+                    // let mut mirror: Option<(i32, i32)> = None;
 
                     let mut has_hit = false;
                     if let Some(mask) = region.heightmap.get_material_mask(tile_x, tile_y) {
@@ -307,11 +317,15 @@ impl TileDrawer {
                         }
 
                         // Show orange FX marker
-                        if settings.show_fx_marker && tile.tilefx.is_some() {
+                        if settings.show_fx_marker
+                            && (tile.tilefx.is_some()
+                                || region.effects.contains_key(&vec3i(tile_x, 0, tile_y)))
+                        {
                             show_fx_marker = true;
                         }
 
                         // Check for FX
+                        /*
                         if let Some(tilefx) = &tile.tilefx {
                             if let Some(v) = tilefx.get(
                                 str!("Daylight"),
@@ -380,7 +394,7 @@ impl TileDrawer {
                                     }
                                 }
                             }
-                        }
+                        }*/
                     }
 
                     let p = vec2f(x as f32, y as f32);
@@ -525,16 +539,43 @@ impl TileDrawer {
                         }
                     }
 
-                    self.render(
-                        vec2i(x, y),
-                        &mut color,
+                    // self.render(
+                    //     vec2i(x, y),
+                    //     &mut color,
+                    //     region,
+                    //     update,
+                    //     &level,
+                    //     daylight,
+                    //     settings,
+                    //     mirror,
+                    // );
+
+                    if let Some(tilefx) = region.effects.get(&vec3i(tile_x, 0, tile_y)) {
+                        // Execute Effects
+                        if let Some(params) = tilefx_params.get(&vec3i(tile_x, 0, tile_y)) {
+                            let mut col = TheColor::from_u8_array(color).to_vec3f();
+                            tilefx.fx(
+                                region,
+                                palette,
+                                vec3f(tile_x_f, tile_y_f, 0.0),
+                                &mut col,
+                                false,
+                                params,
+                            );
+                            color = TheColor::from_vec3f(col).to_u8_array();
+                        }
+                    }
+
+                    // RegionFX
+                    let mut col = TheColor::from_u8_array(color).to_vec3f();
+                    region.regionfx.fx_2d(
                         region,
-                        update,
-                        &level,
-                        daylight,
-                        settings,
-                        mirror,
+                        palette,
+                        vec2i(tile_x, tile_y),
+                        &mut col,
+                        &regionfx_params,
                     );
+                    color = TheColor::from_vec3f(col).to_u8_array();
 
                     // Show the fx marker if necessary
                     if show_fx_marker {

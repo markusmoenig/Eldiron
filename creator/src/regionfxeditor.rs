@@ -167,13 +167,12 @@ impl RegionFXEditor {
 
         match event {
             TheEvent::ContextMenuSelected(id, item) => {
-                //let prev = self.modelfx.to_json();
                 println!("id.name {}", id.name);
                 #[allow(clippy::collapsible_if)]
                 if id.name == "RegionFX Camera Nodes" || id.name == "RegionFX Nodes" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         let prev = region.regionfx.clone();
-                        // let material_id = material.id;
+
                         let mut node = RegionFXNode::new_from_name(item.name.clone());
                         node.position = vec2i(
                             region.regionfx.scroll_offset.x + 220,

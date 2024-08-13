@@ -5,6 +5,9 @@ pub struct TileFXEditor {
     pub curr_collection: TheCollection,
     pub curr_marker: Option<TheTime>,
     pub preview_size: i32,
+
+    pub object: TileFXObject,
+    pub palette_indices: FxHashMap<String, Vec<u16>>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -16,6 +19,9 @@ impl TileFXEditor {
             curr_marker: None,
 
             preview_size: 192,
+
+            object: TileFXObject::default(),
+            palette_indices: FxHashMap::default(),
         }
     }
 
@@ -35,19 +41,18 @@ impl TileFXEditor {
         nodes_button.set_status_text("Available effect nodes.");
         nodes_button.set_context_menu(Some(TheContextMenu {
             items: vec![
-                TheContextMenuItem::new_submenu(
-                    "Effects".to_string(),
-                    TheId::named("Effect Nodes"),
-                    TheContextMenu {
-                        items: vec![TheContextMenuItem::new(
-                            "Brightness".to_string(),
-                            TheId::named("Brightness"),
-                        )],
-                        ..Default::default()
-                    },
-                ),
-                // TheContextMenuItem::new("Noise2D".to_string(), TheId::named("Noise2D")),
-                // TheContextMenuItem::new("Noise3D".to_string(), TheId::named("Noise3D")),
+                // TheContextMenuItem::new_submenu(
+                //     "Effects".to_string(),
+                //     TheId::named("Effect Nodes"),
+                //     TheContextMenu {
+                //         items: vec![TheContextMenuItem::new(
+                //             "Brightness".to_string(),
+                //             TheId::named("Brightness"),
+                //         )],
+                //         ..Default::default()
+                //     },
+                // ),
+                TheContextMenuItem::new("Saturation".to_string(), TheId::named("Saturation")),
             ],
             ..Default::default()
         }));
@@ -178,13 +183,142 @@ impl TileFXEditor {
         event: &TheEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
-        _server: &mut Server,
-        _server_ctx: &mut ServerContext,
+        project: &mut Project,
+        server: &mut Server,
+        server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
 
         match event {
+            TheEvent::ContextMenuSelected(id, item) => {
+                #[allow(clippy::collapsible_if)]
+                if id.name == "TileFX Nodes" {
+                    let mut node = TileFXNode::new_from_name(item.name.clone());
+                    node.position = vec2i(
+                        self.object.scroll_offset.x + 220,
+                        self.object.scroll_offset.y + 10,
+                    );
+                    self.object.nodes.push(node);
+                    self.object.selected_node = Some(self.object.nodes.len() - 1);
+
+                    let node_canvas = self.object.to_canvas();
+                    ui.set_node_canvas("TileFX NodeCanvas", node_canvas);
+                    self.set_selected_node_ui(server_ctx, project, ui, ctx);
+
+                    //if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    /*
+                    let prev = region.regionfx.clone();
+
+                    let mut node = RegionFXNode::new_from_name(item.name.clone());
+                    node.position = vec2i(
+                        region.regionfx.scroll_offset.x + 220,
+                        region.regionfx.scroll_offset.y + 10,
+                    );
+                    region.regionfx.nodes.push(node);
+                    region.regionfx.selected_node = Some(region.regionfx.nodes.len() - 1);
+
+                    let next = region.regionfx.clone();
+                    let region_id = region.id;
+
+                    let node_canvas = region.regionfx.to_canvas();
+                    ui.set_node_canvas("RegionFX NodeCanvas", node_canvas);
+
+                    self.set_selected_node_ui(server_ctx, project, ui, ctx);
+                    let undo = RegionUndoAtom::RegionFXEdit(prev, next);
+                    UNDOMANAGER
+                        .lock()
+                        .unwrap()
+                        .add_region_undo(&region_id, undo, ctx);
+                    //}
+                    redraw = true;
+                    */
+                }
+            }
+            TheEvent::NodeSelectedIndexChanged(id, index) => {
+                if id.name == "TileFX NodeCanvas" {
+                    self.object.selected_node = *index;
+                    self.set_selected_node_ui(server_ctx, project, ui, ctx);
+                }
+            }
+            TheEvent::NodeDragged(id, index, position) => {
+                if id.name == "TileFX NodeCanvas" {
+                    self.object.nodes[*index].position = *position;
+                }
+            }
+            TheEvent::NodeConnectionAdded(id, connections)
+            | TheEvent::NodeConnectionRemoved(id, connections) => {
+                if id.name == "TileFX NodeCanvas" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        self.object.connections.clone_from(connections);
+                        redraw = true;
+                        server.update_region(region);
+                    }
+                    /*
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        let prev = region.regionfx.clone();
+
+                        region.regionfx.connections.clone_from(connections);
+
+                        let next = region.regionfx.clone();
+                        let region_id = region.id;
+
+                        redraw = true;
+                        server.update_region(region);
+
+                        let undo = RegionUndoAtom::RegionFXEdit(prev, next);
+                        UNDOMANAGER
+                            .lock()
+                            .unwrap()
+                            .add_region_undo(&region_id, undo, ctx);
+
+                        PRERENDERTHREAD
+                            .lock()
+                            .unwrap()
+                            .render_region(region.clone(), None);
+                    }*/
+                }
+            }
+            TheEvent::NodeDeleted(id, deleted_node_index, connections) => {
+                if id.name == "TileFX NodeCanvas" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        self.object.nodes.remove(*deleted_node_index);
+                        self.object.connections.clone_from(connections);
+                        self.object.selected_node = None;
+
+                        redraw = true;
+                        server.update_region(region);
+                        /*
+                        let prev = region.regionfx.clone();
+                        region.regionfx.nodes.remove(*deleted_node_index);
+                        region.regionfx.connections.clone_from(connections);
+                        region.regionfx.selected_node = None;
+
+                        let next = region.regionfx.clone();
+                        let region_id = region.id;
+
+                        let undo = RegionUndoAtom::RegionFXEdit(prev, next);
+                        UNDOMANAGER
+                            .lock()
+                            .unwrap()
+                            .add_region_undo(&region_id, undo, ctx);
+
+                        redraw = true;
+                        server.update_region(region);
+
+                        PRERENDERTHREAD
+                            .lock()
+                            .unwrap()
+                            .render_region(region.clone(), None);
+                        */
+                    }
+                    self.set_selected_node_ui(server_ctx, project, ui, ctx);
+                }
+            }
+            TheEvent::NodeViewScrolled(id, offset) => {
+                if id.name == "TileFX NodeCanvas" {
+                    self.object.scroll_offset = *offset;
+                }
+            }
             TheEvent::TimelineMarkerSelected(id, time) => {
                 if id.name == "TileFX Timeline" {
                     self.curr_marker = Some(*time);
@@ -210,36 +344,59 @@ impl TileFXEditor {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name.starts_with(":TILEFX:") {
+                if id.name == "Palette Color Picker" {
+                    let index = project.palette.current_index;
+                    let mut widget_ids = Vec::new();
+                    for (id, indices) in &self.palette_indices {
+                        if indices.contains(&index) {
+                            widget_ids.push(id.clone());
+                        }
+                    }
+
+                    for widget_id in widget_ids {
+                        if let Some(widget) = ui.get_widget(&widget_id) {
+                            if let TheValue::ColorObject(color) = value {
+                                widget.set_value(TheValue::ColorObject(color.clone()));
+                            }
+                        }
+                    }
+                } else if id.name.starts_with(":TILEFX:") {
                     if let Some(name) = id.name.strip_prefix(":TILEFX: ") {
                         let mut value = value.clone();
 
-                        // Correct values to their range variants if necessary as TheSlider strips them
-                        // of the range
-                        if let Some(TheValue::FloatRange(_, range)) = self.curr_collection.get(name)
-                        {
-                            value = TheValue::FloatRange(value.to_f32().unwrap(), range.clone());
-                        } else if let Some(TheValue::IntRange(_, range)) =
-                            self.curr_collection.get(name)
-                        {
-                            value = TheValue::IntRange(value.to_i32().unwrap(), range.clone());
-                        } else if let Some(TheValue::TextList(_, list)) =
-                            self.curr_collection.get(name)
-                        {
-                            value = TheValue::TextList(value.to_i32().unwrap(), list.clone());
-                        }
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            if let Some(selected_index) = self.object.selected_node {
+                                // let prev = region.regionfx.clone();
 
-                        self.curr_collection.set(name, value);
-
-                        if let Some(time_slider) = ui.get_time_slider("TileFX Timeline") {
-                            if let TheValue::Time(time) = time_slider.value() {
-                                self.curr_timeline.add(time, self.curr_collection.clone());
-                                if let Some(names) =
-                                    self.curr_timeline.get_collection_names_at(&time)
+                                // Convert TextList back
+                                if let Some(TheValue::TextList(_, list)) =
+                                    region.regionfx.nodes[selected_index].get(name)
                                 {
-                                    time_slider.add_marker(time, names);
+                                    if let Some(v) = value.to_i32() {
+                                        value = TheValue::TextList(v, list.clone());
+                                    }
                                 }
-                                redraw = true;
+
+                                self.object.nodes[selected_index].set(name, value);
+
+                                server.update_region(region);
+                                //let next = material.to_json();
+
+                                // if region.regionfx.nodes[selected_index].is_camera() {
+                                //     PRERENDERTHREAD
+                                //         .lock()
+                                //         .unwrap()
+                                //         .render_region(region.clone(), None);
+                                // }
+
+                                // let next = region.regionfx.clone();
+                                // let region_id = region.id;
+
+                                // let undo = RegionUndoAtom::RegionFXEdit(prev, next);
+                                // UNDOMANAGER
+                                //     .lock()
+                                //     .unwrap()
+                                //     .add_region_undo(&region_id, undo, ctx);
                             }
                         }
                     }
@@ -366,6 +523,89 @@ impl TileFXEditor {
                     time_slider.add_marker(*time, names);
                 }
             }
+        }
+    }
+
+    pub fn set_selected_node_ui(
+        &mut self,
+        _server_ctx: &mut ServerContext,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        self.palette_indices.clear();
+
+        if let Some(selected_index) = self.object.selected_node {
+            // Safeguard, not actually needed
+            if selected_index >= self.object.nodes.len() {
+                self.object.selected_node = None;
+                return;
+            }
+
+            let collection = self.object.nodes[selected_index].collection();
+
+            if let Some(text_layout) = ui.get_text_layout("Node Settings") {
+                text_layout.clear();
+
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Show Node Settings"),
+                    TheValue::Text("RegionFX Node".to_string()),
+                ));
+
+                for (name, value) in &collection.keys {
+                    if let TheValue::Text(text) = value {
+                        let mut edit = TheTextLineEdit::new(TheId::named(
+                            (":TILEFX: ".to_owned() + name).as_str(),
+                        ));
+                        edit.set_value(TheValue::Text(text.clone()));
+                        text_layout.add_pair(name.clone(), Box::new(edit));
+                    } else if let TheValue::FloatRange(value, range) = value {
+                        let mut slider = TheTextLineEdit::new(TheId::named(
+                            (":TILEFX: ".to_owned() + name).as_str(),
+                        ));
+                        slider.set_value(TheValue::Float(*value));
+                        //slider.set_default_value(TheValue::Float(0.0));
+                        slider.set_range(TheValue::RangeF32(range.clone()));
+                        //slider.set_continuous(true);
+                        text_layout.add_pair(name.clone(), Box::new(slider));
+                    } else if let TheValue::IntRange(value, range) = value {
+                        let mut slider = TheTextLineEdit::new(TheId::named(
+                            (":TILEFX: ".to_owned() + name).as_str(),
+                        ));
+                        slider.set_value(TheValue::Int(*value));
+                        slider.set_range(TheValue::RangeI32(range.clone()));
+                        //slider.set_continuous(true);
+                        text_layout.add_pair(name.clone(), Box::new(slider));
+                    } else if let TheValue::TextList(index, list) = value {
+                        let mut dropdown = TheDropdownMenu::new(TheId::named(
+                            (":TILEFX: ".to_owned() + name).as_str(),
+                        ));
+                        for item in list {
+                            dropdown.add_option(item.clone());
+                        }
+                        dropdown.set_selected_index(*index);
+                        text_layout.add_pair(name.clone(), Box::new(dropdown));
+                    } else if let TheValue::PaletteIndex(index) = value {
+                        let name_id = ":TILEFX: ".to_owned() + name;
+                        let mut color_picker = TheColorButton::new(TheId::named(name_id.as_str()));
+                        color_picker.limiter_mut().set_max_size(vec2i(80, 20));
+                        if let Some(color) = &project.palette[*index as usize] {
+                            color_picker.set_color(color.to_u8_array());
+                        }
+
+                        if let Some(indices) = self.palette_indices.get_mut(&name_id) {
+                            indices.push(*index);
+                        } else {
+                            self.palette_indices
+                                .insert(name_id.to_string(), vec![*index]);
+                        }
+                        text_layout.add_pair(name.clone(), Box::new(color_picker));
+                    }
+                }
+                ctx.ui.relayout = true;
+            }
+        } else if let Some(text_layout) = ui.get_text_layout("Node Settings") {
+            text_layout.clear();
         }
     }
 }
