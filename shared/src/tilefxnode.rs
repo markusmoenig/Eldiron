@@ -37,8 +37,8 @@ impl TileFXNode {
 
         match role {
             LightEmitter => {
-                coll.set("Emission Strength", TheValue::FloatRange(1.0, 0.1..=3.0));
-                coll.set("Maximum Distance", TheValue::IntRange(10, 1..=20));
+                coll.set("Strength", TheValue::FloatRange(1.0, 0.1..=3.0));
+                coll.set("Max. Distance", TheValue::IntRange(10, 1..=20));
                 coll.set("Samples #", TheValue::IntRange(5, 1..=7));
                 coll.set("Sample Offset", TheValue::FloatRange(0.5, 0.01..=0.5));
                 coll.set(
@@ -89,7 +89,10 @@ impl TileFXNode {
     }
 
     pub fn nodes() -> Vec<Self> {
-        vec![Self::new(TileFXNodeRole::Saturation)]
+        vec![
+            Self::new(TileFXNodeRole::LightEmitter),
+            Self::new(TileFXNodeRole::Saturation),
+        ]
     }
 
     /// Gives the node a chance to update its parameters in case things changed.

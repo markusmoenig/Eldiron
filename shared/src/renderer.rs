@@ -75,7 +75,7 @@ impl Renderer {
 
         // Fill the code level with the blocking info and collect lights
         let mut level = Level::new(region.width, region.height, settings.time);
-        region.fill_code_level(&mut level, &self.textures, &update);
+        region.fill_code_level(&mut level, &self.textures, &update, region);
 
         // Collect the material params
         let mut material_params: FxHashMap<Uuid, Vec<Vec<f32>>> = FxHashMap::default();
@@ -1011,7 +1011,7 @@ impl Renderer {
 
         // Fill the code level with the blocking info and collect lights
         let mut level = Level::new(region.width, region.height, settings.time);
-        region.fill_code_level(&mut level, &self.textures, update);
+        region.fill_code_level(&mut level, &self.textures, update, region);
 
         // Collect the render settings params
         let regionfx_params: Vec<Vec<f32>> = region.regionfx.load_parameters(&settings.time);
@@ -1127,7 +1127,7 @@ impl Renderer {
 
         //if let Some(tile_data) = &region.prerendered.tiles.get(&tile_pos) {
         if let Some(albedo) = &self.canvas.canvas.get_pixel(pos.x, pos.y) {
-            let abso = TheColor::from_u8_array(*albedo).to_vec3f();
+            let abso = TheColor::from(*albedo).to_vec3f();
 
             // color.x = powf(settings.daylight.x * abso.x, 1.0 / 2.2);
             // color.y = powf(settings.daylight.y * abso.y, 1.0 / 2.2);
@@ -1325,7 +1325,7 @@ impl Renderer {
 
         // Fill the code level with the blocking info and collect lights
         let mut level = Level::new(region.width, region.height, settings.time);
-        region.fill_code_level(&mut level, &self.textures, update);
+        region.fill_code_level(&mut level, &self.textures, update, region);
 
         // Collect the material params
         let mut material_params: FxHashMap<Uuid, Vec<Vec<f32>>> = FxHashMap::default();

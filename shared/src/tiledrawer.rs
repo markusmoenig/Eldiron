@@ -160,7 +160,7 @@ impl TileDrawer {
 
         // Fill the code level with the blocking info and collect lights
         let mut level = Level::new(region.width, region.height, settings.time);
-        region.fill_code_level(&mut level, &self.tiles, update);
+        region.fill_code_level(&mut level, &self.tiles, update, region);
 
         // Collect the material params
         let mut material_params: FxHashMap<Uuid, Vec<Vec<f32>>> = FxHashMap::default();
@@ -318,8 +318,7 @@ impl TileDrawer {
 
                         // Show orange FX marker
                         if settings.show_fx_marker
-                            && (tile.tilefx.is_some()
-                                || region.effects.contains_key(&vec3i(tile_x, 0, tile_y)))
+                            && region.effects.contains_key(&vec3i(tile_x, 0, tile_y))
                         {
                             show_fx_marker = true;
                         }

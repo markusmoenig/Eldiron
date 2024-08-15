@@ -2,7 +2,7 @@ use crate::prelude::*;
 use theframework::prelude::*;
 
 pub struct GameCanvas {
-    pub canvas: TheRGBABuffer,
+    pub canvas: TheRGBBuffer,
 
     pub distance_canvas: TheFlattenedMap<half::f16>,
     pub lights_canvas: TheFlattenedMap<Vec<PreRenderedLight>>,
@@ -17,7 +17,7 @@ impl Default for GameCanvas {
 impl GameCanvas {
     pub fn empty() -> Self {
         Self {
-            canvas: TheRGBABuffer::empty(),
+            canvas: TheRGBBuffer::empty(),
             distance_canvas: TheFlattenedMap::new(0, 0),
             lights_canvas: TheFlattenedMap::new(0, 0),
         }
@@ -52,7 +52,7 @@ impl GameCanvas {
                 let x = sx + (key.x - key.y) * tile_size_half;
                 let y = sy + (key.x + key.y) * (tile_size_half / 2);
 
-                self.canvas.copy_into(x, y, &tile.albedo.to_rgba());
+                self.canvas.copy_into(x, y, &tile.albedo);
             }
         }
     }

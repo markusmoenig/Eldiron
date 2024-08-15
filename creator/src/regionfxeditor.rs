@@ -167,7 +167,6 @@ impl RegionFXEditor {
 
         match event {
             TheEvent::ContextMenuSelected(id, item) => {
-                println!("id.name {}", id.name);
                 #[allow(clippy::collapsible_if)]
                 if id.name == "RegionFX Camera Nodes" || id.name == "RegionFX Nodes" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {

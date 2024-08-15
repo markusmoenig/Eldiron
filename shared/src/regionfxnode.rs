@@ -237,7 +237,7 @@ impl RegionFXNode {
                 for (key, tile) in &region.prerendered.tiles {
                     let x = key.x * region.tile_size;
                     let y = key.y * region.tile_size;
-                    canvas.canvas.copy_into(x, y, &tile.albedo.to_rgba());
+                    canvas.canvas.copy_into(x, y, &tile.albedo);
                     canvas.distance_canvas.copy_into(x, y, &tile.distance);
                     canvas.lights_canvas.copy_into(x, y, &tile.lights);
                 }
@@ -272,7 +272,7 @@ impl RegionFXNode {
                         let x = sx + (key.x - key.y) * tile_size_half;
                         let y = (key.x + key.y) * (tile_size_half / 2);
 
-                        canvas.canvas.copy_into(x, y, &tile.albedo.to_rgba());
+                        canvas.canvas.copy_into(x, y, &tile.albedo);
                         canvas.distance_canvas.copy_into(x, y, &tile.distance);
                         canvas.lights_canvas.copy_into(x, y, &tile.lights);
                     }

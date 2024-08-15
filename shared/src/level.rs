@@ -61,8 +61,8 @@ pub struct Light {
 
 impl Light {
     pub fn from_collection(light_coll: &TheCollection) -> Self {
-        let max_distance = light_coll.get_i32_default("Maximum Distance", 10) as f32;
-        let strength = light_coll.get_f32_default("Emission Strength", 1.0);
+        let max_distance = light_coll.get_i32_default("Max. Distance", 10) as f32;
+        let strength = light_coll.get_f32_default("Strength", 1.0);
         let sampling_offset = light_coll.get_f32_default("Sample Offset", 0.5);
         let samples = light_coll.get_i32_default("Samples #", 5) as usize;
         let color_type = light_coll.get_i32_default("Light Color", 0);

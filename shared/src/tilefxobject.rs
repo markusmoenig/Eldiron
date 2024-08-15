@@ -56,6 +56,16 @@ impl TileFXObject {
         data
     }
 
+    /// Get the light node properties (if any).
+    pub fn get_light_collection(&self) -> Option<TheCollection> {
+        for n in &self.nodes {
+            if n.role == TileFXNodeRole::LightEmitter {
+                return Some(n.collection());
+            }
+        }
+        None
+    }
+
     /// Computes the 3D region fx.
     pub fn fx(
         &self,

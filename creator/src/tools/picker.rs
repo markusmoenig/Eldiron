@@ -231,12 +231,6 @@ impl Tool for PickerTool {
                                     }
                                 }
                             }
-                            if let Some(timeline) = &tile.tilefx {
-                                TILEFXEDITOR
-                                    .lock()
-                                    .unwrap()
-                                    .set_timeline(timeline.clone(), ui);
-                            }
                         } else {
                             for uuid in tile.layers.iter().flatten() {
                                 if TILEDRAWER.lock().unwrap().tiles.contains_key(uuid) {

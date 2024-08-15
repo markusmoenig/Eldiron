@@ -92,46 +92,34 @@ impl Tool for TileDrawerTool {
                 }
 
                 if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                    let mut region_to_render: Option<Region> = None;
                     let mut tiles_to_render: Vec<Vec2i> = vec![];
 
-                    if server_ctx.curr_layer_role == Layer2DRole::FX {
-                        if !TILEFXEDITOR.lock().unwrap().curr_timeline.is_empty() {
-                            region.set_tilefx(
-                                (coord.x, coord.y),
-                                TILEFXEDITOR.lock().unwrap().curr_timeline.clone(),
-                            )
-                        } else if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
-                            tile.tilefx = None;
-                        }
-                    } else {
-                        let mut prev = None;
-                        if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
-                            prev = Some(tile.clone());
-                        }
+                    let mut prev = None;
+                    if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
+                        prev = Some(tile.clone());
+                    }
 
-                        region.set_tile(
-                            (coord.x, coord.y),
-                            server_ctx.curr_layer_role,
-                            server_ctx.curr_tile_id,
-                        );
+                    region.set_tile(
+                        (coord.x, coord.y),
+                        server_ctx.curr_layer_role,
+                        server_ctx.curr_tile_id,
+                    );
 
-                        tiles_to_render.push(coord);
-                        region_to_render = Some(region.clone());
+                    tiles_to_render.push(coord);
+                    let region_to_render = Some(region.clone());
 
-                        if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
-                            if prev != Some(tile.clone()) {
-                                let undo = RegionUndoAtom::RegionTileEdit(
-                                    vec2i(coord.x, coord.y),
-                                    prev,
-                                    Some(tile.clone()),
-                                );
+                    if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
+                        if prev != Some(tile.clone()) {
+                            let undo = RegionUndoAtom::RegionTileEdit(
+                                vec2i(coord.x, coord.y),
+                                prev,
+                                Some(tile.clone()),
+                            );
 
-                                UNDOMANAGER
-                                    .lock()
-                                    .unwrap()
-                                    .add_region_undo(&region.id, undo, ctx);
-                            }
+                            UNDOMANAGER
+                                .lock()
+                                .unwrap()
+                                .add_region_undo(&region.id, undo, ctx);
                         }
                     }
                     //self.set_icon_previews(region, &palette, coord, ui);

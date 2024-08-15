@@ -52,6 +52,7 @@ impl TileFXEditor {
                 //         ..Default::default()
                 //     },
                 // ),
+                TheContextMenuItem::new("Light Emitter".to_string(), TheId::named("Light Emitter")),
                 TheContextMenuItem::new("Saturation".to_string(), TheId::named("Saturation")),
             ],
             ..Default::default()
@@ -428,84 +429,92 @@ impl TileFXEditor {
                         time_slider.clear_marker();
                         redraw = true;
                     }
-                } else if id.name.starts_with("TileFX ") && *state == TheWidgetState::Selected {
-                    let fx_name = id.name.strip_prefix("TileFX ").unwrap();
-                    let c = self
-                        .curr_timeline
-                        .get_collection_at(&TheTime::default(), fx_name.to_string());
+                } /*else if id.name.starts_with("TileFX ") && *state == TheWidgetState::Selected {
+                      let fx_name = id.name.strip_prefix("TileFX ").unwrap();
+                      let c = self
+                          .curr_timeline
+                          .get_collection_at(&TheTime::default(), fx_name.to_string());
 
-                    let fx = Some(TileFX::new_fx(fx_name, c));
+                      let fx = Some(TileFX::new_fx(fx_name, c));
 
-                    if let Some(fx) = fx {
-                        if let Some(collection) = fx.collection() {
-                            self.curr_collection = collection.clone();
-                            if let Some(text_layout) = ui.get_text_layout("TileFX Settings") {
-                                text_layout.clear();
-                                for (name, value) in &collection.keys {
-                                    if let TheValue::FloatRange(value, range) = value {
-                                        let mut slider = TheSlider::new(TheId::named(
-                                            (":TILEFX: ".to_owned() + name).as_str(),
-                                        ));
-                                        slider.set_value(TheValue::Float(*value));
-                                        slider.set_range(TheValue::RangeF32(range.clone()));
-                                        slider.set_status_text(fx.get_description(name).as_str());
-                                        text_layout.add_pair(name.clone(), Box::new(slider));
-                                    } else if let TheValue::IntRange(value, range) = value {
-                                        let mut slider = TheSlider::new(TheId::named(
-                                            (":TILEFX: ".to_owned() + name).as_str(),
-                                        ));
-                                        slider.set_value(TheValue::Int(*value));
-                                        slider.set_range(TheValue::RangeI32(range.clone()));
-                                        slider.set_status_text(fx.get_description(name).as_str());
-                                        text_layout.add_pair(name.clone(), Box::new(slider));
-                                    } else if let TheValue::TextList(index, list) = value {
-                                        let mut dropdown = TheDropdownMenu::new(TheId::named(
-                                            (":TILEFX: ".to_owned() + name).as_str(),
-                                        ));
-                                        for item in list {
-                                            dropdown.add_option(item.clone());
-                                        }
-                                        dropdown.set_selected_index(*index);
-                                        dropdown.set_status_text(fx.get_description(name).as_str());
-                                        text_layout.add_pair(name.clone(), Box::new(dropdown));
-                                    }
-                                }
-                                redraw = true;
-                                ctx.ui.relayout = true;
-                            }
-                            if let Some(vlayout) = ui.get_vlayout("TileFX Color Settings") {
-                                vlayout.clear();
-                                for (name, value) in &collection.keys {
-                                    if let TheValue::ColorObject(color) = value {
-                                        let mut color_picker = TheColorPicker::new(TheId::named(
-                                            (":TILEFX: ".to_owned() + name).as_str(),
-                                        ));
-                                        color_picker.limiter_mut().set_max_size(vec2i(120, 120));
-                                        color_picker.set_color(color.to_vec3f());
-                                        vlayout.add_widget(Box::new(color_picker));
-                                    }
-                                }
-                                redraw = true;
-                                ctx.ui.relayout = true;
-                            }
-                        }
+                      if let Some(fx) = fx {
+                          if let Some(collection) = fx.collection() {
+                              self.curr_collection = collection.clone();
+                              if let Some(text_layout) = ui.get_text_layout("TileFX Settings") {
+                                  text_layout.clear();
+                                  for (name, value) in &collection.keys {
+                                      if let TheValue::FloatRange(value, range) = value {
+                                          let mut slider = TheSlider::new(TheId::named(
+                                              (":TILEFX: ".to_owned() + name).as_str(),
+                                          ));
+                                          slider.set_value(TheValue::Float(*value));
+                                          slider.set_range(TheValue::RangeF32(range.clone()));
+                                          slider.set_status_text(fx.get_description(name).as_str());
+                                          text_layout.add_pair(name.clone(), Box::new(slider));
+                                      } else if let TheValue::IntRange(value, range) = value {
+                                          let mut slider = TheSlider::new(TheId::named(
+                                              (":TILEFX: ".to_owned() + name).as_str(),
+                                          ));
+                                          slider.set_value(TheValue::Int(*value));
+                                          slider.set_range(TheValue::RangeI32(range.clone()));
+                                          slider.set_status_text(fx.get_description(name).as_str());
+                                          text_layout.add_pair(name.clone(), Box::new(slider));
+                                      } else if let TheValue::TextList(index, list) = value {
+                                          let mut dropdown = TheDropdownMenu::new(TheId::named(
+                                              (":TILEFX: ".to_owned() + name).as_str(),
+                                          ));
+                                          for item in list {
+                                              dropdown.add_option(item.clone());
+                                          }
+                                          dropdown.set_selected_index(*index);
+                                          dropdown.set_status_text(fx.get_description(name).as_str());
+                                          text_layout.add_pair(name.clone(), Box::new(dropdown));
+                                      } else if let TheValue::ColorObject(color) = value {
+                                          let mut color_picker = TheColorPicker::new(TheId::named(
+                                              (":TILEFX: ".to_owned() + name).as_str(),
+                                          ));
+                                          println!("here")
+                                          color_picker.limiter_mut().set_max_size(vec2i(120, 120));
+                                          color_picker.set_color(color.to_vec3f());
+                                          text_layout.add_pair(name.clone(), Box::new(color_picker));
+                                      }
+                                  }
+                                  redraw = true;
+                                  ctx.ui.relayout = true;
+                              }
+                              if let Some(vlayout) = ui.get_vlayout("TileFX Color Settings") {
+                                  vlayout.clear();
+                                  for (name, value) in &collection.keys {
+                                      if let TheValue::ColorObject(color) = value {
+                                          let mut color_picker = TheColorPicker::new(TheId::named(
+                                              (":TILEFX: ".to_owned() + name).as_str(),
+                                          ));
+                                          color_picker.limiter_mut().set_max_size(vec2i(120, 120));
+                                          color_picker.set_color(color.to_vec3f());
+                                          vlayout.add_widget(Box::new(color_picker));
+                                      }
+                                  }
+                                  redraw = true;
+                                  ctx.ui.relayout = true;
+                              }
+                          }
 
-                        if let Some(TheValue::TileMask(mask)) = self.curr_collection.get("Mask") {
-                            if let Some(widget) = ui.get_widget("TileFX RGBA") {
-                                if let Some(tile_rgba) = widget.as_rgba_view() {
-                                    let mut set = FxHashSet::default();
+                          if let Some(TheValue::TileMask(mask)) = self.curr_collection.get("Mask") {
+                              if let Some(widget) = ui.get_widget("TileFX RGBA") {
+                                  if let Some(tile_rgba) = widget.as_rgba_view() {
+                                      let mut set = FxHashSet::default();
 
-                                    for (index, value) in mask.pixels.iter() {
-                                        if *value {
-                                            set.insert((index.x, index.y));
-                                        }
-                                    }
-                                    tile_rgba.set_selection(set);
-                                }
-                            }
-                        }
-                    }
-                }
+                                      for (index, value) in mask.pixels.iter() {
+                                          if *value {
+                                              set.insert((index.x, index.y));
+                                          }
+                                      }
+                                      tile_rgba.set_selection(set);
+                                  }
+                              }
+                          }
+                      }
+                  }*/
             }
             _ => {}
         }
@@ -599,6 +608,13 @@ impl TileFXEditor {
                             self.palette_indices
                                 .insert(name_id.to_string(), vec![*index]);
                         }
+                        text_layout.add_pair(name.clone(), Box::new(color_picker));
+                    } else if let TheValue::ColorObject(color) = value {
+                        let mut color_picker = TheColorPicker::new(TheId::named(
+                            (":TILEFX: ".to_owned() + name).as_str(),
+                        ));
+                        color_picker.limiter_mut().set_max_size(vec2i(120, 120));
+                        color_picker.set_color(color.to_vec3f());
                         text_layout.add_pair(name.clone(), Box::new(color_picker));
                     }
                 }

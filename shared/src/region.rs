@@ -283,13 +283,6 @@ impl Region {
         None
     }
 
-    /// Set the timeline.
-    pub fn set_tilefx(&mut self, pos: (i32, i32), timeline: TheTimeline) {
-        if let Some(tile) = self.tiles.get_mut(&pos) {
-            tile.tilefx = Some(timeline);
-        }
-    }
-
     /// Returns true if the character can move to the given position.
     pub fn can_move_to(
         &self,
@@ -348,6 +341,7 @@ impl Region {
         level: &mut Level,
         tiles: &FxHashMap<Uuid, TheRGBATile>,
         update: &RegionUpdate,
+        region: &Region,
     ) {
         level.clear();
 
@@ -373,15 +367,15 @@ impl Region {
                         }
                     }
 
-                    // If the tile contains a light, add it.
-                    if let Some(timeline) = &tile.tilefx {
-                        if timeline.contains_collection("Light Emitter") {
-                            let light = TileFX::new_fx("Light Emitter", None);
-                            let mut l = light.collection_cloned();
-                            timeline.fill(&level.time, &mut l);
-                            level.add_light(pos, l);
-                        }
-                    }
+                    // // If the tile contains a light, add it.
+                    // if let Some(timeline) = &tile.tilefx {
+                    //     if timeline.contains_collection("Light Emitter") {
+                    //         let light = TileFX::new_fx("Light Emitter", None);
+                    //         let mut l = light.collection_cloned();
+                    //         timeline.fill(&level.time, &mut l);
+                    //         level.add_light(pos, l);
+                    //     }
+                    // }
                 }
 
                 if can_move {
@@ -394,6 +388,12 @@ impl Region {
 
                 if !can_move {
                     level.set_blocking((x, y));
+                }
+
+                if let Some(fx) = region.effects.get(&vec3i(x, 0, y)) {
+                    if let Some(props) = fx.get_light_collection() {
+                        level.add_light(pos, props);
+                    }
                 }
             }
         }
@@ -420,9 +420,6 @@ pub enum Layer2DRole {
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct RegionTile {
-    // TileFX Timeline
-    pub tilefx: Option<TheTimeline>,
-
     // Tile layers
     pub layers: Vec<Option<Uuid>>,
 }
@@ -436,7 +433,6 @@ impl Default for RegionTile {
 impl RegionTile {
     pub fn new() -> Self {
         Self {
-            tilefx: None,
             layers: vec![None, None, None],
         }
     }

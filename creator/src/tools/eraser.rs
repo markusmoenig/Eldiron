@@ -116,12 +116,6 @@ impl Tool for EraserTool {
 
             // Delete the tile at the given position.
 
-            if server_ctx.curr_layer_role == Layer2DRole::FX {
-                if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
-                    tile.tilefx = None;
-                }
-            }
-
             let mut changed = false;
 
             // Check for geometry to delete
