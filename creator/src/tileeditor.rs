@@ -939,6 +939,7 @@ impl TileEditor {
     /// Redraw the map of the current region on tick.
     pub fn redraw_region(
         &mut self,
+        project: &Project,
         ui: &mut TheUI,
         server: &mut Server,
         ctx: &mut TheContext,
@@ -953,7 +954,6 @@ impl TileEditor {
         //                 &server_ctx.curr_region,
         //                 rgba_view.buffer_mut(),
         //                 &TILEDRAWER.lock().unwrap(),
-        //                 ctx,
         //                 server_ctx,
         //                 compute_delta,
         //                 vec2i(0, 0),
@@ -964,14 +964,61 @@ impl TileEditor {
         // }
 
         // Redraw partial region
+        // if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
+        //     if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
+        //         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+        //             let rect = rgba_view.visible_rect();
+        //             let dest_dim = rgba_view.buffer().dim();
+
+        //             if rect.x + rect.width < dest_dim.width
+        //                 && rect.y + rect.height < dest_dim.height
+        //             {
+        //                 let mut b = TheRGBABuffer::new(rect);
+
+        //                 server.draw_region(
+        //                     &server_ctx.curr_region,
+        //                     &mut b,
+        //                     &TILEDRAWER.lock().unwrap(),
+        //                     server_ctx,
+        //                     compute_delta,
+        //                     vec2i(rect.x, dest_dim.height - (rect.y + rect.height)),
+        //                 );
+        //                 rgba_view.buffer_mut().copy_into(rect.x, rect.y, &b);
+        //                 server.draw_region_selections(
+        //                     &server_ctx.curr_region,
+        //                     rgba_view.buffer_mut(),
+        //                     &TILEDRAWER.lock().unwrap(),
+        //                     ctx,
+        //                     server_ctx,
+        //                 );
+        //                 rgba_view.set_needs_redraw(true);
+        //             }
+        //         }
+        //     }
+        // }
         if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
             if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
                 if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                    let rect = rgba_view.visible_rect();
+                    let mut rect = rgba_view.visible_rect();
                     let dest_dim = rgba_view.buffer().dim();
 
-                    if rect.x + rect.width < dest_dim.width
-                        && rect.y + rect.height < dest_dim.height
+                    let mut tile_size = 24;
+
+                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                        tile_size = region.grid_size;
+                    }
+
+                    // Adjust the rect boundaries to ensure tiles at the edges are included
+                    rect.width = (rect.width + tile_size - 1) / tile_size * tile_size;
+                    rect.height = (rect.height + tile_size - 1) / tile_size * tile_size;
+
+                    // Make sure rect dimensions do not exceed the destination buffer size
+                    rect.width = rect.width.min(dest_dim.width - rect.x);
+                    rect.height = rect.height.min(dest_dim.height - rect.y);
+
+                    // Check if we're still within the bounds
+                    if rect.x + rect.width <= dest_dim.width
+                        && rect.y + rect.height <= dest_dim.height
                     {
                         let mut b = TheRGBABuffer::new(rect);
 
@@ -983,7 +1030,10 @@ impl TileEditor {
                             compute_delta,
                             vec2i(rect.x, dest_dim.height - (rect.y + rect.height)),
                         );
+
                         rgba_view.buffer_mut().copy_into(rect.x, rect.y, &b);
+
+                        // Draw selections
                         server.draw_region_selections(
                             &server_ctx.curr_region,
                             rgba_view.buffer_mut(),
@@ -991,6 +1041,7 @@ impl TileEditor {
                             ctx,
                             server_ctx,
                         );
+
                         rgba_view.set_needs_redraw(true);
                     }
                 }

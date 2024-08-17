@@ -552,8 +552,14 @@ impl TheTrait for Editor {
         {
             let render_mode = *RENDERMODE.lock().unwrap();
             if render_mode != EditorDrawMode::Draw3D {
-                self.tileeditor
-                    .redraw_region(ui, &mut self.server, ctx, &self.server_ctx, true);
+                self.tileeditor.redraw_region(
+                    &self.project,
+                    ui,
+                    &mut self.server,
+                    ctx,
+                    &self.server_ctx,
+                    true,
+                );
             }
             if render_mode != EditorDrawMode::Draw2D {
                 self.tileeditor.rerender_region(
