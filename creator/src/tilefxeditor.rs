@@ -535,6 +535,21 @@ impl TileFXEditor {
         }
     }
 
+    pub fn set_object(
+        &mut self,
+        object: TileFXObject,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        self.object = object;
+
+        let node_canvas = self.object.to_canvas();
+        ui.set_node_canvas("TileFX NodeCanvas", node_canvas);
+        self.set_selected_node_ui(server_ctx, project, ui, ctx);
+    }
+
     pub fn set_selected_node_ui(
         &mut self,
         _server_ctx: &mut ServerContext,

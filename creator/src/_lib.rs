@@ -2,6 +2,8 @@
 
 // use theframework::*;
 
+pub mod brushes;
+pub mod brushlist;
 pub mod editor;
 pub mod externals;
 pub mod misc;
@@ -15,6 +17,8 @@ pub mod tileeditor;
 pub mod tilefxeditor;
 pub mod tilemapeditor;
 pub mod tilepicker;
+pub mod toollist;
+pub mod tools;
 pub mod undo;
 
 use rust_embed::RustEmbed;
@@ -30,6 +34,9 @@ pub mod prelude {
     pub use shared::prelude::*;
     pub use theframework::prelude::*;
 
+    pub use crate::editor::ActiveEditor;
+
+    pub use crate::brushlist::*;
     pub use crate::externals::*;
     pub use crate::misc::*;
     pub use crate::modelfxeditor::*;
@@ -41,9 +48,33 @@ pub mod prelude {
     pub use crate::tilefxeditor::*;
     pub use crate::tilemapeditor::*;
     pub use crate::tilepicker::*;
-    pub use crate::undo::modelfx_undo::*;
+    pub use crate::toollist::*;
+    pub use crate::undo::materialfx_undo::*;
+    pub use crate::undo::palette_undo::*;
     pub use crate::undo::region_undo::*;
     pub use crate::undo::*;
+
+    pub use crate::tools::code::CodeTool;
+    pub use crate::tools::draw::DrawTool;
+    pub use crate::tools::eraser::EraserTool;
+    pub use crate::tools::fx::FXTool;
+    pub use crate::tools::game::GameTool;
+    pub use crate::tools::mapobjects::MapObjectsTool;
+    pub use crate::tools::picker::PickerTool;
+    pub use crate::tools::render::RenderTool;
+    pub use crate::tools::screen::eraser::ScreenEraserTool;
+    pub use crate::tools::screen::game::ScreenGameTool;
+    pub use crate::tools::screen::picker::ScreenPickerTool;
+    pub use crate::tools::screen::tiledrawer::ScreenTileDrawerTool;
+    pub use crate::tools::selection::SelectionTool;
+    pub use crate::tools::tiledrawer::TileDrawerTool;
+    pub use crate::tools::tilemap::TilemapTool;
+    pub use crate::tools::zoom::ZoomTool;
+    pub use crate::tools::*;
+
+    pub use crate::brushes::disc::DiscBrush;
+    pub use crate::brushes::rect::RectBrush;
+    pub use crate::brushes::*;
 
     pub const KEY_ESCAPE: u32 = 0;
     pub const KEY_RETURN: u32 = 1;

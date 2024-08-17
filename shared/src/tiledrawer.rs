@@ -549,10 +549,103 @@ impl TileDrawer {
                     //     mirror,
                     // );
 
+                    let mut col = TheColor::from(color).to_vec3f();
+
+                    // If no lights apply world brightness
+                    if level.lights.is_empty() {
+                        col *= settings.daylight;
+                    } else {
+                        let ro = Vec2f::from(p) / region.grid_size as f32;
+
+                        // Sample the lights
+                        let mut total_light = Vec3f::new(0.0, 0.0, 0.0);
+                        for (light_grid, light) in &level.lights {
+                            let light_pos = Vec2f::from(*light_grid) + vec2f(0.5, 0.5);
+                            let mut light_strength = light.strength;
+
+                            if light.color_type == 1 {
+                                light_strength = settings.daylight.x;
+                            }
+
+                            if light.limiter == 1 && ro.y > light_pos.y {
+                                continue;
+                            }
+                            if light.limiter == 2 && ro.x < light_pos.x {
+                                continue;
+                            }
+                            if light.limiter == 3 && ro.y < light_pos.y {
+                                continue;
+                            }
+                            if light.limiter == 4 && ro.x > light_pos.x {
+                                continue;
+                            }
+
+                            let offsets = [
+                                ro,
+                                ro - vec2f(0.0, light.sampling_offset),
+                                ro - vec2f(light.sampling_offset, 0.0),
+                                ro + vec2f(light.sampling_offset, 0.0),
+                                ro + vec2f(0.0, light.sampling_offset),
+                                ro - vec2f(light.sampling_offset, light.sampling_offset),
+                                ro + vec2f(light.sampling_offset, light.sampling_offset),
+                            ];
+
+                            for s in offsets.iter().take(light.samples) {
+                                let ro = s;
+
+                                let mut light_dir = light_pos - ro;
+                                let light_dist = length(light_dir);
+
+                                if light_dist < light.max_distance {
+                                    light_dir = normalize(light_dir);
+
+                                    let mut t = 0.0;
+                                    let max_t = light_dist;
+
+                                    let mut hit = false;
+
+                                    while t < max_t {
+                                        let pos = ro + light_dir * t;
+                                        let tile = vec2i(pos.x as i32, pos.y as i32);
+
+                                        if tile == *light_grid {
+                                            hit = true;
+                                            break;
+                                        }
+                                        if level.is_blocking((tile.x, tile.y)) {
+                                            hit = false;
+                                            break;
+                                        }
+
+                                        t += 1.0 / 4.0;
+                                    }
+
+                                    if hit {
+                                        let intensity =
+                                            1.0 - (max_t / light.max_distance).clamp(0.0, 1.0);
+                                        //intensity *= if s == 0 { 2.0 } else { 1.0 };
+                                        let mut light_color = Vec3f::from(
+                                            intensity * light_strength / light.samples as f32,
+                                        );
+                                        if light.color_type == 0 {
+                                            light_color *= light.color
+                                        }
+                                        total_light += light_color;
+                                    }
+                                }
+                            }
+                        }
+
+                        col = clamp(
+                            col * settings.daylight + col * total_light,
+                            col * settings.daylight,
+                            col,
+                        );
+                    }
+
                     if let Some(tilefx) = region.effects.get(&vec3i(tile_x, 0, tile_y)) {
                         // Execute Effects
                         if let Some(params) = tilefx_params.get(&vec3i(tile_x, 0, tile_y)) {
-                            let mut col = TheColor::from_u8_array(color).to_vec3f();
                             tilefx.fx(
                                 region,
                                 palette,
@@ -561,12 +654,10 @@ impl TileDrawer {
                                 false,
                                 params,
                             );
-                            color = TheColor::from_vec3f(col).to_u8_array();
                         }
                     }
 
                     // RegionFX
-                    let mut col = TheColor::from_u8_array(color).to_vec3f();
                     region.regionfx.fx_2d(
                         region,
                         palette,
@@ -574,6 +665,7 @@ impl TileDrawer {
                         &mut col,
                         &regionfx_params,
                     );
+
                     color = TheColor::from_vec3f(col).to_u8_array();
 
                     // Show the fx marker if necessary

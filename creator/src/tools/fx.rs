@@ -17,7 +17,7 @@ impl Tool for FXTool {
         Self {
             id: TheId::named("FX Tool"),
 
-            edit_mode_index: 1,
+            edit_mode_index: 0,
         }
     }
 
@@ -58,8 +58,12 @@ impl Tool for FXTool {
 
                     // Material Group
                     let mut gb = TheGroupButton::new(TheId::named("Effects Mode Group"));
-                    gb.add_text_status(str!("Edit"), str!("Edit the effects of existing tiles."));
                     gb.add_text_status(str!("Add"), str!("Add the current effects to new tiles."));
+                    gb.add_text_status(str!("Edit"), str!("Edit the effects of existing tiles."));
+                    gb.add_text_status(
+                        str!("Delete"),
+                        str!("Delete the effects on existing tiles."),
+                    );
                     gb.set_item_width(85);
 
                     gb.set_index(self.edit_mode_index);
@@ -81,15 +85,28 @@ impl Tool for FXTool {
         let fx_coord = vec3i(coord.x, 0, coord.y);
 
         if self.edit_mode_index == 0 {
-            // Edit
-        } else {
             // Add
-
             let object = TILEFXEDITOR.lock().unwrap().object.clone();
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 region.effects.insert(fx_coord, object);
                 server.update_region(region);
             }
+        } else if self.edit_mode_index == 1 {
+            // Edit
+            let mut object = TileFXObject::default();
+            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                if let Some(fx) = region.effects.get(&fx_coord) {
+                    object = fx.clone();
+                    server.update_region(region);
+                }
+            }
+            TILEFXEDITOR
+                .lock()
+                .unwrap()
+                .set_object(object, server_ctx, project, ui, ctx);
+        } else if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+            region.effects.remove(&fx_coord);
+            server.update_region(region);
         }
 
         true

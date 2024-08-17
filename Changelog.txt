@@ -1,3 +1,10 @@
+v 0.8.12
+--------
+
+- Moved the scene render settings to nodes.
+- Moved the tile effect system to nodes.
+- Bugfixes.
+
 v 0.8.11
 --------
 
