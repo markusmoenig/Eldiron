@@ -1,6 +1,6 @@
 [package]
 name = "creator"
-version = "0.8.11"
+version = "0.8.12"
 edition = "2021"
 authors = ["Markus Moenig"]
 description = "A game creator for classical RPGs."
@@ -40,9 +40,9 @@ icon = ["../build/Eldiron.icns"]
 resources = []
 copyright = "Copyright (c) Markus Moenig 2024. All rights reserved."
 category = "Game"
-short_description = "A game creator for retro RPGs with modern features."
+short_description = "A game creator for classical RPGs with modern features."
 long_description = """
-Create retro RPGs with Eldiron.
+Create classical RPGs with Eldiron.
 """
 
 # [lib]
