@@ -178,7 +178,7 @@ impl PreRenderThread {
 
                             prerendered_region_data
                                 .entry(curr_region.id)
-                                .or_insert_with(PreRendered::zero);
+                                .or_insert_with(|| curr_region.prerendered.clone());
 
                             if let Some(pre) = prerendered_region_data.get_mut(&curr_region.id) {
                                 if let Some(tiles) = tiles {
