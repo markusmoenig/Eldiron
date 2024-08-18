@@ -185,15 +185,34 @@ impl TheTrait for Editor {
             TheId::named("Save As"),
         ));
         let mut edit_menu = TheContextMenu::named(str!("Edit"));
-        edit_menu.add(TheContextMenuItem::new(str!("Undo"), TheId::named("Undo")));
-        edit_menu.add(TheContextMenuItem::new(str!("Redo"), TheId::named("Redo")));
+        edit_menu.add(TheContextMenuItem::new_with_accel(
+            str!("Undo"),
+            TheId::named("Undo"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'z'),
+        ));
+        edit_menu.add(TheContextMenuItem::new_with_accel(
+            str!("Redo"),
+            TheId::named("Redo"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT, 'z'),
+        ));
         edit_menu.add_separator();
-        edit_menu.add(TheContextMenuItem::new(str!("Cut"), TheId::named("Cut")));
-        edit_menu.add(TheContextMenuItem::new(str!("Copy"), TheId::named("Copy")));
-        edit_menu.add(TheContextMenuItem::new(
+        edit_menu.add(TheContextMenuItem::new_with_accel(
+            str!("Cut"),
+            TheId::named("Cut"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'x'),
+        ));
+        edit_menu.add(TheContextMenuItem::new_with_accel(
+            str!("Copy"),
+            TheId::named("Copy"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'c'),
+        ));
+        edit_menu.add(TheContextMenuItem::new_with_accel(
             str!("Paste"),
             TheId::named("Paste"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'p'),
         ));
+
+        edit_menu.register_accel(ctx);
 
         menu.add_context_menu(file_menu);
         menu.add_context_menu(edit_menu);
@@ -1389,80 +1408,82 @@ impl TheTrait for Editor {
                             _ = self.server.set_project(self.project.clone());
                             self.server.stop();
                             update_server_icons = true;
-                        } else {
-                            // TODO: UNDO
+                        } else if id.name == "Undo" || id.name == "Redo" {
+                            let mut manager = UNDOMANAGER.lock().unwrap();
 
-                            if id.name == "Undo" || id.name == "Redo" {
-                                let mut manager = UNDOMANAGER.lock().unwrap();
-
-                                if manager.context == UndoManagerContext::Region {
-                                    if id.name == "Undo" {
-                                        manager.undo(
-                                            self.server_ctx.curr_region,
-                                            &mut self.server_ctx,
-                                            &mut self.project,
-                                            ui,
-                                            ctx,
-                                        );
-                                    } else {
-                                        manager.redo(
-                                            self.server_ctx.curr_region,
-                                            &mut self.server_ctx,
-                                            &mut self.project,
-                                            ui,
-                                            ctx,
-                                        );
-                                    }
-                                    if let Some(region) =
-                                        self.project.get_region(&self.server_ctx.curr_region)
-                                    {
-                                        self.server.update_region(region);
-                                        RENDERER.lock().unwrap().set_region(region);
-                                    }
-                                } else if manager.context == UndoManagerContext::MaterialFX {
-                                    if id.name == "Undo" {
-                                        manager.undo(
-                                            Uuid::nil(),
-                                            &mut self.server_ctx,
-                                            &mut self.project,
-                                            ui,
-                                            ctx,
-                                        );
-                                    } else {
-                                        manager.redo(
-                                            Uuid::nil(),
-                                            &mut self.server_ctx,
-                                            &mut self.project,
-                                            ui,
-                                            ctx,
-                                        );
-                                    }
-                                } else if manager.context == UndoManagerContext::Palette {
-                                    if id.name == "Undo" {
-                                        manager.undo(
-                                            Uuid::nil(),
-                                            &mut self.server_ctx,
-                                            &mut self.project,
-                                            ui,
-                                            ctx,
-                                        );
-                                    } else {
-                                        manager.redo(
-                                            Uuid::nil(),
-                                            &mut self.server_ctx,
-                                            &mut self.project,
-                                            ui,
-                                            ctx,
-                                        );
-                                    }
-                                    self.server.set_palette(&self.project.palette);
-                                    PRERENDERTHREAD
-                                        .lock()
-                                        .unwrap()
-                                        .set_palette(self.project.palette.clone());
-                                    PRERENDERTHREAD.lock().unwrap().restart();
+                            if manager.context == UndoManagerContext::Region {
+                                if id.name == "Undo" {
+                                    manager.undo(
+                                        self.server_ctx.curr_region,
+                                        &mut self.server_ctx,
+                                        &mut self.project,
+                                        ui,
+                                        ctx,
+                                    );
+                                } else {
+                                    manager.redo(
+                                        self.server_ctx.curr_region,
+                                        &mut self.server_ctx,
+                                        &mut self.project,
+                                        ui,
+                                        ctx,
+                                    );
                                 }
+                                if let Some(region) =
+                                    self.project.get_region(&self.server_ctx.curr_region)
+                                {
+                                    self.server.update_region(region);
+                                    RENDERER.lock().unwrap().set_region(region);
+                                }
+                            } else if manager.context == UndoManagerContext::MaterialFX {
+                                if id.name == "Undo" {
+                                    manager.undo(
+                                        Uuid::nil(),
+                                        &mut self.server_ctx,
+                                        &mut self.project,
+                                        ui,
+                                        ctx,
+                                    );
+                                } else {
+                                    manager.redo(
+                                        Uuid::nil(),
+                                        &mut self.server_ctx,
+                                        &mut self.project,
+                                        ui,
+                                        ctx,
+                                    );
+                                }
+                            } else if manager.context == UndoManagerContext::Palette {
+                                if id.name == "Undo" {
+                                    manager.undo(
+                                        Uuid::nil(),
+                                        &mut self.server_ctx,
+                                        &mut self.project,
+                                        ui,
+                                        ctx,
+                                    );
+                                } else {
+                                    manager.redo(
+                                        Uuid::nil(),
+                                        &mut self.server_ctx,
+                                        &mut self.project,
+                                        ui,
+                                        ctx,
+                                    );
+                                }
+                                self.server.set_palette(&self.project.palette);
+                                PRERENDERTHREAD
+                                    .lock()
+                                    .unwrap()
+                                    .set_palette(self.project.palette.clone());
+                                PRERENDERTHREAD.lock().unwrap().restart();
                             }
+                        } else if id.name == "Cut" {
+                            ui.cut(ctx);
+                        } else if id.name == "Copy" {
+                            ui.copy(ctx);
+                        } else if id.name == "Paste" {
+                            ui.paste(ctx);
                         }
                     }
                     TheEvent::ImageDecodeResult(id, name, buffer) => {
