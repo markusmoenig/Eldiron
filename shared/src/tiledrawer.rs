@@ -1200,14 +1200,31 @@ impl TileDrawer {
         buffer: &mut TheRGBABuffer,
         grid: i32,
         color: [u8; 4],
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
     ) {
         for t in tiles {
-            let x = (t.0 * grid) as usize;
-            let y = (t.1 * grid) as usize;
-            let stride = buffer.stride();
-            ctx.draw
-                .rect_outline(buffer.pixels_mut(), &(x, y, 24, 24), stride, &color);
+            let x = t.0 * grid;
+            let y = t.1 * grid;
+
+            // Determine which edges to draw based on neighboring tiles
+            let draw_left = !tiles.contains(&(t.0 - 1, t.1));
+            let draw_right = !tiles.contains(&(t.0 + 1, t.1));
+            let draw_top = !tiles.contains(&(t.0, t.1 - 1));
+            let draw_bottom = !tiles.contains(&(t.0, t.1 + 1));
+
+            // Draw the appropriate sides of the rectangle
+            if draw_left {
+                buffer.draw_vertical_line(x, y, y + grid, color);
+            }
+            if draw_right {
+                buffer.draw_vertical_line(x + grid, y, y + grid, color);
+            }
+            if draw_top {
+                buffer.draw_horizontal_line(x, x + grid, y, color);
+            }
+            if draw_bottom {
+                buffer.draw_horizontal_line(x, x + grid, y + grid, color);
+            }
         }
     }
 
