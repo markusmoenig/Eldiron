@@ -40,7 +40,7 @@ impl Tool for SelectionTool {
         tool_event: ToolEvent,
         _tool_context: ToolContext,
         ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         _project: &mut Project,
         _server: &mut Server,
         _client: &mut Client,
@@ -48,6 +48,30 @@ impl Tool for SelectionTool {
     ) -> bool {
         match tool_event {
             Activate => {
+                if let Some(layout) = ui.get_hlayout("Game Tool Params") {
+                    layout.clear();
+
+                    let mut create_area_button =
+                        TheTraybarButton::new(TheId::named("Editor Create Area"));
+                    create_area_button.set_text(str!("Create Area..."));
+                    create_area_button.limiter_mut().set_max_width(140);
+                    create_area_button
+                        .set_status_text("Creates a new area for the current selection.");
+                    create_area_button.set_disabled(self.tile_selection.tiles.is_empty());
+
+                    let mut clear_area_button =
+                        TheTraybarButton::new(TheId::named("Editor Clear Selection"));
+                    clear_area_button.set_text(str!("Clear"));
+                    //clear_area_button.limiter_mut().set_max_width(140);
+                    clear_area_button
+                        .set_status_text("Clears the current selection. Shortcut: 'Escape'.");
+
+                    layout.add_widget(Box::new(create_area_button));
+                    layout.add_widget(Box::new(clear_area_button));
+
+                    layout.set_reverse_index(Some(1));
+                }
+
                 ui.set_widget_context_menu(
                     "Region Editor View",
                     Some(TheContextMenu {
@@ -66,6 +90,10 @@ impl Tool for SelectionTool {
             DeActivate => {
                 server_ctx.tile_selection = None;
                 ui.set_widget_context_menu("Region Editor View", None);
+                if let Some(layout) = ui.get_hlayout("Game Tool Params") {
+                    layout.clear();
+                    layout.set_reverse_index(None);
+                }
                 return true;
             }
             _ => {}
@@ -102,6 +130,12 @@ impl Tool for SelectionTool {
             if let Some(tile_selection) = &mut server_ctx.tile_selection {
                 self.tile_selection.tiles = tile_selection.merged();
             }
+
+            ui.set_widget_disabled_state(
+                "Editor Create Area",
+                ctx,
+                self.tile_selection.tiles.is_empty(),
+            );
         }
 
         false
@@ -127,8 +161,39 @@ impl Tool for SelectionTool {
                 if *code == TheKeyCode::Escape {
                     self.tile_selection = TileSelection::default();
                     server_ctx.tile_selection = Some(self.tile_selection.clone());
+                    ui.set_widget_disabled_state(
+                        "Editor Create Area",
+                        ctx,
+                        self.tile_selection.tiles.is_empty(),
+                    );
                 }
                 true
+            }
+            TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
+                if id.name == "Editor Clear Selection" {
+                    self.tile_selection = TileSelection::default();
+                    server_ctx.tile_selection = Some(self.tile_selection.clone());
+                    ui.set_widget_disabled_state(
+                        "Editor Create Area",
+                        ctx,
+                        self.tile_selection.tiles.is_empty(),
+                    );
+
+                    true
+                } else if id.name == "Editor Create Area" {
+                    open_text_dialog(
+                        "New Area Name",
+                        "Area Name",
+                        "New Area",
+                        Uuid::new_v4(),
+                        ui,
+                        ctx,
+                    );
+
+                    true
+                } else {
+                    false
+                }
             }
             TheEvent::ContextMenuSelected(_widget_id, item_id) => {
                 if item_id.name == "Create Area" && !self.tile_selection.tiles.is_empty() {
