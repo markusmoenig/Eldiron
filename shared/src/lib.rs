@@ -26,12 +26,12 @@ pub mod renderer_utils;
 pub mod screen;
 pub mod sdf;
 pub mod server;
-pub mod tilearea;
 pub mod tiledrawer;
 pub mod tilefx;
 pub mod tilefxnode;
 pub mod tilefxobject;
 pub mod tilemap;
+pub mod tileselection;
 pub mod update;
 pub mod widget;
 
@@ -69,12 +69,12 @@ pub mod prelude {
     pub use crate::sdf::*;
     pub use crate::server::context::ServerContext;
     pub use crate::server::{Server, ServerState};
-    pub use crate::tilearea::TileArea;
     pub use crate::tiledrawer::{RegionDrawSettings, TileDrawer};
     pub use crate::tilefx::TileFX;
     pub use crate::tilefxnode::*;
     pub use crate::tilefxobject::TileFXObject;
     pub use crate::tilemap::{Tile, TileRole, Tilemap};
+    pub use crate::tileselection::{TileSelection, TileSelectionMode};
     pub use crate::update::*;
     pub use crate::widget::*;
     pub use crate::ServerMessage;

@@ -1479,11 +1479,34 @@ impl TheTrait for Editor {
                                 PRERENDERTHREAD.lock().unwrap().restart();
                             }
                         } else if id.name == "Cut" {
-                            ui.cut(ctx);
+                            if ui.focus_widget_supports_clipboard(ctx) {
+                                // Widget specific
+                                ui.cut(ctx);
+                            } else {
+                                // Global
+                                ctx.ui.send(TheEvent::Cut);
+                            }
                         } else if id.name == "Copy" {
-                            ui.copy(ctx);
+                            if ui.focus_widget_supports_clipboard(ctx) {
+                                // Widget specific
+                                ui.copy(ctx);
+                            } else {
+                                // Global
+                                ctx.ui.send(TheEvent::Copy);
+                            }
                         } else if id.name == "Paste" {
-                            ui.paste(ctx);
+                            if ui.focus_widget_supports_clipboard(ctx) {
+                                // Widget specific
+                                ui.paste(ctx);
+                            } else {
+                                // Global
+                                if let Some(value) = &ctx.ui.clipboard {
+                                    ctx.ui.send(TheEvent::Paste(
+                                        value.clone(),
+                                        ctx.ui.clipboard_app_type.clone(),
+                                    ));
+                                }
+                            }
                         }
                     }
                     TheEvent::ImageDecodeResult(id, name, buffer) => {

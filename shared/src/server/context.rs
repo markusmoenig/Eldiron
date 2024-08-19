@@ -25,7 +25,7 @@ pub struct ServerContext {
     pub curr_grid_id: Option<Uuid>,
 
     /// If the user selects a tile area.
-    pub tile_selection: Option<TileArea>,
+    pub tile_selection: Option<TileSelection>,
 
     /// The currently selected screen.
     pub curr_screen: Uuid,

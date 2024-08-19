@@ -113,13 +113,7 @@ impl ToolList {
         let mut redraw = false;
         match event {
             TheEvent::KeyDown(TheValue::Char(c)) => {
-                let mut acc = true;
-
-                if let Some(id) = &ctx.ui.focus {
-                    if let Some(widget) = ui.get_widget_abs(None, Some(&id.uuid)) {
-                        acc = !widget.supports_text_input();
-                    }
-                }
+                let mut acc = !ui.focus_widget_supports_text_input(ctx);
 
                 if self.get_current_tool().id().name == "Game Tool" {
                     acc = false;

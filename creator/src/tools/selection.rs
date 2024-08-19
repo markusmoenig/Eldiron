@@ -3,6 +3,8 @@ use ToolEvent::*;
 
 pub struct SelectionTool {
     id: TheId,
+
+    tile_selection: TileSelection,
 }
 
 impl Tool for SelectionTool {
@@ -12,6 +14,7 @@ impl Tool for SelectionTool {
     {
         Self {
             id: TheId::named("Select Tool"),
+            tile_selection: TileSelection::default(),
         }
     }
 
@@ -19,7 +22,11 @@ impl Tool for SelectionTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Selection Tool (S). Select areas in the region editor.")
+        if cfg!(target_os = "macos") {
+            str!("Selection Tool (S). Select and Cut / Copy. Hold 'Shift' to add. 'Option' to subtract. 'Escape' to clear.")
+        } else {
+            str!("Selection Tool (S). Select and Cut / Copy. Hold 'Shift' to add. 'Alt' to subtract. 'Escape' to clear.")
+        }
     }
     fn icon_name(&self) -> String {
         str!("selection")
@@ -39,9 +46,7 @@ impl Tool for SelectionTool {
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let coord = match tool_event {
-            TileDown(c, _) => c,
-            TileDrag(c, _) => c,
+        match tool_event {
             Activate => {
                 ui.set_widget_context_menu(
                     "Region Editor View",
@@ -54,39 +59,49 @@ impl Tool for SelectionTool {
                     }),
                 );
 
+                server_ctx.tile_selection = Some(self.tile_selection.clone());
+
                 return true;
             }
             DeActivate => {
                 server_ctx.tile_selection = None;
+                ui.set_widget_context_menu("Region Editor View", None);
                 return true;
             }
-            TileUp => {
-                if let Some(tilearea) = &mut server_ctx.tile_selection {
-                    tilearea.ongoing = false;
-                }
-                return true;
-            } // _ => {
-              //     return false;
-              // }
+            _ => {}
         };
 
-        let p = (coord.x, coord.y);
+        if let TileDown(coord, _) = tool_event {
+            let p = (coord.x, coord.y);
 
-        if let Some(tilearea) = &mut server_ctx.tile_selection {
-            if !tilearea.ongoing {
-                tilearea.start = p;
-                tilearea.end = p;
-                tilearea.ongoing = true;
-            } else {
-                tilearea.grow_by(p);
+            let mut mode = TileSelectionMode::Additive;
+            let mut tiles: FxHashSet<(i32, i32)> = FxHashSet::default();
+
+            if ui.shift {
+                tiles = self.tile_selection.tiles.clone();
+            } else if ui.alt {
+                tiles = self.tile_selection.tiles.clone();
+                mode = TileSelectionMode::Subtractive;
             }
-        } else {
-            let tilearea = TileArea {
-                start: p,
-                end: p,
-                ..Default::default()
+
+            let tile_area = TileSelection {
+                mode,
+                rect_start: p,
+                rect_end: p,
+                tiles,
             };
-            server_ctx.tile_selection = Some(tilearea);
+            server_ctx.tile_selection = Some(tile_area);
+        }
+        if let TileDrag(coord, _) = tool_event {
+            let p = (coord.x, coord.y);
+            if let Some(tile_selection) = &mut server_ctx.tile_selection {
+                tile_selection.grow_rect_by(p);
+            }
+        }
+        if let TileUp = tool_event {
+            if let Some(tile_selection) = &mut server_ctx.tile_selection {
+                self.tile_selection.tiles = tile_selection.merged();
+            }
         }
 
         false
@@ -98,13 +113,25 @@ impl Tool for SelectionTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut Server,
+        server: &mut Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match event {
+            TheEvent::Cut => {
+                println!("Cut");
+
+                false
+            }
+            TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
+                if *code == TheKeyCode::Escape {
+                    self.tile_selection = TileSelection::default();
+                    server_ctx.tile_selection = Some(self.tile_selection.clone());
+                }
+                true
+            }
             TheEvent::ContextMenuSelected(_widget_id, item_id) => {
-                if item_id.name == "Create Area" {
+                if item_id.name == "Create Area" && !self.tile_selection.tiles.is_empty() {
                     open_text_dialog(
                         "New Area Name",
                         "Area Name",
@@ -120,9 +147,9 @@ impl Tool for SelectionTool {
                 if name == "New Area Name" {
                     // Create a new area
 
-                    if let Some(tiles) = &server_ctx.tile_selection {
+                    if !self.tile_selection.tiles.is_empty() {
                         let mut area = Area {
-                            area: tiles.tiles(),
+                            area: self.tile_selection.tiles.clone(),
                             name: value.describe(),
                             ..Default::default()
                         };
@@ -161,9 +188,10 @@ impl Tool for SelectionTool {
 
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.areas.insert(area.id, area);
+                            server.update_region(region);
                         }
+                        server_ctx.tile_selection = None;
                     }
-                    server_ctx.tile_selection = None;
                 }
                 true
             }

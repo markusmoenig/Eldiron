@@ -328,9 +328,13 @@ impl RegionInstance {
             }
 
             if let Some(tilearea) = &server_ctx.tile_selection {
-                let tiles = tilearea.tiles();
-
-                tiledrawer.draw_tile_selection(&tiles, buffer, region.grid_size, WHITE, ctx);
+                tiledrawer.draw_tile_selection(
+                    &tilearea.merged(),
+                    buffer,
+                    region.grid_size,
+                    WHITE,
+                    ctx,
+                );
             }
 
             if let Some(area_id) = &server_ctx.curr_area {

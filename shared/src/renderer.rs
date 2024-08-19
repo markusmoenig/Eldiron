@@ -473,7 +473,7 @@ impl Renderer {
 
                             let mut p = ray.at(t);
                             let t_dist = region.heightmap.interpolate_height(p.x, p.z);
-                            p -= t_dist;
+                            p.y -= t_dist;
 
                             if let Some(material_mask) = mask.at_f(vec2f(p.x.fract(), p.z.fract()))
                             {
