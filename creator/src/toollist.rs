@@ -128,6 +128,29 @@ impl ToolList {
                 if acc {
                     match self.active_editor {
                         GameEditor => {
+                            if (*c == '-' || *c == '=' || *c == '+') && (ui.ctrl || ui.logo) {
+                                // Global Zoom In / Zoom Out
+                                if let Some(region) =
+                                    project.get_region_mut(&server_ctx.curr_region)
+                                {
+                                    if *c == '=' || *c == '+' {
+                                        region.zoom += 0.2;
+                                    } else {
+                                        region.zoom -= 0.2;
+                                    }
+                                    region.zoom = region.zoom.clamp(1.0, 5.0);
+                                    server.set_zoom(region.id, region.zoom);
+                                    if let Some(layout) = ui.get_rgba_layout("Region Editor") {
+                                        layout.set_zoom(region.zoom);
+                                        layout.relayout(ctx);
+                                    }
+                                    if let Some(edit) = ui.get_text_line_edit("Editor Zoom") {
+                                        edit.set_value(TheValue::Float(region.zoom));
+                                    }
+                                    return true;
+                                }
+                            }
+
                             let mut tool_uuid = None;
                             for tool in self.game_tools.iter() {
                                 if tool.accel() == Some(*c) {

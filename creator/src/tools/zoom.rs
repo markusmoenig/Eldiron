@@ -19,7 +19,11 @@ impl Tool for ZoomTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Zoom Tool (Z).")
+        if cfg!(target_os = "macos") {
+            str!("Zoom Tool (Z). Global shortcut: Cmd + '-' / '+'.")
+        } else {
+            str!("Zoom Tool (Z). Global shortcut: Ctrl + '-' / '+'.")
+        }
     }
     fn icon_name(&self) -> String {
         str!("zoom")
@@ -34,10 +38,10 @@ impl Tool for ZoomTool {
         _tool_context: ToolContext,
         ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         _server: &mut Server,
         _client: &mut Client,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) -> bool {
         if let Activate = tool_event {
             if let Some(layout) = ui.get_hlayout("Game Tool Params") {
@@ -54,6 +58,10 @@ impl Tool for ZoomTool {
                 zoom.set_continuous(true);
                 zoom.limiter_mut().set_max_width(140);
                 zoom.set_status_text("Set the camera zoom.");
+
+                if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                    zoom.set_value(TheValue::Float(region.zoom));
+                }
 
                 layout.add_widget(Box::new(zoom));
             }
