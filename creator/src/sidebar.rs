@@ -3089,7 +3089,7 @@ impl Sidebar {
                     }
                 }
 
-                if filter_role == 0 || filter_role == 2 {
+                if filter_role == 0 || filter_role == 3 {
                     // Show Items
                     for (id, _) in region.items.iter() {
                         let mut name = "Item".to_string();
@@ -3117,7 +3117,7 @@ impl Sidebar {
                     }
                 }
 
-                if filter_role == 0 || filter_role == 3 {
+                if filter_role == 0 || filter_role == 2 {
                     // Show Areas
                     for (id, area) in region.areas.iter() {
                         let name = area.name.clone();
