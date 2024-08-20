@@ -346,6 +346,12 @@ impl TheTrait for Editor {
         let terrain_canvas = self.terraineditor.init_ui(ui, ctx, &mut self.project);
         tab_layout.add_canvas(str!("Terrain View"), terrain_canvas);
 
+        // let model_canvas: TheCanvas = TheCanvas::new();
+        // tab_layout.add_canvas(str!("Model View"), model_canvas);
+
+        // let material_canvas: TheCanvas = TheCanvas::new();
+        // tab_layout.add_canvas(str!("Material View"), material_canvas);
+
         tab_canvas.set_layout(tab_layout);
 
         let mut vsplitlayout = TheSharedVLayout::new(TheId::named("Shared VLayout"));
@@ -533,6 +539,14 @@ impl TheTrait for Editor {
         // Get prerendered results
         while let Some(rendered) = PRERENDERTHREAD.lock().unwrap().receive() {
             match rendered {
+                PreRenderResult::ClearRegionTile(id, tile) => {
+                    if let Some(region) = self.project.get_region_mut(&id) {
+                        region
+                            .prerendered
+                            .clear_tile_albedo(region.tile_size, &tile);
+                        self.server.clear_prerendered_tile(id, &tile);
+                    }
+                }
                 PreRenderResult::RenderedRegionTile(id, tile, sample, tile_data) => {
                     if let Some(region) = self.project.get_region_mut(&id) {
                         region.prerendered.merge_tile_data(

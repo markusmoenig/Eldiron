@@ -17,6 +17,7 @@ pub enum PreRenderCmd {
 #[allow(clippy::large_enum_variant)]
 pub enum PreRenderResult {
     RenderedRegionTile(Uuid, Vec2i, u16, PreRenderedTileData),
+    ClearRegionTile(Uuid, Vec2i),
     Clear(Uuid),
     Progress(Uuid, String),
     Finished,

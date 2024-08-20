@@ -74,7 +74,6 @@ impl RegionUndoAtom {
             }
             RegionUndoAtom::RegionEdit(prev, _, tiles) => {
                 *region = prev.clone();
-                region.update_geometry_areas();
                 PRERENDERTHREAD
                     .lock()
                     .unwrap()

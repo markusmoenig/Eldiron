@@ -369,6 +369,9 @@ impl Renderer {
                     .unwrap();
                 sample += 1;
             } else {
+                sender
+                    .send(PreRenderResult::ClearRegionTile(region.id, *tile))
+                    .unwrap();
                 sample = region.pathtracer_samples;
             }
             prerendered

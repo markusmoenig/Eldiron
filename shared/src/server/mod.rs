@@ -775,7 +775,6 @@ impl Server {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn set_prerendered_tile(
         &mut self,
         region: Uuid,
@@ -787,6 +786,12 @@ impl Server {
             region
                 .prerendered
                 .merge_tile_data(region.tile_size, tile, sample, tile_data);
+        }
+    }
+
+    pub fn clear_prerendered_tile(&mut self, region: Uuid, tile: &Vec2i) {
+        if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
+            region.prerendered.clear_tile_albedo(region.tile_size, tile);
         }
     }
 
