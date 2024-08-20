@@ -64,6 +64,7 @@ pub mod prelude {
     pub use crate::tools::mapobjects::MapObjectsTool;
     pub use crate::tools::picker::PickerTool;
     pub use crate::tools::render::RenderTool;
+    pub use crate::tools::resize::ResizeTool;
     pub use crate::tools::screen::eraser::ScreenEraserTool;
     pub use crate::tools::screen::game::ScreenGameTool;
     pub use crate::tools::screen::picker::ScreenPickerTool;

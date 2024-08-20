@@ -8,6 +8,7 @@ pub mod game;
 pub mod mapobjects;
 pub mod picker;
 pub mod render;
+pub mod resize;
 pub mod screen;
 pub mod selection;
 pub mod terrain;

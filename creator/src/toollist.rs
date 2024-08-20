@@ -39,6 +39,7 @@ impl ToolList {
             Box::new(TilemapTool::new()),
             Box::new(RenderTool::new()),
             Box::new(ZoomTool::new()),
+            Box::new(ResizeTool::new()),
             Box::new(GameTool::new()),
         ];
         let screen_tools: Vec<Box<dyn Tool>> = vec![

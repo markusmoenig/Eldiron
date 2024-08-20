@@ -222,23 +222,6 @@ impl Sidebar {
         text_layout
             .limiter_mut()
             .set_max_size(vec2i(self.width, 250));
-        let mut drop_down = TheDropdownMenu::new(TheId::named("Region Settings Dropdown"));
-        drop_down.add_option("Top / Left".to_string());
-        drop_down.add_option("Top / Right".to_string());
-        drop_down.add_option("Bottom / Left".to_string());
-        drop_down.add_option("Bottom / Right".to_string());
-        drop_down.set_status_text(
-            "On region size changes the region will grow or shrink from the given corner.",
-        );
-        text_layout.add_pair("Grow / Shrink".to_string(), Box::new(drop_down));
-        let mut width_edit = TheTextLineEdit::new(TheId::named("Region Width Edit"));
-        width_edit.set_range(TheValue::RangeI32(1..=100000));
-        width_edit.set_status_text("The width of the region in grid units.");
-        text_layout.add_pair("Width (Grid)".to_string(), Box::new(width_edit));
-        let mut height_edit = TheTextLineEdit::new(TheId::named("Region Height Edit"));
-        height_edit.set_range(TheValue::RangeI32(1..=100000));
-        height_edit.set_status_text("The height of the region in grid units.");
-        text_layout.add_pair("Height (Grid)".to_string(), Box::new(height_edit));
 
         let mut grid_edit = TheTextLineEdit::new(TheId::named("Region Grid Edit"));
         grid_edit.set_range(TheValue::RangeI32(1..=1000));
@@ -3139,31 +3122,6 @@ impl Sidebar {
                         }
                     }
                 }
-            }
-        }
-
-        if let Some(widget) = ui
-            .canvas
-            .get_widget(Some(&"Region Width Edit".to_string()), None)
-        {
-            if let Some(region) = region {
-                widget.set_value(TheValue::Text(region.width.clone().to_string()));
-                widget.set_disabled(false);
-            } else {
-                widget.set_value(TheValue::Empty);
-                widget.set_disabled(true);
-            }
-        }
-        if let Some(widget) = ui
-            .canvas
-            .get_widget(Some(&"Region Height Edit".to_string()), None)
-        {
-            if let Some(region) = region {
-                widget.set_value(TheValue::Text(region.height.clone().to_string()));
-                widget.set_disabled(false);
-            } else {
-                widget.set_value(TheValue::Empty);
-                widget.set_disabled(true);
             }
         }
         if let Some(widget) = ui
