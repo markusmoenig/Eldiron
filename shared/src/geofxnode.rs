@@ -984,6 +984,12 @@ impl GeoFXNode {
         vec2f(x, y)
     }
 
+    /// Set the position
+    pub fn set_position(&mut self, pos: Vec2f) {
+        self.set("Pos X", TheValue::Float(pos.x));
+        self.set("Pos Y", TheValue::Float(pos.y));
+    }
+
     pub fn set_default_position(&mut self, p: Vec2i) {
         let mut pf = vec2f(p.x as f32, p.y as f32);
         match self.role {

@@ -10,6 +10,7 @@ pub enum RegionUndoAtom {
     HeightmapEdit(Heightmap, Heightmap, Vec<Vec2i>),
     RegionTileEdit(Vec2i, Option<RegionTile>, Option<RegionTile>),
     RegionFXEdit(RegionFXObject, RegionFXObject),
+    RegionEdit(Region, Region, Vec<Vec2i>),
 }
 
 impl RegionUndoAtom {
@@ -71,6 +72,14 @@ impl RegionUndoAtom {
                     .unwrap()
                     .render_region(region.clone(), None);
             }
+            RegionUndoAtom::RegionEdit(prev, _, tiles) => {
+                *region = prev.clone();
+                region.update_geometry_areas();
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), Some(tiles.clone()));
+            }
         }
     }
     pub fn redo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -131,6 +140,13 @@ impl RegionUndoAtom {
                     .lock()
                     .unwrap()
                     .render_region(region.clone(), None);
+            }
+            RegionUndoAtom::RegionEdit(_, next, tiles) => {
+                *region = next.clone();
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), Some(tiles.clone()));
             }
         }
     }

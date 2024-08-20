@@ -1,10 +1,15 @@
 use crate::prelude::*;
 use ToolEvent::*;
 
+use crate::editor::{PRERENDERTHREAD, UNDOMANAGER};
+
 pub struct SelectionTool {
     id: TheId,
 
     tile_selection: TileSelection,
+
+    copied_area: FxHashSet<(i32, i32)>,
+    copied_region: Option<Region>,
 }
 
 impl Tool for SelectionTool {
@@ -14,7 +19,11 @@ impl Tool for SelectionTool {
     {
         Self {
             id: TheId::named("Select Tool"),
+
             tile_selection: TileSelection::default(),
+
+            copied_area: FxHashSet::default(),
+            copied_region: None,
         }
     }
 
@@ -41,8 +50,8 @@ impl Tool for SelectionTool {
         _tool_context: ToolContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
-        _server: &mut Server,
+        project: &mut Project,
+        server: &mut Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
@@ -99,43 +108,103 @@ impl Tool for SelectionTool {
             _ => {}
         };
 
-        if let TileDown(coord, _) = tool_event {
-            let p = (coord.x, coord.y);
+        if let Some(copied) = &self.copied_region {
+            // Handle copied region
 
-            let mut mode = TileSelectionMode::Additive;
-            let mut tiles: FxHashSet<(i32, i32)> = FxHashSet::default();
+            if let TileDown(coord, _) = tool_event {
+                // Copy the copied region into the selection.
 
-            if ui.shift {
-                tiles = self.tile_selection.tiles.clone();
-            } else if ui.alt {
-                tiles = self.tile_selection.tiles.clone();
-                mode = TileSelectionMode::Subtractive;
+                // The tiles in the transformed coord space.
+                let mut tiles = FxHashSet::default();
+                for t in &self.copied_area {
+                    tiles.insert((coord.x + t.0, coord.y + t.1));
+                }
+
+                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    let prev = region.clone();
+
+                    // Copy geometry
+                    for geo_obj in copied.geometry.values() {
+                        let p = geo_obj.get_position();
+
+                        let toffset = Vec2f::from(p) + vec2f(coord.x as f32, coord.y as f32);
+                        let mut c = geo_obj.clone();
+                        c.id = Uuid::new_v4();
+                        c.set_position(toffset);
+
+                        // Insert into new region
+                        region.geometry.insert(c.id, c);
+                    }
+
+                    // Copy the tiles
+                    for (tile_pos, tile) in &copied.tiles {
+                        let p = vec2i(tile_pos.0, tile_pos.1);
+                        let pos = p + coord;
+                        region.tiles.insert((pos.x, pos.y), tile.clone());
+                    }
+
+                    region.update_geometry_areas();
+                    server.update_region(region);
+
+                    let tiles_vector: Vec<Vec2i> =
+                        tiles.into_iter().map(|(x, y)| Vec2i::new(x, y)).collect();
+
+                    // Undo
+                    let undo =
+                        RegionUndoAtom::RegionEdit(prev, region.clone(), tiles_vector.clone());
+                    UNDOMANAGER
+                        .lock()
+                        .unwrap()
+                        .add_region_undo(&region.id, undo, ctx);
+
+                    // Render
+                    PRERENDERTHREAD
+                        .lock()
+                        .unwrap()
+                        .render_region(region.clone(), Some(tiles_vector));
+                }
             }
+        } else {
+            // Handle general selection
 
-            let tile_area = TileSelection {
-                mode,
-                rect_start: p,
-                rect_end: p,
-                tiles,
-            };
-            server_ctx.tile_selection = Some(tile_area);
-        }
-        if let TileDrag(coord, _) = tool_event {
-            let p = (coord.x, coord.y);
-            if let Some(tile_selection) = &mut server_ctx.tile_selection {
-                tile_selection.grow_rect_by(p);
-            }
-        }
-        if let TileUp = tool_event {
-            if let Some(tile_selection) = &mut server_ctx.tile_selection {
-                self.tile_selection.tiles = tile_selection.merged();
-            }
+            if let TileDown(coord, _) = tool_event {
+                let p = (coord.x, coord.y);
 
-            ui.set_widget_disabled_state(
-                "Editor Create Area",
-                ctx,
-                self.tile_selection.tiles.is_empty(),
-            );
+                let mut mode = TileSelectionMode::Additive;
+                let mut tiles: FxHashSet<(i32, i32)> = FxHashSet::default();
+
+                if ui.shift {
+                    tiles = self.tile_selection.tiles.clone();
+                } else if ui.alt {
+                    tiles = self.tile_selection.tiles.clone();
+                    mode = TileSelectionMode::Subtractive;
+                }
+
+                let tile_area = TileSelection {
+                    mode,
+                    rect_start: p,
+                    rect_end: p,
+                    tiles,
+                };
+                server_ctx.tile_selection = Some(tile_area);
+            }
+            if let TileDrag(coord, _) = tool_event {
+                let p = (coord.x, coord.y);
+                if let Some(tile_selection) = &mut server_ctx.tile_selection {
+                    tile_selection.grow_rect_by(p);
+                }
+            }
+            if let TileUp = tool_event {
+                if let Some(tile_selection) = &mut server_ctx.tile_selection {
+                    self.tile_selection.tiles = tile_selection.merged();
+                }
+
+                ui.set_widget_disabled_state(
+                    "Editor Create Area",
+                    ctx,
+                    self.tile_selection.tiles.is_empty(),
+                );
+            }
         }
 
         false
@@ -152,9 +221,115 @@ impl Tool for SelectionTool {
         server_ctx: &mut ServerContext,
     ) -> bool {
         match event {
-            TheEvent::Cut => {
-                println!("Cut");
+            TheEvent::Cut | TheEvent::Copy => {
+                if self.tile_selection.tiles.is_empty() {
+                    return false;
+                }
 
+                let tiles = self.tile_selection.tiles.clone();
+
+                // Cut / Copy terrain
+                let is_cut = matches!(*event, TheEvent::Cut);
+
+                let (sel_min, _, _, _) = self.tile_selection.tile_dimensions().unwrap();
+
+                // The new region we copy into
+                let mut copied = Region::default();
+                self.copied_area.clear();
+
+                let mut geo_obj_to_remove = vec![];
+                let mut tiles_to_remove = vec![];
+
+                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    // Copy the geometry objects
+                    for (id, geo_obj) in &region.geometry {
+                        let p = geo_obj.get_position();
+                        let tp = Vec2i::from(p);
+
+                        // Inside the selection
+                        if tiles.contains(&(tp.x, tp.y)) {
+                            if is_cut {
+                                geo_obj_to_remove.push(*id);
+                            }
+
+                            let toffset = Vec2f::from(p) - Vec2f::from(sel_min);
+                            let mut c = geo_obj.clone();
+                            c.id = Uuid::new_v4();
+                            c.set_position(toffset);
+
+                            let pos = tp - sel_min;
+                            self.copied_area.insert((pos.x, pos.y));
+
+                            // Insert into new region
+                            copied.geometry.insert(c.id, c);
+                        };
+                    }
+
+                    // Copy the tiles
+                    for (tile_pos, tile) in &region.tiles {
+                        if tiles.contains(tile_pos) {
+                            let p = vec2i(tile_pos.0, tile_pos.1);
+                            let pos = p - sel_min;
+
+                            tiles_to_remove.push(*tile_pos);
+
+                            self.copied_area.insert((pos.x, pos.y));
+                            copied.tiles.insert((pos.x, pos.y), tile.clone());
+                        }
+                    }
+
+                    // When cutting remove from old region
+                    if is_cut {
+                        let prev = region.clone();
+
+                        for id in geo_obj_to_remove {
+                            region.geometry.remove(&id);
+                        }
+
+                        for t in tiles_to_remove {
+                            region.tiles.remove(&t);
+                        }
+
+                        region.update_geometry_areas();
+                        server.update_region(region);
+
+                        let tiles_vector: Vec<Vec2i> =
+                            tiles.into_iter().map(|(x, y)| Vec2i::new(x, y)).collect();
+
+                        // Undo
+                        let undo =
+                            RegionUndoAtom::RegionEdit(prev, region.clone(), tiles_vector.clone());
+                        UNDOMANAGER
+                            .lock()
+                            .unwrap()
+                            .add_region_undo(&region.id, undo, ctx);
+
+                        PRERENDERTHREAD
+                            .lock()
+                            .unwrap()
+                            .render_region(region.clone(), Some(tiles_vector));
+                    }
+
+                    self.copied_region = Some(copied);
+
+                    true
+                } else {
+                    false
+                }
+            }
+            TheEvent::TileEditorHoverChanged(id, pos) => {
+                if id.name == "Region Editor View" && self.copied_region.is_some() {
+                    let mut sel = self.tile_selection.clone();
+
+                    // Remap the copied area to the new pos for selection preview
+                    sel.tiles.clear();
+                    for t in &self.copied_area {
+                        sel.tiles.insert((pos.x + t.0, pos.y + t.1));
+                    }
+                    server_ctx.tile_selection = Some(sel);
+
+                    return true;
+                }
                 false
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
@@ -166,6 +341,7 @@ impl Tool for SelectionTool {
                         ctx,
                         self.tile_selection.tiles.is_empty(),
                     );
+                    self.copied_region = None;
                 }
                 true
             }
@@ -178,6 +354,8 @@ impl Tool for SelectionTool {
                         ctx,
                         self.tile_selection.tiles.is_empty(),
                     );
+
+                    self.copied_region = None;
 
                     true
                 } else if id.name == "Editor Create Area" {

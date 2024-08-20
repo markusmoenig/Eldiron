@@ -160,4 +160,21 @@ impl GeoFXObject {
 
         None
     }
+
+    /// Get the tile position of the node.
+    pub fn get_position(&self) -> Vec2f {
+        if let Some(geo) = self.nodes.first() {
+            let collection = geo.collection();
+            geo.position(&collection)
+        } else {
+            Vec2f::zero()
+        }
+    }
+
+    /// Set the tile position of the node.
+    pub fn set_position(&mut self, pos: Vec2f) {
+        if let Some(geo) = self.nodes.first_mut() {
+            geo.set_position(pos);
+        }
+    }
 }

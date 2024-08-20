@@ -1,3 +1,11 @@
+
+v 0.8.13
+--------
+
+- Improved the Selection tool. Supports additive and subtractive selections (Shift / Alt).
+- Improved the Zoom tool. Now also has a global shortcut: Ctrl/Cmd + '-' / '+'.
+- Added accelerators for menu items.
+
 v 0.8.12
 --------
 

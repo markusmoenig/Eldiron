@@ -103,6 +103,12 @@ impl Default for Region {
     }
 }
 
+impl PartialEq for Region {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
 impl Region {
     pub fn new() -> Self {
         Self {

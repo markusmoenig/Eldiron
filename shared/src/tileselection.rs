@@ -73,4 +73,35 @@ impl TileSelection {
 
         tiles
     }
+
+    /// Returns the bounding box dimensions of the tiles in the selection
+    pub fn tile_dimensions(&self) -> Option<(Vec2i, Vec2i, i32, i32)> {
+        if self.tiles.is_empty() {
+            None
+        } else {
+            let mut min_x = i32::MAX;
+            let mut max_x = i32::MIN;
+            let mut min_y = i32::MAX;
+            let mut max_y = i32::MIN;
+
+            for &(x, y) in &self.tiles {
+                if x < min_x {
+                    min_x = x;
+                }
+                if x > max_x {
+                    max_x = x;
+                }
+                if y < min_y {
+                    min_y = y;
+                }
+                if y > max_y {
+                    max_y = y;
+                }
+            }
+
+            let width = max_x - min_x + 1; // inclusive range
+            let height = max_y - min_y + 1; // inclusive range
+            Some((vec2i(min_x, min_y), vec2i(max_x, max_y), width, height))
+        }
+    }
 }

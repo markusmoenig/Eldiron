@@ -335,10 +335,10 @@ impl TheTrait for Editor {
         let mut tab_layout = TheTabLayout::new(TheId::named("Editor Tab"));
 
         let game_canvas = self.tileeditor.init_ui(ui, ctx, &mut self.project);
-        tab_layout.add_canvas(str!("Game"), game_canvas);
+        tab_layout.add_canvas(str!("Game View"), game_canvas);
 
         let screen_canvas = self.screeneditor.init_ui(ui, ctx, &mut self.project);
-        tab_layout.add_canvas(str!("Screen"), screen_canvas);
+        tab_layout.add_canvas(str!("Screen View"), screen_canvas);
 
         tab_canvas.set_layout(tab_layout);
 
