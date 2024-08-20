@@ -34,6 +34,7 @@ lazy_static! {
 pub enum ActiveEditor {
     GameEditor,
     ScreenEditor,
+    TerrainEditor,
 }
 
 pub struct Editor {
@@ -46,6 +47,7 @@ pub struct Editor {
     panels: Panels,
     tileeditor: TileEditor,
     screeneditor: ScreenEditor,
+    terraineditor: TerranEditor,
 
     server: Server,
     client: Client,
@@ -81,6 +83,7 @@ impl TheTrait for Editor {
             panels: Panels::new(),
             tileeditor: TileEditor::new(),
             screeneditor: ScreenEditor::new(),
+            terraineditor: TerranEditor::new(),
 
             server_ctx: ServerContext::default(),
             server,
@@ -339,6 +342,9 @@ impl TheTrait for Editor {
 
         let screen_canvas = self.screeneditor.init_ui(ui, ctx, &mut self.project);
         tab_layout.add_canvas(str!("Screen View"), screen_canvas);
+
+        let terrain_canvas = self.terraineditor.init_ui(ui, ctx, &mut self.project);
+        tab_layout.add_canvas(str!("Terrain View"), terrain_canvas);
 
         tab_canvas.set_layout(tab_layout);
 
@@ -654,6 +660,16 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
+                if self.terraineditor.handle_event(
+                    &event,
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.client,
+                    &mut self.server_ctx,
+                ) {
+                    redraw = true;
+                }
                 if TILEMAPEDITOR.lock().unwrap().handle_event(
                     &event,
                     ui,
@@ -726,6 +742,8 @@ impl TheTrait for Editor {
                                 self.active_editor = ActiveEditor::GameEditor;
                             } else if index == 1 {
                                 self.active_editor = ActiveEditor::ScreenEditor;
+                            } else if index == 2 {
+                                self.active_editor = ActiveEditor::TerrainEditor;
                             }
                             if let Some(list) = ui.get_vlayout("Tool List Layout") {
                                 TOOLLIST.lock().unwrap().set_active_editor(

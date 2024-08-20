@@ -14,6 +14,9 @@ pub struct ToolList {
 
     pub screen_tools: Vec<Box<dyn Tool>>,
     pub curr_screen_tool: usize,
+
+    pub terrain_tools: Vec<Box<dyn Tool>>,
+    pub curr_terrain_tool: usize,
 }
 
 impl Default for ToolList {
@@ -45,7 +48,7 @@ impl ToolList {
             Box::new(ScreenEraserTool::new()),
             Box::new(ScreenGameTool::new()),
         ];
-
+        let terrain_tools: Vec<Box<dyn Tool>> = vec![Box::new(TerrainDrawTool::new())];
         Self {
             server_time: TheTime::default(),
             render_button_text: "Finished".to_string(),
@@ -57,6 +60,9 @@ impl ToolList {
 
             screen_tools,
             curr_screen_tool: 0,
+
+            terrain_tools,
+            curr_terrain_tool: 0,
         }
     }
 
@@ -91,6 +97,18 @@ impl ToolList {
                     b.set_icon_name(tool.icon_name());
                     b.set_status_text(&tool.info());
                     if index == self.curr_screen_tool {
+                        b.set_state(TheWidgetState::Selected);
+                    }
+                    list.add_widget(Box::new(b));
+                }
+            }
+            TerrainEditor => {
+                for (index, tool) in self.terrain_tools.iter().enumerate() {
+                    let mut b = TheToolListButton::new(tool.id());
+
+                    b.set_icon_name(tool.icon_name());
+                    b.set_status_text(&tool.info());
+                    if index == self.curr_terrain_tool {
                         b.set_state(TheWidgetState::Selected);
                     }
                     list.add_widget(Box::new(b));
@@ -168,6 +186,23 @@ impl ToolList {
                                     tool_uuid = Some(tool.id().uuid);
                                     ctx.ui.set_widget_state(
                                         self.screen_tools[self.curr_screen_tool].id().name,
+                                        TheWidgetState::None,
+                                    );
+                                    ctx.ui
+                                        .set_widget_state(tool.id().name, TheWidgetState::Selected);
+                                }
+                            }
+                            if let Some(uuid) = tool_uuid {
+                                self.set_tool(uuid, ui, ctx, project, server, client, server_ctx);
+                            }
+                        }
+                        TerrainEditor => {
+                            let mut tool_uuid = None;
+                            for tool in self.terrain_tools.iter() {
+                                if tool.accel() == Some(*c) {
+                                    tool_uuid = Some(tool.id().uuid);
+                                    ctx.ui.set_widget_state(
+                                        self.terrain_tools[self.curr_terrain_tool].id().name,
                                         TheWidgetState::None,
                                     );
                                     ctx.ui
@@ -354,6 +389,7 @@ impl ToolList {
         match &self.active_editor {
             GameEditor => &mut self.game_tools[self.curr_game_tool],
             ScreenEditor => &mut self.screen_tools[self.curr_screen_tool],
+            TerrainEditor => &mut self.terrain_tools[self.curr_terrain_tool],
         }
     }
 
@@ -422,6 +458,36 @@ impl ToolList {
                         }
                     }
                     self.screen_tools[old_tool_index].tool_event(
+                        ToolEvent::DeActivate,
+                        ToolContext::TwoD,
+                        ui,
+                        ctx,
+                        project,
+                        server,
+                        client,
+                        server_ctx,
+                    );
+                }
+            }
+            TerrainEditor => {
+                layout_name = "Terrain Tool Params";
+                let mut old_tool_index = 0;
+                for (index, tool) in self.terrain_tools.iter().enumerate() {
+                    if tool.id().uuid == tool_id && index != self.curr_terrain_tool {
+                        switched_tool = true;
+                        old_tool_index = self.curr_terrain_tool;
+                        self.curr_terrain_tool = index;
+                        redraw = true;
+                    }
+                }
+                if switched_tool {
+                    for tool in self.terrain_tools.iter() {
+                        if tool.id().uuid != tool_id {
+                            ctx.ui
+                                .set_widget_state(tool.id().name.clone(), TheWidgetState::None);
+                        }
+                    }
+                    self.terrain_tools[old_tool_index].tool_event(
                         ToolEvent::DeActivate,
                         ToolContext::TwoD,
                         ui,

@@ -13,6 +13,7 @@ pub mod regionfxeditor;
 pub mod screeneditor;
 pub mod self_update;
 pub mod sidebar;
+pub mod terraineditor;
 pub mod tileeditor;
 pub mod tilefxeditor;
 pub mod tilemapeditor;
@@ -44,6 +45,7 @@ pub mod prelude {
     pub use crate::regionfxeditor::*;
     pub use crate::screeneditor::*;
     pub use crate::sidebar::*;
+    pub use crate::terraineditor::TerranEditor;
     pub use crate::tileeditor::*;
     pub use crate::tilefxeditor::*;
     pub use crate::tilemapeditor::*;
@@ -67,6 +69,7 @@ pub mod prelude {
     pub use crate::tools::screen::picker::ScreenPickerTool;
     pub use crate::tools::screen::tiledrawer::ScreenTileDrawerTool;
     pub use crate::tools::selection::SelectionTool;
+    pub use crate::tools::terrain::draw::TerrainDrawTool;
     pub use crate::tools::tiledrawer::TileDrawerTool;
     pub use crate::tools::tilemap::TilemapTool;
     pub use crate::tools::zoom::ZoomTool;

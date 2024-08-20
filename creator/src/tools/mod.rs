@@ -10,6 +10,7 @@ pub mod picker;
 pub mod render;
 pub mod screen;
 pub mod selection;
+pub mod terrain;
 pub mod tiledrawer;
 pub mod tilemap;
 pub mod zoom;
