@@ -1,6 +1,8 @@
 use crate::prelude::*;
 use ToolEvent::*;
 
+use crate::editor::{PRERENDERTHREAD, UNDOMANAGER};
+
 pub struct ResizeTool {
     id: TheId,
 }
@@ -53,7 +55,7 @@ impl Tool for ResizeTool {
                 drop_down.add_option("Bottom / Left".to_string());
                 drop_down.add_option("Bottom / Right".to_string());
                 drop_down.set_status_text(
-                    "Size changes will will grow or shrink the region from the given corner.",
+                    "Size changes will grow or shrink the region from the given corner.",
                 );
 
                 layout.add_widget(Box::new(drop_down));
@@ -90,9 +92,9 @@ impl Tool for ResizeTool {
                 layout.add_widget(Box::new(hdivider));
 
                 let mut resize_button = TheTraybarButton::new(TheId::named("Region Resize"));
-                resize_button.set_text(str!("Resize"));
+                resize_button.set_text(str!("Resize!"));
                 resize_button.set_status_text(
-                    "Resizes the region (growing or shrinking it) based on the expansion mode.",
+                    "Resizes the region (growing or shrinking it) based on the expansion mode. Adjusts all meta data like areas and code.",
                 );
                 //resize_button.set_disabled(true);
 
@@ -162,7 +164,177 @@ impl Tool for ResizeTool {
 
                     //println!("{} {} {}", expansion_mode, new_width, new_height);
 
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {}
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        let width_changed = new_width != region.width;
+                        let height_changed = new_height != region.height;
+
+                        if !width_changed && !height_changed {
+                            return false;
+                        }
+
+                        let prev = region.clone();
+
+                        // Compute changes
+
+                        let mut width_prefix = 0;
+                        let mut height_prefix = 0;
+
+                        if width_changed && (expansion_mode == 0 || expansion_mode == 2) {
+                            width_prefix = new_width - region.width;
+                        }
+
+                        if height_changed && (expansion_mode == 0 || expansion_mode == 1) {
+                            height_prefix = new_height - region.height;
+                        }
+
+                        if width_prefix != 0 || height_prefix != 0 {
+                            println!("{} {}", width_prefix, height_prefix);
+
+                            // Move Geos
+                            let mut new_geometry_map: FxHashMap<Uuid, GeoFXObject> =
+                                FxHashMap::default();
+                            for geo_obj in region.geometry.values_mut() {
+                                let mut pos = geo_obj.get_position();
+                                if width_prefix > 0 {
+                                    pos.x += width_prefix as f32;
+                                }
+                                if height_prefix > 0 {
+                                    pos.y += height_prefix as f32;
+                                }
+                                geo_obj.set_position(pos);
+                                geo_obj.update_area();
+                                new_geometry_map.insert(geo_obj.id, geo_obj.clone());
+                            }
+                            region.geometry = new_geometry_map;
+
+                            // Move Heightmap
+                            let mut new_mask_map: FxHashMap<(i32, i32), TheRGBBuffer> =
+                                FxHashMap::default();
+                            for (pos, mask) in region.heightmap.material_mask.iter() {
+                                let mut p = *pos;
+                                if width_prefix > 0 {
+                                    p.0 += width_prefix;
+                                }
+                                if height_prefix > 0 {
+                                    p.1 += height_prefix;
+                                }
+                                new_mask_map.insert(p, mask.clone());
+                            }
+                            region.heightmap.material_mask = new_mask_map;
+
+                            // Move Tiles
+                            let mut new_tile_map: FxHashMap<(i32, i32), RegionTile> =
+                                FxHashMap::default();
+                            for (pos, tile) in region.tiles.iter() {
+                                let mut p = *pos;
+                                if width_prefix > 0 {
+                                    p.0 += width_prefix;
+                                }
+                                if height_prefix > 0 {
+                                    p.1 += height_prefix;
+                                }
+                                new_tile_map.insert(p, tile.clone());
+                            }
+                            region.tiles = new_tile_map;
+
+                            // Move Effects
+                            let mut new_tilefx_map: FxHashMap<Vec3i, TileFXObject> =
+                                FxHashMap::default();
+                            for (pos, tilefx) in region.effects.iter() {
+                                let mut p = *pos;
+                                if width_prefix > 0 {
+                                    p.x += width_prefix;
+                                }
+                                if height_prefix > 0 {
+                                    p.z += height_prefix;
+                                }
+                                new_tilefx_map.insert(p, tilefx.clone());
+                            }
+                            region.effects = new_tilefx_map;
+
+                            // Move Area
+                            let mut new_area_map: FxHashMap<Uuid, Area> = FxHashMap::default();
+                            for (id, area) in region.areas.iter() {
+                                let mut area = area.clone();
+                                let mut new_area = FxHashSet::default();
+                                for t in area.area.iter() {
+                                    let mut p = *t;
+                                    if width_prefix > 0 {
+                                        p.0 += width_prefix;
+                                    }
+                                    if height_prefix > 0 {
+                                        p.1 += height_prefix;
+                                    }
+                                    new_area.insert(p);
+                                }
+                                area.area = new_area;
+                                new_area_map.insert(*id, area);
+                            }
+                            region.areas = new_area_map;
+
+                            // Move Positions in Character Instances
+                            let mut new_character_map: FxHashMap<Uuid, Character> =
+                                FxHashMap::default();
+                            for (id, character) in region.characters.iter() {
+                                let mut character = character.clone();
+                                // Move Positions of the instance
+                                character
+                                    .instance
+                                    .move_positions_by(vec2i(width_prefix, height_prefix));
+                                // Update the instance on the server
+                                server.update_character_instance_bundle(
+                                    region.id,
+                                    *id,
+                                    character.instance.clone(),
+                                );
+                                new_character_map.insert(*id, character);
+                            }
+                            region.characters = new_character_map;
+
+                            // Move Positions in Item Instances
+                            let mut new_item_map: FxHashMap<Uuid, Item> = FxHashMap::default();
+                            for (id, item) in region.items.iter() {
+                                let mut item = item.clone();
+                                // Move Positions of the instance
+                                item.instance
+                                    .move_positions_by(vec2i(width_prefix, height_prefix));
+                                // Update the instance on the server
+                                server.update_item_instance_bundle(
+                                    region.id,
+                                    *id,
+                                    item.instance.clone(),
+                                );
+                                new_item_map.insert(*id, item);
+                            }
+                            region.items = new_item_map;
+                        }
+
+                        // Update the region
+                        region.width = new_width;
+                        region.height = new_height;
+                        if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
+                            if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                                let width = region.width * region.grid_size;
+                                let height = region.height * region.grid_size;
+                                let buffer = TheRGBABuffer::new(TheDim::new(0, 0, width, height));
+                                rgba.set_buffer(buffer);
+                                ctx.ui.relayout = true;
+                            }
+                        }
+                        region.update_geometry_areas();
+                        server.update_region(region);
+
+                        let undo = RegionUndoAtom::RegionResize(prev, region.clone());
+                        UNDOMANAGER
+                            .lock()
+                            .unwrap()
+                            .add_region_undo(&region.id, undo, ctx);
+
+                        PRERENDERTHREAD
+                            .lock()
+                            .unwrap()
+                            .render_region(region.clone(), None);
+                    }
                 }
             }
             _ => {}

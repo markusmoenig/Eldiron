@@ -791,7 +791,7 @@ impl Server {
 
     pub fn clear_prerendered_tile(&mut self, region: Uuid, tile: &Vec2i) {
         if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
-            region.prerendered.clear_tile_albedo(region.tile_size, tile);
+            region.prerendered.clear_tile_albedo(tile);
         }
     }
 

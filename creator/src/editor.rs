@@ -541,9 +541,7 @@ impl TheTrait for Editor {
             match rendered {
                 PreRenderResult::ClearRegionTile(id, tile) => {
                     if let Some(region) = self.project.get_region_mut(&id) {
-                        region
-                            .prerendered
-                            .clear_tile_albedo(region.tile_size, &tile);
+                        region.prerendered.clear_tile_albedo(&tile);
                         self.server.clear_prerendered_tile(id, &tile);
                     }
                 }

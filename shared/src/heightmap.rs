@@ -18,7 +18,7 @@ pub struct Heightmap {
     #[serde(with = "vectorize")]
     pub material_mask: FxHashMap<(i32, i32), TheRGBBuffer>,
     #[serde(with = "vectorize")]
-    interpolation: FxHashMap<(i32, i32), HeightmapInterpolation>,
+    pub interpolation: FxHashMap<(i32, i32), HeightmapInterpolation>,
 }
 
 impl Default for Heightmap {

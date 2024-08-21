@@ -143,13 +143,10 @@ impl PreRendered {
     }
 
     /// Clear the color for the given tile.
-    pub fn clear_tile_albedo(&mut self, grid_size: i32, tile: &Vec2i) {
+    pub fn clear_tile_albedo(&mut self, tile: &Vec2i) {
         if let Some(existing_tile) = self.tiles.get_mut(tile) {
-            for h in 0..grid_size {
-                for w in 0..grid_size {
-                    existing_tile.albedo.set_pixel(w, h, &[0, 0, 0]);
-                }
-            }
+            existing_tile.albedo.fill([0, 0, 0]);
         }
+        self.tile_samples.insert(*tile, u16::MAX);
     }
 }

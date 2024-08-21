@@ -11,6 +11,7 @@ pub enum RegionUndoAtom {
     RegionTileEdit(Vec2i, Option<RegionTile>, Option<RegionTile>),
     RegionFXEdit(RegionFXObject, RegionFXObject),
     RegionEdit(Region, Region, Vec<Vec2i>),
+    RegionResize(Region, Region),
 }
 
 impl RegionUndoAtom {
@@ -79,6 +80,22 @@ impl RegionUndoAtom {
                     .unwrap()
                     .render_region(region.clone(), Some(tiles.clone()));
             }
+            RegionUndoAtom::RegionResize(prev, _) => {
+                *region = prev.clone();
+                if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
+                    if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                        let width = region.width * region.grid_size;
+                        let height = region.height * region.grid_size;
+                        let buffer = TheRGBABuffer::new(TheDim::new(0, 0, width, height));
+                        rgba.set_buffer(buffer);
+                        ctx.ui.relayout = true;
+                    }
+                }
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), None);
+            }
         }
     }
     pub fn redo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -146,6 +163,22 @@ impl RegionUndoAtom {
                     .lock()
                     .unwrap()
                     .render_region(region.clone(), Some(tiles.clone()));
+            }
+            RegionUndoAtom::RegionResize(_, next) => {
+                *region = next.clone();
+                if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
+                    if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                        let width = region.width * region.grid_size;
+                        let height = region.height * region.grid_size;
+                        let buffer = TheRGBABuffer::new(TheDim::new(0, 0, width, height));
+                        rgba.set_buffer(buffer);
+                        ctx.ui.relayout = true;
+                    }
+                }
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), None);
             }
         }
     }

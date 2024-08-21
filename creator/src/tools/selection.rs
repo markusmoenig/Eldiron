@@ -131,6 +131,7 @@ impl Tool for SelectionTool {
                         let mut c = geo_obj.clone();
                         c.id = Uuid::new_v4();
                         c.set_position(toffset);
+                        c.update_area();
 
                         // Insert into new region
                         region.geometry.insert(c.id, c);
@@ -256,6 +257,7 @@ impl Tool for SelectionTool {
                             let mut c = geo_obj.clone();
                             c.id = Uuid::new_v4();
                             c.set_position(toffset);
+                            c.update_area();
 
                             let pos = tp - sel_min;
                             self.copied_area.insert((pos.x, pos.y));
