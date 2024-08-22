@@ -144,6 +144,16 @@ impl Tool for SelectionTool {
                         region.tiles.insert((pos.x, pos.y), tile.clone());
                     }
 
+                    // Copy the heightmap content
+                    for (tile_pos, tile) in &copied.heightmap.material_mask {
+                        let p = vec2i(tile_pos.0, tile_pos.1);
+                        let pos = p + coord;
+                        region
+                            .heightmap
+                            .material_mask
+                            .insert((pos.x, pos.y), tile.clone());
+                    }
+
                     region.update_geometry_areas();
                     server.update_region(region);
 
@@ -240,6 +250,7 @@ impl Tool for SelectionTool {
 
                 let mut geo_obj_to_remove = vec![];
                 let mut tiles_to_remove = vec![];
+                let mut heightmap_material_mask_to_remove = vec![];
 
                 if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                     // Copy the geometry objects
@@ -280,6 +291,21 @@ impl Tool for SelectionTool {
                         }
                     }
 
+                    // Copy heightmap content
+                    for (tile_pos, tile) in &region.heightmap.material_mask {
+                        if tiles.contains(tile_pos) {
+                            let p = vec2i(tile_pos.0, tile_pos.1);
+                            let pos = p - sel_min;
+
+                            heightmap_material_mask_to_remove.push(*tile_pos);
+                            self.copied_area.insert((pos.x, pos.y));
+                            copied
+                                .heightmap
+                                .material_mask
+                                .insert((pos.x, pos.y), tile.clone());
+                        }
+                    }
+
                     // When cutting remove from old region
                     if is_cut {
                         let prev = region.clone();
@@ -290,6 +316,10 @@ impl Tool for SelectionTool {
 
                         for t in tiles_to_remove {
                             region.tiles.remove(&t);
+                        }
+
+                        for t in heightmap_material_mask_to_remove {
+                            region.heightmap.material_mask.remove(&t);
                         }
 
                         region.update_geometry_areas();

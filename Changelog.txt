@@ -2,6 +2,8 @@
 v 0.8.13
 --------
 
+- New resize / transformation tool to resize the region. Content is moved as necessary.
+  Origin (0, 0) is always kept in the top left corner.
 - Improved the Selection tool. Supports additive and subtractive selections (Shift / Alt).
 - Improved the Zoom tool. Now also has a global shortcut: Ctrl/Cmd + '-' / '+'.
 - Added accelerators for menu items.
