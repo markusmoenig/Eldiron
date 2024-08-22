@@ -20,6 +20,7 @@ pub enum PreRenderResult {
     ClearRegionTile(Uuid, Vec2i),
     Clear(Uuid),
     Progress(Uuid, String),
+    UpdateMiniMap,
     Finished,
     Paused,
     Quit,
@@ -171,6 +172,8 @@ impl PreRenderThread {
                                     "None".to_string()
                                 }
                             );
+
+                            result_tx.send(PreRenderResult::UpdateMiniMap).unwrap();
 
                             renderer.set_region(&region);
                             renderer.position =

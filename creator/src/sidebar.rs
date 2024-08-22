@@ -2,6 +2,7 @@ use crate::editor::{
     CODEEDITOR, MODELFXEDITOR, PRERENDERTHREAD, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR,
     UNDOMANAGER,
 };
+use crate::minimap::draw_minimap;
 use crate::prelude::*;
 
 #[derive(PartialEq, Debug)]
@@ -41,7 +42,7 @@ impl Sidebar {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         server: &mut Server,
     ) {
         let mut sectionbar_canvas = TheCanvas::new();
@@ -143,6 +144,7 @@ impl Sidebar {
         // Regions
 
         let mut regions_canvas = TheCanvas::default();
+        let mut region_shared_layout = TheSharedVLayout::new(TheId::named("Region Shared"));
 
         let mut list_layout = TheListLayout::new(TheId::named("Region List"));
         list_layout
@@ -172,7 +174,6 @@ impl Sidebar {
         toolbar_canvas.set_layout(toolbar_hlayout);
         list_canvas.set_bottom(toolbar_canvas);
 
-        let mut region_canvas: TheCanvas = TheCanvas::new();
         let mut region_tab = TheTabLayout::new(TheId::named("Region Tab Layout"));
 
         // Region Content
@@ -269,10 +270,24 @@ impl Sidebar {
         settings_canvas.set_layout(text_layout);
         region_tab.add_canvas("Settings".to_string(), settings_canvas);
 
-        region_canvas.set_layout(region_tab);
-        regions_canvas.set_top(list_canvas);
-        //regions_canvas.set_layout(text_layout);
-        regions_canvas.set_bottom(region_canvas);
+        let mut center_tab = TheCanvas::default();
+        center_tab.set_layout(region_tab);
+
+        region_shared_layout.add_canvas(list_canvas);
+        region_shared_layout.add_canvas(center_tab);
+        region_shared_layout.set_mode(TheSharedVLayoutMode::Shared);
+        region_shared_layout.set_shared_ratio(0.4);
+        regions_canvas.set_layout(region_shared_layout);
+
+        // Mini Map
+
+        let mut minimap_canvas = TheCanvas::default();
+        let mut minimap = TheRenderView::new(TheId::named("MiniMap"));
+
+        minimap.limiter_mut().set_max_size(vec2i(self.width, 200));
+        minimap_canvas.set_widget(minimap);
+
+        regions_canvas.set_bottom(minimap_canvas);
         stack_layout.add_canvas(regions_canvas);
 
         // Character
@@ -813,7 +828,7 @@ impl Sidebar {
 
         ui.canvas.set_right(canvas);
 
-        self.apply_region(ui, ctx, None, server);
+        self.apply_region(ui, ctx, None, server, &project.palette);
         self.apply_character(ui, ctx, None);
         self.apply_item(ui, ctx, None);
         self.apply_tilemap(ui, ctx, None);
@@ -835,6 +850,45 @@ impl Sidebar {
         let mut redraw = false;
 
         match event {
+            TheEvent::RenderViewClicked(id, coord) | TheEvent::RenderViewDragged(id, coord) => {
+                if id.name == "MiniMap" {
+                    if let Some(render_view) = ui.get_render_view("MiniMap") {
+                        let dim = *render_view.dim();
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            let region_width = region.width * region.grid_size;
+                            let region_height = region.height * region.grid_size;
+
+                            let minimap_width = dim.width;
+                            let minimap_height = dim.height;
+
+                            let scale_x = region_width as f32 / minimap_width as f32;
+                            let scale_y = region_height as f32 / minimap_height as f32;
+
+                            // Calculate the real-world coordinates by applying scaling
+                            let real_x = (coord.x as f32 * scale_x).round();
+                            let real_y = (coord.y as f32 * scale_y).round();
+
+                            // Converting real-world coordinates to tile indices
+                            let tile_x = real_x / region.grid_size as f32;
+                            let tile_y = real_y / region.grid_size as f32;
+
+                            server_ctx.curr_character_instance = None;
+                            server_ctx.curr_item_instance = None;
+                            region.editing_position_3d = vec3f(tile_x, 0.0, tile_y);
+                            server.set_editing_position_3d(region.editing_position_3d);
+                            server.update_region(region);
+                            if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
+                                rgba_layout.scroll_to_grid(vec2i(tile_x as i32, tile_y as i32));
+                                region.scroll_offset = vec2i(
+                                    (tile_x * region.grid_size as f32) as i32,
+                                    (tile_y * region.grid_size as f32) as i32,
+                                );
+                            }
+                            redraw = true;
+                        }
+                    }
+                }
+            }
             TheEvent::Resize => {
                 ctx.ui.redraw_all = true;
             }
@@ -1256,7 +1310,13 @@ impl Sidebar {
                 } else if id.name == "Region Content Filter Edit"
                     || id.name == "Region Content Dropdown"
                 {
-                    self.apply_region(ui, ctx, project.get_region(&server_ctx.curr_region), server);
+                    self.apply_region(
+                        ui,
+                        ctx,
+                        project.get_region(&server_ctx.curr_region),
+                        server,
+                        &project.palette,
+                    );
                 }
             }
             // Tiles Add
@@ -1551,13 +1611,13 @@ impl Sidebar {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
                             project.remove_region(&selected.uuid);
-                            self.apply_region(ui, ctx, None, server);
+                            self.apply_region(ui, ctx, None, server, &project.palette);
                         }
                     }
                 } else if id.name == "Region Item" {
                     for r in &project.regions {
                         if r.id == id.uuid {
-                            self.apply_region(ui, ctx, Some(r), server);
+                            self.apply_region(ui, ctx, Some(r), server, &project.palette);
                             redraw = true;
                         }
                     }
@@ -2988,6 +3048,7 @@ impl Sidebar {
         ctx: &mut TheContext,
         region: Option<&Region>,
         server: &mut Server,
+        palette: &ThePalette,
     ) {
         ui.set_widget_disabled_state("Region Remove", ctx, region.is_none());
         ui.set_widget_disabled_state("Region Settings", ctx, region.is_none());
@@ -3228,10 +3289,7 @@ impl Sidebar {
 
         // Apply the region's timeline to the editor.
         if let Some(region) = region {
-            // PRERENDERTHREAD
-            //     .lock()
-            //     .unwrap()
-            //     .render_region(region.clone(), Some(vec![]));
+            draw_minimap(region, ui, ctx, palette);
             RENDERER.lock().unwrap().render_canvas(region);
         }
     }

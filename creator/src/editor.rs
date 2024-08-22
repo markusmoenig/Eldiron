@@ -1,3 +1,4 @@
+use crate::minimap::draw_minimap;
 use crate::prelude::*;
 use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
@@ -562,6 +563,13 @@ impl TheTrait for Editor {
                     if let Some(region) = self.project.get_region_mut(&id) {
                         self.server.clear_prerendered(region.id);
                         region.prerendered.clear();
+                    }
+                }
+                PreRenderResult::UpdateMiniMap => {
+                    let palette = self.project.palette.clone();
+                    if let Some(region) = self.project.get_region_mut(&self.server_ctx.curr_region)
+                    {
+                        draw_minimap(region, ui, ctx, &palette);
                     }
                 }
                 PreRenderResult::Progress(id, text) => {

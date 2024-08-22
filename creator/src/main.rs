@@ -6,6 +6,7 @@ pub mod brushes;
 pub mod brushlist;
 pub mod editor;
 pub mod externals;
+pub mod minimap;
 pub mod misc;
 pub mod modelfxeditor;
 pub mod panels;
