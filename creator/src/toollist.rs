@@ -1,4 +1,4 @@
-use crate::editor::{PRERENDERTHREAD, RENDERER, RENDERMODE};
+use crate::editor::{PRERENDERTHREAD, RENDERER};
 use crate::prelude::*;
 
 pub use ActiveEditor::*;
@@ -647,25 +647,26 @@ impl ToolList {
             server_ctx,
         );
 
+        /*
         if let Some(layout) = ui.get_hlayout(layout_name) {
             if layout.widgets().is_empty() {
                 // Add default widgets
 
-                let mut gb = TheGroupButton::new(TheId::named("2D3D Group"));
-                gb.add_text("2D Map".to_string());
-                gb.add_text("Mixed".to_string());
-                gb.add_text("3D Map".to_string());
+                // let mut gb = TheGroupButton::new(TheId::named("2D3D Group"));
+                // gb.add_text("2D Map".to_string());
+                // gb.add_text("Mixed".to_string());
+                // gb.add_text("3D Map".to_string());
 
-                match *RENDERMODE.lock().unwrap() {
-                    EditorDrawMode::Draw2D => gb.set_index(0),
-                    EditorDrawMode::DrawMixed => gb.set_index(1),
-                    EditorDrawMode::Draw3D => gb.set_index(2),
-                }
+                // match *RENDERMODE.lock().unwrap() {
+                //     EditorDrawMode::Draw2D => gb.set_index(0),
+                //     EditorDrawMode::DrawMixed => gb.set_index(1),
+                //     EditorDrawMode::Draw3D => gb.set_index(2),
+                // }
 
-                let mut time_slider = TheTimeSlider::new(TheId::named("Server Time Slider"));
-                time_slider.set_continuous(true);
-                time_slider.limiter_mut().set_max_width(400);
-                time_slider.set_value(TheValue::Time(self.server_time));
+                // let mut time_slider = TheTimeSlider::new(TheId::named("Server Time Slider"));
+                // time_slider.set_continuous(true);
+                // time_slider.limiter_mut().set_max_width(400);
+                // time_slider.set_value(TheValue::Time(self.server_time));
 
                 let mut spacer = TheSpacer::new(TheId::empty());
                 spacer.limiter_mut().set_max_width(30);
@@ -694,13 +695,13 @@ impl ToolList {
                     ..Default::default()
                 }));
 
-                layout.add_widget(Box::new(gb));
+                //layout.add_widget(Box::new(gb));
                 layout.add_widget(Box::new(spacer));
-                layout.add_widget(Box::new(time_slider));
+                //layout.add_widget(Box::new(time_slider));
                 layout.add_widget(Box::new(render_button));
                 layout.set_reverse_index(Some(1));
             }
-        }
+        }*/
 
         ctx.ui.relayout = true;
 

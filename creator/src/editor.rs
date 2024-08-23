@@ -221,8 +221,25 @@ impl TheTrait for Editor {
             TheId::named("Paste"),
             TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'p'),
         ));
+        let mut view_menu = TheContextMenu::named(str!("View"));
+        view_menu.add(TheContextMenuItem::new_with_accel(
+            str!("2D Map"),
+            TheId::named("2DMap"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '2'),
+        ));
+        view_menu.add(TheContextMenuItem::new_with_accel(
+            str!("3D Map"),
+            TheId::named("3DMap"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '3'),
+        ));
+        view_menu.add(TheContextMenuItem::new_with_accel(
+            str!("Shared Map"),
+            TheId::named("2D3DMap"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '0'),
+        ));
 
         edit_menu.register_accel(ctx);
+        view_menu.register_accel(ctx);
 
         menu.add_context_menu(file_menu);
         menu.add_context_menu(edit_menu);
@@ -230,6 +247,7 @@ impl TheTrait for Editor {
         let code_menu = create_code_menu(ctx);
 
         menu.add_context_menu(code_menu);
+        menu.add_context_menu(view_menu);
         menu_canvas.set_widget(menu);
 
         // Menubar
@@ -276,15 +294,31 @@ impl TheTrait for Editor {
         stop_button.set_status_text("Stop the server.");
         stop_button.set_icon_name("stop-fill".to_string());
 
-        let mut square_button = TheMenubarButton::new(TheId::named("Square"));
-        square_button.set_status_text("Display full content.");
-        square_button.set_icon_name("frame_corners".to_string());
-        square_button.set_icon_offset(vec2i(-1, -1));
+        let mut time_slider = TheTimeSlider::new(TheId::named("Server Time Slider"));
+        time_slider.set_continuous(true);
+        time_slider.limiter_mut().set_max_width(400);
+        time_slider.set_value(TheValue::Time(TheTime::default()));
 
-        let mut square_half_button = TheMenubarButton::new(TheId::named("Square Half"));
-        square_half_button.set_status_text("Display content 60/40.");
-        square_half_button.set_icon_name("square_half_bottom".to_string());
-        square_half_button.set_icon_offset(vec2i(-1, -1));
+        // let mut gb = TheGroupButton::new(TheId::named("2D3D Group"));
+        // gb.add_text("2D Map".to_string());
+        // gb.add_text("Mixed".to_string());
+        // gb.add_text("3D Map".to_string());
+
+        // match *RENDERMODE.lock().unwrap() {
+        //     EditorDrawMode::Draw2D => gb.set_index(0),
+        //     EditorDrawMode::DrawMixed => gb.set_index(1),
+        //     EditorDrawMode::Draw3D => gb.set_index(2),
+        // }
+
+        // let mut square_button = TheMenubarButton::new(TheId::named("Square"));
+        // square_button.set_status_text("Display full content.");
+        // square_button.set_icon_name("frame_corners".to_string());
+        // square_button.set_icon_offset(vec2i(-1, -1));
+
+        // let mut square_half_button = TheMenubarButton::new(TheId::named("Square Half"));
+        // square_half_button.set_status_text("Display content 60/40.");
+        // square_half_button.set_icon_name("square_half_bottom".to_string());
+        // square_half_button.set_icon_offset(vec2i(-1, -1));
 
         let mut update_button = TheMenubarButton::new(TheId::named("Update"));
         update_button.set_status_text("Update application.");
@@ -312,8 +346,12 @@ impl TheTrait for Editor {
         hlayout.add_widget(Box::new(pause_button));
         hlayout.add_widget(Box::new(stop_button));
         hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
-        hlayout.add_widget(Box::new(square_button));
-        hlayout.add_widget(Box::new(square_half_button));
+        hlayout.add_widget(Box::new(time_slider));
+        hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
+        //hlayout.add_widget(Box::new(gb));
+
+        //hlayout.add_widget(Box::new(square_button));
+        //hlayout.add_widget(Box::new(square_half_button));
 
         hlayout.add_widget(Box::new(update_button));
         hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
@@ -1341,24 +1379,74 @@ impl TheTrait for Editor {
                         }
                     }
                     TheEvent::StateChanged(id, _state) => {
-                        // Open / Save Project
-
-                        if id.name == "Square" {
-                            if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
-                                if layout.mode() == TheSharedVLayoutMode::Top {
-                                    layout.set_mode(TheSharedVLayoutMode::Bottom);
-                                    ctx.ui.relayout = true;
-                                } else {
-                                    layout.set_mode(TheSharedVLayoutMode::Top);
-                                    ctx.ui.relayout = true;
-                                }
-                                redraw = true;
-                            }
-                        } else if id.name == "Square Half" {
-                            if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
-                                layout.set_mode(TheSharedVLayoutMode::Shared);
+                        // if id.name == "Square" {
+                        //     if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                        //         if layout.mode() == TheSharedVLayoutMode::Top {
+                        //             layout.set_mode(TheSharedVLayoutMode::Bottom);
+                        //             ctx.ui.relayout = true;
+                        //         } else {
+                        //             layout.set_mode(TheSharedVLayoutMode::Top);
+                        //             ctx.ui.relayout = true;
+                        //         }
+                        //         redraw = true;
+                        //     }
+                        // } else if id.name == "Square Half" {
+                        //     if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                        //         layout.set_mode(TheSharedVLayoutMode::Shared);
+                        //         ctx.ui.relayout = true;
+                        //         redraw = true;
+                        //     }
+                        // } else
+                        if id.name == "2DMap" {
+                            if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
+                                self.project.map_mode = MapMode::TwoD;
+                                shared.set_mode(TheSharedHLayoutMode::Left);
+                                *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
+                                PRERENDERTHREAD.lock().unwrap().set_paused(true);
                                 ctx.ui.relayout = true;
-                                redraw = true;
+                                if let Some(region) =
+                                    self.project.get_region_mut(&self.server_ctx.curr_region)
+                                {
+                                    if let Some(layout) = ui.get_rgba_layout("Region Editor") {
+                                        layout.set_zoom(region.zoom);
+                                        layout.relayout(ctx);
+                                    }
+                                }
+                            }
+                        } else if id.name == "2D3DMap" {
+                            if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
+                                self.project.map_mode = MapMode::Mixed;
+                                shared.set_mode(TheSharedHLayoutMode::Shared);
+                                *RENDERMODE.lock().unwrap() = EditorDrawMode::DrawMixed;
+                                PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                                ctx.ui.relayout = true;
+                                if let Some(region) =
+                                    self.project.get_region(&self.server_ctx.curr_region)
+                                {
+                                    RENDERER.lock().unwrap().set_region(region);
+                                    RENDERER
+                                        .lock()
+                                        .unwrap()
+                                        .set_textures(self.project.extract_tiles());
+                                }
+                            }
+                        } else if id.name == "3DMap" {
+                            if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
+                                self.project.map_mode = MapMode::ThreeD;
+                                shared.set_mode(TheSharedHLayoutMode::Right);
+                                *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw3D;
+                                PRERENDERTHREAD.lock().unwrap().set_paused(false);
+
+                                ctx.ui.relayout = true;
+                                if let Some(region) =
+                                    self.project.get_region(&self.server_ctx.curr_region)
+                                {
+                                    RENDERER.lock().unwrap().set_region(region);
+                                    RENDERER
+                                        .lock()
+                                        .unwrap()
+                                        .set_textures(self.project.extract_tiles());
+                                }
                             }
                         } else if id.name == "Logo" {
                             _ = open::that("https://eldiron.com");
