@@ -299,27 +299,6 @@ impl TheTrait for Editor {
         time_slider.limiter_mut().set_max_width(400);
         time_slider.set_value(TheValue::Time(TheTime::default()));
 
-        // let mut gb = TheGroupButton::new(TheId::named("2D3D Group"));
-        // gb.add_text("2D Map".to_string());
-        // gb.add_text("Mixed".to_string());
-        // gb.add_text("3D Map".to_string());
-
-        // match *RENDERMODE.lock().unwrap() {
-        //     EditorDrawMode::Draw2D => gb.set_index(0),
-        //     EditorDrawMode::DrawMixed => gb.set_index(1),
-        //     EditorDrawMode::Draw3D => gb.set_index(2),
-        // }
-
-        // let mut square_button = TheMenubarButton::new(TheId::named("Square"));
-        // square_button.set_status_text("Display full content.");
-        // square_button.set_icon_name("frame_corners".to_string());
-        // square_button.set_icon_offset(vec2i(-1, -1));
-
-        // let mut square_half_button = TheMenubarButton::new(TheId::named("Square Half"));
-        // square_half_button.set_status_text("Display content 60/40.");
-        // square_half_button.set_icon_name("square_half_bottom".to_string());
-        // square_half_button.set_icon_offset(vec2i(-1, -1));
-
         let mut update_button = TheMenubarButton::new(TheId::named("Update"));
         update_button.set_status_text("Update application.");
         update_button.set_icon_name("arrows-clockwise".to_string());
@@ -347,11 +326,7 @@ impl TheTrait for Editor {
         hlayout.add_widget(Box::new(stop_button));
         hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
         hlayout.add_widget(Box::new(time_slider));
-        hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
-        //hlayout.add_widget(Box::new(gb));
-
-        //hlayout.add_widget(Box::new(square_button));
-        //hlayout.add_widget(Box::new(square_half_button));
+        //hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
 
         hlayout.add_widget(Box::new(update_button));
         hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));

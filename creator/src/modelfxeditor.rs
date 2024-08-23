@@ -327,8 +327,6 @@ impl ModelFXEditor {
             TheEvent::SizeChanged(id) => {
                 if id.name == "GeoFX RGBA Layout" {
                     self.set_geo_tiles(&project.palette, ui, ctx);
-                } else if id.name == "MaterialFX RGBA Layout" {
-                    self.set_material_tiles(ui, ctx, project, None);
                 }
             }
             TheEvent::StateChanged(id, state) => {
@@ -341,7 +339,6 @@ impl ModelFXEditor {
                         server_ctx.curr_material_object = None;
                         ui.set_node_canvas("MaterialFX NodeCanvas", TheNodeCanvas::default());
                     }
-                    self.set_material_node_ui(server_ctx, project, ui, ctx);
                     self.set_current_brush(ui, project, server_ctx, ctx);
                 } else if id.name == "MaterialFX Add" {
                     let mut material = MaterialFXObject::default();
@@ -373,8 +370,6 @@ impl ModelFXEditor {
 
                     project.materials.insert(material.id, material);
                     server_ctx.curr_material_object = Some(material_id);
-                    self.set_materials(ui, ctx, project, Some(material_id));
-                    self.set_material_node_ui(server_ctx, project, ui, ctx);
                     TILEDRAWER
                         .lock()
                         .unwrap()
@@ -403,7 +398,6 @@ impl ModelFXEditor {
                     if let Some(material_id) = server_ctx.curr_material_object {
                         if let Some(material) = project.materials.get_mut(&material_id) {
                             let prev = material.to_json();
-                            let material_id = material.id;
                             let mut node = MaterialFXNode::new_from_name(item.name.clone());
                             node.position = vec2i(
                                 material.scroll_offset.x + 220,
@@ -420,8 +414,7 @@ impl ModelFXEditor {
                             UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
                             let node_canvas = material.to_canvas(&project.palette);
                             ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
-                            self.set_material_tiles(ui, ctx, project, Some(material_id));
-                            self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
+                            self.set_selected_material_node_ui(server_ctx, project, ui, ctx, true);
                         }
                     }
                     redraw = true;
@@ -440,7 +433,6 @@ impl ModelFXEditor {
                         server_ctx.curr_material_object = None;
                         ui.set_node_canvas("MaterialFX NodeCanvas", TheNodeCanvas::default());
                     }
-                    self.set_material_node_ui(server_ctx, project, ui, ctx);
                     self.set_current_brush(ui, project, server_ctx, ctx);
                     redraw = true;
                 }
@@ -449,7 +441,7 @@ impl ModelFXEditor {
                 if id.name == "GeoFX RGBA Layout View" {
                     //&& self.modelfx.clicked(*coord, ui, ctx) {
                     //self.modelfx.draw(ui, ctx, &project.palette);
-                    self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
+                    self.set_selected_material_node_ui(server_ctx, project, ui, ctx, true);
                     //self.render_preview(ui, &project.palette);
                     redraw = true;
                 }
@@ -596,13 +588,6 @@ impl ModelFXEditor {
                                             MaterialFXUndoAtom::Edit(material_id, prev, next);
                                         UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
 
-                                        self.set_material_tiles(
-                                            ui,
-                                            ctx,
-                                            project,
-                                            Some(material_id),
-                                        );
-
                                         redraw = true;
                                     }
                                 }
@@ -700,7 +685,7 @@ impl ModelFXEditor {
                                     }
                                 }
                             }
-                        } else if self.material_mode == MaterialMode::MaterialNodes {
+                        } else {
                             let mut region_to_render: Option<Region> = None;
                             let mut tiles_to_render: Vec<Vec2i> = vec![];
                             if let Some(material_id) = server_ctx.curr_material_object {
@@ -746,14 +731,6 @@ impl ModelFXEditor {
                                                 selected_index,
                                                 material.nodes[selected_index].preview.clone(),
                                             );
-                                            if let Some(list) =
-                                                ui.get_rowlist_layout("ModelFX Material List")
-                                            {
-                                                list.set_item_image(
-                                                    material.id,
-                                                    material.nodes[selected_index].preview.clone(),
-                                                );
-                                            }
                                         }
                                         material.render_preview(
                                             &project.palette,
@@ -764,14 +741,6 @@ impl ModelFXEditor {
                                             0,
                                             material.get_preview(),
                                         );
-                                        if let Some(list) =
-                                            ui.get_rowlist_layout("ModelFX Material List")
-                                        {
-                                            list.set_item_image(
-                                                material.id,
-                                                material.get_preview(),
-                                            );
-                                        }
                                         let next = material.to_json();
 
                                         PRERENDERTHREAD
@@ -799,12 +768,11 @@ impl ModelFXEditor {
                                         let undo =
                                             MaterialFXUndoAtom::Edit(material_id, prev, next);
                                         UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
-
-                                        self.set_material_tiles(
-                                            ui,
-                                            ctx,
+                                        self.render_material_changes(
+                                            material_id,
+                                            server_ctx,
                                             project,
-                                            Some(material_id),
+                                            ui,
                                         );
                                     }
                                 }
@@ -873,8 +841,6 @@ impl ModelFXEditor {
             TheEvent::Custom(id, _) => {
                 if id.name == "Update Materials" {
                     println!("Update Materials");
-                    self.set_materials(ui, ctx, project, None);
-                    self.set_material_tiles(ui, ctx, project, None);
                 } else if id.name == "Floor Selected" {
                     if let Some(stack) = ui.get_stack_layout("ModelFX Stack Layout") {
                         stack.set_index(0);
@@ -910,10 +876,9 @@ impl ModelFXEditor {
                         // } else
                         if *index == 0 {
                             self.material_mode = MaterialMode::Material;
-                            self.set_material_node_ui(server_ctx, project, ui, ctx);
                         } else {
                             self.material_mode = MaterialMode::MaterialNodes;
-                            self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
+                            self.set_selected_material_node_ui(server_ctx, project, ui, ctx, true);
                         }
                     }
                 }
@@ -925,7 +890,7 @@ impl ModelFXEditor {
                             material.selected_node = *index;
                         }
                     }
-                    self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
+                    self.set_selected_material_node_ui(server_ctx, project, ui, ctx, true);
                 }
             }
             TheEvent::NodeDragged(id, index, position) => {
@@ -955,10 +920,9 @@ impl ModelFXEditor {
                             let undo =
                                 MaterialFXUndoAtom::Edit(material.id, prev, material.to_json());
                             UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
-                            self.set_material_tiles(ui, ctx, project, None);
                             redraw = true;
                         }
-                        self.render_material_changes(material_id, server_ctx, project);
+                        self.render_material_changes(material_id, server_ctx, project, ui);
                     }
                 }
             }
@@ -977,16 +941,12 @@ impl ModelFXEditor {
                             );
                             let preview = material.get_preview();
                             ui.set_node_preview("MaterialFX NodeCanvas", 0, preview.clone());
-                            if let Some(list) = ui.get_rowlist_layout("ModelFX Material List") {
-                                list.set_item_image(material.id, preview);
-                            }
                             let undo =
                                 MaterialFXUndoAtom::Edit(material.id, prev, material.to_json());
                             UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
-                            self.set_material_tiles(ui, ctx, project, None);
                             redraw = true;
                         }
-                        self.render_material_changes(material_id, server_ctx, project);
+                        self.render_material_changes(material_id, server_ctx, project, ui);
                     }
                 }
             }
@@ -1055,9 +1015,8 @@ impl ModelFXEditor {
         if self.geometry_mode {
             self.set_geo_node_ui(server_ctx, project, ui, ctx);
         } else if self.material_mode == MaterialMode::Material {
-            self.set_material_node_ui(server_ctx, project, ui, ctx);
         } else {
-            self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
+            self.set_selected_material_node_ui(server_ctx, project, ui, ctx, true);
         }
     }
 
@@ -1156,14 +1115,17 @@ impl ModelFXEditor {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
+        switch_to_nodes: bool,
     ) {
         if let Some(text_layout) = ui.get_text_layout("Node Settings") {
             text_layout.clear();
 
-            ctx.ui.send(TheEvent::Custom(
-                TheId::named("Show Node Settings"),
-                TheValue::Text("Material".to_string()),
-            ));
+            if switch_to_nodes {
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Show Node Settings"),
+                    TheValue::Text("Material".to_string()),
+                ));
+            }
 
             // let mut add_button = TheTraybarButton::new(TheId::named("MaterialFX Add"));
             // add_button.set_text("New Material".to_string());
@@ -1186,6 +1148,7 @@ impl ModelFXEditor {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
+        switch_to_nodes: bool,
     ) {
         self.palette_indices.clear();
 
@@ -1203,10 +1166,12 @@ impl ModelFXEditor {
                     if let Some(text_layout) = ui.get_text_layout("Node Settings") {
                         text_layout.clear();
 
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Show Node Settings"),
-                            TheValue::Text("Material Node".to_string()),
-                        ));
+                        if switch_to_nodes {
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Show Node Settings"),
+                                TheValue::Text("Material Node".to_string()),
+                            ));
+                        }
 
                         for (name, value) in &collection.keys {
                             if let TheValue::Text(text) = value {
@@ -1381,118 +1346,13 @@ impl ModelFXEditor {
         None
     }
 
-    /// Set the materials for the project.
-    pub fn set_materials(
-        &mut self,
-        ui: &mut TheUI,
-        _ctx: &mut TheContext,
-        project: &Project,
-        set_selection: Option<Uuid>,
-    ) {
-        if let Some(list) = ui.get_rowlist_layout("ModelFX Material List") {
-            list.clear();
-
-            for material in project.materials.values() {
-                let mut item =
-                    TheRowListItem::new(TheId::named_with_id("Material Object", material.id));
-                item.set_text(material.name.clone());
-                item.set_icon(material.get_preview());
-
-                if Some(material.id) == set_selection {
-                    item.set_state(TheWidgetState::Selected);
-                }
-
-                list.add_item(item, _ctx);
-            }
-        }
-    }
-
-    /// Set the tiles for the picker.
-    pub fn set_material_tiles(
-        &mut self,
-        _ui: &mut TheUI,
-        _ctx: &mut TheContext,
-        _project: &Project,
-        _set_selection: Option<Uuid>,
-    ) {
-        //let tile_size = 100;
-
-        //self.materials.clear();
-        /*
-        if let Some(editor) = ui.get_rgba_layout("MaterialFX RGBA Layout") {
-            if editor.dim().width == 0 {
-                return;
-            }
-
-            let width = editor.dim().width - 16;
-            let height = editor.dim().height - 16;
-
-            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
-                let grid = tile_size;
-
-                rgba_view.set_grid(Some(tile_size));
-                let mut c = WHITE;
-                c[3] = 64;
-                rgba_view.set_hover_color(Some(c));
-                rgba_view.set_selection_color(c);
-
-                let tiles_per_row = width / grid;
-                let lines = project.materials.len() as i32 / tiles_per_row + 1;
-
-                let mut buffer =
-                    TheRGBABuffer::new(TheDim::sized(width, max(lines * grid, height)));
-
-                // let tile_buffer = TheRGBABuffer::new(TheDim::sized(tile_size, tile_size));
-
-                for (i, (id, obj)) in project.materials.iter().enumerate() {
-                    let x = i as i32 % tiles_per_row;
-                    let y = i as i32 / tiles_per_row;
-
-                    if Some(obj.id) == set_selection {
-                        let mut hashset = FxHashSet::default();
-                        hashset.insert((x, y));
-                        rgba_view.set_selection(hashset);
-                    }
-                    /*
-                    self.tile_ids.insert((x, y), tile.id);
-                    self.tile_text.insert(
-                        (x, y),
-                        format!(
-                            "{} : {}",
-                            tile.name,
-                            TileRole::from_index(tile.role)
-                                .unwrap_or(TileRole::ManMade)
-                                .to_string()
-                        ),
-                    );
-                    if !tile.buffer.is_empty() {
-                        buffer.copy_into(x * grid, y * grid, &tile.buffer[0].scaled(grid, grid));
-                        }*/
-
-                    let mut prev = obj.get_preview();
-                    if prev.dim().width > tile_size && prev.dim().height > tile_size {
-                        prev = prev.extract_region(&TheRGBARegion::new(
-                            0,
-                            0,
-                            tile_size as usize,
-                            tile_size as usize,
-                        ));
-                    }
-                    buffer.copy_into(x * grid, y * grid, &prev);
-                    self.materials.insert((x, y), *id);
-                }
-
-                rgba_view.set_buffer(buffer);
-            }
-        }
-        */
-    }
-
+    /// Global events to change the material and its previews.
     pub fn render_material_changes(
         &mut self,
         material_id: Uuid,
         server_ctx: &mut ServerContext,
         project: &mut Project,
+        ui: &mut TheUI,
     ) {
         let mut region_to_render: Option<Region> = None;
         let mut tiles_to_render: Vec<Vec2i> = vec![];
@@ -1501,6 +1361,11 @@ impl ModelFXEditor {
                 .lock()
                 .unwrap()
                 .material_changed(material.clone());
+
+            if let Some(layout) = ui.get_list_layout("Material List") {
+                let preview = material.get_preview();
+                layout.set_item_icon(material_id, preview.scaled(36, 36));
+            }
         }
 
         TILEDRAWER

@@ -1,6 +1,5 @@
 use crate::editor::{
-    CODEEDITOR, MODELFXEDITOR, PRERENDERTHREAD, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR,
-    UNDOMANAGER,
+    CODEEDITOR, PRERENDERTHREAD, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR, UNDOMANAGER,
 };
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
@@ -2818,11 +2817,6 @@ impl Sidebar {
         server_ctx.curr_material_object = selected_material;
 
         self.show_filtered_materials(ui, ctx, project, server_ctx);
-
-        MODELFXEDITOR
-            .lock()
-            .unwrap()
-            .set_materials(ui, ctx, project, selected_material);
     }
 
     /// Apply the given character to the UI

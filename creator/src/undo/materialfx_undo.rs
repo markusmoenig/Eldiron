@@ -25,8 +25,7 @@ impl MaterialFXUndoAtom {
                 }
 
                 let mut editor = MODELFXEDITOR.lock().unwrap();
-                editor.set_material_tiles(ui, ctx, project, None);
-                editor.set_material_node_ui(server_ctx, project, ui, ctx);
+                editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
             }
             MaterialFXUndoAtom::AddNode(id, prev, _) | MaterialFXUndoAtom::Edit(id, prev, _) => {
                 if let Some(material) = project.materials.get_mut(id) {
@@ -37,10 +36,9 @@ impl MaterialFXUndoAtom {
                     ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
 
                     let mut editor = MODELFXEDITOR.lock().unwrap();
-                    editor.set_material_tiles(ui, ctx, project, None);
-                    editor.set_material_node_ui(server_ctx, project, ui, ctx);
-                    editor.set_selected_material_node_ui(server_ctx, project, ui, ctx);
-                    editor.render_material_changes(*id, server_ctx, project);
+                    editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
+                    editor.set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
+                    editor.render_material_changes(*id, server_ctx, project, ui);
                 }
             }
         }
@@ -65,10 +63,9 @@ impl MaterialFXUndoAtom {
                     ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
 
                     let mut editor = MODELFXEDITOR.lock().unwrap();
-                    editor.set_material_tiles(ui, ctx, project, None);
-                    editor.set_material_node_ui(server_ctx, project, ui, ctx);
-                    editor.set_selected_material_node_ui(server_ctx, project, ui, ctx);
-                    editor.render_material_changes(*id, server_ctx, project);
+                    editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
+                    editor.set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
+                    editor.render_material_changes(*id, server_ctx, project, ui);
                 }
             }
         }

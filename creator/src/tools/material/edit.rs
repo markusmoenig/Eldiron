@@ -1,5 +1,5 @@
+use crate::editor::MODELFXEDITOR;
 use crate::prelude::*;
-//use ToolEvent::*;
 
 pub struct MaterialNodeEditTool {
     id: TheId,
@@ -40,6 +40,8 @@ impl Tool for MaterialNodeEditTool {
         server_ctx: &mut ServerContext,
     ) -> bool {
         if let ToolEvent::Activate = tool_event {
+            MODELFXEDITOR.lock().unwrap().set_geometry_mode(false);
+
             // Set the current material
             if let Some(material_id) = server_ctx.curr_material_object {
                 if let Some(material) = project.materials.get_mut(&material_id) {
@@ -118,6 +120,7 @@ impl Tool for MaterialNodeEditTool {
             if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                 layout.set_mode(TheSharedVLayoutMode::Shared);
             }
+            MODELFXEDITOR.lock().unwrap().set_geometry_mode(true);
         }
         false
     }
