@@ -35,7 +35,7 @@ impl MaterialFXObject {
         Self {
             id: Uuid::new_v4(),
 
-            name: "New Material".to_string(),
+            name: "Unnamed".to_string(),
 
             nodes: Vec::new(),
             connections: Vec::new(),

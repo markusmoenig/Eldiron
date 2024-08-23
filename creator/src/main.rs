@@ -6,6 +6,7 @@ pub mod brushes;
 pub mod brushlist;
 pub mod editor;
 pub mod externals;
+pub mod materialeditor;
 pub mod minimap;
 pub mod misc;
 pub mod modelfxeditor;
@@ -30,6 +31,8 @@ use rust_embed::RustEmbed;
 #[exclude = "*.DS_Store"]
 pub struct Embedded;
 
+const DEFAULT_VLAYOUT_RATIO: f32 = 0.62;
+
 pub mod prelude {
 
     pub use ::serde::{Deserialize, Serialize};
@@ -40,13 +43,14 @@ pub mod prelude {
 
     pub use crate::brushlist::*;
     pub use crate::externals::*;
+    pub use crate::materialeditor::*;
     pub use crate::misc::*;
     pub use crate::modelfxeditor::*;
     pub use crate::panels::*;
     pub use crate::regionfxeditor::*;
     pub use crate::screeneditor::*;
     pub use crate::sidebar::*;
-    pub use crate::terraineditor::TerranEditor;
+    pub use crate::terraineditor::*;
     pub use crate::tileeditor::*;
     pub use crate::tilefxeditor::*;
     pub use crate::tilemapeditor::*;
@@ -68,6 +72,7 @@ pub mod prelude {
     pub use crate::tools::resize::ResizeTool;
     pub use crate::tools::screen::eraser::ScreenEraserTool;
     pub use crate::tools::screen::game::ScreenGameTool;
+    pub use crate::tools::screen::material::edit::MaterialNodeEditTool;
     pub use crate::tools::screen::picker::ScreenPickerTool;
     pub use crate::tools::screen::tiledrawer::ScreenTileDrawerTool;
     pub use crate::tools::selection::SelectionTool;

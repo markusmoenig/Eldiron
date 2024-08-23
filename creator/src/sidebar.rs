@@ -14,6 +14,8 @@ pub enum SidebarMode {
     Module,
     Screen,
     Asset,
+    //Model,
+    Material,
     Node,
     Debug,
     Palette,
@@ -94,6 +96,15 @@ impl Sidebar {
             "Manage assets in the asset library, such as images, sounds, and fonts.",
         );
 
+        // let mut model_sectionbar_button = TheSectionbarButton::new(TheId::named("Model Section"));
+        // model_sectionbar_button.set_text("Model".to_string());
+        // model_sectionbar_button.set_status_text("Models");
+
+        let mut material_sectionbar_button =
+            TheSectionbarButton::new(TheId::named("Material Section"));
+        material_sectionbar_button.set_text("Material".to_string());
+        material_sectionbar_button.set_status_text("Currently available Materials.");
+
         let mut node_sectionbar_button = TheSectionbarButton::new(TheId::named("Node Section"));
         node_sectionbar_button.set_text("Node".to_string());
         node_sectionbar_button.set_status_text("The UI of the currently selected node.");
@@ -118,6 +129,8 @@ impl Sidebar {
         vlayout.add_widget(Box::new(module_sectionbar_button));
         vlayout.add_widget(Box::new(screen_sectionbar_button));
         vlayout.add_widget(Box::new(asset_sectionbar_button));
+        //vlayout.add_widget(Box::new(model_sectionbar_button));
+        vlayout.add_widget(Box::new(material_sectionbar_button));
         vlayout.add_widget(Box::new(node_sectionbar_button));
         vlayout.add_widget(Box::new(debug_sectionbar_button));
         vlayout.add_widget(Box::new(palette_sectionbar_button));
@@ -698,6 +711,52 @@ impl Sidebar {
 
         stack_layout.add_canvas(asset_canvas);
 
+        // Model UI
+
+        // let mut model_ui_canvas = TheCanvas::default();
+        // stack_layout.add_canvas(model_ui_canvas);
+
+        // Material UI
+
+        let mut material_canvas = TheCanvas::default();
+        let mut material_list_canvas = TheCanvas::default();
+
+        let mut material_list_header_canvas = TheCanvas::default();
+        material_list_header_canvas.set_widget(TheStatusbar::new(TheId::empty()));
+        let mut material_list_header_canvas_hlayout = TheHLayout::new(TheId::empty());
+        material_list_header_canvas_hlayout.set_background_color(None);
+        let mut filter_text = TheText::new(TheId::empty());
+        filter_text.set_text("Filter".to_string());
+
+        material_list_header_canvas_hlayout.set_margin(vec4i(10, 1, 5, 1));
+        material_list_header_canvas_hlayout.set_padding(3);
+        material_list_header_canvas_hlayout.add_widget(Box::new(filter_text));
+        let mut filter_edit = TheTextLineEdit::new(TheId::named("Material Filter Edit"));
+        filter_edit.set_text("".to_string());
+        filter_edit.limiter_mut().set_max_size(vec2i(75, 18));
+        filter_edit.set_font_size(12.5);
+        filter_edit.set_embedded(true);
+        filter_edit.set_status_text("Show materials containing the given text.");
+        filter_edit.set_continuous(true);
+        material_list_header_canvas_hlayout.add_widget(Box::new(filter_edit));
+
+        // let mut drop_down = TheDropdownMenu::new(TheId::named("Material Filter Role"));
+        // drop_down.add_option("All".to_string());
+        // for dir in TileRole::iterator() {
+        //     drop_down.add_option(dir.to_string().to_string());
+        // }
+        // material_list_header_canvas_hlayout.add_widget(Box::new(drop_down));
+
+        material_list_header_canvas.set_layout(material_list_header_canvas_hlayout);
+
+        let mut material_list_layout = TheListLayout::new(TheId::named("Material List"));
+        material_list_layout.set_item_size(42);
+        material_list_canvas.set_bottom(material_list_header_canvas);
+        material_list_canvas.set_layout(material_list_layout);
+
+        material_canvas.set_center(material_list_canvas);
+        stack_layout.add_canvas(material_canvas);
+
         // Node UI
 
         let mut node_ui_canvas = TheCanvas::default();
@@ -708,45 +767,6 @@ impl Sidebar {
         text_layout.set_text_margin(20);
         text_layout.set_text_align(TheHorizontalAlign::Right);
         node_ui_canvas.set_layout(text_layout);
-
-        /*
-        let mut model_canvas = TheCanvas::default();
-
-        let mut rgba_model_canvas = TheCanvas::default();
-        let mut rgba_layout = TheRGBALayout::new(TheId::named("ModelFX Library RGBA Layout"));
-        rgba_layout.limiter_mut().set_max_width(self.width);
-        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-            rgba_view.set_grid(Some(40));
-            rgba_view.set_mode(TheRGBAViewMode::TilePicker);
-            let mut c = WHITE;
-            c[3] = 64;
-            let mut buffer = TheRGBABuffer::new(TheDim::sized(275, 5 * 65));
-            buffer.fill([74, 74, 74, 255]);
-            rgba_view.set_background([74, 74, 74, 255]);
-            rgba_view.set_buffer(buffer);
-            rgba_view.set_hover_color(Some(c));
-            rgba_view.set_selection_color(c);
-        }
-
-        rgba_model_canvas.set_layout(rgba_layout);
-
-        let mut model_preview_canvas = TheCanvas::default();
-        let mut preview_view = TheRenderView::new(TheId::named("ModelFX Library Preview"));
-        preview_view.limiter_mut().set_max_size(vec2i(260, 260));
-        *preview_view.render_buffer_mut() = TheRGBABuffer::new(TheDim::sized(260, 260));
-        model_preview_canvas.set_widget(preview_view);
-
-        let mut toolbar_canvas = TheCanvas::default();
-        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
-        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
-        toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
-        toolbar_canvas.set_layout(toolbar_hlayout);
-
-        rgba_model_canvas.set_bottom(toolbar_canvas);
-        model_canvas.set_center(rgba_model_canvas);
-        model_canvas.set_bottom(model_preview_canvas);
-        */
 
         stack_layout.add_canvas(node_ui_canvas);
 
@@ -891,6 +911,7 @@ impl Sidebar {
             }
             TheEvent::Resize => {
                 ctx.ui.redraw_all = true;
+                self.show_filtered_materials(ui, ctx, project, server_ctx);
             }
             TheEvent::Custom(id, value) => {
                 if id.name == "Update Tiles" {
@@ -1300,6 +1321,8 @@ impl Sidebar {
                     if let Some(id) = self.curr_tilemap_uuid {
                         self.show_filtered_tiles(ui, ctx, project.get_tilemap(id).as_deref())
                     }
+                } else if id.name == "Material Filter Edit" {
+                    self.show_filtered_materials(ui, ctx, project, server_ctx);
                 } else if id.name == "Tilemap Editor Zoom" {
                     if let Some(v) = value.to_f32() {
                         if let Some(layout) = ui.get_rgba_layout("Tilemap Editor") {
@@ -2284,6 +2307,30 @@ impl Sidebar {
                         SidebarMode::Asset as usize,
                     ));
                     redraw = true;
+                } else if id.name == "Material Section" && *state == TheWidgetState::Selected {
+                    self.deselect_sections_buttons(ui, id.name.clone());
+
+                    if let Some(widget) = ui
+                        .canvas
+                        .get_widget(Some(&"Switchbar Section Header".into()), None)
+                    {
+                        widget.set_value(TheValue::Text("Materials".to_string()));
+                    }
+
+                    if let Some(list_layout) = ui.get_list_layout("Material List") {
+                        if let Some(selected) = list_layout.selected() {
+                            ctx.ui
+                                .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
+                        }
+                    }
+
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Material;
+
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        self.stack_layout_id.clone(),
+                        SidebarMode::Material as usize,
+                    ));
+                    redraw = true;
                 } else if id.name == "Node Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
 
@@ -2769,6 +2816,8 @@ impl Sidebar {
         };
 
         server_ctx.curr_material_object = selected_material;
+
+        self.show_filtered_materials(ui, ctx, project, server_ctx);
 
         MODELFXEDITOR
             .lock()
@@ -3395,6 +3444,67 @@ impl Sidebar {
             }
         }
         ui.select_first_list_item("Tilemap Tile List", ctx);
+    }
+
+    /// Shows the filtered materials of the project.
+    pub fn show_filtered_materials(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &ServerContext,
+    ) {
+        let mut filter_text = if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Material Filter Edit".to_string()), None)
+        {
+            widget.value().to_string().unwrap_or_default()
+        } else {
+            "".to_string()
+        };
+
+        let _filter_role = if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Material Filter Role".to_string()), None)
+        {
+            if let Some(drop_down_menu) = widget.as_drop_down_menu() {
+                drop_down_menu.selected_index()
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+
+        filter_text = filter_text.to_lowercase();
+
+        if let Some(layout) = ui
+            .canvas
+            .get_layout(Some(&"Material List".to_string()), None)
+        {
+            if let Some(list_layout) = layout.as_list_layout() {
+                list_layout.clear();
+                for (index, material) in project.materials.values().enumerate() {
+                    if filter_text.is_empty() || material.name.to_lowercase().contains(&filter_text)
+                    //&& (filter_role == 0
+                    //    || tile.role == TileRole::from_index(filter_role as u8 - 1).unwrap())
+                    {
+                        let mut item =
+                            TheListItem::new(TheId::named_with_id("Material Item", material.id));
+                        item.set_text(material.name.clone());
+                        let sub_text = format!("Index: {}", index);
+                        item.set_sub_text(sub_text);
+                        item.set_size(42);
+                        if Some(material.id) == server_ctx.curr_material_object {
+                            item.set_state(TheWidgetState::Selected);
+                        }
+                        item.set_icon(material.get_preview().scaled(36, 36));
+                        list_layout.add_item(item, ctx);
+                    }
+                }
+            }
+        }
+        //ui.select_first_list_item("Material List", ctx);
     }
 
     /// Apply the given asset to the UI

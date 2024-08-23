@@ -116,7 +116,7 @@ impl ModelFXEditor {
     /// Build the UI
     pub fn build_material(
         &self,
-        project: &Project,
+        _project: &Project,
         _ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> TheCanvas {
@@ -137,6 +137,7 @@ impl ModelFXEditor {
         // move_button.set_icon_name("move".to_string());
         // move_button.set_status_text("Moves the model to the library.");
 
+        /*
         let mut gb = TheGroupButton::new(TheId::named("ModelFX Mode Group"));
         gb.add_text_status(
             str!("Materials"),
@@ -199,7 +200,7 @@ impl ModelFXEditor {
             ],
             ..Default::default()
         }));
-
+        */
         let mut blend = TheSlider::new(TheId::named("ModelFX Blend"));
         blend.set_value(TheValue::Float(0.5));
         blend.set_default_value(TheValue::Float(0.5));
@@ -209,7 +210,7 @@ impl ModelFXEditor {
         blend.set_status_text("Sets the blend factor for the preview in the 2D Map. 0 only shows the conceptual preview, 1 the fully rendered preview.");
 
         // toolbar_hlayout.add_widget(Box::new(move_button));
-        toolbar_hlayout.add_widget(Box::new(gb));
+        //toolbar_hlayout.add_widget(Box::new(gb));
 
         let mut spacer = TheSpacer::new(TheId::empty());
         spacer.limiter_mut().set_max_size(vec2i(40, 5));
@@ -218,9 +219,9 @@ impl ModelFXEditor {
         // toolbar_hlayout.add_widget(Box::new(floors_button));
         // toolbar_hlayout.add_widget(Box::new(walls_button));
 
-        toolbar_hlayout.add_widget(Box::new(add_material_button));
+        //toolbar_hlayout.add_widget(Box::new(add_material_button));
 
-        toolbar_hlayout.add_widget(Box::new(material_button));
+        //toolbar_hlayout.add_widget(Box::new(material_button));
         toolbar_hlayout.add_widget(Box::new(blend));
         toolbar_hlayout.set_reverse_index(Some(1));
 
@@ -251,6 +252,7 @@ impl ModelFXEditor {
 
         // - ModelFX View
 
+        /*
         let mut modelfx_stack = TheStackLayout::new(TheId::named("ModelFX Stack"));
 
         // Materials
@@ -276,9 +278,8 @@ impl ModelFXEditor {
         let mut texture_node_canvas = TheCanvas::new();
         let node_view = TheNodeCanvasView::new(TheId::named("MaterialFX NodeCanvas"));
         texture_node_canvas.set_widget(node_view);
-
+        */
         // Brushes
-        let mut brushes_canvas = TheCanvas::new();
         let mut brushes_rowlist_layout =
             TheRowListLayout::new(TheId::named("ModelFX Brushes List"));
 
@@ -300,13 +301,13 @@ impl ModelFXEditor {
             brushes_rowlist_layout.add_item(item, _ctx);
         }
 
-        brushes_canvas.set_layout(brushes_rowlist_layout);
+        //brushes_canvas.set_layout(brushes_rowlist_layout);
 
-        modelfx_stack.add_canvas(material_canvas);
-        modelfx_stack.add_canvas(texture_node_canvas);
-        modelfx_stack.add_canvas(brushes_canvas);
+        // modelfx_stack.add_canvas(material_canvas);
+        // modelfx_stack.add_canvas(texture_node_canvas);
+        // modelfx_stack.add_canvas(brushes_canvas);
 
-        canvas.set_layout(modelfx_stack);
+        canvas.set_layout(brushes_rowlist_layout);
 
         canvas
     }
@@ -399,36 +400,31 @@ impl ModelFXEditor {
                 //let prev = self.modelfx.to_json();
                 #[allow(clippy::collapsible_if)]
                 if id.name == "MaterialFX Nodes" || id.name.is_empty() {
-                    if self.material_mode == MaterialMode::MaterialNodes {
-                        if let Some(material_id) = server_ctx.curr_material_object {
-                            if let Some(material) = project.materials.get_mut(&material_id) {
-                                let prev = material.to_json();
-                                let material_id = material.id;
-                                let mut node = MaterialFXNode::new_from_name(item.name.clone());
-                                node.position = vec2i(
-                                    material.scroll_offset.x + 220,
-                                    material.scroll_offset.y + 10,
-                                );
-                                let index = material.nodes.len();
-                                if index > 0 && node.supports_preview {
-                                    node.render_preview(&project.palette);
-                                }
-                                material.nodes.push(node);
-                                material.selected_node = Some(material.nodes.len() - 1);
-                                let undo = MaterialFXUndoAtom::AddNode(
-                                    material.id,
-                                    prev,
-                                    material.to_json(),
-                                );
-                                UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
-                                let node_canvas = material.to_canvas(&project.palette);
-                                ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
-                                self.set_material_tiles(ui, ctx, project, Some(material_id));
-                                self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
+                    if let Some(material_id) = server_ctx.curr_material_object {
+                        if let Some(material) = project.materials.get_mut(&material_id) {
+                            let prev = material.to_json();
+                            let material_id = material.id;
+                            let mut node = MaterialFXNode::new_from_name(item.name.clone());
+                            node.position = vec2i(
+                                material.scroll_offset.x + 220,
+                                material.scroll_offset.y + 10,
+                            );
+                            let index = material.nodes.len();
+                            if index > 0 && node.supports_preview {
+                                node.render_preview(&project.palette);
                             }
+                            material.nodes.push(node);
+                            material.selected_node = Some(material.nodes.len() - 1);
+                            let undo =
+                                MaterialFXUndoAtom::AddNode(material.id, prev, material.to_json());
+                            UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
+                            let node_canvas = material.to_canvas(&project.palette);
+                            ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
+                            self.set_material_tiles(ui, ctx, project, Some(material_id));
+                            self.set_selected_material_node_ui(server_ctx, project, ui, ctx);
                         }
-                        redraw = true;
                     }
+                    redraw = true;
                 }
             }
             TheEvent::TilePicked(id, coord) => {

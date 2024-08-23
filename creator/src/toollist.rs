@@ -17,6 +17,9 @@ pub struct ToolList {
 
     pub terrain_tools: Vec<Box<dyn Tool>>,
     pub curr_terrain_tool: usize,
+
+    pub material_tools: Vec<Box<dyn Tool>>,
+    pub curr_material_tool: usize,
 }
 
 impl Default for ToolList {
@@ -50,6 +53,7 @@ impl ToolList {
             Box::new(ScreenGameTool::new()),
         ];
         let terrain_tools: Vec<Box<dyn Tool>> = vec![Box::new(TerrainDrawTool::new())];
+        let material_tools: Vec<Box<dyn Tool>> = vec![Box::new(MaterialNodeEditTool::new())];
         Self {
             server_time: TheTime::default(),
             render_button_text: "Finished".to_string(),
@@ -64,6 +68,9 @@ impl ToolList {
 
             terrain_tools,
             curr_terrain_tool: 0,
+
+            material_tools,
+            curr_material_tool: 0,
         }
     }
 
@@ -110,6 +117,18 @@ impl ToolList {
                     b.set_icon_name(tool.icon_name());
                     b.set_status_text(&tool.info());
                     if index == self.curr_terrain_tool {
+                        b.set_state(TheWidgetState::Selected);
+                    }
+                    list.add_widget(Box::new(b));
+                }
+            }
+            MaterialEditor => {
+                for (index, tool) in self.material_tools.iter().enumerate() {
+                    let mut b = TheToolListButton::new(tool.id());
+
+                    b.set_icon_name(tool.icon_name());
+                    b.set_status_text(&tool.info());
+                    if index == self.curr_material_tool {
                         b.set_state(TheWidgetState::Selected);
                     }
                     list.add_widget(Box::new(b));
@@ -204,6 +223,23 @@ impl ToolList {
                                     tool_uuid = Some(tool.id().uuid);
                                     ctx.ui.set_widget_state(
                                         self.terrain_tools[self.curr_terrain_tool].id().name,
+                                        TheWidgetState::None,
+                                    );
+                                    ctx.ui
+                                        .set_widget_state(tool.id().name, TheWidgetState::Selected);
+                                }
+                            }
+                            if let Some(uuid) = tool_uuid {
+                                self.set_tool(uuid, ui, ctx, project, server, client, server_ctx);
+                            }
+                        }
+                        MaterialEditor => {
+                            let mut tool_uuid = None;
+                            for tool in self.material_tools.iter() {
+                                if tool.accel() == Some(*c) {
+                                    tool_uuid = Some(tool.id().uuid);
+                                    ctx.ui.set_widget_state(
+                                        self.material_tools[self.curr_material_tool].id().name,
                                         TheWidgetState::None,
                                     );
                                     ctx.ui
@@ -386,11 +422,74 @@ impl ToolList {
     }
 
     /// Returns the curently active tool.
-    fn get_current_tool(&mut self) -> &mut Box<dyn Tool> {
+    pub fn get_current_tool(&mut self) -> &mut Box<dyn Tool> {
         match &self.active_editor {
             GameEditor => &mut self.game_tools[self.curr_game_tool],
             ScreenEditor => &mut self.screen_tools[self.curr_screen_tool],
             TerrainEditor => &mut self.terrain_tools[self.curr_terrain_tool],
+            MaterialEditor => &mut self.material_tools[self.curr_material_tool],
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn deactivte_tool(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server: &mut Server,
+        client: &mut Client,
+        server_ctx: &mut ServerContext,
+    ) {
+        match self.active_editor {
+            GameEditor => {
+                self.game_tools[self.curr_game_tool].tool_event(
+                    ToolEvent::DeActivate,
+                    ToolContext::TwoD,
+                    ui,
+                    ctx,
+                    project,
+                    server,
+                    client,
+                    server_ctx,
+                );
+            }
+            ScreenEditor => {
+                self.screen_tools[self.curr_screen_tool].tool_event(
+                    ToolEvent::DeActivate,
+                    ToolContext::TwoD,
+                    ui,
+                    ctx,
+                    project,
+                    server,
+                    client,
+                    server_ctx,
+                );
+            }
+            TerrainEditor => {
+                self.terrain_tools[self.curr_terrain_tool].tool_event(
+                    ToolEvent::DeActivate,
+                    ToolContext::TwoD,
+                    ui,
+                    ctx,
+                    project,
+                    server,
+                    client,
+                    server_ctx,
+                );
+            }
+            MaterialEditor => {
+                self.material_tools[self.curr_material_tool].tool_event(
+                    ToolEvent::DeActivate,
+                    ToolContext::TwoD,
+                    ui,
+                    ctx,
+                    project,
+                    server,
+                    client,
+                    server_ctx,
+                );
+            }
         }
     }
 
@@ -489,6 +588,36 @@ impl ToolList {
                         }
                     }
                     self.terrain_tools[old_tool_index].tool_event(
+                        ToolEvent::DeActivate,
+                        ToolContext::TwoD,
+                        ui,
+                        ctx,
+                        project,
+                        server,
+                        client,
+                        server_ctx,
+                    );
+                }
+            }
+            MaterialEditor => {
+                layout_name = "Material Tool Params";
+                let mut old_tool_index = 0;
+                for (index, tool) in self.material_tools.iter().enumerate() {
+                    if tool.id().uuid == tool_id && index != self.curr_material_tool {
+                        switched_tool = true;
+                        old_tool_index = self.curr_material_tool;
+                        self.curr_material_tool = index;
+                        redraw = true;
+                    }
+                }
+                if switched_tool {
+                    for tool in self.material_tools.iter() {
+                        if tool.id().uuid != tool_id {
+                            ctx.ui
+                                .set_widget_state(tool.id().name.clone(), TheWidgetState::None);
+                        }
+                    }
+                    self.material_tools[old_tool_index].tool_event(
                         ToolEvent::DeActivate,
                         ToolContext::TwoD,
                         ui,

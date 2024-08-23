@@ -1,8 +1,8 @@
-use crate::prelude::*;
+use crate::{prelude::*, DEFAULT_VLAYOUT_RATIO};
 use rayon::prelude::*;
 use ToolEvent::*;
 
-use crate::editor::{BRUSHLIST, MODELFXEDITOR, PRERENDERTHREAD, UNDOMANAGER};
+use crate::editor::{BRUSHLIST, PANELS, PRERENDERTHREAD, UNDOMANAGER};
 
 pub struct DrawTool {
     id: TheId,
@@ -63,11 +63,7 @@ impl Tool for DrawTool {
             }
             TileDrag(c, c_f) => (c, c_f),
             Activate => {
-                MODELFXEDITOR.lock().unwrap().set_geometry_mode(false);
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Set Region Material"),
-                    TheValue::Empty,
-                ));
+                PANELS.lock().unwrap().set_brush_panel(ui, ctx);
 
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();
@@ -136,12 +132,19 @@ impl Tool for DrawTool {
                     layout.set_reverse_index(Some(1));
                 }
 
+                if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                    layout.set_shared_ratio(0.75);
+                }
+
                 return true;
             }
             DeActivate => {
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();
                     layout.set_reverse_index(None);
+                }
+                if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                    layout.set_shared_ratio(DEFAULT_VLAYOUT_RATIO);
                 }
                 return true;
             }

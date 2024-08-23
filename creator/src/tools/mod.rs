@@ -6,6 +6,7 @@ pub mod eraser;
 pub mod fx;
 pub mod game;
 pub mod mapobjects;
+pub mod material;
 pub mod picker;
 pub mod render;
 pub mod resize;

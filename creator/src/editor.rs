@@ -29,13 +29,15 @@ lazy_static! {
     pub static ref UNDOMANAGER: Mutex<UndoManager> = Mutex::new(UndoManager::default());
     pub static ref TOOLLIST: Mutex<ToolList> = Mutex::new(ToolList::default());
     pub static ref BRUSHLIST: Mutex<BrushList> = Mutex::new(BrushList::default());
+    pub static ref PANELS: Mutex<Panels> = Mutex::new(Panels::new());
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum ActiveEditor {
     GameEditor,
-    ScreenEditor,
     TerrainEditor,
+    MaterialEditor,
+    ScreenEditor,
 }
 
 pub struct Editor {
@@ -45,10 +47,10 @@ pub struct Editor {
     active_editor: ActiveEditor,
 
     sidebar: Sidebar,
-    panels: Panels,
     tileeditor: TileEditor,
     screeneditor: ScreenEditor,
-    terraineditor: TerranEditor,
+    terraineditor: TerrainEditor,
+    materialeditor: MaterialEditor,
 
     server: Server,
     client: Client,
@@ -81,10 +83,10 @@ impl TheTrait for Editor {
             active_editor: ActiveEditor::GameEditor,
 
             sidebar: Sidebar::new(),
-            panels: Panels::new(),
             tileeditor: TileEditor::new(),
             screeneditor: ScreenEditor::new(),
-            terraineditor: TerranEditor::new(),
+            terraineditor: TerrainEditor::new(),
+            materialeditor: MaterialEditor::new(),
 
             server_ctx: ServerContext::default(),
             server,
@@ -119,6 +121,10 @@ impl TheTrait for Editor {
 
     fn window_title(&self) -> String {
         "Eldiron Creator".to_string()
+    }
+
+    fn default_window_size(&self) -> (usize, usize) {
+        (1200, 720)
     }
 
     fn window_icon(&self) -> Option<(Vec<u8>, u32, u32)> {
@@ -330,9 +336,11 @@ impl TheTrait for Editor {
             .init_ui(ui, ctx, &mut self.project, &mut self.server);
 
         // Panels
-        let bottom_panels = self
-            .panels
-            .init_ui(ui, ctx, &mut self.project, &mut self.server_ctx);
+        let bottom_panels =
+            PANELS
+                .lock()
+                .unwrap()
+                .init_ui(ui, ctx, &mut self.project, &mut self.server_ctx);
 
         // Editor
         let mut tab_canvas: TheCanvas = TheCanvas::new();
@@ -341,24 +349,24 @@ impl TheTrait for Editor {
         let game_canvas = self.tileeditor.init_ui(ui, ctx, &mut self.project);
         tab_layout.add_canvas(str!("Game View"), game_canvas);
 
-        let screen_canvas = self.screeneditor.init_ui(ui, ctx, &mut self.project);
-        tab_layout.add_canvas(str!("Screen View"), screen_canvas);
-
         let terrain_canvas = self.terraineditor.init_ui(ui, ctx, &mut self.project);
         tab_layout.add_canvas(str!("Terrain View"), terrain_canvas);
 
         // let model_canvas: TheCanvas = TheCanvas::new();
         // tab_layout.add_canvas(str!("Model View"), model_canvas);
 
-        // let material_canvas: TheCanvas = TheCanvas::new();
-        // tab_layout.add_canvas(str!("Material View"), material_canvas);
+        let material_canvas = self.materialeditor.init_ui(ui, ctx, &mut self.project);
+        tab_layout.add_canvas(str!("Material View"), material_canvas);
+
+        let screen_canvas = self.screeneditor.init_ui(ui, ctx, &mut self.project);
+        tab_layout.add_canvas(str!("Screen View"), screen_canvas);
 
         tab_canvas.set_layout(tab_layout);
 
         let mut vsplitlayout = TheSharedVLayout::new(TheId::named("Shared VLayout"));
         vsplitlayout.add_canvas(tab_canvas);
         vsplitlayout.add_canvas(bottom_panels);
-        vsplitlayout.set_shared_ratio(0.62);
+        vsplitlayout.set_shared_ratio(crate::DEFAULT_VLAYOUT_RATIO);
         vsplitlayout.set_mode(TheSharedVLayoutMode::Shared);
 
         let mut shared_canvas = TheCanvas::new();
@@ -484,8 +492,12 @@ impl TheTrait for Editor {
 
                 let interactions = self.server.get_interactions();
                 self.server_ctx.add_interactions(interactions);
-                self.panels
-                    .update_code_object(ui, ctx, &mut self.server, &mut self.server_ctx);
+                PANELS.lock().unwrap().update_code_object(
+                    ui,
+                    ctx,
+                    &mut self.server,
+                    &mut self.server_ctx,
+                );
                 if let Some(update) = self
                     .server
                     .get_region_update_json(self.server_ctx.curr_region)
@@ -650,7 +662,7 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
-                if self.panels.handle_event(
+                if PANELS.lock().unwrap().handle_event(
                     &event,
                     ui,
                     ctx,
@@ -681,6 +693,16 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
                 if self.terraineditor.handle_event(
+                    &event,
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.client,
+                    &mut self.server_ctx,
+                ) {
+                    redraw = true;
+                }
+                if self.materialeditor.handle_event(
                     &event,
                     ui,
                     ctx,
@@ -761,10 +783,22 @@ impl TheTrait for Editor {
                             if index == 0 {
                                 self.active_editor = ActiveEditor::GameEditor;
                             } else if index == 1 {
-                                self.active_editor = ActiveEditor::ScreenEditor;
-                            } else if index == 2 {
                                 self.active_editor = ActiveEditor::TerrainEditor;
+                            } else if index == 2 {
+                                self.active_editor = ActiveEditor::MaterialEditor;
+                            } else if index == 3 {
+                                self.active_editor = ActiveEditor::ScreenEditor;
                             }
+
+                            TOOLLIST.lock().unwrap().deactivte_tool(
+                                ui,
+                                ctx,
+                                &mut self.project,
+                                &mut self.server,
+                                &mut self.client,
+                                &mut self.server_ctx,
+                            );
+
                             if let Some(list) = ui.get_vlayout("Tool List Layout") {
                                 TOOLLIST.lock().unwrap().set_active_editor(
                                     self.active_editor,
@@ -772,6 +806,18 @@ impl TheTrait for Editor {
                                     ctx,
                                 );
                             }
+
+                            let tool_id = TOOLLIST.lock().unwrap().get_current_tool().id().uuid;
+                            TOOLLIST.lock().unwrap().set_tool(
+                                tool_id,
+                                ui,
+                                ctx,
+                                &mut self.project,
+                                &mut self.server,
+                                &mut self.client,
+                                &mut self.server_ctx,
+                            );
+
                             redraw = true;
                         }
                     }
@@ -1161,6 +1207,14 @@ impl TheTrait for Editor {
 
                                     if let Ok(project) = serde_json::from_str(&contents) {
                                         self.project = project;
+
+                                        if self.project.materials.len() < 255 {
+                                            let togo = 255 - self.project.materials.len();
+                                            for _ in 0..=togo {
+                                                let mat_obj = MaterialFXObject::default();
+                                                self.project.materials.insert(mat_obj.id, mat_obj);
+                                            }
+                                        }
 
                                         // RENDERER
                                         //     .lock()

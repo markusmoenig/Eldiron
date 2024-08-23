@@ -66,6 +66,12 @@ impl Default for Project {
 
 impl Project {
     pub fn new() -> Self {
+        let mut materials = IndexMap::default();
+        for _ in 0..=255 {
+            let mat_obj = MaterialFXObject::default();
+            materials.insert(mat_obj.id, mat_obj);
+        }
+
         Self {
             name: String::new(),
 
@@ -83,7 +89,7 @@ impl Project {
             assets: FxHashMap::default(),
 
             palette: ThePalette::default(),
-            materials: IndexMap::default(),
+            materials,
 
             target_fps: default_target_fps(),
             tick_ms: default_tick_ms(),

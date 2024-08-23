@@ -270,7 +270,7 @@ impl Panels {
                         .lock()
                         .unwrap()
                         .activated(server_ctx, project, ui, ctx);
-                } else if id.name == "Set Region Material" {
+                } else if id.name == "Set Region Brush" {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 5));
                     if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
@@ -445,6 +445,17 @@ impl Panels {
         }
 
         redraw
+    }
+
+    /// Sets the brush panel.
+    pub fn set_brush_panel(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        if let Some(stack) = ui.get_stack_layout("Main Stack") {
+            stack.set_index(5);
+        }
+        if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+            layout.set_mode(TheSharedHLayoutMode::Right);
+            ctx.ui.relayout = true;
+        }
     }
 
     /// Updates the code object, i.e. displays the object properties and interactions.

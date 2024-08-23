@@ -2,10 +2,10 @@ use shared::prelude::*;
 
 use crate::prelude::*;
 
-pub struct TerranEditor {}
+pub struct TerrainEditor {}
 
 #[allow(clippy::new_without_default)]
-impl TerranEditor {
+impl TerrainEditor {
     pub fn new() -> Self {
         Self {}
     }
