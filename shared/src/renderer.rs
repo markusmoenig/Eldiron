@@ -359,6 +359,7 @@ impl Renderer {
                     // Store the light sample
                     if let Some(light_grid) = sample_light_grid_pos {
                         if !direct_light_sample.x.is_nan() {
+                            clamp(direct_light_sample, Vec3f::zero(), vec3f(1.0, 1.0, 1.0));
                             lights.push(PreRenderedLight {
                                 pos: light_grid,
                                 brdf: (
@@ -1159,9 +1160,6 @@ impl Renderer {
         if let Some(albedo) = &self.canvas.canvas.get_pixel(pos.x, pos.y) {
             let abso = TheColor::from(*albedo).to_vec3f();
 
-            // color.x = powf(settings.daylight.x * abso.x, 1.0 / 2.2);
-            // color.y = powf(settings.daylight.y * abso.y, 1.0 / 2.2);
-            // color.z = powf(settings.daylight.z * abso.z, 1.0 / 2.2);
             color.x = settings.daylight.x * abso.x;
             color.y = settings.daylight.y * abso.y;
             color.z = settings.daylight.z * abso.z;
@@ -1201,6 +1199,15 @@ impl Renderer {
                 }
             }
 
+            // color.x = powf(color.x, 1.0 / 2.2);
+            // color.y = powf(color.y, 1.0 / 2.2);
+            // color.z = powf(color.z, 1.0 / 2.2);
+
+            color.x = clamp(color.x, 0.0, 1.0);
+            color.y = clamp(color.y, 0.0, 1.0);
+            color.z = clamp(color.z, 0.0, 1.0);
+
+            //
             hit = true;
         }
 

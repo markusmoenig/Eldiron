@@ -1129,7 +1129,7 @@ impl MaterialFXObject {
                         ex.w = pixel[3] as f32 / 255.0;
 
                         color = powf(color, 0.4545);
-                        //color = clamp(color, Vec4f::zero(), vec4f(1.0, 1.0, 1.0, 1.0));
+                        color = clamp(color, Vec4f::zero(), vec4f(1.0, 1.0, 1.0, 1.0));
 
                         let s = 1.0 / (sample as f32 + 1.0);
                         let accumulated_color = lerp(ex, color, s);

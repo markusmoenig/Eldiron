@@ -804,12 +804,23 @@ impl TheTrait for Editor {
                         if id.name == "Editor Tab Tabbar" {
                             if index == 0 {
                                 self.active_editor = ActiveEditor::GameEditor;
+                                if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
+                                    let mode = shared.get_mode();
+                                    if mode == TheSharedHLayoutMode::Shared
+                                        || mode == TheSharedHLayoutMode::Right
+                                    {
+                                        PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                                    }
+                                }
                             } else if index == 1 {
                                 self.active_editor = ActiveEditor::TerrainEditor;
+                                PRERENDERTHREAD.lock().unwrap().set_paused(true);
                             } else if index == 2 {
                                 self.active_editor = ActiveEditor::MaterialEditor;
+                                PRERENDERTHREAD.lock().unwrap().set_paused(true);
                             } else if index == 3 {
                                 self.active_editor = ActiveEditor::ScreenEditor;
+                                PRERENDERTHREAD.lock().unwrap().set_paused(true);
                             }
 
                             TOOLLIST.lock().unwrap().deactivte_tool(
@@ -839,7 +850,6 @@ impl TheTrait for Editor {
                                 &mut self.client,
                                 &mut self.server_ctx,
                             );
-
                             redraw = true;
                         }
                     }
