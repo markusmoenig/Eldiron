@@ -573,6 +573,9 @@ impl TheTrait for Editor {
         // Get prerendered results
         while let Some(rendered) = PRERENDERTHREAD.lock().unwrap().receive() {
             match rendered {
+                PreRenderResult::MaterialPreviewRendered(_, buffer) => {
+                    ui.set_node_overlay("MaterialFX NodeCanvas", Some(buffer));
+                }
                 PreRenderResult::ClearRegionTile(id, tile) => {
                     if let Some(region) = self.project.get_region_mut(&id) {
                         region.prerendered.clear_tile_albedo(&tile);

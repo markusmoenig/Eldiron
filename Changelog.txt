@@ -2,6 +2,7 @@
 v 0.8.13
 --------
 
+- Moved material editing to its own view.
 - New resize / transformation tool to resize the region. Content is moved as necessary.
   Origin (0, 0) is always kept in the top left corner.
 - Improved the Selection tool. Supports additive and subtractive selections (Shift / Alt).

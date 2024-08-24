@@ -343,7 +343,7 @@ impl Renderer {
                             }
 
                             ray.d = scatter_sample.l;
-                            ray.o = state.fhp + ray.d * hit.eps;
+                            ray.o = state.fhp + ray.d * 0.1; //hit.eps;
                         } else {
                             if depth == 0 {
                                 throughput = Vec3f::zero();

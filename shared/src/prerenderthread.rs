@@ -17,6 +17,7 @@ pub enum PreRenderCmd {
 #[allow(clippy::large_enum_variant)]
 pub enum PreRenderResult {
     RenderedRegionTile(Uuid, Vec2i, u16, PreRenderedTileData),
+    MaterialPreviewRendered(Uuid, TheRGBABuffer),
     ClearRegionTile(Uuid, Vec2i),
     Clear(Uuid),
     Progress(Uuid),
@@ -126,6 +127,10 @@ impl PreRenderThread {
             let mut exit_loop = false;
             let mut paused = false;
 
+            let mut material_preview: Option<MaterialFXObject> = None;
+            let mut material_preview_buffer = TheRGBABuffer::new(TheDim::sized(160, 160));
+            let mut material_preview_passes = 0;
+
             loop {
                 if exit_loop {
                     break;
@@ -161,7 +166,9 @@ impl PreRenderThread {
                             println!("PreRenderCmd::MaterialChanged");
                             renderer
                                 .materials
-                                .insert(changed_material.id, changed_material);
+                                .insert(changed_material.id, changed_material.clone());
+                            material_preview = Some(changed_material);
+                            material_preview_passes = 0;
                         }
                         PreRenderCmd::RenderRegion(region, tiles) => {
                             println!(
@@ -201,6 +208,31 @@ impl PreRenderThread {
                             println!("PreRenderCmd::Quit");
                             exit_loop = true;
                         }
+                    }
+                }
+
+                // Material Preview in Progress ?
+                if let Some(material) = &mut material_preview {
+                    material.render_preview_3d(
+                        &palette,
+                        &renderer.textures,
+                        &mut material_preview_buffer,
+                        material_preview_passes,
+                    );
+                    material_preview_passes += 1;
+
+                    if material_preview_passes % 10 == 0 {
+                        result_tx
+                            .send(PreRenderResult::MaterialPreviewRendered(
+                                material.id,
+                                material_preview_buffer.clone(),
+                            ))
+                            .unwrap();
+                    }
+
+                    if material_preview_passes == 500 {
+                        println!("Material finished");
+                        material_preview = None;
                     }
                 }
 

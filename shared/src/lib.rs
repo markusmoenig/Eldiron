@@ -65,6 +65,7 @@ pub mod prelude {
     pub use crate::regionfxnode::*;
     pub use crate::regionfxobject::*;
     pub use crate::renderer::Renderer;
+    pub use crate::renderer_utils::ray_sphere;
     pub use crate::screen::*;
     pub use crate::sdf::*;
     pub use crate::server::context::ServerContext;

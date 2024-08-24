@@ -922,6 +922,228 @@ impl MaterialFXObject {
         self.nodes[0].preview = buffer;
     }
 
+    pub fn render_preview_3d(
+        &mut self,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
+        buffer: &mut TheRGBABuffer,
+        sample: i32,
+    ) {
+        let width = buffer.dim().width as usize;
+        let height = buffer.dim().height;
+
+        let time = TheTime::default();
+        let mat_obj_params = self.load_parameters(&time);
+
+        let camera = Camera::new(vec3f(0., 0., 2.), Vec3f::zero(), 70.0);
+
+        buffer
+            .pixels_mut()
+            .par_rchunks_exact_mut(width * 4)
+            .enumerate()
+            .for_each(|(j, line)| {
+                let mut rng = rand::thread_rng();
+
+                for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
+                    let i = j * width + i;
+
+                    let xx = (i % width) as f32;
+                    let yy = (i / width) as f32;
+
+                    let mut color = Vec4f::new(0.0, 0.0, 0.0, 0.0);
+
+                    let mut ray = camera.create_ray(
+                        vec2f(xx / width as f32, 1.0 - yy / height as f32),
+                        vec2f(width as f32, height as f32),
+                        vec2f(rng.gen(), rng.gen()),
+                    );
+
+                    let mut radiance = Vec3f::zero();
+                    let mut throughput = Vec3f::one();
+
+                    let mut state = BSDFState::default();
+                    //let mut light_sample = BSDFLightSampleRec::default();
+                    let mut scatter_sample = BSDFScatterSampleRec::default();
+
+                    // For medium tracking
+                    let mut _in_medium = false;
+                    let mut _medium_sampled = false;
+                    let mut _surface_scatter = false;
+
+                    for depth in 0..8 {
+                        let mut hit = Hit::default();
+                        let mut has_hit = false;
+
+                        let mut t = 0.0;
+
+                        for _ in 0..20 {
+                            let p = ray.at(t);
+
+                            let d = length(p) - 1.0;
+
+                            if d.abs() < hit.eps {
+                                has_hit = true;
+                                hit.hit_point = p;
+                                hit.global_uv.x = p.x + 1.0;
+                                hit.global_uv.y = p.y + 1.0;
+                                hit.pattern_pos = hit.global_uv;
+                                hit.uv = vec2f((p.x + 0.5).fract(), (p.y + 0.5).fract());
+                                hit.distance = t;
+                                hit.normal = normalize(p);
+                                break;
+                            }
+                            t += d;
+                        }
+
+                        if has_hit {
+                            self.compute(&mut hit, palette, textures, &mat_obj_params);
+
+                            state.depth = depth;
+
+                            state.mat.clone_from(&hit.mat);
+                            state.mat.roughness = max(state.mat.roughness, 0.001);
+                            // Remapping from clearcoat gloss to roughness
+                            state.mat.clearcoat_roughness =
+                                lerp(0.1, 0.001, state.mat.clearcoat_roughness);
+
+                            state.hit_dist = hit.distance;
+                            state.fhp = hit.hit_point;
+
+                            state.normal = hit.normal;
+                            state.ffnormal = if dot(state.normal, ray.d) <= 0.0 {
+                                state.normal
+                            } else {
+                                -state.normal
+                            };
+
+                            state.eta = if dot(ray.d, state.normal) < 0.0 {
+                                1.0 / state.mat.ior
+                            } else {
+                                state.mat.ior
+                            };
+
+                            onb(state.normal, &mut state.tangent, &mut state.bitangent);
+
+                            let aspect = sqrt(1.0 - state.mat.anisotropic * 0.9);
+                            state.mat.ax = max(0.001, state.mat.roughness / aspect);
+                            state.mat.ay = max(0.001, state.mat.roughness * aspect);
+
+                            // --- Sample light
+                            //
+                            let mut light_sample = BSDFLightSampleRec::default();
+                            let mut scatter_sample = BSDFScatterSampleRec::default();
+
+                            let scatter_pos = state.fhp + state.normal * hit.eps;
+
+                            let light_pos = vec3f(1.0, 0.0, 3.0);
+
+                            let radius = 0.3;
+
+                            let l = BSDFLight {
+                                position: light_pos,
+                                emission: Vec3f::one() * 20.0,
+                                radius,
+                                type_: 1.0,
+                                u: Vec3f::zero(),
+                                v: Vec3f::zero(),
+                                area: 4.0 * f32::pi() * radius * radius,
+                            };
+
+                            sample_sphere_light(
+                                &l,
+                                scatter_pos,
+                                &mut light_sample,
+                                1,
+                                &mut rng,
+                                5.0,
+                            );
+
+                            let li = light_sample.emission;
+
+                            if ray_sphere(
+                                Ray::new(scatter_pos, light_sample.direction),
+                                light_pos,
+                                radius,
+                            )
+                            .is_some()
+                            {
+                                scatter_sample.f = disney_eval(
+                                    &state,
+                                    -ray.d,
+                                    state.ffnormal,
+                                    light_sample.direction,
+                                    &mut scatter_sample.pdf,
+                                );
+
+                                let mut mis_weight = 1.0;
+                                if l.area > 0.0 {
+                                    // No MIS for distant light
+                                    mis_weight =
+                                        power_heuristic(light_sample.pdf, scatter_sample.pdf);
+                                }
+
+                                let mut ld = Vec3f::zero();
+
+                                if scatter_sample.pdf > 0.0 {
+                                    ld += (mis_weight * li * scatter_sample.f / light_sample.pdf)
+                                        * throughput;
+                                }
+
+                                radiance += ld * throughput;
+                            }
+                            //
+
+                            scatter_sample.f = disney_sample(
+                                &state,
+                                -ray.d,
+                                state.ffnormal,
+                                &mut scatter_sample.l,
+                                &mut scatter_sample.pdf,
+                                &mut rng,
+                            );
+                            if scatter_sample.pdf > 0.0 {
+                                throughput *= scatter_sample.f / scatter_sample.pdf;
+                            } else {
+                                break;
+                            }
+
+                            ray.d = scatter_sample.l;
+                            ray.o = state.fhp + ray.d * 0.01;
+
+                            color.x = radiance.x;
+                            color.y = radiance.y;
+                            color.z = radiance.z;
+                            color.w = 1.0;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if sample == 0 {
+                        pixel.copy_from_slice(&TheColor::from_vec4f(color).to_u8_array());
+                    } else {
+                        let mut ex = Vec4f::zero();
+                        ex.x = pixel[0] as f32 / 255.0;
+                        ex.y = pixel[1] as f32 / 255.0;
+                        ex.z = pixel[2] as f32 / 255.0;
+                        ex.w = pixel[3] as f32 / 255.0;
+
+                        color = powf(color, 0.4545);
+                        //color = clamp(color, Vec4f::zero(), vec4f(1.0, 1.0, 1.0, 1.0));
+
+                        let s = 1.0 / (sample as f32 + 1.0);
+                        let accumulated_color = lerp(ex, color, s);
+                        // let accumulated_color =
+                        //     (ex * (sample as f32) + color) / (sample as f32 + 1.0);
+
+                        pixel.copy_from_slice(
+                            &TheColor::from_vec4f(accumulated_color).to_u8_array(),
+                        );
+                    }
+                }
+            });
+    }
+
     pub fn get_preview(&self) -> TheRGBABuffer {
         if self.nodes.is_empty() {
             TheRGBABuffer::empty()

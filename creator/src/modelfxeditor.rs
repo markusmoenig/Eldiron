@@ -1386,4 +1386,14 @@ impl ModelFXEditor {
                 .render_region(region, Some(tiles_to_render));
         }
     }
+
+    /// Renders the preview of the material.
+    pub fn render_material_preview(&mut self, material_id: Uuid, project: &mut Project) {
+        if let Some(material) = project.materials.get_mut(&material_id) {
+            PRERENDERTHREAD
+                .lock()
+                .unwrap()
+                .material_changed(material.clone());
+        }
+    }
 }
