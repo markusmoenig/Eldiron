@@ -2316,13 +2316,6 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Materials".to_string()));
                     }
 
-                    if let Some(list_layout) = ui.get_list_layout("Material List") {
-                        if let Some(selected) = list_layout.selected() {
-                            ctx.ui
-                                .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
-                        }
-                    }
-
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Material;
 
                     ctx.ui.send(TheEvent::SetStackIndex(

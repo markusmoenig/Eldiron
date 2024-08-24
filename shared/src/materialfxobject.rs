@@ -963,7 +963,7 @@ impl MaterialFXObject {
 
                     let mut state = BSDFState::default();
                     //let mut light_sample = BSDFLightSampleRec::default();
-                    let mut scatter_sample = BSDFScatterSampleRec::default();
+                    //let mut scatter_sample = BSDFScatterSampleRec::default();
 
                     // For medium tracking
                     let mut _in_medium = false;
