@@ -11,6 +11,9 @@ pub struct Renderer {
     pub position: Vec3f,
     pub hover_pos: Option<Vec3i>,
 
+    pub tiles_to_render: Vec<Vec2i>,
+    pub pass: i32,
+
     screen_offset: Vec2i,
 
     pub canvas: GameCanvas,
@@ -25,6 +28,9 @@ impl Renderer {
             tiles: TheFlattenedMap3D::new((0, -1, 0), (80, 2, 80)),
             position: Vec3f::zero(),
             hover_pos: None,
+
+            tiles_to_render: vec![],
+            pass: 0,
 
             screen_offset: Vec2i::zero(),
 
@@ -42,29 +48,50 @@ impl Renderer {
         palette: &ThePalette,
         sender: mpsc::Sender<PreRenderResult>,
     ) -> bool {
+        let tiles_per_run = 30;
+
         // --
         let mut tiles = vec![];
 
-        // Add all tiles which do not have all samples
-        let w = region.width;
-        let h = region.height;
-        for x in 0..w {
-            for y in 0..h {
-                let tile = Vec2i::new(x, y);
-                if let Some(samples) = prerendered.tile_samples.get(&tile) {
-                    if (*samples as i32) < region.pathtracer_samples {
+        if self.tiles_to_render.is_empty() {
+            // Add all tiles which do not have all samples
+            let w = region.width;
+            let h = region.height;
+            for x in 0..w {
+                for y in 0..h {
+                    let tile = Vec2i::new(x, y);
+                    if let Some(samples) = prerendered.tile_samples.get(&tile) {
+                        if (*samples as i32) < region.pathtracer_samples {
+                            tiles.push(tile);
+                        }
+                    } else {
                         tiles.push(tile);
                     }
-                } else {
-                    tiles.push(tile);
                 }
             }
+
+            //println!("pass {} tiles {}", self.pass, tiles.len());
+
+            // Finished ?
+            if tiles.is_empty() {
+                return false;
+            }
+
+            self.tiles_to_render = tiles.clone();
+            self.pass += 1;
         }
 
-        // Finished ?
-        if tiles.is_empty() {
-            return false;
-        }
+        // Get the tiles to render and subtract them from the list.
+        let index = tiles_per_run.min(self.tiles_to_render.len());
+        let (first_part, second_part) = self.tiles_to_render.split_at(index);
+        tiles = first_part.to_vec();
+        self.tiles_to_render = second_part.to_vec();
+
+        // println!(
+        //     "render: {}, to_go: {}",
+        //     tiles.len(),
+        //     self.tiles_to_render.len()
+        // );
 
         let _start = self.get_time();
 
@@ -382,7 +409,7 @@ impl Renderer {
         let _stop = self.get_time();
         //println!("render time {:?}", _stop - _start);
 
-        false
+        true
     }
 
     #[inline(always)]

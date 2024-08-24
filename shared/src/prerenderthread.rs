@@ -19,7 +19,7 @@ pub enum PreRenderResult {
     RenderedRegionTile(Uuid, Vec2i, u16, PreRenderedTileData),
     ClearRegionTile(Uuid, Vec2i),
     Clear(Uuid),
-    Progress(Uuid, String),
+    Progress(Uuid),
     UpdateMiniMap,
     Finished,
     Paused,
@@ -211,7 +211,7 @@ impl PreRenderThread {
 
                     if let Some(prerendered) = prerendered_region_data.get_mut(&curr_region.id) {
                         background_pool.install(|| {
-                            in_progress = !renderer.prerender(
+                            in_progress = renderer.prerender(
                                 vec2i(w, h),
                                 prerendered,
                                 &curr_region,
@@ -220,41 +220,18 @@ impl PreRenderThread {
                                 result_tx.clone(),
                             );
                             if !in_progress {
-                                result_tx.send(PreRenderResult::Finished).unwrap();
                                 println!("finished");
+                                result_tx.send(PreRenderResult::Finished).unwrap();
                             } else {
-                                // Calculate progress text
-
-                                let w = curr_region.width;
-                                let h = curr_region.height;
-                                let mut togo = 0;
-                                for x in 0..w {
-                                    for y in 0..h {
-                                        let tile = Vec2i::new(x, y);
-                                        if let Some(samples) = prerendered.tile_samples.get(&tile) {
-                                            if (*samples as i32) < curr_region.pathtracer_samples {
-                                                togo += 1;
-                                            }
-                                        } else {
-                                            togo += 1;
-                                        }
-                                    }
-                                }
-
-                                let progress = if togo == 0 {
-                                    str!("Finished")
-                                } else {
-                                    format!("{}", togo)
-                                };
                                 result_tx
-                                    .send(PreRenderResult::Progress(curr_region.id, progress))
+                                    .send(PreRenderResult::Progress(curr_region.id))
                                     .unwrap();
                             }
                         });
                     }
                 }
-                // std::thread::yield_now();
-                std::thread::sleep(std::time::Duration::from_millis(10));
+                std::thread::yield_now();
+                //std::thread::sleep(std::time::Duration::from_millis(10));
             }
 
             println!("Renderer thread exiting")

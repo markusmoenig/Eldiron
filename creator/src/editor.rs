@@ -237,9 +237,16 @@ impl TheTrait for Editor {
             TheId::named("2D3DMap"),
             TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '0'),
         ));
+        let mut tools_menu = TheContextMenu::named(str!("Tools"));
+        tools_menu.add(TheContextMenuItem::new_with_accel(
+            str!("Rerender 3D Map"),
+            TheId::named("Rerender"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'r'),
+        ));
 
         edit_menu.register_accel(ctx);
         view_menu.register_accel(ctx);
+        tools_menu.register_accel(ctx);
 
         menu.add_context_menu(file_menu);
         menu.add_context_menu(edit_menu);
@@ -248,6 +255,7 @@ impl TheTrait for Editor {
 
         menu.add_context_menu(code_menu);
         menu.add_context_menu(view_menu);
+        menu.add_context_menu(tools_menu);
         menu_canvas.set_widget(menu);
 
         // Menubar
@@ -597,12 +605,10 @@ impl TheTrait for Editor {
                         draw_minimap(region, ui, ctx, &palette);
                     }
                 }
-                PreRenderResult::Progress(id, text) => {
+                PreRenderResult::Progress(id) => {
                     if let Some(region) = self.project.get_region_mut(&id) {
                         RENDERER.lock().unwrap().render_canvas(region);
                     }
-                    TOOLLIST.lock().unwrap().render_button_text = text.clone();
-                    ui.set_widget_value("Render Button", ctx, TheValue::Text(text));
                 }
                 PreRenderResult::Paused => {
                     TOOLLIST.lock().unwrap().render_button_text = "Paused".to_string();
@@ -1422,6 +1428,16 @@ impl TheTrait for Editor {
                                         .unwrap()
                                         .set_textures(self.project.extract_tiles());
                                 }
+                            }
+                        } else if id.name == "Rerender" {
+                            if let Some(region) =
+                                self.project.get_region_mut(&self.server_ctx.curr_region)
+                            {
+                                PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                                PRERENDERTHREAD
+                                    .lock()
+                                    .unwrap()
+                                    .render_region(region.clone(), None);
                             }
                         } else if id.name == "Logo" {
                             _ = open::that("https://eldiron.com");
