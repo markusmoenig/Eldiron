@@ -84,7 +84,7 @@ impl Tool for MaterialNodeEditTool {
                                     ),
                                     TheContextMenuItem::new(
                                         "Bricks & Tiles".to_string(),
-                                        TheId::named("Bricks"),
+                                        TheId::named("Bricks & Tiles"),
                                     ),
                                     //TheContextMenuItem::new("Tiles".to_string(), TheId::named("Tiles")),
                                 ],
@@ -113,6 +113,7 @@ impl Tool for MaterialNodeEditTool {
                             "Material Mixer".to_string(),
                             TheId::named("Material Mixer"),
                         ),
+                        TheContextMenuItem::new("Bump".to_string(), TheId::named("Bump")),
                         TheContextMenuItem::new("Material".to_string(), TheId::named("Material")),
                     ],
                     ..Default::default()

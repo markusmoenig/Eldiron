@@ -516,37 +516,53 @@ impl Renderer {
                                         mat_obj_params.clone_from(m_params);
                                     }
 
-                                    //if material.has_geometry_trail() {
-                                    let dist = material.get_heightmap_distance_3d(
-                                        &settings.time,
-                                        p,
-                                        &mut h,
-                                        &mat_obj_params,
-                                    );
+                                    h.global_uv = vec2f(p.x, p.z);
+                                    h.pattern_pos = h.global_uv;
 
-                                    if dist < h.eps && dist < h.distance {
-                                        hit.clone_from(&h);
-                                        hit.hit_point = p;
-                                        hit.distance = t;
-
-                                        hit.normal = material.heightmap_normal(
-                                            &settings.time,
-                                            p,
+                                    // let dist = material.get_heightmap_distance_3d(
+                                    //     &settings.time,
+                                    //     p,
+                                    //     &mut h,
+                                    //     &mat_obj_params,
+                                    // );
+                                    //if material.has_bump() {
+                                    let dist = p.y //region.heightmap.interpolate_height(p.x, p.z)
+                                        + material.get_material_distance(
+                                            0,
                                             &mut h,
+                                            palette,
+                                            &self.textures,
                                             &mat_obj_params,
                                         );
 
+                                    if dist < h.eps && dist < h.distance {
+                                        h.hit_point = p;
+                                        h.distance = t;
+                                        //h.global_uv = vec2f(p.x.floor(), p.z.floor()) + h.uv;
+                                        // h.pattern_pos = hit.global_uv;
+                                        hit.clone_from(&h);
+
+                                        // hit.normal = material.get_material_normal(
+                                        //     0,
+                                        //     p,
+                                        //     &mut h,
+                                        //     palette,
+                                        //     &self.textures,
+                                        //     &mat_obj_params,
+                                        // );
+
+                                        hit.normal = terrain_normal;
+
                                         let f = self.get_uv_face(hit.normal, hit.hit_point);
                                         hit.uv = f.0;
-                                        hit.global_uv = vec2f(p.x.floor(), p.z.floor()) + hit.uv;
 
                                         // hit.global_uv = match f.1 {
                                         //     0 => f.0 + vec2f(p.z, p.y),
                                         //     1 => f.0 + vec2f(p.x, p.z),
                                         //     _ => f.0 + vec2f(p.x, p.y),
                                         // };
-                                        hit.pattern_pos = hit.global_uv;
-                                        h.clone_from(&hit);
+                                        //hit.pattern_pos = hit.global_uv;
+                                        //h.clone_from(&hit);
                                         material.compute(
                                             &mut hit,
                                             palette,
@@ -1158,11 +1174,11 @@ impl Renderer {
 
         //if let Some(tile_data) = &region.prerendered.tiles.get(&tile_pos) {
         if let Some(albedo) = &self.canvas.canvas.get_pixel(pos.x, pos.y) {
-            let abso = TheColor::from(*albedo).to_vec3f();
+            let albedo = TheColor::from(*albedo).to_vec3f();
 
-            color.x = settings.daylight.x * abso.x;
-            color.y = settings.daylight.y * abso.y;
-            color.z = settings.daylight.z * abso.z;
+            color.x = settings.daylight.x * albedo.x;
+            color.y = settings.daylight.y * albedo.y;
+            color.z = settings.daylight.z * albedo.z;
 
             if let Some(d) = &self.canvas.distance_canvas.get((pos.x, pos.y)) {
                 dist = d.to_f32();

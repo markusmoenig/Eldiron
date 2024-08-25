@@ -79,7 +79,7 @@ pub mod prelude {
     pub use crate::update::*;
     pub use crate::widget::*;
     pub use crate::ServerMessage;
-    pub use crate::{do_intersect, Hit, HitFace, Ray, RenderTile, AABB2D};
+    pub use crate::{do_intersect, Hit, HitFace, HitMode, Ray, RenderTile, AABB2D};
     pub use indexmap::IndexMap;
     pub use rand::prelude::*;
 }
@@ -115,6 +115,12 @@ impl Ray {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub enum HitMode {
+    Albedo,
+    Bump,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub enum HitFace {
     XFace,
     YFace,
@@ -123,12 +129,16 @@ pub enum HitFace {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Hit {
+    pub mode: HitMode,
+
     pub node: usize,
 
     pub eps: f32,
 
     pub key: Vec3f,
     pub hash: f32,
+
+    pub bump: f32,
 
     pub extrusion: GeoFXNodeExtrusion,
     pub extrusion_length: f32,
@@ -137,7 +147,6 @@ pub struct Hit {
 
     pub distance: f32,
     pub interior_distance: f32,
-    pub interior_distance_mortar: Option<f32>,
 
     pub hit_point: Vec3f,
     pub normal: Vec3f,
@@ -168,12 +177,16 @@ impl Default for Hit {
 impl Hit {
     pub fn new() -> Self {
         Self {
+            mode: HitMode::Albedo,
+
             node: 0,
 
             eps: 0.001, //0.0003,
 
             key: Vec3f::zero(),
             hash: 0.0,
+
+            bump: 0.0,
 
             extrusion: GeoFXNodeExtrusion::None,
             extrusion_length: 0.0,
@@ -182,7 +195,6 @@ impl Hit {
 
             distance: f32::MAX,
             interior_distance: f32::MAX,
-            interior_distance_mortar: None,
 
             hit_point: Vec3f::zero(),
             normal: Vec3f::zero(),

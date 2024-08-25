@@ -32,17 +32,20 @@ impl Default for MaterialFXObject {
 
 impl MaterialFXObject {
     pub fn new() -> Self {
+        let nodes = vec![MaterialFXNode::new(MaterialFXNodeRole::Geometry)];
+        let selected_node = Some(0);
+
         Self {
             id: Uuid::new_v4(),
 
             name: "Unnamed".to_string(),
 
-            nodes: Vec::new(),
+            nodes,
             connections: Vec::new(),
 
             // node_previews: Vec::new(),
             zoom: 1.0,
-            selected_node: None,
+            selected_node,
 
             scroll_offset: Vec2i::zero(),
         }
@@ -73,6 +76,7 @@ impl MaterialFXObject {
         textures: &FxHashMap<Uuid, TheRGBATile>,
         mat_obj_params: &[Vec<f32>],
     ) {
+        hit.mode = HitMode::Albedo;
         self.follow_trail(0, 0, hit, palette, textures, mat_obj_params);
     }
 
@@ -105,6 +109,7 @@ impl MaterialFXObject {
         geo_obj: &GeoFXObject,
         mat_obj_params: &[Vec<f32>],
     ) -> bool {
+        /*
         if !mat_obj_params.is_empty()
             && mat_obj_params[0][2] as i32 == 1
             && geo_obj.nodes[0].role == GeoFXNodeRole::Gate
@@ -130,7 +135,7 @@ impl MaterialFXObject {
             if 1.0 - hit.uv.y > h {
                 return false;
             }
-        }
+        }*/
 
         true
     }
@@ -177,13 +182,15 @@ impl MaterialFXObject {
         hit.noise = noise_buffer;
         hit.noise_scale = noise_buffer_scale;
 
-        d.0 = self.extrude_material(hit, mat_obj_params, has_geo_trail);
+        d.0 = self.extrude_material(hit, mat_obj_params, false);
 
         hit.noise = geo_noise;
         hit.noise_scale = geo_noise_scale;
 
-        // let sp = length(p - vec3f(p.x.floor() + 0.5, 0.5, p.z.floor() + 0.5)) - 0.3;
-        // d.0 = min(d.0, sp);
+        if has_geo_trail {
+            let bump = hit.value;
+            d.0 -= bump / 30.0;
+        }
 
         d
     }
@@ -233,10 +240,15 @@ impl MaterialFXObject {
         hit.noise = noise_buffer;
         hit.noise_scale = noise_buffer_scale;
 
-        let d = self.extrude_material(hit, mat_obj_params, has_geo_trail);
+        let mut d = self.extrude_material(hit, mat_obj_params, false);
 
         hit.noise = geo_noise;
         hit.noise_scale = geo_noise_scale;
+
+        if has_geo_trail {
+            let bump = hit.value;
+            d -= bump / 30.0;
+        }
 
         d
     }
@@ -283,32 +295,32 @@ impl MaterialFXObject {
                 }
 
                 if !mat_obj_params.is_empty() {
-                    let distance = op_extrusion_x(
+                    d = op_extrusion_x(
                         hit.hit_point,
                         hit.interior_distance,
                         hit.extrusion_length + extrude_add + extrude_add_tile_only
                             - extrude_rounding,
                     ) - extrude_rounding;
 
-                    if extrude_mortar {
-                        if let Some(mortar) = hit.interior_distance_mortar {
-                            let mortar_distance = op_extrusion_x(
-                                hit.hit_point,
-                                mortar,
-                                hit.extrusion_length + extrude_add - extrude_mortar_sub,
-                            );
-                            d = min(distance, mortar_distance);
+                    // if extrude_mortar {
+                    //     if let Some(mortar) = hit.interior_distance_mortar {
+                    //         let mortar_distance = op_extrusion_x(
+                    //             hit.hit_point,
+                    //             mortar,
+                    //             hit.extrusion_length + extrude_add - extrude_mortar_sub,
+                    //         );
+                    //         d = min(distance, mortar_distance);
 
-                            if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
-                                hit.value = 0.0;
-                            } else {
-                                hit.value = 1.0;
-                            }
-                        }
-                    } else {
-                        d = distance;
-                        hit.value = 0.0;
-                    }
+                    //         if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
+                    //             hit.value = 0.0;
+                    //         } else {
+                    //             hit.value = 1.0;
+                    //         }
+                    //     }
+                    // } else {
+                    //     d = distance;
+                    //     hit.value = 0.0;
+                    // }
                 } else {
                     d = op_extrusion_x(hit.hit_point, hit.interior_distance, hit.extrusion_length);
                 }
@@ -320,31 +332,34 @@ impl MaterialFXObject {
                 }
 
                 if !mat_obj_params.is_empty() {
-                    let distance = op_extrusion_y(
+                    d = op_extrusion_y(
                         hit.hit_point,
                         hit.interior_distance,
                         hit.extrusion_length + extrude_add + extrude_add_tile_only
                             - extrude_rounding,
                     ) - extrude_rounding;
 
-                    if extrude_mortar {
-                        if let Some(mortar) = hit.interior_distance_mortar {
-                            let mortar_distance = op_extrusion_y(
-                                hit.hit_point,
-                                mortar,
-                                hit.extrusion_length + extrude_add - extrude_mortar_sub,
-                            );
-                            d = min(distance, mortar_distance);
-                            if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
-                                hit.value = 0.0;
-                            } else {
-                                hit.value = 1.0;
-                            }
-                        }
-                    } else {
-                        d = distance;
-                        hit.value = 0.0;
-                    }
+                    // if extrude_mortar {
+                    //     if let Some(mortar) = hit.interior_distance_mortar {
+                    //         let mortar_distance = op_extrusion_y(
+                    //             hit.hit_point,
+                    //             mortar,
+                    //             hit.extrusion_length + extrude_add - extrude_mortar_sub,
+                    //         );
+                    //         d = min(distance, mortar_distance);
+                    //         if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
+                    //             hit.value = 0.0;
+                    //         } else {
+                    //             hit.value = 1.0;
+                    //         }
+                    //     }
+                    // } else {
+                    //hit.value = 0.0;
+                    // if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
+                    //     hit.value = 0.0;
+                    // } else {
+                    //     hit.value = 1.0;
+                    // }
                 } else {
                     d = op_extrusion_y(hit.hit_point, hit.interior_distance, hit.extrusion_length);
                 }
@@ -356,32 +371,32 @@ impl MaterialFXObject {
                 }
 
                 if !mat_obj_params.is_empty() {
-                    let distance = op_extrusion_z(
+                    d = op_extrusion_z(
                         hit.hit_point,
                         hit.interior_distance,
                         hit.extrusion_length + extrude_add + extrude_add_tile_only
                             - extrude_rounding,
                     ) - extrude_rounding;
 
-                    if extrude_mortar {
-                        if let Some(mortar) = hit.interior_distance_mortar {
-                            let mortar_distance = op_extrusion_z(
-                                hit.hit_point,
-                                mortar,
-                                hit.extrusion_length + extrude_add - extrude_mortar_sub,
-                            );
-                            d = min(distance, mortar_distance);
+                    // if extrude_mortar {
+                    //     if let Some(mortar) = hit.interior_distance_mortar {
+                    //         let mortar_distance = op_extrusion_z(
+                    //             hit.hit_point,
+                    //             mortar,
+                    //             hit.extrusion_length + extrude_add - extrude_mortar_sub,
+                    //         );
+                    //         d = min(distance, mortar_distance);
 
-                            if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
-                                hit.value = 0.0;
-                            } else {
-                                hit.value = 1.0;
-                            }
-                        }
-                    } else {
-                        d = distance;
-                        hit.value = 0.0;
-                    }
+                    //         if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
+                    //             hit.value = 0.0;
+                    //         } else {
+                    //             hit.value = 1.0;
+                    //         }
+                    //     }
+                    // } else {
+                    //     d = distance;
+                    //     hit.value = 0.0;
+                    // }
                 } else {
                     d = op_extrusion_z(hit.hit_point, hit.interior_distance, hit.extrusion_length);
                 }
@@ -500,7 +515,107 @@ impl MaterialFXObject {
         None
     }
 
-    /// After exiting a geometry node follow the trail of material nodes to calculate the final material.
+    /// Checks if we have a bump node.
+    pub fn has_bump(&self) -> bool {
+        for n in &self.nodes {
+            if n.role == MaterialFXNodeRole::Bump {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Get the distance to the material.
+    pub fn get_material_distance(
+        &self,
+        material_index: usize,
+        hit: &mut Hit,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
+        mat_obj_params: &[Vec<f32>],
+    ) -> f32 {
+        hit.mode = HitMode::Bump;
+        hit.extrusion = GeoFXNodeExtrusion::Y;
+        hit.extrusion_length = 0.0;
+        hit.interior_distance = -0.1;
+
+        // let d = self.extrude_material(hit, mat_obj_params, false);
+
+        self.follow_trail(0, material_index, hit, palette, textures, mat_obj_params);
+        hit.value
+    }
+
+    /// Get the distance to the material.
+    pub fn get_material_normal(
+        &self,
+        material_index: usize,
+        p: Vec3f,
+        hit: &mut Hit,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
+        mat_obj_params: &[Vec<f32>],
+    ) -> Vec3f {
+        let scale = 0.5773 * 0.0005;
+        let e = vec2f(1.0 * scale, -1.0 * scale);
+
+        let mut hit = hit.clone();
+        // IQs normal function
+
+        let e1 = vec3f(e.x, e.y, e.y);
+        let e2 = vec3f(e.y, e.y, e.x);
+        let e3 = vec3f(e.y, e.x, e.y);
+        let e4 = vec3f(e.x, e.x, e.x);
+
+        let pattern_pos = vec2f(p.x, p.z);
+
+        hit.pattern_pos = pattern_pos + vec2f(e1.x, e1.z);
+        let re1 = e1
+            * self.get_material_distance(
+                material_index,
+                &mut hit,
+                palette,
+                textures,
+                mat_obj_params,
+            );
+
+        hit.pattern_pos = pattern_pos + vec2f(e2.x, e2.z);
+        let re2 = e2
+            * self.get_material_distance(
+                material_index,
+                &mut hit,
+                palette,
+                textures,
+                mat_obj_params,
+            );
+
+        hit.pattern_pos = pattern_pos + vec2f(e3.x, e3.z);
+        let re3 = e3
+            * self.get_material_distance(
+                material_index,
+                &mut hit,
+                palette,
+                textures,
+                mat_obj_params,
+            );
+
+        hit.pattern_pos = pattern_pos + vec2f(e4.x, e4.z);
+        let re4 = e4
+            * self.get_material_distance(
+                material_index,
+                &mut hit,
+                palette,
+                textures,
+                mat_obj_params,
+            );
+
+        // let n = e1 * self.get_material_distance(0, e1, hit, palette, textures, mat_obj_params)
+        //     + e2 * self.get_heightmap_distance_3d(time, p + e2, hit, mat_obj_params)
+        //     + e3 * self.get_heightmap_distance_3d(time, p + e3, hit, mat_obj_params)
+        //     + e4 * self.get_heightmap_distance_3d(time, p + e4, hit, mat_obj_params);
+        normalize(re1 + re2 + re3 + re4)
+    }
+
+    /// After exiting a geometry node follow the trail of material nodes to compute the material.
     pub fn follow_trail(
         &self,
         node: usize,
@@ -516,6 +631,112 @@ impl MaterialFXObject {
                 connections.push((*i, *it));
             }
         }
+
+        if !connections.is_empty() {
+            // Resolve material outputs
+
+            let mut resolved: Vec<Hit> = vec![];
+            let resolver = connections[0].0;
+
+            // We only need to resolve materials when in Albedo mode.
+            if hit.mode == HitMode::Albedo {
+                let mut to_resolve = vec![];
+                for (o, ot, i, it) in &self.connections {
+                    if *o == resolver && (*ot == 1 || *ot == 2) {
+                        // TODO: Resolve all terminals with start with "mat""
+                        to_resolve.push((*i, *it));
+                    }
+                }
+
+                //println!("to resolve #{}", to_resolve.len());
+
+                let mut follow_ups = vec![];
+
+                for (o, _) in &to_resolve {
+                    let mut h = hit.clone();
+
+                    if let Some(noise_index) = self.find_connected_output_node(*o as usize, 1) {
+                        if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
+                            || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
+                        {
+                            _ = self.nodes[noise_index].compute(
+                                &mut h,
+                                palette,
+                                textures,
+                                vec![],
+                                &mat_obj_params[noise_index],
+                            );
+                        }
+                    }
+
+                    if let Some(ot) = self.nodes[*o as usize].compute(
+                        &mut h,
+                        palette,
+                        textures,
+                        vec![],
+                        &mat_obj_params[*o as usize],
+                    ) {
+                        follow_ups.push((*o, ot));
+                    }
+
+                    resolved.push(h);
+                }
+
+                // Noise in for the resolver,
+                if let Some(noise_index) = self.find_connected_output_node(resolver as usize, 1) {
+                    if self.nodes[noise_index].role == MaterialFXNodeRole::Noise2D
+                        || self.nodes[noise_index].role == MaterialFXNodeRole::Noise3D
+                    {
+                        _ = self.nodes[noise_index].compute(
+                            hit,
+                            palette,
+                            textures,
+                            vec![],
+                            &mat_obj_params[noise_index],
+                        );
+                    }
+                }
+
+                //println!("resolved #{}", resolved.len());
+            }
+
+            // Execute the resolver
+            if let Some(ot) = self.nodes[resolver as usize].compute(
+                hit,
+                palette,
+                textures,
+                resolved,
+                &mat_obj_params[resolver as usize],
+            ) {
+                // And follow the trail
+                hit.noise = None;
+                hit.noise_scale = 1.0;
+                self.follow_trail(
+                    resolver as usize,
+                    ot as usize,
+                    hit,
+                    palette,
+                    textures,
+                    mat_obj_params,
+                );
+            }
+        }
+
+        /*
+        for (node, terminal) in follow_ups {
+            hit.noise = None;
+            hit.noise_scale = 1.0;
+            self.follow_trail(
+                node as usize,
+                terminal as usize,
+                hit,
+                palette,
+                textures,
+                mat_obj_params,
+            );
+        }*/
+
+        /*
 
         if connections.len() == 1 && self.nodes[connections[0].0 as usize].resolve_branches {
             // Resolve branches of the node and feed them into the resolver
@@ -674,7 +895,7 @@ impl MaterialFXObject {
                     }
                 }
             }
-        }
+        }*/
     }
 
     /// Convert the model to a node canvas.
@@ -937,6 +1158,8 @@ impl MaterialFXObject {
 
         let camera = Camera::new(vec3f(0., 0., 2.), Vec3f::zero(), 70.0);
 
+        let has_bump = self.has_bump();
+
         buffer
             .pixels_mut()
             .par_rchunks_exact_mut(width * 4)
@@ -976,10 +1199,32 @@ impl MaterialFXObject {
 
                         let mut t = 0.0;
 
-                        for _ in 0..20 {
+                        for _ in 0..40 {
                             let p = ray.at(t);
 
-                            let d = length(p) - 1.0;
+                            let mut d = length(p) - 1.0;
+
+                            hit.hit_point = p;
+                            hit.global_uv.x = p.x + 1.0;
+                            hit.global_uv.y = p.y + 1.0;
+                            hit.pattern_pos = hit.global_uv;
+                            hit.uv = vec2f((p.x + 0.5).fract(), (p.y + 0.5).fract());
+                            hit.distance = t;
+
+                            if has_bump {
+                                hit.mode = HitMode::Bump;
+                                self.follow_trail(
+                                    0,
+                                    0,
+                                    &mut hit,
+                                    palette,
+                                    textures,
+                                    &mat_obj_params,
+                                );
+
+                                let bump = hit.value;
+                                d -= bump;
+                            }
 
                             if d.abs() < hit.eps {
                                 has_hit = true;
@@ -989,13 +1234,23 @@ impl MaterialFXObject {
                                 hit.pattern_pos = hit.global_uv;
                                 hit.uv = vec2f((p.x + 0.5).fract(), (p.y + 0.5).fract());
                                 hit.distance = t;
-                                hit.normal = normalize(p);
                                 break;
                             }
                             t += d;
                         }
 
                         if has_hit {
+                            hit.normal = normalize(hit.hit_point);
+                            // hit.normal = self.get_material_normal(
+                            //     0,
+                            //     hit.hit_point,
+                            //     &mut hit,
+                            //     palette,
+                            //     textures,
+                            //     &mat_obj_params,
+                            // );
+
+                            hit.mode = HitMode::Albedo;
                             self.compute(&mut hit, palette, textures, &mat_obj_params);
 
                             state.depth = depth;

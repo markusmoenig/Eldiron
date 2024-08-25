@@ -1240,31 +1240,11 @@ impl TheTrait for Editor {
                                     if let Ok(project) = serde_json::from_str(&contents) {
                                         self.project = project;
 
-                                        if self.project.materials.len() < 255 {
-                                            let togo = 255 - self.project.materials.len();
-                                            for _ in 0..=togo {
-                                                let mat_obj = MaterialFXObject::default();
-                                                self.project.materials.insert(mat_obj.id, mat_obj);
-                                            }
-                                        }
-
-                                        // RENDERER
-                                        //     .lock()
-                                        //     .unwrap()
-                                        //     .materials
-                                        //     .clone_from(&self.project.materials);
-
                                         // Update geo_obj parameters if necessary
                                         for r in &mut self.project.regions {
                                             for geo_obj in r.geometry.values_mut() {
                                                 geo_obj.update_parameters();
                                             }
-
-                                            // r.heightmap.set_height(33, 34, 0.5);
-                                            // r.heightmap.set_height(33, 35, 1.0);
-                                            // r.heightmap.set_height(34, 34, 0.5);
-                                            // r.heightmap.set_height(37, 30, 1.0);
-                                            // r.heightmap.set_height(34, 35, 1.0);
                                         }
 
                                         // Update mat_obj parameters if necessary
