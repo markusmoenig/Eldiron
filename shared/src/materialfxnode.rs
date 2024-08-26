@@ -32,9 +32,6 @@ pub struct MaterialFXNode {
     pub preview_is_open: bool,
 
     pub preview: TheRGBABuffer,
-
-    pub resolve_branches: bool,
-
     pub texture_id: Option<Uuid>,
 }
 
@@ -43,7 +40,6 @@ impl MaterialFXNode {
         let mut coll = TheCollection::named(str!("Props"));
         let mut supports_preview = false;
         let mut preview_is_open = false;
-        let mut resolve_branches = false;
 
         match role {
             Geometry => {
@@ -52,9 +48,7 @@ impl MaterialFXNode {
                 supports_preview = true;
                 preview_is_open = true;
             }
-            MaterialMixer => {
-                resolve_branches = true;
-            }
+            MaterialMixer => {}
             Material => {
                 coll.set("Color", TheValue::PaletteIndex(0));
                 coll.set("Roughness", TheValue::FloatRange(0.5, 0.0..=1.0));
@@ -112,7 +106,6 @@ impl MaterialFXNode {
             Distance => {
                 coll.set("From", TheValue::FloatRange(0.0, 0.0..=1.0));
                 coll.set("To", TheValue::FloatRange(0.2, 0.0..=1.0));
-                resolve_branches = true;
             }
             BoxSubdivision => {
                 coll.set("Scale", TheValue::FloatRange(1.0, 0.0..=2.0));
@@ -139,7 +132,6 @@ impl MaterialFXNode {
             supports_preview,
             preview_is_open,
             preview: TheRGBABuffer::empty(),
-            resolve_branches,
             texture_id: None,
         }
     }
@@ -240,6 +232,19 @@ impl MaterialFXNode {
         params
     }
 
+    /// Returns the outgoing trails which this node needs to have resolved before calling compute.
+    /// Mostly used for mixing materials.
+    pub fn trails_to_resolve(&self) -> Vec<u8> {
+        match self.role {
+            BoxSubdivision | Brick => {
+                vec![1, 2]
+            }
+            _ => {
+                vec![]
+            }
+        }
+    }
+
     pub fn inputs(&self) -> Vec<TheNodeTerminal> {
         match self.role {
             Geometry => {
@@ -295,17 +300,22 @@ impl MaterialFXNode {
                 vec![
                     TheNodeTerminal {
                         name: str!("mat1"),
-                        role: str!("Material#1"),
+                        role: str!("Material #1"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
                         name: str!("mat2"),
-                        role: str!("Material#2"),
+                        role: str!("Material #2"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
                         name: str!("mat3"),
-                        role: str!("Material#3"),
+                        role: str!("Material #3"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("mat4"),
+                        role: str!("Material #4"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]
@@ -500,10 +510,18 @@ impl MaterialFXNode {
             }
             Brick => {
                 let dist = bricks(hit.global_uv, hit, params);
-                if dist < 0.0 {
+                let value = 1.0 - smoothstep(-0.08, 0.0, dist);
+                hit.value = value;
+
+                if hit.mode == HitMode::Albedo {
+                    if resolved.len() == 1 {
+                        hit.mat.clone_from(&resolved[0].mat);
+                    } else if resolved.len() == 2 {
+                        hit.mat.mix(&resolved[1].mat, &resolved[0].mat, hit.value);
+                    }
                     Some(0)
                 } else {
-                    Some(1)
+                    Some(3)
                 }
             }
             BoxSubdivision => {
@@ -523,7 +541,7 @@ impl MaterialFXNode {
                     if resolved.len() == 1 {
                         hit.mat.clone_from(&resolved[0].mat);
                     } else if resolved.len() == 2 {
-                        hit.mat.mix(&resolved[0].mat, &resolved[1].mat, value);
+                        hit.mat.mix(&resolved[1].mat, &resolved[0].mat, value);
                     }
                     Some(0)
                 } else {
@@ -593,7 +611,7 @@ impl MaterialFXNode {
                 Some(0)
             }
             Bump => {
-                hit.value /= 10.0;
+                hit.bump = hit.value / 30.0;
                 None
             }
             _ => None,

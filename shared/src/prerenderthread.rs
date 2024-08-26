@@ -230,7 +230,7 @@ impl PreRenderThread {
                             .unwrap();
                     }
 
-                    if material_preview_passes == 500 {
+                    if material_preview_passes == 300 {
                         println!("Material finished");
                         material_preview = None;
                     }

@@ -141,11 +141,14 @@ impl MaterialFXObject {
     }
 
     /// Get the distance for the given position from the geometry & material objects.
+    #[allow(clippy::too_many_arguments)]
     pub fn get_distance_3d(
         &self,
         time: &TheTime,
         p: Vec3f,
         hit: &mut Hit,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
         geo_obj: &GeoFXObject,
         geo_obj_params: &[Vec<f32>],
         mat_obj_params: &[Vec<f32>],
@@ -171,7 +174,7 @@ impl MaterialFXObject {
         let noise_buffer_scale = hit.noise_scale;
 
         let mut d = geo_obj.distance_3d(time, p, &mut Some(hit), geo_obj_params);
-        let has_geo_trail = self.follow_geo_trail(time, hit, mat_obj_params);
+        // let has_geo_trail = self.follow_geo_trail(time, hit, mat_obj_params);
 
         let geo_noise = hit.noise;
         let geo_noise_scale = hit.noise_scale;
@@ -182,15 +185,16 @@ impl MaterialFXObject {
         hit.noise = noise_buffer;
         hit.noise_scale = noise_buffer_scale;
 
+        if self.has_bump() {
+            hit.mode = HitMode::Bump;
+            self.follow_trail(0, 0, hit, palette, textures, mat_obj_params);
+            //d.0 -= hit.bump;
+        }
+
         d.0 = self.extrude_material(hit, mat_obj_params, false);
 
         hit.noise = geo_noise;
         hit.noise_scale = geo_noise_scale;
-
-        if has_geo_trail {
-            let bump = hit.value;
-            d.0 -= bump / 30.0;
-        }
 
         d
     }
@@ -299,7 +303,8 @@ impl MaterialFXObject {
                         hit.hit_point,
                         hit.interior_distance,
                         hit.extrusion_length + extrude_add + extrude_add_tile_only
-                            - extrude_rounding,
+                            - extrude_rounding
+                            + hit.bump,
                     ) - extrude_rounding;
 
                     // if extrude_mortar {
@@ -336,7 +341,8 @@ impl MaterialFXObject {
                         hit.hit_point,
                         hit.interior_distance,
                         hit.extrusion_length + extrude_add + extrude_add_tile_only
-                            - extrude_rounding,
+                            - extrude_rounding
+                            + hit.bump,
                     ) - extrude_rounding;
 
                     // if extrude_mortar {
@@ -375,9 +381,15 @@ impl MaterialFXObject {
                         hit.hit_point,
                         hit.interior_distance,
                         hit.extrusion_length + extrude_add + extrude_add_tile_only
-                            - extrude_rounding,
+                            - extrude_rounding
+                            + hit.bump,
                     ) - extrude_rounding;
 
+                    if hit.interior_distance <= PATTERN2D_DISTANCE_BORDER {
+                        hit.value = 0.0;
+                    } else {
+                        hit.value = 1.0;
+                    }
                     // if extrude_mortar {
                     //     if let Some(mortar) = hit.interior_distance_mortar {
                     //         let mortar_distance = op_extrusion_z(
@@ -431,11 +443,14 @@ impl MaterialFXObject {
     }
 
     /// Calculate normal
+    #[allow(clippy::too_many_arguments)]
     pub fn normal(
         &self,
         time: &TheTime,
         p: Vec3f,
         hit: &mut Hit,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
         geo_obj: &GeoFXObject,
         geo_obj_params: &[Vec<f32>],
         mat_obj_params: &[Vec<f32>],
@@ -452,16 +467,52 @@ impl MaterialFXObject {
 
         let n = e1
             * self
-                .get_distance_3d(time, p + e1, hit, geo_obj, geo_obj_params, mat_obj_params)
+                .get_distance_3d(
+                    time,
+                    p + e1,
+                    hit,
+                    palette,
+                    textures,
+                    geo_obj,
+                    geo_obj_params,
+                    mat_obj_params,
+                )
                 .0
             + e2 * self
-                .get_distance_3d(time, p + e2, hit, geo_obj, geo_obj_params, mat_obj_params)
+                .get_distance_3d(
+                    time,
+                    p + e2,
+                    hit,
+                    palette,
+                    textures,
+                    geo_obj,
+                    geo_obj_params,
+                    mat_obj_params,
+                )
                 .0
             + e3 * self
-                .get_distance_3d(time, p + e3, hit, geo_obj, geo_obj_params, mat_obj_params)
+                .get_distance_3d(
+                    time,
+                    p + e3,
+                    hit,
+                    palette,
+                    textures,
+                    geo_obj,
+                    geo_obj_params,
+                    mat_obj_params,
+                )
                 .0
             + e4 * self
-                .get_distance_3d(time, p + e4, hit, geo_obj, geo_obj_params, mat_obj_params)
+                .get_distance_3d(
+                    time,
+                    p + e4,
+                    hit,
+                    palette,
+                    textures,
+                    geo_obj,
+                    geo_obj_params,
+                    mat_obj_params,
+                )
                 .0;
         normalize(n)
     }
@@ -535,14 +586,12 @@ impl MaterialFXObject {
         mat_obj_params: &[Vec<f32>],
     ) -> f32 {
         hit.mode = HitMode::Bump;
-        hit.extrusion = GeoFXNodeExtrusion::Y;
-        hit.extrusion_length = 0.0;
-        hit.interior_distance = -0.1;
-
-        // let d = self.extrude_material(hit, mat_obj_params, false);
+        // hit.extrusion = GeoFXNodeExtrusion::Y;
+        // hit.extrusion_length = 0.0;
+        // hit.interior_distance = -0.1;
 
         self.follow_trail(0, material_index, hit, palette, textures, mat_obj_params);
-        hit.value
+        hit.bump
     }
 
     /// Get the distance to the material.
@@ -570,43 +619,47 @@ impl MaterialFXObject {
 
         hit.pattern_pos = pattern_pos + vec2f(e1.x, e1.z);
         let re1 = e1
-            * self.get_material_distance(
-                material_index,
-                &mut hit,
-                palette,
-                textures,
-                mat_obj_params,
-            );
+            * (p.y
+                + self.get_material_distance(
+                    material_index,
+                    &mut hit,
+                    palette,
+                    textures,
+                    mat_obj_params,
+                ));
 
         hit.pattern_pos = pattern_pos + vec2f(e2.x, e2.z);
         let re2 = e2
-            * self.get_material_distance(
-                material_index,
-                &mut hit,
-                palette,
-                textures,
-                mat_obj_params,
-            );
+            * (p.y
+                + self.get_material_distance(
+                    material_index,
+                    &mut hit,
+                    palette,
+                    textures,
+                    mat_obj_params,
+                ));
 
         hit.pattern_pos = pattern_pos + vec2f(e3.x, e3.z);
         let re3 = e3
-            * self.get_material_distance(
-                material_index,
-                &mut hit,
-                palette,
-                textures,
-                mat_obj_params,
-            );
+            * (p.y
+                + self.get_material_distance(
+                    material_index,
+                    &mut hit,
+                    palette,
+                    textures,
+                    mat_obj_params,
+                ));
 
         hit.pattern_pos = pattern_pos + vec2f(e4.x, e4.z);
         let re4 = e4
-            * self.get_material_distance(
-                material_index,
-                &mut hit,
-                palette,
-                textures,
-                mat_obj_params,
-            );
+            * (p.y
+                + self.get_material_distance(
+                    material_index,
+                    &mut hit,
+                    palette,
+                    textures,
+                    mat_obj_params,
+                ));
 
         // let n = e1 * self.get_material_distance(0, e1, hit, palette, textures, mat_obj_params)
         //     + e2 * self.get_heightmap_distance_3d(time, p + e2, hit, mat_obj_params)
@@ -641,10 +694,14 @@ impl MaterialFXObject {
             // We only need to resolve materials when in Albedo mode.
             if hit.mode == HitMode::Albedo {
                 let mut to_resolve = vec![];
-                for (o, ot, i, it) in &self.connections {
-                    if *o == resolver && (*ot == 1 || *ot == 2) {
-                        // TODO: Resolve all terminals with start with "mat""
-                        to_resolve.push((*i, *it));
+
+                // We collected the trails which need to be resolved
+                let need_to_be_resolved = self.nodes[resolver as usize].trails_to_resolve();
+                for trail in need_to_be_resolved {
+                    for (o, ot, i, it) in &self.connections {
+                        if *o == resolver && *ot == trail {
+                            to_resolve.push((*i, *it));
+                        }
                     }
                 }
 
@@ -988,153 +1045,12 @@ impl MaterialFXObject {
                     hit.global_uv = hit.uv;
                     hit.pattern_pos = hit.global_uv;
 
-                    if self.follow_geo_trail(&time, &mut hit, &mat_obj_params) {
-                        if hit.interior_distance <= 0.01 {
-                            hit.value = 0.0;
-                        } else {
-                            hit.value = 1.0;
-                        }
-                    }
-
                     self.compute(&mut hit, palette, textures, &mat_obj_params);
 
                     color.x = hit.mat.base_color.x;
                     color.y = hit.mat.base_color.y;
                     color.z = hit.mat.base_color.z;
                     color.w = 1.0;
-
-                    /*
-                    for sample in 0..40 {
-                        let mut ray = camera.create_ray(
-                            vec2f(xx / size as f32, 1.0 - yy / size as f32),
-                            vec2f(size as f32, size as f32),
-                            vec2f(rng.gen(), rng.gen()),
-                        );
-
-                        let mut state = TracerState {
-                            is_refracted: false,
-                            has_been_refracted: false,
-                            last_ior: 1.0,
-                        };
-
-                        let mut acc = Vec3f::zero();
-                        let mut abso = Vec3f::one();
-                        let mut hit: Option<Hit>;
-                        let mut alpha = 0.0;
-                        //let mut early_exit = false;
-
-                        for depth in 0..8 {
-                            let mut h = Hit::default();
-                            hit = None;
-
-                            let mut t = 0.0;
-                            for _ in 0..20 {
-                                let p = ray.at(t);
-                                //let mut d = distance(p);
-
-                                let d = self.get_distance(&time, p, &mut h, &geo_object);
-
-                                // if has_displacement {
-                                //     let normal = normal(p);
-                                //     let mut hit = Hit {
-                                //         hit_point: p,
-                                //         normal, //: normal(p),
-                                //         //uv: sphere_to_uv(p),
-                                //         uv: vec2f(p.x, p.y), //get_uv_face(p, normal).0,
-                                //         distance: t,
-                                //         ..Default::default()
-                                //     };
-                                //     noise2d.compute(&mut hit, palette, vec![]);
-                                //     self.displacement(&mut hit);
-                                //     d += hit.displacement;
-                                // }
-
-                                if d.0.abs() < 0.0001 {
-                                    h.normal = self.normal(&time, p, &mut h, &geo_object);
-                                    h.uv = vec2f(p.x, p.y);
-                                    h.distance = t;
-                                    h.hit_point = p;
-                                    // let mut h = Hit {
-                                    //     hit_point: p,
-                                    //     normal,
-                                    //     //uv: sphere_to_uv(p),
-                                    //     // uv: get_uv_face(p, normal).0,
-                                    //     uv: vec2f(p.x, p.y),
-                                    //     distance: t,
-                                    //     albedo: Vec3f::zero(),
-                                    //     ..Default::default()
-                                    // };
-                                    //noise2d.compute(&mut h, palette, vec![]);
-
-                                    self.follow_trail(0, 0, &mut h, palette);
-
-                                    alpha = 1.0;
-
-                                    hit = Some(h.clone());
-                                }
-                                if hit.is_some() {
-                                    break;
-                                }
-                                t += d.0;
-                            }
-
-                            if let Some(hit) = &mut hit {
-                                let mut n = hit.normal;
-                                if state.is_refracted {
-                                    n = -n
-                                };
-
-                                // sample BSDF
-                                let mut out_dir: Vec3f = Vec3f::zero();
-                                let bsdf = sample_disney_bsdf(
-                                    -ray.d,
-                                    n,
-                                    hit,
-                                    &mut out_dir,
-                                    &mut state,
-                                    &mut rng,
-                                );
-
-                                // add emissive part of the current material
-                                acc += hit.emissive * abso;
-
-                                // bsdf absorption (pdf are in bsdf.a)
-                                if bsdf.1 > 0.0 {
-                                    abso *= bsdf.0 / bsdf.1;
-                                }
-
-                                // medium absorption
-                                if state.has_been_refracted {
-                                    abso *= exp(-hit.distance
-                                        * ((Vec3f::one() - hit.albedo) * hit.absorption));
-                                }
-
-                                ray.o = hit.hit_point;
-                                ray.d = out_dir;
-
-                                if state.is_refracted {
-                                    ray.o += -n * 0.01;
-                                } else if state.has_been_refracted && !state.is_refracted {
-                                    ray.o += -n * 0.01;
-                                    state.last_ior = 1.;
-                                } else {
-                                    ray.o += n * 0.01;
-                                }
-                            } else {
-                                //acc += vec3f(0.5, 0.5, 0.5) * abso;
-                                acc += vec3f(1.0, 1.0, 1.0) * abso;
-                                if depth == 0 {
-                                    //early_exit = true;
-                                };
-                                break;
-                            }
-                        }
-                        let c = vec4f(acc.x, acc.y, acc.z, alpha);
-                        color = lerp(color, c, 1.0 / (sample as f32 + 1.0));
-                        // if early_exit {
-                        //     break;
-                        // }
-                        }*/
 
                     pixel.copy_from_slice(&TheColor::from_vec4f(color).to_u8_array());
                 }
@@ -1199,7 +1115,7 @@ impl MaterialFXObject {
 
                         let mut t = 0.0;
 
-                        for _ in 0..40 {
+                        for _ in 0..100 {
                             let p = ray.at(t);
 
                             let mut d = length(p) - 1.0;
@@ -1210,6 +1126,10 @@ impl MaterialFXObject {
                             hit.pattern_pos = hit.global_uv;
                             hit.uv = vec2f((p.x + 0.5).fract(), (p.y + 0.5).fract());
                             hit.distance = t;
+
+                            if t > 3.0 {
+                                break;
+                            }
 
                             if has_bump {
                                 hit.mode = HitMode::Bump;
@@ -1222,8 +1142,7 @@ impl MaterialFXObject {
                                     &mat_obj_params,
                                 );
 
-                                let bump = hit.value;
-                                d -= bump;
+                                d -= hit.bump;
                             }
 
                             if d.abs() < hit.eps {
@@ -1236,7 +1155,7 @@ impl MaterialFXObject {
                                 hit.distance = t;
                                 break;
                             }
-                            t += d;
+                            t += d * 0.5;
                         }
 
                         if has_hit {

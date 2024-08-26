@@ -24,7 +24,7 @@ impl Tool for MapObjectsTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Model Tool (M). Place 3D objects on the map (Walls, Furniture...).")
+        str!("Model Tool (M). Place 3D objects on the map.")
     }
     fn icon_name(&self) -> String {
         str!("mapobjects")

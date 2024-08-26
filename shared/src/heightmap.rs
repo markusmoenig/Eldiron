@@ -117,6 +117,87 @@ impl Heightmap {
         normalize(vec3f(-dx, 1.0, -dy))
     }
 
+    /// Get the bump of the material (if any) at the given position.
+    #[allow(clippy::too_many_arguments)]
+    pub fn get_material_bump(
+        &self,
+        p: Vec3f,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
+        materials: &IndexMap<Uuid, MaterialFXObject>,
+        material_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
+    ) -> Option<(f32, Uuid)> {
+        let tile = vec2i(p.x.floor() as i32, p.z.floor() as i32);
+        let mut hit: Hit = Hit::default();
+
+        if let Some(mask) = self.get_material_mask(tile.x, tile.y) {
+            if let Some(material_mask) = mask.at_f(vec2f(p.x.fract(), p.z.fract())) {
+                let index = (material_mask[0] - 1) as usize;
+                if let Some((_id, material)) = materials.get_index(index) {
+                    if let Some(m_params) = material_params.get(&material.id) {
+                        hit.global_uv = vec2f(p.x, p.z);
+                        hit.pattern_pos = hit.global_uv;
+
+                        hit.mode = HitMode::Bump;
+                        material.follow_trail(0, 0, &mut hit, palette, textures, m_params);
+                        return Some((hit.bump, material.id));
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Calculates the normal at the given position and evaluates material bumps.
+    pub fn calculate_normal_with_material(
+        &self,
+        p: Vec3f,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
+        materials: &IndexMap<Uuid, MaterialFXObject>,
+        material_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
+    ) -> Vec3f {
+        let x = p.x;
+        let y = p.z;
+        let epsilon = 0.001;
+
+        let mut height = self.interpolate_height(x, y);
+        if let Some((bump, _)) =
+            self.get_material_bump(p, palette, textures, materials, material_params)
+        {
+            height -= bump;
+        }
+
+        let mut height_dx = self.interpolate_height(x + epsilon, y);
+        if let Some((bump, _)) = self.get_material_bump(
+            vec3f(x + epsilon, 0.0, y),
+            palette,
+            textures,
+            materials,
+            material_params,
+        ) {
+            height_dx -= bump;
+        }
+
+        let mut height_dy = self.interpolate_height(x, y + epsilon);
+        if let Some((bump, _)) = self.get_material_bump(
+            vec3f(x, 0.0, y + epsilon),
+            palette,
+            textures,
+            materials,
+            material_params,
+        ) {
+            height_dy -= bump;
+        }
+
+        let dx = (height_dx - height) / epsilon;
+        let dy = (height_dy - height) / epsilon;
+
+        normalize(vec3f(-dx, 1.0, -dy))
+    }
+
+    /// Raymarches the terrain and returns the distance.
     pub fn raymarch(&self, ray: &Ray) -> Option<f32> {
         let mut t = 0.0;
 
@@ -125,19 +206,93 @@ impl Heightmap {
             let pos = ray.at(t);
 
             let height = self.interpolate_height(pos.x, pos.z);
+            let d = pos.y - height;
 
-            // if pos.y < height {
-            //     return Some(t);
-            // }
-
-            // Calculate the dynamic step size
-            let step_size = pos.y - height; // * 0.05;
-
-            if step_size.abs() < 0.0001 {
+            if d.abs() < 0.0001 {
                 return Some(t);
             }
 
-            t += step_size;
+            t += d;
+        }
+
+        None
+    }
+
+    /// Raymarches the terrain and evaluates materials and bumps.
+    pub fn compute_hit(
+        &self,
+        ray: &Ray,
+        hit: &mut Hit,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
+        materials: &IndexMap<Uuid, MaterialFXObject>,
+        material_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
+    ) -> Option<f32> {
+        let mut t = 0.0;
+
+        for _ in 0..30 {
+            let p = ray.at(t);
+
+            let mut bump = 0.0;
+
+            let height = self.interpolate_height(p.x, p.z);
+            let tile = vec2i(p.x.floor() as i32, p.z.floor() as i32);
+
+            let mut has_material_hit = false;
+
+            if let Some(mask) = self.get_material_mask(tile.x, tile.y) {
+                if let Some(material_mask) = mask.at_f(vec2f(p.x.fract(), p.z.fract())) {
+                    let index = (material_mask[0] - 1) as usize;
+                    if let Some((_id, material)) = materials.get_index(index) {
+                        if let Some(m_params) = material_params.get(&material.id) {
+                            hit.global_uv = vec2f(p.x, p.z);
+                            hit.pattern_pos = hit.global_uv;
+
+                            //material.get_material_distance(0, hit, palette, textures, m_params);
+                            hit.mode = HitMode::Bump;
+                            material.follow_trail(0, 0, hit, palette, textures, m_params);
+                            bump = hit.bump;
+
+                            has_material_hit = true;
+                        }
+                    }
+                }
+            }
+
+            let d = p.y - height - bump;
+
+            if d.abs() < 0.0001 {
+                if has_material_hit {
+                    hit.hit_point = p;
+                    hit.global_uv = vec2f(p.x, p.z);
+                    hit.pattern_pos = hit.global_uv;
+                    hit.uv = vec2f(p.x.fract(), p.z.fract());
+                    hit.normal = self.calculate_normal_with_material(
+                        p,
+                        palette,
+                        textures,
+                        materials,
+                        material_params,
+                    );
+
+                    if let Some(mask) = self.get_material_mask(tile.x, tile.y) {
+                        if let Some(material_mask) = mask.at_f(vec2f(p.x.fract(), p.z.fract())) {
+                            let index = (material_mask[0] - 1) as usize;
+                            if let Some((_id, material)) = materials.get_index(index) {
+                                if let Some(m_params) = material_params.get(&material.id) {
+                                    material.compute(hit, palette, textures, m_params);
+                                }
+                            }
+                        }
+                    }
+
+                    return Some(t);
+                } else {
+                    return None;
+                }
+            }
+
+            t += d * 0.5;
         }
 
         None
