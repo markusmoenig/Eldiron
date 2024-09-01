@@ -565,6 +565,7 @@ name = "creator"
 version = "0.8.12"
 dependencies = [
  "fontdue",
+ "forgedtiles",
  "lazy_static",
  "open",
  "png",
@@ -926,6 +927,18 @@ name = "foreign-types-shared"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
+
+[[package]]
+name = "forgedtiles"
+version = "0.1.0"
+dependencies = [
+ "maths-rs",
+ "rand",
+ "rayon",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "form_urlencoded"
@@ -2782,6 +2795,7 @@ name = "shared"
 version = "0.8.12"
 dependencies = [
  "fontdue",
+ "forgedtiles",
  "half",
  "indexmap 2.2.6",
  "lazy_static",

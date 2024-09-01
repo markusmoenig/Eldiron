@@ -44,6 +44,9 @@ pub struct Region {
     #[serde(default)]
     pub geometry: FxHashMap<Uuid, GeoFXObject>,
 
+    #[serde(skip)]
+    pub compiled_geometry: FxHashMap<Uuid, FTContext>,
+
     #[serde(default)]
     #[serde(with = "vectorize")]
     pub geometry_areas: FxHashMap<Vec3i, Vec<Uuid>>,
@@ -122,6 +125,7 @@ impl Region {
             tiles: FxHashMap::default(),
 
             geometry: FxHashMap::default(),
+            compiled_geometry: FxHashMap::default(),
             geometry_areas: FxHashMap::default(),
 
             effects: FxHashMap::default(),
@@ -400,6 +404,44 @@ impl Region {
                     if let Some(props) = fx.get_light_collection() {
                         level.add_light(pos, props);
                     }
+                }
+            }
+        }
+    }
+
+    /// Compile all ForgedTiles based geometry nodes.
+    pub fn compile_geo_all(&mut self) {
+        let ft = ForgedTiles::default();
+        for (id, geo_obj) in &mut self.geometry {
+            for nodes in &geo_obj.nodes {
+                if let Some(source) = nodes.build() {
+                    match ft.compile_code(source) {
+                        Ok(ctx) => {
+                            self.compiled_geometry.insert(*id, ctx);
+                        }
+                        Err(err) => {
+                            println!("{:?}", err);
+                        }
+                    };
+                }
+            }
+        }
+    }
+
+    /// Compile this specific geometry.
+    pub fn compile_geo(&mut self, id: Uuid) {
+        let ft = ForgedTiles::default();
+        if let Some(geo_obj) = self.geometry.get(&id) {
+            for nodes in &geo_obj.nodes {
+                if let Some(source) = nodes.build() {
+                    match ft.compile_code(source) {
+                        Ok(ctx) => {
+                            self.compiled_geometry.insert(geo_obj.id, ctx);
+                        }
+                        Err(err) => {
+                            println!("{:?}", err);
+                        }
+                    };
                 }
             }
         }

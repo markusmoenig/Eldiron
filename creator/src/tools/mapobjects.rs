@@ -96,6 +96,7 @@ impl Tool for MapObjectsTool {
                         if let Some((geo_obj, _)) = region.find_geo_node(new_id) {
                             tiles_to_render.clone_from(&geo_obj.area);
                         }
+                        region.compile_geo(obj_id);
                         server_ctx.curr_geo_object = Some(obj_id);
                         server_ctx.curr_geo_node = Some(new_id);
                         region_to_render = Some(region.clone());

@@ -1,5 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, MODELFXEDITOR, REGIONFXEDITOR, TILEDRAWER, TILEFXEDITOR, TILEMAPEDITOR, TILEPICKER,
+    CODEEDITOR, MODELEDITOR, MODELFXEDITOR, REGIONFXEDITOR, TILEDRAWER, TILEFXEDITOR,
+    TILEMAPEDITOR, TILEPICKER,
 };
 use crate::prelude::*;
 
@@ -46,6 +47,8 @@ impl Panels {
                 .unwrap()
                 .build_material(project, ctx, server_ctx),
         );
+        main_stack.add_canvas(MODELEDITOR.lock().unwrap().build_node_ui());
+
         // let mut code_canvas = TheCanvas::new();
         // let mut widget = TheTextAreaEdit::new(TheId::named("Text"));
         // widget.set_value(TheValue::Text("Your Code".to_string()));

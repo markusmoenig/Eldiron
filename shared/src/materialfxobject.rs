@@ -1211,11 +1211,11 @@ impl MaterialFXObject {
 
                             let light_pos = vec3f(1.0, 0.0, 3.0);
 
-                            let radius = 0.3;
+                            let radius = 0.2;
 
                             let l = BSDFLight {
                                 position: light_pos,
-                                emission: Vec3f::one() * 20.0,
+                                emission: Vec3f::one() * 10.0,
                                 radius,
                                 type_: 1.0,
                                 u: Vec3f::zero(),
@@ -1289,6 +1289,10 @@ impl MaterialFXObject {
                             color.z = radiance.z;
                             color.w = 1.0;
                         } else {
+                            // Env color
+                            color.x += throughput.x * 0.5;
+                            color.y += throughput.y * 0.5;
+                            color.z += throughput.z * 0.5;
                             break;
                         }
                     }
@@ -1302,8 +1306,8 @@ impl MaterialFXObject {
                         ex.z = pixel[2] as f32 / 255.0;
                         ex.w = pixel[3] as f32 / 255.0;
 
-                        color = powf(color, 0.4545);
-                        color = clamp(color, Vec4f::zero(), vec4f(1.0, 1.0, 1.0, 1.0));
+                        //color = powf(color, 0.4545);
+                        //color = clamp(color, Vec4f::zero(), vec4f(1.0, 1.0, 1.0, 1.0));
 
                         let s = 1.0 / (sample as f32 + 1.0);
                         let accumulated_color = lerp(ex, color, s);

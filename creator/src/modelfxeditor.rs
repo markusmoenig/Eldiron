@@ -638,6 +638,7 @@ impl ModelFXEditor {
                                 if let Some(region) =
                                     project.get_region_mut(&server_ctx.curr_region)
                                 {
+                                    let mut geo_obj_id = Uuid::nil();
                                     if let Some((geo_obj, index)) =
                                         region.find_geo_node(curr_geo_node)
                                     {
@@ -653,6 +654,7 @@ impl ModelFXEditor {
 
                                         geo_obj.nodes[index].set(name, value);
                                         geo_obj.update_area();
+                                        geo_obj_id = geo_obj.id;
 
                                         new_tiles_to_render.clone_from(&geo_obj.area);
                                         let mut set: FxHashSet<Vec2i> = FxHashSet::default();
@@ -666,6 +668,7 @@ impl ModelFXEditor {
 
                                         server.update_region(region);
                                     }
+                                    region.compile_geo(geo_obj_id);
                                 }
 
                                 if let Some(region) = region_to_render {

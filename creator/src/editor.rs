@@ -30,12 +30,14 @@ lazy_static! {
     pub static ref TOOLLIST: Mutex<ToolList> = Mutex::new(ToolList::default());
     pub static ref BRUSHLIST: Mutex<BrushList> = Mutex::new(BrushList::default());
     pub static ref PANELS: Mutex<Panels> = Mutex::new(Panels::new());
+    pub static ref MODELEDITOR: Mutex<ModelEditor> = Mutex::new(ModelEditor::new());
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum ActiveEditor {
     GameEditor,
     TerrainEditor,
+    ModelEditor,
     MaterialEditor,
     ScreenEditor,
 }
@@ -84,9 +86,9 @@ impl TheTrait for Editor {
 
             sidebar: Sidebar::new(),
             tileeditor: TileEditor::new(),
-            screeneditor: ScreenEditor::new(),
             terraineditor: TerrainEditor::new(),
             materialeditor: MaterialEditor::new(),
+            screeneditor: ScreenEditor::new(),
 
             server_ctx: ServerContext::default(),
             server,
@@ -373,8 +375,12 @@ impl TheTrait for Editor {
         let terrain_canvas = self.terraineditor.init_ui(ui, ctx, &mut self.project);
         tab_layout.add_canvas(str!("Terrain View"), terrain_canvas);
 
-        // let model_canvas: TheCanvas = TheCanvas::new();
-        // tab_layout.add_canvas(str!("Model View"), model_canvas);
+        let model_canvas: TheCanvas =
+            MODELEDITOR
+                .lock()
+                .unwrap()
+                .init_ui(ui, ctx, &mut self.project);
+        tab_layout.add_canvas(str!("Model View"), model_canvas);
 
         let material_canvas = self.materialeditor.init_ui(ui, ctx, &mut self.project);
         tab_layout.add_canvas(str!("Material View"), material_canvas);
@@ -734,6 +740,16 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
+                if MODELEDITOR.lock().unwrap().handle_event(
+                    &event,
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.server,
+                    &mut self.server_ctx,
+                ) {
+                    redraw = true;
+                }
                 if TILEMAPEDITOR.lock().unwrap().handle_event(
                     &event,
                     ui,
@@ -816,9 +832,18 @@ impl TheTrait for Editor {
                                 self.active_editor = ActiveEditor::TerrainEditor;
                                 PRERENDERTHREAD.lock().unwrap().set_paused(true);
                             } else if index == 2 {
+                                self.active_editor = ActiveEditor::ModelEditor;
+                                PRERENDERTHREAD.lock().unwrap().set_paused(true);
+                                MODELEDITOR.lock().unwrap().activated(
+                                    ui,
+                                    ctx,
+                                    &mut self.project,
+                                    &mut self.server_ctx,
+                                );
+                            } else if index == 3 {
                                 self.active_editor = ActiveEditor::MaterialEditor;
                                 PRERENDERTHREAD.lock().unwrap().set_paused(true);
-                            } else if index == 3 {
+                            } else if index == 4 {
                                 self.active_editor = ActiveEditor::ScreenEditor;
                                 PRERENDERTHREAD.lock().unwrap().set_paused(true);
                             }

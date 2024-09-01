@@ -230,7 +230,7 @@ impl Heightmap {
     ) -> Option<f32> {
         let mut t = 0.0;
 
-        for _ in 0..30 {
+        for _ in 0..60 {
             let p = ray.at(t);
 
             let mut bump = 0.0;

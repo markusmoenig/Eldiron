@@ -9,6 +9,7 @@ pub mod externals;
 pub mod materialeditor;
 pub mod minimap;
 pub mod misc;
+pub mod modeleditor;
 pub mod modelfxeditor;
 pub mod panels;
 pub mod regionfxeditor;
@@ -45,6 +46,7 @@ pub mod prelude {
     pub use crate::externals::*;
     pub use crate::materialeditor::*;
     pub use crate::misc::*;
+    pub use crate::modeleditor::*;
     pub use crate::modelfxeditor::*;
     pub use crate::panels::*;
     pub use crate::regionfxeditor::*;
@@ -67,6 +69,7 @@ pub mod prelude {
     pub use crate::tools::fx::FXTool;
     pub use crate::tools::game::GameTool;
     pub use crate::tools::mapobjects::MapObjectsTool;
+    pub use crate::tools::model::edit::ModelNodeEditTool;
     pub use crate::tools::picker::PickerTool;
     pub use crate::tools::render::RenderTool;
     pub use crate::tools::resize::ResizeTool;

@@ -133,7 +133,7 @@ impl GeoFXObject {
 
         for geo in &self.nodes {
             let area = geo.area();
-            self.height = geo.height();
+            self.height = geo.height().ceil() as i32;
             for p in area {
                 if !self.area.contains(&p) {
                     self.area.push(p);
@@ -159,6 +159,33 @@ impl GeoFXObject {
         }
 
         None
+    }
+
+    /// Get the length of the node.
+    pub fn get_length(&self) -> f32 {
+        if let Some(geo) = self.nodes.first() {
+            geo.length()
+        } else {
+            1.0
+        }
+    }
+
+    /// Get the height of the node.
+    pub fn get_height(&self) -> f32 {
+        if let Some(geo) = self.nodes.first() {
+            geo.height()
+        } else {
+            1.0
+        }
+    }
+
+    /// Get the thickness of the node.
+    pub fn get_thickness(&self) -> f32 {
+        if let Some(geo) = self.nodes.first() {
+            geo.thickness()
+        } else {
+            0.2
+        }
     }
 
     /// Get the tile position of the node.
