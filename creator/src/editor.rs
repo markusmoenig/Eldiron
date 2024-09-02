@@ -838,7 +838,8 @@ impl TheTrait for Editor {
                                     ui,
                                     ctx,
                                     &mut self.project,
-                                    &mut self.server_ctx,
+                                    &self.server_ctx,
+                                    true,
                                 );
                             } else if index == 3 {
                                 self.active_editor = ActiveEditor::MaterialEditor;
@@ -1253,8 +1254,12 @@ impl TheTrait for Editor {
                         } else if id.name == "Open" {
                             for p in paths {
                                 self.project_path = Some(p.clone());
-                                //let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
+                                let contents =
+                                    std::fs::read_to_string(p.clone()).unwrap_or("".to_string());
                                 // if let Ok(contents) = std::fs::read(p) {
+                                let pr: Result<Project, serde_json::Error> =
+                                    serde_json::from_str(&contents);
+                                println!("{:?}", pr.err());
                                 if let Ok(contents) = std::fs::read_to_string(p) {
                                     //if let Ok(project) =
                                     //    postcard::from_bytes::<Project>(contents.deref())

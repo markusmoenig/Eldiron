@@ -1,6 +1,15 @@
 use crate::prelude::*;
 use theframework::prelude::*;
 
+use GeoFXNodeRole::*;
+
+#[derive(PartialEq, Clone, Debug)]
+pub struct FTBuilderContext {
+    pub id_counter: i32,
+    pub out: String,
+    pub geometry: Vec<String>,
+}
+
 /// A character instance.
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct GeoFXObject {
@@ -8,6 +17,14 @@ pub struct GeoFXObject {
     pub material_id: Uuid,
 
     pub nodes: Vec<GeoFXNode>,
+
+    /// The node connections: Source node index, source terminal, dest node index, dest terminal
+    pub connections: Vec<(u16, u8, u16, u8)>,
+    pub zoom: f32,
+    pub selected_node: Option<usize>,
+
+    pub scroll_offset: Vec2i,
+
     pub area: Vec<Vec2i>,
 
     #[serde(default)]
@@ -28,6 +45,12 @@ impl GeoFXObject {
             material_id: Uuid::nil(),
 
             nodes: Vec::new(),
+            connections: Vec::new(),
+            zoom: 1.0,
+            selected_node: None,
+
+            scroll_offset: Vec2i::zero(),
+
             area: Vec::new(),
 
             height: 0,
@@ -50,6 +73,46 @@ impl GeoFXObject {
             data.push(n.load_parameters(time));
         }
         data
+    }
+
+    /// Generates the source code of the face.
+    pub fn build(&self, palette: &ThePalette, textures: &FxHashMap<Uuid, TheRGBATile>) -> String {
+        let mut ctx = FTBuilderContext {
+            out: String::new(),
+            id_counter: 0,
+            geometry: vec![],
+        };
+
+        self.build_trail(0, palette, textures, &mut ctx);
+
+        println!("{:?}", ctx);
+
+        ctx.out
+    }
+
+    /// After exiting a geometry node follow the trail of material nodes to compute the material.
+    pub fn build_trail(
+        &self,
+        node: usize,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
+        ctx: &mut FTBuilderContext,
+    ) {
+        let mut connections = vec![];
+        for (o, _, i, it) in &self.connections {
+            if *o == node as u16 {
+                connections.push((*i, *it));
+            }
+        }
+
+        for (o, _) in &connections {
+            self.nodes[*o as usize].build(palette, textures, ctx);
+            self.build_trail(*o as usize, palette, textures, ctx);
+        }
+
+        if !self.nodes.is_empty() {
+            self.nodes[0].build(palette, textures, ctx)
+        }
     }
 
     /// Returns the distance to the object nodes, the distance and the index of the closes node is returned.
@@ -152,6 +215,23 @@ impl GeoFXObject {
         false
     }
 
+    /// Update the nodes with defaults.
+    pub fn init(&mut self) {
+        let mut role = GeoFXNodeRole::MiddleWallH;
+        if let Some(geo) = self.nodes.first() {
+            role = geo.role.clone();
+        }
+        match &role {
+            LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
+                let mut bricks = GeoFXNode::new(Bricks);
+                bricks.position = vec2i(200, 40);
+                self.nodes.push(bricks);
+                self.connections.push((0, 0, 1, 0));
+            }
+            _ => {}
+        }
+    }
+
     /// Returns the layer role (Ground, Wall etc) for this object.
     pub fn get_layer_role(&self) -> Option<Layer2DRole> {
         if let Some(geo) = self.nodes.first() {
@@ -203,5 +283,67 @@ impl GeoFXObject {
         if let Some(geo) = self.nodes.first_mut() {
             geo.set_position(pos);
         }
+    }
+
+    /// Convert the model to a node canvas.
+    pub fn to_canvas(&mut self) -> TheNodeCanvas {
+        let mut canvas = TheNodeCanvas {
+            node_width: 136,
+            selected_node: self.selected_node,
+            offset: self.scroll_offset,
+            ..Default::default()
+        };
+
+        //let preview_size = 100;
+
+        for (index, node) in self.nodes.iter().enumerate() {
+            // if i >= self.node_previews.len() {
+            //     self.node_previews.resize(i + 1, None);
+            // }
+
+            // Remove preview buffer if size has changed
+            // if let Some(preview_buffer) = &self.node_previews[i] {
+            //     if preview_buffer.dim().width != preview_size
+            //         && preview_buffer.dim().height != preview_size
+            //     {
+            //         self.node_previews[i] = None;
+            //     }
+            // }
+
+            // Create preview if it doesn't exist
+            // if self.node_previews[i].is_none() {
+            //     let preview_buffer = TheRGBABuffer::new(TheDim::sized(preview_size, preview_size));
+            //     //self.render_node_preview(&mut preview_buffer, i, palette);
+            //     self.node_previews[i] = Some(preview_buffer);
+            // }
+
+            let n = TheNode {
+                name: node.name(),
+                position: node.position,
+                inputs: node.inputs(),
+                outputs: node.outputs(),
+                preview: node.preview.clone(),
+                supports_preview: node.supports_preview,
+                preview_is_open: node.preview_is_open,
+                can_be_deleted: index != 0,
+            };
+            canvas.nodes.push(n);
+        }
+        canvas.connections.clone_from(&self.connections);
+        canvas.zoom = self.zoom;
+        canvas.selected_node = self.selected_node;
+
+        canvas
+    }
+
+    /// Load a model from a JSON string.
+    pub fn from_json(json: &str) -> Self {
+        let object: GeoFXObject = serde_json::from_str(json).unwrap_or_default();
+        object
+    }
+
+    /// Convert the model to a JSON string.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self).unwrap_or_default()
     }
 }

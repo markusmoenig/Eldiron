@@ -117,6 +117,7 @@ impl Tool for DrawTool {
                     layout.add_widget(Box::new(falloff));
 
                     // Align Group
+                    /*
                     let mut gb = TheGroupButton::new(TheId::named("Draw Align Group"));
                     gb.add_text_status(
                         str!("Tile Align"),
@@ -130,6 +131,7 @@ impl Tool for DrawTool {
                     layout.add_widget(Box::new(gb));
 
                     layout.set_reverse_index(Some(1));
+                    */
                 }
 
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {

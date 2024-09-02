@@ -634,6 +634,7 @@ impl ModelFXEditor {
                                 let mut old_tiles_to_render: Vec<Vec2i> = vec![];
                                 let mut new_tiles_to_render: Vec<Vec2i> = vec![];
                                 let mut tiles_to_render: Vec<Vec2i> = vec![];
+                                let palette = project.palette.clone();
 
                                 if let Some(region) =
                                     project.get_region_mut(&server_ctx.curr_region)
@@ -668,7 +669,11 @@ impl ModelFXEditor {
 
                                         server.update_region(region);
                                     }
-                                    region.compile_geo(geo_obj_id);
+                                    region.compile_geo(
+                                        geo_obj_id,
+                                        &palette,
+                                        &TILEDRAWER.lock().unwrap().tiles,
+                                    );
                                 }
 
                                 if let Some(region) = region_to_render {

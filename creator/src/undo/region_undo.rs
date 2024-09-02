@@ -7,6 +7,8 @@ use crate::editor::PRERENDERTHREAD;
 pub enum RegionUndoAtom {
     GeoFXObjectsDeletion(Vec<GeoFXObject>, Vec<Vec2i>),
     GeoFXObjectEdit(Uuid, Option<GeoFXObject>, Option<GeoFXObject>, Vec<Vec2i>),
+    GeoFXAddNode(Uuid, String, String, Vec<Vec2i>),
+    GeoFXNodeEdit(Uuid, String, String, Vec<Vec2i>),
     HeightmapEdit(Heightmap, Heightmap, Vec<Vec2i>),
     RegionTileEdit(Vec2i, Option<RegionTile>, Option<RegionTile>),
     RegionFXEdit(RegionFXObject, RegionFXObject),
@@ -34,6 +36,26 @@ impl RegionUndoAtom {
                     region.geometry.remove(id);
                 }
                 region.update_geometry_areas();
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), Some(tiles.clone()));
+            }
+            RegionUndoAtom::GeoFXAddNode(id, prev, _, tiles)
+            | RegionUndoAtom::GeoFXNodeEdit(id, prev, _, tiles) => {
+                if let Some(geo_obj) = region.geometry.get_mut(id) {
+                    *geo_obj = GeoFXObject::from_json(prev);
+                    //material.render_preview(&project.palette, &TILEDRAWER.lock().unwrap().tiles);
+
+                    let node_canvas = geo_obj.to_canvas();
+                    ui.set_node_canvas("Model NodeCanvas", node_canvas);
+
+                    // let mut editor = MODELFXEDITOR.lock().unwrap();
+                    // editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
+                    // editor.set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
+                    // editor.render_material_changes(*id, server_ctx, project, ui);
+                }
+
                 PRERENDERTHREAD
                     .lock()
                     .unwrap()
@@ -118,6 +140,26 @@ impl RegionUndoAtom {
                     region.geometry.remove(id);
                 }
                 region.update_geometry_areas();
+                PRERENDERTHREAD
+                    .lock()
+                    .unwrap()
+                    .render_region(region.clone(), Some(tiles.clone()));
+            }
+            RegionUndoAtom::GeoFXAddNode(id, _, next, tiles)
+            | RegionUndoAtom::GeoFXNodeEdit(id, _, next, tiles) => {
+                if let Some(geo_obj) = region.geometry.get_mut(id) {
+                    *geo_obj = GeoFXObject::from_json(next);
+                    //material.render_preview(&project.palette, &TILEDRAWER.lock().unwrap().tiles);
+
+                    let node_canvas = geo_obj.to_canvas();
+                    ui.set_node_canvas("Model NodeCanvas", node_canvas);
+
+                    // let mut editor = MODELFXEDITOR.lock().unwrap();
+                    // editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
+                    // editor.set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
+                    // editor.render_material_changes(*id, server_ctx, project, ui);
+                }
+
                 PRERENDERTHREAD
                     .lock()
                     .unwrap()

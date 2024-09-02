@@ -46,6 +46,9 @@ pub enum GeoFXNodeRole {
     // BendWallSW,
     // BendWallSE,
     Gate,
+
+    Box,
+    Bricks,
 }
 
 use GeoFXNodeRole::*;
@@ -55,11 +58,20 @@ pub struct GeoFXNode {
     pub id: Uuid,
     pub role: GeoFXNodeRole,
     pub timeline: TheTimeline,
+
+    pub position: Vec2i,
+
+    pub supports_preview: bool,
+    pub preview_is_open: bool,
+
+    pub preview: TheRGBABuffer,
 }
 
 impl GeoFXNode {
     pub fn new(role: GeoFXNodeRole) -> Self {
         let mut coll = TheCollection::named(str!("Geo"));
+        let supports_preview = false;
+        let preview_is_open = false;
 
         match role {
             AddHeight => {
@@ -161,6 +173,18 @@ impl GeoFXNode {
                 );
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
             }
+            Bricks => {
+                coll.set("Ratio", TheValue::FloatRange(2.0, 1.0..=10.0));
+                coll.set("Rounding", TheValue::FloatRange(0.0, 0.0..=0.5));
+                coll.set("Rotation", TheValue::FloatRange(0.15, 0.0..=2.0));
+                coll.set("Gap", TheValue::FloatRange(0.1, 0.0..=0.5));
+                coll.set("Cell", TheValue::FloatRange(6.0, 0.0..=15.0));
+                coll.set(
+                    "Mode",
+                    TheValue::TextList(0, vec![str!("Bricks"), str!("Tiles")]),
+                );
+            }
+            Box => {}
         }
         let timeline = TheTimeline::collection(coll);
 
@@ -168,6 +192,10 @@ impl GeoFXNode {
             id: Uuid::new_v4(),
             role,
             timeline,
+            position: Vec2i::new(10, 5),
+            supports_preview,
+            preview_is_open,
+            preview: TheRGBABuffer::empty(),
         }
     }
 
@@ -188,7 +216,42 @@ impl GeoFXNode {
             // Self::new(GeoFXNodeRole::BendWallSE),
             Self::new(GeoFXNodeRole::Column),
             Self::new(GeoFXNodeRole::Gate),
+            Self::new(GeoFXNodeRole::Box),
+            Self::new(GeoFXNodeRole::Bricks),
         ]
+    }
+
+    pub fn name(&self) -> String {
+        match &self.role {
+            AddHeight => str!("Add height to the ground tile (height map)."),
+            RemoveHeight => str!("Remove height from the ground tile (height map)."),
+            SetHeight => str!("Set the height of the ground tile (height map)."),
+            LeftWall => str!("Left Wall"),
+            TopWall => str!("Top Wall"),
+            RightWall => str!("Right Wall"),
+            BottomWall => str!("Bottom Wall"),
+            MiddleWallH => str!("Middle Wall X"),
+            MiddleWallV => str!("Niddle Wall Y"),
+            // BendWallNW => str!("A rounded wall from the left to the top side of the tile."),
+            // BendWallNE => str!("A rounded wall from the top to the right side of the tile."),
+            // BendWallSE => str!("A rounded wall from the right to the bottom side of the tile."),
+            // BendWallSW => str!("A rounded wall from the bottom to the left side of the tile."),
+            Column => str!("A column (disc) with an optional profile."),
+            Gate => str!("A gate."),
+            Bricks => "Bricks".to_string(),
+            Box => "Box".to_string(),
+        }
+    }
+
+    /// Creates a new node from a name.
+    pub fn new_from_name(name: String) -> Self {
+        let nodes = GeoFXNode::nodes();
+        for n in nodes {
+            if n.name() == name {
+                return n;
+            }
+        }
+        GeoFXNode::new(MiddleWallH)
     }
 
     pub fn description(&self) -> String {
@@ -208,6 +271,7 @@ impl GeoFXNode {
             // BendWallSW => str!("A rounded wall from the bottom to the left side of the tile."),
             Column => str!("A column (disc) with an optional profile."),
             Gate => str!("A gate."),
+            _ => "".to_string(),
         }
     }
 
@@ -276,6 +340,44 @@ impl GeoFXNode {
         params
     }
 
+    pub fn build(
+        &self,
+        _palette: &ThePalette,
+        _textures: &FxHashMap<Uuid, TheRGBATile>,
+        ctx: &mut FTBuilderContext,
+    ) {
+        if let Some(coll) = self
+            .timeline
+            .get_collection_at(&TheTime::default(), str!("Geo"))
+        {
+            match self.role {
+                Bricks => {
+                    let geo = format!(
+                        "let pattern_{id_counter} = Pattern<Bricks>;\n",
+                        id_counter = { ctx.id_counter } // length = coll.get_f32_default("Length", 1.0),
+                                                        // height = coll.get_f32_default("Height", 1.0),
+                                                        // thickness = coll.get_f32_default("Thickness", 0.2),
+                    );
+                    ctx.geometry.push(format!("pattern_{}", ctx.id_counter));
+                    ctx.out += &geo;
+                    ctx.id_counter += 1;
+                }
+                MiddleWallH => {
+                    let geo = ctx.geometry.join(",");
+                    let geo = format!(
+                        "let face = Face<MiddleX> : length = {length}, height = {height}, thickness = {thickness}, content = {geometry};\n",
+                        length = coll.get_f32_default("Length", 1.0),
+                        height = coll.get_f32_default("Height", 1.0),
+                        thickness = coll.get_f32_default("Thickness", 0.2),
+                        geometry = geo
+                    );
+                    ctx.out += &geo;
+                }
+                _ => {}
+            }
+        }
+    }
+    /*
     /// Generates the source code of the face.
     pub fn build(&self) -> Option<String> {
         if let Some(coll) = self
@@ -298,7 +400,7 @@ impl GeoFXNode {
         } else {
             None
         }
-    }
+    }*/
 
     /// The 2D distance from the node to a point.
     pub fn distance(
@@ -1116,6 +1218,44 @@ impl GeoFXNode {
             GeoFXNodeRole::RemoveHeight => Some("-"),
             GeoFXNodeRole::SetHeight => Some("="),
             _ => None,
+        }
+    }
+
+    pub fn inputs(&self) -> Vec<TheNodeTerminal> {
+        match self.role {
+            LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
+                vec![]
+            }
+            Bricks | Box => {
+                vec![TheNodeTerminal {
+                    name: str!("in"),
+                    role: str!("In"),
+                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                }]
+            }
+            _ => {
+                vec![]
+            }
+        }
+    }
+
+    pub fn outputs(&self) -> Vec<TheNodeTerminal> {
+        match self.role {
+            LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
+                vec![TheNodeTerminal {
+                    name: str!("out"),
+                    role: str!("Out"),
+                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                }]
+            }
+            Bricks | Box => {
+                vec![TheNodeTerminal {
+                    name: str!("out"),
+                    role: str!("Out"),
+                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                }]
+            }
+            _ => vec![],
         }
     }
 

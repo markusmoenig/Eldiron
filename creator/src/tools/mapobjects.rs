@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use ToolEvent::*;
 
-use crate::editor::{MODELFXEDITOR, PRERENDERTHREAD, UNDOMANAGER};
+use crate::editor::{MODELFXEDITOR, PRERENDERTHREAD, TILEDRAWER, UNDOMANAGER};
 
 pub struct MapObjectsTool {
     id: TheId,
@@ -65,6 +65,7 @@ impl Tool for MapObjectsTool {
 
         let mut region_to_render: Option<Region> = None;
         let mut tiles_to_render: Vec<Vec2i> = vec![];
+        let palette = project.palette.clone();
 
         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
             if !self.processed_coords.contains(&coord) {
@@ -92,20 +93,31 @@ impl Tool for MapObjectsTool {
                         let new_id = Uuid::new_v4();
                         geo.id = new_id;
                         geo.set_default_position(coord);
-                        let obj_id = region.add_geo_node(geo);
-                        if let Some((geo_obj, _)) = region.find_geo_node(new_id) {
-                            tiles_to_render.clone_from(&geo_obj.area);
-                        }
-                        region.compile_geo(obj_id);
-                        server_ctx.curr_geo_object = Some(obj_id);
+                        // let obj_id = region.add_geo_node(geo);
+                        // if let Some((geo_obj, _)) = region.find_geo_node(new_id) {
+                        //     tiles_to_render.clone_from(&geo_obj.area);
+                        // }
+
+                        let mut geo_obj = GeoFXObject::default();
+                        geo_obj.nodes.push(geo);
+                        geo_obj.init();
+                        geo_obj.update_area();
+                        tiles_to_render.clone_from(&geo_obj.area);
+                        let geo_obj_id = geo_obj.id;
+                        region.geometry.insert(geo_obj_id, geo_obj);
+
+                        region.update_geometry_areas();
+
+                        region.compile_geo(geo_obj_id, &palette, &TILEDRAWER.lock().unwrap().tiles);
+                        server_ctx.curr_geo_object = Some(geo_obj_id);
                         server_ctx.curr_geo_node = Some(new_id);
                         region_to_render = Some(region.clone());
 
                         server.update_region(region);
 
-                        if let Some(obj) = region.geometry.get(&obj_id) {
+                        if let Some(obj) = region.geometry.get(&geo_obj_id) {
                             let undo = RegionUndoAtom::GeoFXObjectEdit(
-                                obj_id,
+                                geo_obj_id,
                                 None,
                                 Some(obj.clone()),
                                 tiles_to_render.clone(),

@@ -410,40 +410,43 @@ impl Region {
     }
 
     /// Compile all ForgedTiles based geometry nodes.
-    pub fn compile_geo_all(&mut self) {
+    pub fn compile_geo_all(
+        &mut self,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
+    ) {
         let ft = ForgedTiles::default();
         for (id, geo_obj) in &mut self.geometry {
-            for nodes in &geo_obj.nodes {
-                if let Some(source) = nodes.build() {
-                    match ft.compile_code(source) {
-                        Ok(ctx) => {
-                            self.compiled_geometry.insert(*id, ctx);
-                        }
-                        Err(err) => {
-                            println!("{:?}", err);
-                        }
-                    };
+            let source = geo_obj.build(palette, textures);
+            match ft.compile_code(source) {
+                Ok(ctx) => {
+                    self.compiled_geometry.insert(geo_obj.id, ctx);
                 }
-            }
+                Err(err) => {
+                    println!("{:?}", err);
+                }
+            };
         }
     }
 
     /// Compile this specific geometry.
-    pub fn compile_geo(&mut self, id: Uuid) {
+    pub fn compile_geo(
+        &mut self,
+        id: Uuid,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
+    ) {
         let ft = ForgedTiles::default();
         if let Some(geo_obj) = self.geometry.get(&id) {
-            for nodes in &geo_obj.nodes {
-                if let Some(source) = nodes.build() {
-                    match ft.compile_code(source) {
-                        Ok(ctx) => {
-                            self.compiled_geometry.insert(geo_obj.id, ctx);
-                        }
-                        Err(err) => {
-                            println!("{:?}", err);
-                        }
-                    };
+            let source = geo_obj.build(palette, textures);
+            match ft.compile_code(source) {
+                Ok(ctx) => {
+                    self.compiled_geometry.insert(geo_obj.id, ctx);
                 }
-            }
+                Err(err) => {
+                    println!("{:?}", err);
+                }
+            };
         }
     }
 
