@@ -8,6 +8,7 @@ pub struct FTBuilderContext {
     pub id_counter: i32,
     pub out: String,
     pub geometry: Vec<String>,
+    pub material_id: Option<String>,
 }
 
 /// A character instance.
@@ -81,6 +82,7 @@ impl GeoFXObject {
             out: String::new(),
             id_counter: 0,
             geometry: vec![],
+            material_id: None,
         };
 
         self.build_trail(0, palette, textures, &mut ctx);
@@ -99,15 +101,23 @@ impl GeoFXObject {
         ctx: &mut FTBuilderContext,
     ) {
         let mut connections = vec![];
-        for (o, _, i, it) in &self.connections {
-            if *o == node as u16 {
+        for (o, ot, i, it) in &self.connections {
+            if *o == node as u16 && *ot == 0 {
                 connections.push((*i, *it));
             }
         }
 
-        for (o, _) in &connections {
-            self.nodes[*o as usize].build(palette, textures, ctx);
-            self.build_trail(*o as usize, palette, textures, ctx);
+        for (node, _) in &connections {
+            for (o, ot, i, _it) in &self.connections {
+                if *o == *node && *ot == 1 {
+                    println!("found material");
+                    // Build the material connected to this node.
+                    self.nodes[*i as usize].build(palette, textures, ctx);
+                }
+            }
+
+            self.nodes[*node as usize].build(palette, textures, ctx);
+            self.build_trail(*node as usize, palette, textures, ctx);
         }
 
         if !self.nodes.is_empty() {

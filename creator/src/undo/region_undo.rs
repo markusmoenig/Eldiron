@@ -45,15 +45,14 @@ impl RegionUndoAtom {
             | RegionUndoAtom::GeoFXNodeEdit(id, prev, _, tiles) => {
                 if let Some(geo_obj) = region.geometry.get_mut(id) {
                     *geo_obj = GeoFXObject::from_json(prev);
-                    //material.render_preview(&project.palette, &TILEDRAWER.lock().unwrap().tiles);
 
                     let node_canvas = geo_obj.to_canvas();
                     ui.set_node_canvas("Model NodeCanvas", node_canvas);
 
-                    // let mut editor = MODELFXEDITOR.lock().unwrap();
-                    // editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
-                    // editor.set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
-                    // editor.render_material_changes(*id, server_ctx, project, ui);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named_with_id("Update GeoFX Node", geo_obj.id),
+                        TheValue::Empty,
+                    ));
                 }
 
                 PRERENDERTHREAD
@@ -149,15 +148,14 @@ impl RegionUndoAtom {
             | RegionUndoAtom::GeoFXNodeEdit(id, _, next, tiles) => {
                 if let Some(geo_obj) = region.geometry.get_mut(id) {
                     *geo_obj = GeoFXObject::from_json(next);
-                    //material.render_preview(&project.palette, &TILEDRAWER.lock().unwrap().tiles);
 
                     let node_canvas = geo_obj.to_canvas();
                     ui.set_node_canvas("Model NodeCanvas", node_canvas);
 
-                    // let mut editor = MODELFXEDITOR.lock().unwrap();
-                    // editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
-                    // editor.set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
-                    // editor.render_material_changes(*id, server_ctx, project, ui);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named_with_id("Update GeoFX Node", geo_obj.id),
+                        TheValue::Empty,
+                    ));
                 }
 
                 PRERENDERTHREAD

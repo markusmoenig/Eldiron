@@ -37,10 +37,10 @@ impl ModelEditor {
 
             // Side Panel
             let mut side_panel = TheCanvas::new();
-            let mut vlayout = TheVLayout::new(TheId::named("Editor Icon Layout"));
+            let mut vlayout = TheVLayout::new(TheId::named("Model Panel Layout"));
             vlayout.set_background_color(Some(TheThemeColors::ListLayoutBackground));
             vlayout.limiter_mut().set_max_width(90);
-            vlayout.set_margin(vec4i(0, 10, 0, 5));
+            vlayout.set_margin(vec4i(0, 10, 0, 0));
 
             // vlayout.add_widget(Box::new(ground_icon));
             // vlayout.add_widget(Box::new(wall_icon));
@@ -51,13 +51,13 @@ impl ModelEditor {
             // spacer.limiter_mut().set_max_height(2);
             // vlayout.add_widget(Box::new(spacer));
 
-            let mut text = TheText::new(TheId::named("Cursor Position"));
+            let mut text = TheText::new(TheId::named("Object Id"));
             text.set_text("()".to_string());
             text.set_text_color([200, 200, 200, 255]);
             vlayout.add_widget(Box::new(text));
 
-            let mut text = TheText::new(TheId::named("Cursor Height"));
-            text.set_text("H: -".to_string());
+            let mut text = TheText::new(TheId::named("Pattern Id"));
+            text.set_text("P: -".to_string());
             text.set_text_color([200, 200, 200, 255]);
             vlayout.add_widget(Box::new(text));
 
@@ -92,6 +92,18 @@ impl ModelEditor {
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(10, 4, 5, 4));
 
+        let mut material_nodes_button = TheTraybarButton::new(TheId::named("GeoFX Nodes"));
+        material_nodes_button.set_text(str!("Material"));
+        material_nodes_button.set_status_text("Material related nodes.");
+
+        material_nodes_button.set_context_menu(Some(TheContextMenu {
+            items: vec![TheContextMenuItem::new(
+                "Material".to_string(),
+                TheId::named("Material"),
+            )],
+            ..Default::default()
+        }));
+
         let mut extrusion_shapes_button = TheTraybarButton::new(TheId::named("GeoFX Nodes"));
         extrusion_shapes_button.set_text(str!("Extrusion Shapes"));
         extrusion_shapes_button
@@ -105,8 +117,9 @@ impl ModelEditor {
             ..Default::default()
         }));
 
+        toolbar_hlayout.add_widget(Box::new(material_nodes_button));
         toolbar_hlayout.add_widget(Box::new(extrusion_shapes_button));
-        toolbar_hlayout.set_reverse_index(Some(1));
+        toolbar_hlayout.set_reverse_index(Some(2));
 
         top_toolbar.set_layout(toolbar_hlayout);
         center.set_top(top_toolbar);
@@ -164,7 +177,7 @@ impl ModelEditor {
                 }
             }
 
-            self.set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
+            self.set_selected_geo_node_ui(server_ctx, project, ui, ctx, false);
         }
     }
 
@@ -180,6 +193,17 @@ impl ModelEditor {
     ) -> bool {
         let mut redraw = false;
         match event {
+            TheEvent::Custom(id, _) => {
+                if id.name == "Update GeoFX Node" {
+                    self.set_selected_geo_node_ui(server_ctx, project, ui, ctx, false);
+
+                    let palette = project.palette.clone();
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        region.compile_geo(id.uuid, &palette, &TILEDRAWER.lock().unwrap().tiles);
+                        self.activated(ui, ctx, project, server_ctx, false);
+                    }
+                }
+            }
             TheEvent::ContextMenuSelected(id, item) => {
                 //let prev = self.modelfx.to_json();
                 #[allow(clippy::collapsible_if)]
@@ -188,16 +212,11 @@ impl ModelEditor {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             if let Some(geo_obj) = region.geometry.get_mut(&geo_obj_id) {
                                 let prev = geo_obj.to_json();
-                                println!("{}", item.name.clone());
                                 let mut node = GeoFXNode::new_from_name(item.name.clone());
                                 node.position = vec2i(
                                     geo_obj.scroll_offset.x + 220,
                                     geo_obj.scroll_offset.y + 10,
                                 );
-                                //let index = geo_obj.nodes.len();
-                                // if index > 0 && node.supports_preview {
-                                //     node.render_preview(&project.palette);
-                                // }
                                 geo_obj.nodes.push(node);
                                 geo_obj.selected_node = Some(geo_obj.nodes.len() - 1);
                                 geo_obj.update_area();
@@ -213,9 +232,7 @@ impl ModelEditor {
                                     .add_region_undo(&region.id, undo, ctx);
                                 let node_canvas = geo_obj.to_canvas();
                                 ui.set_node_canvas("Model NodeCanvas", node_canvas);
-                                // self.set_selected_material_node_ui(
-                                //     server_ctx, project, ui, ctx, true,
-                                // );
+                                self.set_selected_geo_node_ui(server_ctx, project, ui, ctx, false);
                             }
                         }
                     }
@@ -228,7 +245,19 @@ impl ModelEditor {
                         if let Some(region) = project.get_region(&server_ctx.curr_region) {
                             if let Some(ftctx) = region.compiled_geometry.get(&geo_obj) {
                                 let meta = ftctx.meta_data_at(coord.x, coord.y, 200, 200);
-                                println!("{:?}", meta);
+                                //println!("{:?}", meta);
+                                if let Some(text) = ui.get_text("Pattern Id") {
+                                    if let Some(meta) = &meta {
+                                        text.set_text(format!("P: {}", meta.pattern_id));
+                                    } else {
+                                        text.set_text(format!("P:  {}", "-"));
+                                    }
+
+                                    if let Some(layout) = ui.get_layout("Model Panel Layout") {
+                                        layout.relayout(ctx);
+                                    }
+                                    redraw = true;
+                                }
                             }
                         }
                     }
@@ -243,7 +272,7 @@ impl ModelEditor {
                             }
                         }
                     }
-                    self.set_selected_material_node_ui(server_ctx, project, ui, ctx, true);
+                    self.set_selected_geo_node_ui(server_ctx, project, ui, ctx, true);
                 }
             }
             TheEvent::NodeDragged(id, index, position) => {
@@ -261,6 +290,7 @@ impl ModelEditor {
             | TheEvent::NodeConnectionRemoved(id, connections) => {
                 if id.name == "Model NodeCanvas" {
                     if let Some(geo_obj_id) = server_ctx.curr_geo_object {
+                        let palette = project.palette.clone();
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             if let Some(geo_obj) = region.geometry.get_mut(&geo_obj_id) {
                                 let prev = geo_obj.to_json();
@@ -287,6 +317,14 @@ impl ModelEditor {
                                     .lock()
                                     .unwrap()
                                     .add_region_undo(&region.id, undo, ctx);
+
+                                region.compile_geo(
+                                    geo_obj_id,
+                                    &palette,
+                                    &TILEDRAWER.lock().unwrap().tiles,
+                                );
+                                self.activated(ui, ctx, project, server_ctx, false);
+
                                 redraw = true;
                             }
                         }
@@ -297,6 +335,7 @@ impl ModelEditor {
             TheEvent::NodeDeleted(id, deleted_node_index, connections) => {
                 if id.name == "Model NodeCanvas" {
                     if let Some(geo_obj_id) = server_ctx.curr_geo_object {
+                        let palette = project.palette.clone();
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             if let Some(geo_obj) = region.geometry.get_mut(&geo_obj_id) {
                                 let prev = geo_obj.to_json();
@@ -320,6 +359,14 @@ impl ModelEditor {
                                     .lock()
                                     .unwrap()
                                     .add_region_undo(&region.id, undo, ctx);
+
+                                region.compile_geo(
+                                    geo_obj_id,
+                                    &palette,
+                                    &TILEDRAWER.lock().unwrap().tiles,
+                                );
+                                self.activated(ui, ctx, project, server_ctx, false);
+
                                 redraw = true;
                             }
                             //self.render_material_changes(material_id, server_ctx, project, ui);
@@ -359,56 +406,67 @@ impl ModelEditor {
                     if let Some(name) = id.name.strip_prefix(":GEOFX: ") {
                         let mut value = value.clone();
 
-                        if let Some(curr_geo_node) = server_ctx.curr_geo_node {
-                            let mut region_to_render: Option<Region> = None;
-                            let mut old_tiles_to_render: Vec<Vec2i> = vec![];
-                            let mut new_tiles_to_render: Vec<Vec2i> = vec![];
-                            let mut tiles_to_render: Vec<Vec2i> = vec![];
+                        if let Some(geo_obj_id) = server_ctx.curr_geo_object {
                             let palette = project.palette.clone();
-
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                                let mut geo_obj_id = Uuid::nil();
-                                if let Some((geo_obj, index)) = region.find_geo_node(curr_geo_node)
-                                {
-                                    old_tiles_to_render.clone_from(&geo_obj.area);
+                                if let Some(geo_obj) = region.geometry.get_mut(&geo_obj_id) {
+                                    if let Some(selected_index) = geo_obj.selected_node {
+                                        let mut old_tiles_to_render: Vec<Vec2i> = vec![];
+                                        let mut new_tiles_to_render: Vec<Vec2i> = vec![];
 
-                                    // Convert TextList back
-                                    let coll = geo_obj.nodes[index].collection();
-                                    if let Some(TheValue::TextList(_, list)) = coll.get(name) {
-                                        if let Some(v) = value.to_i32() {
-                                            value = TheValue::TextList(v, list.clone());
+                                        old_tiles_to_render.clone_from(&geo_obj.area);
+
+                                        // Convert TextList back
+                                        let coll = geo_obj.nodes[selected_index].collection();
+                                        if let Some(TheValue::TextList(_, list)) = coll.get(name) {
+                                            if let Some(v) = value.to_i32() {
+                                                value = TheValue::TextList(v, list.clone());
+                                            }
                                         }
+
+                                        let prev = geo_obj.to_json();
+
+                                        geo_obj.nodes[selected_index].set(name, value);
+                                        geo_obj.update_area();
+
+                                        let next = geo_obj.to_json();
+                                        let area = geo_obj.area.clone();
+
+                                        new_tiles_to_render.clone_from(&geo_obj.area);
+                                        let mut set: FxHashSet<Vec2i> = FxHashSet::default();
+                                        set.extend(&old_tiles_to_render);
+                                        set.extend(&new_tiles_to_render);
+                                        let tiles_to_render = set.into_iter().collect();
+
+                                        let region_id = region.id;
+                                        region.update_geometry_areas();
+
+                                        let region_to_render = Some(region.clone());
+
+                                        server.update_region(region);
+                                        region.compile_geo(
+                                            geo_obj_id,
+                                            &palette,
+                                            &TILEDRAWER.lock().unwrap().tiles,
+                                        );
+                                        self.activated(ui, ctx, project, server_ctx, false);
+
+                                        if let Some(region) = region_to_render {
+                                            PRERENDERTHREAD
+                                                .lock()
+                                                .unwrap()
+                                                .render_region(region, Some(tiles_to_render));
+                                        }
+
+                                        let undo = RegionUndoAtom::GeoFXNodeEdit(
+                                            geo_obj_id, prev, next, area,
+                                        );
+                                        UNDOMANAGER
+                                            .lock()
+                                            .unwrap()
+                                            .add_region_undo(&region_id, undo, ctx);
                                     }
-
-                                    geo_obj.nodes[index].set(name, value);
-                                    geo_obj.update_area();
-                                    geo_obj_id = geo_obj.id;
-
-                                    new_tiles_to_render.clone_from(&geo_obj.area);
-                                    let mut set: FxHashSet<Vec2i> = FxHashSet::default();
-                                    set.extend(&old_tiles_to_render);
-                                    set.extend(&new_tiles_to_render);
-                                    tiles_to_render = set.into_iter().collect();
-
-                                    region.update_geometry_areas();
-
-                                    region_to_render = Some(region.clone());
-
-                                    server.update_region(region);
                                 }
-                                region.compile_geo(
-                                    geo_obj_id,
-                                    &palette,
-                                    &TILEDRAWER.lock().unwrap().tiles,
-                                );
-                                self.activated(ui, ctx, project, server_ctx, false);
-                            }
-
-                            if let Some(region) = region_to_render {
-                                PRERENDERTHREAD
-                                    .lock()
-                                    .unwrap()
-                                    .render_region(region, Some(tiles_to_render));
                             }
                         }
                     }
@@ -420,7 +478,7 @@ impl ModelEditor {
         redraw
     }
 
-    pub fn set_selected_material_node_ui(
+    pub fn set_selected_geo_node_ui(
         &mut self,
         server_ctx: &ServerContext,
         project: &mut Project,
@@ -523,7 +581,6 @@ impl ModelEditor {
                 }
             }
         } else if let Some(text_layout) = ui.get_text_layout("Node Settings") {
-            println!("here");
             text_layout.clear();
         }
     }

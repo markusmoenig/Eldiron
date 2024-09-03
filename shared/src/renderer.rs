@@ -713,6 +713,8 @@ impl Renderer {
                                 h.hit_point = p;
 
                                 hit.clone_from(&h);
+                                hit.normal = ftctx.face_normal(p, 0, pos);
+
                                 /*
                                 if let Some(material) = material {
                                     hit.normal = material.normal(

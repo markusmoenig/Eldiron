@@ -49,6 +49,8 @@ pub enum GeoFXNodeRole {
 
     Box,
     Bricks,
+
+    Material,
 }
 
 use GeoFXNodeRole::*;
@@ -176,13 +178,25 @@ impl GeoFXNode {
             Bricks => {
                 coll.set("Ratio", TheValue::FloatRange(2.0, 1.0..=10.0));
                 coll.set("Rounding", TheValue::FloatRange(0.0, 0.0..=0.5));
-                coll.set("Rotation", TheValue::FloatRange(0.15, 0.0..=2.0));
-                coll.set("Gap", TheValue::FloatRange(0.1, 0.0..=0.5));
-                coll.set("Cell", TheValue::FloatRange(6.0, 0.0..=15.0));
-                coll.set(
-                    "Mode",
-                    TheValue::TextList(0, vec![str!("Bricks"), str!("Tiles")]),
-                );
+                coll.set("Rotation", TheValue::FloatRange(1.0, 0.0..=5.0));
+                coll.set("Gap", TheValue::FloatRange(1.0, 0.0..=5.0));
+                coll.set("Cell", TheValue::FloatRange(3.0, 0.0..=15.0));
+            }
+            Material => {
+                coll.set("Color", TheValue::PaletteIndex(0));
+                coll.set("Roughness", TheValue::FloatRange(0.5, 0.0..=1.0));
+                coll.set("Metallic", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Anisotropic", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Subsurface", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Specular Tint", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Sheen", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Sheen Tint", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Clearcoat", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Clearcoat Gloss", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Transmission", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Emission", TheValue::FloatRange(0.0, 0.0..=10.0));
+                coll.set("IOR", TheValue::FloatRange(1.5, 0.0..=2.0));
+                coll.set("Texture", TheValue::Text(str!("")));
             }
             Box => {}
         }
@@ -218,6 +232,7 @@ impl GeoFXNode {
             Self::new(GeoFXNodeRole::Gate),
             Self::new(GeoFXNodeRole::Box),
             Self::new(GeoFXNodeRole::Bricks),
+            Self::new(GeoFXNodeRole::Material),
         ]
     }
 
@@ -240,6 +255,7 @@ impl GeoFXNode {
             Gate => str!("A gate."),
             Bricks => "Bricks".to_string(),
             Box => "Box".to_string(),
+            Material => "Material".to_string(),
         }
     }
 
@@ -353,13 +369,32 @@ impl GeoFXNode {
             match self.role {
                 Bricks => {
                     let geo = format!(
-                        "let pattern_{id_counter} = Pattern<Bricks>;\n",
-                        id_counter = { ctx.id_counter } // length = coll.get_f32_default("Length", 1.0),
-                                                        // height = coll.get_f32_default("Height", 1.0),
-                                                        // thickness = coll.get_f32_default("Thickness", 0.2),
+                        "let pattern_{id_counter} = Pattern<Bricks>: material = {material}, ratio = {ratio}, rounding = {rounding}, rotation = {rotation}, gap = {gap}, cell = {cell};\n",
+                        id_counter = { ctx.id_counter },
+                        material = { if ctx.material_id.is_some() { ctx.material_id.clone().unwrap()} else {str!("none") }},
+                        ratio = coll.get_f32_default("Ratio", 3.0),
+                        rounding = coll.get_f32_default("Rounding", 0.0),
+                        rotation = coll.get_f32_default("Rotation", 1.0),
+                        gap = coll.get_f32_default("Gap", 1.0),
+                        cell = coll.get_f32_default("Cell", 3.0),
                     );
                     ctx.geometry.push(format!("pattern_{}", ctx.id_counter));
                     ctx.out += &geo;
+                    ctx.id_counter += 1;
+                    ctx.material_id = None;
+                }
+                Material => {
+                    let mat = format!(
+                        "let material_{id_counter} = Material<BSDF>: color = FF0000;\n",
+                        id_counter = { ctx.id_counter },
+                        // ratio = coll.get_f32_default("Ratio", 3.0),
+                        // rounding = coll.get_f32_default("Rounding", 0.0),
+                        // rotation = coll.get_f32_default("Rotation", 1.0),
+                        // gap = coll.get_f32_default("Gap", 1.0),
+                        // cell = coll.get_f32_default("Cell", 3.0),
+                    );
+                    ctx.out += &mat;
+                    ctx.material_id = Some(format!("material_{}", ctx.id_counter));
                     ctx.id_counter += 1;
                 }
                 MiddleWallH => {
@@ -1226,7 +1261,7 @@ impl GeoFXNode {
             LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
                 vec![]
             }
-            Bricks | Box => {
+            Bricks | Box | Material => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
                     role: str!("In"),
@@ -1249,11 +1284,18 @@ impl GeoFXNode {
                 }]
             }
             Bricks | Box => {
-                vec![TheNodeTerminal {
-                    name: str!("out"),
-                    role: str!("Out"),
-                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                }]
+                vec![
+                    TheNodeTerminal {
+                        name: str!("out"),
+                        role: str!("Out"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("mat"),
+                        role: str!("Mat"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                ]
             }
             _ => vec![],
         }
