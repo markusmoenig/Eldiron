@@ -85,9 +85,13 @@ impl GeoFXNode {
             SetHeight => {
                 coll.set("Height", TheValue::Float(0.0));
             }
+            Box => {
+                coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
+            }
             LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
-                // coll.set("Pos X", TheValue::Float(0.1));
-                // coll.set("Pos Y", TheValue::Float(0.5));
+                coll.set("Pos X", TheValue::Float(0.1));
+                coll.set("Pos Y", TheValue::Float(0.5));
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
                 coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
@@ -358,7 +362,7 @@ impl GeoFXNode {
 
     pub fn build(
         &self,
-        _palette: &ThePalette,
+        palette: &ThePalette,
         _textures: &FxHashMap<Uuid, TheRGBATile>,
         ctx: &mut FTBuilderContext,
     ) {
@@ -367,6 +371,20 @@ impl GeoFXNode {
             .get_collection_at(&TheTime::default(), str!("Geo"))
         {
             match self.role {
+                Box => {
+                    let geo = format!(
+                        "let box_{id_counter} = Shape<Box>: material = {material}, length = {length}, height = {height}, rounding = {rounding};\n",
+                        id_counter = { ctx.id_counter },
+                        material = { if ctx.material_id.is_some() { ctx.material_id.clone().unwrap()} else {str!("none") }},
+                        length = coll.get_f32_default("Length", 1.0),
+                        height = coll.get_f32_default("Height", 1.0),
+                        rounding = coll.get_f32_default("Rounding", 0.0),
+                    );
+                    ctx.geometry.push(format!("box_{}", ctx.id_counter));
+                    ctx.out += &geo;
+                    ctx.id_counter += 1;
+                    ctx.material_id = None;
+                }
                 Bricks => {
                     let geo = format!(
                         "let pattern_{id_counter} = Pattern<Bricks>: material = {material}, ratio = {ratio}, rounding = {rounding}, rotation = {rotation}, gap = {gap}, cell = {cell};\n",
@@ -384,9 +402,16 @@ impl GeoFXNode {
                     ctx.material_id = None;
                 }
                 Material => {
+                    let mut hex = "000000".to_string();
+                    let color_index = coll.get_i32_default("Color", 0);
+                    if let Some(color) = &palette.colors[color_index as usize] {
+                        hex = color.to_hex();
+                        hex.remove(0);
+                    }
                     let mat = format!(
-                        "let material_{id_counter} = Material<BSDF>: color = FF0000;\n",
+                        "let material_{id_counter} = Material<BSDF>: color = {hex};\n",
                         id_counter = { ctx.id_counter },
+                        hex = { hex },
                         // ratio = coll.get_f32_default("Ratio", 3.0),
                         // rounding = coll.get_f32_default("Rounding", 0.0),
                         // rotation = coll.get_f32_default("Rotation", 1.0),
@@ -397,10 +422,21 @@ impl GeoFXNode {
                     ctx.material_id = Some(format!("material_{}", ctx.id_counter));
                     ctx.id_counter += 1;
                 }
-                MiddleWallH => {
+                LeftWall | MiddleWallV | RightWall | TopWall | MiddleWallH | BottomWall => {
+                    let face_type = match &self.role {
+                        LeftWall => "Left",
+                        MiddleWallV => "MiddleY",
+                        RightWall => "Right",
+                        TopWall => "Top",
+                        MiddleWallH => "MiddleX",
+                        BottomWall => "Bottom",
+                        _ => "",
+                    };
+
                     let geo = ctx.geometry.join(",");
                     let geo = format!(
-                        "let face = Face<MiddleX> : length = {length}, height = {height}, thickness = {thickness}, content = {geometry};\n",
+                        "let face = Face<{face_type}> : length = {length}, height = {height}, thickness = {thickness}, content = {geometry};\n",
+                        face_type = face_type,
                         length = coll.get_f32_default("Length", 1.0),
                         height = coll.get_f32_default("Height", 1.0),
                         thickness = coll.get_f32_default("Thickness", 0.2),
@@ -1298,6 +1334,13 @@ impl GeoFXNode {
                 ]
             }
             _ => vec![],
+        }
+    }
+
+    /// Palette index has been changed. If we are a material, adjust the color.
+    pub fn set_palette_index(&self, index: u16) {
+        if self.role == GeoFXNodeRole::Material {
+            println!("new index {}", index);
         }
     }
 

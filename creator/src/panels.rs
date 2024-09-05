@@ -287,7 +287,7 @@ impl Panels {
                         .activated(server_ctx, project, ui, ctx);
                 } else if id.name == "Set Region Render" {
                     ctx.ui
-                        .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 6));
+                        .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 7));
                     if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
                         layout.set_mode(TheSharedHLayoutMode::Right);
                         ctx.ui.relayout = true;

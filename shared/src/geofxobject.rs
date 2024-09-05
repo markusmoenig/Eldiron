@@ -346,6 +346,20 @@ impl GeoFXObject {
         canvas
     }
 
+    /// Returns the connected input node and terminal for the given output node and terminal.
+    pub fn find_connected_input_node(
+        &self,
+        node: usize,
+        terminal_index: usize,
+    ) -> Option<(u16, u8)> {
+        for (o, ot, i, it) in &self.connections {
+            if *o == node as u16 && *ot == terminal_index as u8 {
+                return Some((*i, *it));
+            }
+        }
+        None
+    }
+
     /// Load a model from a JSON string.
     pub fn from_json(json: &str) -> Self {
         let object: GeoFXObject = serde_json::from_str(json).unwrap_or_default();

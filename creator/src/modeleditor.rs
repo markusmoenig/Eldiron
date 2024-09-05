@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use shared::prelude::*;
 
-use crate::editor::{PRERENDERTHREAD, TILEDRAWER, UNDOMANAGER};
+use crate::editor::{ACTIVEEDITOR, PRERENDERTHREAD, TILEDRAWER, UNDOMANAGER};
 
 pub struct ModelEditor {
     pub palette_indices: FxHashMap<String, Vec<u16>>,
@@ -140,12 +140,14 @@ impl ModelEditor {
     ) {
         let mut width = 200;
         let mut height = 200;
+        let mut tile_id = Vec2f::zero();
 
         if let Some(geo_obj_id) = server_ctx.curr_geo_object {
             if let Some(region) = project.get_region(&server_ctx.curr_region) {
                 if let Some(geo_obj) = region.geometry.get(&geo_obj_id) {
                     width = (geo_obj.get_length() * 200.0) as usize;
                     height = (geo_obj.get_height() * 200.0) as usize;
+                    tile_id = geo_obj.get_position();
                 }
             }
         }
@@ -157,7 +159,7 @@ impl ModelEditor {
                         let mut buffer =
                             TheRGBABuffer::new(TheDim::sized(width as i32, height as i32));
                         if let Some(ftctx) = region.compiled_geometry.get(&geo_obj_id) {
-                            ftctx.render(width, height, buffer.pixels_mut());
+                            ftctx.render(width, height, buffer.pixels_mut(), tile_id);
                         }
                         rgba_view.set_buffer(buffer);
                         ctx.ui.relayout = true;
@@ -193,6 +195,19 @@ impl ModelEditor {
     ) -> bool {
         let mut redraw = false;
         match event {
+            TheEvent::PaletteIndexChanged(_, index) => {
+                if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::ModelEditor {
+                    if let Some(geo_obj_id) = server_ctx.curr_geo_object {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            if let Some(geo_obj) = region.geometry.get_mut(&geo_obj_id) {
+                                if let Some(selected_index) = geo_obj.selected_node {
+                                    geo_obj.nodes[selected_index].set_palette_index(*index);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             TheEvent::Custom(id, _) => {
                 if id.name == "Update GeoFX Node" {
                     self.set_selected_geo_node_ui(server_ctx, project, ui, ctx, false);
@@ -295,23 +310,17 @@ impl ModelEditor {
                             if let Some(geo_obj) = region.geometry.get_mut(&geo_obj_id) {
                                 let prev = geo_obj.to_json();
                                 geo_obj.connections.clone_from(connections);
-                                // geo_obj.render_preview(
-                                //     &project.palette,
-                                //     &TILEDRAWER.lock().unwrap().tiles,
-                                // );
-                                // ui.set_node_preview(
-                                //     "MaterialFX NodeCanvas",
-                                //     0,
-                                //     material.get_preview(),
-                                // );
-                                // if let Some(list) = ui.get_rowlist_layout("ModelFX Material List") {
-                                //     list.set_item_image(material.id, material.get_preview());
-                                // }
+
+                                let next = geo_obj.to_json();
+                                let geo_obj_id = geo_obj.id;
+                                let area = geo_obj.area.clone();
+                                let region_clone = region.clone();
+
                                 let undo = RegionUndoAtom::GeoFXNodeEdit(
-                                    geo_obj.id,
+                                    geo_obj_id,
                                     prev,
-                                    geo_obj.to_json(),
-                                    geo_obj.area.clone(),
+                                    next,
+                                    area.clone(),
                                 );
                                 UNDOMANAGER
                                     .lock()
@@ -323,7 +332,13 @@ impl ModelEditor {
                                     &palette,
                                     &TILEDRAWER.lock().unwrap().tiles,
                                 );
+
                                 self.activated(ui, ctx, project, server_ctx, false);
+
+                                PRERENDERTHREAD
+                                    .lock()
+                                    .unwrap()
+                                    .render_region(region_clone, Some(area));
 
                                 redraw = true;
                             }
@@ -426,7 +441,30 @@ impl ModelEditor {
 
                                         let prev = geo_obj.to_json();
 
-                                        geo_obj.nodes[selected_index].set(name, value);
+                                        geo_obj.nodes[selected_index].set(name, value.clone());
+                                        match &geo_obj.nodes[selected_index].role {
+                                            GeoFXNodeRole::LeftWall
+                                            | GeoFXNodeRole::TopWall
+                                            | GeoFXNodeRole::RightWall
+                                            | GeoFXNodeRole::BottomWall
+                                            | GeoFXNodeRole::MiddleWallH
+                                            | GeoFXNodeRole::MiddleWallV => {
+                                                if name == "Length" || name == "Height" {
+                                                    if let Some((node, _)) =
+                                                        geo_obj.find_connected_input_node(0, 0)
+                                                    {
+                                                        let coll = geo_obj.nodes[node as usize]
+                                                            .collection();
+                                                        if coll.contains_key(name) {
+                                                            geo_obj.nodes[node as usize]
+                                                                .set(name, value);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            _ => {}
+                                        }
+
                                         geo_obj.update_area();
 
                                         let next = geo_obj.to_json();

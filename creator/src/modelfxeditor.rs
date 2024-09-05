@@ -653,7 +653,29 @@ impl ModelFXEditor {
                                             }
                                         }
 
-                                        geo_obj.nodes[index].set(name, value);
+                                        geo_obj.nodes[index].set(name, value.clone());
+                                        match &geo_obj.nodes[index].role {
+                                            GeoFXNodeRole::LeftWall
+                                            | GeoFXNodeRole::TopWall
+                                            | GeoFXNodeRole::RightWall
+                                            | GeoFXNodeRole::BottomWall
+                                            | GeoFXNodeRole::MiddleWallH
+                                            | GeoFXNodeRole::MiddleWallV => {
+                                                if name == "Length" || name == "Height" {
+                                                    if let Some((node, _)) =
+                                                        geo_obj.find_connected_input_node(0, 0)
+                                                    {
+                                                        let coll = geo_obj.nodes[node as usize]
+                                                            .collection();
+                                                        if coll.contains_key(name) {
+                                                            geo_obj.nodes[node as usize]
+                                                                .set(name, value);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            _ => {}
+                                        }
                                         geo_obj.update_area();
                                         geo_obj_id = geo_obj.id;
 

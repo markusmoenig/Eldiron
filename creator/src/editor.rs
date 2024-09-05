@@ -14,6 +14,7 @@ use std::sync::Mutex;
 use std::thread;
 
 lazy_static! {
+    pub static ref ACTIVEEDITOR: Mutex<ActiveEditor> = Mutex::new(ActiveEditor::GameEditor);
     pub static ref CODEEDITOR: Mutex<TheCodeEditor> = Mutex::new(TheCodeEditor::new());
     pub static ref TILEPICKER: Mutex<TilePicker> =
         Mutex::new(TilePicker::new("Main Tile Picker".to_string()));
@@ -45,8 +46,6 @@ pub enum ActiveEditor {
 pub struct Editor {
     project: Project,
     project_path: Option<PathBuf>,
-
-    active_editor: ActiveEditor,
 
     sidebar: Sidebar,
     tileeditor: TileEditor,
@@ -81,8 +80,6 @@ impl TheTrait for Editor {
         Self {
             project: Project::new(),
             project_path: None,
-
-            active_editor: ActiveEditor::GameEditor,
 
             sidebar: Sidebar::new(),
             tileeditor: TileEditor::new(),
@@ -499,7 +496,7 @@ impl TheTrait for Editor {
             if self.server.state == ServerState::Running {
                 // Ticks
                 self.client
-                    .tick(self.active_editor == ActiveEditor::GameEditor);
+                    .tick(*ACTIVEEDITOR.lock().unwrap() == ActiveEditor::GameEditor);
                 let debug = self.server.tick();
                 if !debug.is_empty() {
                     self.sidebar.add_debug_messages(debug, ui, ctx);
@@ -631,7 +628,7 @@ impl TheTrait for Editor {
             }
         }
 
-        if self.active_editor == ActiveEditor::GameEditor
+        if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::GameEditor
             && redraw_update
             && !self.project.regions.is_empty()
         {
@@ -657,7 +654,7 @@ impl TheTrait for Editor {
                 );
             }
             redraw = true;
-        } else if self.active_editor == ActiveEditor::ScreenEditor && redraw_update {
+        } else if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::ScreenEditor && redraw_update {
             self.screeneditor.redraw_screen(
                 ui,
                 &mut self.client,
@@ -819,7 +816,7 @@ impl TheTrait for Editor {
                     TheEvent::IndexChanged(id, index) => {
                         if id.name == "Editor Tab Tabbar" {
                             if index == 0 {
-                                self.active_editor = ActiveEditor::GameEditor;
+                                *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::GameEditor;
                                 if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
                                     let mode = shared.get_mode();
                                     if mode == TheSharedHLayoutMode::Shared
@@ -829,10 +826,10 @@ impl TheTrait for Editor {
                                     }
                                 }
                             } else if index == 1 {
-                                self.active_editor = ActiveEditor::TerrainEditor;
+                                *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::TerrainEditor;
                                 PRERENDERTHREAD.lock().unwrap().set_paused(true);
                             } else if index == 2 {
-                                self.active_editor = ActiveEditor::ModelEditor;
+                                *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::ModelEditor;
                                 PRERENDERTHREAD.lock().unwrap().set_paused(true);
                                 MODELEDITOR.lock().unwrap().activated(
                                     ui,
@@ -842,10 +839,10 @@ impl TheTrait for Editor {
                                     true,
                                 );
                             } else if index == 3 {
-                                self.active_editor = ActiveEditor::MaterialEditor;
+                                *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::MaterialEditor;
                                 PRERENDERTHREAD.lock().unwrap().set_paused(true);
                             } else if index == 4 {
-                                self.active_editor = ActiveEditor::ScreenEditor;
+                                *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::ScreenEditor;
                                 PRERENDERTHREAD.lock().unwrap().set_paused(true);
                             }
 
@@ -860,7 +857,7 @@ impl TheTrait for Editor {
 
                             if let Some(list) = ui.get_vlayout("Tool List Layout") {
                                 TOOLLIST.lock().unwrap().set_active_editor(
-                                    self.active_editor,
+                                    *ACTIVEEDITOR.lock().unwrap(),
                                     list,
                                     ctx,
                                 );
@@ -1589,8 +1586,9 @@ impl TheTrait for Editor {
                                 ));
                                 update_server_icons = true;
                             } else if self.server.state == ServerState::Paused {
-                                self.client
-                                    .tick(self.active_editor == ActiveEditor::GameEditor);
+                                self.client.tick(
+                                    *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::GameEditor,
+                                );
                                 let debug = self.server.tick();
                                 if !debug.is_empty() {
                                     self.sidebar.add_debug_messages(debug, ui, ctx);
