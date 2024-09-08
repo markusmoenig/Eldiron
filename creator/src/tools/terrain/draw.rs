@@ -2,7 +2,7 @@ use crate::prelude::*;
 use rayon::prelude::*;
 use ToolEvent::*;
 
-use crate::editor::{BRUSHLIST, PANELS, PRERENDERTHREAD, UNDOMANAGER};
+use crate::editor::{BRUSHLIST, PANELS, PRERENDERTHREAD, TERRAINEDITOR, UNDOMANAGER};
 
 pub struct TerrainDrawTool {
     id: TheId,
@@ -65,7 +65,7 @@ impl Tool for TerrainDrawTool {
             Activate => {
                 PANELS.lock().unwrap().set_brush_panel(ui, ctx);
 
-                if let Some(layout) = ui.get_hlayout("Game Tool Params") {
+                if let Some(layout) = ui.get_hlayout("Terrain Tool Params") {
                     layout.clear();
 
                     // Material Group
@@ -139,7 +139,7 @@ impl Tool for TerrainDrawTool {
                 return true;
             }
             DeActivate => {
-                if let Some(layout) = ui.get_hlayout("Game Tool Params") {
+                if let Some(layout) = ui.get_hlayout("Terrain Tool Params") {
                     layout.clear();
                     layout.set_reverse_index(None);
                 }
@@ -353,14 +353,60 @@ impl Tool for TerrainDrawTool {
     fn handle_event(
         &mut self,
         event: &TheEvent,
-        _ui: &mut TheUI,
+        ui: &mut TheUI,
         _ctx: &mut TheContext,
         _project: &mut Project,
         _server: &mut Server,
         _client: &mut Client,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) -> bool {
         match &event {
+            TheEvent::TileEditorHoverChanged(id, coord) => {
+                let terrain_editor = TERRAINEDITOR.lock().unwrap();
+                let half_brush = (self.brush_size * 50.0) as i32;
+
+                let settings = BrushSettings {
+                    size: self.brush_size * 50.0 + 0.01,
+                    falloff: self.falloff,
+                };
+
+                if id.name == "TerrainMap View" {
+                    if let Some(brush) = BRUSHLIST
+                        .lock()
+                        .unwrap()
+                        .brushes
+                        .get(&server_ctx.curr_brush)
+                    {
+                        if let Some(editor) = ui.get_rgba_layout("TerrainMap") {
+                            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                                let b = rgba_view.buffer_mut();
+                                //b.copy_into(0, 0, &terrain_editor.buffer);
+                                unsafe {
+                                    std::ptr::copy_nonoverlapping(
+                                        terrain_editor.buffer.pixels().as_ptr(),
+                                        b.pixels_mut().as_mut_ptr(),
+                                        b.len(),
+                                    );
+                                }
+
+                                for y in coord.y - half_brush..coord.y + half_brush {
+                                    for x in coord.x - half_brush..coord.x + half_brush {
+                                        let d = brush.distance(
+                                            vec2f(x as f32, y as f32),
+                                            Vec2f::from(*coord),
+                                            &settings,
+                                        );
+                                        if d <= 0.0 {
+                                            b.set_pixel(x, y, &WHITE);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    //println!("coord {}", coord);
+                }
+            }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Material Group" {
                     self.material_offset = *index as i32;

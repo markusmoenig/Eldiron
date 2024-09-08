@@ -104,22 +104,34 @@ impl ModelEditor {
             ..Default::default()
         }));
 
-        let mut extrusion_shapes_button = TheTraybarButton::new(TheId::named("GeoFX Nodes"));
-        extrusion_shapes_button.set_text(str!("Extrusion Shapes"));
-        extrusion_shapes_button
-            .set_status_text("2D Shapes which will get extruded (for example in Walls).");
+        let mut pattern_button = TheTraybarButton::new(TheId::named("GeoFX Nodes"));
+        pattern_button.set_text(str!("Patterns"));
+        pattern_button.set_status_text("The available patterns.");
 
-        extrusion_shapes_button.set_context_menu(Some(TheContextMenu {
+        pattern_button.set_context_menu(Some(TheContextMenu {
             items: vec![
-                TheContextMenuItem::new("Box".to_string(), TheId::named("Box")),
-                TheContextMenuItem::new("Bricks".to_string(), TheId::named("Bricks")),
+                TheContextMenuItem::new("Repeat".to_string(), TheId::named("Repeat")),
+                TheContextMenuItem::new("Stack".to_string(), TheId::named("Stack")),
             ],
             ..Default::default()
         }));
 
+        let mut shapes_button = TheTraybarButton::new(TheId::named("GeoFX Nodes"));
+        shapes_button.set_text(str!("Shapes"));
+        shapes_button.set_status_text("The available shapes.");
+
+        shapes_button.set_context_menu(Some(TheContextMenu {
+            items: vec![TheContextMenuItem::new(
+                "Box".to_string(),
+                TheId::named("Box"),
+            )],
+            ..Default::default()
+        }));
+
+        toolbar_hlayout.add_widget(Box::new(pattern_button));
+        toolbar_hlayout.add_widget(Box::new(shapes_button));
         toolbar_hlayout.add_widget(Box::new(material_nodes_button));
-        toolbar_hlayout.add_widget(Box::new(extrusion_shapes_button));
-        toolbar_hlayout.set_reverse_index(Some(2));
+        toolbar_hlayout.set_reverse_index(Some(3));
 
         top_toolbar.set_layout(toolbar_hlayout);
         center.set_top(top_toolbar);
@@ -140,14 +152,13 @@ impl ModelEditor {
     ) {
         let mut width = 200;
         let mut height = 200;
-        let mut tile_id = Vec2f::zero();
+        //let mut tile_id = Vec2f::zero();
 
         if let Some(geo_obj_id) = server_ctx.curr_geo_object {
             if let Some(region) = project.get_region(&server_ctx.curr_region) {
                 if let Some(geo_obj) = region.geometry.get(&geo_obj_id) {
                     width = (geo_obj.get_length() * 200.0) as usize;
                     height = (geo_obj.get_height() * 200.0) as usize;
-                    tile_id = geo_obj.get_position();
                 }
             }
         }
@@ -159,7 +170,7 @@ impl ModelEditor {
                         let mut buffer =
                             TheRGBABuffer::new(TheDim::sized(width as i32, height as i32));
                         if let Some(ftctx) = region.compiled_geometry.get(&geo_obj_id) {
-                            ftctx.render(width, height, buffer.pixels_mut(), tile_id);
+                            ftctx.render(width, height, buffer.pixels_mut());
                         }
                         rgba_view.set_buffer(buffer);
                         ctx.ui.relayout = true;

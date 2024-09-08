@@ -87,6 +87,10 @@ impl GeoFXObject {
 
         self.build_trail(0, palette, textures, &mut ctx);
 
+        if !self.nodes.is_empty() {
+            self.nodes[0].build(palette, textures, &mut ctx)
+        }
+
         println!("{:?}", ctx);
 
         ctx.out
@@ -110,18 +114,13 @@ impl GeoFXObject {
         for (node, _) in &connections {
             for (o, ot, i, _it) in &self.connections {
                 if *o == *node && *ot == 1 {
-                    println!("found material");
                     // Build the material connected to this node.
                     self.nodes[*i as usize].build(palette, textures, ctx);
                 }
             }
 
-            self.nodes[*node as usize].build(palette, textures, ctx);
             self.build_trail(*node as usize, palette, textures, ctx);
-        }
-
-        if !self.nodes.is_empty() {
-            self.nodes[0].build(palette, textures, ctx)
+            self.nodes[*node as usize].build(palette, textures, ctx);
         }
     }
 
@@ -233,7 +232,7 @@ impl GeoFXObject {
         }
         match &role {
             LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
-                let mut bricks = GeoFXNode::new(Bricks);
+                let mut bricks = GeoFXNode::new(Box);
                 bricks.position = vec2i(200, 40);
                 self.nodes.push(bricks);
                 self.connections.push((0, 0, 1, 0));

@@ -32,6 +32,7 @@ lazy_static! {
     pub static ref BRUSHLIST: Mutex<BrushList> = Mutex::new(BrushList::default());
     pub static ref PANELS: Mutex<Panels> = Mutex::new(Panels::new());
     pub static ref MODELEDITOR: Mutex<ModelEditor> = Mutex::new(ModelEditor::new());
+    pub static ref TERRAINEDITOR: Mutex<TerrainEditor> = Mutex::new(TerrainEditor::new());
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -50,7 +51,6 @@ pub struct Editor {
     sidebar: Sidebar,
     tileeditor: TileEditor,
     screeneditor: ScreenEditor,
-    terraineditor: TerrainEditor,
     materialeditor: MaterialEditor,
 
     server: Server,
@@ -83,7 +83,6 @@ impl TheTrait for Editor {
 
             sidebar: Sidebar::new(),
             tileeditor: TileEditor::new(),
-            terraineditor: TerrainEditor::new(),
             materialeditor: MaterialEditor::new(),
             screeneditor: ScreenEditor::new(),
 
@@ -369,7 +368,10 @@ impl TheTrait for Editor {
         let game_canvas = self.tileeditor.init_ui(ui, ctx, &mut self.project);
         tab_layout.add_canvas(str!("Game View"), game_canvas);
 
-        let terrain_canvas = self.terraineditor.init_ui(ui, ctx, &mut self.project);
+        let terrain_canvas = TERRAINEDITOR
+            .lock()
+            .unwrap()
+            .init_ui(ui, ctx, &mut self.project);
         tab_layout.add_canvas(str!("Terrain View"), terrain_canvas);
 
         let model_canvas: TheCanvas =
@@ -608,7 +610,12 @@ impl TheTrait for Editor {
                     let palette = self.project.palette.clone();
                     if let Some(region) = self.project.get_region_mut(&self.server_ctx.curr_region)
                     {
-                        draw_minimap(region, ui, ctx, &palette);
+                        if let Some(render_view) = ui.get_render_view("MiniMap") {
+                            let dim = *render_view.dim();
+                            let buffer = render_view.render_buffer_mut();
+                            buffer.resize(dim.width, dim.height);
+                            draw_minimap(region, buffer, &palette);
+                        }
                     }
                 }
                 PreRenderResult::Progress(id) => {
@@ -717,7 +724,7 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
-                if self.terraineditor.handle_event(
+                if TERRAINEDITOR.lock().unwrap().handle_event(
                     &event,
                     ui,
                     ctx,
@@ -828,6 +835,12 @@ impl TheTrait for Editor {
                             } else if index == 1 {
                                 *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::TerrainEditor;
                                 PRERENDERTHREAD.lock().unwrap().set_paused(true);
+                                TERRAINEDITOR.lock().unwrap().activated(
+                                    ui,
+                                    ctx,
+                                    &mut self.project,
+                                    &self.server_ctx,
+                                );
                             } else if index == 2 {
                                 *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::ModelEditor;
                                 PRERENDERTHREAD.lock().unwrap().set_paused(true);

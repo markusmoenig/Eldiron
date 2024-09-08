@@ -896,12 +896,18 @@ impl Sidebar {
                             region.editing_position_3d = vec3f(tile_x, 0.0, tile_y);
                             server.set_editing_position_3d(region.editing_position_3d);
                             server.update_region(region);
+
+                            region.scroll_offset = vec2i(
+                                (tile_x * region.grid_size as f32) as i32,
+                                (tile_y * region.grid_size as f32) as i32,
+                            );
+
+                            if let Some(rgba_layout) = ui.get_rgba_layout("TerrainMap") {
+                                rgba_layout.scroll_to(region.scroll_offset);
+                            }
+
                             if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
                                 rgba_layout.scroll_to_grid(vec2i(tile_x as i32, tile_y as i32));
-                                region.scroll_offset = vec2i(
-                                    (tile_x * region.grid_size as f32) as i32,
-                                    (tile_y * region.grid_size as f32) as i32,
-                                );
                             }
                             redraw = true;
                         }
@@ -3325,7 +3331,12 @@ impl Sidebar {
 
         // Apply the region's timeline to the editor.
         if let Some(region) = region {
-            draw_minimap(region, ui, ctx, palette);
+            if let Some(render_view) = ui.get_render_view("MiniMap") {
+                let dim = *render_view.dim();
+                let buffer = render_view.render_buffer_mut();
+                buffer.resize(dim.width, dim.height);
+                draw_minimap(region, buffer, &palette);
+            }
             RENDERER.lock().unwrap().render_canvas(region);
         }
     }
