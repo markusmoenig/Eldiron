@@ -1,5 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, PRERENDERTHREAD, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR, UNDOMANAGER,
+    ACTIVEEDITOR, CODEEDITOR, PRERENDERTHREAD, RENDERER, SIDEBARMODE, TERRAINEDITOR, TILEDRAWER,
+    TILEMAPEDITOR, UNDOMANAGER,
 };
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
@@ -919,10 +920,25 @@ impl Sidebar {
                 self.show_filtered_materials(ui, ctx, project, server_ctx);
             }
             TheEvent::Custom(id, value) => {
-                if id.name == "Update Tiles" {
+                if id.name == "Update Minimaps" {
+                    let palette = project.palette.clone();
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if let Some(render_view) = ui.get_render_view("MiniMap") {
+                            let dim = *render_view.dim();
+                            let buffer = render_view.render_buffer_mut();
+                            buffer.resize(dim.width, dim.height);
+                            draw_minimap(region, buffer, &palette);
+                        }
+                    }
+                    if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::TerrainEditor {
+                        TERRAINEDITOR
+                            .lock()
+                            .unwrap()
+                            .activated(ui, ctx, project, server_ctx, false);
+                    }
+                } else if id.name == "Update Tiles" {
                     self.update_tiles(ui, ctx, project, server, client);
-                }
-                if id.name == "Show Node Settings" {
+                } else if id.name == "Show Node Settings" {
                     self.deselect_sections_buttons(ui, "Node Section".to_string());
                     self.select_section_button(ui, "Node Section".to_string());
 
@@ -3335,7 +3351,7 @@ impl Sidebar {
                 let dim = *render_view.dim();
                 let buffer = render_view.render_buffer_mut();
                 buffer.resize(dim.width, dim.height);
-                draw_minimap(region, buffer, &palette);
+                draw_minimap(region, buffer, palette);
             }
             RENDERER.lock().unwrap().render_canvas(region);
         }

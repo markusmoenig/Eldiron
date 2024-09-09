@@ -45,7 +45,7 @@ impl Panels {
             MODELFXEDITOR
                 .lock()
                 .unwrap()
-                .build_material(project, ctx, server_ctx),
+                .build_brush_ui(project, ctx, server_ctx),
         );
         main_stack.add_canvas(MODELEDITOR.lock().unwrap().build_node_ui());
 

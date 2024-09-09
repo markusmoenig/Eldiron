@@ -66,6 +66,10 @@ impl RegionUndoAtom {
                     .lock()
                     .unwrap()
                     .render_region(region.clone(), Some(tiles.clone()));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Minimaps"),
+                    TheValue::Empty,
+                ));
             }
             RegionUndoAtom::RegionTileEdit(pos, prev, _) => {
                 if let Some(prev) = prev {
@@ -169,6 +173,10 @@ impl RegionUndoAtom {
                     .lock()
                     .unwrap()
                     .render_region(region.clone(), Some(tiles.clone()));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Minimaps"),
+                    TheValue::Empty,
+                ));
             }
             RegionUndoAtom::RegionTileEdit(pos, _, next) => {
                 if let Some(next) = next {

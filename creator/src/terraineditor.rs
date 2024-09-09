@@ -44,7 +44,7 @@ impl TerrainEditor {
     pub fn handle_event(
         &mut self,
         event: &TheEvent,
-        ui: &mut TheUI,
+        _ui: &mut TheUI,
         _ctx: &mut TheContext,
         _project: &mut Project,
         _client: &mut Client,
@@ -77,6 +77,7 @@ impl TerrainEditor {
         ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &ServerContext,
+        scroll_to: bool,
     ) {
         let palette = project.palette.clone();
         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -97,7 +98,9 @@ impl TerrainEditor {
                     ctx.ui.relayout = true;
                     ctx.ui.redraw_all = true;
                 }
-                editor.scroll_to(region.scroll_offset);
+                if scroll_to {
+                    editor.scroll_to(region.scroll_offset);
+                }
             }
         }
     }

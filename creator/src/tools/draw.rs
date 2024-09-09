@@ -2,7 +2,7 @@ use crate::{prelude::*, DEFAULT_VLAYOUT_RATIO};
 use rayon::prelude::*;
 use ToolEvent::*;
 
-use crate::editor::{BRUSHLIST, PANELS, PRERENDERTHREAD, UNDOMANAGER};
+use crate::editor::{BRUSHLIST, MODELFXEDITOR, PANELS, PRERENDERTHREAD, UNDOMANAGER};
 
 pub struct DrawTool {
     id: TheId,
@@ -10,10 +10,7 @@ pub struct DrawTool {
     processed_coords: FxHashSet<Vec2i>,
 
     material_offset: i32,
-
     align_index: i32,
-    brush_size: f32,
-    falloff: f32,
 }
 
 impl Tool for DrawTool {
@@ -27,8 +24,6 @@ impl Tool for DrawTool {
 
             material_offset: 0,
             align_index: 0,
-            brush_size: 1.0,
-            falloff: 0.0,
         }
     }
 
@@ -86,36 +81,6 @@ impl Tool for DrawTool {
                     spacer.limiter_mut().set_max_width(5);
                     layout.add_widget(Box::new(spacer));
 
-                    // Brush Size
-
-                    let mut text = TheText::new(TheId::empty());
-                    text.set_text("Brush Size".to_string());
-                    layout.add_widget(Box::new(text));
-
-                    let mut brush_size = TheSlider::new(TheId::named("Brush Size"));
-                    brush_size.set_value(TheValue::Float(self.brush_size));
-                    brush_size.set_default_value(TheValue::Float(1.0));
-                    brush_size.set_range(TheValue::RangeF32(0.01..=5.0));
-                    brush_size.set_continuous(true);
-                    brush_size.limiter_mut().set_max_width(120);
-                    brush_size.set_status_text("The brush size.");
-                    layout.add_widget(Box::new(brush_size));
-
-                    // Falloff
-
-                    let mut text = TheText::new(TheId::empty());
-                    text.set_text("Falloff".to_string());
-                    layout.add_widget(Box::new(text));
-
-                    let mut falloff = TheSlider::new(TheId::named("Falloff"));
-                    falloff.set_value(TheValue::Float(self.falloff));
-                    falloff.set_default_value(TheValue::Float(0.0));
-                    falloff.set_range(TheValue::RangeF32(0.0..=1.0));
-                    falloff.set_continuous(true);
-                    falloff.limiter_mut().set_max_width(120);
-                    falloff.set_status_text("The falloff off the brush.");
-                    layout.add_widget(Box::new(falloff));
-
                     // Align Group
                     /*
                     let mut gb = TheGroupButton::new(TheId::named("Draw Align Group"));
@@ -171,6 +136,7 @@ impl Tool for DrawTool {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 let mut region_to_render: Option<Region> = None;
                 let mut tiles_to_render: Vec<Vec2i> = vec![];
+                let modelfx = MODELFXEDITOR.lock().unwrap();
 
                 if let Some(material_id) = server_ctx.curr_material_object {
                     if server_ctx.curr_layer_role == Layer2DRole::Ground {
@@ -201,8 +167,8 @@ impl Tool for DrawTool {
                                     (material_index + 1) as u8,
                                     brush.as_ref(),
                                     &BrushSettings {
-                                        size: self.brush_size + 0.01,
-                                        falloff: self.falloff,
+                                        size: modelfx.brush_size + 0.01,
+                                        falloff: modelfx.falloff,
                                     },
                                 );
 
@@ -222,7 +188,7 @@ impl Tool for DrawTool {
                                     .add_region_undo(&region.id, undo, ctx);
                             }
                         } else {
-                            let size = self.brush_size.ceil() as i32 * 2;
+                            let size = modelfx.brush_size.ceil() as i32 * 2;
                             let prev = region.heightmap.clone();
 
                             for y in coord.y - size..coord.y + size {
@@ -246,8 +212,8 @@ impl Tool for DrawTool {
                                         (material_index + 1) as u8,
                                         brush.as_ref(),
                                         &BrushSettings {
-                                            size: self.brush_size,
-                                            falloff: self.falloff,
+                                            size: modelfx.brush_size,
+                                            falloff: modelfx.falloff,
                                         },
                                     );
 
@@ -368,18 +334,6 @@ impl Tool for DrawTool {
                     self.material_offset = *index as i32;
                 } else if id.name == "Draw Align Group" {
                     self.align_index = *index as i32;
-                }
-            }
-            TheEvent::ValueChanged(id, value) => {
-                if id.name == "Brush Size" {
-                    if let Some(size) = value.to_f32() {
-                        self.brush_size = size;
-                    }
-                }
-                if id.name == "Falloff" {
-                    if let Some(size) = value.to_f32() {
-                        self.falloff = size;
-                    }
                 }
             }
             _ => {}

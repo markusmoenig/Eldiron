@@ -29,6 +29,9 @@ pub struct ModelFXEditor {
     pub current_material: Option<Uuid>,
 
     pub palette_indices: FxHashMap<String, Vec<u16>>,
+
+    pub brush_size: f32,
+    pub falloff: f32,
 }
 
 #[allow(clippy::new_without_default)]
@@ -47,6 +50,9 @@ impl ModelFXEditor {
             current_material: None,
 
             palette_indices: FxHashMap::default(),
+
+            brush_size: 1.0,
+            falloff: 0.5,
         }
     }
 
@@ -114,7 +120,7 @@ impl ModelFXEditor {
     }
 
     /// Build the UI
-    pub fn build_material(
+    pub fn build_brush_ui(
         &self,
         _project: &Project,
         _ctx: &mut TheContext,
@@ -133,81 +139,43 @@ impl ModelFXEditor {
         add_material_button.set_text("Add Material".to_string());
         add_material_button.set_status_text("Add a new material.");
 
-        // let mut move_button: TheTraybarButton = TheTraybarButton::new(TheId::named("ModelFX Move"));
-        // move_button.set_icon_name("move".to_string());
-        // move_button.set_status_text("Moves the model to the library.");
+        // Brush Size
 
-        /*
-        let mut gb = TheGroupButton::new(TheId::named("ModelFX Mode Group"));
-        gb.add_text_status(
-            str!("Materials"),
-            str!("Materials which can be applied to geometry nodes."),
-        );
-        gb.add_text_status(str!("Editor"), str!("Edit the current material."));
-        gb.add_text_status(
-            str!("Brushes"),
-            str!("Select the brush to paint materials with."),
-        );
-        gb.set_item_width(75);
+        let mut text = TheText::new(TheId::empty());
+        text.set_text("Brush Size".to_string());
+        toolbar_hlayout.add_widget(Box::new(text));
 
-        let mut material_button = TheTraybarButton::new(TheId::named("MaterialFX Nodes"));
-        //add_button.set_icon_name("icon_role_add".to_string());
-        material_button.set_text(str!("Material Nodes"));
-        material_button.set_status_text(
-            "Nodes which model walls and components like windows, doors and decoration.",
-        );
+        let mut brush_size = TheSlider::new(TheId::named("Brush Size"));
+        brush_size.set_value(TheValue::Float(self.brush_size));
+        brush_size.set_default_value(TheValue::Float(1.0));
+        brush_size.set_range(TheValue::RangeF32(0.01..=5.0));
+        brush_size.set_continuous(true);
+        brush_size.limiter_mut().set_max_width(200);
+        brush_size.set_status_text("The brush size.");
+        toolbar_hlayout.add_widget(Box::new(brush_size));
 
-        material_button.set_context_menu(Some(TheContextMenu {
-            items: vec![
-                TheContextMenuItem::new_submenu(
-                    "Patterns".to_string(),
-                    TheId::named("Extrusion Patterns"),
-                    TheContextMenu {
-                        items: vec![
-                            TheContextMenuItem::new(
-                                "Box Subdivision".to_string(),
-                                TheId::named("Box Subdivision"),
-                            ),
-                            TheContextMenuItem::new(
-                                "Bricks & Tiles".to_string(),
-                                TheId::named("Bricks"),
-                            ),
-                            //TheContextMenuItem::new("Tiles".to_string(), TheId::named("Tiles")),
-                        ],
-                        ..Default::default()
-                    },
-                ),
-                TheContextMenuItem::new_submenu(
-                    "Utility".to_string(),
-                    TheId::named("MaterialFX Nodes Patterns"),
-                    TheContextMenu {
-                        items: vec![TheContextMenuItem::new(
-                            "Distance".to_string(),
-                            TheId::named("Distance"),
-                        )],
-                        ..Default::default()
-                    },
-                ),
-                TheContextMenuItem::new("UV Splitter".to_string(), TheId::named("UV Splitter")),
-                TheContextMenuItem::new("Noise2D".to_string(), TheId::named("Noise2D")),
-                TheContextMenuItem::new("Noise3D".to_string(), TheId::named("Noise3D")),
-                //TheContextMenuItem::new("Geometry".to_string(), TheId::named("Geometry")),
-                TheContextMenuItem::new(
-                    "Material Mixer".to_string(),
-                    TheId::named("Material Mixer"),
-                ),
-                TheContextMenuItem::new("Material".to_string(), TheId::named("Material")),
-            ],
-            ..Default::default()
-        }));
-        */
-        let mut blend = TheSlider::new(TheId::named("ModelFX Blend"));
-        blend.set_value(TheValue::Float(0.5));
-        blend.set_default_value(TheValue::Float(0.5));
-        blend.set_range(TheValue::RangeF32(0.0..=1.0));
-        blend.set_continuous(true);
-        blend.limiter_mut().set_max_width(120);
-        blend.set_status_text("Sets the blend factor for the preview in the 2D Map. 0 only shows the conceptual preview, 1 the fully rendered preview.");
+        // Falloff
+
+        let mut text = TheText::new(TheId::empty());
+        text.set_text("Falloff".to_string());
+        toolbar_hlayout.add_widget(Box::new(text));
+
+        let mut falloff = TheSlider::new(TheId::named("Falloff"));
+        falloff.set_value(TheValue::Float(self.falloff));
+        falloff.set_default_value(TheValue::Float(0.0));
+        falloff.set_range(TheValue::RangeF32(0.0..=1.0));
+        falloff.set_continuous(true);
+        falloff.limiter_mut().set_max_width(200);
+        falloff.set_status_text("The falloff off the brush.");
+        toolbar_hlayout.add_widget(Box::new(falloff));
+
+        // let mut blend = TheSlider::new(TheId::named("ModelFX Blend"));
+        // blend.set_value(TheValue::Float(0.5));
+        // blend.set_default_value(TheValue::Float(0.5));
+        // blend.set_range(TheValue::RangeF32(0.0..=1.0));
+        // blend.set_continuous(true);
+        // blend.limiter_mut().set_max_width(120);
+        // blend.set_status_text("Sets the blend factor for the preview in the 2D Map. 0 only shows the conceptual preview, 1 the fully rendered preview.");
 
         // toolbar_hlayout.add_widget(Box::new(move_button));
         //toolbar_hlayout.add_widget(Box::new(gb));
@@ -222,7 +190,7 @@ impl ModelFXEditor {
         //toolbar_hlayout.add_widget(Box::new(add_material_button));
 
         //toolbar_hlayout.add_widget(Box::new(material_button));
-        toolbar_hlayout.add_widget(Box::new(blend));
+        //toolbar_hlayout.add_widget(Box::new(blend));
         toolbar_hlayout.set_reverse_index(Some(1));
 
         /*
@@ -604,7 +572,15 @@ impl ModelFXEditor {
                 }
                 }*/
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "ModelFX Blend" {
+                if id.name == "Brush Size" {
+                    if let Some(size) = value.to_f32() {
+                        self.brush_size = size;
+                    }
+                } else if id.name == "Falloff" {
+                    if let Some(size) = value.to_f32() {
+                        self.falloff = size;
+                    }
+                } else if id.name == "ModelFX Blend" {
                     if let TheValue::Float(value) = value {
                         server_ctx.conceptual_display = Some(*value);
                     }

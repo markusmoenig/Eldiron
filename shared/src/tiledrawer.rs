@@ -483,20 +483,20 @@ impl TileDrawer {
 
                                             let col = TheColor::from_vec3f(hit.mat.base_color)
                                                 .to_u8_array();
-                                            if let Some(cd) = settings.conceptual_display {
-                                                c = self.mix_color(&c, &col, cd);
-                                            } else {
-                                                c = col;
-                                            }
+                                            // if let Some(cd) = settings.conceptual_display {
+                                            // c = self.mix_color(&c, &col, cd);
+                                            // } else {
+                                            c = col;
+                                            // }
                                         }
                                     } else {
                                         let col =
                                             TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
-                                        if let Some(cd) = settings.conceptual_display {
-                                            c = self.mix_color(&c, &col, cd);
-                                        } else {
-                                            c = col;
-                                        }
+                                        // if let Some(cd) = settings.conceptual_display {
+                                        //     c = self.mix_color(&c, &col, cd);
+                                        // } else {
+                                        c = col;
+                                        //}
                                     }
 
                                     //     let t = smoothstep(-1.0, 0.0, d.0);

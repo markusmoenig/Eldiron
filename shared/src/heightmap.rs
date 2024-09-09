@@ -48,12 +48,42 @@ impl Heightmap {
         self.material_mask.get_mut(&(x, y))
     }
 
+    pub fn get_height(&self, x: i32, y: i32) -> f32 {
+        *self.data.get(&(x, y)).unwrap_or(&0.0)
+    }
+
     pub fn set_height(&mut self, x: i32, y: i32, height: f32) {
         self.data.insert((x, y), height);
     }
 
-    pub fn get_height(&self, x: i32, y: i32) -> f32 {
-        *self.data.get(&(x, y)).unwrap_or(&0.0)
+    /// Get the material index at the given position.
+    pub fn get_material_index_at(&self, p: Vec2f) -> Option<[u8; 3]> {
+        let tile = vec2i(p.x.floor() as i32, p.y.floor() as i32);
+
+        if let Some(mask) = self.get_material_mask(tile.x, tile.y) {
+            let x = (p.x.fract() * mask.dim().width as f32) as i32;
+            let y = (p.y.fract() * mask.dim().height as f32) as i32;
+
+            if let Some(pixel) = mask.get_pixel(x, y) {
+                return Some(pixel);
+            }
+        }
+        None
+    }
+
+    /// Set the material index at the given position.
+    pub fn set_material_index_at(&mut self, p: Vec2f, material_index: u8) {
+        let tile = vec2i(p.x.floor() as i32, p.y.floor() as i32);
+
+        if let Some(mask) = self.get_material_mask_mut(tile.x, tile.y) {
+            let x = (p.x.fract() * mask.dim().width as f32) as i32;
+            let y = (p.y.fract() * mask.dim().height as f32) as i32;
+
+            if let Some(mut pixel) = mask.get_pixel(x, y) {
+                pixel[0] = material_index;
+                mask.set_pixel(x, y, &pixel);
+            }
+        }
     }
 
     pub fn set_interpolation(&mut self, x: i32, y: i32, inter: HeightmapInterpolation) {
@@ -118,7 +148,6 @@ impl Heightmap {
     }
 
     /// Get the bump of the material (if any) at the given position.
-    #[allow(clippy::too_many_arguments)]
     pub fn get_material_bump(
         &self,
         p: Vec3f,
@@ -297,4 +326,35 @@ impl Heightmap {
 
         None
     }
+
+    /*
+    pub fn get_pixel_at(
+        &self,
+        coord: Vec2f,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
+        materials: &IndexMap<Uuid, MaterialFXObject>,
+        material_params: &FxHashMap<Uuid, Vec<Vec<f32>>>,
+        material_index: usize,
+    ) {
+        let mut hit = Hit::default();
+
+        hit.pattern_pos = coord;
+        hit.global_uv = coord;
+
+        if let Some(material_index) = self.get_material_index_at(p) {
+            if let Some(material_params) = self.material_params.get(&material_id) {
+                material.compute(
+                    &mut hit,
+                    &self.palette,
+                    &TILEDRAWER.lock().unwrap().tiles,
+                    material_params,
+                );
+
+                let pixel = TheColor::from(hit.mat.base_color).to_u8_array();
+                b.set_pixel(x, y, &pixel);
+                terrain_editor.buffer.set_pixel(x, y, &pixel);
+            }
+        }
+    }*/
 }

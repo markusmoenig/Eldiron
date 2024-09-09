@@ -840,6 +840,7 @@ impl TheTrait for Editor {
                                     ctx,
                                     &mut self.project,
                                     &self.server_ctx,
+                                    true,
                                 );
                             } else if index == 2 {
                                 *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::ModelEditor;
