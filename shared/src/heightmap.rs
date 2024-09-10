@@ -48,42 +48,12 @@ impl Heightmap {
         self.material_mask.get_mut(&(x, y))
     }
 
-    pub fn get_height(&self, x: i32, y: i32) -> f32 {
-        *self.data.get(&(x, y)).unwrap_or(&0.0)
+    pub fn get_height(&self, x: f32, y: f32) -> f32 {
+        *self.data.get(&(x as i32, y as i32)).unwrap_or(&0.0)
     }
 
-    pub fn set_height(&mut self, x: i32, y: i32, height: f32) {
-        self.data.insert((x, y), height);
-    }
-
-    /// Get the material index at the given position.
-    pub fn get_material_index_at(&self, p: Vec2f) -> Option<[u8; 3]> {
-        let tile = vec2i(p.x.floor() as i32, p.y.floor() as i32);
-
-        if let Some(mask) = self.get_material_mask(tile.x, tile.y) {
-            let x = (p.x.fract() * mask.dim().width as f32) as i32;
-            let y = (p.y.fract() * mask.dim().height as f32) as i32;
-
-            if let Some(pixel) = mask.get_pixel(x, y) {
-                return Some(pixel);
-            }
-        }
-        None
-    }
-
-    /// Set the material index at the given position.
-    pub fn set_material_index_at(&mut self, p: Vec2f, material_index: u8) {
-        let tile = vec2i(p.x.floor() as i32, p.y.floor() as i32);
-
-        if let Some(mask) = self.get_material_mask_mut(tile.x, tile.y) {
-            let x = (p.x.fract() * mask.dim().width as f32) as i32;
-            let y = (p.y.fract() * mask.dim().height as f32) as i32;
-
-            if let Some(mut pixel) = mask.get_pixel(x, y) {
-                pixel[0] = material_index;
-                mask.set_pixel(x, y, &pixel);
-            }
-        }
+    pub fn set_height(&mut self, x: f32, y: f32, height: f32) {
+        self.data.insert((x as i32, y as i32), height);
     }
 
     pub fn set_interpolation(&mut self, x: i32, y: i32, inter: HeightmapInterpolation) {
@@ -105,10 +75,10 @@ impl Heightmap {
         let y0 = y.floor() as i32;
         let y1 = y0 + 1;
 
-        let h00 = self.get_height(x0, y0);
-        let h10 = self.get_height(x1, y0);
-        let h01 = self.get_height(x0, y1);
-        let h11 = self.get_height(x1, y1);
+        let h00 = self.get_height(x0 as f32, y0 as f32);
+        let h10 = self.get_height(x1 as f32, y0 as f32);
+        let h01 = self.get_height(x0 as f32, y1 as f32);
+        let h11 = self.get_height(x1 as f32, y1 as f32);
 
         let tx = x - x0 as f32;
         let ty = y - y0 as f32;
@@ -271,18 +241,21 @@ impl Heightmap {
 
             if let Some(mask) = self.get_material_mask(tile.x, tile.y) {
                 if let Some(material_mask) = mask.at_f(vec2f(p.x.fract(), p.z.fract())) {
-                    let index = (material_mask[0] - 1) as usize;
-                    if let Some((_id, material)) = materials.get_index(index) {
-                        if let Some(m_params) = material_params.get(&material.id) {
-                            hit.global_uv = vec2f(p.x, p.z);
-                            hit.pattern_pos = hit.global_uv;
+                    let m = material_mask[0];
+                    if m > 0 {
+                        let index = (m - 1) as usize;
+                        if let Some((_id, material)) = materials.get_index(index) {
+                            if let Some(m_params) = material_params.get(&material.id) {
+                                hit.global_uv = vec2f(p.x, p.z);
+                                hit.pattern_pos = hit.global_uv;
 
-                            //material.get_material_distance(0, hit, palette, textures, m_params);
-                            hit.mode = HitMode::Bump;
-                            material.follow_trail(0, 0, hit, palette, textures, m_params);
-                            bump = hit.bump;
+                                //material.get_material_distance(0, hit, palette, textures, m_params);
+                                hit.mode = HitMode::Bump;
+                                material.follow_trail(0, 0, hit, palette, textures, m_params);
+                                bump = hit.bump;
 
-                            has_material_hit = true;
+                                has_material_hit = true;
+                            }
                         }
                     }
                 }
@@ -306,10 +279,32 @@ impl Heightmap {
 
                     if let Some(mask) = self.get_material_mask(tile.x, tile.y) {
                         if let Some(material_mask) = mask.at_f(vec2f(p.x.fract(), p.z.fract())) {
-                            let index = (material_mask[0] - 1) as usize;
-                            if let Some((_id, material)) = materials.get_index(index) {
-                                if let Some(m_params) = material_params.get(&material.id) {
-                                    material.compute(hit, palette, textures, m_params);
+                            let m = material_mask[0];
+                            if m > 0 {
+                                let index = (m - 1) as usize;
+                                if let Some((_id, material)) = materials.get_index(index) {
+                                    if let Some(m_params) = material_params.get(&material.id) {
+                                        material.compute(hit, palette, textures, m_params);
+                                    }
+                                }
+                            }
+
+                            // Overlay the 2nd material
+                            let m = material_mask[1];
+                            if m > 0 {
+                                let index = (m - 1) as usize;
+                                if let Some((_id, material)) = materials.get_index(index) {
+                                    let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+
+                                    if let Some(m_params) = material_params.get(&material.id) {
+                                        mat_obj_params.clone_from(m_params);
+                                    }
+
+                                    let t = material_mask[2] as f32 / 255.0;
+
+                                    let mut h = hit.clone();
+                                    material.compute(&mut h, palette, textures, &mat_obj_params);
+                                    hit.mat.mix(&hit.mat.clone(), &h.mat, t);
                                 }
                             }
                         }

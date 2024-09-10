@@ -55,7 +55,10 @@ impl ToolList {
             Box::new(ScreenEraserTool::new()),
             Box::new(ScreenGameTool::new()),
         ];
-        let terrain_tools: Vec<Box<dyn Tool>> = vec![Box::new(TerrainDrawTool::new())];
+        let terrain_tools: Vec<Box<dyn Tool>> = vec![
+            Box::new(TerrainDrawTool::new()),
+            Box::new(TerrainHeightTool::new()),
+        ];
         let material_tools: Vec<Box<dyn Tool>> = vec![Box::new(MaterialNodeEditTool::new())];
         let model_tools: Vec<Box<dyn Tool>> = vec![Box::new(ModelNodeEditTool::new())];
         Self {

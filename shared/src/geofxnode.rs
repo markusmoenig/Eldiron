@@ -1128,8 +1128,8 @@ impl GeoFXNode {
                     .get_collection_at(&TheTime::default(), str!("Geo"))
                 {
                     let add = coll.get_f32_default("Add Height", 0.2);
-                    let height = heightmap.get_height(pos.x, pos.y);
-                    heightmap.set_height(pos.x, pos.y, height + add);
+                    let height = heightmap.get_height(pos.x as f32, pos.y as f32);
+                    heightmap.set_height(pos.x as f32, pos.y as f32, height + add);
                 }
             }
             GeoFXNodeRole::RemoveHeight => {
@@ -1138,8 +1138,8 @@ impl GeoFXNode {
                     .get_collection_at(&TheTime::default(), str!("Geo"))
                 {
                     let add = coll.get_f32_default("Remove Height", 0.2);
-                    let height = heightmap.get_height(pos.x, pos.y);
-                    heightmap.set_height(pos.x, pos.y, height - add);
+                    let height = heightmap.get_height(pos.x as f32, pos.y as f32);
+                    heightmap.set_height(pos.x as f32, pos.y as f32, height - add);
                 }
             }
             GeoFXNodeRole::SetHeight => {
@@ -1148,7 +1148,7 @@ impl GeoFXNode {
                     .get_collection_at(&TheTime::default(), str!("Geo"))
                 {
                     let value = coll.get_f32_default("Height", 0.0);
-                    heightmap.set_height(pos.x, pos.y, value);
+                    heightmap.set_height(pos.x as f32, pos.y as f32, value);
                 }
             }
             _ => {}

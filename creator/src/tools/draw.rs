@@ -328,6 +328,7 @@ impl Tool for DrawTool {
         _client: &mut Client,
         _server_ctx: &mut ServerContext,
     ) -> bool {
+        #[allow(clippy::single_match)]
         match &event {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Material Group" {

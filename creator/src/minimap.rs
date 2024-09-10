@@ -9,6 +9,15 @@ pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, palette: &ThePa
     //     .theme()
     //     .color(TheThemeColors::DefaultWidgetDarkBackground);
 
+    pub fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
+        [
+            (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
+            (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] as f32 / 255.0 * v) * 255.0) as u8,
+            (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v) * 255.0) as u8,
+            255,
+        ]
+    }
+
     let background = BLACK;
 
     buffer.fill(background);
@@ -104,22 +113,30 @@ pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, palette: &ThePa
 
                         // Overlay the 2nd material
                         if has_hit {
-                            let index = (material_mask[1] - 1) as usize;
-                            if let Some((_id, material)) = tile_drawer.materials.get_index(index) {
-                                let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+                            let m = material_mask[1];
+                            if m > 0 {
+                                let index = (m - 1) as usize;
+                                if let Some((_id, material)) =
+                                    tile_drawer.materials.get_index(index)
+                                {
+                                    let mut mat_obj_params: Vec<Vec<f32>> = vec![];
 
-                                if let Some(m_params) = material_params.get(&material.id) {
-                                    mat_obj_params.clone_from(m_params);
+                                    if let Some(m_params) = material_params.get(&material.id) {
+                                        mat_obj_params.clone_from(m_params);
+                                    }
+
+                                    //let mut h = hit.clone();
+                                    material.compute(
+                                        &mut hit,
+                                        palette,
+                                        &tile_drawer.tiles,
+                                        &mat_obj_params,
+                                    );
+                                    let s = material_mask[2] as f32 / 255.0;
+                                    let overlay_color =
+                                        TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
+                                    color = mix_color(&color, &overlay_color, s);
                                 }
-
-                                //let mut h = hit.clone();
-                                material.compute(
-                                    &mut hit,
-                                    palette,
-                                    &tile_drawer.tiles,
-                                    &mat_obj_params,
-                                );
-                                color = TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
                             }
                         }
                     }

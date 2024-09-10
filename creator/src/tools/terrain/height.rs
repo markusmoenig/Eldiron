@@ -6,7 +6,7 @@ use crate::editor::{
     BRUSHLIST, MODELFXEDITOR, PANELS, PRERENDERTHREAD, TERRAINEDITOR, TILEDRAWER, UNDOMANAGER,
 };
 
-pub struct TerrainDrawTool {
+pub struct TerrainHeightTool {
     id: TheId,
 
     processed_coords: FxHashSet<Vec2i>,
@@ -20,7 +20,7 @@ pub struct TerrainDrawTool {
     palette: ThePalette,
 }
 
-impl Tool for TerrainDrawTool {
+impl Tool for TerrainHeightTool {
     fn new() -> Self
     where
         Self: Sized,
@@ -43,13 +43,13 @@ impl Tool for TerrainDrawTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Draw Tool (D). Draw with materials on the heightmap.")
+        str!("Heightmap Tool (H). Draw elevation.")
     }
     fn icon_name(&self) -> String {
-        str!("brush")
+        str!("heightmap")
     }
     fn accel(&self) -> Option<char> {
-        Some('d')
+        Some('h')
     }
 
     fn tool_event(

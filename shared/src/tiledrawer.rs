@@ -127,6 +127,15 @@ impl TileDrawer {
         compute_delta: bool,
         palette: &ThePalette,
     ) {
+        pub fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
+            [
+                (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
+                (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] as f32 / 255.0 * v) * 255.0) as u8,
+                (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v) * 255.0) as u8,
+                255,
+            ]
+        }
+
         let _start = self.get_time();
 
         let server_tick = update.server_tick;
@@ -217,37 +226,9 @@ impl TileDrawer {
                         let terrain_uv = vec2f(tile_x_f.fract(), tile_y_f.fract());
 
                         if let Some(material_mask) = mask.at_f(terrain_uv) {
-                            let index = (material_mask[0] - 1) as usize;
-                            if let Some((_id, material)) = self.materials.get_index(index) {
-                                let mut mat_obj_params: Vec<Vec<f32>> = vec![];
-
-                                if let Some(m_params) = material_params.get(&material.id) {
-                                    mat_obj_params.clone_from(m_params);
-                                }
-
-                                hit.normal = vec3f(0.0, 1.0, 0.0);
-                                hit.hit_point = vec3f(tile_x_f, 0.0, tile_y_f);
-
-                                hit.uv = terrain_uv;
-                                hit.global_uv = vec2f(tile_x_f, tile_y_f);
-                                hit.pattern_pos = hit.global_uv;
-
-                                if material.follow_geo_trail(&time, &mut hit, &mat_obj_params) {
-                                    if hit.interior_distance <= 0.01 {
-                                        hit.value = 0.0;
-                                    } else {
-                                        hit.value = 1.0;
-                                    }
-                                }
-                                material.compute(&mut hit, palette, &self.tiles, &mat_obj_params);
-
-                                color = TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
-                                has_hit = true;
-                            }
-
-                            // Overlay the 2nd material
-                            if has_hit {
-                                let index = (material_mask[1] - 1) as usize;
+                            let m = material_mask[0];
+                            if m > 0 {
+                                let index = (material_mask[0] - 1) as usize;
                                 if let Some((_id, material)) = self.materials.get_index(index) {
                                     let mut mat_obj_params: Vec<Vec<f32>> = vec![];
 
@@ -255,14 +236,57 @@ impl TileDrawer {
                                         mat_obj_params.clone_from(m_params);
                                     }
 
-                                    //let mut h = hit.clone();
+                                    hit.normal = vec3f(0.0, 1.0, 0.0);
+                                    hit.hit_point = vec3f(tile_x_f, 0.0, tile_y_f);
+
+                                    hit.uv = terrain_uv;
+                                    hit.global_uv = vec2f(tile_x_f, tile_y_f);
+                                    hit.pattern_pos = hit.global_uv;
+
+                                    if material.follow_geo_trail(&time, &mut hit, &mat_obj_params) {
+                                        if hit.interior_distance <= 0.01 {
+                                            hit.value = 0.0;
+                                        } else {
+                                            hit.value = 1.0;
+                                        }
+                                    }
                                     material.compute(
                                         &mut hit,
                                         palette,
                                         &self.tiles,
                                         &mat_obj_params,
                                     );
+
                                     color = TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
+                                    has_hit = true;
+                                }
+                            }
+
+                            // Overlay the 2nd material
+                            if has_hit {
+                                let m = material_mask[1];
+                                if m > 0 {
+                                    let index = (m - 1) as usize;
+                                    if let Some((_id, material)) = self.materials.get_index(index) {
+                                        let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+
+                                        if let Some(m_params) = material_params.get(&material.id) {
+                                            mat_obj_params.clone_from(m_params);
+                                        }
+
+                                        //let mut h = hit.clone();
+                                        material.compute(
+                                            &mut hit,
+                                            palette,
+                                            &self.tiles,
+                                            &mat_obj_params,
+                                        );
+
+                                        let s = material_mask[2] as f32 / 255.0;
+                                        let overlay_color =
+                                            TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
+                                        color = mix_color(&color, &overlay_color, s);
+                                    }
                                 }
                             }
                         }

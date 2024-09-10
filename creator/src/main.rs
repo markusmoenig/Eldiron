@@ -80,6 +80,7 @@ pub mod prelude {
     pub use crate::tools::screen::tiledrawer::ScreenTileDrawerTool;
     pub use crate::tools::selection::SelectionTool;
     pub use crate::tools::terrain::draw::TerrainDrawTool;
+    pub use crate::tools::terrain::height::TerrainHeightTool;
     pub use crate::tools::tiledrawer::TileDrawerTool;
     pub use crate::tools::tilemap::TilemapTool;
     pub use crate::tools::zoom::ZoomTool;
