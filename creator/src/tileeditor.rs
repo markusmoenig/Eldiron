@@ -208,9 +208,8 @@ impl TileEditor {
                                 }
 
                                 if let Some(text) = ui.get_text("Cursor Height") {
-                                    let h =
-                                        region.heightmap.data.get(&(pos.x, pos.z)).unwrap_or(&0.0);
-                                    text.set_text(format!("H: {}", h));
+                                    let h = region.heightmap.get_height(pos.x as f32, pos.z as f32);
+                                    text.set_text(format!("H: {:.3}", h));
                                     redraw = true;
                                 }
 
@@ -456,12 +455,8 @@ impl TileEditor {
 
                     if let Some(text) = ui.get_text("Cursor Height") {
                         if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                            let h = region
-                                .heightmap
-                                .data
-                                .get(&(coord.x, coord.y))
-                                .unwrap_or(&0.0);
-                            text.set_text(format!("H: {}", h));
+                            let h = region.heightmap.get_height(coord.x as f32, coord.y as f32);
+                            text.set_text(format!("H: {:.3}", h));
                         }
                         redraw = true;
                     }

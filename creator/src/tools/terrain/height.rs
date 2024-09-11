@@ -12,7 +12,7 @@ pub struct TerrainHeightTool {
     processed_coords: FxHashSet<Vec2i>,
 
     material_params: FxHashMap<Uuid, Vec<Vec<f32>>>,
-    material_offset: i32,
+    mode: i32,
 
     undo_prev: Heightmap,
     affected_tiles: Vec<Vec2i>,
@@ -30,7 +30,7 @@ impl Tool for TerrainHeightTool {
             processed_coords: FxHashSet::default(),
 
             material_params: FxHashMap::default(),
-            material_offset: 0,
+            mode: 0,
 
             undo_prev: Heightmap::default(),
             affected_tiles: vec![],
@@ -76,15 +76,12 @@ impl Tool for TerrainHeightTool {
                     layout.clear();
 
                     // Material Group
-                    let mut gb = TheGroupButton::new(TheId::named("Material Group"));
-                    gb.add_text_status(
-                        str!("Material #1"),
-                        str!("Draw aligned to the tiles of the regions."),
-                    );
-                    gb.add_text_status(str!("Material #2"), str!("Draw without any restrictions."));
+                    let mut gb = TheGroupButton::new(TheId::named("Brush Mode Group"));
+                    gb.add_text_status(str!("Add"), str!("Add height."));
+                    gb.add_text_status(str!("Subtract"), str!("Subtract height."));
                     gb.set_item_width(85);
 
-                    gb.set_index(self.material_offset);
+                    gb.set_index(self.mode);
 
                     layout.add_widget(Box::new(gb));
 
@@ -143,15 +140,14 @@ impl Tool for TerrainHeightTool {
         let brush_scale = 50.0;
         match &event {
             TheEvent::TileEditorClicked(id, coord) | TheEvent::TileEditorDragged(id, coord) => {
-                let mut terrain_editor = TERRAINEDITOR.lock().unwrap();
+                let terrain_editor = TERRAINEDITOR.lock().unwrap();
                 let half_brush = (modelfx.brush_size * brush_scale / 2.0) as i32;
 
-                let mut material_index = 0;
-                if let Some(material_id) = server_ctx.curr_material_object {
-                    if let Some(full) = project.materials.get_full(&material_id) {
-                        material_index = full.0;
-                    }
-                }
+                //let mut subdivision_buffer: FxHashMap<(i32, i32, usize, usize), (f32, f32)> =
+                //FxHashMap::default();
+
+                let mut subdivision_buffer: FxHashMap<(i32, i32, usize, usize), f32> =
+                    FxHashMap::default();
 
                 // On Click, Init the paint specific stuff and undo
                 if matches!(*event, TheEvent::TileEditorClicked(_, _)) {
@@ -212,13 +208,46 @@ impl Tool for TerrainHeightTool {
                                                     self.affected_tiles.push(tile_id);
                                                 }
 
+                                                //if !processed.contains(&subdiv_key) {
+                                                let scale = 1.0;
+
                                                 let falloff = clamp(
                                                     -d / (modelfx.falloff * brush_scale),
-                                                    //* (1.0 - modelfx.falloff),
                                                     0.0,
                                                     1.0,
-                                                );
+                                                ) * scale;
 
+                                                let subdiv_key = region
+                                                    .heightmap
+                                                    .calculate_tile_and_subdivision(
+                                                        tile_id_f.x,
+                                                        tile_id_f.y,
+                                                    );
+
+                                                subdivision_buffer.insert(subdiv_key, falloff);
+                                                //
+                                                // region.heightmap.set_height(
+                                                //     tile_id_f.x,
+                                                //     tile_id_f.y,
+                                                //     falloff,
+                                                // );
+
+                                                // let subdiv_key = region
+                                                //     .heightmap
+                                                //     .calculate_tile_and_subdivision(
+                                                //         tile_id_f.x,
+                                                //         tile_id_f.y,
+                                                //     );
+
+                                                // let entry = subdivision_buffer
+                                                //     .entry(subdiv_key)
+                                                //     .or_insert((0.0, 0.0));
+                                                // entry.0 += falloff * scale;
+                                                // entry.1 += falloff;
+
+                                                // processed.insert(subdiv_key);
+                                                // }
+                                                /*
                                                 let px = x % region.grid_size;
                                                 let py = y % region.grid_size;
 
@@ -274,7 +303,7 @@ impl Tool for TerrainHeightTool {
                                                                 .set_pixel(x, y, &pixel);
                                                         }
                                                     }
-                                                }
+                                                }*/
                                             }
                                         }
                                         let bd = border_mask(d, 1.5);
@@ -286,10 +315,53 @@ impl Tool for TerrainHeightTool {
                                         }
                                     }
                                 }
+
+                                if let Some(region) =
+                                    project.get_region_mut(&server_ctx.curr_region)
+                                {
+                                    for ((tile_x, tile_y, sub_x, sub_y), height) in
+                                        subdivision_buffer
+                                    {
+                                        if self.mode == 1 {
+                                            region.heightmap.set_height_in_tile(
+                                                tile_x,
+                                                tile_y,
+                                                sub_x,
+                                                sub_y,
+                                                0.0 - height,
+                                            );
+                                        } else {
+                                            region.heightmap.set_height_in_tile(
+                                                tile_x, tile_y, sub_x, sub_y, height,
+                                            );
+                                        }
+                                    }
+                                }
+
+                                // if let Some(region) =
+                                //     project.get_region_mut(&server_ctx.curr_region)
+                                // {
+                                //     // Now apply the final values to each subdivision
+                                //     for (
+                                //         (tile_x, tile_y, sub_x, sub_y),
+                                //         (height_sum, influence_sum),
+                                //     ) in subdivision_buffer
+                                //     {
+                                //         if influence_sum > 0.0 {
+                                //             let average_height = height_sum / influence_sum;
+                                //             region.heightmap.set_height_in_tile(
+                                //                 tile_x,
+                                //                 tile_y,
+                                //                 sub_x,
+                                //                 sub_y,
+                                //                 average_height,
+                                //             );
+                                //         }
+                                //     }
+                                // }
                             }
                         }
                     }
-                    //println!("coord {}", coord);
                 }
             }
             TheEvent::TileEditorUp(id) => {
@@ -375,8 +447,8 @@ impl Tool for TerrainHeightTool {
                 }
             }
             TheEvent::IndexChanged(id, index) => {
-                if id.name == "Material Group" {
-                    self.material_offset = *index as i32;
+                if id.name == "Brush Mode Group" {
+                    self.mode = *index as i32;
                 }
             }
             _ => {}

@@ -1,6 +1,10 @@
 use crate::prelude::*;
 use theframework::prelude::*;
 
+fn default_subdivisions() -> usize {
+    1
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Copy)]
 pub enum HeightmapInterpolation {
     Linear,
@@ -13,12 +17,15 @@ use HeightmapInterpolation::*;
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct Heightmap {
     #[serde(with = "vectorize")]
-    pub data: FxHashMap<(i32, i32), f32>,
+    pub data: FxHashMap<(i32, i32), Vec<f32>>,
     #[serde(default)]
     #[serde(with = "vectorize")]
     pub material_mask: FxHashMap<(i32, i32), TheRGBBuffer>,
     #[serde(with = "vectorize")]
     pub interpolation: FxHashMap<(i32, i32), HeightmapInterpolation>,
+
+    #[serde(default = "default_subdivisions")]
+    pub subdivisions: usize,
 }
 
 impl Default for Heightmap {
@@ -33,6 +40,8 @@ impl Heightmap {
             data: FxHashMap::default(),
             material_mask: FxHashMap::default(),
             interpolation: FxHashMap::default(),
+
+            subdivisions: 1,
         }
     }
 
@@ -48,12 +57,74 @@ impl Heightmap {
         self.material_mask.get_mut(&(x, y))
     }
 
+    // Get the height at a specific position (x, y) with f32 precision
     pub fn get_height(&self, x: f32, y: f32) -> f32 {
-        *self.data.get(&(x as i32, y as i32)).unwrap_or(&0.0)
+        let (tile_x, tile_y, sub_x, sub_y) = self.calculate_tile_and_subdivision(x, y);
+
+        if let Some(subtile_data) = self.data.get(&(tile_x, tile_y)) {
+            let index = self.subdivision_index(sub_x, sub_y);
+            subtile_data.get(index).cloned().unwrap_or(0.0)
+        } else {
+            0.0
+        }
     }
 
+    // Set the height at a specific position (x, y) with f32 precision
     pub fn set_height(&mut self, x: f32, y: f32, height: f32) {
-        self.data.insert((x as i32, y as i32), height);
+        let (tile_x, tile_y, sub_x, sub_y) = self.calculate_tile_and_subdivision(x, y);
+
+        let index = self.subdivision_index(sub_x, sub_y);
+        let tile_data =
+            self.data
+                .entry((tile_x, tile_y))
+                .or_insert(vec![0.0; self.subdivisions * self.subdivisions]);
+        tile_data[index] = height;
+    }
+
+    // Get the height for a specific subdivision in a tile
+    // pub fn get_height_in_tile(&self, tile_x: i32, tile_y: i32, sub_x: usize, sub_y: usize) -> f32 {
+    //     let index = self.subdivision_index(sub_x, sub_y);
+    //     if let Some(tile_data) = self.data.get(&(tile_x, tile_y)) {
+    //         tile_data.get(index).cloned().unwrap_or(0.0)
+    //     } else {
+    //         0.0 // Default height value if the tile does not exist
+    //     }
+    // }
+
+    /// Set the height for a specific subdivision in a tile
+    pub fn set_height_in_tile(
+        &mut self,
+        tile_x: i32,
+        tile_y: i32,
+        sub_x: usize,
+        sub_y: usize,
+        height: f32,
+    ) {
+        let index = self.subdivision_index(sub_x, sub_y);
+        let tile_data =
+            self.data
+                .entry((tile_x, tile_y))
+                .or_insert(vec![0.0; self.subdivisions * self.subdivisions]);
+        tile_data[index] = height;
+    }
+
+    // Calculate the tile and subdivision index based on the f32 x and y coordinates
+    pub fn calculate_tile_and_subdivision(&self, x: f32, y: f32) -> (i32, i32, usize, usize) {
+        let tile_x = x.floor() as i32;
+        let tile_y = y.floor() as i32;
+
+        let fractional_x = x - x.floor();
+        let fractional_y = y - y.floor();
+
+        let sub_x = (fractional_x * self.subdivisions as f32).floor() as usize;
+        let sub_y = (fractional_y * self.subdivisions as f32).floor() as usize;
+
+        (tile_x, tile_y, sub_x, sub_y)
+    }
+
+    // Convert (sub_x, sub_y) into a linear index for the Vec
+    fn subdivision_index(&self, sub_x: usize, sub_y: usize) -> usize {
+        sub_y * self.subdivisions + sub_x
     }
 
     pub fn set_interpolation(&mut self, x: i32, y: i32, inter: HeightmapInterpolation) {
@@ -61,7 +132,7 @@ impl Heightmap {
     }
 
     pub fn get_interpolation(&self, x: i32, y: i32) -> HeightmapInterpolation {
-        *self.interpolation.get(&(x, y)).unwrap_or(&Linear)
+        *self.interpolation.get(&(x, y)).unwrap_or(&Smoothstep)
     }
 
     #[inline(always)]
@@ -69,6 +140,7 @@ impl Heightmap {
         (value / step_size).floor() * step_size
     }
 
+    /*
     pub fn interpolate_height(&self, x: f32, y: f32) -> f32 {
         let x0 = x.floor() as i32;
         let x1 = x0 + 1;
@@ -104,6 +176,70 @@ impl Heightmap {
                 h0 * (1.0 - ty) + h1 * ty
             }
         }
+    }*/
+
+    pub fn interpolate_height(&self, x: f32, y: f32) -> f32 {
+        // Calculate which tile and subdivision we are in for the given coordinates
+        let tile_x = x.floor() as i32;
+        let tile_y = y.floor() as i32;
+
+        // Determine the fractional part inside the tile (used for subdivision index calculation)
+        let fractional_x = x - tile_x as f32;
+        let fractional_y = y - tile_y as f32;
+
+        // Calculate the subdivision indices within the tile
+        let sub_x = (fractional_x * self.subdivisions as f32).floor() as usize;
+        let sub_x_next = (sub_x + 1) % self.subdivisions;
+
+        let sub_y = (fractional_y * self.subdivisions as f32).floor() as usize;
+        let sub_y_next = (sub_y + 1) % self.subdivisions;
+
+        // Handle tile transitions
+        let tile_x_next = if sub_x_next == 0 { tile_x + 1 } else { tile_x };
+        let tile_y_next = if sub_y_next == 0 { tile_y + 1 } else { tile_y };
+
+        // Get the heights of the four surrounding subdivisions, handling tile transitions
+        let h00 = self.get_height_in_tile(tile_x, tile_y, sub_x, sub_y); // Bottom-left subdivision
+        let h10 = self.get_height_in_tile(tile_x_next, tile_y, sub_x_next, sub_y); // Bottom-right subdivision
+        let h01 = self.get_height_in_tile(tile_x, tile_y_next, sub_x, sub_y_next); // Top-left subdivision
+        let h11 = self.get_height_in_tile(tile_x_next, tile_y_next, sub_x_next, sub_y_next); // Top-right subdivision
+
+        // Calculate interpolation fractions based on the subdivision position inside the tile
+        let tx = fractional_x * self.subdivisions as f32 - sub_x as f32;
+        let ty = fractional_y * self.subdivisions as f32 - sub_y as f32;
+
+        // Perform interpolation based on the interpolation method defined at (tile_x, tile_y)
+        match self.get_interpolation(tile_x, tile_y) {
+            HeightmapInterpolation::Linear => {
+                // Bilinear interpolation
+                let h0 = h00 * (1.0 - tx) + h10 * tx;
+                let h1 = h01 * (1.0 - tx) + h11 * tx;
+                h0 * (1.0 - ty) + h1 * ty
+            }
+            HeightmapInterpolation::Smoothstep => {
+                // Smoothstep interpolation
+                let tx = smoothstep(0.0, 1.0, tx);
+                let ty = smoothstep(0.0, 1.0, ty);
+                let h0 = h00 * (1.0 - tx) + h10 * tx;
+                let h1 = h01 * (1.0 - tx) + h11 * tx;
+                h0 * (1.0 - ty) + h1 * ty
+            }
+            HeightmapInterpolation::Step(step_size) => {
+                // Step interpolation
+                let tx = Self::step_interpolate(tx, step_size);
+                let ty = Self::step_interpolate(ty, step_size);
+                let h0 = h00 * (1.0 - tx) + h10 * tx;
+                let h1 = h01 * (1.0 - tx) + h11 * tx;
+                h0 * (1.0 - ty) + h1 * ty
+            }
+        }
+    }
+
+    fn get_height_in_tile(&self, tile_x: i32, tile_y: i32, sub_x: usize, sub_y: usize) -> f32 {
+        self.get_height(
+            tile_x as f32 + (sub_x as f32 / self.subdivisions as f32),
+            tile_y as f32 + (sub_y as f32 / self.subdivisions as f32),
+        )
     }
 
     pub fn calculate_normal(&self, x: f32, y: f32, epsilon: f32) -> Vec3f {
