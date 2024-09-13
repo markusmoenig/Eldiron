@@ -121,10 +121,10 @@ impl ModelEditor {
         shapes_button.set_status_text("The available shapes.");
 
         shapes_button.set_context_menu(Some(TheContextMenu {
-            items: vec![TheContextMenuItem::new(
-                "Box".to_string(),
-                TheId::named("Box"),
-            )],
+            items: vec![
+                TheContextMenuItem::new("Box".to_string(), TheId::named("Box")),
+                TheContextMenuItem::new("Disc".to_string(), TheId::named("Disc")),
+            ],
             ..Default::default()
         }));
 
@@ -317,6 +317,8 @@ impl ModelEditor {
                 if id.name == "Model NodeCanvas" {
                     if let Some(geo_obj_id) = server_ctx.curr_geo_object {
                         let palette = project.palette.clone();
+                        let mut region_to_render: Option<Region> = None;
+                        let mut tiles_to_render: Vec<Vec2i> = vec![];
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             if let Some(geo_obj) = region.geometry.get_mut(&geo_obj_id) {
                                 let prev = geo_obj.to_json();
@@ -325,7 +327,7 @@ impl ModelEditor {
                                 let next = geo_obj.to_json();
                                 let geo_obj_id = geo_obj.id;
                                 let area = geo_obj.area.clone();
-                                let region_clone = region.clone();
+                                tiles_to_render = area.clone();
 
                                 let undo = RegionUndoAtom::GeoFXNodeEdit(
                                     geo_obj_id,
@@ -344,17 +346,18 @@ impl ModelEditor {
                                     &TILEDRAWER.lock().unwrap().tiles,
                                 );
 
+                                region_to_render = Some(region.clone());
+
                                 self.activated(ui, ctx, project, server_ctx, false);
-
-                                PRERENDERTHREAD
-                                    .lock()
-                                    .unwrap()
-                                    .render_region(region_clone, Some(area));
-
                                 redraw = true;
                             }
                         }
-                        //self.render_material_changes(material_id, server_ctx, project, ui);
+                        if let Some(region) = region_to_render {
+                            PRERENDERTHREAD
+                                .lock()
+                                .unwrap()
+                                .render_region(region, Some(tiles_to_render));
+                        }
                     }
                 }
             }
@@ -362,6 +365,8 @@ impl ModelEditor {
                 if id.name == "Model NodeCanvas" {
                     if let Some(geo_obj_id) = server_ctx.curr_geo_object {
                         let palette = project.palette.clone();
+                        let mut region_to_render: Option<Region> = None;
+                        let mut tiles_to_render: Vec<Vec2i> = vec![];
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             if let Some(geo_obj) = region.geometry.get_mut(&geo_obj_id) {
                                 let prev = geo_obj.to_json();
@@ -369,12 +374,8 @@ impl ModelEditor {
                                 //material.node_previews.remove(*deleted_node_index);
                                 geo_obj.connections.clone_from(connections);
                                 geo_obj.selected_node = None;
-                                // material.render_preview(
-                                //     &project.palette,
-                                //     &TILEDRAWER.lock().unwrap().tiles,
-                                // );
-                                // let preview = material.get_preview();
-                                // ui.set_node_preview("MaterialFX NodeCanvas", 0, preview.clone());
+                                tiles_to_render = geo_obj.area.clone();
+
                                 let undo = RegionUndoAtom::GeoFXNodeEdit(
                                     geo_obj.id,
                                     prev,
@@ -391,11 +392,18 @@ impl ModelEditor {
                                     &palette,
                                     &TILEDRAWER.lock().unwrap().tiles,
                                 );
+
+                                region_to_render = Some(region.clone());
                                 self.activated(ui, ctx, project, server_ctx, false);
 
                                 redraw = true;
                             }
-                            //self.render_material_changes(material_id, server_ctx, project, ui);
+                            if let Some(region) = region_to_render {
+                                PRERENDERTHREAD
+                                    .lock()
+                                    .unwrap()
+                                    .render_region(region, Some(tiles_to_render));
+                            }
                         }
                     }
                 }
@@ -490,14 +498,14 @@ impl ModelEditor {
                                         let region_id = region.id;
                                         region.update_geometry_areas();
 
-                                        let region_to_render = Some(region.clone());
-
                                         server.update_region(region);
                                         region.compile_geo(
                                             geo_obj_id,
                                             &palette,
                                             &TILEDRAWER.lock().unwrap().tiles,
                                         );
+
+                                        let region_to_render = Some(region.clone());
                                         self.activated(ui, ctx, project, server_ctx, false);
 
                                         if let Some(region) = region_to_render {

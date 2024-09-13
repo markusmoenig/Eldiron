@@ -615,7 +615,6 @@ impl ModelFXEditor {
                                 if let Some(region) =
                                     project.get_region_mut(&server_ctx.curr_region)
                                 {
-                                    let mut geo_obj_id = Uuid::nil();
                                     if let Some((geo_obj, index)) =
                                         region.find_geo_node(curr_geo_node)
                                     {
@@ -653,7 +652,7 @@ impl ModelFXEditor {
                                             _ => {}
                                         }
                                         geo_obj.update_area();
-                                        geo_obj_id = geo_obj.id;
+                                        let geo_obj_id = geo_obj.id;
 
                                         new_tiles_to_render.clone_from(&geo_obj.area);
                                         let mut set: FxHashSet<Vec2i> = FxHashSet::default();
@@ -662,16 +661,14 @@ impl ModelFXEditor {
                                         tiles_to_render = set.into_iter().collect();
 
                                         region.update_geometry_areas();
-
-                                        region_to_render = Some(region.clone());
-
                                         server.update_region(region);
+                                        region.compile_geo(
+                                            geo_obj_id,
+                                            &palette,
+                                            &TILEDRAWER.lock().unwrap().tiles,
+                                        );
+                                        region_to_render = Some(region.clone());
                                     }
-                                    region.compile_geo(
-                                        geo_obj_id,
-                                        &palette,
-                                        &TILEDRAWER.lock().unwrap().tiles,
-                                    );
                                 }
 
                                 if let Some(region) = region_to_render {

@@ -49,6 +49,7 @@ pub enum GeoFXNodeRole {
     Gate,
 
     Box,
+    Disc,
     Bricks,
 
     Material,
@@ -92,6 +93,9 @@ impl GeoFXNode {
             Box => {
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
+            }
+            Disc => {
+                coll.set("Radius", TheValue::FloatRange(0.0, 1.0..=0.5));
             }
             LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
                 coll.set("Pos X", TheValue::Float(0.1));
@@ -206,20 +210,13 @@ impl GeoFXNode {
                 coll.set("IOR", TheValue::FloatRange(1.5, 0.0..=2.0));
                 coll.set("Texture", TheValue::Text(str!("")));
             }
-            Box => {}
             Repeat => {
-                coll.set("Ratio", TheValue::FloatRange(2.0, 1.0..=10.0));
-                coll.set("Rounding", TheValue::FloatRange(0.0, 0.0..=0.5));
-                coll.set("Rotation", TheValue::FloatRange(1.0, 0.0..=5.0));
-                coll.set("Gap", TheValue::FloatRange(1.0, 0.0..=5.0));
-                coll.set("Cell", TheValue::FloatRange(3.0, 0.0..=15.0));
+                coll.set("Spacing", TheValue::FloatRange(0.01, 0.0..=1.0));
+                coll.set("Offset", TheValue::FloatRange(0.0, 0.0..=1.0));
             }
             Stack => {
-                coll.set("Ratio", TheValue::FloatRange(2.0, 1.0..=10.0));
-                coll.set("Rounding", TheValue::FloatRange(0.0, 0.0..=0.5));
-                coll.set("Rotation", TheValue::FloatRange(1.0, 0.0..=5.0));
-                coll.set("Gap", TheValue::FloatRange(1.0, 0.0..=5.0));
-                coll.set("Cell", TheValue::FloatRange(3.0, 0.0..=15.0));
+                coll.set("Spacing", TheValue::FloatRange(0.01, 0.0..=1.0));
+                coll.set("Offset", TheValue::FloatRange(0.0, 0.0..=1.0));
             }
         }
         let timeline = TheTimeline::collection(coll);
@@ -253,6 +250,7 @@ impl GeoFXNode {
             Self::new(GeoFXNodeRole::Column),
             Self::new(GeoFXNodeRole::Gate),
             Self::new(GeoFXNodeRole::Box),
+            Self::new(GeoFXNodeRole::Disc),
             Self::new(GeoFXNodeRole::Bricks),
             Self::new(GeoFXNodeRole::Material),
             Self::new(GeoFXNodeRole::Repeat),
@@ -279,6 +277,7 @@ impl GeoFXNode {
             Gate => str!("A gate."),
             Bricks => "Bricks".to_string(),
             Box => "Box".to_string(),
+            Disc => "Disc".to_string(),
             Material => "Material".to_string(),
             Repeat => "Repeat".to_string(),
             Stack => "Stack".to_string(),
@@ -407,6 +406,18 @@ impl GeoFXNode {
                     ctx.id_counter += 1;
                     ctx.material_id = None;
                 }
+                Disc => {
+                    let geo = format!(
+                        "let disc_{id_counter} = Shape<Disc>: material = {material}, radius = {radius};\n",
+                        id_counter = { ctx.id_counter },
+                        material = { if ctx.material_id.is_some() { ctx.material_id.clone().unwrap()} else {str!("none") }},
+                        radius = coll.get_f32_default("Radius", 0.5),
+                    );
+                    ctx.geometry.push(format!("disc_{}", ctx.id_counter));
+                    ctx.out += &geo;
+                    ctx.id_counter += 1;
+                    ctx.material_id = None;
+                }
                 Bricks => {
                     let geo = format!(
                         "let pattern_{id_counter} = Pattern<Bricks>: material = {material}, ratio = {ratio}, rounding = {rounding}, rotation = {rotation}, gap = {gap}, cell = {cell};\n",
@@ -426,13 +437,10 @@ impl GeoFXNode {
                 Repeat => {
                     let geometry = ctx.geometry.join(",");
                     let geo = format!(
-                        "let pattern_{id_counter} = Pattern<Repeat>: content = {geometry};\n",
+                        "let pattern_{id_counter} = Pattern<Repeat>: content = [{geometry}], spacing = {spacing}, offset = {offset};\n",
                         id_counter = { ctx.id_counter },
-                        // ratio = coll.get_f32_default("Ratio", 3.0),
-                        // rounding = coll.get_f32_default("Rounding", 0.0),
-                        // rotation = coll.get_f32_default("Rotation", 1.0),
-                        // gap = coll.get_f32_default("Gap", 1.0),
-                        // cell = coll.get_f32_default("Cell", 3.0),
+                        spacing = coll.get_f32_default("Spacing", 0.01),
+                        offset = coll.get_f32_default("Offset", 0.0),
                         geometry = geometry
                     );
                     ctx.geometry.clear();
@@ -444,13 +452,10 @@ impl GeoFXNode {
                 Stack => {
                     let geometry = ctx.geometry.join(",");
                     let geo = format!(
-                        "let pattern_{id_counter} = Pattern<Stack>: content = {geometry};\n",
+                        "let pattern_{id_counter} = Pattern<Stack>: content = [{geometry}], spacing = {spacing}, offset = {offset};\n",
                         id_counter = { ctx.id_counter },
-                        // ratio = coll.get_f32_default("Ratio", 3.0),
-                        // rounding = coll.get_f32_default("Rounding", 0.0),
-                        // rotation = coll.get_f32_default("Rotation", 1.0),
-                        // gap = coll.get_f32_default("Gap", 1.0),
-                        // cell = coll.get_f32_default("Cell", 3.0),
+                        spacing = coll.get_f32_default("Spacing", 0.01),
+                        offset = coll.get_f32_default("Offset", 0.0),
                         geometry = geometry
                     );
                     ctx.geometry.clear();
@@ -493,7 +498,7 @@ impl GeoFXNode {
 
                     let geometry = ctx.geometry.join(",");
                     let geo = format!(
-                        "let face = Face<{face_type}> : length = {length}, height = {height}, thickness = {thickness}, content = {geometry};\n",
+                        "let face = Face<{face_type}> : length = {length}, height = {height}, thickness = {thickness}, content = [{geometry}];\n",
                         face_type = face_type,
                         length = coll.get_f32_default("Length", 1.0),
                         height = coll.get_f32_default("Height", 1.0),
@@ -1355,7 +1360,7 @@ impl GeoFXNode {
             LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
                 vec![]
             }
-            Bricks | Box | Material | Repeat | Stack => {
+            Bricks | Box | Disc | Material | Repeat | Stack => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
                     role: str!("In"),
@@ -1377,7 +1382,7 @@ impl GeoFXNode {
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             }
-            Bricks | Box => {
+            Bricks | Box | Disc => {
                 vec![
                     TheNodeTerminal {
                         name: str!("out"),
@@ -1391,7 +1396,7 @@ impl GeoFXNode {
                     },
                 ]
             }
-            Repeat | Stack => {
+            Repeat => {
                 vec![
                     TheNodeTerminal {
                         name: str!("out"),
@@ -1401,6 +1406,50 @@ impl GeoFXNode {
                     TheNodeTerminal {
                         name: str!("mat"),
                         role: str!("Mat"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                ]
+            }
+            Stack => {
+                vec![
+                    TheNodeTerminal {
+                        name: str!("out"),
+                        role: str!("Out"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("mat"),
+                        role: str!("Mat"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("cont #1"),
+                        role: str!("Content#1"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("cont #2"),
+                        role: str!("Content#2"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("cont #3"),
+                        role: str!("Content#3"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("cont #4"),
+                        role: str!("Content#4"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("cont #5"),
+                        role: str!("Content#5"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("cont #6"),
+                        role: str!("Content#6"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]
