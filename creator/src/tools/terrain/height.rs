@@ -180,10 +180,10 @@ impl Tool for TerrainHeightTool {
                             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
                                 let b = rgba_view.buffer_mut();
 
-                                if terrain_editor.buffer.len() == b.len() {
-                                    b.pixels_mut()
-                                        .copy_from_slice(terrain_editor.buffer.pixels());
-                                }
+                                //if terrain_editor.buffer.len() == b.len() {
+                                b.pixels_mut()
+                                    .copy_from_slice(terrain_editor.buffer.pixels());
+                                //}
 
                                 for y in coord.y - half_brush..=coord.y + half_brush {
                                     for x in coord.x - half_brush..=coord.x + half_brush {
@@ -418,10 +418,10 @@ impl Tool for TerrainHeightTool {
                                 //         b.len(),
                                 //     );
                                 // }
-                                if terrain_editor.buffer.len() == b.len() {
-                                    b.pixels_mut()
-                                        .copy_from_slice(terrain_editor.buffer.pixels());
-                                }
+                                //if terrain_editor.buffer.len() == b.len() {
+                                b.pixels_mut()
+                                    .copy_from_slice(terrain_editor.buffer.pixels());
+                                //}
 
                                 for y in coord.y - half_brush..=coord.y + half_brush {
                                     for x in coord.x - half_brush..=coord.x + half_brush {

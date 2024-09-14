@@ -1265,12 +1265,12 @@ impl TheTrait for Editor {
                         } else if id.name == "Open" {
                             for p in paths {
                                 self.project_path = Some(p.clone());
-                                let contents =
-                                    std::fs::read_to_string(p.clone()).unwrap_or("".to_string());
+                                // let contents =
+                                //     std::fs::read_to_string(p.clone()).unwrap_or("".to_string());
                                 // if let Ok(contents) = std::fs::read(p) {
-                                let pr: Result<Project, serde_json::Error> =
-                                    serde_json::from_str(&contents);
-                                println!("{:?}", pr.err());
+                                // let pr: Result<Project, serde_json::Error> =
+                                //     serde_json::from_str(&contents);
+                                // println!("{:?}", pr.err());
                                 if let Ok(contents) = std::fs::read_to_string(p) {
                                     //if let Ok(project) =
                                     //    postcard::from_bytes::<Project>(contents.deref())
@@ -1367,6 +1367,16 @@ impl TheTrait for Editor {
                                         update_server_icons = true;
                                         redraw = true;
                                         self.server_ctx.clear();
+
+                                        // Compile Geo
+                                        let palette = self.project.palette.clone();
+                                        for r in &mut self.project.regions {
+                                            r.compile_geo_all(
+                                                &palette,
+                                                &TILEDRAWER.lock().unwrap().tiles,
+                                            );
+                                        }
+
                                         ctx.ui.send(TheEvent::SetStatusText(
                                             TheId::empty(),
                                             "Project loaded successfully.".to_string(),

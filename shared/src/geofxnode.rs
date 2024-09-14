@@ -75,6 +75,23 @@ pub struct GeoFXNode {
 }
 
 impl GeoFXNode {
+    pub fn is_shape(&self) -> bool {
+        #[allow(clippy::match_like_matches_macro)]
+        match &self.role {
+            Box => true,
+            Disc => true,
+            _ => false,
+        }
+    }
+    pub fn is_content_based_pattern(&self) -> bool {
+        #[allow(clippy::match_like_matches_macro)]
+        match &self.role {
+            Repeat => true,
+            Stack => true,
+            _ => false,
+        }
+    }
+
     pub fn new(role: GeoFXNodeRole) -> Self {
         let mut coll = TheCollection::named(str!("Geo"));
         let supports_preview = false;
@@ -93,9 +110,10 @@ impl GeoFXNode {
             Box => {
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
+                coll.set("Rounding", TheValue::FloatRange(0.0, 0.0..=1.0));
             }
             Disc => {
-                coll.set("Radius", TheValue::FloatRange(0.0, 1.0..=0.5));
+                coll.set("Radius", TheValue::FloatRange(0.5, 0.0..=1.0));
             }
             LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
                 coll.set("Pos X", TheValue::Float(0.1));
@@ -399,7 +417,7 @@ impl GeoFXNode {
                         material = { if ctx.material_id.is_some() { ctx.material_id.clone().unwrap()} else {str!("none") }},
                         length = coll.get_f32_default("Length", 1.0),
                         height = coll.get_f32_default("Height", 1.0),
-                        rounding = coll.get_f32_default("Rounding", 0.0),
+                        rounding = coll.get_f32_default("Rounding", 0.0) / 2.0,
                     );
                     ctx.geometry.push(format!("box_{}", ctx.id_counter));
                     ctx.out += &geo;
@@ -1404,8 +1422,23 @@ impl GeoFXNode {
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
-                        name: str!("mat"),
-                        role: str!("Mat"),
+                        name: str!("shape #1"),
+                        role: str!("Shape #1"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("shape #2"),
+                        role: str!("Shape #2"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("shape #3"),
+                        role: str!("Shape #3"),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    },
+                    TheNodeTerminal {
+                        name: str!("shape #4"),
+                        role: str!("Shape #4"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]
@@ -1418,38 +1451,23 @@ impl GeoFXNode {
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
-                        name: str!("mat"),
-                        role: str!("Mat"),
+                        name: str!("row #1"),
+                        role: str!("Row #1"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
-                        name: str!("cont #1"),
-                        role: str!("Content#1"),
+                        name: str!("row #2"),
+                        role: str!("Row #2"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
-                        name: str!("cont #2"),
-                        role: str!("Content#2"),
+                        name: str!("row #3"),
+                        role: str!("Row #3"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
-                        name: str!("cont #3"),
-                        role: str!("Content#3"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("cont #4"),
-                        role: str!("Content#4"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("cont #5"),
-                        role: str!("Content#5"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("cont #6"),
-                        role: str!("Content#6"),
+                        name: str!("row #4"),
+                        role: str!("Row #4"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]

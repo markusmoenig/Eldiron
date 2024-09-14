@@ -86,13 +86,6 @@ impl GeoFXObject {
         };
 
         self.build_trail(0, palette, textures, &mut ctx);
-
-        if !self.nodes.is_empty() {
-            self.nodes[0].build(palette, textures, &mut ctx)
-        }
-
-        println!("{:?}", ctx);
-
         ctx.out
     }
 
@@ -104,24 +97,43 @@ impl GeoFXObject {
         textures: &FxHashMap<Uuid, TheRGBATile>,
         ctx: &mut FTBuilderContext,
     ) {
-        let mut connections = vec![];
-        for (o, ot, i, it) in &self.connections {
-            if *o == node as u16 && *ot == 0 {
-                connections.push((*i, *it));
+        println!("build_trail: {:?}", self.nodes[node].role);
+
+        // Check for the material of a shape
+        if self.nodes[node].is_shape() {
+            if let Some((n, _)) = self.find_connected_input_node(node, 1) {
+                self.build_trail(n as usize, palette, textures, ctx);
             }
         }
 
-        for (node, _) in &connections {
-            for (o, ot, i, _it) in &self.connections {
-                if *o == *node && *ot == 1 {
-                    // Build the material connected to this node.
-                    self.nodes[*i as usize].build(palette, textures, ctx);
+        // Build pattern content
+        match &self.nodes[node].role {
+            Repeat => {
+                for terminal in 1..7 {
+                    if let Some((n, _)) = self.find_connected_input_node(node, terminal) {
+                        self.build_trail(n as usize, palette, textures, ctx);
+                    }
                 }
             }
-
-            self.build_trail(*node as usize, palette, textures, ctx);
-            self.nodes[*node as usize].build(palette, textures, ctx);
+            Stack => {
+                let mut geometry = vec![];
+                for terminal in 1..7 {
+                    if let Some((n, _)) = self.find_connected_input_node(node, terminal) {
+                        self.build_trail(n as usize, palette, textures, ctx);
+                        geometry.append(&mut ctx.geometry);
+                    }
+                }
+                ctx.geometry = geometry;
+            }
+            _ => {}
         }
+
+        // Follow the trail at output terminal 0
+        if let Some((n, _)) = self.find_connected_input_node(node, 0) {
+            self.build_trail(n as usize, palette, textures, ctx);
+        }
+
+        self.nodes[node].build(palette, textures, ctx);
     }
 
     /// Returns the distance to the object nodes, the distance and the index of the closes node is returned.
