@@ -1375,6 +1375,7 @@ impl TheTrait for Editor {
                                                 &palette,
                                                 &TILEDRAWER.lock().unwrap().tiles,
                                             );
+                                            self.server.update_region(r);
                                         }
 
                                         ctx.ui.send(TheEvent::SetStatusText(

@@ -51,8 +51,8 @@ impl ModelEditor {
             // spacer.limiter_mut().set_max_height(2);
             // vlayout.add_widget(Box::new(spacer));
 
-            let mut text = TheText::new(TheId::named("Object Id"));
-            text.set_text("()".to_string());
+            let mut text = TheText::new(TheId::named("Seed Id"));
+            text.set_text("S: -".to_string());
             text.set_text_color([200, 200, 200, 255]);
             vlayout.add_widget(Box::new(text));
 
@@ -272,18 +272,27 @@ impl ModelEditor {
                             if let Some(ftctx) = region.compiled_geometry.get(&geo_obj) {
                                 let meta = ftctx.meta_data_at(coord.x, coord.y, 200, 200);
                                 //println!("{:?}", meta);
+
+                                if let Some(text) = ui.get_text("Seed Id") {
+                                    if let Some(meta) = &meta {
+                                        text.set_text(format!("S: {}", meta.seed_id));
+                                    } else {
+                                        text.set_text(format!("S:  {}", "-"));
+                                    }
+                                }
+
                                 if let Some(text) = ui.get_text("Pattern Id") {
                                     if let Some(meta) = &meta {
                                         text.set_text(format!("P: {}", meta.pattern_id));
                                     } else {
                                         text.set_text(format!("P:  {}", "-"));
                                     }
-
-                                    if let Some(layout) = ui.get_layout("Model Panel Layout") {
-                                        layout.relayout(ctx);
-                                    }
-                                    redraw = true;
                                 }
+
+                                if let Some(layout) = ui.get_layout("Model Panel Layout") {
+                                    layout.relayout(ctx);
+                                }
+                                redraw = true;
                             }
                         }
                     }
@@ -346,6 +355,7 @@ impl ModelEditor {
                                     &TILEDRAWER.lock().unwrap().tiles,
                                 );
 
+                                server.update_region(region);
                                 region_to_render = Some(region.clone());
 
                                 self.activated(ui, ctx, project, server_ctx, false);
@@ -393,6 +403,7 @@ impl ModelEditor {
                                     &TILEDRAWER.lock().unwrap().tiles,
                                 );
 
+                                server.update_region(region);
                                 region_to_render = Some(region.clone());
                                 self.activated(ui, ctx, project, server_ctx, false);
 
@@ -498,13 +509,13 @@ impl ModelEditor {
                                         let region_id = region.id;
                                         region.update_geometry_areas();
 
-                                        server.update_region(region);
                                         region.compile_geo(
                                             geo_obj_id,
                                             &palette,
                                             &TILEDRAWER.lock().unwrap().tiles,
                                         );
 
+                                        server.update_region(region);
                                         let region_to_render = Some(region.clone());
                                         self.activated(ui, ctx, project, server_ctx, false);
 

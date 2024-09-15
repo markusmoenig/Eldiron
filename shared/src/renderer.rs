@@ -660,9 +660,6 @@ impl Renderer {
                             let t_dist = region.heightmap.interpolate_height(p.x, p.z);
                             p.y -= t_dist;
 
-                            // p.x -= key.x as f32;
-                            // p.z -= key.z as f32;
-
                             // The start position of the object / face.
                             let pos = geo_obj.get_position();
                             let ft_hit = ftctx.distance_to_face(p, 0, pos);

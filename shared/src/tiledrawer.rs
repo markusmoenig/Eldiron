@@ -421,6 +421,7 @@ impl TileDrawer {
                     }
 
                     let p = vec2f(x as f32, y as f32);
+                    /*
                     let mut hit = Hit {
                         global_uv: vec2f(
                             tile_x as f32 + xx as f32 / region.grid_size as f32,
@@ -433,8 +434,28 @@ impl TileDrawer {
                         two_d: true,
                         ..Default::default()
                     };
+                    */
 
                     if let Some(geo_ids) = region.geometry_areas.get(&vec3i(tile_x, 0, tile_y)) {
+                        for geo_id in geo_ids {
+                            let mut pos = Vec2f::zero();
+                            if let Some(geo_obj) = region.geometry.get(geo_id) {
+                                pos = geo_obj.get_position();
+                            }
+
+                            let p = vec2f(
+                                tile_x as f32 - pos.x + xx as f32 / region.grid_size as f32,
+                                tile_y as f32 - pos.y + 1.0 - yy as f32 / region.grid_size as f32,
+                            );
+
+                            if let Some(ft_ctx) = region.compiled_geometry.get(geo_id) {
+                                if let Some(col) = ft_ctx.face_pixel_at(p) {
+                                    color = col;
+                                }
+                            }
+                        }
+
+                        /*
                         let mut ground_dist = f32::INFINITY;
                         let mut wall_dist = f32::INFINITY;
                         let mut had_wall = false;
@@ -528,7 +549,7 @@ impl TileDrawer {
                                     color = c;
                                 }
                             }
-                        }
+                        }*/
                     }
 
                     // Items
