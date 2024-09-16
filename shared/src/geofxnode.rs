@@ -2,19 +2,6 @@ use crate::prelude::*;
 use rayon::prelude::*;
 use theframework::prelude::*;
 
-// https://www.shadertoy.com/view/3syGzz
-// vec2 opRepLim( in vec2 p, in float s, in vec2 lima, in vec2 limb )
-// {
-//     p.x += s*.5* floor(mod(p.y/s+.5,2.));
-//     return p-s*clamp(round(p/s),lima,limb);
-// }
-//
-// vec2 opRep( in vec2 p, in float s )
-// {
-//     p.x += s*.5* floor(mod(p.y/s+.5,2.));
-//     return mod(p+s*.5,s)-s*0.5;
-// }
-
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum GeoFXNodeExtrusion {
     None,
@@ -42,15 +29,13 @@ pub enum GeoFXNodeRole {
     BottomWall,
     MiddleWallH,
     MiddleWallV,
-    // BendWallNW,
-    // BendWallNE,
-    // BendWallSW,
-    // BendWallSE,
+
     Gate,
 
     Box,
     Disc,
     Bricks,
+    Group,
 
     Material,
 
@@ -236,6 +221,12 @@ impl GeoFXNode {
                 coll.set("Spacing", TheValue::FloatRange(0.01, 0.0..=1.0));
                 coll.set("Offset", TheValue::FloatRange(0.0, 0.0..=1.0));
             }
+            Group => {
+                coll.set("X", TheValue::FloatRange(0.0, 0.0..=10.0));
+                coll.set("Y", TheValue::FloatRange(0.0, 0.0..=10.0));
+                coll.set("Length", TheValue::FloatRange(1.0, 0.001..=10.0));
+                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=10.0));
+            }
         }
         let timeline = TheTimeline::collection(coll);
 
@@ -273,6 +264,7 @@ impl GeoFXNode {
             Self::new(GeoFXNodeRole::Material),
             Self::new(GeoFXNodeRole::Repeat),
             Self::new(GeoFXNodeRole::Stack),
+            Self::new(GeoFXNodeRole::Group),
         ]
     }
 
@@ -287,10 +279,6 @@ impl GeoFXNode {
             BottomWall => str!("Bottom Wall"),
             MiddleWallH => str!("Middle Wall X"),
             MiddleWallV => str!("Niddle Wall Y"),
-            // BendWallNW => str!("A rounded wall from the left to the top side of the tile."),
-            // BendWallNE => str!("A rounded wall from the top to the right side of the tile."),
-            // BendWallSE => str!("A rounded wall from the right to the bottom side of the tile."),
-            // BendWallSW => str!("A rounded wall from the bottom to the left side of the tile."),
             Column => str!("A column (disc) with an optional profile."),
             Gate => str!("A gate."),
             Bricks => "Bricks".to_string(),
@@ -299,6 +287,7 @@ impl GeoFXNode {
             Material => "Material".to_string(),
             Repeat => "Repeat".to_string(),
             Stack => "Stack".to_string(),
+            Group => "Group".to_string(),
         }
     }
 
@@ -474,6 +463,23 @@ impl GeoFXNode {
                         id_counter = { ctx.id_counter },
                         spacing = coll.get_f32_default("Spacing", 0.01),
                         offset = coll.get_f32_default("Offset", 0.0),
+                        geometry = geometry
+                    );
+                    ctx.geometry.clear();
+                    ctx.geometry.push(format!("pattern_{}", ctx.id_counter));
+                    ctx.out += &geo;
+                    ctx.id_counter += 1;
+                    ctx.material_id = None;
+                }
+                Group => {
+                    let geometry = ctx.geometry.join(",");
+                    let geo = format!(
+                        "let pattern_{id_counter} = Pattern<Group>: content = [{geometry}], x = {x}, y = {y}, length = {length}, height = {height};\n",
+                        id_counter = { ctx.id_counter },
+                        x = coll.get_f32_default("X", 0.0),
+                        y = coll.get_f32_default("Y", 0.0),
+                        length = coll.get_f32_default("Length", 1.0),
+                        height = coll.get_f32_default("Height", 0.0),
                         geometry = geometry
                     );
                     ctx.geometry.clear();
@@ -1378,7 +1384,7 @@ impl GeoFXNode {
             LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
                 vec![]
             }
-            Bricks | Box | Disc | Material | Repeat | Stack => {
+            Bricks | Box | Disc | Material | Repeat | Stack | Group => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
                     role: str!("In"),
@@ -1394,11 +1400,15 @@ impl GeoFXNode {
     pub fn outputs(&self) -> Vec<TheNodeTerminal> {
         match self.role {
             LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
-                vec![TheNodeTerminal {
-                    name: str!("out"),
-                    role: str!("Out"),
-                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                }]
+                let mut terminals = vec![];
+                for i in 1..=6 {
+                    terminals.push(TheNodeTerminal {
+                        name: format!("layer #{}", i),
+                        role: format!("Layer #{}", i),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    });
+                }
+                terminals
             }
             Bricks | Box | Disc => {
                 vec![
@@ -1414,63 +1424,27 @@ impl GeoFXNode {
                     },
                 ]
             }
-            Repeat => {
-                vec![
-                    TheNodeTerminal {
-                        name: str!("out"),
-                        role: str!("Out"),
+            Repeat | Group => {
+                let mut terminals = vec![];
+                for i in 1..=4 {
+                    terminals.push(TheNodeTerminal {
+                        name: format!("shape #{}", i),
+                        role: format!("Shape #{}", i),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("shape #1"),
-                        role: str!("Shape #1"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("shape #2"),
-                        role: str!("Shape #2"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("shape #3"),
-                        role: str!("Shape #3"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("shape #4"),
-                        role: str!("Shape #4"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                ]
+                    });
+                }
+                terminals
             }
             Stack => {
-                vec![
-                    TheNodeTerminal {
-                        name: str!("out"),
-                        role: str!("Out"),
+                let mut terminals = vec![];
+                for i in 1..=4 {
+                    terminals.push(TheNodeTerminal {
+                        name: format!("row #{}", i),
+                        role: format!("Row #{}", i),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("row #1"),
-                        role: str!("Row #1"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("row #2"),
-                        role: str!("Row #2"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("row #3"),
-                        role: str!("Row #3"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("row #4"),
-                        role: str!("Row #4"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                ]
+                    });
+                }
+                terminals
             }
             _ => vec![],
         }

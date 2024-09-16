@@ -416,7 +416,7 @@ impl Region {
         textures: &FxHashMap<Uuid, TheRGBATile>,
     ) {
         let ft = ForgedTiles::default();
-        for (id, geo_obj) in &mut self.geometry {
+        for geo_obj in &mut self.geometry.values() {
             let source = geo_obj.build(palette, textures);
             match ft.compile_code(source) {
                 Ok(ctx) => {

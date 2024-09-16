@@ -650,7 +650,7 @@ impl Renderer {
 
                         let mut t = 0.0;
 
-                        for _ in 0..30 {
+                        for _ in 0..50 {
                             // Max distance a ray can travel in a unit cube
                             // if t > 1.732 {
                             //     break;

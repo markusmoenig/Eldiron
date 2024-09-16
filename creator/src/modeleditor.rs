@@ -112,6 +112,7 @@ impl ModelEditor {
             items: vec![
                 TheContextMenuItem::new("Repeat".to_string(), TheId::named("Repeat")),
                 TheContextMenuItem::new("Stack".to_string(), TheId::named("Stack")),
+                TheContextMenuItem::new("Group".to_string(), TheId::named("Group")),
             ],
             ..Default::default()
         }));

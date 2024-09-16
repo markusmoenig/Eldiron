@@ -86,6 +86,9 @@ impl GeoFXObject {
         };
 
         self.build_trail(0, palette, textures, &mut ctx);
+
+        println!("{}", ctx.out);
+
         ctx.out
     }
 
@@ -109,7 +112,7 @@ impl GeoFXObject {
         // Build pattern content
         match &self.nodes[node].role {
             Repeat => {
-                for terminal in 1..7 {
+                for terminal in 0..4 {
                     if let Some((n, _)) = self.find_connected_input_node(node, terminal) {
                         self.build_trail(n as usize, palette, textures, ctx);
                     }
@@ -117,7 +120,7 @@ impl GeoFXObject {
             }
             Stack => {
                 let mut geometry = vec![];
-                for terminal in 1..7 {
+                for terminal in 0..4 {
                     if let Some((n, _)) = self.find_connected_input_node(node, terminal) {
                         self.build_trail(n as usize, palette, textures, ctx);
                         geometry.append(&mut ctx.geometry);
@@ -125,12 +128,22 @@ impl GeoFXObject {
                 }
                 ctx.geometry = geometry;
             }
-            _ => {}
-        }
-
-        // Follow the trail at output terminal 0
-        if let Some((n, _)) = self.find_connected_input_node(node, 0) {
-            self.build_trail(n as usize, palette, textures, ctx);
+            LeftWall | MiddleWallV | RightWall | TopWall | MiddleWallH | BottomWall => {
+                let mut geometry = vec![];
+                for terminal in 0..6 {
+                    if let Some((n, _)) = self.find_connected_input_node(node, terminal) {
+                        self.build_trail(n as usize, palette, textures, ctx);
+                        geometry.append(&mut ctx.geometry);
+                    }
+                }
+                ctx.geometry = geometry;
+            }
+            _ => {
+                // Follow the trail at output terminal 0
+                if let Some((n, _)) = self.find_connected_input_node(node, 0) {
+                    self.build_trail(n as usize, palette, textures, ctx);
+                }
+            }
         }
 
         self.nodes[node].build(palette, textures, ctx);
