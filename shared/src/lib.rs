@@ -82,10 +82,10 @@ pub mod prelude {
     pub use crate::{do_intersect, Hit, HitFace, HitMode, Ray, RenderTile, AABB2D};
     pub use forgedtiles::prelude::*;
     pub use indexmap::IndexMap;
-    // pub use rand::prelude::*;
 }
 
-use bsdf::BSDFMaterial;
+pub use forgedtiles::prelude::BSDFMaterial;
+
 use geofxnode::{GeoFXNodeExtrusion, GeoFXNodeFacing};
 use theframework::prelude::*;
 

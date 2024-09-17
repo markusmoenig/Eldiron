@@ -105,7 +105,7 @@ impl GeoFXNode {
                 coll.set("Pos Y", TheValue::Float(0.5));
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
-                coll.set("Thickness", TheValue::FloatRange(0.2, 0.001..=1.0));
+                coll.set("Thickness", TheValue::FloatRange(0.1, 0.001..=1.0));
                 // coll.set(
                 //     "2D Mode",
                 //     TheValue::TextList(0, vec![str!("Normal"), str!("Full Thickness")]),
@@ -354,40 +354,6 @@ impl GeoFXNode {
         // }
     }
 
-    /// Loads the parameters of the nodes into memory for faster access.
-    pub fn load_parameters(&self, time: &TheTime) -> Vec<f32> {
-        let mut params = vec![];
-
-        if let Some(coll) = self.timeline.get_collection_at(time, str!("Geo")) {
-            params.push(coll.get_f32_default("Pos X", 0.0));
-            params.push(coll.get_f32_default("Pos Y", 0.0));
-            match self.role {
-                Column => {
-                    params.push(coll.get_f32_default("Radius", 0.4));
-                    params.push(coll.get_f32_default("Height", 1.0));
-                    params.push(coll.get_f32_default("Hole", 0.0));
-                }
-                LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
-                    params.push(coll.get_f32_default("Length", 1.0) / 2.0 + 0.1);
-                    params.push(coll.get_f32_default("Height", 1.0));
-                    params.push(coll.get_f32_default("Thickness", 0.2));
-                }
-                // BendWallNW | BendWallNE | BendWallSW | BendWallSE => {
-                //     params.push(coll.get_f32_default("Thickness", 0.2));
-                //     params.push(coll.get_f32_default("Rounding", 0.3));
-                //     params.push(coll.get_f32_default("Height", 1.0));
-                // }
-                Gate => {
-                    params.push(coll.get_i32_default("Align", 0) as f32);
-                    params.push(coll.get_f32_default("Height", 1.0));
-                }
-                _ => {}
-            }
-        }
-
-        params
-    }
-
     pub fn build(
         &self,
         palette: &ThePalette,
@@ -535,30 +501,6 @@ impl GeoFXNode {
             }
         }
     }
-    /*
-    /// Generates the source code of the face.
-    pub fn build(&self) -> Option<String> {
-        if let Some(coll) = self
-            .timeline
-            .get_collection_at(&TheTime::default(), str!("Geo"))
-        {
-            match self.role {
-                MiddleWallH => Some(format!(
-                    r#"
-                let pattern = Pattern<Bricks>;
-                let box = Shape<Box>;
-                let face = Face<MiddleX> : length = {length}, height = {height}, thickness = {thickness}, content = box;
-                "#,
-                    length = coll.get_f32_default("Length", 1.0),
-                    height = coll.get_f32_default("Height", 1.0),
-                    thickness = coll.get_f32_default("Thickness", 0.2),
-                )),
-                _ => None,
-            }
-        } else {
-            None
-        }
-    }*/
 
     /// The 2D distance from the node to a point.
     pub fn distance(
@@ -810,11 +752,6 @@ impl GeoFXNode {
         //     vec2 w = vec2( d, abs(p.z) - h );
         //     return min(max(w.x,w.y),0.0) + length(max(w,0.0));
         // }
-
-        fn op_extrusion_y(p: Vec3f, d: f32, h: f32) -> f32 {
-            let w = Vec2f::new(d, abs(p.y) - h);
-            min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
-        }
 
         match self.role {
             LeftWall => {

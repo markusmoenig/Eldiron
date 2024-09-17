@@ -44,7 +44,7 @@ pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, palette: &ThePa
         material_params.insert(*id, params);
     }
 
-    let grid_size = region.grid_size as f32;
+    //let grid_size = region.grid_size as f32;
 
     let pixels = buffer.pixels_mut();
     pixels
@@ -157,6 +157,8 @@ pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, palette: &ThePa
                     }
                 }
 
+                /* TODO
+
                 let p = vec2f(x as f32, y as f32);
                 let mut hit = Hit {
                     global_uv: vec2f(
@@ -196,7 +198,7 @@ pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, palette: &ThePa
                                 }
                             }
                             if is_legit {
-                                let mut c = WHITE;
+                                let c; // = WHITE;
 
                                 hit.mat.base_color = vec3f(0.5, 0.5, 0.5);
                                 hit.value = 1.0;
@@ -226,22 +228,16 @@ pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, palette: &ThePa
                                         &mat_obj_params,
                                     );
 
-                                    if material.test_height_profile(
+                                    material.compute(
                                         &mut hit,
-                                        geo_obj,
+                                        palette,
+                                        &tile_drawer.tiles,
                                         &mat_obj_params,
-                                    ) {
-                                        material.compute(
-                                            &mut hit,
-                                            palette,
-                                            &tile_drawer.tiles,
-                                            &mat_obj_params,
-                                        );
+                                    );
 
-                                        let col =
-                                            TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
-                                        c = col;
-                                    }
+                                    let col =
+                                        TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
+                                    c = col;
                                 } else {
                                     let col =
                                         TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
@@ -253,7 +249,7 @@ pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, palette: &ThePa
                             }
                         }
                     }
-                }
+                }*/
 
                 pixel.copy_from_slice(&color);
             }

@@ -51,6 +51,7 @@ impl TerrainEditor {
         _server_ctx: &mut ServerContext,
     ) -> bool {
         let redraw = false;
+        #[allow(clippy::match_single_binding)]
         match event {
             // TheEvent::TileEditorHoverChanged(id, coord) => {
             //     if id.name == "TerrainMap View" {

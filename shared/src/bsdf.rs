@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use theframework::prelude::*;
 
+/*
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct BSDFMedium {
     pub type_: i32,
@@ -97,7 +98,7 @@ impl BSDFMaterial {
         self.ior = lerp(mat1.ior, mat2.ior, t);
     }
 }
-
+*/
 pub struct BSDFLight {
     pub position: Vec3f,
     pub emission: Vec3f,

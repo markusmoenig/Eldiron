@@ -66,16 +66,6 @@ impl GeoFXObject {
         }
     }
 
-    /// Loads the parameters of the nodes into memory for faster access.
-    pub fn load_parameters(&self, time: &TheTime) -> Vec<Vec<f32>> {
-        let mut data = vec![];
-
-        for n in &self.nodes {
-            data.push(n.load_parameters(time));
-        }
-        data
-    }
-
     /// Generates the source code of the face.
     pub fn build(&self, palette: &ThePalette, textures: &FxHashMap<Uuid, TheRGBATile>) -> String {
         let mut ctx = FTBuilderContext {
@@ -87,7 +77,7 @@ impl GeoFXObject {
 
         self.build_trail(0, palette, textures, &mut ctx);
 
-        println!("{}", ctx.out);
+        //println!("{}", ctx.out);
 
         ctx.out
     }
@@ -100,7 +90,7 @@ impl GeoFXObject {
         textures: &FxHashMap<Uuid, TheRGBATile>,
         ctx: &mut FTBuilderContext,
     ) {
-        println!("build_trail: {:?}", self.nodes[node].role);
+        //println!("build_trail: {:?}", self.nodes[node].role);
 
         // Check for the material of a shape
         if self.nodes[node].is_shape() {
