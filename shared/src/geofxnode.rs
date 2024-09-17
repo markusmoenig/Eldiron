@@ -496,7 +496,7 @@ impl GeoFXNode {
                         hex.remove(0);
                     }
                     let mat = format!(
-                        "let material_{id_counter} = Material<BSDF>: color = {hex};\n",
+                        "let material_{id_counter} = Material<BSDF>: color = #{hex};\n",
                         id_counter = { ctx.id_counter },
                         hex = { hex },
                         // ratio = coll.get_f32_default("Ratio", 3.0),
@@ -1231,6 +1231,13 @@ impl GeoFXNode {
                         }
                     }
                 }
+                LeftWall | RightWall | MiddleWallV => {
+                    let pos = Vec2i::from(self.position(&coll));
+                    let length = self.length().ceil() as i32;
+                    for i in 0..length {
+                        area.push(Vec2i::new(pos.x, pos.y + i));
+                    }
+                }
                 TopWall | BottomWall | MiddleWallH => {
                     let pos = Vec2i::from(self.position(&coll));
                     let length = self.length().ceil() as i32;
@@ -1451,9 +1458,12 @@ impl GeoFXNode {
     }
 
     /// Palette index has been changed. If we are a material, adjust the color.
-    pub fn set_palette_index(&self, index: u16) {
+    pub fn set_palette_index(&mut self, index: u16) -> bool {
         if self.role == GeoFXNodeRole::Material {
-            println!("new index {}", index);
+            self.set("Color", TheValue::PaletteIndex(index));
+            true
+        } else {
+            false
         }
     }
 

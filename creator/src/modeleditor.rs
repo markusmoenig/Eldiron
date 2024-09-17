@@ -210,12 +210,56 @@ impl ModelEditor {
             TheEvent::PaletteIndexChanged(_, index) => {
                 if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::ModelEditor {
                     if let Some(geo_obj_id) = server_ctx.curr_geo_object {
+                        let palette = project.palette.clone();
+                        let mut region_to_render: Option<Region> = None;
+                        let mut tiles_to_render: Vec<Vec2i> = vec![];
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             if let Some(geo_obj) = region.geometry.get_mut(&geo_obj_id) {
                                 if let Some(selected_index) = geo_obj.selected_node {
-                                    geo_obj.nodes[selected_index].set_palette_index(*index);
+                                    let prev = geo_obj.to_json();
+                                    if geo_obj.nodes[selected_index].set_palette_index(*index) {
+                                        let next = geo_obj.to_json();
+                                        let geo_obj_id = geo_obj.id;
+                                        let area = geo_obj.area.clone();
+                                        tiles_to_render = area.clone();
+
+                                        let undo = RegionUndoAtom::GeoFXNodeEdit(
+                                            geo_obj_id,
+                                            prev,
+                                            next,
+                                            area.clone(),
+                                        );
+                                        UNDOMANAGER
+                                            .lock()
+                                            .unwrap()
+                                            .add_region_undo(&region.id, undo, ctx);
+
+                                        region.compile_geo(
+                                            geo_obj_id,
+                                            &palette,
+                                            &TILEDRAWER.lock().unwrap().tiles,
+                                        );
+
+                                        server.update_region(region);
+                                        region_to_render = Some(region.clone());
+
+                                        self.activated(ui, ctx, project, server_ctx, false);
+
+                                        self.set_selected_geo_node_ui(
+                                            server_ctx, project, ui, ctx, false,
+                                        );
+                                        println!("changed");
+
+                                        redraw = true;
+                                    }
                                 }
                             }
+                        }
+                        if let Some(region) = region_to_render {
+                            PRERENDERTHREAD
+                                .lock()
+                                .unwrap()
+                                .render_region(region, Some(tiles_to_render));
                         }
                     }
                 }

@@ -656,6 +656,10 @@ impl Renderer {
                             //     break;
                             // }
 
+                            if t > terrain_dist {
+                                break;
+                            }
+
                             let mut p = ray.at(t);
                             let t_dist = region.heightmap.interpolate_height(p.x, p.z);
                             p.y -= t_dist;
@@ -739,20 +743,21 @@ impl Renderer {
 
                                 hit.distance = dist + t;
                                 hit.mat.base_color = vec3f(0.5, 0.5, 0.5);
-                                hit.mat.base_color = vec3f(
-                                    ft_hit.pattern_hash,
-                                    ft_hit.pattern_hash,
-                                    ft_hit.pattern_hash,
-                                );
 
-                                let c = ftctx.nodes[hit.node]
-                                    .values
-                                    .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
+                                if let Some(index) = ft_hit.node {
+                                    if let Some(material) = ftctx.nodes[index].material {
+                                        let c = ftctx.nodes[material as usize]
+                                            .values
+                                            .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
 
-                                hit.mat.base_color[0] = c[0] + ((ft_hit.pattern_hash) - 0.5) * 0.5;
-                                hit.mat.base_color[1] = c[1] + ((ft_hit.pattern_hash) - 0.5) * 0.5;
-                                hit.mat.base_color[2] = c[2] + ((ft_hit.pattern_hash) - 0.5) * 0.5;
-
+                                        hit.mat.base_color[0] =
+                                            c[0] + ((ft_hit.pattern_hash) - 0.5) * 0.5;
+                                        hit.mat.base_color[1] =
+                                            c[1] + ((ft_hit.pattern_hash) - 0.5) * 0.5;
+                                        hit.mat.base_color[2] =
+                                            c[2] + ((ft_hit.pattern_hash) - 0.5) * 0.5;
+                                    }
+                                }
                                 // if h.extrusion == GeoFXNodeExtrusion::None {
                                 //     hit.value = 1.0;
                                 //     geo_obj.nodes[d.1].distance_3d(
