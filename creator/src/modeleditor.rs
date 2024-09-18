@@ -378,6 +378,10 @@ impl ModelEditor {
                                 let prev = geo_obj.to_json();
                                 geo_obj.connections.clone_from(connections);
 
+                                // To update flexible outputs
+                                let node_canvas = geo_obj.to_canvas();
+                                ui.set_node_canvas("Model NodeCanvas", node_canvas);
+
                                 let next = geo_obj.to_json();
                                 let geo_obj_id = geo_obj.id;
                                 let area = geo_obj.area.clone();
@@ -426,10 +430,13 @@ impl ModelEditor {
                             if let Some(geo_obj) = region.geometry.get_mut(&geo_obj_id) {
                                 let prev = geo_obj.to_json();
                                 geo_obj.nodes.remove(*deleted_node_index);
-                                //material.node_previews.remove(*deleted_node_index);
                                 geo_obj.connections.clone_from(connections);
                                 geo_obj.selected_node = None;
                                 tiles_to_render = geo_obj.area.clone();
+
+                                // To update flexible outputs
+                                let node_canvas = geo_obj.to_canvas();
+                                ui.set_node_canvas("Model NodeCanvas", node_canvas);
 
                                 let undo = RegionUndoAtom::GeoFXNodeEdit(
                                     geo_obj.id,

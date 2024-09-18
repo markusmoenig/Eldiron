@@ -367,7 +367,7 @@ impl GeoFXNode {
             match self.role {
                 Box => {
                     let geo = format!(
-                        "let box_{id_counter} = Shape<Box>: material = {material}, length = {length}, height = {height}, rounding = {rounding};\n",
+                        "let box_{id_counter} = Shape<Box>: material = {material}, length = {length}, height = {height}, rounding = {rounding}, extrusion = \"thickness - hash * 0.1\";\n",
                         id_counter = { ctx.id_counter },
                         material = { if ctx.material_id.is_some() { ctx.material_id.clone().unwrap()} else {str!("none") }},
                         length = coll.get_f32_default("Length", 1.0),
@@ -1341,11 +1341,26 @@ impl GeoFXNode {
         }
     }
 
-    pub fn outputs(&self) -> Vec<TheNodeTerminal> {
+    pub fn outputs(
+        &self,
+        index: &usize,
+        connections: &[(u16, u8, u16, u8)],
+    ) -> Vec<TheNodeTerminal> {
+        let mut highest_output_terminal: i32 = 0;
+        #[allow(clippy::collapsible_if)]
+        for (s, st, _, _) in connections {
+            if *s as usize == *index {
+                if *st as i32 + 1 > highest_output_terminal {
+                    highest_output_terminal = *st as i32 + 1;
+                }
+            }
+        }
+        highest_output_terminal += 1;
+
         match self.role {
             LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
                 let mut terminals = vec![];
-                for i in 1..=6 {
+                for i in 1..=highest_output_terminal {
                     terminals.push(TheNodeTerminal {
                         name: format!("layer #{}", i),
                         role: format!("Layer #{}", i),
@@ -1370,7 +1385,7 @@ impl GeoFXNode {
             }
             Repeat | Group => {
                 let mut terminals = vec![];
-                for i in 1..=4 {
+                for i in 1..=highest_output_terminal {
                     terminals.push(TheNodeTerminal {
                         name: format!("shape #{}", i),
                         role: format!("Shape #{}", i),
@@ -1381,7 +1396,7 @@ impl GeoFXNode {
             }
             Stack => {
                 let mut terminals = vec![];
-                for i in 1..=4 {
+                for i in 1..=highest_output_terminal {
                     terminals.push(TheNodeTerminal {
                         name: format!("row #{}", i),
                         role: format!("Row #{}", i),

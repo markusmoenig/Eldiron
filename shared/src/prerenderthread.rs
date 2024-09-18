@@ -107,12 +107,14 @@ impl PreRenderThread {
         self.rx = Some(result_rx);
 
         let renderer_thread = thread::spawn(move || {
-            // We allocate half of the available cpus to the background pool
-            let cpus = num_cpus::get();
-            let background_pool = ThreadPoolBuilder::new()
-                .num_threads(cpus / 2)
-                .build()
-                .unwrap();
+            // We allocate all but 2 cpus to the background pool
+            let mut cpus = num_cpus::get();
+            if cpus > 2 {
+                cpus -= 2;
+            } else {
+                cpus = 1;
+            }
+            let background_pool = ThreadPoolBuilder::new().num_threads(cpus).build().unwrap();
 
             let mut renderer = Renderer::new();
             let mut palette = ThePalette::default();

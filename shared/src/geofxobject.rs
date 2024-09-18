@@ -320,32 +320,12 @@ impl GeoFXObject {
 
         //let preview_size = 100;
 
-        for (index, node) in self.nodes.iter().enumerate() {
-            // if i >= self.node_previews.len() {
-            //     self.node_previews.resize(i + 1, None);
-            // }
-
-            // Remove preview buffer if size has changed
-            // if let Some(preview_buffer) = &self.node_previews[i] {
-            //     if preview_buffer.dim().width != preview_size
-            //         && preview_buffer.dim().height != preview_size
-            //     {
-            //         self.node_previews[i] = None;
-            //     }
-            // }
-
-            // Create preview if it doesn't exist
-            // if self.node_previews[i].is_none() {
-            //     let preview_buffer = TheRGBABuffer::new(TheDim::sized(preview_size, preview_size));
-            //     //self.render_node_preview(&mut preview_buffer, i, palette);
-            //     self.node_previews[i] = Some(preview_buffer);
-            // }
-
+        for (index, node) in self.nodes.iter_mut().enumerate() {
             let n = TheNode {
                 name: node.name(),
                 position: node.position,
                 inputs: node.inputs(),
-                outputs: node.outputs(),
+                outputs: node.outputs(&index, &self.connections),
                 preview: node.preview.clone(),
                 supports_preview: node.supports_preview,
                 preview_is_open: node.preview_is_open,
