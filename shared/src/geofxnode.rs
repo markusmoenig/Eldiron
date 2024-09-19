@@ -68,14 +68,6 @@ impl GeoFXNode {
             _ => false,
         }
     }
-    pub fn is_content_based_pattern(&self) -> bool {
-        #[allow(clippy::match_like_matches_macro)]
-        match &self.role {
-            Repeat => true,
-            Stack => true,
-            _ => false,
-        }
-    }
 
     pub fn new(role: GeoFXNodeRole) -> Self {
         let mut coll = TheCollection::named(str!("Geo"));
@@ -199,18 +191,19 @@ impl GeoFXNode {
             }
             Material => {
                 coll.set("Color", TheValue::PaletteIndex(0));
-                coll.set("Roughness", TheValue::FloatRange(0.5, 0.0..=1.0));
-                coll.set("Metallic", TheValue::FloatRange(0.0, 0.0..=1.0));
-                coll.set("Anisotropic", TheValue::FloatRange(0.0, 0.0..=1.0));
-                coll.set("Subsurface", TheValue::FloatRange(0.0, 0.0..=1.0));
-                coll.set("Specular Tint", TheValue::FloatRange(0.0, 0.0..=1.0));
-                coll.set("Sheen", TheValue::FloatRange(0.0, 0.0..=1.0));
-                coll.set("Sheen Tint", TheValue::FloatRange(0.0, 0.0..=1.0));
-                coll.set("Clearcoat", TheValue::FloatRange(0.0, 0.0..=1.0));
-                coll.set("Clearcoat Gloss", TheValue::FloatRange(0.0, 0.0..=1.0));
-                coll.set("Transmission", TheValue::FloatRange(0.0, 0.0..=1.0));
-                coll.set("Emission", TheValue::FloatRange(0.0, 0.0..=10.0));
-                coll.set("IOR", TheValue::FloatRange(1.5, 0.0..=2.0));
+                coll.set("Modifier", TheValue::Text(str!("0.0")));
+                coll.set("Roughness", TheValue::Text(str!("0.5")));
+                coll.set("Metallic", TheValue::Text(str!("0.0")));
+                coll.set("Anisotropic", TheValue::Text(str!("0.0")));
+                coll.set("Subsurface", TheValue::Text(str!("0.0")));
+                coll.set("Specular Tint", TheValue::Text(str!("0.0")));
+                coll.set("Sheen", TheValue::Text(str!("0.0")));
+                coll.set("Sheen Tint", TheValue::Text(str!("0.0")));
+                coll.set("Clearcoat", TheValue::Text(str!("0.0")));
+                coll.set("Clearcoat Gloss", TheValue::Text(str!("0.0")));
+                coll.set("Transmission", TheValue::Text(str!("0.0")));
+                coll.set("Emission", TheValue::Text(str!("0.0")));
+                coll.set("IOR", TheValue::Text(str!("1.5")));
                 coll.set("Texture", TheValue::Text(str!("")));
             }
             Repeat => {
@@ -367,7 +360,7 @@ impl GeoFXNode {
             match self.role {
                 Box => {
                     let geo = format!(
-                        "let box_{id_counter} = Shape<Box>: material = {material}, length = {length}, height = {height}, rounding = {rounding}, extrusion = \"thickness - hash * 0.1\";\n",
+                        "let box_{id_counter} = Shape<Box>: material = {material}, length = {length}, height = {height}, rounding = {rounding}, extrusion = thickness - hash * 0.1;\n",
                         id_counter = { ctx.id_counter },
                         material = { if ctx.material_id.is_some() { ctx.material_id.clone().unwrap()} else {str!("none") }},
                         length = coll.get_f32_default("Length", 1.0),
@@ -461,15 +454,125 @@ impl GeoFXNode {
                         hex = color.to_hex();
                         hex.remove(0);
                     }
+
+                    let mut parameters = "".to_string();
+
+                    // Modifier
+                    if let Some(modifier) = coll
+                        .get_default("Modifier", TheValue::Text(str!("0.0")))
+                        .to_string()
+                    {
+                        if modifier != "0.0" {
+                            parameters += &format!(", modifier = {}", modifier);
+                        }
+                    }
+                    // Roughness
+                    if let Some(value) = coll
+                        .get_default("Roughness", TheValue::Text(str!("0.5")))
+                        .to_string()
+                    {
+                        if value != "0.5" {
+                            parameters += &format!(", roughness = {}", value);
+                        }
+                    }
+                    // Metallic
+                    if let Some(value) = coll
+                        .get_default("Metallic", TheValue::Text(str!("0.0")))
+                        .to_string()
+                    {
+                        if value != "0.0" {
+                            parameters += &format!(", metallic = {}", value);
+                        }
+                    }
+                    // Anisotropic
+                    if let Some(value) = coll
+                        .get_default("Anisotropic", TheValue::Text(str!("0.0")))
+                        .to_string()
+                    {
+                        if value != "0.0" {
+                            parameters += &format!(", anisotropic = {}", value);
+                        }
+                    }
+                    // Subsurface
+                    if let Some(value) = coll
+                        .get_default("Subsurface", TheValue::Text(str!("0.0")))
+                        .to_string()
+                    {
+                        if value != "0.0" {
+                            parameters += &format!(", subsurface = {}", value);
+                        }
+                    }
+                    // Specular Tint
+                    if let Some(value) = coll
+                        .get_default("Specular Tint", TheValue::Text(str!("0.0")))
+                        .to_string()
+                    {
+                        if value != "0.0" {
+                            parameters += &format!(", specular_tint = {}", value);
+                        }
+                    }
+                    // Sheen
+                    if let Some(value) = coll
+                        .get_default("Sheen", TheValue::Text(str!("0.0")))
+                        .to_string()
+                    {
+                        if value != "0.0" {
+                            parameters += &format!(", sheen = {}", value);
+                        }
+                    }
+                    // Sheen Tint
+                    if let Some(value) = coll
+                        .get_default("Sheen Tint", TheValue::Text(str!("0.0")))
+                        .to_string()
+                    {
+                        if value != "0.0" {
+                            parameters += &format!(", sheen_tint = {}", value);
+                        }
+                    }
+                    // Clearcoat
+                    if let Some(value) = coll
+                        .get_default("Clearcoat", TheValue::Text(str!("0.0")))
+                        .to_string()
+                    {
+                        if value != "0.0" {
+                            parameters += &format!(", clearcoat = {}", value);
+                        }
+                    }
+                    // Clearcoat Gloss
+                    if let Some(value) = coll
+                        .get_default("Clearcoat Gloss", TheValue::Text(str!("0.0")))
+                        .to_string()
+                    {
+                        if value != "0.0" {
+                            parameters += &format!(", clearcoat_gloss = {}", value);
+                        }
+                    }
+                    // Transmission
+                    if let Some(value) = coll
+                        .get_default("Transmission", TheValue::Text(str!("0.0")))
+                        .to_string()
+                    {
+                        if value != "0.0" {
+                            parameters += &format!(", transmission = {}", value);
+                        }
+                    }
+                    // IOR
+                    if let Some(value) = coll
+                        .get_default("IOR", TheValue::Text(str!("1.5")))
+                        .to_string()
+                    {
+                        if value != "1.5" {
+                            parameters += &format!(", ior = {}", value);
+                        }
+                    }
+
+                    // println!("parameters {}", parameters);
+
                     let mat = format!(
-                        "let material_{id_counter} = Material<BSDF>: color = #{hex};\n",
+                        "let material_{id_counter} = Material<BSDF>: color = #{hex}{parameters};\n",
                         id_counter = { ctx.id_counter },
                         hex = { hex },
-                        // ratio = coll.get_f32_default("Ratio", 3.0),
-                        // rounding = coll.get_f32_default("Rounding", 0.0),
-                        // rotation = coll.get_f32_default("Rotation", 1.0),
-                        // gap = coll.get_f32_default("Gap", 1.0),
-                        // cell = coll.get_f32_default("Cell", 3.0),
+                        parameters = { parameters }
                     );
                     ctx.out += &mat;
                     ctx.material_id = Some(format!("material_{}", ctx.id_counter));
