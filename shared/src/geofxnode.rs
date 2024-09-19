@@ -87,10 +87,14 @@ impl GeoFXNode {
             Box => {
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
-                coll.set("Rounding", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Rounding", TheValue::Text(str!("0.0")));
+                coll.set("Annular", TheValue::Text(str!("0.0")));
+                coll.set("Extrusion", TheValue::Text(str!("thickness")));
             }
             Disc => {
                 coll.set("Radius", TheValue::FloatRange(0.5, 0.0..=1.0));
+                coll.set("Annular", TheValue::Text(str!("0.0")));
+                coll.set("Extrusion", TheValue::Text(str!("thickness")));
             }
             LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
                 coll.set("Pos X", TheValue::Float(0.1));
@@ -357,10 +361,31 @@ impl GeoFXNode {
             .timeline
             .get_collection_at(&TheTime::default(), str!("Geo"))
         {
+            let mut shape_params = str!("");
+
+            if self.is_shape() {
+                if let Some(value) = coll
+                    .get_default("Extrusion", TheValue::Text(str!("thickness")))
+                    .to_string()
+                {
+                    if value != "thickness" {
+                        shape_params += &format!(", extrusion = {}", value);
+                    }
+                }
+                if let Some(value) = coll
+                    .get_default("Annular", TheValue::Text(str!("0.0")))
+                    .to_string()
+                {
+                    if value != "0.0" {
+                        shape_params += &format!(", annular = {}", value);
+                    }
+                }
+            }
+
             match self.role {
                 Box => {
                     let geo = format!(
-                        "let box_{id_counter} = Shape<Box>: material = {material}, length = {length}, height = {height}, rounding = {rounding}, extrusion = thickness - hash * 0.1;\n",
+                        "let box_{id_counter} = Shape<Box>: material = {material}, length = {length}, height = {height}, rounding = {rounding}{shape_params};\n",
                         id_counter = { ctx.id_counter },
                         material = { if ctx.material_id.is_some() { ctx.material_id.clone().unwrap()} else {str!("none") }},
                         length = coll.get_f32_default("Length", 1.0),
@@ -374,7 +399,7 @@ impl GeoFXNode {
                 }
                 Disc => {
                     let geo = format!(
-                        "let disc_{id_counter} = Shape<Disc>: material = {material}, radius = {radius};\n",
+                        "let disc_{id_counter} = Shape<Disc>: material = {material}, radius = {radius}{shape_params};\n",
                         id_counter = { ctx.id_counter },
                         material = { if ctx.material_id.is_some() { ctx.material_id.clone().unwrap()} else {str!("none") }},
                         radius = coll.get_f32_default("Radius", 0.5),
@@ -808,7 +833,7 @@ impl GeoFXNode {
                     // // Calculate the modified radius
                     // let modifiedRadius = radius + wave; // * 0.05;
 
-                    let hole = coll.get_f32_default("Hole", 0.0) * scale;
+                    let hole = coll.get_f32_default("Annular", 0.0) * scale;
 
                     let mut d = length(p - self.position(&coll) * scale) - radius * scale + hole;
                     if hole > 0.0 {
