@@ -44,7 +44,7 @@ impl Tool for ModelNodeEditTool {
 
             if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                 layout.set_mode(TheSharedVLayoutMode::Shared);
-                layout.set_shared_ratio(0.5);
+                layout.set_shared_ratio(0.42);
             }
 
             ctx.ui

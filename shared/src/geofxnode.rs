@@ -41,6 +41,9 @@ pub enum GeoFXNodeRole {
 
     Repeat,
     Stack,
+
+    MetaMaterial,
+    MetaDelete,
 }
 
 use GeoFXNodeRole::*;
@@ -88,6 +91,7 @@ impl GeoFXNode {
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
                 coll.set("Rounding", TheValue::Text(str!("0.0")));
+                coll.set("Rotation", TheValue::Text(str!("0.0")));
                 coll.set("Annular", TheValue::Text(str!("0.0")));
                 coll.set("Extrusion", TheValue::Text(str!("thickness")));
             }
@@ -224,6 +228,12 @@ impl GeoFXNode {
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=10.0));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=10.0));
             }
+            MetaMaterial => {
+                coll.set("Meta", TheValue::Text(str!("")));
+            }
+            MetaDelete => {
+                coll.set("Meta", TheValue::Text(str!("")));
+            }
         }
         let timeline = TheTimeline::collection(coll);
 
@@ -262,6 +272,8 @@ impl GeoFXNode {
             Self::new(GeoFXNodeRole::Repeat),
             Self::new(GeoFXNodeRole::Stack),
             Self::new(GeoFXNodeRole::Group),
+            Self::new(GeoFXNodeRole::MetaMaterial),
+            Self::new(GeoFXNodeRole::MetaDelete),
         ]
     }
 
@@ -285,6 +297,8 @@ impl GeoFXNode {
             Repeat => "Repeat".to_string(),
             Stack => "Stack".to_string(),
             Group => "Group".to_string(),
+            MetaMaterial => "Meta Material".to_string(),
+            MetaDelete => "Meta Delete".to_string(),
         }
     }
 
@@ -370,6 +384,14 @@ impl GeoFXNode {
                 {
                     if value != "thickness" {
                         shape_params += &format!(", extrusion = {}", value);
+                    }
+                }
+                if let Some(value) = coll
+                    .get_default("Rotation", TheValue::Text(str!("0.0")))
+                    .to_string()
+                {
+                    if value != "0.0" {
+                        shape_params += &format!(", rotation = {}", value);
                     }
                 }
                 if let Some(value) = coll
@@ -624,6 +646,40 @@ impl GeoFXNode {
                         geometry = geometry
                     );
                     ctx.out += &geo;
+                }
+                MetaMaterial => {
+                    if let Some(value) = coll
+                        .get_default("Meta", TheValue::Text(str!("")))
+                        .to_string()
+                    {
+                        if !value.is_empty() {
+                            let geo = format!(
+                                "let meta_{id_counter}  = Meta<Material> : material = {material}, content = [{meta}];\n",
+                                id_counter = { ctx.id_counter },
+                                material = { if ctx.material_id.is_some() { ctx.material_id.clone().unwrap()} else {str!("none") }},
+                                meta = { value }
+                            );
+                            ctx.id_counter += 1;
+                            ctx.out += &geo;
+                            ctx.material_id = None;
+                        }
+                    }
+                }
+                MetaDelete => {
+                    if let Some(value) = coll
+                        .get_default("Meta", TheValue::Text(str!("")))
+                        .to_string()
+                    {
+                        if !value.is_empty() {
+                            let geo = format!(
+                                "let meta_{id_counter}  = Meta<Delete> : content = [{meta}];\n",
+                                id_counter = { ctx.id_counter },
+                                meta = { value }
+                            );
+                            ctx.id_counter += 1;
+                            ctx.out += &geo;
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -1532,6 +1588,13 @@ impl GeoFXNode {
                     });
                 }
                 terminals
+            }
+            MetaMaterial => {
+                vec![TheNodeTerminal {
+                    name: str!("mat"),
+                    role: str!("Mat"),
+                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                }]
             }
             _ => vec![],
         }

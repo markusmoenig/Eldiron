@@ -75,9 +75,13 @@ impl GeoFXObject {
             material_id: None,
         };
 
-        self.build_trail(0, palette, textures, &mut ctx);
+        for (index, node) in self.nodes.iter().enumerate() {
+            if node.role == MetaMaterial || node.role == MetaDelete {
+                self.build_trail(index, palette, textures, &mut ctx);
+            }
+        }
 
-        //println!("{}", ctx.out);
+        self.build_trail(0, palette, textures, &mut ctx);
 
         ctx.out
     }

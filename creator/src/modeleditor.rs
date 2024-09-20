@@ -42,22 +42,23 @@ impl ModelEditor {
             vlayout.limiter_mut().set_max_width(90);
             vlayout.set_margin(vec4i(0, 10, 0, 0));
 
-            // vlayout.add_widget(Box::new(ground_icon));
-            // vlayout.add_widget(Box::new(wall_icon));
-            // vlayout.add_widget(Box::new(ceiling_icon));
-            // //vlayout.add_widget(Box::new(cc_icon));
-
-            // let mut spacer = TheIconView::new(TheId::empty());
-            // spacer.limiter_mut().set_max_height(2);
-            // vlayout.add_widget(Box::new(spacer));
+            let mut seed_text = TheText::new(TheId::empty());
+            seed_text.set_text("Seed Id".to_string());
+            seed_text.set_text_color([200, 200, 200, 255]);
+            vlayout.add_widget(Box::new(seed_text));
 
             let mut text = TheText::new(TheId::named("Seed Id"));
-            text.set_text("S: -".to_string());
+            text.set_text("-".to_string());
             text.set_text_color([200, 200, 200, 255]);
             vlayout.add_widget(Box::new(text));
 
+            let mut hash_text = TheText::new(TheId::empty());
+            hash_text.set_text("Hash Id".to_string());
+            hash_text.set_text_color([200, 200, 200, 255]);
+            vlayout.add_widget(Box::new(hash_text));
+
             let mut text = TheText::new(TheId::named("Pattern Id"));
-            text.set_text("P: -".to_string());
+            text.set_text("-".to_string());
             text.set_text_color([200, 200, 200, 255]);
             vlayout.add_widget(Box::new(text));
 
@@ -129,10 +130,23 @@ impl ModelEditor {
             ..Default::default()
         }));
 
+        let mut meta_button = TheTraybarButton::new(TheId::named("GeoFX Nodes"));
+        meta_button.set_text(str!("Meta"));
+        meta_button.set_status_text("The available meta nodes.");
+
+        meta_button.set_context_menu(Some(TheContextMenu {
+            items: vec![
+                TheContextMenuItem::new("Meta Material".to_string(), TheId::named("Meta Material")),
+                TheContextMenuItem::new("Meta Delete".to_string(), TheId::named("Meta Delete")),
+            ],
+            ..Default::default()
+        }));
+
         toolbar_hlayout.add_widget(Box::new(pattern_button));
         toolbar_hlayout.add_widget(Box::new(shapes_button));
         toolbar_hlayout.add_widget(Box::new(material_nodes_button));
-        toolbar_hlayout.set_reverse_index(Some(3));
+        toolbar_hlayout.add_widget(Box::new(meta_button));
+        toolbar_hlayout.set_reverse_index(Some(4));
 
         top_toolbar.set_layout(toolbar_hlayout);
         center.set_top(top_toolbar);
@@ -151,15 +165,14 @@ impl ModelEditor {
         server_ctx: &ServerContext,
         update_nodes: bool,
     ) {
-        let mut width = 200;
-        let mut height = 200;
-        //let mut tile_id = Vec2f::zero();
+        let mut width = 100;
+        let mut height = 100;
 
         if let Some(geo_obj_id) = server_ctx.curr_geo_object {
             if let Some(region) = project.get_region(&server_ctx.curr_region) {
                 if let Some(geo_obj) = region.geometry.get(&geo_obj_id) {
-                    width = (geo_obj.get_length() * 200.0) as usize;
-                    height = (geo_obj.get_height() * 200.0) as usize;
+                    width = (geo_obj.get_length() * 100.0) as usize;
+                    height = (geo_obj.get_height() * 100.0) as usize;
                 }
             }
         }
@@ -315,22 +328,22 @@ impl ModelEditor {
                     if let Some(geo_obj) = server_ctx.curr_geo_object {
                         if let Some(region) = project.get_region(&server_ctx.curr_region) {
                             if let Some(ftctx) = region.compiled_geometry.get(&geo_obj) {
-                                let meta = ftctx.meta_data_at(coord.x, coord.y, 200, 200);
+                                let meta = ftctx.meta_data_at(coord.x, coord.y, 100, 100);
                                 //println!("{:?}", meta);
 
                                 if let Some(text) = ui.get_text("Seed Id") {
                                     if let Some(meta) = &meta {
-                                        text.set_text(format!("S: {}", meta.seed_id));
+                                        text.set_text(format!("{}", meta.seed_id));
                                     } else {
-                                        text.set_text(format!("S:  {}", "-"));
+                                        text.set_text("-".to_string());
                                     }
                                 }
 
                                 if let Some(text) = ui.get_text("Pattern Id") {
                                     if let Some(meta) = &meta {
-                                        text.set_text(format!("P: {}", meta.pattern_id));
+                                        text.set_text(format!("{}", meta.pattern_id));
                                     } else {
-                                        text.set_text(format!("P:  {}", "-"));
+                                        text.set_text("-".to_string());
                                     }
                                 }
 

@@ -475,11 +475,11 @@ impl Renderer {
                         break;
                     }
 
-                    if key.y == 0 {
-                        // Collect the hit geo ids which we will process later.
-                        if let Some(ids) = region.geometry_areas.get(&vec3i(key.x, 0, key.z)) {
-                            for id in ids {
-                                if !geo_ids.contains(id) {
+                    // Collect the hit geo ids which we will process later.
+                    if let Some(ids) = region.geometry_areas.get(&vec3i(key.x, 0, key.z)) {
+                        for id in ids {
+                            if let Some(geo_obj) = region.geometry.get(id) {
+                                if key.y <= geo_obj.height && !geo_ids.contains(id) {
                                     geo_ids.push(*id);
                                 }
                             }
