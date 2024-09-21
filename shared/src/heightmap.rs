@@ -399,7 +399,7 @@ impl Heightmap {
 
             let d = p.y - height - bump;
 
-            if d.abs() < 0.0001 {
+            if d.abs() < 0.001 {
                 if has_material_hit {
                     hit.hit_point = p;
                     hit.global_uv = vec2f(p.x, p.z);

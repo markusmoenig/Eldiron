@@ -611,7 +611,7 @@ impl MaterialFXNode {
                 Some(0)
             }
             Bump => {
-                hit.bump = hit.value / 30.0;
+                hit.bump = hit.value / 50.0;
                 None
             }
             _ => None,

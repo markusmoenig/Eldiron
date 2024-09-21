@@ -442,7 +442,6 @@ impl TileDrawer {
                             if let Some(geo_obj) = region.geometry.get(geo_id) {
                                 pos = geo_obj.get_position();
                             }
-
                             let p = vec2f(
                                 tile_x as f32 - pos.x + xx as f32 / region.grid_size as f32,
                                 tile_y as f32 - pos.y + 1.0 - yy as f32 / region.grid_size as f32,
@@ -451,6 +450,8 @@ impl TileDrawer {
                             if let Some(ft_ctx) = region.compiled_geometry.get(geo_id) {
                                 if let Some(col) = ft_ctx.face_pixel_at(p) {
                                     color = col;
+                                } else {
+                                    color = BLACK;
                                 }
                             }
                         }
