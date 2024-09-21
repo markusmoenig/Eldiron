@@ -35,16 +35,19 @@ impl RegionFXNode {
 
         match role {
             TiltedIsoCamera => {
-                coll.set("Height", TheValue::FloatRange(4.0, 1.0..=10.0));
+                coll.set("Height", TheValue::FloatRange(4.0, 1.0..=7.0));
+                coll.set("Tilt Angle", TheValue::FloatRange(0.35, 0.0..=1.0));
                 coll.set(
                     "Alignment",
                     TheValue::TextList(0, vec![str!("Right"), str!("Left")]),
                 );
             }
             TopDownIsoCamera => {
-                coll.set("Height", TheValue::FloatRange(4.0, 1.0..=10.0));
-                coll.set("X Offset", TheValue::FloatRange(-1.0, -5.0..=5.0));
-                coll.set("Z Offset", TheValue::FloatRange(1.0, -5.0..=5.0));
+                coll.set("Height", TheValue::FloatRange(4.0, 1.0..=7.0));
+                coll.set(
+                    "Alignment",
+                    TheValue::TextList(0, vec![str!("Right"), str!("Left")]),
+                );
             }
             Renderer => {}
             Saturation => {
@@ -101,13 +104,13 @@ impl RegionFXNode {
 
         match self.role {
             RegionFXNodeRole::TiltedIsoCamera => {
-                params.push(coll.get_f32_default("Height", 0.0));
+                params.push(coll.get_f32_default("Height", 4.0));
+                params.push(coll.get_f32_default("Tilt Angle", 0.35));
                 params.push(coll.get_i32_default("Alignment", 0) as f32);
             }
             RegionFXNodeRole::TopDownIsoCamera => {
-                params.push(coll.get_f32_default("Height", 0.0));
-                params.push(coll.get_f32_default("X Offset", -1.0));
-                params.push(coll.get_f32_default("Z Offset", 1.0));
+                params.push(coll.get_f32_default("Height", 4.0));
+                params.push(coll.get_i32_default("Alignment", 0) as f32);
             }
             RegionFXNodeRole::Saturation => {
                 params.push(coll.get_f32_default("Saturation", 1.0));
@@ -293,11 +296,12 @@ impl RegionFXNode {
     ) -> Ray {
         match self.role {
             TiltedIsoCamera => {
-                let height = 4.0; //params[0];
-                let alignment = params[1] as i32;
+                let height = params[0];
+                let angle = params[1];
+                let alignment = params[2] as i32;
 
                 let mut ro = vec3f(position.x, height, position.z + 1.0);
-                let mut rd = vec3f(position.x, 0.5, position.z);
+                let mut rd = vec3f(position.x, 0.0, position.z);
 
                 if alignment == 0 {
                     ro.x += height / 2.0;
@@ -334,9 +338,9 @@ impl RegionFXNode {
                 Ray::new(
                     out_origin,
                     normalize(vec3f(
-                        if alignment == 0 { -0.35 } else { 0.35 },
+                        if alignment == 0 { -angle } else { angle },
                         -1.0,
-                        -0.35,
+                        -angle,
                     )),
                 )
             }
