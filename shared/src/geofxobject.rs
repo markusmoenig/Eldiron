@@ -9,6 +9,7 @@ pub struct FTBuilderContext {
     pub out: String,
     pub geometry: Vec<String>,
     pub material_id: Option<String>,
+    pub cut_out: Option<String>,
 }
 
 /// A character instance.
@@ -73,6 +74,7 @@ impl GeoFXObject {
             id_counter: 0,
             geometry: vec![],
             material_id: None,
+            cut_out: None,
         };
 
         for (index, node) in self.nodes.iter().enumerate() {
@@ -115,6 +117,23 @@ impl GeoFXObject {
             Stack => {
                 let mut geometry = vec![];
                 for terminal in 0..4 {
+                    if let Some((n, _)) = self.find_connected_input_node(node, terminal) {
+                        self.build_trail(n as usize, palette, textures, ctx);
+                        geometry.append(&mut ctx.geometry);
+                    }
+                }
+                ctx.geometry = geometry;
+            }
+            Group => {
+                if let Some((n, _)) = self.find_connected_input_node(node, 0) {
+                    self.build_trail(n as usize, palette, textures, ctx);
+                    if !ctx.geometry.is_empty() {
+                        ctx.cut_out = Some(ctx.geometry[0].clone());
+                    }
+                }
+                ctx.geometry = vec![];
+                let mut geometry = vec![];
+                for terminal in 1..4 {
                     if let Some((n, _)) = self.find_connected_input_node(node, terminal) {
                         self.build_trail(n as usize, palette, textures, ctx);
                         geometry.append(&mut ctx.geometry);

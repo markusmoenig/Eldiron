@@ -225,8 +225,7 @@ impl GeoFXNode {
             Group => {
                 coll.set("X", TheValue::FloatRange(0.0, 0.0..=10.0));
                 coll.set("Y", TheValue::FloatRange(0.0, 0.0..=10.0));
-                coll.set("Length", TheValue::FloatRange(1.0, 0.001..=10.0));
-                coll.set("Height", TheValue::FloatRange(1.0, 0.001..=10.0));
+                coll.set("Z", TheValue::FloatRange(0.0, 0.0..=10.0));
             }
             MetaMaterial => {
                 coll.set("Meta", TheValue::Text(str!("")));
@@ -478,14 +477,19 @@ impl GeoFXNode {
                     ctx.material_id = None;
                 }
                 Group => {
+                    let mut cut_param = str!("");
+                    if let Some(cutout) = &ctx.cut_out {
+                        cut_param = cutout.clone();
+                    }
+
                     let geometry = ctx.geometry.join(",");
                     let geo = format!(
-                        "let pattern_{id_counter} = Pattern<Group>: content = [{geometry}], x = {x}, y = {y}, length = {length}, height = {height};\n",
+                        "let pattern_{id_counter} = Pattern<Group>: content = [{geometry}], x = {x}, y = {y}, z = {z}, cutout = [{cutout}];\n",
                         id_counter = { ctx.id_counter },
                         x = coll.get_f32_default("X", 0.0),
                         y = coll.get_f32_default("Y", 0.0),
-                        length = coll.get_f32_default("Length", 1.0),
-                        height = coll.get_f32_default("Height", 0.0),
+                        z = coll.get_f32_default("Z", 0.0),
+                        cutout = cut_param,
                         geometry = geometry
                     );
                     ctx.geometry.clear();
@@ -1567,7 +1571,7 @@ impl GeoFXNode {
                     },
                 ]
             }
-            Repeat | Group => {
+            Repeat => {
                 let mut terminals = vec![];
                 for i in 1..=highest_output_terminal {
                     terminals.push(TheNodeTerminal {
@@ -1595,6 +1599,21 @@ impl GeoFXNode {
                     role: str!("Mat"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
+            }
+            Group => {
+                let mut terminals = vec![TheNodeTerminal {
+                    name: str!("cutout"),
+                    role: str!("Cutout"),
+                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                }];
+                for i in 1..highest_output_terminal {
+                    terminals.push(TheNodeTerminal {
+                        name: format!("shape #{}", i),
+                        role: format!("Shape #{}", i),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    });
+                }
+                terminals
             }
             _ => vec![],
         }
