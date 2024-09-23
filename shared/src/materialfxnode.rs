@@ -259,7 +259,6 @@ impl MaterialFXNode {
             | Bump => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
-                    role: str!("Input"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             }
@@ -267,12 +266,10 @@ impl MaterialFXNode {
                 vec![
                     TheNodeTerminal {
                         name: str!("in"),
-                        role: str!("Input"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
                         name: str!("noise"),
-                        role: str!("Noise"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]
@@ -281,12 +278,10 @@ impl MaterialFXNode {
                 vec![
                     TheNodeTerminal {
                         name: str!("geo"),
-                        role: str!("Geometry"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
                         name: str!("noise"),
-                        role: str!("Noise"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]
@@ -297,39 +292,19 @@ impl MaterialFXNode {
     pub fn outputs(&self) -> Vec<TheNodeTerminal> {
         match self.role {
             Geometry => {
-                vec![
-                    TheNodeTerminal {
-                        name: str!("mat1"),
-                        role: str!("Material #1"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("mat2"),
-                        role: str!("Material #2"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("mat3"),
-                        role: str!("Material #3"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("mat4"),
-                        role: str!("Material #4"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                ]
+                vec![TheNodeTerminal {
+                    name: str!("mat"),
+                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                }]
             }
             MaterialMixer => {
                 vec![
                     TheNodeTerminal {
                         name: str!("mat1"),
-                        role: str!("Material1"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
                         name: str!("mat2"),
-                        role: str!("Material2"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]
@@ -338,22 +313,18 @@ impl MaterialFXNode {
                 vec![
                     TheNodeTerminal {
                         name: str!("out"),
-                        role: str!("Out"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
                         name: str!("mat1"),
-                        role: str!("Material #1"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
                         name: str!("mat2"),
-                        role: str!("Material #2"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
                         name: str!("bump"),
-                        role: str!("Bump"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]
@@ -361,7 +332,6 @@ impl MaterialFXNode {
             Material | Noise3D | Noise2D | Distance => {
                 vec![TheNodeTerminal {
                     name: str!("out"),
-                    role: str!("Output"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             }
@@ -369,22 +339,18 @@ impl MaterialFXNode {
                 vec![
                     TheNodeTerminal {
                         name: str!("top"),
-                        role: str!("Top"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
                         name: str!("side"),
-                        role: str!("Side"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
                         name: str!("front"),
-                        role: str!("Front"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
                         name: str!("mapped"),
-                        role: str!("Mapped"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]

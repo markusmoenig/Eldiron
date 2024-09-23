@@ -133,14 +133,12 @@ impl RegionFXNode {
             Renderer => {
                 vec![TheNodeTerminal {
                     name: str!("cam"),
-                    role: str!("Camera"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             }
             Saturation => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
-                    role: str!("In"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             }
@@ -152,7 +150,6 @@ impl RegionFXNode {
             TiltedIsoCamera | TopDownIsoCamera => {
                 vec![TheNodeTerminal {
                     name: str!("cam"),
-                    role: str!("Camera"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             }
@@ -160,12 +157,10 @@ impl RegionFXNode {
                 vec![
                     TheNodeTerminal {
                         name: str!("2D FX"),
-                        role: str!("2D FX"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
                         name: str!("3D FX"),
-                        role: str!("3D FX"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                 ]
@@ -173,7 +168,6 @@ impl RegionFXNode {
             Saturation => {
                 vec![TheNodeTerminal {
                     name: str!("out"),
-                    role: str!("Out"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             } //_ => vec![],

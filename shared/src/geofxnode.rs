@@ -1519,7 +1519,6 @@ impl GeoFXNode {
             Bricks | Box | Disc | Material | Repeat | Stack | Group => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
-                    role: str!("In"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             }
@@ -1551,32 +1550,22 @@ impl GeoFXNode {
                 for i in 1..=highest_output_terminal {
                     terminals.push(TheNodeTerminal {
                         name: format!("layer #{}", i),
-                        role: format!("Layer #{}", i),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     });
                 }
                 terminals
             }
             Bricks | Box | Disc => {
-                vec![
-                    TheNodeTerminal {
-                        name: str!("out"),
-                        role: str!("Out"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("mat"),
-                        role: str!("Mat"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                ]
+                vec![TheNodeTerminal {
+                    name: str!("mat"),
+                    color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                }]
             }
             Repeat => {
                 let mut terminals = vec![];
                 for i in 1..=highest_output_terminal {
                     terminals.push(TheNodeTerminal {
                         name: format!("shape #{}", i),
-                        role: format!("Shape #{}", i),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     });
                 }
@@ -1587,7 +1576,6 @@ impl GeoFXNode {
                 for i in 1..=highest_output_terminal {
                     terminals.push(TheNodeTerminal {
                         name: format!("row #{}", i),
-                        role: format!("Row #{}", i),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     });
                 }
@@ -1596,20 +1584,17 @@ impl GeoFXNode {
             MetaMaterial => {
                 vec![TheNodeTerminal {
                     name: str!("mat"),
-                    role: str!("Mat"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             }
             Group => {
                 let mut terminals = vec![TheNodeTerminal {
                     name: str!("cutout"),
-                    role: str!("Cutout"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }];
                 for i in 1..highest_output_terminal {
                     terminals.push(TheNodeTerminal {
                         name: format!("shape #{}", i),
-                        role: format!("Shape #{}", i),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     });
                 }
