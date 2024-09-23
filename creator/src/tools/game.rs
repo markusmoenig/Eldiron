@@ -28,6 +28,34 @@ impl Tool for GameTool {
         Some('g')
     }
 
+    fn tool_event(
+        &mut self,
+        tool_event: ToolEvent,
+        _tool_context: ToolContext,
+        ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _project: &mut Project,
+        _server: &mut Server,
+        _client: &mut Client,
+        _server_ctx: &mut ServerContext,
+    ) -> bool {
+        match tool_event {
+            ToolEvent::Activate => {
+                if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                    layout.set_mode(TheSharedVLayoutMode::Top);
+                }
+                true
+            }
+            ToolEvent::DeActivate => {
+                if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                    layout.set_mode(TheSharedVLayoutMode::Shared);
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
     fn handle_event(
         &mut self,
         event: &TheEvent,

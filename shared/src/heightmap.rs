@@ -385,7 +385,6 @@ impl Heightmap {
                                 hit.global_uv = vec2f(p.x, p.z);
                                 hit.pattern_pos = hit.global_uv;
 
-                                //material.get_material_distance(0, hit, palette, textures, m_params);
                                 hit.mode = HitMode::Bump;
                                 material.follow_trail(0, 0, hit, palette, textures, m_params);
                                 bump = hit.bump;
@@ -399,7 +398,7 @@ impl Heightmap {
 
             let d = p.y - height - bump;
 
-            if d.abs() < 0.001 {
+            if d < 0.0001 {
                 if has_material_hit {
                     hit.hit_point = p;
                     hit.global_uv = vec2f(p.x, p.z);

@@ -14,7 +14,7 @@ pub enum SidebarMode {
     Module,
     Screen,
     Asset,
-    //Model,
+    Model,
     Material,
     Node,
     Debug,
@@ -96,9 +96,9 @@ impl Sidebar {
             "Manage assets in the asset library, such as images, sounds, and fonts.",
         );
 
-        // let mut model_sectionbar_button = TheSectionbarButton::new(TheId::named("Model Section"));
-        // model_sectionbar_button.set_text("Model".to_string());
-        // model_sectionbar_button.set_status_text("Models");
+        let mut model_sectionbar_button = TheSectionbarButton::new(TheId::named("Model Section"));
+        model_sectionbar_button.set_text("Model".to_string());
+        model_sectionbar_button.set_status_text("Models");
 
         let mut material_sectionbar_button =
             TheSectionbarButton::new(TheId::named("Material Section"));
@@ -129,7 +129,7 @@ impl Sidebar {
         vlayout.add_widget(Box::new(module_sectionbar_button));
         vlayout.add_widget(Box::new(screen_sectionbar_button));
         vlayout.add_widget(Box::new(asset_sectionbar_button));
-        //vlayout.add_widget(Box::new(model_sectionbar_button));
+        vlayout.add_widget(Box::new(model_sectionbar_button));
         vlayout.add_widget(Box::new(material_sectionbar_button));
         vlayout.add_widget(Box::new(node_sectionbar_button));
         vlayout.add_widget(Box::new(debug_sectionbar_button));
@@ -713,8 +713,44 @@ impl Sidebar {
 
         // Model UI
 
-        // let mut model_ui_canvas = TheCanvas::default();
-        // stack_layout.add_canvas(model_ui_canvas);
+        let mut model_canvas = TheCanvas::default();
+        let mut model_list_canvas = TheCanvas::default();
+
+        let mut model_list_header_canvas = TheCanvas::default();
+        model_list_header_canvas.set_widget(TheStatusbar::new(TheId::empty()));
+        let mut model_list_header_canvas_hlayout = TheHLayout::new(TheId::empty());
+        model_list_header_canvas_hlayout.set_background_color(None);
+        let mut filter_text = TheText::new(TheId::empty());
+        filter_text.set_text("Filter".to_string());
+
+        model_list_header_canvas_hlayout.set_margin(vec4i(10, 1, 5, 1));
+        model_list_header_canvas_hlayout.set_padding(3);
+        model_list_header_canvas_hlayout.add_widget(Box::new(filter_text));
+        let mut filter_edit = TheTextLineEdit::new(TheId::named("Model Filter Edit"));
+        filter_edit.set_text("".to_string());
+        filter_edit.limiter_mut().set_max_size(vec2i(120, 18));
+        filter_edit.set_font_size(12.5);
+        filter_edit.set_embedded(true);
+        filter_edit.set_status_text("Show models containing the given text.");
+        filter_edit.set_continuous(true);
+        model_list_header_canvas_hlayout.add_widget(Box::new(filter_edit));
+
+        // let mut drop_down = TheDropdownMenu::new(TheId::named("Material Filter Role"));
+        // drop_down.add_option("All".to_string());
+        // for dir in TileRole::iterator() {
+        //     drop_down.add_option(dir.to_string().to_string());
+        // }
+        // material_list_header_canvas_hlayout.add_widget(Box::new(drop_down));
+
+        model_list_header_canvas.set_layout(model_list_header_canvas_hlayout);
+
+        let mut model_list_layout = TheListLayout::new(TheId::named("Model List"));
+        model_list_layout.set_item_size(42);
+        model_list_canvas.set_bottom(model_list_header_canvas);
+        model_list_canvas.set_layout(model_list_layout);
+
+        model_canvas.set_center(model_list_canvas);
+        stack_layout.add_canvas(model_canvas);
 
         // Material UI
 
@@ -733,7 +769,7 @@ impl Sidebar {
         material_list_header_canvas_hlayout.add_widget(Box::new(filter_text));
         let mut filter_edit = TheTextLineEdit::new(TheId::named("Material Filter Edit"));
         filter_edit.set_text("".to_string());
-        filter_edit.limiter_mut().set_max_size(vec2i(75, 18));
+        filter_edit.limiter_mut().set_max_size(vec2i(120, 18));
         filter_edit.set_font_size(12.5);
         filter_edit.set_embedded(true);
         filter_edit.set_status_text("Show materials containing the given text.");
@@ -917,10 +953,23 @@ impl Sidebar {
             }
             TheEvent::Resize => {
                 ctx.ui.redraw_all = true;
-                self.show_filtered_materials(ui, ctx, project, server_ctx);
+                // self.show_filtered_materials(ui, ctx, project, server_ctx);
+                // self.show_filtered_models(ui, ctx, project, server_ctx);
             }
             TheEvent::Custom(id, value) => {
-                if id.name == "Update Minimaps" {
+                if id.name == "Update Model List" {
+                    self.show_filtered_models(ui, ctx, project, server_ctx);
+
+                    self.deselect_sections_buttons(ui, "Model Section".to_string());
+                    self.select_section_button(ui, "Model Section".to_string());
+
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Model;
+
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        self.stack_layout_id.clone(),
+                        SidebarMode::Model as usize,
+                    ));
+                } else if id.name == "Update Minimaps" {
                     let palette = project.palette.clone();
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if let Some(render_view) = ui.get_render_view("MiniMap") {
@@ -2328,6 +2377,23 @@ impl Sidebar {
                         SidebarMode::Asset as usize,
                     ));
                     redraw = true;
+                } else if id.name == "Model Section" && *state == TheWidgetState::Selected {
+                    self.deselect_sections_buttons(ui, id.name.clone());
+
+                    if let Some(widget) = ui
+                        .canvas
+                        .get_widget(Some(&"Switchbar Section Header".into()), None)
+                    {
+                        widget.set_value(TheValue::Text("Models".to_string()));
+                    }
+
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Model;
+
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        self.stack_layout_id.clone(),
+                        SidebarMode::Model as usize,
+                    ));
+                    redraw = true;
                 } else if id.name == "Material Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
 
@@ -2831,6 +2897,7 @@ impl Sidebar {
 
         server_ctx.curr_material_object = selected_material;
 
+        self.show_filtered_models(ui, ctx, project, server_ctx);
         self.show_filtered_materials(ui, ctx, project, server_ctx);
     }
 
@@ -3458,6 +3525,71 @@ impl Sidebar {
             }
         }
         ui.select_first_list_item("Tilemap Tile List", ctx);
+    }
+
+    /// Shows the filtered models of the project.
+    pub fn show_filtered_models(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &ServerContext,
+    ) {
+        let mut filter_text = if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Model Filter Edit".to_string()), None)
+        {
+            widget.value().to_string().unwrap_or_default()
+        } else {
+            "".to_string()
+        };
+
+        let _filter_role = if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Model Filter Role".to_string()), None)
+        {
+            if let Some(drop_down_menu) = widget.as_drop_down_menu() {
+                drop_down_menu.selected_index()
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+
+        filter_text = filter_text.to_lowercase();
+
+        if let Some(layout) = ui.canvas.get_layout(Some(&"Model List".to_string()), None) {
+            if let Some(list_layout) = layout.as_list_layout() {
+                list_layout.clear();
+                for model in project.models.values() {
+                    if filter_text.is_empty() || model.name.to_lowercase().contains(&filter_text)
+                    //&& (filter_role == 0
+                    //    || tile.role == TileRole::from_index(filter_role as u8 - 1).unwrap())
+                    {
+                        let mut item =
+                            TheListItem::new(TheId::named_with_id("Model Item", model.id));
+                        item.set_text(model.name.clone());
+                        let sub_text =
+                            format!("{}. {} Nodes", model.nodes[0].name(), model.nodes.len());
+                        item.set_sub_text(sub_text);
+                        item.set_size(42);
+                        if Some(model.id) == server_ctx.curr_material_object {
+                            item.set_state(TheWidgetState::Selected);
+                        }
+                        let mut buffer = TheRGBABuffer::new(TheDim::sized(36, 36));
+                        model.preview_2d(
+                            &mut buffer,
+                            &project.palette,
+                            &TILEDRAWER.lock().unwrap().tiles,
+                        );
+                        item.set_icon(buffer);
+                        list_layout.add_item(item, ctx);
+                    }
+                }
+            }
+        }
+        //ui.select_first_list_item("Material List", ctx);
     }
 
     /// Shows the filtered materials of the project.

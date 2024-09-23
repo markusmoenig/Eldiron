@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use rayon::prelude::*;
 use theframework::prelude::*;
 
 use GeoFXNodeRole::*;
@@ -16,6 +17,10 @@ pub struct FTBuilderContext {
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct GeoFXObject {
     pub id: Uuid,
+
+    #[serde(default)]
+    pub name: String,
+
     pub material_id: Uuid,
 
     pub nodes: Vec<GeoFXNode>,
@@ -44,6 +49,8 @@ impl GeoFXObject {
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
+            name: String::new(),
+
             material_id: Uuid::nil(),
 
             nodes: Vec::new(),
@@ -386,5 +393,40 @@ impl GeoFXObject {
     /// Convert the model to a JSON string.
     pub fn to_json(&self) -> String {
         serde_json::to_string(&self).unwrap_or_default()
+    }
+
+    pub fn preview_2d(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        palette: &ThePalette,
+        textures: &FxHashMap<Uuid, TheRGBATile>,
+    ) {
+        let width = buffer.dim().width as usize;
+        let height = buffer.dim().height;
+
+        let ft = ForgedTiles::default();
+
+        let code = self.build(palette, textures);
+
+        if let Ok(ctx) = ft.compile_code(code) {
+            buffer
+                .pixels_mut()
+                .par_rchunks_exact_mut(width * 4)
+                .enumerate()
+                .for_each(|(j, line)| {
+                    for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
+                        let i = j * width + i;
+
+                        let xx = (i % width) as f32 / width as f32;
+                        let yy = (i / width) as f32 / height as f32;
+
+                        let p = vec2f(xx, yy);
+
+                        if let Some(col) = ctx.face_pixel_at(p) {
+                            pixel.copy_from_slice(&col);
+                        }
+                    }
+                });
+        }
     }
 }

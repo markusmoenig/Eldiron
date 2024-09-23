@@ -51,6 +51,9 @@ pub struct Project {
     #[serde(default)]
     pub materials: IndexMap<Uuid, MaterialFXObject>,
 
+    #[serde(default)]
+    pub models: IndexMap<Uuid, GeoFXObject>,
+
     #[serde(default = "default_target_fps")]
     pub target_fps: u32,
 
@@ -90,6 +93,7 @@ impl Project {
 
             palette: ThePalette::default(),
             materials,
+            models: IndexMap::default(),
 
             target_fps: default_target_fps(),
             tick_ms: default_tick_ms(),

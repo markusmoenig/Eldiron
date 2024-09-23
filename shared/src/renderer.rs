@@ -664,14 +664,12 @@ impl Renderer {
                             let pos = geo_obj.get_position();
                             let ft_hit = ftctx.distance_to_face(p, 0, pos);
 
-                            if ft_hit.distance < 0.001 && t < hit.distance {
+                            if ft_hit.distance < 0.0001 && t < hit.distance {
                                 h.hit_point = p;
-
                                 hit.clone_from(&h);
+
                                 hit.normal = ftctx.face_normal(p, 0, pos);
-
                                 hit.distance = dist + t;
-
                                 hit.mat = BSDFMaterial::from_hit(ftctx, &ft_hit);
 
                                 if let Some(material) = material {
