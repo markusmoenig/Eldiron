@@ -1051,6 +1051,16 @@ impl Sidebar {
                         asset.name = value.describe();
                         ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
                     }
+                } else if name == "Rename Model" && *role == TheDialogButtonRole::Accept {
+                    if let Some(model) = project.models.get_mut(uuid) {
+                        model.name = value.describe();
+                        ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
+                    }
+                } else if name == "Rename Material" && *role == TheDialogButtonRole::Accept {
+                    if let Some(material) = project.materials.get_mut(uuid) {
+                        material.name = value.describe();
+                        ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
+                    }
                 }
             }
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
@@ -1183,6 +1193,28 @@ impl Sidebar {
                             "Rename Asset",
                             "Asset Name",
                             &asset.name,
+                            widget_id.uuid,
+                            ui,
+                            ctx,
+                        );
+                    }
+                } else if item_id.name == "Rename Model" {
+                    if let Some(model) = project.models.get(&widget_id.uuid) {
+                        open_text_dialog(
+                            "Rename Model",
+                            "Model Name",
+                            &model.name,
+                            widget_id.uuid,
+                            ui,
+                            ctx,
+                        );
+                    }
+                } else if item_id.name == "Rename Material" {
+                    if let Some(material) = project.materials.get(&widget_id.uuid) {
+                        open_text_dialog(
+                            "Rename Material",
+                            "Material Name",
+                            &material.name,
                             widget_id.uuid,
                             ui,
                             ctx,
@@ -3591,6 +3623,13 @@ impl Sidebar {
                             &TILEDRAWER.lock().unwrap().tiles,
                         );
                         item.set_icon(buffer);
+                        item.set_context_menu(Some(TheContextMenu {
+                            items: vec![TheContextMenuItem::new(
+                                "Rename Model...".to_string(),
+                                TheId::named("Rename Model"),
+                            )],
+                            ..Default::default()
+                        }));
                         list_layout.add_item(item, ctx);
                     }
                 }
@@ -3652,6 +3691,13 @@ impl Sidebar {
                             item.set_state(TheWidgetState::Selected);
                         }
                         item.set_icon(material.get_preview().scaled(36, 36));
+                        item.set_context_menu(Some(TheContextMenu {
+                            items: vec![TheContextMenuItem::new(
+                                "Rename Material...".to_string(),
+                                TheId::named("Rename Material"),
+                            )],
+                            ..Default::default()
+                        }));
                         list_layout.add_item(item, ctx);
                     }
                 }
