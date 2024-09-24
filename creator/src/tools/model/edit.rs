@@ -86,16 +86,63 @@ impl Tool for ModelNodeEditTool {
     fn handle_event(
         &mut self,
         event: &TheEvent,
-        _ui: &mut TheUI,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
         _server: &mut Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let redraw = false;
+        let mut redraw = false;
         #[allow(clippy::single_match)]
         match event {
+            TheEvent::Drop(coord, drop) => {
+                if drop.id.name == "Model Item" {
+                    if let Some(mut model) = project.models.get(&drop.id.uuid).cloned() {
+                        if let Some(geo_obj_id) = server_ctx.curr_geo_object {
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                if let Some(geo_obj) = region.geometry.get_mut(&geo_obj_id) {
+                                    let node_offset = geo_obj.nodes.len() as u16;
+
+                                    // Get the original position of node[0] in the dropped graph
+                                    let original_pos = model.nodes[0].position;
+
+                                    // Calculate the displacement for the new node[0] position
+                                    let displacement =
+                                        (coord + geo_obj.scroll_offset) - original_pos;
+
+                                    // Adjust positions
+                                    for node in &mut model.nodes {
+                                        node.position += displacement;
+                                    }
+
+                                    geo_obj.nodes.extend(model.nodes.clone());
+
+                                    for (
+                                        src_node_idx,
+                                        src_terminal,
+                                        dest_node_idx,
+                                        dest_terminal,
+                                    ) in &model.connections
+                                    {
+                                        geo_obj.connections.push((
+                                            src_node_idx + node_offset,
+                                            *src_terminal,
+                                            dest_node_idx + node_offset,
+                                            *dest_terminal,
+                                        ));
+                                    }
+
+                                    let node_canvas = geo_obj.to_canvas();
+                                    ui.set_node_canvas("Model NodeCanvas", node_canvas);
+
+                                    redraw = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             TheEvent::ContextMenuSelected(id, _) => {
                 if id.name == "Add To Models" {
                     let mut to_add = None;

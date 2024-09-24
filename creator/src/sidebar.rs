@@ -1205,6 +1205,13 @@ impl Sidebar {
                     drop.set_offset(*offset);
                     ui.style.create_drop_image(&mut drop, ctx);
                     ctx.ui.set_drop(drop);
+                } else if id.name == "Model Item" {
+                    let mut drop = TheDrop::new(id.clone());
+                    drop.set_title(format!("Model: {}", text));
+                    drop.set_text(text.clone());
+                    drop.set_offset(*offset);
+                    ui.style.create_drop_image(&mut drop, ctx);
+                    ctx.ui.set_drop(drop);
                 }
             }
             TheEvent::ValueChanged(id, value) => {
