@@ -148,7 +148,7 @@ impl GeoFXObject {
                 }
                 ctx.geometry = geometry;
             }
-            LeftWall | MiddleWallV | RightWall | TopWall | MiddleWallH | BottomWall => {
+            LeftWall | MiddleWallV | RightWall | BackWall | MiddleWallH | FrontWall => {
                 let mut geometry = vec![];
                 for terminal in 0..6 {
                     if let Some((n, _)) = self.find_connected_input_node(node, terminal) {
@@ -276,7 +276,7 @@ impl GeoFXObject {
             role = geo.role.clone();
         }
         match &role {
-            LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
+            LeftWall | BackWall | RightWall | FrontWall | MiddleWallH | MiddleWallV => {
                 let mut bricks = GeoFXNode::new(Box);
                 bricks.position = vec2i(200, 40);
                 self.nodes.push(bricks);

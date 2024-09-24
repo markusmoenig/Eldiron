@@ -539,9 +539,9 @@ impl ModelEditor {
                                         geo_obj.nodes[selected_index].set(name, value.clone());
                                         match &geo_obj.nodes[selected_index].role {
                                             GeoFXNodeRole::LeftWall
-                                            | GeoFXNodeRole::TopWall
+                                            | GeoFXNodeRole::BackWall
                                             | GeoFXNodeRole::RightWall
-                                            | GeoFXNodeRole::BottomWall
+                                            | GeoFXNodeRole::FrontWall
                                             | GeoFXNodeRole::MiddleWallH
                                             | GeoFXNodeRole::MiddleWallV => {
                                                 if name == "Length" || name == "Height" {

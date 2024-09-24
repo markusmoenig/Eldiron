@@ -24,9 +24,9 @@ pub enum GeoFXNodeRole {
     Column,
 
     LeftWall,
-    TopWall,
+    BackWall,
     RightWall,
-    BottomWall,
+    FrontWall,
     MiddleWallH,
     MiddleWallV,
 
@@ -100,7 +100,7 @@ impl GeoFXNode {
                 coll.set("Annular", TheValue::Text(str!("0.0")));
                 coll.set("Extrusion", TheValue::Text(str!("thickness")));
             }
-            LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
+            LeftWall | FrontWall | RightWall | BackWall | MiddleWallH | MiddleWallV => {
                 coll.set("Pos X", TheValue::Float(0.1));
                 coll.set("Pos Y", TheValue::Float(0.5));
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
@@ -253,9 +253,9 @@ impl GeoFXNode {
             Self::new(GeoFXNodeRole::RemoveHeight),
             Self::new(GeoFXNodeRole::SetHeight),
             Self::new(GeoFXNodeRole::LeftWall),
-            Self::new(GeoFXNodeRole::TopWall),
+            Self::new(GeoFXNodeRole::BackWall),
             Self::new(GeoFXNodeRole::RightWall),
-            Self::new(GeoFXNodeRole::BottomWall),
+            Self::new(GeoFXNodeRole::FrontWall),
             Self::new(GeoFXNodeRole::MiddleWallH),
             Self::new(GeoFXNodeRole::MiddleWallV),
             // Self::new(GeoFXNodeRole::BendWallNW),
@@ -282,9 +282,9 @@ impl GeoFXNode {
             RemoveHeight => str!("Remove height from the ground tile (height map)."),
             SetHeight => str!("Set the height of the ground tile (height map)."),
             LeftWall => str!("Left Wall"),
-            TopWall => str!("Top Wall"),
+            BackWall => str!("Back Wall"),
             RightWall => str!("Right Wall"),
-            BottomWall => str!("Bottom Wall"),
+            FrontWall => str!("Front Wall"),
             MiddleWallH => str!("Middle Wall X"),
             MiddleWallV => str!("Niddle Wall Y"),
             Column => str!("A column (disc) with an optional profile."),
@@ -312,15 +312,23 @@ impl GeoFXNode {
         GeoFXNode::new(MiddleWallH)
     }
 
+    pub fn icon_name(&self) -> Option<String> {
+        match self.role {
+            LeftWall => Some(str!("geo_wall_left")),
+            BackWall => Some(str!("geo_wall_back")),
+            _ => None,
+        }
+    }
+
     pub fn description(&self) -> String {
         match &self.role {
             AddHeight => str!("Add height to the ground tile (height map)."),
             RemoveHeight => str!("Remove height from the ground tile (height map)."),
             SetHeight => str!("Set the height of the ground tile (height map)."),
             LeftWall => str!("A wall on the left side of the tile."),
-            TopWall => str!("A wall on the top side of the tile."),
+            BackWall => str!("A wall on the back side of the tile."),
             RightWall => str!("A wall on the right side of the tile."),
-            BottomWall => str!("A wall on the bottom side of the tile."),
+            FrontWall => str!("A wall on the front side of the tile."),
             MiddleWallH => str!("A horizontal wall in the middle of the tile."),
             MiddleWallV => str!("A vertical wall in the middle of the tile."),
             // BendWallNW => str!("A rounded wall from the left to the top side of the tile."),
@@ -629,14 +637,14 @@ impl GeoFXNode {
                     ctx.material_id = Some(format!("material_{}", ctx.id_counter));
                     ctx.id_counter += 1;
                 }
-                LeftWall | MiddleWallV | RightWall | TopWall | MiddleWallH | BottomWall => {
+                LeftWall | MiddleWallV | RightWall | BackWall | MiddleWallH | FrontWall => {
                     let face_type = match &self.role {
                         LeftWall => "Left",
                         MiddleWallV => "MiddleY",
                         RightWall => "Right",
-                        TopWall => "Top",
+                        BackWall => "Back",
                         MiddleWallH => "MiddleX",
-                        BottomWall => "Bottom",
+                        FrontWall => "Front",
                         _ => "",
                     };
 
@@ -719,7 +727,7 @@ impl GeoFXNode {
 
                     return sdf_box2d(p, pos, thick, len);
                 }
-                TopWall => {
+                BackWall => {
                     let t = if coll.get_i32_default("2D Mode", 0) == 1 {
                         1.0
                     } else {
@@ -751,7 +759,7 @@ impl GeoFXNode {
 
                     return sdf_box2d(p, pos, thick, len);
                 }
-                BottomWall => {
+                FrontWall => {
                     let t = if coll.get_i32_default("2D Mode", 0) == 1 {
                         1.0
                     } else {
@@ -971,7 +979,7 @@ impl GeoFXNode {
 
                 d
             }
-            TopWall => {
+            BackWall => {
                 let thick = params[2] / 2.0;
                 let len = params[3];
                 let mut height = params[4];
@@ -1030,7 +1038,7 @@ impl GeoFXNode {
 
                 d
             }
-            BottomWall => {
+            FrontWall => {
                 let thick = params[2] / 2.0;
                 let len = params[3];
                 let mut height = params[4];
@@ -1363,7 +1371,7 @@ impl GeoFXNode {
                         area.push(Vec2i::new(pos.x, pos.y + i));
                     }
                 }
-                TopWall | BottomWall | MiddleWallH => {
+                BackWall | FrontWall | MiddleWallH => {
                     let pos = Vec2i::from(self.position(&coll));
                     let length = self.length().ceil() as i32;
                     for i in 0..length {
@@ -1513,7 +1521,7 @@ impl GeoFXNode {
 
     pub fn inputs(&self) -> Vec<TheNodeTerminal> {
         match self.role {
-            LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
+            LeftWall | BackWall | RightWall | FrontWall | MiddleWallH | MiddleWallV => {
                 vec![]
             }
             Bricks | Box | Disc | Material | Repeat | Stack | Group => {
@@ -1545,7 +1553,7 @@ impl GeoFXNode {
         highest_output_terminal += 1;
 
         match self.role {
-            LeftWall | TopWall | RightWall | BottomWall | MiddleWallH | MiddleWallV => {
+            LeftWall | BackWall | RightWall | FrontWall | MiddleWallH | MiddleWallV => {
                 let mut terminals = vec![];
                 for i in 1..=highest_output_terminal {
                     terminals.push(TheNodeTerminal {

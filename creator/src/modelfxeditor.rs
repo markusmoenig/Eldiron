@@ -631,9 +631,9 @@ impl ModelFXEditor {
                                         geo_obj.nodes[index].set(name, value.clone());
                                         match &geo_obj.nodes[index].role {
                                             GeoFXNodeRole::LeftWall
-                                            | GeoFXNodeRole::TopWall
+                                            | GeoFXNodeRole::BackWall
                                             | GeoFXNodeRole::RightWall
-                                            | GeoFXNodeRole::BottomWall
+                                            | GeoFXNodeRole::FrontWall
                                             | GeoFXNodeRole::MiddleWallH
                                             | GeoFXNodeRole::MiddleWallV => {
                                                 if name == "Length" || name == "Height" {
@@ -1260,8 +1260,8 @@ impl ModelFXEditor {
     }
 
     /// Set the tiles for the picker.
-    pub fn set_geo_tiles(&mut self, palette: &ThePalette, ui: &mut TheUI, ctx: &mut TheContext) {
-        let tile_size = 48;
+    pub fn set_geo_tiles(&mut self, _palette: &ThePalette, ui: &mut TheUI, ctx: &mut TheContext) {
+        let tile_size = 65;
 
         //let mut set_default_selection = false;
 
@@ -1310,14 +1310,24 @@ impl ModelFXEditor {
 
                     i += 1;
 
-                    tile.preview(
-                        &mut tile_buffer,
-                        None,
-                        palette,
-                        &FxHashMap::default(),
-                        Vec2f::zero(),
-                        ctx,
-                    );
+                    if let Some(icon_name) = tile.icon_name() {
+                        if let Some(b) = ctx.ui.icon(&icon_name) {
+                            tile_buffer.copy_into(0, 0, b);
+                        } else {
+                            tile_buffer.fill(BLACK);
+                        }
+                    } else {
+                        tile_buffer.fill(BLACK);
+                    }
+
+                    // tile.preview(
+                    //     &mut tile_buffer,
+                    //     None,
+                    //     palette,
+                    //     &FxHashMap::default(),
+                    //     Vec2f::zero(),
+                    //     ctx,
+                    // );
                     buffer.copy_into(x * grid, y * grid, &tile_buffer);
                     self.geos.insert((x, y), tile.clone());
                 }
