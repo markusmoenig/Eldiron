@@ -218,16 +218,11 @@ impl Region {
     /// Get the closest geometry to the given 2D point.
     pub fn get_closest_geometry(&self, p: Vec2f, role: Layer2DRole) -> Option<(Uuid, usize)> {
         let pi = Vec2i::from(p);
-        let mut min_dist = f32::MAX;
         let mut rc = None;
 
         for geo_obj in self.geometry.values() {
             if geo_obj.area.contains(&pi) && geo_obj.get_layer_role() == Some(role) {
-                let d = geo_obj.distance(&TheTime::default(), p, 1.0, &mut None);
-                if d.0 < min_dist {
-                    min_dist = d.0;
-                    rc = Some((geo_obj.id, d.1));
-                }
+                rc = Some((geo_obj.id, 0));
             }
         }
 

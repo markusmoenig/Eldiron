@@ -80,29 +80,6 @@ impl MaterialFXObject {
         self.follow_trail(0, 0, hit, palette, textures, mat_obj_params);
     }
 
-    pub fn get_distance(
-        &self,
-        time: &TheTime,
-        p: Vec2f,
-        hit: &mut Hit,
-        geo_obj: &GeoFXObject,
-        scale: f32,
-        mat_obj_params: &[Vec<f32>],
-    ) -> (f32, usize) {
-        hit.pattern_pos = p;
-
-        let d = geo_obj.distance(time, p, scale, &mut Some(hit));
-        if self.follow_geo_trail(time, hit, mat_obj_params) {
-            if hit.interior_distance <= 0.01 {
-                hit.value = 0.0;
-            } else {
-                hit.value = 1.0;
-            }
-        }
-
-        d
-    }
-
     /// Compute the materials geometry extrusion.
     pub fn follow_geo_trail(
         &self,

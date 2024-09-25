@@ -72,69 +72,50 @@ impl Tool for MapObjectsTool {
                 // Add Geometry
                 let geo = MODELFXEDITOR.lock().unwrap().get_geo_node(ui);
                 if let Some(mut geo) = geo {
-                    if geo.get_layer_role() == Layer2DRole::Ground {
-                        let prev = region.heightmap.clone();
-                        // Heightmap editing
-                        geo.heightmap_edit(&coord, &mut region.heightmap);
-                        self.processed_coords.insert(coord);
-                        tiles_to_render.push(coord);
-                        region_to_render = Some(region.clone());
+                    let new_id = Uuid::new_v4();
+                    geo.id = new_id;
+                    geo.set_default_position(coord);
+                    // let obj_id = region.add_geo_node(geo);
+                    // if let Some((geo_obj, _)) = region.find_geo_node(new_id) {
+                    //     tiles_to_render.clone_from(&geo_obj.area);
+                    // }
 
-                        let undo = RegionUndoAtom::HeightmapEdit(
-                            prev,
-                            region.heightmap.clone(),
+                    let mut geo_obj = GeoFXObject::default();
+                    geo_obj.nodes.push(geo);
+                    geo_obj.init();
+                    geo_obj.update_area();
+                    tiles_to_render.clone_from(&geo_obj.area);
+                    let geo_obj_id = geo_obj.id;
+                    region.geometry.insert(geo_obj_id, geo_obj);
+
+                    region.update_geometry_areas();
+
+                    region.compile_geo(geo_obj_id, &palette, &TILEDRAWER.lock().unwrap().tiles);
+                    server_ctx.curr_geo_object = Some(geo_obj_id);
+                    server_ctx.curr_geo_node = Some(new_id);
+                    region_to_render = Some(region.clone());
+
+                    server.update_region(region);
+
+                    if let Some(obj) = region.geometry.get(&geo_obj_id) {
+                        let undo = RegionUndoAtom::GeoFXObjectEdit(
+                            geo_obj_id,
+                            None,
+                            Some(obj.clone()),
                             tiles_to_render.clone(),
                         );
                         UNDOMANAGER
                             .lock()
                             .unwrap()
                             .add_region_undo(&region.id, undo, ctx);
-                    } else {
-                        let new_id = Uuid::new_v4();
-                        geo.id = new_id;
-                        geo.set_default_position(coord);
-                        // let obj_id = region.add_geo_node(geo);
-                        // if let Some((geo_obj, _)) = region.find_geo_node(new_id) {
-                        //     tiles_to_render.clone_from(&geo_obj.area);
-                        // }
-
-                        let mut geo_obj = GeoFXObject::default();
-                        geo_obj.nodes.push(geo);
-                        geo_obj.init();
-                        geo_obj.update_area();
-                        tiles_to_render.clone_from(&geo_obj.area);
-                        let geo_obj_id = geo_obj.id;
-                        region.geometry.insert(geo_obj_id, geo_obj);
-
-                        region.update_geometry_areas();
-
-                        region.compile_geo(geo_obj_id, &palette, &TILEDRAWER.lock().unwrap().tiles);
-                        server_ctx.curr_geo_object = Some(geo_obj_id);
-                        server_ctx.curr_geo_node = Some(new_id);
-                        region_to_render = Some(region.clone());
-
-                        server.update_region(region);
-
-                        if let Some(obj) = region.geometry.get(&geo_obj_id) {
-                            let undo = RegionUndoAtom::GeoFXObjectEdit(
-                                geo_obj_id,
-                                None,
-                                Some(obj.clone()),
-                                tiles_to_render.clone(),
-                            );
-                            UNDOMANAGER
-                                .lock()
-                                .unwrap()
-                                .add_region_undo(&region.id, undo, ctx);
-                        }
-
-                        MODELFXEDITOR
-                            .lock()
-                            .unwrap()
-                            .set_geo_node_ui(server_ctx, project, ui, ctx);
-
-                        self.processed_coords.insert(coord);
                     }
+
+                    MODELFXEDITOR
+                        .lock()
+                        .unwrap()
+                        .set_geo_node_ui(server_ctx, project, ui, ctx);
+
+                    self.processed_coords.insert(coord);
                 }
             }
 
