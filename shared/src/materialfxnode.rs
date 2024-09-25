@@ -5,15 +5,11 @@ use theframework::prelude::*;
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum MaterialFXNodeRole {
     Geometry,
-    MaterialMixer,
     Material,
     Noise2D,
     Noise3D,
     Brick,
-    UVSplitter,
-    Subdivide,
     BoxSubdivision,
-    Tiles,
     Distance,
     Bump,
 }
@@ -48,7 +44,6 @@ impl MaterialFXNode {
                 supports_preview = true;
                 preview_is_open = true;
             }
-            MaterialMixer => {}
             Material => {
                 coll.set("Color", TheValue::PaletteIndex(0));
                 coll.set("Roughness", TheValue::FloatRange(0.5, 0.0..=1.0));
@@ -65,10 +60,8 @@ impl MaterialFXNode {
                 coll.set("IOR", TheValue::FloatRange(1.5, 0.0..=2.0));
                 coll.set("Texture", TheValue::Text(str!("")));
             }
-            UVSplitter => {
-                coll.set("Map", TheValue::TextList(0, vec![str!("Cylinder")]));
-            }
             Noise2D => {
+                coll.set("Type", TheValue::TextList(0, vec![str!("Value Noise")]));
                 coll.set("UV Scale X", TheValue::FloatRange(1.0, 0.0..=10.0));
                 coll.set("UV Scale Y", TheValue::FloatRange(1.0, 0.0..=10.0));
                 coll.set("Out Scale", TheValue::FloatRange(1.0, 0.0..=1.0));
@@ -77,6 +70,7 @@ impl MaterialFXNode {
                 preview_is_open = true;
             }
             Noise3D => {
+                coll.set("Type", TheValue::TextList(0, vec![str!("Value Noise")]));
                 coll.set("UV Scale X", TheValue::FloatRange(1.0, 0.0..=10.0));
                 coll.set("UV Scale Y", TheValue::FloatRange(1.0, 0.0..=10.0));
                 coll.set("UV Scale Z", TheValue::FloatRange(1.0, 0.0..=10.0));
@@ -96,13 +90,6 @@ impl MaterialFXNode {
                     TheValue::TextList(0, vec![str!("Bricks"), str!("Tiles")]),
                 );
             }
-            Subdivide => {
-                coll.set(
-                    "Mode",
-                    TheValue::TextList(0, vec![str!("Horizontal"), str!("Vertical")]),
-                );
-                coll.set("Offset", TheValue::FloatRange(0.5, 0.0..=1.0));
-            }
             Distance => {
                 coll.set("From", TheValue::FloatRange(0.0, 0.0..=1.0));
                 coll.set("To", TheValue::FloatRange(0.2, 0.0..=1.0));
@@ -113,13 +100,9 @@ impl MaterialFXNode {
                 coll.set("Rotation", TheValue::FloatRange(0.15, 0.0..=2.0));
                 coll.set("Rounding", TheValue::FloatRange(0.15, 0.0..=1.0));
             }
-            Tiles => {
-                coll.set("Subdivisions", TheValue::IntRange(2, 1..=8));
-                coll.set("Size", TheValue::FloatRange(0.8, 0.0..=1.0));
-                coll.set("Rotation", TheValue::FloatRange(0.15, 0.0..=2.0));
-                coll.set("Rounding", TheValue::FloatRange(0.15, 0.0..=1.0));
+            Bump => {
+                coll.set("Scale", TheValue::FloatRange(0.02, 0.0..=1.0));
             }
-            Bump => {}
         }
 
         let timeline = TheTimeline::collection(coll);
@@ -139,16 +122,12 @@ impl MaterialFXNode {
     pub fn name(&self) -> String {
         match self.role {
             Geometry => str!("Geometry"),
-            MaterialMixer => str!("Material Mixer"),
             Material => str!("Material"),
             Noise2D => str!("Noise2D"),
             Noise3D => str!("Noise3D"),
             Brick => str!("Bricks & Tiles"),
-            UVSplitter => str!("UV Splitter"),
-            Subdivide => str!("Subdivide"),
             Distance => str!("Distance"),
             BoxSubdivision => str!("Box Subdivision"),
-            Tiles => str!("Tiles"),
             Bump => str!("Bump"),
         }
     }
@@ -156,16 +135,12 @@ impl MaterialFXNode {
     pub fn nodes() -> Vec<Self> {
         vec![
             Self::new(MaterialFXNodeRole::Geometry),
-            Self::new(MaterialFXNodeRole::MaterialMixer),
             Self::new(MaterialFXNodeRole::Material),
             Self::new(MaterialFXNodeRole::Noise2D),
             Self::new(MaterialFXNodeRole::Noise3D),
             Self::new(MaterialFXNodeRole::Brick),
-            Self::new(MaterialFXNodeRole::UVSplitter),
-            Self::new(MaterialFXNodeRole::Subdivide),
             Self::new(MaterialFXNodeRole::Distance),
             Self::new(MaterialFXNodeRole::BoxSubdivision),
-            Self::new(MaterialFXNodeRole::Tiles),
             Self::new(MaterialFXNodeRole::Bump),
         ]
     }
@@ -220,11 +195,8 @@ impl MaterialFXNode {
                 params.push(coll.get_f32_default("Cell", 6.0));
                 params.push(coll.get_i32_default("Mode", 0) as f32);
             }
-            MaterialFXNodeRole::Tiles => {
-                params.push(coll.get_f32_default("Size", 0.8));
-                params.push(coll.get_i32_default("Subdivisions", 2) as f32);
-                params.push(coll.get_f32_default("Rotation", 0.15));
-                params.push(coll.get_f32_default("Rounding", 0.15));
+            Bump => {
+                params.push(coll.get_f32_default("Scale", 0.02));
             }
             _ => {}
         }
@@ -236,7 +208,7 @@ impl MaterialFXNode {
     /// Mostly used for mixing materials.
     pub fn trails_to_resolve(&self) -> Vec<u8> {
         match self.role {
-            BoxSubdivision | Brick => {
+            BoxSubdivision | Brick | Noise2D | Noise3D => {
                 vec![1, 2]
             }
             _ => {
@@ -255,29 +227,16 @@ impl MaterialFXNode {
                 // }]
                 vec![]
             }
-            Noise3D | Noise2D | UVSplitter | Subdivide | Distance | Brick | BoxSubdivision
-            | Bump => {
+            Noise3D | Noise2D | Distance | Brick | BoxSubdivision | Bump => {
                 vec![TheNodeTerminal {
                     name: str!("in"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             }
-            Material | MaterialMixer => {
+            Material => {
                 vec![
                     TheNodeTerminal {
                         name: str!("in"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("noise"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                ]
-            }
-            Tiles => {
-                vec![
-                    TheNodeTerminal {
-                        name: str!("geo"),
                         color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                     },
                     TheNodeTerminal {
@@ -297,19 +256,7 @@ impl MaterialFXNode {
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
             }
-            MaterialMixer => {
-                vec![
-                    TheNodeTerminal {
-                        name: str!("mat1"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("mat2"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                ]
-            }
-            Brick | BoxSubdivision => {
+            Brick | BoxSubdivision | Noise2D | Noise3D => {
                 vec![
                     TheNodeTerminal {
                         name: str!("out"),
@@ -329,31 +276,11 @@ impl MaterialFXNode {
                     },
                 ]
             }
-            Material | Noise3D | Noise2D | Distance => {
+            Material | Distance => {
                 vec![TheNodeTerminal {
                     name: str!("out"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }]
-            }
-            UVSplitter => {
-                vec![
-                    TheNodeTerminal {
-                        name: str!("top"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("side"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("front"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                    TheNodeTerminal {
-                        name: str!("mapped"),
-                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
-                    },
-                ]
             }
             _ => vec![],
         }
@@ -417,62 +344,42 @@ impl MaterialFXNode {
 
                 Some(0)
             }
-            MaterialMixer => {
-                if resolved.len() == 1 {
-                    *hit = resolved[0].clone();
-                } else if resolved.len() >= 2 {
-                    if let Some(noise) = hit.noise {
-                        let noise = noise * hit.noise_scale;
-
-                        hit.mat.base_color = lerp(
-                            resolved[0].mat.base_color,
-                            resolved[1].mat.base_color,
-                            noise,
-                        );
-                        hit.mat.roughness =
-                            lerp(resolved[0].mat.roughness, resolved[1].mat.roughness, noise);
-                        hit.mat.metallic =
-                            lerp(resolved[0].mat.metallic, resolved[1].mat.metallic, noise);
-                    } else {
-                        hit.mat.base_color = lerp(
-                            resolved[0].mat.base_color,
-                            resolved[1].mat.base_color,
-                            hit.value,
-                        );
-                        hit.mat.roughness = lerp(
-                            resolved[0].mat.roughness,
-                            resolved[1].mat.roughness,
-                            hit.value,
-                        );
-                        hit.mat.metallic = lerp(
-                            resolved[0].mat.metallic,
-                            resolved[1].mat.metallic,
-                            hit.value,
-                        );
-                    }
-                }
-                None
-            }
             Noise2D => {
-                hit.noise_scale = params[2];
-                let scale = vec2f(params[0], params[1]);
+                hit.noise_scale = params[3];
+                let scale = vec2f(params[1], params[2]);
                 let octaves = params[3] as i32;
-                // let value = if hit.two_d {
-                //     noise2d(&hit.global_uv, scale, octaves)
-                // } else {
-                //     noise2d(&hit.global_uv, scale, octaves)
-                // };
-                let value = noise2d(&hit.global_uv, scale, octaves);
-                hit.noise = Some(value);
+                hit.value = noise2d(&hit.global_uv, scale, octaves);
+                hit.noise = Some(hit.value);
                 hit.mat.base_color = vec3f(hit.value, hit.value, hit.value);
-                Some(0)
+
+                if hit.mode == HitMode::Albedo {
+                    if resolved.len() == 1 {
+                        hit.mat.clone_from(&resolved[0].mat);
+                    } else if resolved.len() == 2 {
+                        hit.mat.mix(&resolved[1].mat, &resolved[0].mat, hit.value);
+                    }
+                    Some(0)
+                } else {
+                    Some(3)
+                }
             }
             Noise3D => {
                 let collection = self.collection();
                 hit.noise_scale = collection.get_f32_default("Out Scale", 1.0);
-                hit.noise = Some(noise3d(&collection, &hit.hit_point));
+                hit.value = noise3d(&collection, &hit.hit_point);
+                hit.noise = Some(hit.value);
                 hit.mat.base_color = vec3f(hit.value, hit.value, hit.value);
-                Some(0)
+
+                if hit.mode == HitMode::Albedo {
+                    if resolved.len() == 1 {
+                        hit.mat.clone_from(&resolved[0].mat);
+                    } else if resolved.len() == 2 {
+                        hit.mat.mix(&resolved[1].mat, &resolved[0].mat, hit.value);
+                    }
+                    Some(0)
+                } else {
+                    Some(3)
+                }
             }
             Brick => {
                 let dist = bricks(hit.global_uv, hit, params);
@@ -514,48 +421,6 @@ impl MaterialFXNode {
                     Some(3)
                 }
             }
-            UVSplitter => {
-                if hit.two_d {
-                    // In 2D mode, we akways return the top face, UV is already set
-                    return Some(2);
-                }
-                let normal = hit.normal;
-                let hp = hit.hit_point;
-                // if abs(normal.y) > abs(normal.x) && abs(normal.y) > abs(normal.z) {
-                if abs(normal.y) > 0.9 && abs(normal.x) < 0.1 && abs(normal.z) < 0.1 {
-                    // Top (or bottom) face
-                    hit.uv = Vec2f::new(frac(hp.x), frac(hp.z));
-                    Some(0)
-                // } else if abs(normal.x) > abs(normal.y) && abs(normal.x) > abs(normal.z) {
-                } else if abs(normal.x) > 0.9 && abs(normal.y) < 0.1 && abs(normal.z) < 0.1 {
-                    // Side face (left or right)
-                    hit.uv = Vec2f::new(frac(hp.z), 1.0 - frac(hp.y));
-                    Some(1)
-                // } else if abs(normal.z) > abs(normal.y) && abs(normal.z) > abs(normal.x) {
-                } else if abs(normal.z) > 0.9 && abs(normal.y) < 0.1 && abs(normal.x) < 0.1 {
-                    // Front (or back) face
-                    hit.uv = Vec2f::new(frac(hp.x), 1.0 - frac(hp.y));
-                    Some(2)
-                } else {
-                    let collection = self.collection();
-                    let map = collection.get_i32_default("Map", 0);
-
-                    if map == 0 {
-                        // Cylindrical mapping
-
-                        let u = atan2(hp.z, hp.x) / (2.0 * f32::pi()) + 0.5; // Map the angle to [0, 1]
-                        let v = hp.y;
-
-                        hit.uv = Vec2f::new(u, v);
-                    }
-
-                    Some(3)
-                }
-            }
-            Subdivide => {
-                let collection = self.collection();
-                Some(subdivide(&collection, hit.uv, hit))
-            }
             Distance => {
                 let collection = self.collection();
                 let from = collection.get_f32_default("From", 0.0);
@@ -577,83 +442,11 @@ impl MaterialFXNode {
                 Some(0)
             }
             Bump => {
-                hit.bump = hit.value / 50.0;
+                hit.bump = hit.value * params[0];
                 None
             }
             _ => None,
         }
-    }
-
-    pub fn geometry(&self, hit: &mut Hit, params: &[f32]) -> Option<u8> {
-        #[allow(clippy::single_match)]
-        match &self.role {
-            Brick => {
-                if hit.interior_distance < 0.0 || hit.two_d {
-                    let p = hit.pattern_pos;
-                    let d = bricks(p, hit, params);
-                    let bump = 1.0 - smoothstep(-0.08, 0.0, d);
-
-                    hit.value = bump;
-                }
-            }
-            BoxSubdivision => {
-                if hit.interior_distance < 0.0 || hit.two_d {
-                    let scale = params[0];
-                    let gap = params[1];
-                    let rotation = params[2];
-                    let rounding = params[3];
-
-                    let p = hit.pattern_pos / (5.0 * scale);
-                    let rc = box_divide(p, gap, rotation, rounding);
-                    hit.hash = rc.1;
-
-                    let bump = 1.0 - smoothstep(-0.08, 0.0, rc.0);
-                    hit.value = bump;
-                }
-            }
-            Tiles => {
-                let size = params[0];
-                let subdivisions = params[1] as i32;
-                let _rotation = params[2];
-                let rounding = params[3];
-
-                let p = hit.pattern_pos; // / (5.0);
-
-                let x = p.x.floor();
-                let y = p.y.floor();
-
-                let mut d = f32::INFINITY;
-
-                let grid_size = subdivisions;
-                let box_size = 1.0 / grid_size as f32;
-                let half_box_size = box_size * 0.5;
-
-                let rounding = rounding * half_box_size;
-
-                // Check distance to each box in the grid
-                for by in 0..grid_size {
-                    for bx in 0..grid_size {
-                        let center = Vec2f::new(
-                            x + (bx as f32 + 0.5) * box_size,
-                            y + (by as f32 + 0.5) * box_size,
-                        );
-                        let dist = sdf_box2d(
-                            p,
-                            center,
-                            half_box_size * size - rounding / 1.0,
-                            half_box_size * size - rounding / 1.0,
-                        ) - rounding;
-                        d = d.min(dist);
-                    }
-                }
-
-                let bump = 1.0 - smoothstep(-0.08, 0.0, d);
-                hit.value = bump;
-                //hit.hash = rc.1;
-            }
-            _ => {}
-        }
-        None
     }
 
     /// Creates a new node from a name.
@@ -695,6 +488,16 @@ impl MaterialFXNode {
     /// Sets a value in the collection.
     pub fn set(&mut self, key: &str, value: TheValue) {
         self.timeline.set(&TheTime::default(), key, "Props", value);
+    }
+
+    /// Palette index has been changed. If we are a material, adjust the color.
+    pub fn set_palette_index(&mut self, index: u16) -> bool {
+        if self.role == MaterialFXNodeRole::Material {
+            self.set("Color", TheValue::PaletteIndex(index));
+            true
+        } else {
+            false
+        }
     }
 
     pub fn render_preview(&mut self, _palette: &ThePalette) {

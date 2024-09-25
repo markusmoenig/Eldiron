@@ -1,4 +1,4 @@
-use crate::editor::{BRUSHLIST, PRERENDERTHREAD, TILEDRAWER, UNDOMANAGER};
+use crate::editor::{ACTIVEEDITOR, BRUSHLIST, PRERENDERTHREAD, TILEDRAWER, UNDOMANAGER};
 use crate::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -292,6 +292,67 @@ impl ModelFXEditor {
         let mut redraw = false;
 
         match event {
+            TheEvent::PaletteIndexChanged(_, index) => {
+                if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::MaterialEditor {
+                    if let Some(material_id) = server_ctx.curr_material_object {
+                        if let Some(material) = project.materials.get_mut(&material_id) {
+                            if let Some(selected_index) = material.selected_node {
+                                let prev = material.to_json();
+                                if material.nodes[selected_index].set_palette_index(*index) {
+                                    material.render_preview(
+                                        &project.palette,
+                                        &TILEDRAWER.lock().unwrap().tiles,
+                                    );
+                                    ui.set_node_preview(
+                                        "MaterialFX NodeCanvas",
+                                        0,
+                                        material.get_preview(),
+                                    );
+                                    if let Some(list) =
+                                        ui.get_rowlist_layout("ModelFX Material List")
+                                    {
+                                        list.set_item_image(material.id, material.get_preview());
+                                    }
+
+                                    let next = material.to_json();
+
+                                    PRERENDERTHREAD
+                                        .lock()
+                                        .unwrap()
+                                        .material_changed(material.clone());
+
+                                    TILEDRAWER
+                                        .lock()
+                                        .unwrap()
+                                        .set_materials(project.materials.clone());
+
+                                    if let Some(region) =
+                                        project.get_region(&server_ctx.curr_region)
+                                    {
+                                        let area = region.get_material_area(
+                                            material_id,
+                                            project.materials.get_index_of(&material_id).unwrap(),
+                                        );
+                                        PRERENDERTHREAD
+                                            .lock()
+                                            .unwrap()
+                                            .render_region(region.clone(), Some(area));
+                                    }
+
+                                    // if let Some(widget) = ui.get_widget(&id.name) {
+                                    //     widget.set_value(TheValue::ColorObject(color));
+                                    // }
+
+                                    let undo = MaterialFXUndoAtom::Edit(material_id, prev, next);
+                                    UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
+
+                                    redraw = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             TheEvent::SizeChanged(id) => {
                 if id.name == "GeoFX RGBA Layout" {
                     self.set_geo_tiles(&project.palette, ui, ctx);

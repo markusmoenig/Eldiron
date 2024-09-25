@@ -261,8 +261,6 @@ impl ModelEditor {
                                         self.set_selected_geo_node_ui(
                                             server_ctx, project, ui, ctx, false,
                                         );
-                                        println!("changed");
-
                                         redraw = true;
                                     }
                                 }

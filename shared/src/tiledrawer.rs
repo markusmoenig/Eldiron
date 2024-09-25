@@ -188,7 +188,7 @@ impl TileDrawer {
             tilefx_params.insert(*pos, params);
         }
 
-        let time = TheTime::default();
+        //let time = TheTime::default();
 
         let pixels = buffer.pixels_mut();
         pixels
@@ -243,13 +243,6 @@ impl TileDrawer {
                                     hit.global_uv = vec2f(tile_x_f, tile_y_f);
                                     hit.pattern_pos = hit.global_uv;
 
-                                    if material.follow_geo_trail(&time, &mut hit, &mat_obj_params) {
-                                        if hit.interior_distance <= 0.01 {
-                                            hit.value = 0.0;
-                                        } else {
-                                            hit.value = 1.0;
-                                        }
-                                    }
                                     material.compute(
                                         &mut hit,
                                         palette,

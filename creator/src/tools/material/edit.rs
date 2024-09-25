@@ -65,32 +65,33 @@ impl Tool for MaterialNodeEditTool {
 
             if let Some(layout) = ui.get_hlayout("Material Tool Params") {
                 layout.clear();
+
+                let mut patterns_button = TheTraybarButton::new(TheId::named("MaterialFX Nodes"));
+                patterns_button.set_text(str!("Pattern Nodes"));
+                patterns_button.set_status_text("Pattern Nodes");
+
+                patterns_button.set_context_menu(Some(TheContextMenu {
+                    items: vec![
+                        TheContextMenuItem::new("Noise2D".to_string(), TheId::named("Noise2D")),
+                        TheContextMenuItem::new("Noise3D".to_string(), TheId::named("Noise3D")),
+                        TheContextMenuItem::new(
+                            "Box Subdivision".to_string(),
+                            TheId::named("Box Subdivision"),
+                        ),
+                        TheContextMenuItem::new(
+                            "Bricks & Tiles".to_string(),
+                            TheId::named("Bricks & Tiles"),
+                        ),
+                    ],
+                    ..Default::default()
+                }));
+
                 let mut material_button = TheTraybarButton::new(TheId::named("MaterialFX Nodes"));
                 material_button.set_text(str!("Material Nodes"));
-                material_button.set_status_text(
-                    "Nodes which model walls and components like windows, doors and decoration.",
-                );
+                material_button.set_status_text("Material Nodes");
 
                 material_button.set_context_menu(Some(TheContextMenu {
                     items: vec![
-                        TheContextMenuItem::new_submenu(
-                            "Patterns".to_string(),
-                            TheId::named("Extrusion Patterns"),
-                            TheContextMenu {
-                                items: vec![
-                                    TheContextMenuItem::new(
-                                        "Box Subdivision".to_string(),
-                                        TheId::named("Box Subdivision"),
-                                    ),
-                                    TheContextMenuItem::new(
-                                        "Bricks & Tiles".to_string(),
-                                        TheId::named("Bricks & Tiles"),
-                                    ),
-                                    //TheContextMenuItem::new("Tiles".to_string(), TheId::named("Tiles")),
-                                ],
-                                ..Default::default()
-                            },
-                        ),
                         TheContextMenuItem::new_submenu(
                             "Utility".to_string(),
                             TheId::named("MaterialFX Nodes Patterns"),
@@ -102,25 +103,15 @@ impl Tool for MaterialNodeEditTool {
                                 ..Default::default()
                             },
                         ),
-                        TheContextMenuItem::new(
-                            "UV Splitter".to_string(),
-                            TheId::named("UV Splitter"),
-                        ),
-                        TheContextMenuItem::new("Noise2D".to_string(), TheId::named("Noise2D")),
-                        TheContextMenuItem::new("Noise3D".to_string(), TheId::named("Noise3D")),
-                        //TheContextMenuItem::new("Geometry".to_string(), TheId::named("Geometry")),
-                        TheContextMenuItem::new(
-                            "Material Mixer".to_string(),
-                            TheId::named("Material Mixer"),
-                        ),
                         TheContextMenuItem::new("Bump".to_string(), TheId::named("Bump")),
                         TheContextMenuItem::new("Material".to_string(), TheId::named("Material")),
                     ],
                     ..Default::default()
                 }));
 
+                layout.add_widget(Box::new(patterns_button));
                 layout.add_widget(Box::new(material_button));
-                layout.set_reverse_index(Some(1));
+                layout.set_reverse_index(Some(2));
             }
         } else if let ToolEvent::DeActivate = tool_event {
             if let Some(layout) = ui.get_hlayout("Material Tool Params") {

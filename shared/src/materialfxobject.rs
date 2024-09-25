@@ -80,28 +80,6 @@ impl MaterialFXObject {
         self.follow_trail(0, 0, hit, palette, textures, mat_obj_params);
     }
 
-    /// Compute the materials geometry extrusion.
-    pub fn follow_geo_trail(
-        &self,
-        _time: &TheTime,
-        hit: &mut Hit,
-        mat_obj_params: &[Vec<f32>],
-    ) -> bool {
-        if let Some((index, _input)) = self.find_connected_input_node(0, 1) {
-            self.nodes[index as usize].geometry(hit, &mat_obj_params[index as usize]);
-            return true;
-        }
-        false
-    }
-
-    /// Returns true if the material supports geometry extrusion.
-    pub fn has_geometry_trail(&self) -> bool {
-        if let Some((_, _)) = self.find_connected_input_node(0, 1) {
-            return true;
-        }
-        false
-    }
-
     /// Returns the connected input node and terminal for the given output node and terminal.
     pub fn find_connected_input_node(
         &self,

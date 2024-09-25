@@ -828,8 +828,8 @@ impl GeoFXNode {
         &self,
         buffer: &mut TheRGBABuffer,
         material: Option<&MaterialFXObject>,
-        palette: &ThePalette,
-        tiles: &FxHashMap<Uuid, TheRGBATile>,
+        _palette: &ThePalette,
+        _tiles: &FxHashMap<Uuid, TheRGBATile>,
         coord: Vec2f,
         _ctx: &mut TheContext,
     ) {
@@ -845,13 +845,12 @@ impl GeoFXNode {
         let width = buffer.dim().width as usize;
         let height = buffer.dim().height;
 
-        let time = TheTime::default();
+        //let time = TheTime::default();
 
-        let mut mat_obj_params: Vec<Vec<f32>> = vec![];
-
-        if let Some(material) = material {
-            mat_obj_params = material.load_parameters(&time);
-        }
+        // let mut mat_obj_params: Vec<Vec<f32>> = vec![];
+        // if let Some(material) = material {
+        //     mat_obj_params = material.load_parameters(&time);
+        // }
 
         buffer
             .pixels_mut()
@@ -879,15 +878,15 @@ impl GeoFXNode {
                     let d = 1.0; //self.distance(&time, p_coord, 1.0, &mut Some(&mut hit));
                     hit.distance = d;
 
-                    if let Some(material) = material {
-                        material.follow_geo_trail(&TheTime::default(), &mut hit, &mat_obj_params);
-                        if hit.interior_distance <= 0.01 {
-                            hit.value = 0.0;
-                        } else {
-                            hit.value = 1.0;
-                        }
-                        material.compute(&mut hit, palette, tiles, &mat_obj_params);
-                    };
+                    // if let Some(material) = material {
+                    //     material.follow_geo_trail(&TheTime::default(), &mut hit, &mat_obj_params);
+                    //     if hit.interior_distance <= 0.01 {
+                    //         hit.value = 0.0;
+                    //     } else {
+                    //         hit.value = 1.0;
+                    //     }
+                    //     material.compute(&mut hit, palette, tiles, &mat_obj_params);
+                    // };
 
                     let t = smoothstep(-0.04, 0.0, d);
 
