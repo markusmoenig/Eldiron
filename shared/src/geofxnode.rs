@@ -24,6 +24,8 @@ pub enum GeoFXNodeRole {
 
     MetaMaterial,
     MetaDelete,
+
+    Modeling,
 }
 
 use GeoFXNodeRole::*;
@@ -111,13 +113,18 @@ impl GeoFXNode {
             Group => {
                 coll.set("X", TheValue::FloatRange(0.0, 0.0..=10.0));
                 coll.set("Y", TheValue::FloatRange(0.0, 0.0..=10.0));
-                coll.set("Z", TheValue::FloatRange(0.0, 0.0..=10.0));
             }
             MetaMaterial => {
                 coll.set("Meta", TheValue::Text(str!("")));
             }
             MetaDelete => {
                 coll.set("Meta", TheValue::Text(str!("")));
+            }
+            Modeling => {
+                // coll.set(
+                //     "Direction",
+                //     TheValue::TextList(0, vec![str!("Horizontal"), str!("Vertical")]),
+                // );
             }
         }
         let timeline = TheTimeline::collection(coll);
@@ -150,6 +157,7 @@ impl GeoFXNode {
             Self::new(GeoFXNodeRole::Group),
             Self::new(GeoFXNodeRole::MetaMaterial),
             Self::new(GeoFXNodeRole::MetaDelete),
+            Self::new(GeoFXNodeRole::Modeling),
         ]
     }
 
@@ -170,6 +178,7 @@ impl GeoFXNode {
             Group => "Group".to_string(),
             MetaMaterial => "Meta Material".to_string(),
             MetaDelete => "Meta Delete".to_string(),
+            Modeling => "Modeling".to_string(),
         }
     }
 
@@ -321,11 +330,10 @@ impl GeoFXNode {
 
                     let geometry = ctx.geometry.join(",");
                     let geo = format!(
-                        "let pattern_{id_counter} = Pattern<Group>: content = [{geometry}], x = {x}, y = {y}, z = {z}, cutout = [{cutout}];\n",
+                        "let pattern_{id_counter} = Pattern<Group>: content = [{geometry}], x = {x}, y = {y}, cutout = [{cutout}];\n",
                         id_counter = { ctx.id_counter },
                         x = coll.get_f32_default("X", 0.0),
                         y = coll.get_f32_default("Y", 0.0),
-                        z = coll.get_f32_default("Z", 0.0),
                         cutout = cut_param,
                         geometry = geometry
                     );
@@ -755,6 +763,16 @@ impl GeoFXNode {
         highest_output_terminal += 1;
 
         match self.role {
+            Modeling => {
+                let mut terminals = vec![];
+                for i in 1..=highest_output_terminal {
+                    terminals.push(TheNodeTerminal {
+                        name: format!("face/obj #{}", i),
+                        color: TheColor::new(0.5, 0.5, 0.5, 1.0),
+                    });
+                }
+                terminals
+            }
             LeftWall | BackWall | RightWall | FrontWall | MiddleWallH | MiddleWallV => {
                 let mut terminals = vec![];
                 for i in 1..=highest_output_terminal {

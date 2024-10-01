@@ -161,8 +161,11 @@ impl Tool for SelectionTool {
                         tiles.into_iter().map(|(x, y)| Vec2i::new(x, y)).collect();
 
                     // Undo
-                    let undo =
-                        RegionUndoAtom::RegionEdit(prev, region.clone(), tiles_vector.clone());
+                    let undo = RegionUndoAtom::RegionEdit(
+                        Box::new(prev),
+                        Box::new(region.clone()),
+                        tiles_vector.clone(),
+                    );
                     UNDOMANAGER
                         .lock()
                         .unwrap()
@@ -329,8 +332,11 @@ impl Tool for SelectionTool {
                             tiles.into_iter().map(|(x, y)| Vec2i::new(x, y)).collect();
 
                         // Undo
-                        let undo =
-                            RegionUndoAtom::RegionEdit(prev, region.clone(), tiles_vector.clone());
+                        let undo = RegionUndoAtom::RegionEdit(
+                            Box::new(prev),
+                            Box::new(region.clone()),
+                            tiles_vector.clone(),
+                        );
                         UNDOMANAGER
                             .lock()
                             .unwrap()

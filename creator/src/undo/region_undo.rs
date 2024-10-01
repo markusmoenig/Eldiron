@@ -9,11 +9,11 @@ pub enum RegionUndoAtom {
     GeoFXObjectEdit(Uuid, Option<GeoFXObject>, Option<GeoFXObject>, Vec<Vec2i>),
     GeoFXAddNode(Uuid, String, String, Vec<Vec2i>),
     GeoFXNodeEdit(Uuid, String, String, Vec<Vec2i>),
-    HeightmapEdit(Heightmap, Heightmap, Vec<Vec2i>),
+    HeightmapEdit(Box<Heightmap>, Box<Heightmap>, Vec<Vec2i>),
     RegionTileEdit(Vec2i, Option<RegionTile>, Option<RegionTile>),
     RegionFXEdit(RegionFXObject, RegionFXObject),
-    RegionEdit(Region, Region, Vec<Vec2i>),
-    RegionResize(Region, Region),
+    RegionEdit(Box<Region>, Box<Region>, Vec<Vec2i>),
+    RegionResize(Box<Region>, Box<Region>),
 }
 
 impl RegionUndoAtom {
@@ -61,7 +61,7 @@ impl RegionUndoAtom {
                     .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::HeightmapEdit(prev, _, tiles) => {
-                region.heightmap = prev.clone();
+                region.heightmap = *prev.clone();
                 PRERENDERTHREAD
                     .lock()
                     .unwrap()
@@ -99,14 +99,14 @@ impl RegionUndoAtom {
                     .render_region(region.clone(), None);
             }
             RegionUndoAtom::RegionEdit(prev, _, tiles) => {
-                *region = prev.clone();
+                *region = *prev.clone();
                 PRERENDERTHREAD
                     .lock()
                     .unwrap()
                     .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::RegionResize(prev, _) => {
-                *region = prev.clone();
+                *region = *prev.clone();
                 if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
                     if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
                         let width = region.width * region.grid_size;
@@ -168,7 +168,7 @@ impl RegionUndoAtom {
                     .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::HeightmapEdit(_, next, tiles) => {
-                region.heightmap = next.clone();
+                region.heightmap = *next.clone();
                 PRERENDERTHREAD
                     .lock()
                     .unwrap()
@@ -206,14 +206,14 @@ impl RegionUndoAtom {
                     .render_region(region.clone(), None);
             }
             RegionUndoAtom::RegionEdit(_, next, tiles) => {
-                *region = next.clone();
+                *region = *next.clone();
                 PRERENDERTHREAD
                     .lock()
                     .unwrap()
                     .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::RegionResize(_, next) => {
-                *region = next.clone();
+                *region = *next.clone();
                 if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
                     if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
                         let width = region.width * region.grid_size;

@@ -178,8 +178,8 @@ impl Tool for DrawTool {
                                 tiles_to_render = vec![coord];
 
                                 let undo = RegionUndoAtom::HeightmapEdit(
-                                    prev,
-                                    region.heightmap.clone(),
+                                    Box::new(prev),
+                                    Box::new(region.heightmap.clone()),
                                     tiles_to_render.clone(),
                                 );
                                 UNDOMANAGER
@@ -226,8 +226,8 @@ impl Tool for DrawTool {
                             region_to_render = Some(region.clone());
 
                             let undo = RegionUndoAtom::HeightmapEdit(
-                                prev,
-                                region.heightmap.clone(),
+                                Box::new(prev),
+                                Box::new(region.heightmap.clone()),
                                 tiles_to_render.clone(),
                             );
                             UNDOMANAGER

@@ -168,8 +168,8 @@ impl Tool for EraserTool {
                 tiles_to_render.push(vec2i(coord.x, coord.y));
 
                 let undo = RegionUndoAtom::HeightmapEdit(
-                    prev,
-                    region.heightmap.clone(),
+                    Box::new(prev),
+                    Box::new(region.heightmap.clone()),
                     tiles_to_render.clone(),
                 );
                 UNDOMANAGER

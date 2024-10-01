@@ -324,7 +324,8 @@ impl Tool for ResizeTool {
                         region.update_geometry_areas();
                         server.update_region(region);
 
-                        let undo = RegionUndoAtom::RegionResize(prev, region.clone());
+                        let undo =
+                            RegionUndoAtom::RegionResize(Box::new(prev), Box::new(region.clone()));
                         UNDOMANAGER
                             .lock()
                             .unwrap()

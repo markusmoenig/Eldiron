@@ -1286,6 +1286,7 @@ impl TheTrait for Editor {
                                             for geo_obj in r.geometry.values_mut() {
                                                 geo_obj.update_parameters();
                                             }
+                                            r.heightmap.material_mask.clear();
                                         }
 
                                         // Update mat_obj parameters if necessary

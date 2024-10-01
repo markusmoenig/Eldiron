@@ -370,8 +370,8 @@ impl Tool for TerrainHeightTool {
                         server.update_region(region);
 
                         let undo = RegionUndoAtom::HeightmapEdit(
-                            self.undo_prev.clone(),
-                            region.heightmap.clone(),
+                            Box::new(self.undo_prev.clone()),
+                            Box::new(region.heightmap.clone()),
                             self.affected_tiles.clone(),
                         );
                         UNDOMANAGER
