@@ -2,7 +2,7 @@ use crate::{prelude::*, DEFAULT_VLAYOUT_RATIO};
 use rayon::prelude::*;
 use ToolEvent::*;
 
-use crate::editor::{BRUSHLIST, MODELFXEDITOR, PANELS, PRERENDERTHREAD, UNDOMANAGER};
+use crate::editor::{BRUSHLIST, MODELFXEDITOR, PANELS, PRERENDERTHREAD, TILEDRAWER, UNDOMANAGER};
 
 pub struct DrawTool {
     id: TheId,
@@ -51,7 +51,7 @@ impl Tool for DrawTool {
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let (coord, coord_f) = match tool_event {
+        let (coord, _coord_f) = match tool_event {
             TileDown(c, c_f) => {
                 self.processed_coords.clear();
                 (c, c_f)
@@ -120,19 +120,22 @@ impl Tool for DrawTool {
             }
         };
 
-        let mut material_index = 0;
-        if let Some(material_id) = server_ctx.curr_material_object {
-            if let Some(full) = project.materials.get_full(&material_id) {
-                material_index = full.0;
-            }
-        }
-
         if let Some(brush) = BRUSHLIST
             .lock()
             .unwrap()
             .brushes
             .get(&server_ctx.curr_brush)
         {
+            if server_ctx.curr_material_object.is_none() {
+                return false;
+            }
+
+            let material_obj = project
+                .materials
+                .get(&server_ctx.curr_material_object.unwrap())
+                .cloned();
+
+            let palette = project.palette.clone();
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 let mut region_to_render: Option<Region> = None;
                 let mut tiles_to_render: Vec<Vec2i> = vec![];
@@ -142,6 +145,100 @@ impl Tool for DrawTool {
                     if server_ctx.curr_layer_role == Layer2DRole::Ground {
                         // Paint on the heightmap
 
+                        if let Some(material_obj) = material_obj {
+                            let prev = region.heightmap.clone();
+
+                            let mut mask = if let Some(m) =
+                                region.heightmap.get_material_mask_mut(coord.x, coord.y)
+                            {
+                                m.clone()
+                            } else {
+                                TheRGBBuffer::new(TheDim::sized(region.grid_size, region.grid_size))
+                            };
+
+                            // -- Paint the material into the tile
+
+                            let mat_obj_params = material_obj.load_parameters(&TheTime::default());
+
+                            let width = mask.dim().width as usize;
+                            let height = mask.dim().height;
+
+                            let p = Vec2f::zero();
+                            let brush_coord = vec2f(0.5, 0.5);
+
+                            let settings = BrushSettings {
+                                size: modelfx.brush_size + 0.01,
+                                falloff: modelfx.falloff,
+                            };
+
+                            let tiles = TILEDRAWER.lock().unwrap();
+
+                            mask.pixels_mut()
+                                .par_rchunks_exact_mut(width * 3)
+                                .enumerate()
+                                .for_each(|(j, line)| {
+                                    for (i, pixel) in line.chunks_exact_mut(3).enumerate() {
+                                        let i = j * width + i;
+
+                                        let x = (i % width) as f32;
+                                        let y = (i / width) as f32;
+
+                                        let uv = vec2f(x / width as f32, 1.0 - y / height as f32);
+                                        let p = p + uv;
+                                        let d = brush.distance(p, brush_coord, &settings);
+
+                                        let tile_x_f = coord.x as f32 + uv.x;
+                                        let tile_y_f = coord.y as f32 + uv.y;
+
+                                        if d < 0.0 {
+                                            let mut hit = Hit {
+                                                two_d: true,
+                                                ..Default::default()
+                                            };
+
+                                            hit.normal = vec3f(0.0, 1.0, 0.0);
+                                            hit.hit_point = vec3f(uv.x, 0.0, uv.y);
+
+                                            hit.uv = uv;
+                                            hit.global_uv = vec2f(tile_x_f, tile_y_f);
+                                            hit.pattern_pos = hit.global_uv;
+
+                                            material_obj.compute(
+                                                &mut hit,
+                                                &palette,
+                                                &tiles.tiles,
+                                                &mat_obj_params,
+                                            );
+
+                                            let col = TheColor::from_vec3f(hit.mat.base_color)
+                                                .to_u8_array();
+
+                                            pixel[0] = col[0];
+                                            pixel[1] = col[1];
+                                            pixel[2] = col[2];
+                                        }
+                                    }
+                                });
+
+                            // --
+
+                            region.heightmap.set_material_mask(coord.x, coord.y, mask);
+                            server.update_region(region);
+                            region_to_render = Some(region.clone());
+                            tiles_to_render = vec![coord];
+
+                            let undo = RegionUndoAtom::HeightmapEdit(
+                                Box::new(prev),
+                                Box::new(region.heightmap.clone()),
+                                tiles_to_render.clone(),
+                            );
+                            UNDOMANAGER
+                                .lock()
+                                .unwrap()
+                                .add_region_undo(&region.id, undo, ctx);
+                        }
+
+                        /*
                         #[allow(clippy::collapsible_if)]
                         if self.align_index == 0 {
                             // Fill a single tile with the brush
@@ -234,7 +331,7 @@ impl Tool for DrawTool {
                                 .lock()
                                 .unwrap()
                                 .add_region_undo(&region.id, undo, ctx);
-                        }
+                        }*/
                     } else if server_ctx.curr_layer_role == Layer2DRole::Wall {
                         // Set the material to the current geometry node.
                         if tool_context == ToolContext::TwoD {

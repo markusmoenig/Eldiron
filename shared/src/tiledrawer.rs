@@ -127,14 +127,14 @@ impl TileDrawer {
         compute_delta: bool,
         palette: &ThePalette,
     ) {
-        pub fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
-            [
-                (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
-                (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] as f32 / 255.0 * v) * 255.0) as u8,
-                (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v) * 255.0) as u8,
-                255,
-            ]
-        }
+        // pub fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
+        //     [
+        //         (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
+        //         (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] as f32 / 255.0 * v) * 255.0) as u8,
+        //         (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v) * 255.0) as u8,
+        //         255,
+        //     ]
+        // }
 
         let _start = self.get_time();
 
@@ -217,15 +217,21 @@ impl TileDrawer {
 
                     // let mut mirror: Option<(i32, i32)> = None;
 
-                    let mut has_hit = false;
+                    // let mut has_hit = false;
                     if let Some(mask) = region.heightmap.get_material_mask(tile_x, tile_y) {
-                        let mut hit = Hit {
-                            two_d: true,
-                            ..Default::default()
-                        };
+                        // let mut hit = Hit {
+                        //     two_d: true,
+                        //     ..Default::default()
+                        // };
                         let terrain_uv = vec2f(tile_x_f.fract(), tile_y_f.fract());
 
                         if let Some(material_mask) = mask.at_f(terrain_uv) {
+                            color[0] = material_mask[0];
+                            color[1] = material_mask[1];
+                            color[2] = material_mask[2];
+                            color[3] = 255;
+                            // has_hit = true;
+                            /*
                             let m = material_mask[0];
                             if m > 0 {
                                 let index = (material_mask[0] - 1) as usize;
@@ -281,7 +287,7 @@ impl TileDrawer {
                                         color = mix_color(&color, &overlay_color, s);
                                     }
                                 }
-                            }
+                            }*/
                         }
                     }
 
