@@ -156,6 +156,14 @@ impl Tool for DrawTool {
                                 TheRGBBuffer::new(TheDim::sized(region.grid_size, region.grid_size))
                             };
 
+                            let mut mask2 = if let Some(m) =
+                                region.heightmap.get_material_mask_mut2(coord.x, coord.y)
+                            {
+                                m.clone()
+                            } else {
+                                TheRGBBuffer::new(TheDim::sized(region.grid_size, region.grid_size))
+                            };
+
                             // -- Paint the material into the tile
 
                             let mat_obj_params = material_obj.load_parameters(&TheTime::default());
@@ -175,54 +183,76 @@ impl Tool for DrawTool {
 
                             mask.pixels_mut()
                                 .par_rchunks_exact_mut(width * 3)
+                                .zip(mask2.pixels_mut().par_rchunks_exact_mut(width * 3))
                                 .enumerate()
-                                .for_each(|(j, line)| {
-                                    for (i, pixel) in line.chunks_exact_mut(3).enumerate() {
-                                        let i = j * width + i;
+                                .for_each(|(j, (line1, line2))| {
+                                    line1
+                                        .chunks_exact_mut(3)
+                                        .zip(line2.chunks_exact_mut(3))
+                                        .enumerate()
+                                        .for_each(|(i, (pixel1, pixel2))| {
+                                            let i = j * width + i;
 
-                                        let x = (i % width) as f32;
-                                        let y = (i / width) as f32;
+                                            let x = (i % width) as f32;
+                                            let y = (i / width) as f32;
 
-                                        let uv = vec2f(x / width as f32, 1.0 - y / height as f32);
-                                        let p = p + uv;
-                                        let d = brush.distance(p, brush_coord, &settings);
+                                            let uv =
+                                                vec2f(x / width as f32, 1.0 - y / height as f32);
+                                            let p = p + uv;
+                                            let d = brush.distance(p, brush_coord, &settings);
 
-                                        let tile_x_f = coord.x as f32 + uv.x;
-                                        let tile_y_f = coord.y as f32 + uv.y;
+                                            let tile_x_f = coord.x as f32 + uv.x;
+                                            let tile_y_f = coord.y as f32 + uv.y;
 
-                                        if d < 0.0 {
-                                            let mut hit = Hit {
-                                                two_d: true,
-                                                ..Default::default()
-                                            };
+                                            if d < 0.0 {
+                                                let mut hit = Hit {
+                                                    two_d: true,
+                                                    ..Default::default()
+                                                };
 
-                                            hit.normal = vec3f(0.0, 1.0, 0.0);
-                                            hit.hit_point = vec3f(uv.x, 0.0, uv.y);
+                                                hit.normal = vec3f(0.0, 1.0, 0.0);
+                                                hit.hit_point = vec3f(uv.x, 0.0, uv.y);
 
-                                            hit.uv = uv;
-                                            hit.global_uv = vec2f(tile_x_f, tile_y_f);
-                                            hit.pattern_pos = hit.global_uv;
+                                                hit.uv = uv;
+                                                hit.global_uv = vec2f(tile_x_f, tile_y_f);
+                                                hit.pattern_pos = hit.global_uv;
 
-                                            material_obj.compute(
-                                                &mut hit,
-                                                &palette,
-                                                &tiles.tiles,
-                                                &mat_obj_params,
-                                            );
+                                                material_obj.compute(
+                                                    &mut hit,
+                                                    &palette,
+                                                    &tiles.tiles,
+                                                    &mat_obj_params,
+                                                );
 
-                                            let col = TheColor::from_vec3f(hit.mat.base_color)
-                                                .to_u8_array();
+                                                let col = TheColor::from_vec3f(hit.mat.base_color)
+                                                    .to_u8_array();
 
-                                            pixel[0] = col[0];
-                                            pixel[1] = col[1];
-                                            pixel[2] = col[2];
-                                        }
-                                    }
+                                                pixel1[0] = col[0];
+                                                pixel1[1] = col[1];
+                                                pixel1[2] = col[2];
+
+                                                pixel2[0] = (hit.mat.roughness * 255.0) as u8;
+                                                pixel2[1] = (hit.mat.metallic * 255.0) as u8;
+
+                                                hit.mode = HitMode::Bump;
+                                                material_obj.follow_trail(
+                                                    0,
+                                                    0,
+                                                    &mut hit,
+                                                    &palette,
+                                                    &tiles.tiles,
+                                                    &mat_obj_params,
+                                                );
+
+                                                pixel2[2] = (hit.bump * 255.0) as u8;
+                                            }
+                                        });
                                 });
 
                             // --
 
                             region.heightmap.set_material_mask(coord.x, coord.y, mask);
+                            region.heightmap.set_material_mask2(coord.x, coord.y, mask2);
                             server.update_region(region);
                             region_to_render = Some(region.clone());
                             tiles_to_render = vec![coord];
@@ -437,39 +467,5 @@ impl Tool for DrawTool {
             _ => {}
         }
         false
-    }
-
-    fn fill_mask(
-        &self,
-        material_offset: usize,
-        buffer: &mut TheRGBBuffer,
-        p: Vec2f,
-        coord: Vec2f,
-        material_index: u8,
-        brush: &dyn Brush,
-        settings: &BrushSettings,
-    ) {
-        let width = buffer.dim().width as usize;
-        let height = buffer.dim().height;
-
-        buffer
-            .pixels_mut()
-            .par_rchunks_exact_mut(width * 3)
-            .enumerate()
-            .for_each(|(j, line)| {
-                for (i, pixel) in line.chunks_exact_mut(3).enumerate() {
-                    let i = j * width + i;
-
-                    let x = (i % width) as f32;
-                    let y = (i / width) as f32;
-
-                    let p = p + vec2f(x / width as f32, 1.0 - y / height as f32);
-                    let d = brush.distance(p, coord, settings);
-
-                    if d < 0.0 {
-                        pixel[material_offset] = material_index;
-                    }
-                }
-            });
     }
 }

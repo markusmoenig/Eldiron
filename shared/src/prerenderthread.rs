@@ -197,6 +197,9 @@ impl PreRenderThread {
                                 if let Some(tiles) = tiles {
                                     pre.remove_tiles(&tiles);
                                 } else {
+                                    result_tx
+                                        .send(PreRenderResult::Clear(curr_region.id))
+                                        .unwrap();
                                     pre.tile_samples.clear();
                                     result_tx
                                         .send(PreRenderResult::Clear(curr_region.id))

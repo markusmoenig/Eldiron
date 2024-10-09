@@ -432,16 +432,9 @@ impl Renderer {
         let mut has_hit;
         let dist = 0.0;
 
-        if let Some(terrain_dist) = region.heightmap.compute_hit(
-            &ray,
-            &mut hit,
-            palette,
-            &self.textures,
-            &self.materials,
-            material_params,
-        ) {
+        if let Some(terrain_dist) = region.heightmap.compute_hit(&ray, &mut hit) {
             hit.distance = terrain_dist;
-            has_hit = true;
+            has_hit = hit.is_valid;
 
             let tile_id = vec2i(
                 hit.hit_point.x.floor() as i32,

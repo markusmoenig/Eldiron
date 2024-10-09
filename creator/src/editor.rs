@@ -604,6 +604,9 @@ impl TheTrait for Editor {
                     if let Some(region) = self.project.get_region_mut(&id) {
                         self.server.clear_prerendered(region.id);
                         region.prerendered.clear();
+                        RENDERER.lock().unwrap().canvas.canvas.fill([0, 0, 0]);
+                        RENDERER.lock().unwrap().canvas.distance_canvas.clear();
+                        RENDERER.lock().unwrap().canvas.lights_canvas.clear();
                     }
                 }
                 PreRenderResult::UpdateMiniMap => {

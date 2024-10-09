@@ -129,6 +129,8 @@ pub enum HitFace {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Hit {
+    pub is_valid: bool,
+
     pub mode: HitMode,
 
     pub node: usize,
@@ -172,6 +174,8 @@ impl Default for Hit {
 impl Hit {
     pub fn new() -> Self {
         Self {
+            is_valid: true,
+
             mode: HitMode::Albedo,
 
             node: 0,
