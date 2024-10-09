@@ -1068,6 +1068,7 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 [[package]]
 name = "forgedtiles"
 version = "0.1.0"
+source = "git+https://github.com/markusmoenig/ForgedTiles#4e7e75ab07d434928936f6e22d006144e1d3849a"
 dependencies = [
  "exmex",
  "maths-rs",

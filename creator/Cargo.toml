@@ -19,8 +19,8 @@ theframework = { git = "https://github.com/markusmoenig/TheFramework", features 
 #     "ui",
 #     "code",
 # ], default-features = true }
-forgedtiles = { path = "../../ForgedTiles/forgedtiles" }
-# forgedtiles = { git = "https://github.com/markusmoenig/ForgedTiles" }
+# forgedtiles = { path = "../../ForgedTiles/forgedtiles" }
+forgedtiles = { git = "https://github.com/markusmoenig/ForgedTiles" }
 shared = { path = "../shared" }
 lazy_static = "1.4.0"
 serde = { version = "1.0", features = ["derive"] }
