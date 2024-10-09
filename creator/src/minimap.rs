@@ -3,20 +3,20 @@ use crate::prelude::*;
 
 use rayon::prelude::*;
 
-pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, palette: &ThePalette) {
+pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, _palette: &ThePalette) {
     // let background = *ui
     //     .style
     //     .theme()
     //     .color(TheThemeColors::DefaultWidgetDarkBackground);
 
-    pub fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
-        [
-            (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
-            (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] as f32 / 255.0 * v) * 255.0) as u8,
-            (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v) * 255.0) as u8,
-            255,
-        ]
-    }
+    // pub fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
+    //     [
+    //         (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
+    //         (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] as f32 / 255.0 * v) * 255.0) as u8,
+    //         (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v) * 255.0) as u8,
+    //         255,
+    //     ]
+    // }
 
     let background = BLACK;
 
@@ -61,77 +61,15 @@ pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, palette: &ThePa
                 let tile_x = x / region.grid_size;
                 let tile_y = y / region.grid_size;
 
-                let tile_x_f = x as f32 / region.grid_size as f32;
-                let tile_y_f = y as f32 / region.grid_size as f32;
-
                 let xx = x % region.grid_size;
                 let yy = y % region.grid_size;
 
                 let mut color = background;
-
-                let mut has_hit = false;
                 if let Some(mask) = region.heightmap.get_material_mask(tile_x, tile_y) {
-                    let mut hit = Hit {
-                        two_d: true,
-                        ..Default::default()
-                    };
-                    let terrain_uv = vec2f(tile_x_f.fract(), tile_y_f.fract());
-
-                    if let Some(material_mask) = mask.at_f(terrain_uv) {
-                        let index = (material_mask[0] - 1) as usize;
-                        if let Some((_id, material)) = tile_drawer.materials.get_index(index) {
-                            let mut mat_obj_params: Vec<Vec<f32>> = vec![];
-
-                            if let Some(m_params) = material_params.get(&material.id) {
-                                mat_obj_params.clone_from(m_params);
-                            }
-
-                            hit.normal = vec3f(0.0, 1.0, 0.0);
-                            hit.hit_point = vec3f(tile_x_f, 0.0, tile_y_f);
-
-                            hit.uv = terrain_uv;
-                            hit.global_uv = vec2f(tile_x_f, tile_y_f);
-                            hit.pattern_pos = hit.global_uv;
-
-                            material.compute(
-                                &mut hit,
-                                palette,
-                                &tile_drawer.tiles,
-                                &mat_obj_params,
-                            );
-
-                            color = TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
-                            has_hit = true;
-                        }
-
-                        // Overlay the 2nd material
-                        if has_hit {
-                            let m = material_mask[1];
-                            if m > 0 {
-                                let index = (m - 1) as usize;
-                                if let Some((_id, material)) =
-                                    tile_drawer.materials.get_index(index)
-                                {
-                                    let mut mat_obj_params: Vec<Vec<f32>> = vec![];
-
-                                    if let Some(m_params) = material_params.get(&material.id) {
-                                        mat_obj_params.clone_from(m_params);
-                                    }
-
-                                    //let mut h = hit.clone();
-                                    material.compute(
-                                        &mut hit,
-                                        palette,
-                                        &tile_drawer.tiles,
-                                        &mat_obj_params,
-                                    );
-                                    let s = material_mask[2] as f32 / 255.0;
-                                    let overlay_color =
-                                        TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
-                                    color = mix_color(&color, &overlay_color, s);
-                                }
-                            }
-                        }
+                    if let Some(material_mask) = mask.at(vec2i(xx, yy)) {
+                        color[0] = material_mask[0];
+                        color[1] = material_mask[1];
+                        color[2] = material_mask[2];
                     }
                 }
 

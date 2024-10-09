@@ -217,77 +217,12 @@ impl TileDrawer {
 
                     // let mut mirror: Option<(i32, i32)> = None;
 
-                    // let mut has_hit = false;
                     if let Some(mask) = region.heightmap.get_material_mask(tile_x, tile_y) {
-                        // let mut hit = Hit {
-                        //     two_d: true,
-                        //     ..Default::default()
-                        // };
-                        let terrain_uv = vec2f(tile_x_f.fract(), tile_y_f.fract());
-
-                        if let Some(material_mask) = mask.at_f(terrain_uv) {
+                        if let Some(material_mask) = mask.at(vec2i(xx, yy)) {
                             color[0] = material_mask[0];
                             color[1] = material_mask[1];
                             color[2] = material_mask[2];
                             color[3] = 255;
-                            // has_hit = true;
-                            /*
-                            let m = material_mask[0];
-                            if m > 0 {
-                                let index = (material_mask[0] - 1) as usize;
-                                if let Some((_id, material)) = self.materials.get_index(index) {
-                                    let mut mat_obj_params: Vec<Vec<f32>> = vec![];
-
-                                    if let Some(m_params) = material_params.get(&material.id) {
-                                        mat_obj_params.clone_from(m_params);
-                                    }
-
-                                    hit.normal = vec3f(0.0, 1.0, 0.0);
-                                    hit.hit_point = vec3f(tile_x_f, 0.0, tile_y_f);
-
-                                    hit.uv = terrain_uv;
-                                    hit.global_uv = vec2f(tile_x_f, tile_y_f);
-                                    hit.pattern_pos = hit.global_uv;
-
-                                    material.compute(
-                                        &mut hit,
-                                        palette,
-                                        &self.tiles,
-                                        &mat_obj_params,
-                                    );
-
-                                    color = TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
-                                    has_hit = true;
-                                }
-                            }
-
-                            // Overlay the 2nd material
-                            if has_hit {
-                                let m = material_mask[1];
-                                if m > 0 {
-                                    let index = (m - 1) as usize;
-                                    if let Some((_id, material)) = self.materials.get_index(index) {
-                                        let mut mat_obj_params: Vec<Vec<f32>> = vec![];
-
-                                        if let Some(m_params) = material_params.get(&material.id) {
-                                            mat_obj_params.clone_from(m_params);
-                                        }
-
-                                        //let mut h = hit.clone();
-                                        material.compute(
-                                            &mut hit,
-                                            palette,
-                                            &self.tiles,
-                                            &mat_obj_params,
-                                        );
-
-                                        let s = material_mask[2] as f32 / 255.0;
-                                        let overlay_color =
-                                            TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
-                                        color = mix_color(&color, &overlay_color, s);
-                                    }
-                                }
-                            }*/
                         }
                     }
 

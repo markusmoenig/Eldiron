@@ -178,8 +178,20 @@ impl Tool for DrawTool {
                                 size: modelfx.brush_size + 0.01,
                                 falloff: modelfx.falloff,
                             };
+                            let opacity = modelfx.opacity;
 
                             let tiles = TILEDRAWER.lock().unwrap();
+
+                            pub fn mix_color(a: &[u8], b: &[u8; 4], v: f32) -> [u8; 3] {
+                                [
+                                    (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v)
+                                        * 255.0) as u8,
+                                    (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] as f32 / 255.0 * v)
+                                        * 255.0) as u8,
+                                    (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v)
+                                        * 255.0) as u8,
+                                ]
+                            }
 
                             mask.pixels_mut()
                                 .par_rchunks_exact_mut(width * 3)
@@ -227,12 +239,26 @@ impl Tool for DrawTool {
                                                 let col = TheColor::from_vec3f(hit.mat.base_color)
                                                     .to_u8_array();
 
-                                                pixel1[0] = col[0];
-                                                pixel1[1] = col[1];
-                                                pixel1[2] = col[2];
+                                                let c = mix_color(pixel1, &col, opacity);
 
-                                                pixel2[0] = (hit.mat.roughness * 255.0) as u8;
-                                                pixel2[1] = (hit.mat.metallic * 255.0) as u8;
+                                                pixel1[0] = c[0];
+                                                pixel1[1] = c[1];
+                                                pixel1[2] = c[2];
+
+                                                let roughness = lerp(
+                                                    pixel2[0] as f32 / 255.0,
+                                                    hit.mat.roughness,
+                                                    opacity,
+                                                );
+
+                                                let metallic = lerp(
+                                                    pixel2[1] as f32 / 255.0,
+                                                    hit.mat.metallic,
+                                                    opacity,
+                                                );
+
+                                                pixel2[0] = (roughness * 255.0) as u8;
+                                                pixel2[1] = (metallic * 255.0) as u8;
 
                                                 hit.mode = HitMode::Bump;
                                                 material_obj.follow_trail(
@@ -244,7 +270,13 @@ impl Tool for DrawTool {
                                                     &mat_obj_params,
                                                 );
 
-                                                pixel2[2] = (hit.bump * 255.0) as u8;
+                                                let bump = lerp(
+                                                    pixel2[2] as f32 / 255.0,
+                                                    hit.bump,
+                                                    opacity,
+                                                );
+
+                                                pixel2[2] = (bump * 255.0) as u8;
                                             }
                                         });
                                 });

@@ -32,6 +32,7 @@ pub struct ModelFXEditor {
 
     pub brush_size: f32,
     pub falloff: f32,
+    pub opacity: f32,
 }
 
 #[allow(clippy::new_without_default)]
@@ -53,6 +54,7 @@ impl ModelFXEditor {
 
             brush_size: 1.0,
             falloff: 0.5,
+            opacity: 1.0,
         }
     }
 
@@ -150,7 +152,7 @@ impl ModelFXEditor {
         brush_size.set_default_value(TheValue::Float(1.0));
         brush_size.set_range(TheValue::RangeF32(0.01..=5.0));
         brush_size.set_continuous(true);
-        brush_size.limiter_mut().set_max_width(200);
+        brush_size.limiter_mut().set_max_width(170);
         brush_size.set_status_text("The brush size.");
         toolbar_hlayout.add_widget(Box::new(brush_size));
 
@@ -165,8 +167,23 @@ impl ModelFXEditor {
         falloff.set_default_value(TheValue::Float(0.0));
         falloff.set_range(TheValue::RangeF32(0.0..=1.0));
         falloff.set_continuous(true);
-        falloff.limiter_mut().set_max_width(200);
+        falloff.limiter_mut().set_max_width(170);
         falloff.set_status_text("The falloff off the brush.");
+        toolbar_hlayout.add_widget(Box::new(falloff));
+
+        // Opacity
+
+        let mut text = TheText::new(TheId::empty());
+        text.set_text("Opacity".to_string());
+        toolbar_hlayout.add_widget(Box::new(text));
+
+        let mut falloff = TheSlider::new(TheId::named("Opacity"));
+        falloff.set_value(TheValue::Float(self.opacity));
+        falloff.set_default_value(TheValue::Float(1.0));
+        falloff.set_range(TheValue::RangeF32(0.0..=1.0));
+        falloff.set_continuous(true);
+        falloff.limiter_mut().set_max_width(170);
+        falloff.set_status_text("The opacity off the brush.");
         toolbar_hlayout.add_widget(Box::new(falloff));
 
         // let mut blend = TheSlider::new(TheId::named("ModelFX Blend"));
@@ -640,6 +657,10 @@ impl ModelFXEditor {
                 } else if id.name == "Falloff" {
                     if let Some(size) = value.to_f32() {
                         self.falloff = size;
+                    }
+                } else if id.name == "Opacity" {
+                    if let Some(opacity) = value.to_f32() {
+                        self.opacity = opacity;
                     }
                 } else if id.name == "ModelFX Blend" {
                     if let TheValue::Float(value) = value {
