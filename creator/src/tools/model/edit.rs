@@ -22,7 +22,7 @@ impl Tool for ModelNodeEditTool {
         str!("Edit Tool (E). Edit the nodes of the Geometry.")
     }
     fn icon_name(&self) -> String {
-        str!("picker")
+        str!("graph")
     }
     fn accel(&self) -> Option<char> {
         Some('e')

@@ -80,7 +80,6 @@ impl TerrainEditor {
         server_ctx: &ServerContext,
         scroll_to: bool,
     ) {
-        let palette = project.palette.clone();
         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
             if let Some(editor) = ui.get_rgba_layout("TerrainMap") {
                 if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
@@ -91,7 +90,7 @@ impl TerrainEditor {
                     let region_height = region.height * region.grid_size;
 
                     let mut buffer = TheRGBABuffer::new(TheDim::sized(region_width, region_height));
-                    crate::minimap::draw_minimap(region, &mut buffer, &palette);
+                    crate::minimap::draw_minimap(region, &mut buffer, true);
 
                     self.buffer = buffer.clone();
 

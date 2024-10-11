@@ -3,7 +3,7 @@ use crate::prelude::*;
 
 use rayon::prelude::*;
 
-pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, _palette: &ThePalette) {
+pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, lighting: bool) {
     // let background = *ui
     //     .style
     //     .theme()
@@ -70,6 +70,24 @@ pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, _palette: &TheP
                         color[0] = material_mask[0];
                         color[1] = material_mask[1];
                         color[2] = material_mask[2];
+
+                        if lighting {
+                            let tile_x_f = x as f32 / region.grid_size as f32;
+                            let tile_y_f = y as f32 / region.grid_size as f32;
+
+                            let light_dir = normalize(vec3f(1.0, 1.0, -1.0));
+
+                            let normal = region.heightmap.calculate_normal_with_material(
+                                vec3f(tile_x_f, 0.0, tile_y_f),
+                                0.1,
+                            );
+
+                            let intensity = dot(normal, light_dir).max(0.0);
+
+                            color[0] = (((color[0] as f32 / 255.0) * intensity) * 255.0) as u8;
+                            color[1] = (((color[1] as f32 / 255.0) * intensity) * 255.0) as u8;
+                            color[2] = (((color[2] as f32 / 255.0) * intensity) * 255.0) as u8;
+                        }
                     }
                 }
 
@@ -87,100 +105,6 @@ pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, _palette: &TheP
                         }
                     }
                 }
-
-                /* TODO
-
-                let p = vec2f(x as f32, y as f32);
-                let mut hit = Hit {
-                    global_uv: vec2f(
-                        tile_x as f32 + xx as f32 / region.grid_size as f32,
-                        tile_y as f32 + yy as f32 / region.grid_size as f32,
-                    ),
-                    uv: vec2f(
-                        xx as f32 / region.grid_size as f32,
-                        yy as f32 / region.grid_size as f32,
-                    ),
-                    two_d: true,
-                    ..Default::default()
-                };
-
-                if let Some(geo_ids) = region.geometry_areas.get(&vec3i(tile_x, 0, tile_y)) {
-                    let mut ground_dist = f32::INFINITY;
-                    let mut wall_dist = f32::INFINITY;
-                    let mut had_wall = false;
-                    for geo_id in geo_ids {
-                        if let Some(geo_obj) = region.geometry.get(geo_id) {
-                            // We have to make sure walls have priority
-                            let mut is_legit = false;
-                            let d = geo_obj.distance(&TheTime::default(), p, grid_size, &mut None);
-                            if d.0 < 0.0 {
-                                let role = geo_obj.get_layer_role();
-                                if role == Some(Layer2DRole::Ground)
-                                    && d.0 < ground_dist
-                                    && d.0 < hit.distance
-                                    && !had_wall
-                                {
-                                    is_legit = true;
-                                    ground_dist = d.0;
-                                } else if role == Some(Layer2DRole::Wall) {
-                                    is_legit = true;
-                                    had_wall = true;
-                                    wall_dist = d.0;
-                                }
-                            }
-                            if is_legit {
-                                let c; // = WHITE;
-
-                                hit.mat.base_color = vec3f(0.5, 0.5, 0.5);
-                                hit.value = 1.0;
-
-                                hit.distance = min(ground_dist, wall_dist);
-
-                                if let Some(material) =
-                                    tile_drawer.materials.get(&geo_obj.material_id)
-                                {
-                                    hit.normal = vec3f(0.0, 1.0, 0.0);
-                                    hit.hit_point = vec3f(p.x, 0.0, p.y);
-
-                                    let mut mat_obj_params: Vec<Vec<f32>> = vec![];
-
-                                    if let Some(m_params) =
-                                        material_params.get(&geo_obj.material_id)
-                                    {
-                                        mat_obj_params.clone_from(m_params);
-                                    }
-
-                                    material.get_distance(
-                                        &TheTime::default(),
-                                        p / grid_size,
-                                        &mut hit,
-                                        geo_obj,
-                                        grid_size,
-                                        &mat_obj_params,
-                                    );
-
-                                    material.compute(
-                                        &mut hit,
-                                        palette,
-                                        &tile_drawer.tiles,
-                                        &mat_obj_params,
-                                    );
-
-                                    let col =
-                                        TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
-                                    c = col;
-                                } else {
-                                    let col =
-                                        TheColor::from_vec3f(hit.mat.base_color).to_u8_array();
-                                    c = col;
-                                }
-                                //     let t = smoothstep(-1.0, 0.0, d.0);
-                                //     color = self.mix_color(&c, &color, t);
-                                color = c;
-                            }
-                        }
-                    }
-                }*/
 
                 pixel.copy_from_slice(&color);
             }

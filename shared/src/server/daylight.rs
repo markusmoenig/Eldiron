@@ -59,4 +59,33 @@ impl Daylight {
 
         daylight
     }
+
+    pub fn calculate_light_direction(&self, time: i32) -> Vec3f {
+        let minutes = time;
+        let total_daylight_duration = self.sunset - self.sunrise;
+
+        // Normalize time within the sunrise-to-sunset range
+        let daylight_time = if minutes < self.sunrise || minutes > self.sunset {
+            if minutes < self.sunrise {
+                0
+            } else {
+                total_daylight_duration
+            }
+        } else {
+            minutes - self.sunrise
+        } as f32;
+
+        // Compute the angle of the sun based on the time of day
+        let angle = (daylight_time / total_daylight_duration as f32) * std::f32::consts::PI; // 180 degrees arc for sunrise to sunset
+
+        // Calculate the direction of the sun based on the angle
+        // x axis: east to west movement
+        // y axis: height of the sun (rising and falling)
+        let sun_x = angle.cos(); // Move from east (1) to west (-1)
+        let sun_y = angle.sin(); // Move from below the horizon (-1) to overhead (1)
+        let sun_z = 0.0; // No Z-axis movement for a simple simulation
+
+        // Return the normalized direction of the sun
+        normalize(vec3f(sun_x, sun_y, sun_z))
+    }
 }

@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use rayon::prelude::*;
 use ToolEvent::*;
 
 use crate::editor::{
@@ -10,6 +9,7 @@ pub struct TerrainHeightTool {
     id: TheId,
 
     processed_coords: FxHashSet<Vec2i>,
+    scale: f32,
 
     material_params: FxHashMap<Uuid, Vec<Vec<f32>>>,
     mode: i32,
@@ -26,8 +26,9 @@ impl Tool for TerrainHeightTool {
         Self: Sized,
     {
         Self {
-            id: TheId::named("Draw Tool"),
+            id: TheId::named("Height Tool"),
             processed_coords: FxHashSet::default(),
+            scale: 1.0,
 
             material_params: FxHashMap::default(),
             mode: 0,
@@ -85,10 +86,25 @@ impl Tool for TerrainHeightTool {
 
                     layout.add_widget(Box::new(gb));
 
+                    // Scale
+                    let mut text = TheText::new(TheId::empty());
+                    text.set_text("Scale".to_string());
+                    layout.add_widget(Box::new(text));
+
+                    let mut scale = TheSlider::new(TheId::named("Scale"));
+                    scale.set_value(TheValue::Float(self.scale));
+                    scale.set_default_value(TheValue::Float(1.0));
+                    scale.set_range(TheValue::RangeF32(0.0..=1.0));
+                    scale.set_continuous(true);
+                    scale.limiter_mut().set_max_width(170);
+                    scale.set_status_text("The scale off the height brush.");
+                    layout.add_widget(Box::new(scale));
                     //
                     // let mut spacer = TheIconView::new(TheId::empty());
                     // spacer.limiter_mut().set_max_width(5);
                     // layout.add_widget(Box::new(spacer));
+                    //
+                    layout.set_reverse_index(Some(2));
                 }
 
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
@@ -224,7 +240,8 @@ impl Tool for TerrainHeightTool {
                                                         tile_id_f.y,
                                                     );
 
-                                                subdivision_buffer.insert(subdiv_key, falloff);
+                                                subdivision_buffer
+                                                    .insert(subdiv_key, falloff * self.scale);
                                                 //
                                                 // region.heightmap.set_height(
                                                 //     tile_id_f.x,
@@ -451,42 +468,15 @@ impl Tool for TerrainHeightTool {
                     self.mode = *index as i32;
                 }
             }
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == "Scale" {
+                    if let Some(size) = value.to_f32() {
+                        self.scale = size;
+                    }
+                }
+            }
             _ => {}
         }
         false
-    }
-
-    fn fill_mask(
-        &self,
-        material_offset: usize,
-        buffer: &mut TheRGBBuffer,
-        p: Vec2f,
-        coord: Vec2f,
-        material_index: u8,
-        brush: &dyn Brush,
-        settings: &BrushSettings,
-    ) {
-        let width = buffer.dim().width as usize;
-        let height = buffer.dim().height;
-
-        buffer
-            .pixels_mut()
-            .par_rchunks_exact_mut(width * 3)
-            .enumerate()
-            .for_each(|(j, line)| {
-                for (i, pixel) in line.chunks_exact_mut(3).enumerate() {
-                    let i = j * width + i;
-
-                    let x = (i % width) as f32;
-                    let y = (i / width) as f32;
-
-                    let p = p + vec2f(x / width as f32, 1.0 - y / height as f32);
-                    let d = brush.distance(p, coord, settings);
-
-                    if d < 0.0 {
-                        pixel[material_offset] = material_index;
-                    }
-                }
-            });
     }
 }

@@ -8,9 +8,7 @@ pub struct DrawTool {
     id: TheId,
 
     processed_coords: FxHashSet<Vec2i>,
-
-    material_offset: i32,
-    align_index: i32,
+    opacity: f32,
 }
 
 impl Tool for DrawTool {
@@ -22,8 +20,7 @@ impl Tool for DrawTool {
             id: TheId::named("Draw Tool"),
             processed_coords: FxHashSet::default(),
 
-            material_offset: 0,
-            align_index: 0,
+            opacity: 1.0,
         }
     }
 
@@ -63,18 +60,19 @@ impl Tool for DrawTool {
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();
 
-                    // Material Group
-                    let mut gb = TheGroupButton::new(TheId::named("Material Group"));
-                    gb.add_text_status(
-                        str!("Material #1"),
-                        str!("Draw aligned to the tiles of the regions."),
-                    );
-                    gb.add_text_status(str!("Material #2"), str!("Draw without any restrictions."));
-                    gb.set_item_width(85);
+                    // Opacity
+                    let mut text = TheText::new(TheId::empty());
+                    text.set_text("Opacity".to_string());
+                    layout.add_widget(Box::new(text));
 
-                    gb.set_index(self.align_index);
-
-                    layout.add_widget(Box::new(gb));
+                    let mut opacity = TheSlider::new(TheId::named("Opacity"));
+                    opacity.set_value(TheValue::Float(self.opacity));
+                    opacity.set_default_value(TheValue::Float(1.0));
+                    opacity.set_range(TheValue::RangeF32(0.0..=1.0));
+                    opacity.set_continuous(true);
+                    opacity.limiter_mut().set_max_width(170);
+                    opacity.set_status_text("The opacity off the brush.");
+                    layout.add_widget(Box::new(opacity));
 
                     //
                     let mut spacer = TheIconView::new(TheId::empty());
@@ -178,7 +176,7 @@ impl Tool for DrawTool {
                                 size: modelfx.brush_size + 0.01,
                                 falloff: modelfx.falloff,
                             };
-                            let opacity = modelfx.opacity;
+                            let opacity = self.opacity;
 
                             let tiles = TILEDRAWER.lock().unwrap();
 
@@ -489,11 +487,11 @@ impl Tool for DrawTool {
     ) -> bool {
         #[allow(clippy::single_match)]
         match &event {
-            TheEvent::IndexChanged(id, index) => {
-                if id.name == "Material Group" {
-                    self.material_offset = *index as i32;
-                } else if id.name == "Draw Align Group" {
-                    self.align_index = *index as i32;
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == "Opacity" {
+                    if let Some(size) = value.to_f32() {
+                        self.opacity = size;
+                    }
                 }
             }
             _ => {}

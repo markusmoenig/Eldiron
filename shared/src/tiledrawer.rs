@@ -11,7 +11,9 @@ pub struct RegionDrawSettings {
     pub offset: Vec2i,
     pub display_offset: Vec2i,
     pub delta: f32,
+
     pub daylight: Vec3f,
+    pub sun_direction: Vec3f,
 
     pub show_fx_marker: bool,
 
@@ -37,7 +39,9 @@ impl RegionDrawSettings {
             offset: Vec2i::zero(),
             display_offset: Vec2i::zero(),
             delta: 0.0,
+
             daylight: Vec3f::one(),
+            sun_direction: Vec3f::zero(),
 
             show_fx_marker: false,
 
@@ -223,6 +227,17 @@ impl TileDrawer {
                             color[1] = material_mask[1];
                             color[2] = material_mask[2];
                             color[3] = 255;
+
+                            let normal = region.heightmap.calculate_normal_with_material(
+                                vec3f(tile_x_f, 0.0, tile_y_f),
+                                0.1,
+                            );
+
+                            let intensity = dot(normal, settings.sun_direction).max(0.0);
+
+                            color[0] = (((color[0] as f32 / 255.0) * intensity) * 255.0) as u8;
+                            color[1] = (((color[1] as f32 / 255.0) * intensity) * 255.0) as u8;
+                            color[2] = (((color[2] as f32 / 255.0) * intensity) * 255.0) as u8;
                         }
                     }
 

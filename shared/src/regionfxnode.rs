@@ -49,7 +49,12 @@ impl RegionFXNode {
                     TheValue::TextList(0, vec![str!("Right"), str!("Left")]),
                 );
             }
-            Renderer => {}
+            Renderer => {
+                coll.set(
+                    "2D Renderer",
+                    TheValue::TextList(0, vec![str!("Normal"), str!("Lambertian")]),
+                );
+            }
             Saturation => {
                 coll.set("Saturation", TheValue::FloatRange(1.0, 0.0..=2.0));
             }
@@ -89,8 +94,11 @@ impl RegionFXNode {
     /// Gives the node a chance to update its parameters in case things changed.
     pub fn update_parameters(&mut self) {
         // match self.role {
-        //     Geometry => {
-        //         self.set("Hash Weight", TheValue::FloatRange(0.0, 0.0..=1.0));
+        //     Renderer => {
+        //         self.set(
+        //             "2D Renderer",
+        //             TheValue::TextList(1, vec![str!("Plain"), str!("Lambertian")]),
+        //         );
         //     }
         //     _ => {}
         // }
@@ -220,6 +228,7 @@ impl RegionFXNode {
         }
     }
 
+    /// Render the prerendered tiles into the game canvas.
     pub fn cam_render_canvas(&self, region: &Region, canvas: &mut GameCanvas) {
         match self.role {
             TiltedIsoCamera => {
@@ -277,6 +286,26 @@ impl RegionFXNode {
             }
             _ => {}
         }
+    }
+
+    /// Returns the size of the region world in pixels
+    pub fn cam_region_size(&self, region: &Region) -> Vec2i {
+        let mut size = Vec2i::zero();
+        match self.role {
+            TiltedIsoCamera => {
+                let tile_size = region.tile_size;
+                size.x = tile_size * region.width;
+                size.y = tile_size * region.height;
+            }
+            TopDownIsoCamera => {
+                let tile_size = region.tile_size;
+
+                size.x = tile_size * region.width * 2;
+                size.y = tile_size * region.height;
+            }
+            _ => {}
+        }
+        size
     }
 
     /// Create a cameray ray

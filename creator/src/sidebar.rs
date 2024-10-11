@@ -970,13 +970,12 @@ impl Sidebar {
                         SidebarMode::Model as usize,
                     ));
                 } else if id.name == "Update Minimaps" {
-                    let palette = project.palette.clone();
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if let Some(render_view) = ui.get_render_view("MiniMap") {
                             let dim = *render_view.dim();
                             let buffer = render_view.render_buffer_mut();
                             buffer.resize(dim.width, dim.height);
-                            draw_minimap(region, buffer, &palette);
+                            draw_minimap(region, buffer, false);
                         }
                     }
                     if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::TerrainEditor {
@@ -3212,7 +3211,7 @@ impl Sidebar {
         ctx: &mut TheContext,
         region: Option<&Region>,
         server: &mut Server,
-        palette: &ThePalette,
+        _palette: &ThePalette,
     ) {
         ui.set_widget_disabled_state("Region Remove", ctx, region.is_none());
         ui.set_widget_disabled_state("Region Settings", ctx, region.is_none());
@@ -3457,7 +3456,7 @@ impl Sidebar {
                 let dim = *render_view.dim();
                 let buffer = render_view.render_buffer_mut();
                 buffer.resize(dim.width, dim.height);
-                draw_minimap(region, buffer, palette);
+                draw_minimap(region, buffer, false);
             }
             RENDERER.lock().unwrap().render_canvas(region);
         }

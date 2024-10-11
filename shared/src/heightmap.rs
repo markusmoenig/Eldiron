@@ -289,10 +289,9 @@ impl Heightmap {
     }
 
     /// Calculates the normal at the given position and evaluates material bumps.
-    pub fn calculate_normal_with_material(&self, p: Vec3f) -> Vec3f {
+    pub fn calculate_normal_with_material(&self, p: Vec3f, epsilon: f32) -> Vec3f {
         let x = p.x;
         let y = p.z;
-        let epsilon = 0.001;
 
         let mut height = self.interpolate_height(x, y);
         if let Some(bump) = self.get_material_bump(p) {
@@ -340,7 +339,7 @@ impl Heightmap {
     pub fn compute_hit(&self, ray: &Ray, hit: &mut Hit) -> Option<f32> {
         let mut t = 0.0;
 
-        for _ in 0..60 {
+        for _ in 0..150 {
             let p = ray.at(t);
 
             let mut bump = 0.0;
@@ -395,7 +394,7 @@ impl Heightmap {
                         hit.global_uv = vec2f(p.x, p.z);
                         hit.pattern_pos = hit.global_uv;
                         hit.uv = vec2f(p.x.fract(), p.z.fract());
-                        hit.normal = self.calculate_normal_with_material(p);
+                        hit.normal = self.calculate_normal_with_material(p, 0.001);
                         hit.is_valid = true;
                     }
                 }

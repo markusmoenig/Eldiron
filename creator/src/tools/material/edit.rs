@@ -24,7 +24,7 @@ impl Tool for MaterialNodeEditTool {
         str!("Edit Tool (E). Edit the nodes of the Material.")
     }
     fn icon_name(&self) -> String {
-        str!("picker")
+        str!("graph")
     }
     fn accel(&self) -> Option<char> {
         Some('e')

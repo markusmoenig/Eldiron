@@ -90,6 +90,15 @@ impl RegionFXObject {
         }
     }
 
+    /// Render the prerendered tiles into the game canvas.
+    pub fn cam_region_size(&self, region: &Region) -> Vec2i {
+        if let Some(node_index) = self.find_connected_output_node(0, 0) {
+            self.nodes[node_index].cam_region_size(region)
+        } else {
+            Vec2i::zero()
+        }
+    }
+
     /// Get the camera role.
     pub fn get_camera_node(&self) -> Option<&RegionFXNode> {
         self.find_connected_output_node(0, 0)

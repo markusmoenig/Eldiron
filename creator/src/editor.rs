@@ -610,14 +610,13 @@ impl TheTrait for Editor {
                     }
                 }
                 PreRenderResult::UpdateMiniMap => {
-                    let palette = self.project.palette.clone();
                     if let Some(region) = self.project.get_region_mut(&self.server_ctx.curr_region)
                     {
                         if let Some(render_view) = ui.get_render_view("MiniMap") {
                             let dim = *render_view.dim();
                             let buffer = render_view.render_buffer_mut();
                             buffer.resize(dim.width, dim.height);
-                            draw_minimap(region, buffer, &palette);
+                            draw_minimap(region, buffer, false);
                         }
                     }
                 }
@@ -1288,8 +1287,10 @@ impl TheTrait for Editor {
                                         for r in &mut self.project.regions {
                                             for geo_obj in r.geometry.values_mut() {
                                                 geo_obj.update_parameters();
+
+                                                r.regionfx.update_parameters();
                                             }
-                                            r.heightmap.material_mask.clear();
+                                            // r.heightmap.material_mask.clear();
                                         }
 
                                         // Update mat_obj parameters if necessary

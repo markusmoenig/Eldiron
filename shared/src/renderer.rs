@@ -649,9 +649,10 @@ impl Renderer {
                                 break;
                             }
 
-                            let mut p = ray.at(t);
-                            let t_dist = region.heightmap.interpolate_height(p.x, p.z);
-                            p.y -= t_dist;
+                            let p = ray.at(t);
+                            // TODO: Make the terrain behavior of geometry objects selectable
+                            // let t_dist = region.heightmap.interpolate_height(p.x, p.z);
+                            // p.y -= t_dist;
 
                             // The start position of the object / face.
                             let pos = geo_obj.get_position();

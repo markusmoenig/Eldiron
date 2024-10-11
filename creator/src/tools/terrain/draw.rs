@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use rayon::prelude::*;
 use ToolEvent::*;
 
 use crate::editor::{
@@ -10,9 +9,9 @@ pub struct TerrainDrawTool {
     id: TheId,
 
     processed_coords: FxHashSet<Vec2i>,
+    opacity: f32,
 
     material_params: FxHashMap<Uuid, Vec<Vec<f32>>>,
-    material_offset: i32,
 
     undo_prev: Heightmap,
     affected_tiles: Vec<Vec2i>,
@@ -28,9 +27,9 @@ impl Tool for TerrainDrawTool {
         Self {
             id: TheId::named("Draw Tool"),
             processed_coords: FxHashSet::default(),
+            opacity: 1.0,
 
             material_params: FxHashMap::default(),
-            material_offset: 0,
 
             undo_prev: Heightmap::default(),
             affected_tiles: vec![],
@@ -75,23 +74,28 @@ impl Tool for TerrainDrawTool {
                 if let Some(layout) = ui.get_hlayout("Terrain Tool Params") {
                     layout.clear();
 
-                    // Material Group
-                    let mut gb = TheGroupButton::new(TheId::named("Material Group"));
-                    gb.add_text_status(
-                        str!("Material #1"),
-                        str!("Draw aligned to the tiles of the regions."),
-                    );
-                    gb.add_text_status(str!("Material #2"), str!("Draw without any restrictions."));
-                    gb.set_item_width(85);
+                    // Opacity
+                    let mut text = TheText::new(TheId::empty());
+                    text.set_text("Opacity".to_string());
+                    layout.add_widget(Box::new(text));
 
-                    gb.set_index(self.material_offset);
+                    let mut opacity = TheSlider::new(TheId::named("Opacity"));
+                    opacity.set_value(TheValue::Float(self.opacity));
+                    opacity.set_default_value(TheValue::Float(1.0));
+                    opacity.set_range(TheValue::RangeF32(0.0..=1.0));
+                    opacity.set_continuous(true);
+                    opacity.limiter_mut().set_max_width(170);
+                    opacity.set_status_text("The opacity off the brush.");
+                    layout.add_widget(Box::new(opacity));
 
-                    layout.add_widget(Box::new(gb));
+                    // let mut gb = TheGroupButton::new(TheId::named("Terrain View Group"));
+                    // gb.add_text_status(str!("Top Down"), str!("Top Down View."));
+                    // gb.add_text_status(str!("Iso Top Down"), str!("Isometric Perspective."));
+                    // gb.set_item_width(100);
 
-                    //
-                    // let mut spacer = TheIconView::new(TheId::empty());
-                    // spacer.limiter_mut().set_max_width(5);
-                    // layout.add_widget(Box::new(spacer));
+                    // gb.set_index(TERRAINEDITOR.lock().unwrap().view_mode as i32);
+                    // layout.add_widget(Box::new(gb));
+                    layout.set_reverse_index(Some(2));
                 }
 
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
@@ -171,7 +175,7 @@ impl Tool for TerrainDrawTool {
                     size: modelfx.brush_size * brush_scale + 0.01,
                     falloff: modelfx.falloff,
                 };
-                let opacity = modelfx.opacity;
+                let opacity = self.opacity;
 
                 if id.name == "TerrainMap View" {
                     if let Some(brush) = BRUSHLIST
@@ -458,47 +462,15 @@ impl Tool for TerrainDrawTool {
                     //println!("coord {}", coord);
                 }
             }
-            TheEvent::IndexChanged(id, index) => {
-                if id.name == "Material Group" {
-                    self.material_offset = *index as i32;
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == "Opacity" {
+                    if let Some(size) = value.to_f32() {
+                        self.opacity = size;
+                    }
                 }
             }
             _ => {}
         }
         false
-    }
-
-    fn fill_mask(
-        &self,
-        material_offset: usize,
-        buffer: &mut TheRGBBuffer,
-        p: Vec2f,
-        coord: Vec2f,
-        material_index: u8,
-        brush: &dyn Brush,
-        settings: &BrushSettings,
-    ) {
-        let width = buffer.dim().width as usize;
-        let height = buffer.dim().height;
-
-        buffer
-            .pixels_mut()
-            .par_rchunks_exact_mut(width * 3)
-            .enumerate()
-            .for_each(|(j, line)| {
-                for (i, pixel) in line.chunks_exact_mut(3).enumerate() {
-                    let i = j * width + i;
-
-                    let x = (i % width) as f32;
-                    let y = (i / width) as f32;
-
-                    let p = p + vec2f(x / width as f32, 1.0 - y / height as f32);
-                    let d = brush.distance(p, coord, settings);
-
-                    if d < 0.0 {
-                        pixel[material_offset] = material_index;
-                    }
-                }
-            });
     }
 }
