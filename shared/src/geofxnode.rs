@@ -80,10 +80,10 @@ impl GeoFXNode {
                 coll.set("Length", TheValue::FloatRange(1.0, 0.001..=1.0));
                 coll.set("Height", TheValue::FloatRange(1.0, 0.001..=3.0));
                 coll.set("Thickness", TheValue::FloatRange(0.1, 0.001..=1.0));
-                // coll.set(
-                //     "2D Mode",
-                //     TheValue::TextList(0, vec![str!("Normal"), str!("Full Thickness")]),
-                // );
+                coll.set(
+                    "2D Mode",
+                    TheValue::TextList(0, vec![str!("Normal"), str!("-1 Pos, +1 Length")]),
+                );
             }
             Material => {
                 coll.set("Color", TheValue::PaletteIndex(0));
@@ -584,15 +584,35 @@ impl GeoFXNode {
                     }
                 }*/
                 LeftWall | RightWall | MiddleWallV => {
-                    let pos = Vec2i::from(self.position(&coll));
-                    let length = self.length().ceil() as i32;
+                    let mut pos = Vec2i::from(self.position(&coll));
+                    let mut length = self.length().ceil() as i32;
+
+                    if let Some(value) = coll.get("2D Mode") {
+                        if let Some(mode) = value.to_i32() {
+                            if mode == 1 && self.is_vertical() {
+                                pos.y -= 1;
+                                length += 1;
+                            }
+                        }
+                    }
+
                     for i in 0..length {
                         area.push(Vec2i::new(pos.x, pos.y + i));
                     }
                 }
                 BackWall | FrontWall | MiddleWallH => {
-                    let pos = Vec2i::from(self.position(&coll));
-                    let length = self.length().ceil() as i32;
+                    let mut pos = Vec2i::from(self.position(&coll));
+                    let mut length = self.length().ceil() as i32;
+
+                    if let Some(value) = coll.get("2D Mode") {
+                        if let Some(mode) = value.to_i32() {
+                            if mode == 1 && !self.is_vertical() {
+                                pos.x -= 1;
+                                length += 1;
+                            }
+                        }
+                    }
+
                     for i in 0..length {
                         area.push(Vec2i::new(pos.x + i, pos.y));
                     }
@@ -727,6 +747,11 @@ impl GeoFXNode {
         //     _ => true,
         // }
         true
+    }
+
+    /// Return true if the object has a vertical alignment.
+    pub fn is_vertical(&self) -> bool {
+        matches!(self.role, LeftWall | RightWall | MiddleWallV)
     }
 
     pub fn inputs(&self) -> Vec<TheNodeTerminal> {
@@ -918,5 +943,15 @@ impl GeoFXNode {
             });
     }
 
-    pub fn update_parameters(&self) {}
+    pub fn update_parameters(&mut self) {
+        // match self.role {
+        //     LeftWall | FrontWall | RightWall | BackWall | MiddleWallH | MiddleWallV => {
+        //         self.set(
+        //             "2D Mode",
+        //             TheValue::TextList(0, vec![str!("Normal"), str!("-1 Pos, +1 Length")]),
+        //         );
+        //     }
+        //     _ => {}
+        // }
+    }
 }

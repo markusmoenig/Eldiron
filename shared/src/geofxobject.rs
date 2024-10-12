@@ -234,6 +234,15 @@ impl GeoFXObject {
         None
     }
 
+    /// Returns true if this object is vertical.
+    pub fn is_vertical(&self) -> bool {
+        if let Some(geo) = self.nodes.first() {
+            geo.is_vertical()
+        } else {
+            false
+        }
+    }
+
     /// Get the length of the node.
     pub fn get_length(&self) -> f32 {
         if let Some(geo) = self.nodes.first() {
@@ -269,6 +278,46 @@ impl GeoFXObject {
         } else {
             Vec2f::zero()
         }
+    }
+
+    /// Get the tile position of the node.
+    pub fn get_position_2d(&self) -> Vec2f {
+        if let Some(geo) = self.nodes.first() {
+            let collection = geo.collection();
+            let mut pos = geo.position(&collection);
+
+            if let Some(value) = collection.get("2D Mode") {
+                if let Some(mode) = value.to_i32() {
+                    if mode == 1 {
+                        if geo.is_vertical() {
+                            pos.y -= 1.0;
+                        } else {
+                            pos.x -= 1.0;
+                        }
+                    }
+                }
+            }
+
+            pos
+        } else {
+            Vec2f::zero()
+        }
+    }
+
+    /// Returns the 2D mode of the object.
+    pub fn get_2d_mode(&self) -> i32 {
+        let mut mode = 0;
+
+        if let Some(geo) = self.nodes.first() {
+            let collection = geo.collection();
+
+            if let Some(value) = collection.get("2D Mode") {
+                if let Some(value) = value.to_i32() {
+                    mode = value;
+                }
+            }
+        }
+        mode
     }
 
     /// Set the tile position of the node.

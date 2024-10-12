@@ -388,19 +388,33 @@ impl TileDrawer {
                     if let Some(geo_ids) = region.geometry_areas.get(&vec3i(tile_x, 0, tile_y)) {
                         for geo_id in geo_ids {
                             let mut pos = Vec2f::zero();
+
+                            let mut is_vertical = false;
                             if let Some(geo_obj) = region.geometry.get(geo_id) {
-                                pos = geo_obj.get_position();
+                                pos = geo_obj.get_position_2d();
+                                is_vertical = geo_obj.is_vertical();
                             }
-                            let p = vec2f(
-                                tile_x as f32 - pos.x + xx as f32 / region.grid_size as f32,
-                                tile_y as f32 - pos.y + 1.0 - yy as f32 / region.grid_size as f32,
-                            );
+                            let p = if !is_vertical {
+                                vec2f(
+                                    tile_x as f32 - pos.x
+                                        + 0.5
+                                        + xx as f32 / region.grid_size as f32,
+                                    tile_y as f32 - pos.y + 1.0
+                                        - yy as f32 / region.grid_size as f32,
+                                )
+                            } else {
+                                vec2f(
+                                    tile_y as f32 - pos.y + 1.0
+                                        - yy as f32 / region.grid_size as f32,
+                                    tile_x as f32 - pos.x + xx as f32 / region.grid_size as f32,
+                                )
+                            };
 
                             if let Some(ft_ctx) = region.compiled_geometry.get(geo_id) {
                                 if let Some(col) = ft_ctx.face_pixel_at(p) {
                                     color = col;
                                 } else {
-                                    color = BLACK;
+                                    //color = BLACK;
                                 }
                             }
                         }
