@@ -472,7 +472,13 @@ impl Renderer {
                     if let Some(ids) = region.geometry_areas.get(&vec3i(key.x, 0, key.z)) {
                         for id in ids {
                             if let Some(geo_obj) = region.geometry.get(id) {
-                                if key.y <= geo_obj.height && !geo_ids.contains(id) {
+                                let area_without_2d_transforms =
+                                    geo_obj.area_without_2d_transforms();
+
+                                if key.y <= geo_obj.height
+                                    && !geo_ids.contains(id)
+                                    && area_without_2d_transforms.contains(&vec2i(key.x, key.z))
+                                {
                                     geo_ids.push(*id);
                                 }
                             }

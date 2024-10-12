@@ -82,7 +82,14 @@ impl GeoFXNode {
                 coll.set("Thickness", TheValue::FloatRange(0.1, 0.001..=1.0));
                 coll.set(
                     "2D Mode",
-                    TheValue::TextList(0, vec![str!("Normal"), str!("-1 Pos, +1 Length")]),
+                    TheValue::TextList(
+                        0,
+                        vec![
+                            str!("Normal"),
+                            str!("-1 Pos, +1 Length"),
+                            str!("-1 Pos, +2 Length"),
+                        ],
+                    ),
                 );
             }
             Material => {
@@ -536,7 +543,7 @@ impl GeoFXNode {
     }
 
     /// Returns all tiles which are touched by this geometry.
-    pub fn area(&self) -> Vec<Vec2i> {
+    pub fn area(&self, no_2d_transforms: bool) -> Vec<Vec2i> {
         let mut area = Vec::new();
         if let Some(coll) = self
             .timeline
@@ -587,11 +594,19 @@ impl GeoFXNode {
                     let mut pos = Vec2i::from(self.position(&coll));
                     let mut length = self.length().ceil() as i32;
 
-                    if let Some(value) = coll.get("2D Mode") {
-                        if let Some(mode) = value.to_i32() {
-                            if mode == 1 && self.is_vertical() {
-                                pos.y -= 1;
-                                length += 1;
+                    if !no_2d_transforms {
+                        if let Some(value) = coll.get("2D Mode") {
+                            if let Some(mode) = value.to_i32() {
+                                let is_vertical = self.is_vertical();
+                                if is_vertical {
+                                    if mode == 1 {
+                                        pos.y -= 1;
+                                        length += 1;
+                                    } else if mode == 2 {
+                                        pos.y -= 1;
+                                        length += 2;
+                                    }
+                                }
                             }
                         }
                     }
@@ -606,9 +621,15 @@ impl GeoFXNode {
 
                     if let Some(value) = coll.get("2D Mode") {
                         if let Some(mode) = value.to_i32() {
-                            if mode == 1 && !self.is_vertical() {
-                                pos.x -= 1;
-                                length += 1;
+                            let is_vertical = self.is_vertical();
+                            if !is_vertical {
+                                if mode == 1 {
+                                    pos.x -= 1;
+                                    length += 1;
+                                } else if mode == 2 {
+                                    pos.x -= 1;
+                                    length += 2;
+                                }
                             }
                         }
                     }
@@ -944,14 +965,21 @@ impl GeoFXNode {
     }
 
     pub fn update_parameters(&mut self) {
-        // match self.role {
-        //     LeftWall | FrontWall | RightWall | BackWall | MiddleWallH | MiddleWallV => {
-        //         self.set(
-        //             "2D Mode",
-        //             TheValue::TextList(0, vec![str!("Normal"), str!("-1 Pos, +1 Length")]),
-        //         );
-        //     }
-        //     _ => {}
-        // }
+        match self.role {
+            LeftWall | FrontWall | RightWall | BackWall | MiddleWallH | MiddleWallV => {
+                self.set(
+                    "2D Mode",
+                    TheValue::TextList(
+                        0,
+                        vec![
+                            str!("Normal"),
+                            str!("-1 Pos, +1 Length"),
+                            str!("-1 Pos, +2 Length"),
+                        ],
+                    ),
+                );
+            }
+            _ => {}
+        }
     }
 }

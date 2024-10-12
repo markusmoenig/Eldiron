@@ -171,24 +171,9 @@ impl GeoFXObject {
 
     pub fn update_area(&mut self) {
         self.area.clear();
-        // let mut area = AABB2D::zero();
-        // for geo in &self.nodes {
-        //     if let Some(aabb) = geo.aabb(&TheTime::default()) {
-        //         area.grow(aabb);
-        //     }
-        // }
-        // self.area = area.to_tiles();
-
-        // for geo in &self.nodes {
-        //     let p = geo.position();
-        //     let pp = vec2i(p.x as i32, p.y as i32);
-        //     if !self.area.contains(&pp) {
-        //         self.area.push(pp);
-        //     }
-        // }
 
         for geo in &self.nodes {
-            let area = geo.area();
+            let area = geo.area(false);
             self.height = geo.height().ceil() as i32;
             for p in area {
                 if !self.area.contains(&p) {
@@ -240,6 +225,15 @@ impl GeoFXObject {
             geo.is_vertical()
         } else {
             false
+        }
+    }
+
+    /// Returns the area of the object without any 2D transforms, so that the 3D rendere can mask against it.
+    pub fn area_without_2d_transforms(&self) -> Vec<Vec2i> {
+        if let Some(geo) = self.nodes.first() {
+            geo.area(true)
+        } else {
+            vec![]
         }
     }
 
