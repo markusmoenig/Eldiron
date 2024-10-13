@@ -192,7 +192,13 @@ impl TileDrawer {
             tilefx_params.insert(*pos, params);
         }
 
-        //let time = TheTime::default();
+        let mut render_mode = 0;
+
+        if let Some(value) = region.regionfx.get_render_settings().get("2D Renderer") {
+            if let Some(value) = value.to_i32() {
+                render_mode = value;
+            }
+        }
 
         let pixels = buffer.pixels_mut();
         pixels
@@ -228,16 +234,19 @@ impl TileDrawer {
                             color[2] = material_mask[2];
                             color[3] = 255;
 
-                            let normal = region.heightmap.calculate_normal_with_material(
-                                vec3f(tile_x_f, 0.0, tile_y_f),
-                                0.1,
-                            );
+                            // Lambertian shading
+                            if render_mode == 1 {
+                                let normal = region.heightmap.calculate_normal_with_material(
+                                    vec3f(tile_x_f, 0.0, tile_y_f),
+                                    0.1,
+                                );
 
-                            let intensity = dot(normal, settings.sun_direction).max(0.0);
+                                let intensity = dot(normal, settings.sun_direction).max(0.0);
 
-                            color[0] = (((color[0] as f32 / 255.0) * intensity) * 255.0) as u8;
-                            color[1] = (((color[1] as f32 / 255.0) * intensity) * 255.0) as u8;
-                            color[2] = (((color[2] as f32 / 255.0) * intensity) * 255.0) as u8;
+                                color[0] = (((color[0] as f32 / 255.0) * intensity) * 255.0) as u8;
+                                color[1] = (((color[1] as f32 / 255.0) * intensity) * 255.0) as u8;
+                                color[2] = (((color[2] as f32 / 255.0) * intensity) * 255.0) as u8;
+                            }
                         }
                     }
 

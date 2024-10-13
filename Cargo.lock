@@ -670,7 +670,7 @@ dependencies = [
 
 [[package]]
 name = "creator"
-version = "0.8.12"
+version = "0.8.13"
 dependencies = [
  "fontdue",
  "forgedtiles",
@@ -3210,7 +3210,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.8.12"
+version = "0.8.13"
 dependencies = [
  "fontdue",
  "forgedtiles",

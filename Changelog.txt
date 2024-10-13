@@ -8,6 +8,8 @@ v 0.8.13
 - Improved the Selection tool. Supports additive and subtractive selections (Shift / Alt).
 - Improved the Zoom tool. Now also has a global shortcut: Ctrl/Cmd + '-' / '+'.
 - Added accelerators for menu items.
+- New modeling view to model walls (and soon) other geometry.
+- New Terrain view to paint with materials or height on the terrain heightmap. Previews are 2D only right now.
 
 v 0.8.12
 --------

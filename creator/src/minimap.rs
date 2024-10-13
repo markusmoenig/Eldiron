@@ -46,6 +46,16 @@ pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, lighting: bool)
 
     //let grid_size = region.grid_size as f32;
 
+    // let mut render_mode = 0;
+
+    // if lighting {
+    //     if let Some(value) = region.regionfx.get_render_settings().get("2D Renderer") {
+    //         if let Some(value) = value.to_i32() {
+    //             render_mode = value;
+    //         }
+    //     }
+    // }
+
     let pixels = buffer.pixels_mut();
     pixels
         .par_rchunks_exact_mut(width * 4)
@@ -71,11 +81,13 @@ pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, lighting: bool)
                         color[1] = material_mask[1];
                         color[2] = material_mask[2];
 
+                        // Lambertian shading
                         if lighting {
+                            //&& render_mode == 1 {
                             let tile_x_f = x as f32 / region.grid_size as f32;
                             let tile_y_f = y as f32 / region.grid_size as f32;
 
-                            let light_dir = normalize(vec3f(1.0, 1.0, -1.0));
+                            let light_dir = vec3f(-0.24192198, 0.9702957, 0.0); //normalize(vec3f(1.0, 1.0, -1.0));
 
                             let normal = region.heightmap.calculate_normal_with_material(
                                 vec3f(tile_x_f, 0.0, tile_y_f),

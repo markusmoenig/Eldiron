@@ -65,6 +65,15 @@ impl RegionFXObject {
         data
     }
 
+    /// Get render settings
+    pub fn get_render_settings(&self) -> TheCollection {
+        if let Some(renderer) = self.nodes.first() {
+            renderer.collection()
+        } else {
+            TheCollection::default()
+        }
+    }
+
     /// Convert a world position into a pixel offset in the canvas.
     pub fn cam_world_to_canvas(&self, region: &Region, world_pos: Vec3f) -> Vec2i {
         if let Some(node_index) = self.find_connected_output_node(0, 0) {
