@@ -78,7 +78,7 @@ jobs:
           tar -zxvf eldiron-*.gz
 
       - name: Install Dependencies
-        run: cargo install cargo-bundle
+        run: cargo install cargo-bundle@0.6.0
 
       - name: Create Deb
         run: |
