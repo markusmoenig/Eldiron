@@ -99,6 +99,7 @@ Unless explicitly stated otherwise, any contribution intentionally submitted for
 ## Acknowledgements
 
 - [Aleksandr Makarov](https://twitter.com/iknowkingrabbit) created the tilemaps which are currently shipped with Eldiron, you can see his work on [Itch](https://iknowkingrabbit.itch.io).
+- The starter project uses the great [resurrect-64-palette](https://lospec.com/palette-list/resurrect-64).
 
 ## Sponsors
 

@@ -427,7 +427,7 @@ pub fn sample_distant_light(
     light_sample: &mut BSDFLightSampleRec,
     num_of_lights: i32,
 ) {
-    light_sample.direction = normalize(light.position - Vec3f::zero());
+    light_sample.direction = light.position;
     light_sample.normal = normalize(scatter_pos - light.position);
     light_sample.emission = light.emission * num_of_lights as f32;
     light_sample.dist = f32::INFINITY;

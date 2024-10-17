@@ -576,64 +576,74 @@ impl TheTrait for Editor {
         }
 
         // Get prerendered results
-        while let Some(rendered) = PRERENDERTHREAD.lock().unwrap().receive() {
-            match rendered {
-                PreRenderResult::MaterialPreviewRendered(_, buffer) => {
-                    ui.set_node_overlay("MaterialFX NodeCanvas", Some(buffer));
-                }
-                PreRenderResult::ClearRegionTile(id, tile) => {
-                    if let Some(region) = self.project.get_region_mut(&id) {
-                        region.prerendered.clear_tile_albedo(&tile);
-                        self.server.clear_prerendered_tile(id, &tile);
+        {
+            let mut renderer = RENDERER.lock().unwrap();
+
+            let mut counter = 0;
+            while let Some(rendered) = PRERENDERTHREAD.lock().unwrap().receive() {
+                match rendered {
+                    PreRenderResult::MaterialPreviewRendered(_, buffer) => {
+                        ui.set_node_overlay("MaterialFX NodeCanvas", Some(buffer));
                     }
-                }
-                PreRenderResult::RenderedRegionTile(id, tile, sample, tile_data) => {
-                    if let Some(region) = self.project.get_region_mut(&id) {
-                        region.prerendered.merge_tile_data(
-                            region.tile_size,
-                            &tile,
-                            sample,
-                            &tile_data,
-                        );
-                        self.server
-                            .set_prerendered_tile(id, &tile, sample, &tile_data);
-                    }
-                    redraw = true;
-                }
-                PreRenderResult::Clear(id) => {
-                    if let Some(region) = self.project.get_region_mut(&id) {
-                        self.server.clear_prerendered(region.id);
-                        region.prerendered.clear();
-                        RENDERER.lock().unwrap().canvas.canvas.fill([0, 0, 0]);
-                        RENDERER.lock().unwrap().canvas.distance_canvas.clear();
-                        RENDERER.lock().unwrap().canvas.lights_canvas.clear();
-                    }
-                }
-                PreRenderResult::UpdateMiniMap => {
-                    if let Some(region) = self.project.get_region_mut(&self.server_ctx.curr_region)
-                    {
-                        if let Some(render_view) = ui.get_render_view("MiniMap") {
-                            let dim = *render_view.dim();
-                            let buffer = render_view.render_buffer_mut();
-                            buffer.resize(dim.width, dim.height);
-                            draw_minimap(region, buffer, false);
+                    PreRenderResult::ClearRegionTile(id, tile) => {
+                        if let Some(region) = self.project.get_region_mut(&id) {
+                            region.prerendered.clear_tile_albedo(&tile);
+                            self.server.clear_prerendered_tile(id, &tile);
                         }
                     }
-                }
-                PreRenderResult::Progress(id) => {
-                    if let Some(region) = self.project.get_region_mut(&id) {
-                        RENDERER.lock().unwrap().render_canvas(region);
+                    PreRenderResult::RenderedRegionTile(id, tile, sample, tile_data) => {
+                        if let Some(region) = self.project.get_region_mut(&id) {
+                            region.prerendered.merge_tile_data(
+                                region.tile_size,
+                                &tile,
+                                sample,
+                                &tile_data,
+                            );
+                            self.server
+                                .set_prerendered_tile(id, &tile, sample, &tile_data);
+                        }
+                        redraw = true;
                     }
+                    PreRenderResult::Clear(id) => {
+                        if let Some(region) = self.project.get_region_mut(&id) {
+                            self.server.clear_prerendered(region.id);
+                            region.prerendered.clear();
+                            renderer.canvas.canvas.fill([0, 0, 0]);
+                            renderer.canvas.distance_canvas.clear();
+                            renderer.canvas.lights_canvas.clear();
+                        }
+                    }
+                    PreRenderResult::UpdateMiniMap => {
+                        if let Some(region) =
+                            self.project.get_region_mut(&self.server_ctx.curr_region)
+                        {
+                            if let Some(render_view) = ui.get_render_view("MiniMap") {
+                                let dim = *render_view.dim();
+                                let buffer = render_view.render_buffer_mut();
+                                buffer.resize(dim.width, dim.height);
+                                draw_minimap(region, buffer, false);
+                            }
+                        }
+                    }
+                    PreRenderResult::Progress(id) => {
+                        if let Some(region) = self.project.get_region_mut(&id) {
+                            renderer.render_canvas(region);
+                        }
+                    }
+                    PreRenderResult::Paused => {
+                        TOOLLIST.lock().unwrap().render_button_text = "Paused".to_string();
+                        ui.set_widget_value("Render Button", ctx, TheValue::Text(str!("Paused")));
+                    }
+                    PreRenderResult::Finished => {
+                        TOOLLIST.lock().unwrap().render_button_text = "Finished".to_string();
+                        ui.set_widget_value("Render Button", ctx, TheValue::Text(str!("Finished")));
+                    }
+                    _ => {}
                 }
-                PreRenderResult::Paused => {
-                    TOOLLIST.lock().unwrap().render_button_text = "Paused".to_string();
-                    ui.set_widget_value("Render Button", ctx, TheValue::Text(str!("Paused")));
+                counter += 1;
+                if counter > 50 {
+                    break;
                 }
-                PreRenderResult::Finished => {
-                    TOOLLIST.lock().unwrap().render_button_text = "Finished".to_string();
-                    ui.set_widget_value("Render Button", ctx, TheValue::Text(str!("Finished")));
-                }
-                _ => {}
             }
         }
 
@@ -1291,6 +1301,8 @@ impl TheTrait for Editor {
                                                 r.regionfx.update_parameters();
                                             }
                                             // r.heightmap.material_mask.clear();
+                                            //
+                                            r.update_geometry_areas();
                                         }
 
                                         // Update mat_obj parameters if necessary

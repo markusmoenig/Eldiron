@@ -335,6 +335,22 @@ impl Heightmap {
         None
     }
 
+    /// Returns the distance at the given position
+    pub fn distance(&self, p: Vec3f) -> f32 {
+        let mut bump = 0.0;
+
+        let height = self.interpolate_height(p.x, p.z);
+        let tile = vec2i(p.x.floor() as i32, p.z.floor() as i32);
+
+        if let Some(mask) = self.get_material_mask2(tile.x, tile.y) {
+            if let Some(material_mask) = mask.at_f(vec2f(p.x.fract(), p.z.fract())) {
+                bump = material_mask[2] as f32 / 255.0;
+            }
+        }
+
+        p.y - height - bump
+    }
+
     /// Raymarches the terrain and evaluates materials and bumps.
     pub fn compute_hit(&self, ray: &Ray, hit: &mut Hit) -> Option<f32> {
         let mut t = 0.0;
@@ -396,7 +412,11 @@ impl Heightmap {
                         hit.uv = vec2f(p.x.fract(), p.z.fract());
                         hit.normal = self.calculate_normal_with_material(p, 0.001);
                         hit.is_valid = true;
+                    } else {
+                        return None;
                     }
+                } else {
+                    return None;
                 }
 
                 return Some(t);

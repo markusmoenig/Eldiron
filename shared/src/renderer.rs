@@ -4,6 +4,8 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
 
+const EPS: f32 = 0.001;
+
 pub struct Renderer {
     pub textures: FxHashMap<Uuid, TheRGBATile>,
     pub materials: IndexMap<Uuid, MaterialFXObject>,
@@ -122,7 +124,22 @@ impl Renderer {
         let tile_size = region.tile_size;
         let tile_size_f = region.tile_size as f32;
 
+        // Sun settings
+        let sun_direction = normalize(vec3f(0.5, 1.0, -0.5));
+        let sun_color = vec3f(1.0, 0.95, 0.9);
+
         tiles.par_iter_mut().for_each(|tile| {
+            // Get the sample count
+            let mut sample = 0;
+            if let Some(sampled) = prerendered_mutex
+                .lock()
+                .unwrap()
+                .tile_samples
+                .get(&vec2i(tile.x, tile.y))
+            {
+                sample = *sampled as i32;
+            }
+
             let mut tile_data = PreRenderedTileData::new(tile_size, tile_size);
 
             let mut rng = rand::thread_rng();
@@ -130,21 +147,22 @@ impl Renderer {
 
             for h in 0..tile_size {
                 for w in 0..tile_size {
-                    // let x = tile.x * tile_size + w;
-                    // let y = tile.y * tile_size + h;
-                    // let xx = x as f32;
-                    // let yy = y as f32;
-
                     // Pathtracer
                     // Based on GLSL_pathtracer (https://github.com/knightcrawler25/GLSL-PathTracer)
                     //
+
+                    let cam_offset = if sample == 0 {
+                        vec2f(0.5, 0.5)
+                    } else {
+                        vec2f(rng.gen(), rng.gen())
+                    };
 
                     let mut ray = region.regionfx.cam_create_ray(
                         vec2f(w as f32 / tile_size_f, 1.0 - (h as f32 / tile_size_f)),
                         //self.position, //vec3f(0.5, 0.5, 0.5),
                         vec3f(tile.x as f32 + 0.5, 0.0, tile.y as f32 + 0.5),
                         vec2f(tile_size_f, tile_size_f),
-                        vec2f(rng.gen(), rng.gen()),
+                        cam_offset,
                         &render_settings_params,
                     );
 
@@ -153,8 +171,9 @@ impl Renderer {
 
                     let mut dist = 0.0;
 
-                    let _radiance = Vec3f::zero();
+                    let mut radiance = Vec3f::zero();
                     let mut throughput = Vec3f::one();
+                    let mut sunlight = Vec3f::zero();
 
                     let mut state = BSDFState::default();
                     //let mut light_sample = BSDFLightSampleRec::default();
@@ -237,8 +256,82 @@ impl Renderer {
 
                             _surface_scatter = true;
 
-                            // Direct light sampling
+                            // Emissive materials
+                            radiance += state.mat.emission * state.mat.base_color * throughput;
 
+                            // Direct Sun Sampling
+                            {
+                                let mut light_sample = BSDFLightSampleRec::default();
+                                let mut scatter_sample = BSDFScatterSampleRec::default();
+
+                                let scatter_pos = state.fhp + state.normal * (EPS + 0.005);
+
+                                let l = BSDFLight {
+                                    position: sun_direction,
+                                    emission: sun_color * 6.0,
+                                    radius: 0.0,
+                                    type_: 1.0,
+                                    u: Vec3f::zero(),
+                                    v: Vec3f::zero(),
+                                    area: 0.0,
+                                };
+
+                                sample_distant_light(
+                                    &l,
+                                    scatter_pos,
+                                    &mut light_sample,
+                                    1,
+                                    // &mut rng,
+                                    // light.max_distance,
+                                );
+
+                                let li = light_sample.emission;
+
+                                let mut t = 0.0;
+                                let mut in_sun_shadow = false;
+                                for _ in 0..24 {
+                                    let pp = scatter_pos + t * sun_direction;
+                                    let d = self.distance(pp, region);
+                                    if d < 0.005 {
+                                        in_sun_shadow = true;
+                                        break;
+                                    }
+                                    if t > 4.0 {
+                                        break;
+                                    }
+                                    t += d;
+                                }
+
+                                if !in_sun_shadow {
+                                    scatter_sample.f = disney_eval(
+                                        &state,
+                                        -ray.d,
+                                        state.ffnormal,
+                                        light_sample.direction,
+                                        &mut scatter_sample.pdf,
+                                    );
+
+                                    let mis_weight = 1.0;
+                                    // if l.area > 0.0 {
+                                    //     // No MIS for distant light
+                                    //     mis_weight =
+                                    //         power_heuristic(light_sample.pdf, scatter_sample.pdf);
+                                    // }
+
+                                    if scatter_sample.pdf > 0.0 {
+                                        sunlight += (mis_weight * li * scatter_sample.f
+                                            / light_sample.pdf)
+                                            * throughput;
+                                    }
+                                }
+                            }
+
+                            // Uniform light for shadows
+                            if state.mat.spec_trans == 0.0 && depth > 0 {
+                                radiance += vec3f(0.15, 0.15, 0.15) * throughput;
+                            }
+
+                            // Direct light sampling
                             if let Some(light_grid) = sample_light_grid_pos {
                                 if let Some(light) = level.lights.get(&light_grid) {
                                     let light_dist = length(Vec2f::from(light_grid - *tile));
@@ -247,7 +340,7 @@ impl Renderer {
                                         let mut light_sample = BSDFLightSampleRec::default();
                                         let mut scatter_sample = BSDFScatterSampleRec::default();
 
-                                        let scatter_pos = state.fhp + state.normal * hit.eps;
+                                        let scatter_pos = state.fhp + state.normal * (EPS + 0.005);
 
                                         let light_pos = vec3f(
                                             light_grid.x as f32 + 0.5,
@@ -335,10 +428,10 @@ impl Renderer {
                             }
 
                             ray.d = scatter_sample.l;
-                            ray.o = state.fhp + ray.d * hit.eps;
+                            ray.o = state.fhp + ray.d * (EPS + 0.005);
                         } else {
                             if depth == 0 {
-                                throughput = Vec3f::zero();
+                                radiance = Vec3f::zero();
                             } else {
                                 tile_is_empty = false;
                             }
@@ -363,8 +456,9 @@ impl Renderer {
                         }
                     }
 
-                    tile_data.albedo.set_pixel_vec3f(w, h, &throughput);
-                    tile_data.distance.set((w, h), half::f16::from_f32(dist));
+                    tile_data.albedo.set_pixel_vec3f(w, h, &radiance);
+                    tile_data.sunlight.set_pixel_vec3f(w, h, &sunlight);
+                    tile_data.set_distance(w, h, dist);
                     tile_data.lights.set((w, h), lights);
 
                     // -- End
@@ -372,11 +466,6 @@ impl Renderer {
             }
 
             let mut prerendered = prerendered_mutex.lock().unwrap();
-
-            let mut sample = 0;
-            if let Some(sampled) = prerendered.tile_samples.get(&vec2i(tile.x, tile.y)) {
-                sample = *sampled as i32;
-            }
 
             if !tile_is_empty {
                 sender
@@ -664,7 +753,7 @@ impl Renderer {
                             let pos = geo_obj.get_position();
                             let ft_hit = ftctx.distance_to_face(p, 0, pos);
 
-                            if ft_hit.distance < 0.0001 && t < hit.distance {
+                            if ft_hit.distance < EPS && t < hit.distance {
                                 h.hit_point = p;
                                 hit.clone_from(&h);
 
@@ -761,10 +850,10 @@ impl Renderer {
         };
 
         let ray = region.regionfx.cam_create_ray(
-            vec2f(0.5, 0.5),
+            vec2f(0.0, 0.0),
             position,
             vec2f(width_f, height_f),
-            vec2f(0.0, 0.0),
+            vec2f(0.5, 0.5),
             &regionfx_params,
         );
 
@@ -808,10 +897,10 @@ impl Renderer {
 
                     let tile_size_f = region.tile_size as f32;
                     let ray = region.regionfx.cam_create_ray(
-                        vec2f(0.5, 0.5),
+                        vec2f(0.0, 0.0),
                         pos,
                         vec2f(tile_size_f, tile_size_f),
-                        vec2f(0.0, 0.0),
+                        vec2f(0.5, 0.5),
                         &regionfx_params,
                     );
 
@@ -853,65 +942,65 @@ impl Renderer {
         let rd = ray.d;
         let mut dist = 0.0;
         //let normal = Vec3f::zero();
-        let mut hit = false;
+        let mut hit = true;
 
         // let tile_pos = vec2i(pos.x / region.tile_size, pos.y / region.tile_size);
         // let pixel_pos = vec2i(pos.x % region.tile_size, pos.y % region.tile_size);
 
         //if let Some(tile_data) = &region.prerendered.tiles.get(&tile_pos) {
-        if let Some(albedo) = &self.canvas.canvas.get_pixel(pos.x, pos.y) {
-            let albedo = TheColor::from(*albedo).to_vec3f();
+        let albedo = self.canvas.get_albedo(pos.x, pos.y);
+        let sunlight = self.canvas.get_sunlight(pos.x, pos.y);
 
-            color.x = settings.daylight.x * albedo.x;
-            color.y = settings.daylight.y * albedo.y;
-            color.z = settings.daylight.z * albedo.z;
+        // color.x = settings.daylight.x * albedo.x;
+        // color.y = settings.daylight.y * albedo.y;
+        // color.z = settings.daylight.z * albedo.z;
 
-            if let Some(d) = &self.canvas.distance_canvas.get((pos.x, pos.y)) {
-                dist = d.to_f32();
-            }
+        color.x = sunlight.x * settings.daylight_intensity + albedo.x;
+        color.y = sunlight.y * settings.daylight_intensity + albedo.y;
+        color.z = sunlight.z * settings.daylight_intensity + albedo.z;
 
-            if let Some(lights) = &self.canvas.lights_canvas.get((pos.x, pos.y)) {
-                for light in lights.iter() {
-                    fn hash_u32(seed: u32) -> u32 {
-                        let mut state = seed;
-                        state = (state ^ 61) ^ (state >> 16);
-                        state = state.wrapping_add(state << 3);
-                        state ^= state >> 4;
-                        state = state.wrapping_mul(0x27d4eb2d);
-                        state ^= state >> 15;
-                        state
-                    }
-
-                    fn flicker_value(anim_counter: u32, intensity: f32) -> f32 {
-                        let hash = hash_u32(anim_counter);
-                        let flicker_value = (hash as f32 / u32::MAX as f32).clamp(0.0, 1.0);
-
-                        let flicker_range = intensity * (flicker_value - 0.5) * 2.0;
-                        (1.0 + flicker_range).clamp(0.0, 1.0)
-                    }
-
-                    let brdf = vec3f(
-                        light.brdf.0.to_f32(),
-                        light.brdf.1.to_f32(),
-                        light.brdf.2.to_f32(),
-                    );
-
-                    let l = brdf * flicker_value(settings.anim_counter as u32, 0.2);
-                    color += l;
-                }
-            }
-
-            // color.x = powf(color.x, 1.0 / 2.2);
-            // color.y = powf(color.y, 1.0 / 2.2);
-            // color.z = powf(color.z, 1.0 / 2.2);
-
-            color.x = clamp(color.x, 0.0, 1.0);
-            color.y = clamp(color.y, 0.0, 1.0);
-            color.z = clamp(color.z, 0.0, 1.0);
-
-            //
-            hit = true;
+        if let Some(d) = &self.canvas.distance_canvas.get((pos.x, pos.y)) {
+            dist = d.to_f32();
         }
+
+        if let Some(lights) = &self.canvas.lights_canvas.get((pos.x, pos.y)) {
+            for light in lights.iter() {
+                fn hash_u32(seed: u32) -> u32 {
+                    let mut state = seed;
+                    state = (state ^ 61) ^ (state >> 16);
+                    state = state.wrapping_add(state << 3);
+                    state ^= state >> 4;
+                    state = state.wrapping_mul(0x27d4eb2d);
+                    state ^= state >> 15;
+                    state
+                }
+
+                fn flicker_value(anim_counter: u32, intensity: f32) -> f32 {
+                    let hash = hash_u32(anim_counter);
+                    let flicker_value = (hash as f32 / u32::MAX as f32).clamp(0.0, 1.0);
+
+                    let flicker_range = intensity * (flicker_value - 0.5) * 2.0;
+                    (1.0 + flicker_range).clamp(0.0, 1.0)
+                }
+
+                let brdf = vec3f(
+                    light.brdf.0.to_f32(),
+                    light.brdf.1.to_f32(),
+                    light.brdf.2.to_f32(),
+                );
+
+                let l = brdf * flicker_value(settings.anim_counter as u32, 0.2);
+                color += l;
+            }
+        }
+
+        // color.x = powf(color.x, 1.0 / 2.2);
+        // color.y = powf(color.y, 1.0 / 2.2);
+        // color.z = powf(color.z, 1.0 / 2.2);
+
+        color.x = clamp(color.x, 0.0, 1.0);
+        color.y = clamp(color.y, 0.0, 1.0);
+        color.z = clamp(color.z, 0.0, 1.0);
 
         // Test against characters
         for (pos, tile_id, _character_id, _facing) in &update.characters_pixel_pos {
@@ -2063,6 +2152,40 @@ impl Renderer {
         let diffuse = albedo * inv_pi;
 
         (diffuse + specular) * light_color * dot_nl
+    }
+
+    pub fn distance(&self, p: Vec3f, region: &Region) -> f32 {
+        let mut distance = f32::MAX; //region.heightmap.distance(p);
+
+        //let key = Vec3i::from(p);
+        let key = Vec2i::new(p.x as i32, p.z as i32);
+        //let mut geo_ids: Vec<Uuid> = vec![];
+
+        // Collect the hit geo ids which we have to check.
+        if let Some(geo_ids) = region.geometry_areas.get(&vec3i(key.x, 0, key.y)) {
+            for geo_id in geo_ids {
+                if let Some(geo_obj) = region.geometry.get(geo_id) {
+                    if let Some(ftctx) = region.compiled_geometry.get(geo_id) {
+                        let pos = geo_obj.get_position();
+                        let ft_hit = ftctx.distance_to_face(p, 0, pos);
+                        distance = min(ft_hit.distance, distance);
+                    }
+                }
+                //println!("{}", id);
+                //if let Some(geo_obj) = region.geometry.get(id) {
+                // let area_without_2d_transforms = geo_obj.area_without_2d_transforms();
+
+                // if key.y <= geo_obj.height
+                //     && !geo_ids.contains(id)
+                //     && area_without_2d_transforms.contains(&vec2i(key.x, key.y))
+                // {
+                //     geo_ids.push(*id);
+                // }
+                //}
+                // geo_ids.push(*id);
+            }
+        }
+        distance
     }
 }
 

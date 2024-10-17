@@ -176,7 +176,7 @@ impl GeoFXNode {
             RightWall => str!("Right Wall"),
             FrontWall => str!("Front Wall"),
             MiddleWallH => str!("Middle Wall X"),
-            MiddleWallV => str!("Niddle Wall Y"),
+            MiddleWallV => str!("Middle Wall Y"),
             Box => "Box".to_string(),
             Disc => "Disc".to_string(),
             Material => "Material".to_string(),
@@ -468,6 +468,15 @@ impl GeoFXNode {
                             parameters += &format!(", ior = {}", value);
                         }
                     }
+                    // Emission
+                    if let Some(value) = coll
+                        .get_default("Emission", TheValue::Text(str!("0.0")))
+                        .to_string()
+                    {
+                        if value != "0.0" {
+                            parameters += &format!(", emission = {}", value);
+                        }
+                    }
 
                     // println!("parameters {}", parameters);
 
@@ -639,7 +648,7 @@ impl GeoFXNode {
                     }
                 }
                 _ => {
-                    area.push(Vec2i::from(self.position(&coll)));
+                    //area.push(Vec2i::from(self.position(&coll)));
                 }
             }
         }
@@ -965,21 +974,21 @@ impl GeoFXNode {
     }
 
     pub fn update_parameters(&mut self) {
-        match self.role {
-            LeftWall | FrontWall | RightWall | BackWall | MiddleWallH | MiddleWallV => {
-                self.set(
-                    "2D Mode",
-                    TheValue::TextList(
-                        0,
-                        vec![
-                            str!("Normal"),
-                            str!("-1 Pos, +1 Length"),
-                            str!("-1 Pos, +2 Length"),
-                        ],
-                    ),
-                );
-            }
-            _ => {}
-        }
+        // match self.role {
+        //     LeftWall | FrontWall | RightWall | BackWall | MiddleWallH | MiddleWallV => {
+        //         self.set(
+        //             "2D Mode",
+        //             TheValue::TextList(
+        //                 0,
+        //                 vec![
+        //                     str!("Normal"),
+        //                     str!("-1 Pos, +1 Length"),
+        //                     str!("-1 Pos, +2 Length"),
+        //                 ],
+        //             ),
+        //         );
+        //     }
+        //     _ => {}
+        // }
     }
 }

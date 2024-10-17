@@ -67,7 +67,7 @@ pub struct Region {
     #[serde(default)]
     pub heightmap: Heightmap,
 
-    #[serde(default)]
+    #[serde(skip)]
     pub prerendered: PreRendered,
 
     pub width: i32,
@@ -260,8 +260,9 @@ impl Region {
     /// Update the geometry areas.
     pub fn update_geometry_areas(&mut self) {
         self.geometry_areas.clear();
-        for (id, geo_obj) in self.geometry.iter() {
+        for (id, geo_obj) in self.geometry.iter_mut() {
             let height = max(geo_obj.height, 1);
+            geo_obj.update_area();
             for p2d in &geo_obj.area {
                 for h in 0..height {
                     let p3d = Vec3i::new(p2d.x, geo_obj.level + h, p2d.y);

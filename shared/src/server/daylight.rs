@@ -60,6 +60,33 @@ impl Daylight {
         daylight
     }
 
+    pub fn daylight_intensity(&self, time: i32) -> f32 {
+        let minutes = time;
+
+        let sunrise = self.sunrise;
+        let sunset = self.sunset;
+        let transition_duration = self.transition_duration;
+
+        let daylight_start = sunrise + transition_duration;
+        // let daylight_end = sunset - transition_duration;
+
+        // Calculate daylight intensity based on the time of day
+        if minutes < sunrise || minutes > sunset + transition_duration {
+            0.0 // Night time
+        } else if minutes >= sunrise && minutes < daylight_start {
+            // Transition from night to sunrise
+            (minutes - sunrise) as f32 / transition_duration as f32
+        } else if minutes >= daylight_start && minutes < sunset {
+            // Full daylight
+            1.0
+        } else if minutes >= sunset && minutes <= sunset + transition_duration {
+            // Transition from sunset to night
+            1.0 - (minutes - sunset) as f32 / transition_duration as f32
+        } else {
+            0.0 // Night time
+        }
+    }
+
     pub fn calculate_light_direction(&self, time: i32) -> Vec3f {
         let minutes = time;
         let total_daylight_duration = self.sunset - self.sunrise;

@@ -236,16 +236,12 @@ impl RegionFXNode {
                 let width = tile_size * region.width;
                 let height = tile_size * region.height;
 
-                canvas.canvas.resize(width, height);
-                canvas.distance_canvas.resize(width, height);
-                canvas.lights_canvas.resize(width, height);
+                canvas.resize(width, height);
 
                 for (key, tile) in &region.prerendered.tiles {
                     let x = key.x * region.tile_size;
                     let y = key.y * region.tile_size;
-                    canvas.canvas.copy_into(x, y, &tile.albedo);
-                    canvas.distance_canvas.copy_into(x, y, &tile.distance);
-                    canvas.lights_canvas.copy_into(x, y, &tile.lights);
+                    canvas.copy_into(x, y, tile);
                 }
             }
             TopDownIsoCamera => {
@@ -255,14 +251,11 @@ impl RegionFXNode {
                 let width = tile_size * region.width * 2;
                 let height = tile_size * region.height;
 
-                canvas.canvas.resize(width, height);
-                canvas.distance_canvas.resize(width, height);
-                canvas.lights_canvas.resize(width, height);
+                canvas.resize(width, height);
 
                 let sx = tile_size * region.width;
 
                 let mut keys: Vec<Vec2i> = region.prerendered.tiles.keys().cloned().collect();
-
                 keys.sort_by(|a, b| {
                     let sum_a = a.x + a.y;
                     let sum_b = b.x + b.y;
@@ -278,9 +271,7 @@ impl RegionFXNode {
                         let x = sx + (key.x - key.y) * tile_size_half;
                         let y = (key.x + key.y) * (tile_size_half / 2);
 
-                        canvas.canvas.copy_into(x, y, &tile.albedo);
-                        canvas.distance_canvas.copy_into(x, y, &tile.distance);
-                        canvas.lights_canvas.copy_into(x, y, &tile.lights);
+                        canvas.copy_into(x, y, tile);
                     }
                 }
             }

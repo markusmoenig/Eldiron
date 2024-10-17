@@ -122,6 +122,8 @@ impl RegionInstance {
                 region.min_brightness,
                 region.max_brightness,
             );
+            self.draw_settings.daylight_intensity =
+                self.daylight.daylight_intensity(self.time.total_minutes());
             self.draw_settings.sun_direction = self
                 .daylight
                 .calculate_light_direction(self.time.total_minutes());
@@ -827,6 +829,8 @@ impl RegionInstance {
                 region.min_brightness,
                 region.max_brightness,
             );
+            self.draw_settings.daylight_intensity =
+                self.daylight.daylight_intensity(self.time.total_minutes());
             self.draw_settings.sun_direction = self
                 .daylight
                 .calculate_light_direction(self.time.total_minutes());

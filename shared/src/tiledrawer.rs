@@ -13,6 +13,7 @@ pub struct RegionDrawSettings {
     pub delta: f32,
 
     pub daylight: Vec3f,
+    pub daylight_intensity: f32,
     pub sun_direction: Vec3f,
 
     pub show_fx_marker: bool,
@@ -41,6 +42,7 @@ impl RegionDrawSettings {
             delta: 0.0,
 
             daylight: Vec3f::one(),
+            daylight_intensity: 0.0,
             sun_direction: Vec3f::zero(),
 
             show_fx_marker: false,

@@ -12,8 +12,16 @@ pub struct PreRenderedLight {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PreRenderedTileData {
     pub albedo: TheRGBBuffer,
+    pub sunlight: TheRGBBuffer,
     pub distance: TheFlattenedMap<half::f16>,
+    // pub occlusion: TheFlattenedMap<half::f16>,
 
+    // pub mat_type: TheFlattenedMap<u8>,
+    // pub mat1: TheFlattenedMap<half::f16>,
+    // pub mat2: TheFlattenedMap<half::f16>,
+    // pub mat3: TheFlattenedMap<half::f16>,
+
+    // pub normal: TheFlattenedMap<(half::f16, half::f16, half::f16)>,
     pub lights: TheFlattenedMap<Vec<PreRenderedLight>>,
 }
 
@@ -21,10 +29,47 @@ impl PreRenderedTileData {
     pub fn new(width: i32, height: i32) -> Self {
         Self {
             albedo: TheRGBBuffer::new(TheDim::sized(width, height)),
+            sunlight: TheRGBBuffer::new(TheDim::sized(width, height)),
             distance: TheFlattenedMap::new(width, height),
+            // occlusion: TheFlattenedMap::new(width, height),
+            // mat_type: TheFlattenedMap::new(width, height),
+            // mat1: TheFlattenedMap::new(width, height),
+            // mat2: TheFlattenedMap::new(width, height),
+            // mat3: TheFlattenedMap::new(width, height),
+            // normal: TheFlattenedMap::new(width, height),
             lights: TheFlattenedMap::new(width, height),
         }
     }
+
+    pub fn set_albedo(&mut self, x: i32, y: i32, color: Vec3f) {
+        self.albedo.set_pixel_vec3f(x, y, &color);
+    }
+
+    pub fn set_distance(&mut self, x: i32, y: i32, distance: f32) {
+        self.distance.set((x, y), half::f16::from_f32(distance));
+    }
+
+    // pub fn set_occlusion(&mut self, x: i32, y: i32, occ: f32) {
+    //     self.occlusion.set((x, y), half::f16::from_f32(occ));
+    // }
+
+    // pub fn set_material(&mut self, x: i32, y: i32, mat_type: u8, mat1: f32, mat2: f32, mat3: f32) {
+    //     self.mat_type.set((x, y), mat_type);
+    //     self.mat1.set((x, y), half::f16::from_f32(mat1));
+    //     self.mat2.set((x, y), half::f16::from_f32(mat2));
+    //     self.mat3.set((x, y), half::f16::from_f32(mat3));
+    // }
+
+    // pub fn set_normal(&mut self, x: i32, y: i32, normal: Vec3f) {
+    //     self.normal.set(
+    //         (x, y),
+    //         (
+    //             half::f16::from_f32(normal.x),
+    //             half::f16::from_f32(normal.y),
+    //             half::f16::from_f32(normal.z),
+    //         ),
+    //     );
+    // }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -77,9 +122,6 @@ impl PreRendered {
         sample: u16,
         tile_data: &PreRenderedTileData,
     ) {
-        // let tile_x = tile.x * grid_size;
-        // let tile_y = tile.y * grid_size;
-
         let s = 1.0 / (sample as f32 + 1.0);
 
         if let Some(existing_tile) = self.tiles.get_mut(tile) {
@@ -93,14 +135,44 @@ impl PreRendered {
                         }
                     }
 
-                    // distance
-                    if let Some(new_samp) = tile_data.distance.get((w, h)) {
-                        if let Some(existing) = existing_tile.distance.get_mut((w, h)) {
-                            let d = lerp(existing.to_f32(), new_samp.to_f32(), s);
-                            *existing = half::f16::from_f32(d);
-                        } else {
-                            existing_tile.distance.set((w, h), *new_samp);
+                    // sunlight
+                    if let Some(existing) = existing_tile.sunlight.at_vec3(vec2i(w, h)) {
+                        if let Some(new_samp) = tile_data.sunlight.at_vec3(vec2i(w, h)) {
+                            let p = lerp(existing, new_samp, s);
+                            existing_tile.sunlight.set_pixel_vec3f(w, h, &p);
                         }
+                    }
+
+                    if sample == 0 {
+                        // distance
+                        if let Some(sample) = tile_data.distance.get((w, h)) {
+                            existing_tile.distance.set((w, h), *sample);
+                        }
+
+                        /*
+                        // occlusion
+                        if let Some(sample) = tile_data.occlusion.get((w, h)) {
+                            existing_tile.occlusion.set((w, h), *sample);
+                        }
+
+                        // material
+                        if let Some(sample) = tile_data.mat_type.get((w, h)) {
+                            existing_tile.mat_type.set((w, h), *sample);
+                        }
+                        if let Some(sample) = tile_data.mat1.get((w, h)) {
+                            existing_tile.mat1.set((w, h), *sample);
+                        }
+                        if let Some(sample) = tile_data.mat2.get((w, h)) {
+                            existing_tile.mat2.set((w, h), *sample);
+                        }
+                        if let Some(sample) = tile_data.mat3.get((w, h)) {
+                            existing_tile.mat3.set((w, h), *sample);
+                        }
+
+                        // normal
+                        if let Some(sample) = tile_data.normal.get((w, h)) {
+                            existing_tile.normal.set((w, h), *sample);
+                        }*/
                     }
 
                     // lights
