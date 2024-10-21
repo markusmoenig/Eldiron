@@ -74,7 +74,8 @@ impl Tool for TileDrawerTool {
         }
 
         if let Some(curr_tile_id) = server_ctx.curr_tile_id {
-            if TILEDRAWER.lock().unwrap().tiles.contains_key(&curr_tile_id) {
+            if let Some(rgb_tile) = TILEDRAWER.lock().unwrap().tiles.get(&curr_tile_id) {
+                let is_billboard = rgb_tile.billboard;
                 if server_ctx.curr_layer_role == Layer2DRole::FX {
                     // Set the tile preview.
                     if let Some(widget) = ui.get_widget("TileFX RGBA") {
@@ -125,13 +126,16 @@ impl Tool for TileDrawerTool {
                     //self.set_icon_previews(region, &palette, coord, ui);
 
                     server.update_region(region);
-                    RENDERER.lock().unwrap().set_region(region);
 
-                    if let Some(region) = region_to_render {
-                        PRERENDERTHREAD
-                            .lock()
-                            .unwrap()
-                            .render_region(region, Some(tiles_to_render));
+                    if !is_billboard {
+                        RENDERER.lock().unwrap().set_region(region);
+
+                        if let Some(region) = region_to_render {
+                            PRERENDERTHREAD
+                                .lock()
+                                .unwrap()
+                                .render_region(region, Some(tiles_to_render));
+                        }
                     }
                 }
             }

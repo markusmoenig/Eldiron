@@ -27,5 +27,5 @@ fn main() {
     let solo = Solo::new();
     let mut app = TheApp::new();
 
-    _ = app.run(Box::new(solo));
+    let () = app.run(Box::new(solo));
 }

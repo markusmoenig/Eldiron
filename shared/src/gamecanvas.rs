@@ -116,15 +116,15 @@ impl GameCanvas {
             material.3 = mat3.to_f32();
         }
         material
-    }
-
-    pub fn get_normal(&self, x: i32, y: i32) -> Vec3f {
-        let mut normal = Vec3f::zero();
-        if let Some(dist) = &self.normal_canvas.get((x, y)) {
-            normal.x = dist.0.to_f32();
-            normal.y = dist.1.to_f32();
-            normal.z = dist.2.to_f32();
-        }
-        normal
     }*/
+
+    // pub fn get_normal(&self, x: i32, y: i32) -> Vec3f {
+    //     let mut normal = Vec3f::zero();
+    //     if let Some(dist) = &self.normal_canvas.get((x, y)) {
+    //         normal.x = dist.0.to_f32();
+    //         normal.y = dist.1.to_f32();
+    //         normal.z = dist.2.to_f32();
+    //     }
+    //     normal
+    // }
 }

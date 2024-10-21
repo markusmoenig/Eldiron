@@ -368,18 +368,18 @@ impl TheTrait for Editor {
         let game_canvas = self.tileeditor.init_ui(ui, ctx, &mut self.project);
         tab_layout.add_canvas(str!("Game View"), game_canvas);
 
-        let terrain_canvas = TERRAINEDITOR
-            .lock()
-            .unwrap()
-            .init_ui(ui, ctx, &mut self.project);
-        tab_layout.add_canvas(str!("Terrain View"), terrain_canvas);
-
         let model_canvas: TheCanvas =
             MODELEDITOR
                 .lock()
                 .unwrap()
                 .init_ui(ui, ctx, &mut self.project);
         tab_layout.add_canvas(str!("Model View"), model_canvas);
+
+        let terrain_canvas = TERRAINEDITOR
+            .lock()
+            .unwrap()
+            .init_ui(ui, ctx, &mut self.project);
+        tab_layout.add_canvas(str!("Terrain View"), terrain_canvas);
 
         let material_canvas = self.materialeditor.init_ui(ui, ctx, &mut self.project);
         tab_layout.add_canvas(str!("Material View"), material_canvas);
@@ -456,6 +456,7 @@ impl TheTrait for Editor {
     /// Set the command line arguments
     fn set_cmd_line_args(&mut self, args: Vec<String>, ctx: &mut TheContext) {
         if args.len() > 1 {
+            #[allow(irrefutable_let_patterns)]
             if let Ok(path) = PathBuf::from_str(&args[1]) {
                 ctx.ui.send(TheEvent::FileRequesterResult(
                     TheId::named("Open"),
@@ -845,9 +846,9 @@ impl TheTrait for Editor {
                                     }
                                 }
                             } else if index == 1 {
-                                *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::TerrainEditor;
+                                *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::ModelEditor;
                                 PRERENDERTHREAD.lock().unwrap().set_paused(true);
-                                TERRAINEDITOR.lock().unwrap().activated(
+                                MODELEDITOR.lock().unwrap().activated(
                                     ui,
                                     ctx,
                                     &mut self.project,
@@ -855,9 +856,9 @@ impl TheTrait for Editor {
                                     true,
                                 );
                             } else if index == 2 {
-                                *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::ModelEditor;
+                                *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::TerrainEditor;
                                 PRERENDERTHREAD.lock().unwrap().set_paused(true);
-                                MODELEDITOR.lock().unwrap().activated(
+                                TERRAINEDITOR.lock().unwrap().activated(
                                     ui,
                                     ctx,
                                     &mut self.project,

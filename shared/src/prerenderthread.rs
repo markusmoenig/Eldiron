@@ -3,6 +3,8 @@ use rayon::ThreadPoolBuilder;
 use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 use theframework::prelude::*;
+
+#[allow(clippy::large_enum_variant)]
 pub enum PreRenderCmd {
     SetTextures(FxHashMap<Uuid, TheRGBATile>),
     SetMaterials(IndexMap<Uuid, MaterialFXObject>),

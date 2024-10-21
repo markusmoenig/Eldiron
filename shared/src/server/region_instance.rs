@@ -211,6 +211,8 @@ impl RegionInstance {
         self.draw_settings.show_fx_marker = server_ctx.show_fx_marker;
 
         if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
+            renderer.set_region(region);
+
             if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
                 if compute_delta {
                     let server_tick = update.server_tick;

@@ -3,6 +3,7 @@ use theframework::prelude::*;
 
 use crate::editor::PRERENDERTHREAD;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum RegionUndoAtom {
     GeoFXObjectsDeletion(Vec<GeoFXObject>, Vec<Vec2i>),

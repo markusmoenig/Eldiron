@@ -102,5 +102,5 @@ fn main() {
     let mut app = TheApp::new();
     app.set_cmd_line_args(args);
 
-    _ = app.run(Box::new(editor));
+    let () = app.run(Box::new(editor));
 }

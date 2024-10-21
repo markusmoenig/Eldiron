@@ -20,7 +20,6 @@ pub struct PreRenderedTileData {
     // pub mat1: TheFlattenedMap<half::f16>,
     // pub mat2: TheFlattenedMap<half::f16>,
     // pub mat3: TheFlattenedMap<half::f16>,
-
     // pub normal: TheFlattenedMap<(half::f16, half::f16, half::f16)>,
     pub lights: TheFlattenedMap<Vec<PreRenderedLight>>,
 }
