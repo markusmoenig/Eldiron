@@ -992,11 +992,12 @@ impl Renderer {
         color.y = clamp(color.y, 0.0, 1.0);
         color.z = clamp(color.z, 0.0, 1.0);
 
+        // Billboard tiles
         for (pos, tile) in &region.tiles {
             for tile_index in 0..tile.layers.len() {
                 if let Some(tile_id) = &tile.layers[tile_index] {
-                    let xx = pos.0 as f32 + 0.5;
-                    let zz = pos.1 as f32 + 0.5;
+                    let xx = pos.0 as f32 + 1.0;
+                    let zz = pos.1 as f32 + 1.0;
 
                     let plane_pos = vec3f(xx, 0.5, zz);
 
@@ -1032,9 +1033,6 @@ impl Renderer {
                                         }
                                         let index = settings.anim_counter % data.buffer.len();
 
-                                        // let plane_vector_u = normalize(cross(rd, vec3f(1.0, 0.0, 0.0)));
-                                        // let plane_vector_v = normalize(cross(rd, vec3f(0.0, 1.0, 0.0)));
-
                                         let plane_vector_u = compute_primary(plane_normal);
                                         let plane_vector_v = cross(plane_vector_u, rd);
 
@@ -1066,8 +1064,8 @@ impl Renderer {
 
         // Test against characters
         for (pos, tile_id, _character_id, _facing) in &update.characters_pixel_pos {
-            let xx = pos.x as f32 / region.grid_size as f32 + 0.5;
-            let zz = pos.y as f32 / region.grid_size as f32 + 0.5;
+            let xx = pos.x as f32 / region.grid_size as f32 + 1.0;
+            let zz = pos.y as f32 / region.grid_size as f32 + 1.0;
 
             let plane_pos = vec3f(xx, 0.5, zz);
 
@@ -1157,7 +1155,7 @@ impl Renderer {
             let denom = dot(plane_normal, ray.d);
 
             if denom.abs() > 0.0001 {
-                let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
+                let t = dot(vec3f(0.0, -0.5, 0.0) - ray.o, plane_normal) / denom;
                 if t >= 0.0 {
                     let hp = Vec3i::from(ray.at(t));
                     if hp == hover {
@@ -2101,16 +2099,13 @@ impl Renderer {
         if let Some(cam_node) = region.regionfx.get_camera_node() {
             if cam_node.role == RegionFXNodeRole::TiltedIsoCamera {
                 return Some((
-                    Vec3i::new((p.x + 0.5) as i32, p.y.floor() as i32, (p.z - 0.5) as i32),
+                    Vec3i::new((p.x - 1.5) as i32, p.y.floor() as i32, (p.z - 1.5) as i32),
                     p,
                 ));
             }
         }
 
-        Some((
-            Vec3i::new((p.x + 0.5) as i32, p.y.floor() as i32, (p.z + 0.5) as i32),
-            p,
-        ))
+        Some((Vec3i::new(p.x as i32, p.y.floor() as i32, p.z as i32), p))
     }
 
     fn g1v(&self, dot_nv: f32, k: f32) -> f32 {

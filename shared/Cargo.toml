@@ -1,6 +1,6 @@
 [package]
 name = "shared"
-version = "0.8.12"
+version = "0.8.14"
 edition = "2021"
 
 [dependencies]
