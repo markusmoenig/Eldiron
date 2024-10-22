@@ -112,6 +112,19 @@ impl Tool for TerrainDrawTool {
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                     layout.set_shared_ratio(crate::DEFAULT_VLAYOUT_RATIO);
                 }
+
+                // Clear the brush by repainting the buffer
+                let terrain_editor = TERRAINEDITOR.lock().unwrap();
+                if let Some(editor) = ui.get_rgba_layout("TerrainMap") {
+                    if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                        let b = rgba_view.buffer_mut();
+                        if terrain_editor.buffer.len() == b.len() {
+                            b.pixels_mut()
+                                .copy_from_slice(terrain_editor.buffer.pixels());
+                        }
+                    }
+                }
+
                 return true;
             }
             _ => {
@@ -177,6 +190,13 @@ impl Tool for TerrainDrawTool {
                 };
                 let opacity = self.opacity;
 
+                let mut selection_area = FxHashSet::default();
+                if let Some(tilearea) = &server_ctx.tile_selection {
+                    if !tilearea.is_empty() {
+                        selection_area = tilearea.merged();
+                    }
+                }
+
                 if id.name == "TerrainMap View" {
                     if let Some(brush) = BRUSHLIST
                         .lock()
@@ -214,152 +234,166 @@ impl Tool for TerrainDrawTool {
 
                                                 let tile_id = Vec2i::from(tile_id_f);
 
-                                                if !self.affected_tiles.contains(&tile_id) {
-                                                    self.affected_tiles.push(tile_id);
+                                                let mut draw_it = true;
+                                                if !selection_area.is_empty()
+                                                    && !selection_area
+                                                        .contains(&(tile_id.x, tile_id.y))
+                                                {
+                                                    draw_it = false;
                                                 }
 
-                                                let falloff = clamp(
-                                                    -d / (modelfx.falloff * brush_scale),
-                                                    //* (1.0 - modelfx.falloff),
-                                                    0.0,
-                                                    1.0,
-                                                );
-
-                                                let px = x % region.grid_size;
-                                                let py = y % region.grid_size;
-
-                                                let mut hit = Hit {
-                                                    pattern_pos: tile_id_f,
-                                                    global_uv: tile_id_f,
-                                                    ..Default::default()
-                                                };
-
-                                                let mut color = BLACK;
-                                                let mut bump = 0.0;
-                                                let mut metallic = 0.0;
-                                                let mut roughness = 0.0;
-
-                                                if let Some(material_params) =
-                                                    self.material_params.get(&material_id)
-                                                {
-                                                    if let Some(material) = &material {
-                                                        material.compute(
-                                                            &mut hit,
-                                                            &self.palette,
-                                                            &TILEDRAWER.lock().unwrap().tiles,
-                                                            material_params,
-                                                        );
-
-                                                        color = TheColor::from(hit.mat.base_color)
-                                                            .to_u8_array();
-
-                                                        roughness = hit.mat.roughness;
-                                                        metallic = hit.mat.metallic;
-
-                                                        hit.mode = HitMode::Bump;
-                                                        material.follow_trail(
-                                                            0,
-                                                            0,
-                                                            &mut hit,
-                                                            &self.palette,
-                                                            &TILEDRAWER.lock().unwrap().tiles,
-                                                            material_params,
-                                                        );
-                                                        bump = hit.bump;
+                                                if draw_it {
+                                                    if !self.affected_tiles.contains(&tile_id) {
+                                                        self.affected_tiles.push(tile_id);
                                                     }
-                                                }
 
-                                                let mut mask = if let Some(m) = region
-                                                    .heightmap
-                                                    .get_material_mask_mut(tile_id.x, tile_id.y)
-                                                {
-                                                    m.clone()
-                                                } else {
-                                                    TheRGBBuffer::new(TheDim::sized(
-                                                        region.grid_size,
-                                                        region.grid_size,
-                                                    ))
-                                                };
-
-                                                let mut mask2 = if let Some(m) = region
-                                                    .heightmap
-                                                    .get_material_mask_mut2(tile_id.x, tile_id.y)
-                                                {
-                                                    m.clone()
-                                                } else {
-                                                    TheRGBBuffer::new(TheDim::sized(
-                                                        region.grid_size,
-                                                        region.grid_size,
-                                                    ))
-                                                };
-
-                                                if let Some(mut pixel) = mask.get_pixel(px, py) {
-                                                    let mut old_color = BLACK;
-                                                    old_color[0] = pixel[0];
-                                                    old_color[1] = pixel[1];
-                                                    old_color[2] = pixel[2];
-                                                    old_color[3] = 255;
-
-                                                    let mix_value = opacity * falloff;
-
-                                                    let new_color =
-                                                        mix_color(&old_color, &color, mix_value);
-
-                                                    pixel[0] = new_color[0];
-                                                    pixel[1] = new_color[1];
-                                                    pixel[2] = new_color[2];
-
-                                                    /*
-                                                    pixel[self.material_offset as usize] =
-                                                        material_index as u8 + 1;
-
-                                                    if self.material_offset == 1 {
-                                                        let a = pixel[2] as i32;
-                                                        let b = (falloff * 255.0) as i32;
-                                                        // pixel[2] = clamp(a + b, 0, 255) as u8;
-                                                        pixel[2] =
-                                                            clamp(max(a, b), 0, 255) as u8;
-                                                    }*/
-
-                                                    b.set_pixel(x, y, &new_color);
-                                                    terrain_editor
-                                                        .buffer
-                                                        .set_pixel(x, y, &new_color);
-                                                    mask.set_pixel(px, py, &pixel);
-
-                                                    region.heightmap.set_material_mask(
-                                                        tile_id.x, tile_id.y, mask,
-                                                    );
-                                                }
-
-                                                if let Some(mut pixel) = mask2.get_pixel(px, py) {
-                                                    let roughness = lerp(
-                                                        pixel[0] as f32 / 255.0,
-                                                        roughness,
-                                                        opacity,
+                                                    let falloff = clamp(
+                                                        -d / (modelfx.falloff * brush_scale),
+                                                        //* (1.0 - modelfx.falloff),
+                                                        0.0,
+                                                        1.0,
                                                     );
 
-                                                    let metallic = lerp(
-                                                        pixel[1] as f32 / 255.0,
-                                                        metallic,
-                                                        opacity,
-                                                    );
+                                                    let px = x % region.grid_size;
+                                                    let py = y % region.grid_size;
 
-                                                    pixel[0] = (roughness * 255.0) as u8;
-                                                    pixel[1] = (metallic * 255.0) as u8;
+                                                    let mut hit = Hit {
+                                                        pattern_pos: tile_id_f,
+                                                        global_uv: tile_id_f,
+                                                        ..Default::default()
+                                                    };
 
-                                                    let bump = lerp(
-                                                        pixel[2] as f32 / 255.0,
-                                                        bump,
-                                                        opacity,
-                                                    );
+                                                    let mut color = BLACK;
+                                                    let mut bump = 0.0;
+                                                    let mut metallic = 0.0;
+                                                    let mut roughness = 0.0;
 
-                                                    pixel[2] = (bump * 255.0) as u8;
+                                                    if let Some(material_params) =
+                                                        self.material_params.get(&material_id)
+                                                    {
+                                                        if let Some(material) = &material {
+                                                            material.compute(
+                                                                &mut hit,
+                                                                &self.palette,
+                                                                &TILEDRAWER.lock().unwrap().tiles,
+                                                                material_params,
+                                                            );
 
-                                                    mask2.set_pixel(px, py, &pixel);
-                                                    region.heightmap.set_material_mask2(
-                                                        tile_id.x, tile_id.y, mask2,
-                                                    );
+                                                            color =
+                                                                TheColor::from(hit.mat.base_color)
+                                                                    .to_u8_array();
+
+                                                            roughness = hit.mat.roughness;
+                                                            metallic = hit.mat.metallic;
+
+                                                            hit.mode = HitMode::Bump;
+                                                            material.follow_trail(
+                                                                0,
+                                                                0,
+                                                                &mut hit,
+                                                                &self.palette,
+                                                                &TILEDRAWER.lock().unwrap().tiles,
+                                                                material_params,
+                                                            );
+                                                            bump = hit.bump;
+                                                        }
+                                                    }
+
+                                                    let mut mask = if let Some(m) = region
+                                                        .heightmap
+                                                        .get_material_mask_mut(tile_id.x, tile_id.y)
+                                                    {
+                                                        m.clone()
+                                                    } else {
+                                                        TheRGBBuffer::new(TheDim::sized(
+                                                            region.grid_size,
+                                                            region.grid_size,
+                                                        ))
+                                                    };
+
+                                                    let mut mask2 = if let Some(m) =
+                                                        region.heightmap.get_material_mask_mut2(
+                                                            tile_id.x, tile_id.y,
+                                                        ) {
+                                                        m.clone()
+                                                    } else {
+                                                        TheRGBBuffer::new(TheDim::sized(
+                                                            region.grid_size,
+                                                            region.grid_size,
+                                                        ))
+                                                    };
+
+                                                    if let Some(mut pixel) = mask.get_pixel(px, py)
+                                                    {
+                                                        let mut old_color = BLACK;
+                                                        old_color[0] = pixel[0];
+                                                        old_color[1] = pixel[1];
+                                                        old_color[2] = pixel[2];
+                                                        old_color[3] = 255;
+
+                                                        let mix_value = opacity * falloff;
+
+                                                        let new_color = mix_color(
+                                                            &old_color, &color, mix_value,
+                                                        );
+
+                                                        pixel[0] = new_color[0];
+                                                        pixel[1] = new_color[1];
+                                                        pixel[2] = new_color[2];
+
+                                                        /*
+                                                        pixel[self.material_offset as usize] =
+                                                            material_index as u8 + 1;
+
+                                                        if self.material_offset == 1 {
+                                                            let a = pixel[2] as i32;
+                                                            let b = (falloff * 255.0) as i32;
+                                                            // pixel[2] = clamp(a + b, 0, 255) as u8;
+                                                            pixel[2] =
+                                                                clamp(max(a, b), 0, 255) as u8;
+                                                        }*/
+
+                                                        b.set_pixel(x, y, &new_color);
+                                                        terrain_editor
+                                                            .buffer
+                                                            .set_pixel(x, y, &new_color);
+                                                        mask.set_pixel(px, py, &pixel);
+
+                                                        region.heightmap.set_material_mask(
+                                                            tile_id.x, tile_id.y, mask,
+                                                        );
+                                                    }
+
+                                                    if let Some(mut pixel) = mask2.get_pixel(px, py)
+                                                    {
+                                                        let roughness = lerp(
+                                                            pixel[0] as f32 / 255.0,
+                                                            roughness,
+                                                            opacity,
+                                                        );
+
+                                                        let metallic = lerp(
+                                                            pixel[1] as f32 / 255.0,
+                                                            metallic,
+                                                            opacity,
+                                                        );
+
+                                                        pixel[0] = (roughness * 255.0) as u8;
+                                                        pixel[1] = (metallic * 255.0) as u8;
+
+                                                        let bump = lerp(
+                                                            pixel[2] as f32 / 255.0,
+                                                            bump,
+                                                            opacity,
+                                                        );
+
+                                                        pixel[2] = (bump * 255.0) as u8;
+
+                                                        mask2.set_pixel(px, py, &pixel);
+                                                        region.heightmap.set_material_mask2(
+                                                            tile_id.x, tile_id.y, mask2,
+                                                        );
+                                                    }
                                                 }
                                             }
                                         }
@@ -373,6 +407,16 @@ impl Tool for TerrainDrawTool {
                                             }
                                         }
                                     }
+                                }
+
+                                if let Some(tilearea) = &server_ctx.tile_selection {
+                                    TILEDRAWER.lock().unwrap().draw_tile_selection(
+                                        &tilearea.merged(),
+                                        b,
+                                        terrain_editor.grid_size,
+                                        WHITE,
+                                        ctx,
+                                    );
                                 }
                             }
                         }
@@ -401,7 +445,7 @@ impl Tool for TerrainDrawTool {
                             .render_region(region.clone(), Some(self.affected_tiles.clone()));
 
                         ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Minimaps"),
+                            TheId::named("Update Minimap"),
                             TheValue::Empty,
                         ));
                     }
@@ -456,10 +500,19 @@ impl Tool for TerrainDrawTool {
                                         }
                                     }
                                 }
+
+                                if let Some(tilearea) = &server_ctx.tile_selection {
+                                    TILEDRAWER.lock().unwrap().draw_tile_selection(
+                                        &tilearea.merged(),
+                                        b,
+                                        terrain_editor.grid_size,
+                                        WHITE,
+                                        ctx,
+                                    );
+                                }
                             }
                         }
                     }
-                    //println!("coord {}", coord);
                 }
             }
             TheEvent::ValueChanged(id, value) => {

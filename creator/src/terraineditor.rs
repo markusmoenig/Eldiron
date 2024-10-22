@@ -1,9 +1,11 @@
 use shared::prelude::*;
 
+use crate::editor::TILEDRAWER;
 use crate::prelude::*;
 
 pub struct TerrainEditor {
     pub buffer: TheRGBABuffer,
+    pub grid_size: i32,
 }
 
 #[allow(clippy::new_without_default)]
@@ -11,6 +13,7 @@ impl TerrainEditor {
     pub fn new() -> Self {
         Self {
             buffer: TheRGBABuffer::default(),
+            grid_size: 0,
         }
     }
 
@@ -81,16 +84,18 @@ impl TerrainEditor {
         scroll_to: bool,
     ) {
         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+            self.grid_size = region.grid_size;
+            let region_width = region.width * region.grid_size;
+            let region_height = region.height * region.grid_size;
+
+            let mut buffer = TheRGBABuffer::new(TheDim::sized(region_width, region_height));
+            crate::minimap::draw_minimap(region, &mut buffer, true);
+            self.draw_selection(ui, ctx, server_ctx, None);
+
             if let Some(editor) = ui.get_rgba_layout("TerrainMap") {
                 if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
                     rgba_view.set_mode(TheRGBAViewMode::TileEditor);
                     rgba_view.set_grid(Some(1));
-
-                    let region_width = region.width * region.grid_size;
-                    let region_height = region.height * region.grid_size;
-
-                    let mut buffer = TheRGBABuffer::new(TheDim::sized(region_width, region_height));
-                    crate::minimap::draw_minimap(region, &mut buffer, true);
 
                     self.buffer = buffer.clone();
 
@@ -100,6 +105,47 @@ impl TerrainEditor {
                 }
                 if scroll_to {
                     editor.scroll_to(region.scroll_offset);
+                }
+            }
+        }
+    }
+
+    pub fn draw_selection(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+        hover_pos: Option<Vec2i>,
+    ) {
+        let tiledrawer = TILEDRAWER.lock().unwrap();
+
+        if let Some(editor) = ui.get_rgba_layout("TerrainMap") {
+            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                let b = rgba_view.buffer_mut();
+                if self.buffer.len() == b.len() {
+                    b.pixels_mut().copy_from_slice(self.buffer.pixels());
+                }
+
+                // Selection
+                if let Some(tilearea) = &server_ctx.tile_selection {
+                    tiledrawer.draw_tile_selection(
+                        &tilearea.merged(),
+                        b,
+                        self.grid_size,
+                        WHITE,
+                        ctx,
+                    );
+                }
+
+                // Hover
+                if let Some(hover_pos) = hover_pos {
+                    let x0 = hover_pos.x * self.grid_size;
+                    let y0 = hover_pos.y * self.grid_size;
+
+                    b.draw_rect_outline(
+                        &TheDim::new(x0, y0, self.grid_size, self.grid_size),
+                        &[128, 128, 128, 255],
+                    );
                 }
             }
         }

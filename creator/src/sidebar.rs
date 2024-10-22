@@ -969,6 +969,15 @@ impl Sidebar {
                         self.stack_layout_id.clone(),
                         SidebarMode::Model as usize,
                     ));
+                } else if id.name == "Update Minimap" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if let Some(render_view) = ui.get_render_view("MiniMap") {
+                            let dim = *render_view.dim();
+                            let buffer = render_view.render_buffer_mut();
+                            buffer.resize(dim.width, dim.height);
+                            draw_minimap(region, buffer, false);
+                        }
+                    }
                 } else if id.name == "Update Minimaps" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if let Some(render_view) = ui.get_render_view("MiniMap") {

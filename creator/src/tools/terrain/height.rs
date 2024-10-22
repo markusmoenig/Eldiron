@@ -2,7 +2,7 @@ use crate::prelude::*;
 use ToolEvent::*;
 
 use crate::editor::{
-    BRUSHLIST, MODELFXEDITOR, PANELS, PRERENDERTHREAD, TERRAINEDITOR, UNDOMANAGER,
+    BRUSHLIST, MODELFXEDITOR, PANELS, PRERENDERTHREAD, TERRAINEDITOR, TILEDRAWER, UNDOMANAGER,
 };
 
 pub struct TerrainHeightTool {
@@ -121,6 +121,19 @@ impl Tool for TerrainHeightTool {
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                     layout.set_shared_ratio(crate::DEFAULT_VLAYOUT_RATIO);
                 }
+
+                // Clear the brush by repainting the buffer
+                let terrain_editor = TERRAINEDITOR.lock().unwrap();
+                if let Some(editor) = ui.get_rgba_layout("TerrainMap") {
+                    if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                        let b = rgba_view.buffer_mut();
+                        if terrain_editor.buffer.len() == b.len() {
+                            b.pixels_mut()
+                                .copy_from_slice(terrain_editor.buffer.pixels());
+                        }
+                    }
+                }
+
                 return true;
             }
             _ => {
@@ -185,6 +198,13 @@ impl Tool for TerrainHeightTool {
                     falloff: modelfx.falloff,
                 };
 
+                let mut selection_area = FxHashSet::default();
+                if let Some(tilearea) = &server_ctx.tile_selection {
+                    if !tilearea.is_empty() {
+                        selection_area = tilearea.merged();
+                    }
+                }
+
                 if id.name == "TerrainMap View" {
                     if let Some(brush) = BRUSHLIST
                         .lock()
@@ -220,107 +240,117 @@ impl Tool for TerrainHeightTool {
 
                                                 let tile_id = Vec2i::from(tile_id_f);
 
-                                                if !self.affected_tiles.contains(&tile_id) {
-                                                    self.affected_tiles.push(tile_id);
+                                                let mut draw_it = true;
+                                                if !selection_area.is_empty()
+                                                    && !selection_area
+                                                        .contains(&(tile_id.x, tile_id.y))
+                                                {
+                                                    draw_it = false;
                                                 }
 
-                                                //if !processed.contains(&subdiv_key) {
-                                                let scale = 1.0;
-
-                                                let falloff = clamp(
-                                                    -d / (modelfx.falloff * brush_scale),
-                                                    0.0,
-                                                    1.0,
-                                                ) * scale;
-
-                                                let subdiv_key = region
-                                                    .heightmap
-                                                    .calculate_tile_and_subdivision(
-                                                        tile_id_f.x,
-                                                        tile_id_f.y,
-                                                    );
-
-                                                subdivision_buffer
-                                                    .insert(subdiv_key, falloff * self.scale);
-                                                //
-                                                // region.heightmap.set_height(
-                                                //     tile_id_f.x,
-                                                //     tile_id_f.y,
-                                                //     falloff,
-                                                // );
-
-                                                // let subdiv_key = region
-                                                //     .heightmap
-                                                //     .calculate_tile_and_subdivision(
-                                                //         tile_id_f.x,
-                                                //         tile_id_f.y,
-                                                //     );
-
-                                                // let entry = subdivision_buffer
-                                                //     .entry(subdiv_key)
-                                                //     .or_insert((0.0, 0.0));
-                                                // entry.0 += falloff * scale;
-                                                // entry.1 += falloff;
-
-                                                // processed.insert(subdiv_key);
-                                                // }
-                                                /*
-                                                let px = x % region.grid_size;
-                                                let py = y % region.grid_size;
-
-                                                if let Some(mask) = region
-                                                    .heightmap
-                                                    .get_material_mask_mut(tile_id.x, tile_id.y)
-                                                {
-                                                    if let Some(mut pixel) = mask.get_pixel(px, py)
-                                                    {
-                                                        pixel[self.material_offset as usize] =
-                                                            material_index as u8 + 1;
-
-                                                        if self.material_offset == 1 {
-                                                            let a = pixel[2] as i32;
-                                                            let b = (falloff * 255.0) as i32;
-                                                            // pixel[2] = clamp(a + b, 0, 255) as u8;
-                                                            pixel[2] =
-                                                                clamp(max(a, b), 0, 255) as u8;
-                                                        }
-
-                                                        mask.set_pixel(px, py, &pixel);
+                                                if draw_it {
+                                                    if !self.affected_tiles.contains(&tile_id) {
+                                                        self.affected_tiles.push(tile_id);
                                                     }
-                                                }
 
-                                                if let Some(material_id) =
-                                                    server_ctx.curr_material_object
-                                                {
-                                                    if let Some(material) =
-                                                        project.materials.get(&material_id)
+                                                    //if !processed.contains(&subdiv_key) {
+                                                    let scale = 1.0;
+
+                                                    let falloff = clamp(
+                                                        -d / (modelfx.falloff * brush_scale),
+                                                        0.0,
+                                                        1.0,
+                                                    ) * scale;
+
+                                                    let subdiv_key = region
+                                                        .heightmap
+                                                        .calculate_tile_and_subdivision(
+                                                            tile_id_f.x,
+                                                            tile_id_f.y,
+                                                        );
+
+                                                    subdivision_buffer
+                                                        .insert(subdiv_key, falloff * self.scale);
+                                                    //
+                                                    // region.heightmap.set_height(
+                                                    //     tile_id_f.x,
+                                                    //     tile_id_f.y,
+                                                    //     falloff,
+                                                    // );
+
+                                                    // let subdiv_key = region
+                                                    //     .heightmap
+                                                    //     .calculate_tile_and_subdivision(
+                                                    //         tile_id_f.x,
+                                                    //         tile_id_f.y,
+                                                    //     );
+
+                                                    // let entry = subdivision_buffer
+                                                    //     .entry(subdiv_key)
+                                                    //     .or_insert((0.0, 0.0));
+                                                    // entry.0 += falloff * scale;
+                                                    // entry.1 += falloff;
+
+                                                    // processed.insert(subdiv_key);
+                                                    // }
+                                                    /*
+                                                    let px = x % region.grid_size;
+                                                    let py = y % region.grid_size;
+
+                                                    if let Some(mask) = region
+                                                        .heightmap
+                                                        .get_material_mask_mut(tile_id.x, tile_id.y)
                                                     {
-                                                        let mut hit = Hit {
-                                                            pattern_pos: tile_id_f,
-                                                            global_uv: tile_id_f,
-                                                            ..Default::default()
-                                                        };
-
-                                                        if let Some(material_params) =
-                                                            self.material_params.get(&material_id)
+                                                        if let Some(mut pixel) = mask.get_pixel(px, py)
                                                         {
-                                                            material.compute(
-                                                                &mut hit,
-                                                                &self.palette,
-                                                                &TILEDRAWER.lock().unwrap().tiles,
-                                                                material_params,
-                                                            );
+                                                            pixel[self.material_offset as usize] =
+                                                                material_index as u8 + 1;
 
-                                                            let pixel =
-                                                                TheColor::from(hit.mat.base_color)
-                                                                    .to_u8_array();
-                                                            b.set_pixel(x, y, &pixel);
-                                                            terrain_editor
-                                                                .buffer
-                                                                .set_pixel(x, y, &pixel);
+                                                            if self.material_offset == 1 {
+                                                                let a = pixel[2] as i32;
+                                                                let b = (falloff * 255.0) as i32;
+                                                                // pixel[2] = clamp(a + b, 0, 255) as u8;
+                                                                pixel[2] =
+                                                                    clamp(max(a, b), 0, 255) as u8;
+                                                            }
+
+                                                            mask.set_pixel(px, py, &pixel);
                                                         }
                                                     }
-                                                }*/
+
+                                                    if let Some(material_id) =
+                                                        server_ctx.curr_material_object
+                                                    {
+                                                        if let Some(material) =
+                                                            project.materials.get(&material_id)
+                                                        {
+                                                            let mut hit = Hit {
+                                                                pattern_pos: tile_id_f,
+                                                                global_uv: tile_id_f,
+                                                                ..Default::default()
+                                                            };
+
+                                                            if let Some(material_params) =
+                                                                self.material_params.get(&material_id)
+                                                            {
+                                                                material.compute(
+                                                                    &mut hit,
+                                                                    &self.palette,
+                                                                    &TILEDRAWER.lock().unwrap().tiles,
+                                                                    material_params,
+                                                                );
+
+                                                                let pixel =
+                                                                    TheColor::from(hit.mat.base_color)
+                                                                        .to_u8_array();
+                                                                b.set_pixel(x, y, &pixel);
+                                                                terrain_editor
+                                                                    .buffer
+                                                                    .set_pixel(x, y, &pixel);
+                                                            }
+                                                        }
+                                                    }*/
+                                                }
                                             }
                                         }
                                         let bd = border_mask(d, 1.5);
@@ -331,6 +361,16 @@ impl Tool for TerrainHeightTool {
                                             }
                                         }
                                     }
+                                }
+
+                                if let Some(tilearea) = &server_ctx.tile_selection {
+                                    TILEDRAWER.lock().unwrap().draw_tile_selection(
+                                        &tilearea.merged(),
+                                        b,
+                                        terrain_editor.grid_size,
+                                        WHITE,
+                                        ctx,
+                                    );
                                 }
 
                                 if let Some(region) =
@@ -456,6 +496,16 @@ impl Tool for TerrainHeightTool {
                                             }
                                         }
                                     }
+                                }
+
+                                if let Some(tilearea) = &server_ctx.tile_selection {
+                                    TILEDRAWER.lock().unwrap().draw_tile_selection(
+                                        &tilearea.merged(),
+                                        b,
+                                        terrain_editor.grid_size,
+                                        WHITE,
+                                        ctx,
+                                    );
                                 }
                             }
                         }

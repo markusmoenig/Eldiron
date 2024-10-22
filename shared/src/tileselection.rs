@@ -104,4 +104,8 @@ impl TileSelection {
             Some((vec2i(min_x, min_y), vec2i(max_x, max_y), width, height))
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.tiles.is_empty() && self.rect_start == (0, 0) && self.rect_end == (0, 0)
+    }
 }

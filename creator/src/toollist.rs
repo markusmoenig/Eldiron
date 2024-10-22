@@ -58,6 +58,8 @@ impl ToolList {
         let terrain_tools: Vec<Box<dyn Tool>> = vec![
             Box::new(TerrainDrawTool::new()),
             Box::new(TerrainHeightTool::new()),
+            Box::new(TerrainSelectionTool::new()),
+            Box::new(TerrainZoomTool::new()),
         ];
         let material_tools: Vec<Box<dyn Tool>> = vec![Box::new(MaterialNodeEditTool::new())];
         let model_tools: Vec<Box<dyn Tool>> = vec![Box::new(ModelNodeEditTool::new())];
@@ -239,6 +241,29 @@ impl ToolList {
                             }
                         }
                         TerrainEditor => {
+                            if (*c == '-' || *c == '=' || *c == '+') && (ui.ctrl || ui.logo) {
+                                // Global Zoom In / Zoom Out
+                                if let Some(region) =
+                                    project.get_region_mut(&server_ctx.curr_region)
+                                {
+                                    if *c == '=' || *c == '+' {
+                                        region.zoom += 0.2;
+                                    } else {
+                                        region.zoom -= 0.2;
+                                    }
+                                    region.zoom = region.zoom.clamp(1.0, 5.0);
+                                    server.set_zoom(region.id, region.zoom);
+                                    if let Some(layout) = ui.get_rgba_layout("TerrainMap") {
+                                        layout.set_zoom(region.zoom);
+                                        layout.relayout(ctx);
+                                    }
+                                    if let Some(edit) = ui.get_text_line_edit("TerrainMap Zoom") {
+                                        edit.set_value(TheValue::Float(region.zoom));
+                                    }
+                                    return true;
+                                }
+                            }
+
                             let mut tool_uuid = None;
                             for tool in self.terrain_tools.iter() {
                                 if tool.accel() == Some(*c) {
@@ -298,7 +323,10 @@ impl ToolList {
                 }
             }
             TheEvent::TileEditorClicked(id, coord) => {
-                if id.name == "Region Editor View" || id.name == "Screen Editor View" {
+                if id.name == "Region Editor View"
+                    || id.name == "Screen Editor View"
+                    || id.name == "TerrainMap View"
+                {
                     let mut coord_f = Vec2f::from(*coord);
                     if id.name == "Region Editor View" {
                         if let Some(editor) = ui.get_rgba_layout("Region Editor") {
@@ -321,7 +349,10 @@ impl ToolList {
                 }
             }
             TheEvent::TileEditorDragged(id, coord) => {
-                if id.name == "Region Editor View" || id.name == "Screen Editor View" {
+                if id.name == "Region Editor View"
+                    || id.name == "Screen Editor View"
+                    || id.name == "TerrainMap View"
+                {
                     let mut coord_f = Vec2f::from(*coord);
                     if id.name == "Region Editor View" {
                         if let Some(editor) = ui.get_rgba_layout("Region Editor") {
@@ -344,7 +375,10 @@ impl ToolList {
                 }
             }
             TheEvent::TileEditorUp(id) => {
-                if id.name == "Region Editor View" || id.name == "Screen Editor View" {
+                if id.name == "Region Editor View"
+                    || id.name == "Screen Editor View"
+                    || id.name == "TerrainMap View"
+                {
                     self.get_current_tool().tool_event(
                         ToolEvent::TileUp,
                         ToolContext::TwoD,

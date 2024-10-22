@@ -601,7 +601,7 @@ impl GeoFXNode {
                 }*/
                 LeftWall | RightWall | MiddleWallV => {
                     let mut pos = Vec2i::from(self.position(&coll));
-                    let mut length = self.length().ceil() as i32;
+                    let mut length = self.length().round() as i32;
 
                     if !no_2d_transforms {
                         if let Some(value) = coll.get("2D Mode") {
@@ -626,7 +626,7 @@ impl GeoFXNode {
                 }
                 BackWall | FrontWall | MiddleWallH => {
                     let mut pos = Vec2i::from(self.position(&coll));
-                    let mut length = self.length().ceil() as i32;
+                    let mut length = self.length().round() as i32;
 
                     if let Some(value) = coll.get("2D Mode") {
                         if let Some(mode) = value.to_i32() {

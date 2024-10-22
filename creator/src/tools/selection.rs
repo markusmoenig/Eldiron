@@ -57,6 +57,10 @@ impl Tool for SelectionTool {
     ) -> bool {
         match tool_event {
             Activate => {
+                if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                    layout.set_mode(TheSharedVLayoutMode::Top);
+                }
+
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();
 
@@ -97,6 +101,9 @@ impl Tool for SelectionTool {
                 return true;
             }
             DeActivate => {
+                if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                    layout.set_mode(TheSharedVLayoutMode::Shared);
+                }
                 server_ctx.tile_selection = None;
                 ui.set_widget_context_menu("Region Editor View", None);
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
