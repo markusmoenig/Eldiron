@@ -2,7 +2,8 @@ use crate::prelude::*;
 use ToolEvent::*;
 
 use crate::editor::{
-    BRUSHLIST, MODELFXEDITOR, PANELS, PRERENDERTHREAD, TERRAINEDITOR, TILEDRAWER, UNDOMANAGER,
+    BRUSHLIST, MODELFXEDITOR, PANELS, PRERENDERTHREAD, SIDEBARMODE, TERRAINEDITOR, TILEDRAWER,
+    UNDOMANAGER,
 };
 
 pub struct TerrainDrawTool {
@@ -164,6 +165,9 @@ impl Tool for TerrainDrawTool {
                     return false;
                 }
 
+                let mode = SIDEBARMODE.lock().unwrap();
+                let palette_color = project.palette.get_current_color();
+
                 let material_id = server_ctx.curr_material_object.unwrap();
 
                 let mut terrain_editor = TERRAINEDITOR.lock().unwrap();
@@ -268,35 +272,46 @@ impl Tool for TerrainDrawTool {
                                                     let mut metallic = 0.0;
                                                     let mut roughness = 0.0;
 
-                                                    if let Some(material_params) =
-                                                        self.material_params.get(&material_id)
-                                                    {
-                                                        if let Some(material) = &material {
-                                                            material.compute(
-                                                                &mut hit,
-                                                                &self.palette,
-                                                                &TILEDRAWER.lock().unwrap().tiles,
-                                                                material_params,
-                                                            );
+                                                    if *mode == SidebarMode::Material {
+                                                        if let Some(material_params) =
+                                                            self.material_params.get(&material_id)
+                                                        {
+                                                            if let Some(material) = &material {
+                                                                material.compute(
+                                                                    &mut hit,
+                                                                    &self.palette,
+                                                                    &TILEDRAWER
+                                                                        .lock()
+                                                                        .unwrap()
+                                                                        .tiles,
+                                                                    material_params,
+                                                                );
 
-                                                            color =
-                                                                TheColor::from(hit.mat.base_color)
-                                                                    .to_u8_array();
+                                                                color = TheColor::from(
+                                                                    hit.mat.base_color,
+                                                                )
+                                                                .to_u8_array();
 
-                                                            roughness = hit.mat.roughness;
-                                                            metallic = hit.mat.metallic;
+                                                                roughness = hit.mat.roughness;
+                                                                metallic = hit.mat.metallic;
 
-                                                            hit.mode = HitMode::Bump;
-                                                            material.follow_trail(
-                                                                0,
-                                                                0,
-                                                                &mut hit,
-                                                                &self.palette,
-                                                                &TILEDRAWER.lock().unwrap().tiles,
-                                                                material_params,
-                                                            );
-                                                            bump = hit.bump;
+                                                                hit.mode = HitMode::Bump;
+                                                                material.follow_trail(
+                                                                    0,
+                                                                    0,
+                                                                    &mut hit,
+                                                                    &self.palette,
+                                                                    &TILEDRAWER
+                                                                        .lock()
+                                                                        .unwrap()
+                                                                        .tiles,
+                                                                    material_params,
+                                                                );
+                                                                bump = hit.bump;
+                                                            }
                                                         }
+                                                    } else if let Some(col) = &palette_color {
+                                                        color = col.to_u8_array();
                                                     }
 
                                                     let mut mask = if let Some(m) = region
