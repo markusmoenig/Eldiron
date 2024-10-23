@@ -10,6 +10,9 @@ pub struct TerrainDrawTool {
     id: TheId,
 
     processed_coords: FxHashSet<Vec2i>,
+    roughness: f32,
+    metallic: f32,
+    bump: f32,
     opacity: f32,
 
     material_params: FxHashMap<Uuid, Vec<Vec<f32>>>,
@@ -28,6 +31,9 @@ impl Tool for TerrainDrawTool {
         Self {
             id: TheId::named("Draw Tool"),
             processed_coords: FxHashSet::default(),
+            roughness: 0.5,
+            metallic: 0.0,
+            bump: 0.0,
             opacity: 1.0,
 
             material_params: FxHashMap::default(),
@@ -76,17 +82,51 @@ impl Tool for TerrainDrawTool {
                     layout.clear();
 
                     // Opacity
-                    let mut text = TheText::new(TheId::empty());
-                    text.set_text("Opacity".to_string());
-                    layout.add_widget(Box::new(text));
+                    // let mut text = TheText::new(TheId::empty());
+                    // text.set_text("Opacity".to_string());
+                    // layout.add_widget(Box::new(text));
 
-                    let mut opacity = TheSlider::new(TheId::named("Opacity"));
+                    let mut roughness = TheTextLineEdit::new(TheId::named("Roughness"));
+                    roughness.set_value(TheValue::Float(self.roughness));
+                    // opacity.set_default_value(TheValue::Float(1.0));
+                    roughness.set_info_text(Some("Roughness".to_string()));
+                    roughness.set_range(TheValue::RangeF32(0.0..=1.0));
+                    roughness.set_continuous(true);
+                    roughness.limiter_mut().set_max_width(150);
+                    roughness
+                        .set_status_text("The roughness of the brush. Only for palette colors.");
+                    layout.add_widget(Box::new(roughness));
+
+                    let mut metallic = TheTextLineEdit::new(TheId::named("Metallic"));
+                    metallic.set_value(TheValue::Float(self.metallic));
+                    // opacity.set_default_value(TheValue::Float(1.0));
+                    metallic.set_info_text(Some("Metallic".to_string()));
+                    metallic.set_range(TheValue::RangeF32(0.0..=1.0));
+                    metallic.set_continuous(true);
+                    metallic.limiter_mut().set_max_width(150);
+                    metallic.set_status_text(
+                        "The metallic property of the brush. Only for palette colors.",
+                    );
+                    layout.add_widget(Box::new(metallic));
+
+                    let mut bump = TheTextLineEdit::new(TheId::named("Bump"));
+                    bump.set_value(TheValue::Float(self.bump));
+                    // opacity.set_default_value(TheValue::Float(1.0));
+                    bump.set_info_text(Some("Bump".to_string()));
+                    bump.set_range(TheValue::RangeF32(0.0..=1.0));
+                    bump.set_continuous(true);
+                    bump.limiter_mut().set_max_width(150);
+                    bump.set_status_text("The bump value of the brush. Only for palette colors and only used if greater than 0.0.");
+                    layout.add_widget(Box::new(bump));
+
+                    let mut opacity = TheTextLineEdit::new(TheId::named("Opacity"));
                     opacity.set_value(TheValue::Float(self.opacity));
-                    opacity.set_default_value(TheValue::Float(1.0));
+                    // opacity.set_default_value(TheValue::Float(1.0));
+                    opacity.set_info_text(Some("Opacity".to_string()));
                     opacity.set_range(TheValue::RangeF32(0.0..=1.0));
                     opacity.set_continuous(true);
                     opacity.limiter_mut().set_max_width(170);
-                    opacity.set_status_text("The opacity off the brush.");
+                    opacity.set_status_text("The opacity of the brush.");
                     layout.add_widget(Box::new(opacity));
 
                     // let mut gb = TheGroupButton::new(TheId::named("Terrain View Group"));
@@ -96,7 +136,7 @@ impl Tool for TerrainDrawTool {
 
                     // gb.set_index(TERRAINEDITOR.lock().unwrap().view_mode as i32);
                     // layout.add_widget(Box::new(gb));
-                    layout.set_reverse_index(Some(2));
+                    layout.set_reverse_index(Some(1));
                 }
 
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
@@ -268,9 +308,9 @@ impl Tool for TerrainDrawTool {
                                                     };
 
                                                     let mut color = BLACK;
-                                                    let mut bump = 0.0;
-                                                    let mut metallic = 0.0;
-                                                    let mut roughness = 0.0;
+                                                    let mut bump = self.bump;
+                                                    let mut roughness = self.roughness;
+                                                    let mut metallic = self.metallic;
 
                                                     if *mode == SidebarMode::Material {
                                                         if let Some(material_params) =
@@ -311,6 +351,7 @@ impl Tool for TerrainDrawTool {
                                                             }
                                                         }
                                                     } else if let Some(col) = &palette_color {
+                                                        // Palette Painting
                                                         color = col.to_u8_array();
                                                     }
 
@@ -531,7 +572,19 @@ impl Tool for TerrainDrawTool {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "Opacity" {
+                if id.name == "Roughness" {
+                    if let Some(size) = value.to_f32() {
+                        self.roughness = size;
+                    }
+                } else if id.name == "Metallic" {
+                    if let Some(size) = value.to_f32() {
+                        self.metallic = size;
+                    }
+                } else if id.name == "Bump" {
+                    if let Some(size) = value.to_f32() {
+                        self.bump = size;
+                    }
+                } else if id.name == "Opacity" {
                     if let Some(size) = value.to_f32() {
                         self.opacity = size;
                     }

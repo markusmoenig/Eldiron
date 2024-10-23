@@ -3290,7 +3290,6 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
-source = "git+https://github.com/markusmoenig/TheFramework#9e5553cbc302b08ea70d03ad465fd41013223e59"
 dependencies = [
  "aict",
  "arboard",

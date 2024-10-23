@@ -141,13 +141,14 @@ impl ModelFXEditor {
 
         // Brush Size
 
-        let mut text = TheText::new(TheId::empty());
-        text.set_text("Brush Size".to_string());
-        toolbar_hlayout.add_widget(Box::new(text));
+        // let mut text = TheText::new(TheId::empty());
+        // text.set_text("Brush Size".to_string());
+        // toolbar_hlayout.add_widget(Box::new(text));
 
-        let mut brush_size = TheSlider::new(TheId::named("Brush Size"));
+        let mut brush_size = TheTextLineEdit::new(TheId::named("Brush Size"));
         brush_size.set_value(TheValue::Float(self.brush_size));
-        brush_size.set_default_value(TheValue::Float(1.0));
+        //brush_size.set_default_value(TheValue::Float(1.0));
+        brush_size.set_info_text(Some("Brush Size".to_string()));
         brush_size.set_range(TheValue::RangeF32(0.01..=5.0));
         brush_size.set_continuous(true);
         brush_size.limiter_mut().set_max_width(170);
@@ -156,13 +157,14 @@ impl ModelFXEditor {
 
         // Falloff
 
-        let mut text = TheText::new(TheId::empty());
-        text.set_text("Falloff".to_string());
-        toolbar_hlayout.add_widget(Box::new(text));
+        // let mut text = TheText::new(TheId::empty());
+        // text.set_text("Falloff".to_string());
+        // toolbar_hlayout.add_widget(Box::new(text));
 
-        let mut falloff = TheSlider::new(TheId::named("Falloff"));
+        let mut falloff = TheTextLineEdit::new(TheId::named("Falloff"));
         falloff.set_value(TheValue::Float(self.falloff));
-        falloff.set_default_value(TheValue::Float(0.0));
+        //falloff.set_default_value(TheValue::Float(0.0));
+        falloff.set_info_text(Some("Falloff".to_string()));
         falloff.set_range(TheValue::RangeF32(0.0..=1.0));
         falloff.set_continuous(true);
         falloff.limiter_mut().set_max_width(170);

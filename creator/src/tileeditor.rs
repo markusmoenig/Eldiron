@@ -25,7 +25,7 @@ impl TileEditor {
         Self {
             curr_tile_uuid: None,
 
-            curr_layer_role: Layer2DRole::Wall,
+            curr_layer_role: Layer2DRole::Ground,
 
             icon_normal_border_color: [100, 100, 100, 255],
             icon_selected_border_color: [255, 255, 255, 255],
@@ -89,14 +89,14 @@ impl TileEditor {
         ground_icon.set_text_size(10.0);
         ground_icon.set_text_color([200, 200, 200, 255]);
         ground_icon.limiter_mut().set_max_size(vec2i(48, 48));
-        ground_icon.set_border_color(Some(self.icon_normal_border_color));
+        ground_icon.set_border_color(Some(self.icon_selected_border_color));
 
         let mut wall_icon = TheIconView::new(TheId::named("Wall Icon"));
         wall_icon.set_text(Some("WALL".to_string()));
         wall_icon.set_text_size(10.0);
         wall_icon.set_text_color([200, 200, 200, 255]);
         wall_icon.limiter_mut().set_max_size(vec2i(48, 48));
-        wall_icon.set_border_color(Some(self.icon_selected_border_color));
+        wall_icon.set_border_color(Some(self.icon_normal_border_color));
 
         let mut ceiling_icon = TheIconView::new(TheId::named("Ceiling Icon"));
         ceiling_icon.set_text(Some("CEILING".to_string()));

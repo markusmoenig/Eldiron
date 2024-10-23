@@ -90,7 +90,7 @@ impl ServerContext {
             interactions: FxHashMap::default(),
 
             curr_tile_id: None,
-            curr_layer_role: Layer2DRole::Wall,
+            curr_layer_role: Layer2DRole::Ground,
 
             conceptual_display: None,
 

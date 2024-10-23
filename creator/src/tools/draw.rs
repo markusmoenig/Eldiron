@@ -2,12 +2,17 @@ use crate::{prelude::*, DEFAULT_VLAYOUT_RATIO};
 use rayon::prelude::*;
 use ToolEvent::*;
 
-use crate::editor::{BRUSHLIST, MODELFXEDITOR, PANELS, PRERENDERTHREAD, TILEDRAWER, UNDOMANAGER};
+use crate::editor::{
+    BRUSHLIST, MODELFXEDITOR, PANELS, PRERENDERTHREAD, SIDEBARMODE, TILEDRAWER, UNDOMANAGER,
+};
 
 pub struct DrawTool {
     id: TheId,
 
     processed_coords: FxHashSet<Vec2i>,
+    roughness: f32,
+    metallic: f32,
+    bump: f32,
     opacity: f32,
 }
 
@@ -20,6 +25,9 @@ impl Tool for DrawTool {
             id: TheId::named("Draw Tool"),
             processed_coords: FxHashSet::default(),
 
+            roughness: 0.5,
+            metallic: 0.0,
+            bump: 0.0,
             opacity: 1.0,
         }
     }
@@ -60,14 +68,48 @@ impl Tool for DrawTool {
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();
 
-                    // Opacity
-                    let mut text = TheText::new(TheId::empty());
-                    text.set_text("Opacity".to_string());
-                    layout.add_widget(Box::new(text));
+                    let mut roughness = TheTextLineEdit::new(TheId::named("Roughness"));
+                    roughness.set_value(TheValue::Float(self.roughness));
+                    // opacity.set_default_value(TheValue::Float(1.0));
+                    roughness.set_info_text(Some("Roughness".to_string()));
+                    roughness.set_range(TheValue::RangeF32(0.0..=1.0));
+                    roughness.set_continuous(true);
+                    roughness.limiter_mut().set_max_width(150);
+                    roughness
+                        .set_status_text("The roughness of the brush. Only for palette colors.");
+                    layout.add_widget(Box::new(roughness));
 
-                    let mut opacity = TheSlider::new(TheId::named("Opacity"));
+                    let mut metallic = TheTextLineEdit::new(TheId::named("Metallic"));
+                    metallic.set_value(TheValue::Float(self.metallic));
+                    // opacity.set_default_value(TheValue::Float(1.0));
+                    metallic.set_info_text(Some("Metallic".to_string()));
+                    metallic.set_range(TheValue::RangeF32(0.0..=1.0));
+                    metallic.set_continuous(true);
+                    metallic.limiter_mut().set_max_width(150);
+                    metallic.set_status_text(
+                        "The metallic property of the brush. Only for palette colors.",
+                    );
+                    layout.add_widget(Box::new(metallic));
+
+                    let mut bump = TheTextLineEdit::new(TheId::named("Bump"));
+                    bump.set_value(TheValue::Float(self.bump));
+                    // opacity.set_default_value(TheValue::Float(1.0));
+                    bump.set_info_text(Some("Bump".to_string()));
+                    bump.set_range(TheValue::RangeF32(0.0..=1.0));
+                    bump.set_continuous(true);
+                    bump.limiter_mut().set_max_width(150);
+                    bump.set_status_text("The bump value of the brush. Only for palette colors and only used if greater than 0.0.");
+                    layout.add_widget(Box::new(bump));
+
+                    // Opacity
+                    // let mut text = TheText::new(TheId::empty());
+                    // text.set_text("Opacity".to_string());
+                    // layout.add_widget(Box::new(text));
+
+                    let mut opacity = TheTextLineEdit::new(TheId::named("Opacity"));
                     opacity.set_value(TheValue::Float(self.opacity));
-                    opacity.set_default_value(TheValue::Float(1.0));
+                    //opacity.set_default_value(TheValue::Float(1.0));
+                    opacity.set_info_text(Some("Opacity".to_string()));
                     opacity.set_range(TheValue::RangeF32(0.0..=1.0));
                     opacity.set_continuous(true);
                     opacity.limiter_mut().set_max_width(170);
@@ -75,26 +117,11 @@ impl Tool for DrawTool {
                     layout.add_widget(Box::new(opacity));
 
                     //
-                    let mut spacer = TheIconView::new(TheId::empty());
-                    spacer.limiter_mut().set_max_width(5);
-                    layout.add_widget(Box::new(spacer));
-
-                    // Align Group
-                    /*
-                    let mut gb = TheGroupButton::new(TheId::named("Draw Align Group"));
-                    gb.add_text_status(
-                        str!("Tile Align"),
-                        str!("Draw aligned to the tiles of the regions."),
-                    );
-                    gb.add_text_status(str!("Freeform"), str!("Draw without any restrictions."));
-                    gb.set_item_width(75);
-
-                    gb.set_index(self.align_index);
-
-                    layout.add_widget(Box::new(gb));
+                    // let mut spacer = TheIconView::new(TheId::empty());
+                    // spacer.limiter_mut().set_max_width(5);
+                    // layout.add_widget(Box::new(spacer));
 
                     layout.set_reverse_index(Some(1));
-                    */
                 }
 
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
@@ -134,6 +161,8 @@ impl Tool for DrawTool {
                 .cloned();
 
             let palette = project.palette.clone();
+            let palette_color = project.palette.get_current_color();
+
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 let mut region_to_render: Option<Region> = None;
                 let mut tiles_to_render: Vec<Vec2i> = vec![];
@@ -161,6 +190,8 @@ impl Tool for DrawTool {
                             } else {
                                 TheRGBBuffer::new(TheDim::sized(region.grid_size, region.grid_size))
                             };
+
+                            let mode = SIDEBARMODE.lock().unwrap();
 
                             // -- Paint the material into the tile
 
@@ -215,66 +246,87 @@ impl Tool for DrawTool {
                                             let tile_y_f = coord.y as f32 + uv.y;
 
                                             if d < 0.0 {
-                                                let mut hit = Hit {
-                                                    two_d: true,
-                                                    ..Default::default()
-                                                };
+                                                if *mode == SidebarMode::Material {
+                                                    let mut hit = Hit {
+                                                        two_d: true,
+                                                        ..Default::default()
+                                                    };
 
-                                                hit.normal = vec3f(0.0, 1.0, 0.0);
-                                                hit.hit_point = vec3f(uv.x, 0.0, uv.y);
+                                                    hit.normal = vec3f(0.0, 1.0, 0.0);
+                                                    hit.hit_point = vec3f(uv.x, 0.0, uv.y);
 
-                                                hit.uv = uv;
-                                                hit.global_uv = vec2f(tile_x_f, tile_y_f);
-                                                hit.pattern_pos = hit.global_uv;
+                                                    hit.uv = uv;
+                                                    hit.global_uv = vec2f(tile_x_f, tile_y_f);
+                                                    hit.pattern_pos = hit.global_uv;
 
-                                                material_obj.compute(
-                                                    &mut hit,
-                                                    &palette,
-                                                    &tiles.tiles,
-                                                    &mat_obj_params,
-                                                );
+                                                    material_obj.compute(
+                                                        &mut hit,
+                                                        &palette,
+                                                        &tiles.tiles,
+                                                        &mat_obj_params,
+                                                    );
 
-                                                let col = TheColor::from_vec3f(hit.mat.base_color)
-                                                    .to_u8_array();
+                                                    let col =
+                                                        TheColor::from_vec3f(hit.mat.base_color)
+                                                            .to_u8_array();
 
-                                                let c = mix_color(pixel1, &col, opacity);
+                                                    let c = mix_color(pixel1, &col, opacity);
 
-                                                pixel1[0] = c[0];
-                                                pixel1[1] = c[1];
-                                                pixel1[2] = c[2];
+                                                    pixel1[0] = c[0];
+                                                    pixel1[1] = c[1];
+                                                    pixel1[2] = c[2];
 
-                                                let roughness = lerp(
-                                                    pixel2[0] as f32 / 255.0,
-                                                    hit.mat.roughness,
-                                                    opacity,
-                                                );
+                                                    let roughness = lerp(
+                                                        pixel2[0] as f32 / 255.0,
+                                                        hit.mat.roughness,
+                                                        opacity,
+                                                    );
 
-                                                let metallic = lerp(
-                                                    pixel2[1] as f32 / 255.0,
-                                                    hit.mat.metallic,
-                                                    opacity,
-                                                );
+                                                    let metallic = lerp(
+                                                        pixel2[1] as f32 / 255.0,
+                                                        hit.mat.metallic,
+                                                        opacity,
+                                                    );
 
-                                                pixel2[0] = (roughness * 255.0) as u8;
-                                                pixel2[1] = (metallic * 255.0) as u8;
+                                                    pixel2[0] = (roughness * 255.0) as u8;
+                                                    pixel2[1] = (metallic * 255.0) as u8;
 
-                                                hit.mode = HitMode::Bump;
-                                                material_obj.follow_trail(
-                                                    0,
-                                                    0,
-                                                    &mut hit,
-                                                    &palette,
-                                                    &tiles.tiles,
-                                                    &mat_obj_params,
-                                                );
+                                                    hit.mode = HitMode::Bump;
+                                                    material_obj.follow_trail(
+                                                        0,
+                                                        0,
+                                                        &mut hit,
+                                                        &palette,
+                                                        &tiles.tiles,
+                                                        &mat_obj_params,
+                                                    );
 
-                                                let bump = lerp(
-                                                    pixel2[2] as f32 / 255.0,
-                                                    hit.bump,
-                                                    opacity,
-                                                );
+                                                    let bump = lerp(
+                                                        pixel2[2] as f32 / 255.0,
+                                                        hit.bump,
+                                                        opacity,
+                                                    );
 
-                                                pixel2[2] = (bump * 255.0) as u8;
+                                                    pixel2[2] = (bump * 255.0) as u8;
+                                                } else {
+                                                    let mut color = BLACK;
+
+                                                    if let Some(palette_color) = &palette_color {
+                                                        color = palette_color.to_u8_array();
+                                                    }
+
+                                                    pixel1[0] = color[0];
+                                                    pixel1[1] = color[1];
+                                                    pixel1[2] = color[2];
+
+                                                    let bump = self.bump;
+                                                    let roughness = self.roughness;
+                                                    let metallic = self.metallic;
+
+                                                    pixel2[0] = (roughness * 255.0) as u8;
+                                                    pixel2[1] = (metallic * 255.0) as u8;
+                                                    pixel2[2] = (bump * 255.0) as u8;
+                                                }
                                             }
                                         });
                                 });
@@ -488,7 +540,19 @@ impl Tool for DrawTool {
         #[allow(clippy::single_match)]
         match &event {
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "Opacity" {
+                if id.name == "Roughness" {
+                    if let Some(size) = value.to_f32() {
+                        self.roughness = size;
+                    }
+                } else if id.name == "Metallic" {
+                    if let Some(size) = value.to_f32() {
+                        self.metallic = size;
+                    }
+                } else if id.name == "Bump" {
+                    if let Some(size) = value.to_f32() {
+                        self.bump = size;
+                    }
+                } else if id.name == "Opacity" {
                     if let Some(size) = value.to_f32() {
                         self.opacity = size;
                     }
