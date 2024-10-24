@@ -1,3 +1,8 @@
+v 0.8.14
+--------
+
+ - Texture support for geometric materials.
+ - Many bugfixes in the node based geometric modeling engine.
 
 v 0.8.13
 --------

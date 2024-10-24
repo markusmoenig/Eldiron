@@ -415,9 +415,10 @@ impl TileDrawer {
                                 )
                             } else {
                                 vec2f(
-                                    tile_y as f32 - pos.y + 1.0
-                                        - yy as f32 / region.grid_size as f32,
-                                    tile_x as f32 - pos.x + xx as f32 / region.grid_size as f32,
+                                    tile_y as f32 - pos.y +// 1.0
+                                        yy as f32 / region.grid_size as f32,
+                                    tile_x as f32 - pos.x + 1.0
+                                        - xx as f32 / region.grid_size as f32,
                                 )
                             };
 

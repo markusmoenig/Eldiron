@@ -478,7 +478,17 @@ impl GeoFXNode {
                         }
                     }
 
-                    // println!("parameters {}", parameters);
+                    // Texture
+                    if let Some(value) = coll
+                        .get_default("Texture", TheValue::Text(str!("")))
+                        .to_string()
+                    {
+                        if !value.is_empty() {
+                            parameters += &format!(", texture = \"{}\"", value);
+                        }
+                    }
+
+                    //println!("parameters {}", parameters);
 
                     let mat = format!(
                         "let material_{id_counter} = Material<BSDF>: color = #{hex}{parameters};\n",
@@ -875,6 +885,9 @@ impl GeoFXNode {
                     name: str!("cutout"),
                     color: TheColor::new(0.5, 0.5, 0.5, 1.0),
                 }];
+                if highest_output_terminal == 1 {
+                    highest_output_terminal += 1;
+                }
                 for i in 1..highest_output_terminal {
                     terminals.push(TheNodeTerminal {
                         name: format!("shape #{}", i),

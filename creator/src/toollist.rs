@@ -750,6 +750,7 @@ impl ToolList {
         if let Some(layout) = ui.get_hlayout(layout_name) {
             layout.clear();
             layout.set_reverse_index(None);
+            ctx.ui.redraw_all = true;
         }
 
         self.get_current_tool().tool_event(

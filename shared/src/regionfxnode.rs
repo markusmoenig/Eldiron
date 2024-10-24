@@ -208,15 +208,14 @@ impl RegionFXNode {
             TopDownIsoCamera => {
                 canvas_pos.x -= region.width * region.tile_size;
 
+                let x = canvas_pos.x as f32;
+                let y = canvas_pos.y as f32;
+
                 let tile_width = region.tile_size as f32;
                 let tile_height_half = region.tile_size as f32 / 2.0;
 
-                let map_x = (canvas_pos.x as f32 / tile_width
-                    + canvas_pos.y as f32 / tile_height_half)
-                    / 2.0;
-                let map_y = (canvas_pos.y as f32 / tile_height_half
-                    - (canvas_pos.x as f32 / tile_width))
-                    / 2.0;
+                let map_x = (x / tile_width + y / tile_height_half) / 2.0;
+                let map_y = (y / tile_height_half - (x / tile_width)) / 2.0;
 
                 vec3f(map_x, 0.0, map_y)
             }

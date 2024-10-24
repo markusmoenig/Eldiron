@@ -754,6 +754,31 @@ impl Renderer {
                                 hit.distance = dist + t;
                                 hit.mat = BSDFMaterial::from_hit(ftctx, &ft_hit);
 
+                                if let Some(texture_tags) = &hit.mat.texture {
+                                    if let Some(tile_id) = self.get_tile_by_tags(0, texture_tags) {
+                                        if let Some(tile) = self.textures.get(&tile_id) {
+                                            if let Some(pixel) =
+                                                tile.buffer[0].at_f(ft_hit.group_uv)
+                                            {
+                                                let c = TheColor::from(pixel).to_vec4f();
+                                                if c.w == 1.0 {
+                                                    hit.mat.base_color[0] = c.x;
+                                                    hit.mat.base_color[1] = c.y;
+                                                    hit.mat.base_color[2] = c.z;
+                                                } else {
+                                                    hit.mat.base_color[0] =
+                                                        lerp(hit.mat.base_color[0], c.x, c.w);
+                                                    hit.mat.base_color[1] =
+                                                        lerp(hit.mat.base_color[1], c.y, c.w);
+                                                    hit.mat.base_color[2] =
+                                                        lerp(hit.mat.base_color[2], c.z, c.w);
+                                                }
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+
                                 if let Some(material) = material {
                                     let f = self.get_uv_face(hit.normal, hit.hit_point);
                                     hit.uv = f.0;
@@ -2081,6 +2106,37 @@ impl Renderer {
         time
     }
 
+    /// Get the tile which best fits the tags.
+    pub fn get_tile_by_tags(&self, role: u8, tags: &str) -> Option<Uuid> {
+        let mut best_fit: Option<Uuid> = None;
+        let tags: Vec<&str> = tags.split(',').map(|tag| tag.trim()).collect();
+        let mut best_fit_count = 0;
+
+        for (id, tile) in self.textures.iter() {
+            if role > 0 && tile.role != role - 1 {
+                continue;
+            }
+
+            let name = tile.name.to_lowercase();
+            let tile_tags: Vec<&str> = name.split(',').map(|tag| tag.trim()).collect();
+            let mut match_count = 0;
+            for tag in tags.iter() {
+                if tile_tags.contains(tag) {
+                    match_count += 1;
+                }
+            }
+            if match_count == tags.len() {
+                return Some(tile.id);
+            }
+            if match_count > best_fit_count {
+                best_fit = Some(*id);
+                best_fit_count = match_count;
+            }
+        }
+
+        best_fit
+    }
+
     /// Returns the terrain hit position at the given screen coordinate (if any).
     pub fn get_hit_position_at(
         &mut self,
@@ -2105,7 +2161,14 @@ impl Renderer {
             }
         }
 
-        Some((Vec3i::new(p.x as i32, p.y.floor() as i32, p.z as i32), p))
+        Some((
+            Vec3i::new(
+                (p.x - region.zoom / 2.0) as i32,
+                p.y.floor() as i32,
+                p.z as i32,
+            ),
+            p,
+        ))
     }
 
     fn g1v(&self, dot_nv: f32, k: f32) -> f32 {

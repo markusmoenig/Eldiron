@@ -38,8 +38,8 @@ lazy_static! {
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum ActiveEditor {
     GameEditor,
-    TerrainEditor,
     ModelEditor,
+    TerrainEditor,
     MaterialEditor,
     ScreenEditor,
 }

@@ -45,6 +45,15 @@ impl Tool for PickerTool {
             TileDown(c, _) => c,
             TileDrag(c, _) => c,
             Activate => {
+                if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                    layout.set_mode(TheSharedVLayoutMode::Top);
+                }
+                return true;
+            }
+            DeActivate => {
+                if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                    layout.set_mode(TheSharedVLayoutMode::Shared);
+                }
                 return true;
             }
             _ => {
@@ -190,7 +199,7 @@ impl Tool for PickerTool {
                                         TheId::named("Set Region Modeler"),
                                         TheValue::Empty,
                                     ));
-                                    found_geo = true;
+                                    println!("gound geo");
                                 }
                             }
                         }
