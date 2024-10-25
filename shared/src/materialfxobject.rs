@@ -683,7 +683,7 @@ impl MaterialFXObject {
                                 d -= hit.bump;
                             }
 
-                            if d.abs() < hit.eps {
+                            if d < 0.001 {
                                 has_hit = true;
                                 hit.hit_point = p;
                                 hit.global_uv.x = p.x + 1.0;
@@ -713,6 +713,7 @@ impl MaterialFXObject {
                             state.depth = depth;
 
                             state.mat.clone_from(&hit.mat);
+                            state.mat.base_color = powf(hit.mat.base_color, 2.2);
                             state.mat.roughness = max(state.mat.roughness, 0.001);
                             // Remapping from clearcoat gloss to roughness
                             state.mat.clearcoat_roughness =
@@ -839,6 +840,7 @@ impl MaterialFXObject {
                         pixel.copy_from_slice(&TheColor::from_vec4f(color).to_u8_array());
                     } else {
                         let mut ex = Vec4f::zero();
+
                         ex.x = pixel[0] as f32 / 255.0;
                         ex.y = pixel[1] as f32 / 255.0;
                         ex.z = pixel[2] as f32 / 255.0;
@@ -846,6 +848,23 @@ impl MaterialFXObject {
 
                         //color = powf(color, 0.4545);
                         //color = clamp(color, Vec4f::zero(), vec4f(1.0, 1.0, 1.0, 1.0));
+
+                        fn aces(x: Vec3f) -> Vec3f {
+                            let a = 2.51;
+                            let b = 0.03;
+                            let c = 2.43;
+                            let d = 0.59;
+                            let e = 0.14;
+
+                            (x * (a * x + b)) / (x * (c * x + d) + e)
+                        }
+
+                        let mut c = aces(color.xyz());
+                        c = powf(c, 1.0 / 2.2);
+
+                        color[0] = c[0];
+                        color[1] = c[1];
+                        color[2] = c[2];
 
                         let s = 1.0 / (sample as f32 + 1.0);
                         let accumulated_color = lerp(ex, color, s);

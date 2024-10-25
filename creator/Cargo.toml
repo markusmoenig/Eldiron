@@ -38,7 +38,7 @@ self_update = { version = "0.39.0", features = [
     "compression-flate2",
 ] }
 
-[package.metadata.bundle.bin.eldiron]
+[package.metadata.bundle]
 name = "Eldiron"
 identifier = "com.moenig.eldiron"
 icon = ["../build/Eldiron.icns"]

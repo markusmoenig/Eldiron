@@ -1,6 +1,334 @@
 use crate::prelude::*;
+//use std::f32::consts::PI;
 use theframework::prelude::*;
 
+/*
+pub fn cosine_sample_hemisphere2(n: Vec3f, rng: &mut ThreadRng) -> Vec3f {
+    let rnd = vec2f(rng.gen(), rng.gen());
+
+    let a = 2.0 * PI * rnd.x;
+    let b = 2.0 * rnd.y - 1.0;
+
+    let cos_a = a.cos();
+    let sin_a = a.sin();
+    let sqrt_term = sqrt(1.0 - b * b);
+
+    let dir = Vec3f::new(sqrt_term * cos_a, sqrt_term * sin_a, b);
+
+    normalize(n + dir)
+}
+
+// From Pixar - https://graphics.pixar.com/library/OrthonormalB/paper.pdf
+pub fn basis(n: Vec3f) -> (Vec3f, Vec3f) {
+    let b1;
+    let b2;
+
+    if n.z < 0.0 {
+        let a = 1.0 / (1.0 - n.z);
+        let b = n.x * n.y * a;
+
+        b1 = vec3f(1.0 - n.x * n.x * a, -b, n.x);
+
+        b2 = vec3f(b, n.y * n.y * a - 1.0, -n.y);
+    } else {
+        let a = 1.0 / (1.0 + n.z);
+        let b = -n.x * n.y * a;
+
+        b1 = vec3f(1.0 - n.x * n.x * a, b, -n.x);
+
+        b2 = vec3f(b, 1.0 - n.y * n.y * a, -n.y);
+    }
+
+    (b1, b2)
+}
+
+// ---------------------------------------------
+// Microfacet
+// ---------------------------------------------
+pub fn fresnel(n1: f32, n2: f32, voh: f32, f0: f32, f90: f32) -> f32 {
+    let mut r0 = (n1 - n2) / (n1 + n2);
+    r0 *= r0;
+
+    let mut voh = voh;
+
+    if n1 > n2 {
+        let n = n1 / n2;
+        let sin_t2 = n * n * (1.0 - voh * voh);
+
+        if sin_t2 > 1.0 {
+            return f90;
+        }
+
+        voh = sqrt(1.0 - sin_t2);
+    }
+
+    let x = 1.0 - voh;
+    let ret = r0 + (1.0 - r0) * powf(x, 5.0);
+
+    lerp(f0, f90, ret)
+}
+
+// Schlick approximation for Fresnel for a vector3
+pub fn f_schlick_vec3(f0: Vec3f, theta: f32) -> Vec3f {
+    f0 + (vec3f(1.0, 1.0, 1.0) - f0) * powf(1.0 - theta, 5.0)
+}
+
+// Schlick approximation for Fresnel for scalars
+pub fn f_schlick_scalar(f0: f32, f90: f32, theta: f32) -> f32 {
+    f0 + (f90 - f0) * powf(1.0 - theta, 5.0)
+}
+
+// Generalized Trowbridge-Reitz distribution function (GTR)
+pub fn d_gtr(roughness: f32, noh: f32, k: f32) -> f32 {
+    let a2 = powf(roughness, 2.0);
+    let denom = powf((noh * noh) * (a2 * a2 - 1.0) + 1.0, k);
+
+    a2 / (PI * denom)
+}
+
+// Smith's masking-shadowing function
+pub fn smith_g2(nov: f32, roughness2: f32) -> f32 {
+    let a = powf(roughness2, 2.0);
+    let b = powf(nov, 2.0);
+
+    (2.0 * nov) / (nov + sqrt(a + b - a * b))
+}
+
+// Combined geometry term
+pub fn geometry_term(nol: f32, nov: f32, roughness: f32) -> f32 {
+    let a2 = roughness * roughness;
+    let g1 = smith_g(nov, a2);
+    let g2 = smith_g(nol, a2);
+
+    g1 * g2
+}
+
+// GGX VNDF sampling function
+pub fn sample_ggx_vndf2(v: Vec3f, ax: f32, ay: f32, r1: f32, r2: f32) -> Vec3f {
+    let vh = normalize(vec3f(ax * v.x, ay * v.y, v.z));
+
+    let lensq = vh.x * vh.x + vh.y * vh.y;
+    let t1 = if lensq > 0.0 {
+        vec3f(-vh.y, vh.x, 0.0) * (1.0 / sqrt(lensq))
+    } else {
+        vec3f(1.0, 0.0, 0.0)
+    };
+    let t2 = cross(vh, t1);
+
+    let r = sqrt(r1);
+    let phi = 2.0 * PI * r2;
+    let t1_val = r * cos(phi);
+    let mut t2_val = r * sin(phi);
+    let s = 0.5 * (1.0 + vh.z);
+    t2_val = (1.0 - s) * sqrt(1.0 - t1_val * t1_val) + s * t2_val;
+
+    let nh =
+        t1_val * t1 + t2_val * t2 + sqrt(max(0.0, 1.0 - t1_val * t1_val - t2_val * t2_val)) * vh;
+
+    normalize(vec3f(ax * nh.x, ay * nh.y, max(0.0, nh.z)))
+}
+
+// GGX VNDF PDF calculation
+pub fn ggx_vndf_pdf(noh: f32, nov: f32, roughness: f32) -> f32 {
+    let d = d_gtr(roughness, noh, 2.0);
+    let g1 = smith_g(nov, roughness * roughness);
+
+    d * g1 / max(0.00001, 4.0 * nov)
+}
+
+pub struct State {
+    pub is_refracted: bool,
+    pub has_been_refracted: bool,
+    pub last_ior: f32,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        State {
+            is_refracted: false,
+            has_been_refracted: false,
+            last_ior: 1.0,
+        }
+    }
+}
+
+// Material struct
+pub struct Material {
+    pub albedo: Vec3f,
+    pub roughness: f32,
+    pub metallic: f32,
+    pub emissive: Vec3f,
+
+    pub spec_trans: f32,
+    pub ior: f32,
+    pub absorption: f32,
+}
+
+// Evaluate Disney Diffuse BSDF
+pub fn eval_disney_diffuse2(mat: &Material, nol: f32, nov: f32, loh: f32, roughness: f32) -> Vec3f {
+    let fd90 = 0.5 + 2.0 * roughness * powf(loh, 2.0);
+    let a = f_schlick_scalar(1.0, fd90, nol);
+    let b = f_schlick_scalar(1.0, fd90, nov);
+
+    mat.albedo * (a * b / PI)
+}
+
+// Evaluate Disney Specular Reflection
+pub fn eval_disney_specular_reflection(
+    mat: &Material,
+    f: Vec3f,
+    noh: f32,
+    nov: f32,
+    nol: f32,
+) -> Vec3f {
+    let roughness = powf(mat.roughness, 2.0);
+    let d = d_gtr(roughness, noh, 2.0);
+    let g = geometry_term(nol, nov, powf(0.5 + mat.roughness * 0.5, 2.0));
+
+    d * f * g / (4.0 * nol * nov)
+}
+
+fn luma(color: Vec3f) -> f32 {
+    dot(color, vec3f(0.299, 0.587, 0.114))
+}
+
+// Evaluate Disney Specular Refraction
+#[allow(clippy::too_many_arguments)]
+pub fn eval_disney_specular_refraction(
+    mat: &Material,
+    f: f32,
+    noh: f32,
+    nov: f32,
+    nol: f32,
+    voh: f32,
+    loh: f32,
+    eta: f32,
+    pdf: &mut f32,
+) -> Vec3f {
+    let roughness = powf(mat.roughness, 2.0);
+    let d = d_gtr(roughness, noh, 2.0);
+    let g = geometry_term(nol, nov, powf(0.5 + mat.roughness * 0.5, 2.0));
+    let denom = powf(loh + voh * eta, 2.0);
+
+    let jacobian = (loh.abs()) / denom;
+    *pdf = smith_g(nol.abs(), roughness * roughness) * max(0.0, voh) * d * jacobian / nov;
+
+    powf(
+        vec3f(1.0 - mat.albedo.x, 1.0 - mat.albedo.y, 1.0 - mat.albedo.z),
+        0.5,
+    ) * d
+        * (1.0 - f)
+        * g
+        * voh.abs()
+        * jacobian
+        * powf(eta, 2.0)
+        / (nol.abs() * nov.abs())
+}
+
+// Sample Disney BSDF
+pub fn sample_disney_bsdf(
+    v: Vec3f,
+    n: Vec3f,
+    mat: &Material,
+    state: &mut State,
+    rng: &mut ThreadRng,
+) -> (Vec4f, Vec3f) {
+    state.has_been_refracted = state.is_refracted;
+    let roughness = powf(mat.roughness, 2.0);
+
+    // Sample microfacet normal
+    let (t, b) = basis(n);
+    let v_local = to_local(t, b, n, v);
+    let mut h = sample_ggx_vndf(v_local, roughness, roughness, rng.gen(), rng.gen());
+
+    if h.z < 0.0 {
+        h = -h;
+    }
+    h = to_world(t, b, n, h);
+
+    // Fresnel
+    let voh = dot(v, h);
+    let f0 = lerp(vec3f(0.04, 0.04, 0.04), mat.albedo, mat.metallic);
+    let f = f_schlick_vec3(f0, voh);
+    let diel_f = fresnel(state.last_ior, mat.ior, voh.abs(), 0.0, 1.0);
+
+    // Lobe weight probability
+    let mut diff_w = (1.0 - mat.metallic) * (1.0 - mat.spec_trans);
+    let reflect_w = luma(f);
+    let refract_w = (1.0 - mat.metallic) * mat.spec_trans * (1.0 - diel_f);
+    let inv_w = 1.0 / (diff_w + reflect_w + refract_w);
+    diff_w *= inv_w;
+    let reflect_w = reflect_w * inv_w;
+    let refract_w = refract_w * inv_w;
+
+    // CDF
+    let cdf = [diff_w, diff_w + reflect_w];
+
+    let mut bsdf; // = vec4f(0.0, 0.0, 0.0, 0.0);
+    let rnd: f32 = rng.gen();
+    let l; // = vec3f(0.0, 0.0, 0.0);
+
+    if rnd < cdf[0] {
+        // Diffuse
+        l = cosine_sample_hemisphere2(n, rng);
+        h = normalize(l + v);
+
+        let nol = dot(n, l);
+        let nov = dot(n, v);
+        if nol <= 0.0 || nov <= 0.0 {
+            return (vec4f(0.0, 0.0, 0.0, 0.0), l);
+        }
+        let loh = dot(l, h);
+        let pdf = nol / PI;
+
+        let diff = eval_disney_diffuse2(mat, nol, nov, loh, roughness) * (1.0 - f);
+        bsdf = vec4f(diff.x, diff.y, diff.z, diff_w * pdf);
+    } else if rnd < cdf[1] {
+        // Reflection
+        l = Vec3f::reflect(-v, h);
+
+        let nol = dot(n, l);
+        let nov = dot(n, v);
+        if nol <= 0.0 || nov <= 0.0 {
+            return (vec4f(0.0, 0.0, 0.0, 0.0), l);
+        }
+        let noh = min(0.99, dot(n, h));
+        let pdf = ggx_vndf_pdf(noh, nov, roughness);
+
+        let spec = eval_disney_specular_reflection(mat, f, noh, nov, nol);
+        bsdf = vec4f(spec.x, spec.y, spec.z, reflect_w * pdf);
+    } else {
+        // Refraction
+        state.is_refracted = !state.is_refracted;
+        let eta = state.last_ior / mat.ior;
+        l = Vec3f::refract(-v, h, eta);
+        state.last_ior = mat.ior;
+
+        let nol = dot(n, l);
+        if nol <= 0.0 {
+            return (vec4f(0.0, 0.0, 0.0, 0.0), l);
+        }
+        let nov = dot(n, v);
+        let noh = min(0.99, dot(n, h));
+        let loh = dot(l, h);
+
+        let mut pdf = 0.0;
+        let spec =
+            eval_disney_specular_refraction(mat, diel_f, noh, nov, nol, voh, loh, eta, &mut pdf);
+
+        bsdf = vec4f(spec.x, spec.y, spec.z, refract_w * pdf);
+    }
+
+    let m = dot(n, l).abs();
+
+    bsdf.x *= m;
+    bsdf.y *= m;
+    bsdf.z *= m;
+
+    (bsdf, l)
+}
+*/
+// ---
 /*
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct BSDFMedium {

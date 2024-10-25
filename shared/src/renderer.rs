@@ -4,7 +4,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
 
-const EPS: f32 = 0.001;
+//const EPS: f32 = 0.001;
 
 pub struct Renderer {
     pub textures: FxHashMap<Uuid, TheRGBATile>,
@@ -126,7 +126,8 @@ impl Renderer {
 
         // Sun settings
         let sun_direction = normalize(vec3f(0.5, 1.0, -0.5));
-        let sun_color = vec3f(1.0, 0.95, 0.9);
+        //let sun_direction = normalize(vec3f(0.0, 1.0, 1.0));
+        //let sun_color = vec3f(1.0, 0.95, 0.9);
 
         tiles.par_iter_mut().for_each(|tile| {
             // Get the sample count
@@ -229,6 +230,8 @@ impl Renderer {
                             state.depth = depth;
 
                             state.mat.clone_from(&hit.mat);
+                            state.mat.base_color = powf(hit.mat.base_color, 2.2);
+
                             state.mat.roughness = max(state.mat.roughness, 0.001);
                             // Remapping from clearcoat gloss to roughness
                             state.mat.clearcoat_roughness =
@@ -266,11 +269,12 @@ impl Renderer {
                                 let mut light_sample = BSDFLightSampleRec::default();
                                 let mut scatter_sample = BSDFScatterSampleRec::default();
 
-                                let scatter_pos = state.fhp + state.normal * (EPS + 0.1);
+                                let scatter_pos = state.fhp + state.normal * 0.02;
 
                                 let l = BSDFLight {
                                     position: sun_direction,
-                                    emission: sun_color * 6.0,
+                                    emission: powf(self.sky_color(ray.d, sun_direction), 1.0 / 2.2)
+                                        * 8.0,
                                     radius: 0.0,
                                     type_: 1.0,
                                     u: Vec3f::zero(),
@@ -290,12 +294,12 @@ impl Renderer {
                                 let li = light_sample.emission;
 
                                 let mut t = 0.0;
-                                let mut in_sun_shadow = false;
+                                let mut in_sun_shadow = 1.0;
                                 for _ in 0..12 {
                                     let pp = scatter_pos + t * sun_direction;
                                     let d = self.distance(pp, region);
                                     if d < 0.001 {
-                                        in_sun_shadow = true;
+                                        in_sun_shadow = 0.3;
                                         break;
                                     }
                                     if t > 4.0 {
@@ -304,22 +308,23 @@ impl Renderer {
                                     t += d;
                                 }
 
-                                if !in_sun_shadow {
-                                    scatter_sample.f = disney_eval(
-                                        &state,
-                                        -ray.d,
-                                        state.ffnormal,
-                                        light_sample.direction,
-                                        &mut scatter_sample.pdf,
-                                    );
+                                //if !in_sun_shadow {
+                                scatter_sample.f = disney_eval(
+                                    &state,
+                                    -ray.d,
+                                    state.ffnormal,
+                                    light_sample.direction,
+                                    &mut scatter_sample.pdf,
+                                );
 
-                                    let mis_weight = 1.0;
-                                    if scatter_sample.pdf > 0.0 {
-                                        sunlight += (mis_weight * li * scatter_sample.f
-                                            / light_sample.pdf)
-                                            * throughput;
-                                    }
+                                let mis_weight = 1.0;
+                                if scatter_sample.pdf > 0.0 {
+                                    sunlight += (mis_weight * li * scatter_sample.f
+                                        / light_sample.pdf)
+                                        * throughput
+                                        * in_sun_shadow;
                                 }
+                                //}
                             }
 
                             // Uniform light for shadows
@@ -336,7 +341,7 @@ impl Renderer {
                                         let mut light_sample = BSDFLightSampleRec::default();
                                         let mut scatter_sample = BSDFScatterSampleRec::default();
 
-                                        let scatter_pos = state.fhp + state.normal * (EPS + 0.005);
+                                        let scatter_pos = state.fhp + state.normal * 0.006;
 
                                         let light_pos = vec3f(
                                             light_grid.x as f32 + 0.5,
@@ -420,12 +425,15 @@ impl Renderer {
                             }
 
                             ray.d = scatter_sample.l;
-                            ray.o = state.fhp + ray.d * (EPS + 0.005);
+                            ray.o = state.fhp + ray.d * 0.006;
                         } else {
                             if depth == 0 {
                                 radiance = Vec3f::zero();
                             } else {
                                 tile_is_empty = false;
+                                //sunlight = //sun_color * throughput; //
+                                // powf(self.sky_color(ray.d, sun_direction), 0.4545) * throughput;
+                                // self.sky_color(ray.d, sun_direction) * throughput;
                             }
                             break;
                         }
@@ -726,7 +734,7 @@ impl Renderer {
                         }
 
                         let mut t = 0.0;
-
+                        //let s = 1.0;
                         for _ in 0..30 {
                             // Max distance a ray can travel in a unit cube
                             // if t > 1.732 {
@@ -746,7 +754,12 @@ impl Renderer {
                             let pos = geo_obj.get_position();
                             let ft_hit = ftctx.distance_to_face(p, 0, pos, false);
 
-                            if ft_hit.distance < EPS && t < hit.distance {
+                            // if step == 0 && ft_hit.distance < 0.0 {
+                            //     s = -1.0;
+                            // }
+                            // ft_hit.distance *= s;
+
+                            if ft_hit.distance/* .abs()*/ < 0.001 && t < hit.distance {
                                 h.hit_point = p;
                                 hit.clone_from(&h);
 
@@ -973,6 +986,19 @@ impl Renderer {
         color.x = sunlight.x * settings.daylight_intensity + albedo.x;
         color.y = sunlight.y * settings.daylight_intensity + albedo.y;
         color.z = sunlight.z * settings.daylight_intensity + albedo.z;
+
+        fn aces(x: Vec3f) -> Vec3f {
+            let a = 2.51;
+            let b = 0.03;
+            let c = 2.43;
+            let d = 0.59;
+            let e = 0.14;
+
+            (x * (a * x + b)) / (x * (c * x + d) + e)
+        }
+
+        color = aces(color);
+        color = powf(color, 1.0 / 2.2);
 
         if let Some(d) = &self.canvas.distance_canvas.get((pos.x, pos.y)) {
             dist = d.to_f32();
@@ -2173,6 +2199,32 @@ impl Renderer {
 
     fn g1v(&self, dot_nv: f32, k: f32) -> f32 {
         1.0 / (dot_nv * (1.0 - k) + k)
+    }
+
+    // https://www.shadertoy.com/view/lt2SR1
+    // Calculate sky color based on the ray direction
+    fn sky_color(&self, rd: Vec3f, sundir: Vec3f) -> Vec3f {
+        // Adjust the y-component of the ray direction
+        let yd = min(rd.y, 0.0);
+        let rd = vec3f(rd.x, max(rd.y, 0.0), rd.z);
+
+        let mut col = vec3f(0.0, 0.0, 0.0);
+
+        // Red/Green component
+        col += vec3f(0.4, 0.4 - exp(-rd.y * 20.0) * 0.15, 0.0) * exp(-rd.y * 9.0);
+
+        // Blue component
+        col += vec3f(0.3, 0.5, 0.6) * (1.0 - exp(-rd.y * 8.0)) * exp(-rd.y * 0.9);
+
+        // Fog effect
+        col = lerp(col * 1.2, vec3f(0.3, 0.3, 0.3), 1.0 - exp(yd * 100.0));
+
+        // Sun highlights
+        col += powf(dot(rd, sundir), 150.0) * 0.15;
+        col += vec3f(1.0, 0.8, 0.55) * powf(max(dot(rd, sundir), 0.0), 15.0) * 0.6;
+        col += powf(max(dot(rd, sundir), 0.0), 150.0) * 0.15;
+
+        col
     }
 
     #[allow(clippy::too_many_arguments)]

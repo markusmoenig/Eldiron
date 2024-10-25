@@ -1041,6 +1041,7 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 [[package]]
 name = "forgedtiles"
 version = "0.1.0"
+source = "git+https://github.com/markusmoenig/ForgedTiles#06bca349288877cd11c5929141be04143005d5f6"
 dependencies = [
  "exmex",
  "maths-rs",
@@ -3289,6 +3290,7 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
+source = "git+https://github.com/markusmoenig/TheFramework#4d7dac90276ce7af2d0e16df4c6a031e51f54dfd"
 dependencies = [
  "aict",
  "arboard",
