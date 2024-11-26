@@ -5,6 +5,11 @@ edition = "2021"
 
 [dependencies]
 # theframework = { path = "../../TheFramework", features = ["ui", "code"] }
+# theframework = { path = "../../TheFramework", features = [
+#     "ui",
+#     "code",
+#     "winit_app",
+# ], default-features = false }
 theframework = { git = "https://github.com/markusmoenig/TheFramework", features = [
     "ui",
     "code",

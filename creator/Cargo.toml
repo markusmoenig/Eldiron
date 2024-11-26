@@ -10,11 +10,20 @@ name = "eldiron"
 path = "src/main.rs"
 
 [dependencies]
-# theframework = { path = "../../TheFramework", features = ["ui", "code"] }
 theframework = { git = "https://github.com/markusmoenig/TheFramework", features = [
     "ui",
     "code",
 ], default-features = true }
+# theframework = { path = "../../TheFramework", features = [
+#     "ui",
+#     "code",
+#     "winit_app",
+# ], default-features = false }
+# theframework = { git = "https://github.com/markusmoenig/TheFramework", features = [
+#     "ui",
+#     "code",
+#     "ui",
+# ], default-features = true }
 # theframework = { version = "0.1.20", features = [
 #     "ui",
 #     "code",
