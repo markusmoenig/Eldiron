@@ -410,7 +410,7 @@ impl Server {
         &mut self,
         uuid: &Uuid,
         buffer: &mut TheRGBABuffer,
-        renderer: &mut Renderer,
+        renderer: &mut PolyRender,
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
         compute_delta: bool,

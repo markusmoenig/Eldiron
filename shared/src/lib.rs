@@ -15,6 +15,7 @@ pub mod level;
 pub mod materialfxnode;
 pub mod materialfxobject;
 pub mod patterns;
+pub mod polyrender;
 pub mod prerendered;
 pub mod prerenderthread;
 pub mod project;
@@ -58,6 +59,7 @@ pub mod prelude {
     pub use crate::materialfxnode::*;
     pub use crate::materialfxobject::*;
     pub use crate::patterns::*;
+    pub use crate::polyrender::*;
     pub use crate::prerendered::*;
     pub use crate::prerenderthread::*;
     pub use crate::project::{MapMode, Project};

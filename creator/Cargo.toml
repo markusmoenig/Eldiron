@@ -62,3 +62,5 @@ Create classical RPGs with Eldiron.
 # [lib]
 # name = "rustapi"
 # crate-type = ["staticlib"]
+
+euc = { path = "../../euc" }

@@ -392,8 +392,8 @@ impl ToolList {
                 }
             }
             TheEvent::RenderViewClicked(id, coord) => {
-                if id.name == "RenderView" {
-                    if let Some(render_view) = ui.get_render_view("RenderView") {
+                if id.name == "PolyView" {
+                    if let Some(render_view) = ui.get_render_view("PolyView") {
                         let dim = render_view.dim();
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             let pos = RENDERER.lock().unwrap().get_hit_position_at(

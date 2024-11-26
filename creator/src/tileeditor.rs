@@ -1,5 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, MODELFXEDITOR, PRERENDERTHREAD, RENDERER, RENDERMODE, TILEDRAWER, UNDOMANAGER,
+    CODEEDITOR, MODELFXEDITOR, POLYRENDER, PRERENDERTHREAD, RENDERER, RENDERMODE, TILEDRAWER,
+    UNDOMANAGER,
 };
 use crate::prelude::*;
 
@@ -40,31 +41,37 @@ impl TileEditor {
     ) -> TheCanvas {
         let mut center = TheCanvas::new();
 
-        let mut shared_layout = TheSharedHLayout::new(TheId::named("Editor Shared"));
+        // let mut shared_layout = TheSharedHLayout::new(TheId::named("Editor Shared"));
 
-        let mut region_editor = TheRGBALayout::new(TheId::named("Region Editor"));
-        if let Some(rgba_view) = region_editor.rgba_view_mut().as_rgba_view() {
-            rgba_view.set_mode(TheRGBAViewMode::Display);
+        // let mut region_editor = TheRGBALayout::new(TheId::named("Region Editor"));
+        // if let Some(rgba_view) = region_editor.rgba_view_mut().as_rgba_view() {
+        //     rgba_view.set_mode(TheRGBAViewMode::Display);
 
-            if let Some(buffer) = ctx.ui.icon("eldiron_map") {
-                rgba_view.set_buffer(buffer.clone());
-            }
+        //     if let Some(buffer) = ctx.ui.icon("eldiron_map") {
+        //         rgba_view.set_buffer(buffer.clone());
+        //     }
 
-            rgba_view.set_grid_color([255, 255, 255, 5]);
-            rgba_view.set_hover_color(Some([255, 255, 255, 100]));
-            rgba_view.set_wheel_scale(-0.2);
-        }
+        //     rgba_view.set_grid_color([255, 255, 255, 5]);
+        //     rgba_view.set_hover_color(Some([255, 255, 255, 100]));
+        //     rgba_view.set_wheel_scale(-0.2);
+        // }
 
-        let mut region_editor_canvas = TheCanvas::new();
-        region_editor_canvas.set_layout(region_editor);
-        shared_layout.add_canvas(region_editor_canvas);
+        // let mut region_editor_canvas = TheCanvas::new();
+        // region_editor_canvas.set_layout(region_editor);
+        // shared_layout.add_canvas(region_editor_canvas);
 
-        let mut render_canvas: TheCanvas = TheCanvas::new();
-        let render_view = TheRenderView::new(TheId::named("RenderView"));
-        render_canvas.set_widget(render_view);
-        shared_layout.add_canvas(render_canvas);
+        // let mut render_canvas: TheCanvas = TheCanvas::new();
+        // let render_view = TheRenderView::new(TheId::named("RenderView"));
+        // render_canvas.set_widget(render_view);
+        // shared_layout.add_canvas(render_canvas);
 
-        center.set_layout(shared_layout);
+        //center.set_layout(shared_layout);
+
+        let mut poly_canvas: TheCanvas = TheCanvas::new();
+        let render_view = TheRenderView::new(TheId::named("PolyView"));
+        poly_canvas.set_widget(render_view);
+
+        center.set_center(poly_canvas);
 
         // Picker
 
@@ -1051,55 +1058,23 @@ impl TileEditor {
         server: &mut Server,
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
-        project: &Project,
+        _project: &Project,
         compute_delta: bool,
     ) {
-        if let Some(render_view) = ui.get_render_view("RenderView") {
+        if let Some(render_view) = ui.get_render_view("PolyView") {
             let dim = *render_view.dim();
 
-            let mut upscale: f32 = 1.0; //1.5;
-            if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                // if let Some(v) = region.regionfx.get(
-                //     str!("Renderer"),
-                //     str!("Upscale"),
-                //     &project.time,
-                //     TheInterpolation::Linear,
-                // ) {
-                //     if let Some(value) = v.to_f32() {
-                //         upscale = value;
-                //     }
-                // }
-                upscale = (region.zoom / 2.0).max(1.0);
-            }
+            let b = render_view.render_buffer_mut();
+            b.resize(dim.width, dim.height);
 
-            if upscale != 1.0 {
-                let width = (dim.width as f32 / upscale) as i32;
-                let height = (dim.height as f32 / upscale) as i32;
-
-                let b = render_view.render_buffer_mut();
-                b.resize(width, height);
-
-                server.render_region(
-                    &server_ctx.curr_region,
-                    b,
-                    &mut RENDERER.lock().unwrap(),
-                    ctx,
-                    server_ctx,
-                    compute_delta,
-                );
-            } else {
-                let b = render_view.render_buffer_mut();
-                b.resize(dim.width, dim.height);
-
-                server.render_region(
-                    &server_ctx.curr_region,
-                    render_view.render_buffer_mut(),
-                    &mut RENDERER.lock().unwrap(),
-                    ctx,
-                    server_ctx,
-                    compute_delta,
-                );
-            }
+            server.render_region(
+                &server_ctx.curr_region,
+                render_view.render_buffer_mut(),
+                &mut POLYRENDER.lock().unwrap(),
+                ctx,
+                server_ctx,
+                compute_delta,
+            );
 
             /*
             let width = (dim.width as f32 / upscale) as i32;

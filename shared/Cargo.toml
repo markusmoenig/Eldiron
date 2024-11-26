@@ -33,3 +33,5 @@ noiselib = "0.2.3"
 regex = "1"
 num_cpus = "1.16.0"
 half = { version = "2.4", features = ["serde"] }
+
+euc = { path = "../../euc" }

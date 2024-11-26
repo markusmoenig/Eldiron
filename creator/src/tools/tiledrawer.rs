@@ -42,8 +42,8 @@ impl Tool for TileDrawerTool {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let coord = match tool_event {
-            TileDown(c, _) => c,
-            TileDrag(c, _) => c,
+            TileDown(_, c) => c,
+            TileDrag(_, c) => c,
             Activate => {
                 // Display the tile edit panel.
                 ctx.ui
@@ -65,6 +65,8 @@ impl Tool for TileDrawerTool {
             }
         };
 
+        println!("{}", coord);
+        /*
         // When we draw in 2D, move the 3D view to the pen position
         if tool_context == ToolContext::TwoD && server_ctx.curr_character_instance.is_none() {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -141,6 +143,7 @@ impl Tool for TileDrawerTool {
             }
             //self.redraw_region(ui, server, ctx, server_ctx);
         }
+        */
         false
     }
 }
