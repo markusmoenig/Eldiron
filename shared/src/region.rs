@@ -36,6 +36,9 @@ pub struct Region {
     pub name: String,
 
     #[serde(default)]
+    pub map: Map,
+
+    #[serde(default)]
     pub regionfx: RegionFXObject,
 
     #[serde(with = "vectorize")]
@@ -119,6 +122,8 @@ impl Region {
             region_type: RegionType::Region2D,
 
             name: "New Region".to_string(),
+
+            map: Map::default(),
 
             regionfx: RegionFXObject::default(),
 
