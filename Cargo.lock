@@ -1000,6 +1000,7 @@ checksum = "a5d9305ccc6942a704f4335694ecd3de2ea531b114ac2d51f5f843750787a92f"
 [[package]]
 name = "euc"
 version = "0.6.0"
+source = "git+https://github.com/zesterer/euc#5fe97f3c97db0e61dd3665af2b10265ed0792360"
 dependencies = [
  "clipline",
  "fxhash",
@@ -3345,6 +3346,7 @@ dependencies = [
  "serde_json",
  "theframework",
  "vectorize",
+ "vek",
 ]
 
 [[package]]

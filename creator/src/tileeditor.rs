@@ -1077,6 +1077,25 @@ impl TileEditor {
             );
 
             /*
+
+            if upscale != 1.0 {
+                let width = (dim.width as f32 / upscale) as i32;
+                let height = (dim.height as f32 / upscale) as i32;
+
+                let b = render_view.render_buffer_mut();
+                b.resize(width, height);
+
+                server.render_region(
+                    &server_ctx.curr_region,
+                    b,
+                    &mut RENDERER.lock().unwrap(),
+                    ctx,
+                    server_ctx,
+                    compute_delta,
+                );
+            }
+            */
+            /*
             let width = (dim.width as f32 / upscale) as i32;
             let height = (dim.height as f32 / upscale) as i32;
 

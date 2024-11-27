@@ -4,6 +4,7 @@ pub mod bsdf;
 pub mod camera;
 pub mod character;
 pub mod client;
+pub mod eucdraw;
 pub mod fx;
 pub mod gamecanvas;
 pub mod geofxnode;
@@ -49,6 +50,7 @@ pub mod prelude {
     pub use crate::camera::Camera;
     pub use crate::character::Character;
     pub use crate::client::*;
+    pub use crate::eucdraw::*;
     pub use crate::fx::*;
     pub use crate::gamecanvas::GameCanvas;
     pub use crate::geofxnode::*;
