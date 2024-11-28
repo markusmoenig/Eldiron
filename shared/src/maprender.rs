@@ -2,10 +2,10 @@ use crate::prelude::*;
 use rayon::prelude::*;
 use theframework::prelude::*;
 
-use euc::*;
+// use euc::*;
 use vek::*;
 
-pub struct PolyRender {
+pub struct MapRender {
     pub textures: FxHashMap<Uuid, TheRGBATile>,
     pub materials: IndexMap<Uuid, MaterialFXObject>,
     pub position: Vec3f,
@@ -13,7 +13,7 @@ pub struct PolyRender {
 }
 
 #[allow(clippy::new_without_default)]
-impl PolyRender {
+impl MapRender {
     pub fn new() -> Self {
         Self {
             textures: FxHashMap::default(),
@@ -23,7 +23,7 @@ impl PolyRender {
         }
     }
 
-    pub fn set_region(&mut self, region: &Region) {}
+    pub fn set_region(&mut self, _region: &Region) {}
 
     pub fn set_textures(&mut self, tiles: FxHashMap<Uuid, TheRGBATile>) {
         self.textures = tiles;
@@ -47,6 +47,8 @@ impl PolyRender {
 
         let width = buffer.dim().width as usize;
         let height = buffer.dim().height as usize;
+
+        let screen_size = vec2f(width as f32, height as f32);
 
         //let stride = buffer.stride();
         // let pixels = buffer.pixels_mut();
@@ -96,15 +98,14 @@ impl PolyRender {
 
                     let xx = (i % width) as f32;
                     let yy = (i / width) as f32;
-                    let x = xx / width as f32;
-                    let y = yy / height as f32;
+                    // let x = xx / width as f32;
+                    // let y = yy / height as f32;
 
-                    let mut col = vec4f(x, y, 0.0, 1.0);
-
-                    col = self.grid_at(
+                    let col = self.grid_at(
                         vec2f(xx, yy),
                         vec2f(width as f32, height as f32),
-                        vec2f(0.0, 0.0),
+                        region.map.grid_size,
+                        region.map.offset,
                     );
 
                     pixel.copy_from_slice(&TheColor::from_vec4f(col).to_u8_array());
@@ -114,16 +115,50 @@ impl PolyRender {
         //
 
         let mut drawer = EucDraw::new(width, height);
-        drawer.add_box(100.0, 100.0, 200.0, 200.0, Rgba::red());
-        drawer.draw_as_triangles();
-        drawer.blend_into(buffer);
-        drawer.add_line(0.0, 0.0, width as f32, height as f32, Rgba::blue());
+        // drawer.add_box(100.0, 100.0, 200.0, 200.0, Rgba::red());
+        // drawer.draw_as_triangles();
+        // drawer.blend_into(buffer);
+
+        // For action previews
+
+        for linedef in &region.map.linedefs {
+            if let Some(start_vertex) = region.map.find_vertex(linedef.start_vertex) {
+                let start_pos = ServerContext::map_grid_to_local(
+                    screen_size,
+                    start_vertex.as_vec2f(),
+                    &region.map,
+                );
+                if let Some(end_vertex) = region.map.find_vertex(linedef.end_vertex) {
+                    let end_pos = ServerContext::map_grid_to_local(
+                        screen_size,
+                        end_vertex.as_vec2f(),
+                        &region.map,
+                    );
+
+                    drawer.add_line(
+                        start_pos.x,
+                        start_pos.y,
+                        end_pos.x,
+                        end_pos.y,
+                        Rgba::yellow(),
+                    );
+                }
+            }
+        }
+
+        if let Some(grid_pos) = region.map.curr_grid_pos {
+            let local = ServerContext::map_grid_to_local(screen_size, grid_pos, &region.map);
+            if let Some(mouse_pos) = region.map.curr_mouse_pos {
+                drawer.add_line(local.x, local.y, mouse_pos.x, mouse_pos.y, Rgba::white());
+            }
+        }
+
         drawer.draw_as_lines();
         drawer.blend_into(buffer);
     }
 
     // Draw the grid
-    fn grid_at(&self, position: Vec2f, size: Vec2f, offset: Vec2f) -> Vec4f {
+    fn grid_at(&self, position: Vec2f, size: Vec2f, grid_size: f32, offset: Vec2f) -> Vec4f {
         fn odd(n: i32) -> bool {
             n % 2 != 0
         }
@@ -246,8 +281,8 @@ impl PolyRender {
             bg_color
         }
 
-        let origin = vec2f(0.5, 0.5); //size + size / 2.0;
-        let grid_size = Vec2f::new(30.0, 30.0);
+        let origin = size / 2.0 + offset; //vec2f(0.5, 0.5); //size + size / 2.0;
+        let grid_size = Vec2f::new(grid_size, grid_size);
         let sub_grid_div = Vec2f::new(2.0, 2.0);
 
         let thickness = 1;
@@ -299,6 +334,7 @@ impl PolyRender {
     }
 }
 
+/*
 fn linedefs_to_polygon(linedefs: Vec<([f32; 2], [f32; 2])>) -> Vec<[f32; 2]> {
     let mut vertices = Vec::new();
     if let Some((start, _)) = linedefs.first() {
@@ -317,3 +353,4 @@ fn linedefs_to_polygon(linedefs: Vec<([f32; 2], [f32; 2])>) -> Vec<[f32; 2]> {
     }
     vertices
 }
+*/

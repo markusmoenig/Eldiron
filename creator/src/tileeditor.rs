@@ -1,5 +1,5 @@
 use crate::editor::{
-    CODEEDITOR, MODELFXEDITOR, POLYRENDER, PRERENDERTHREAD, RENDERER, RENDERMODE, TILEDRAWER,
+    CODEEDITOR, MAPRENDER, MODELFXEDITOR, PRERENDERTHREAD, RENDERER, RENDERMODE, TILEDRAWER,
     UNDOMANAGER,
 };
 use crate::prelude::*;
@@ -36,7 +36,7 @@ impl TileEditor {
     pub fn init_ui(
         &mut self,
         _ui: &mut TheUI,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
         _project: &mut Project,
     ) -> TheCanvas {
         let mut center = TheCanvas::new();
@@ -1070,7 +1070,7 @@ impl TileEditor {
             server.render_region(
                 &server_ctx.curr_region,
                 render_view.render_buffer_mut(),
-                &mut POLYRENDER.lock().unwrap(),
+                &mut MAPRENDER.lock().unwrap(),
                 ctx,
                 server_ctx,
                 compute_delta,

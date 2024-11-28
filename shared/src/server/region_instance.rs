@@ -200,7 +200,7 @@ impl RegionInstance {
     pub fn render(
         &mut self,
         buffer: &mut TheRGBABuffer,
-        renderer: &mut PolyRender,
+        renderer: &mut MapRender,
         anim_counter: &usize,
         _ctx: &mut TheContext,
         server_ctx: &ServerContext,

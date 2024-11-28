@@ -22,7 +22,7 @@ lazy_static! {
     pub static ref SIDEBARMODE: Mutex<SidebarMode> = Mutex::new(SidebarMode::Region);
     pub static ref TILEDRAWER: Mutex<TileDrawer> = Mutex::new(TileDrawer::new());
     pub static ref RENDERER: Mutex<Renderer> = Mutex::new(Renderer::new());
-    pub static ref POLYRENDER: Mutex<PolyRender> = Mutex::new(PolyRender::new());
+    pub static ref MAPRENDER: Mutex<MapRender> = Mutex::new(MapRender::new());
     pub static ref RENDERMODE: Mutex<EditorDrawMode> = Mutex::new(EditorDrawMode::Draw2D);
     pub static ref TILEFXEDITOR: Mutex<TileFXEditor> = Mutex::new(TileFXEditor::new());
     pub static ref MODELFXEDITOR: Mutex<ModelFXEditor> = Mutex::new(ModelFXEditor::new());

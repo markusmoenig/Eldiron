@@ -121,6 +121,18 @@ impl ServerContext {
         self.interactions.clear();
     }
 
+    /// Convert local screen position to a map grid position
+    pub fn local_to_map_grid(&self, screen_size: Vec2f, coord: Vec2f, map: &Map) -> Vec2f {
+        let grid_space_pos = coord - screen_size / 2.0 - vec2f(map.offset.x, -map.offset.y);
+        round(grid_space_pos / map.grid_size)
+    }
+
+    /// Convert a map grid position to a local screen position
+    pub fn map_grid_to_local(screen_size: Vec2f, grid_pos: Vec2f, map: &Map) -> Vec2f {
+        let grid_space_pos = grid_pos * map.grid_size;
+        grid_space_pos + vec2f(map.offset.x, -map.offset.y) + screen_size / 2.0
+    }
+
     /// Adds the given interactions provided by a server tick to the context.
     pub fn add_interactions(&mut self, interactions: Vec<Interaction>) {
         for interaction in interactions {

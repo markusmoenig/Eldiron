@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use ToolEvent::*;
 
-use crate::editor::{PRERENDERTHREAD, RENDERER, TILEDRAWER, TILEFXEDITOR, UNDOMANAGER};
+//use crate::editor::{PRERENDERTHREAD, RENDERER, TILEDRAWER, TILEFXEDITOR, UNDOMANAGER};
 
 pub struct TileDrawerTool {
     id: TheId,
@@ -33,15 +33,15 @@ impl Tool for TileDrawerTool {
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,
-        tool_context: ToolContext,
+        _tool_context: ToolContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &mut Project,
-        server: &mut Server,
+        _project: &mut Project,
+        _server: &mut Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let coord = match tool_event {
+        let _coord = match tool_event {
             TileDown(_, c) => c,
             TileDrag(_, c) => c,
             Activate => {
@@ -65,7 +65,6 @@ impl Tool for TileDrawerTool {
             }
         };
 
-        println!("{}", coord);
         /*
         // When we draw in 2D, move the 3D view to the pen position
         if tool_context == ToolContext::TwoD && server_ctx.curr_character_instance.is_none() {
@@ -145,5 +144,76 @@ impl Tool for TileDrawerTool {
         }
         */
         false
+    }
+
+    fn handle_event(
+        &mut self,
+        event: &TheEvent,
+        ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        project: &mut Project,
+        server: &mut Server,
+        _client: &mut Client,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        let mut redraw = false;
+        match event {
+            TheEvent::RenderViewClicked(id, coord) => {
+                if id.name == "PolyView" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                            let dim = *render_view.dim();
+                            let grid_pos = server_ctx.local_to_map_grid(
+                                vec2f(dim.width as f32, dim.height as f32),
+                                vec2f(coord.x as f32, coord.y as f32),
+                                &region.map,
+                            );
+
+                            if let Some(curr_grid_pos) = region.map.curr_grid_pos {
+                                if curr_grid_pos.x != grid_pos.x || curr_grid_pos.y != grid_pos.y {
+                                    let start_vertex =
+                                        region.map.add_vertex_at(curr_grid_pos.x, curr_grid_pos.y);
+                                    let end_vertex =
+                                        region.map.add_vertex_at(grid_pos.x, grid_pos.y);
+                                    region.map.create_linedef(start_vertex, end_vertex);
+                                    server.update_region(region);
+                                }
+                            }
+
+                            region.map.curr_grid_pos = Some(grid_pos);
+                            redraw = true;
+                        }
+                    }
+                }
+            }
+            TheEvent::RenderViewDragged(_id, _coord) => {}
+
+            TheEvent::RenderViewHoverChanged(id, coord) => {
+                if id.name == "PolyView" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        region.map.curr_mouse_pos = Some(vec2f(coord.x as f32, coord.y as f32));
+                        server.update_region(region);
+                        redraw = true;
+                    }
+                }
+            }
+            TheEvent::RenderViewScrollBy(id, coord) => {
+                if id.name == "PolyView" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if ui.ctrl || ui.logo {
+                            region.map.grid_size += coord.y as f32;
+                            region.map.grid_size = clamp(region.map.grid_size, 5.0, 100.0);
+                        } else {
+                            region.map.offset += Vec2f::new(-coord.x as f32, coord.y as f32);
+                        }
+                        server.update_region(region);
+                        redraw = true;
+                    }
+                }
+            }
+
+            _ => {}
+        }
+        redraw
     }
 }
