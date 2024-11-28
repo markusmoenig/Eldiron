@@ -66,6 +66,30 @@ impl EucDraw {
         ]);
     }
 
+    pub fn add_polygon_from_indexed_vertices_list(
+        &mut self,
+        vertices: Vec<Vec2f>,
+        indices: Vec<u32>,
+        color: Rgba<f32>,
+    ) {
+        let base_index = self.colored_vertices.len();
+
+        for v in &vertices {
+            self.colored_vertices
+                .push(([self.cx(v.x), self.cy(v.y)], color));
+        }
+
+        // println!("Adding vertices: {:?}", vertices);
+        // for (i, v) in vertices.iter().enumerate() {
+        //     let transformed = [self.cx(v[0]), self.cy(v[1])];
+        //     println!("Vertex {}: {:?} -> {:?}", i, v, transformed);
+        // }
+
+        for i in &indices {
+            self.indices.push(*i as usize + base_index);
+        }
+    }
+
     pub fn add_line(&mut self, sx: f32, sy: f32, ex: f32, ey: f32, color: Rgba<f32>) {
         self.colored_vertices.extend([
             ([self.cx(sx), self.cy(sy)], color),

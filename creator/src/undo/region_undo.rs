@@ -11,6 +11,7 @@ pub enum RegionUndoAtom {
     GeoFXAddNode(Uuid, String, String, Vec<Vec2i>),
     GeoFXNodeEdit(Uuid, String, String, Vec<Vec2i>),
     HeightmapEdit(Box<Heightmap>, Box<Heightmap>, Vec<Vec2i>),
+    MapEdit(Box<Map>, Box<Map>),
     RegionTileEdit(Vec2i, Option<RegionTile>, Option<RegionTile>),
     RegionFXEdit(RegionFXObject, RegionFXObject),
     RegionEdit(Box<Region>, Box<Region>, Vec<Vec2i>),
@@ -67,6 +68,14 @@ impl RegionUndoAtom {
                     .lock()
                     .unwrap()
                     .render_region(region.clone(), Some(tiles.clone()));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Minimaps"),
+                    TheValue::Empty,
+                ));
+            }
+            RegionUndoAtom::MapEdit(prev, _) => {
+                region.map = *prev.clone();
+                region.map.clear_temp();
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimaps"),
                     TheValue::Empty,
@@ -174,6 +183,14 @@ impl RegionUndoAtom {
                     .lock()
                     .unwrap()
                     .render_region(region.clone(), Some(tiles.clone()));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Minimaps"),
+                    TheValue::Empty,
+                ));
+            }
+            RegionUndoAtom::MapEdit(_, next) => {
+                region.map = *next.clone();
+                region.map.clear_temp();
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimaps"),
                     TheValue::Empty,

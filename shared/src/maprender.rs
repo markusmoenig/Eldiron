@@ -40,6 +40,7 @@ impl MapRender {
         region: &Region,
         update: &mut RegionUpdate,
         settings: &mut RegionDrawSettings,
+        _server_ctx: Option<&ServerContext>,
         compute_delta: bool,
         _palette: &ThePalette,
     ) {
@@ -49,14 +50,6 @@ impl MapRender {
         let height = buffer.dim().height as usize;
 
         let screen_size = vec2f(width as f32, height as f32);
-
-        //let stride = buffer.stride();
-        // let pixels = buffer.pixels_mut();
-        //let height = dim.height;
-
-        // let width_f = width as f32;
-        // let height_f = height as f32;
-
         let region_height = region.height * region.grid_size;
 
         let grid_size = region.grid_size as f32;
@@ -113,11 +106,26 @@ impl MapRender {
             });
 
         //
-
         let mut drawer = EucDraw::new(width, height);
-        // drawer.add_box(100.0, 100.0, 200.0, 200.0, Rgba::red());
-        // drawer.draw_as_triangles();
-        // drawer.blend_into(buffer);
+
+        for sector in &region.map.sectors {
+            if let Some(geo) = sector.generate_geometry(&region.map) {
+                // Convert the triangles from grid to local coordinates
+                let mut converted: Vec<Vec2f> = vec![];
+                for g in &geo.0 {
+                    let local = ServerContext::map_grid_to_local(
+                        screen_size,
+                        vec2f(g[0], g[1]),
+                        &region.map,
+                    );
+                    converted.push(local);
+                }
+                drawer.add_polygon_from_indexed_vertices_list(converted, geo.1, Rgba::red());
+            }
+        }
+
+        drawer.draw_as_triangles();
+        drawer.blend_into(buffer);
 
         // For action previews
 
@@ -333,24 +341,3 @@ impl MapRender {
         time
     }
 }
-
-/*
-fn linedefs_to_polygon(linedefs: Vec<([f32; 2], [f32; 2])>) -> Vec<[f32; 2]> {
-    let mut vertices = Vec::new();
-    if let Some((start, _)) = linedefs.first() {
-        let mut current = *start;
-        vertices.push(current);
-
-        while vertices.len() < linedefs.len() {
-            for &(start, end) in &linedefs {
-                if start == current && !vertices.contains(&end) {
-                    vertices.push(end);
-                    current = end;
-                    break;
-                }
-            }
-        }
-    }
-    vertices
-}
-*/

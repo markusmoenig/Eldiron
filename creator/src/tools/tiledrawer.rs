@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use ToolEvent::*;
 
-//use crate::editor::{PRERENDERTHREAD, RENDERER, TILEDRAWER, TILEFXEDITOR, UNDOMANAGER};
+use crate::editor::UNDOMANAGER;
 
 pub struct TileDrawerTool {
     id: TheId,
@@ -150,7 +150,7 @@ impl Tool for TileDrawerTool {
         &mut self,
         event: &TheEvent,
         ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         project: &mut Project,
         server: &mut Server,
         _client: &mut Client,
@@ -160,6 +160,8 @@ impl Tool for TileDrawerTool {
         match event {
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == "PolyView" {
+                    let mut set_current_gid_pos = true;
+
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if let Some(render_view) = ui.get_render_view("PolyView") {
                             let dim = *render_view.dim();
@@ -171,16 +173,39 @@ impl Tool for TileDrawerTool {
 
                             if let Some(curr_grid_pos) = region.map.curr_grid_pos {
                                 if curr_grid_pos.x != grid_pos.x || curr_grid_pos.y != grid_pos.y {
+                                    let prev = region.map.clone();
+
                                     let start_vertex =
                                         region.map.add_vertex_at(curr_grid_pos.x, curr_grid_pos.y);
                                     let end_vertex =
                                         region.map.add_vertex_at(grid_pos.x, grid_pos.y);
-                                    region.map.create_linedef(start_vertex, end_vertex);
+
+                                    // Returns id of linedef and optional id of new sector if polygon closes
+                                    let ids = region.map.create_linedef(start_vertex, end_vertex);
+
+                                    if ids.1.is_some() {
+                                        // When we close a polygon delete the temporary data
+                                        region.map.clear_temp();
+                                        set_current_gid_pos = false;
+                                    }
+
                                     server.update_region(region);
+
+                                    let undo = RegionUndoAtom::MapEdit(
+                                        Box::new(prev),
+                                        Box::new(region.map.clone()),
+                                    );
+
+                                    UNDOMANAGER
+                                        .lock()
+                                        .unwrap()
+                                        .add_region_undo(&region.id, undo, ctx);
                                 }
                             }
 
-                            region.map.curr_grid_pos = Some(grid_pos);
+                            if set_current_gid_pos {
+                                region.map.curr_grid_pos = Some(grid_pos);
+                            }
                             redraw = true;
                         }
                     }

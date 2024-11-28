@@ -243,6 +243,7 @@ impl RegionInstance {
                     region,
                     update,
                     &mut self.draw_settings,
+                    Some(server_ctx),
                     compute_delta,
                     &self.palette,
                 );
