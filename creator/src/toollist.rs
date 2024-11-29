@@ -34,18 +34,20 @@ impl Default for ToolList {
 impl ToolList {
     pub fn new() -> Self {
         let game_tools: Vec<Box<dyn Tool>> = vec![
-            Box::new(TileDrawerTool::new()),
+            Box::new(SelectionTool::new()),
+            //Box::new(PickerTool::new()),
+            Box::new(VertexTool::new()),
+            Box::new(LinedefTool::new()),
+            Box::new(SectorTool::new()),
             Box::new(DrawTool::new()),
             Box::new(MapObjectsTool::new()),
             Box::new(CodeTool::new()),
             Box::new(FXTool::new()),
-            Box::new(PickerTool::new()),
             Box::new(EraserTool::new()),
-            Box::new(SelectionTool::new()),
             Box::new(TilemapTool::new()),
             Box::new(RenderTool::new()),
             Box::new(ZoomTool::new()),
-            Box::new(ResizeTool::new()),
+            //Box::new(ResizeTool::new()),
             Box::new(GameTool::new()),
         ];
         let screen_tools: Vec<Box<dyn Tool>> = vec![
@@ -70,7 +72,7 @@ impl ToolList {
             active_editor: ActiveEditor::GameEditor,
 
             game_tools,
-            curr_game_tool: 0,
+            curr_game_tool: 2,
 
             screen_tools,
             curr_screen_tool: 0,

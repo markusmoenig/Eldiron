@@ -530,7 +530,7 @@ impl Server {
         name
     }
 
-    /// Get the debug module for the given module id.
+    // Get the debug module for the given module id.
     // pub fn get_region_debug_module(&mut self, region: Uuid, module_id: Uuid) -> TheDebugModule {
     //     if let Some(instance) = self.instances.get_mut(&region) {
     //         instance.get_module_debug_module(module_id)

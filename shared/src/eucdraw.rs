@@ -143,6 +143,7 @@ impl EucDraw {
 }
 
 struct ColoredTriangles;
+#[allow(clippy::needless_lifetimes)]
 impl<'r> Pipeline<'r> for ColoredTriangles {
     type Vertex = ([f32; 2], Rgba<f32>);
     type VertexData = Rgba<f32>;
@@ -170,6 +171,7 @@ impl<'r> Pipeline<'r> for ColoredTriangles {
 }
 
 struct ColoredLines;
+#[allow(clippy::needless_lifetimes)]
 impl<'r> Pipeline<'r> for ColoredLines {
     type Vertex = ([f32; 2], Rgba<f32>);
     type VertexData = Rgba<f32>;

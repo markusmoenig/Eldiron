@@ -186,7 +186,7 @@ impl RegionInstance {
         self.sandbox.debug_mode = debug_mode;
     }
 
-    /// Returns the debug module (if any) for the given module_id.
+    // Returns the debug module (if any) for the given module_id.
     // pub fn get_module_debug_module(&self, id: Uuid) -> TheDebugModule {
     //     self.sandbox.get_module_debug_module(id)
     // }

@@ -40,7 +40,7 @@ impl MapRender {
         region: &Region,
         update: &mut RegionUpdate,
         settings: &mut RegionDrawSettings,
-        _server_ctx: Option<&ServerContext>,
+        server_ctx: Option<&ServerContext>,
         compute_delta: bool,
         _palette: &ThePalette,
     ) {
@@ -80,93 +80,124 @@ impl MapRender {
         // Collect the render settings params
         // let render_settings_params: Vec<Vec<f32>> = region.regionfx.load_parameters(&settings.time);
 
-        // Draw Grid
-        buffer
-            .pixels_mut()
-            .par_rchunks_exact_mut(width * 4)
-            .enumerate()
-            .for_each(|(j, line)| {
-                for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
-                    let i = j * width + i;
+        if let Some(server_ctx) = server_ctx {
+            // Draw Grid
+            buffer
+                .pixels_mut()
+                .par_rchunks_exact_mut(width * 4)
+                .enumerate()
+                .for_each(|(j, line)| {
+                    for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
+                        let i = j * width + i;
 
-                    let xx = (i % width) as f32;
-                    let yy = (i / width) as f32;
-                    // let x = xx / width as f32;
-                    // let y = yy / height as f32;
+                        let xx = (i % width) as f32;
+                        let yy = (i / width) as f32;
+                        // let x = xx / width as f32;
+                        // let y = yy / height as f32;
 
-                    let col = self.grid_at(
-                        vec2f(xx, yy),
-                        vec2f(width as f32, height as f32),
-                        region.map.grid_size,
-                        region.map.offset,
+                        let col = self.grid_at(
+                            vec2f(xx, yy),
+                            vec2f(width as f32, height as f32),
+                            region.map.grid_size,
+                            region.map.offset,
+                            region.map.subdivisions,
+                        );
+
+                        pixel.copy_from_slice(&TheColor::from_vec4f(col).to_u8_array());
+                    }
+                });
+
+            //
+            let mut drawer = EucDraw::new(width, height);
+
+            for sector in &region.map.sectors {
+                if let Some(geo) = sector.generate_geometry(&region.map) {
+                    // Convert the triangles from grid to local coordinates
+                    let mut converted: Vec<Vec2f> = vec![];
+                    for g in &geo.0 {
+                        let local = ServerContext::map_grid_to_local(
+                            screen_size,
+                            vec2f(g[0], g[1]),
+                            &region.map,
+                        );
+                        converted.push(local);
+                    }
+
+                    let color = if server_ctx.hover.2 == Some(sector.id)
+                        || server_ctx.selected_sectors.contains(&sector.id)
+                    {
+                        [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
+                    } else {
+                        [0.0, 0.0, 0.0, 1.0]
+                    };
+
+                    drawer.add_polygon_from_indexed_vertices_list(
+                        converted,
+                        geo.1,
+                        Rgba::new(color[0], color[1], color[2], color[3]),
                     );
-
-                    pixel.copy_from_slice(&TheColor::from_vec4f(col).to_u8_array());
                 }
-            });
+            }
 
-        //
-        let mut drawer = EucDraw::new(width, height);
+            drawer.draw_as_triangles();
+            drawer.blend_into(buffer);
 
-        for sector in &region.map.sectors {
-            if let Some(geo) = sector.generate_geometry(&region.map) {
-                // Convert the triangles from grid to local coordinates
-                let mut converted: Vec<Vec2f> = vec![];
-                for g in &geo.0 {
-                    let local = ServerContext::map_grid_to_local(
+            // For action previews
+
+            for linedef in &region.map.linedefs {
+                if let Some(start_vertex) = region.map.find_vertex(linedef.start_vertex) {
+                    let start_pos = ServerContext::map_grid_to_local(
                         screen_size,
-                        vec2f(g[0], g[1]),
+                        start_vertex.as_vec2f(),
                         &region.map,
                     );
-                    converted.push(local);
-                }
-                drawer.add_polygon_from_indexed_vertices_list(converted, geo.1, Rgba::red());
-            }
-        }
+                    if let Some(end_vertex) = region.map.find_vertex(linedef.end_vertex) {
+                        let end_pos = ServerContext::map_grid_to_local(
+                            screen_size,
+                            end_vertex.as_vec2f(),
+                            &region.map,
+                        );
 
-        drawer.draw_as_triangles();
-        drawer.blend_into(buffer);
+                        let color = if server_ctx.hover.1 == Some(linedef.id)
+                            || server_ctx.selected_sectors.contains(&linedef.id)
+                        {
+                            [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
+                        } else {
+                            [0.5, 0.5, 0.5, 1.0]
+                        };
 
-        // For action previews
-
-        for linedef in &region.map.linedefs {
-            if let Some(start_vertex) = region.map.find_vertex(linedef.start_vertex) {
-                let start_pos = ServerContext::map_grid_to_local(
-                    screen_size,
-                    start_vertex.as_vec2f(),
-                    &region.map,
-                );
-                if let Some(end_vertex) = region.map.find_vertex(linedef.end_vertex) {
-                    let end_pos = ServerContext::map_grid_to_local(
-                        screen_size,
-                        end_vertex.as_vec2f(),
-                        &region.map,
-                    );
-
-                    drawer.add_line(
-                        start_pos.x,
-                        start_pos.y,
-                        end_pos.x,
-                        end_pos.y,
-                        Rgba::yellow(),
-                    );
+                        drawer.add_line(
+                            start_pos.x,
+                            start_pos.y,
+                            end_pos.x,
+                            end_pos.y,
+                            Rgba::new(color[0], color[1], color[2], color[3]),
+                        );
+                    }
                 }
             }
-        }
 
-        if let Some(grid_pos) = region.map.curr_grid_pos {
-            let local = ServerContext::map_grid_to_local(screen_size, grid_pos, &region.map);
-            if let Some(mouse_pos) = region.map.curr_mouse_pos {
-                drawer.add_line(local.x, local.y, mouse_pos.x, mouse_pos.y, Rgba::white());
+            if let Some(grid_pos) = region.map.curr_grid_pos {
+                let local = ServerContext::map_grid_to_local(screen_size, grid_pos, &region.map);
+                if let Some(mouse_pos) = region.map.curr_mouse_pos {
+                    drawer.add_line(local.x, local.y, mouse_pos.x, mouse_pos.y, Rgba::white());
+                }
             }
-        }
 
-        drawer.draw_as_lines();
-        drawer.blend_into(buffer);
+            drawer.draw_as_lines();
+            drawer.blend_into(buffer);
+        }
     }
 
     // Draw the grid
-    fn grid_at(&self, position: Vec2f, size: Vec2f, grid_size: f32, offset: Vec2f) -> Vec4f {
+    fn grid_at(
+        &self,
+        position: Vec2f,
+        size: Vec2f,
+        grid_size: f32,
+        offset: Vec2f,
+        subdivisions: f32,
+    ) -> Vec4f {
         fn odd(n: i32) -> bool {
             n % 2 != 0
         }
@@ -291,7 +322,7 @@ impl MapRender {
 
         let origin = size / 2.0 + offset; //vec2f(0.5, 0.5); //size + size / 2.0;
         let grid_size = Vec2f::new(grid_size, grid_size);
-        let sub_grid_div = Vec2f::new(2.0, 2.0);
+        let sub_grid_div = Vec2f::new(subdivisions, subdivisions);
 
         let thickness = 1;
         let sub_thickness = 1;

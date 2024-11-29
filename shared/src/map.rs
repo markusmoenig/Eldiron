@@ -5,6 +5,7 @@ use theframework::prelude::*;
 pub struct Map {
     pub offset: Vec2f,
     pub grid_size: f32,
+    pub subdivisions: f32,
 
     // When adding linedefs we keep track of them to check if we have a closed polygon
     #[serde(skip)]
@@ -32,6 +33,7 @@ impl Map {
         Self {
             offset: Vec2f::zero(),
             grid_size: 30.0,
+            subdivisions: 1.0,
 
             possible_polygon: vec![],
             curr_grid_pos: None,

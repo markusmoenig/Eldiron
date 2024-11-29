@@ -81,6 +81,17 @@ impl TileEditor {
         vlayout.limiter_mut().set_max_width(90);
         vlayout.set_margin(vec4i(0, 10, 0, 5));
 
+        let mut grid_sub_div = TheTextLineEdit::new(TheId::named("Grid Subdiv"));
+        grid_sub_div.set_value(TheValue::Float(1.0));
+        // opacity.set_default_value(TheValue::Float(1.0));
+        grid_sub_div.set_info_text(Some("Subdiv".to_string()));
+        grid_sub_div.set_range(TheValue::RangeI32(1..=10));
+        grid_sub_div.set_continuous(true);
+        grid_sub_div.limiter_mut().set_max_width(150);
+        grid_sub_div.set_status_text("The subdivision level of the grid.");
+        grid_sub_div.limiter_mut().set_max_width(75);
+        vlayout.add_widget(Box::new(grid_sub_div));
+
         let mut icon_preview = TheIconView::new(TheId::named("Icon Preview"));
         icon_preview.set_alpha_mode(false);
         icon_preview.limiter_mut().set_max_size(vec2i(65, 65));
@@ -487,6 +498,16 @@ impl TileEditor {
                     UNDOMANAGER.lock().unwrap().context = UndoManagerContext::MaterialFX;
                 } else if id.name == "Palette Picker" {
                     UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Palette;
+                }
+            }
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == "Grid Subdiv" {
+                    if let Some(value) = value.to_i32() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.map.subdivisions = value as f32;
+                            server.update_region(region);
+                        }
+                    }
                 }
             }
             TheEvent::StateChanged(id, _state) => {

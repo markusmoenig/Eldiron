@@ -828,7 +828,7 @@ impl Renderer {
         }
     }
 
-    /// RENDERED
+    // RENDERED
 
     #[allow(clippy::too_many_arguments)]
     pub fn rendered(
@@ -1221,7 +1221,7 @@ impl Renderer {
         TheColor::from_vec3f(color).to_u8_array()
     }
 
-    /// RENDER
+    // RENDER
 
     #[allow(clippy::too_many_arguments)]
     pub fn render(

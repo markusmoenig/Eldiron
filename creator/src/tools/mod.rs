@@ -5,17 +5,19 @@ pub mod draw;
 pub mod eraser;
 pub mod fx;
 pub mod game;
+pub mod linedef;
 pub mod mapobjects;
 pub mod material;
 pub mod model;
-pub mod picker;
+// pub mod picker;
 pub mod render;
 pub mod resize;
 pub mod screen;
+pub mod sector;
 pub mod selection;
 pub mod terrain;
-pub mod tiledrawer;
 pub mod tilemap;
+pub mod vertex;
 pub mod zoom;
 
 #[derive(PartialEq, Clone, Debug, Copy)]

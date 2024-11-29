@@ -3,17 +3,17 @@ use ToolEvent::*;
 
 use crate::editor::UNDOMANAGER;
 
-pub struct TileDrawerTool {
+pub struct VertexTool {
     id: TheId,
 }
 
-impl Tool for TileDrawerTool {
+impl Tool for VertexTool {
     fn new() -> Self
     where
         Self: Sized,
     {
         Self {
-            id: TheId::named("Tile Drawer Tool"),
+            id: TheId::named("Vertex Tool"),
         }
     }
 
@@ -21,13 +21,13 @@ impl Tool for TileDrawerTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Pen Tool (P). Draw tiles.")
+        str!("Vertex Tool (P).")
     }
     fn icon_name(&self) -> String {
-        str!("pen")
+        str!("dot-outline")
     }
     fn accel(&self) -> Option<char> {
-        Some('p')
+        Some('v')
     }
 
     fn tool_event(
@@ -169,6 +169,7 @@ impl Tool for TileDrawerTool {
                                 vec2f(dim.width as f32, dim.height as f32),
                                 vec2f(coord.x as f32, coord.y as f32),
                                 &region.map,
+                                region.map.subdivisions,
                             );
 
                             if let Some(curr_grid_pos) = region.map.curr_grid_pos {
