@@ -115,29 +115,41 @@ impl MapRender {
                 for sector in &region.map.sectors {
                     if let Some(geo) = sector.generate_geometry(&region.map) {
                         // Convert the triangles from grid to local coordinates
-                        let mut converted: Vec<Vec2f> = vec![];
-                        for g in &geo.0 {
+                        let mut vertices: Vec<Vec2f> = vec![];
+                        let mut uvs: Vec<Vec2f> = vec![];
+                        let bbox = sector.bounding_box(&region.map);
+
+                        for vertex in &geo.0 {
                             let local = ServerContext::map_grid_to_local(
                                 screen_size,
-                                vec2f(g[0], g[1]),
+                                vec2f(vertex[0], vertex[1]),
                                 &region.map,
                             );
-                            converted.push(local);
+
+                            let texture_scale = 2.0;
+
+                            let uv = vec2f(
+                                (vertex[0] - bbox.0.x) / texture_scale,
+                                (vertex[1] - bbox.0.y) / texture_scale,
+                            );
+
+                            vertices.push(local);
+                            uvs.push(uv);
                         }
 
-                        let color = if server_ctx.hover.2 == Some(sector.id)
-                            || region.map.selected_sectors.contains(&sector.id)
+                        drawer.add_textured_polygon(vertices, geo.1, uvs);
+                        if let Some(value) = self
+                            .textures
+                            .get(&Uuid::parse_str("7a16f87f-c637-4a18-afcc-8fddb5535906").unwrap())
                         {
-                            [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
-                        } else {
-                            [0.0, 0.0, 0.0, 1.0]
-                        };
-
-                        drawer.add_polygon_from_indexed_vertices_list(
-                            converted,
-                            geo.1,
-                            Rgba::new(color[0], color[1], color[2], color[3]),
-                        );
+                            let texture = RgbaTexture::new(
+                                value.buffer[0].pixels().to_vec(),
+                                value.buffer[0].dim().width as usize,
+                                value.buffer[0].dim().height as usize,
+                            );
+                            drawer.draw_as_textured_triangles(&texture);
+                            drawer.blend_into(buffer);
+                        }
                     }
                 }
             }
@@ -218,6 +230,7 @@ impl MapRender {
                 }
             }
 
+            /*
             if let Some(value) = self
                 .textures
                 .get(&Uuid::parse_str("7a16f87f-c637-4a18-afcc-8fddb5535906").unwrap())
@@ -232,7 +245,7 @@ impl MapRender {
                     drawer.add_textured_box(100.0, 100.0, 200.0, 200.0, [0.0, 0.0], [1.0, 1.0]);
                     drawer.draw_as_textured_triangles(&texture);
                 }
-            }
+            }*/
 
             // For action previews
             if let Some(grid_pos) = region.map.curr_grid_pos {

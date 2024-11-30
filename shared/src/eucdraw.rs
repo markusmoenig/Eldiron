@@ -11,7 +11,7 @@ pub struct EucDraw {
 
     colored_vertices: Vec<([f32; 2], Rgba<f32>)>,
     vertices: Vec<Vec2<f32>>,
-    uv_coordinates: Vec<Vec2<f32>>,
+    uvs: Vec<Vec2<f32>>,
     indices: Vec<usize>,
 }
 
@@ -25,28 +25,11 @@ impl EucDraw {
 
             colored_vertices: vec![],
             vertices: vec![],
-            uv_coordinates: vec![],
+            uvs: vec![],
 
             indices: vec![],
         }
     }
-
-    /*
-    pub fn add_box(&mut self, x: f32, y: f32, width: f32, height: f32, color: Rgba<f32>) {
-        let top_left = [self.cx(x), self.cy(y)];
-        let top_right = [self.cx(x + width), self.cy(y)];
-        let bottom_left = [self.cx(x), self.cy(y + height)];
-        let bottom_right = [self.cx(x + width), self.cy(y + height)];
-
-        self.colored_vertices.extend([
-            (top_left, color), // Triangle 1
-            (bottom_left, color),
-            (bottom_right, color),
-            (top_left, color), // Triangle 2
-            (bottom_right, color),
-            (top_right, color),
-        ]);
-    }*/
 
     pub fn add_box(&mut self, x: f32, y: f32, width: f32, height: f32, color: Rgba<f32>) {
         let top_left = [self.cx(x), self.cy(y)];
@@ -102,7 +85,7 @@ impl EucDraw {
             .extend([top_left, top_right, bottom_left, bottom_right]);
 
         // Add UV coordinates (separate array for the shader)
-        self.uv_coordinates
+        self.uvs
             .extend([uv_top_left, uv_top_right, uv_bottom_left, uv_bottom_right]);
 
         // Add indices
@@ -116,12 +99,7 @@ impl EucDraw {
         ]);
     }
 
-    pub fn add_polygon_from_indexed_vertices_list(
-        &mut self,
-        vertices: Vec<Vec2f>,
-        indices: Vec<u32>,
-        color: Rgba<f32>,
-    ) {
+    pub fn add_polygon(&mut self, vertices: Vec<Vec2f>, indices: Vec<u32>, color: Rgba<f32>) {
         let base_index = self.colored_vertices.len();
 
         for v in &vertices {
@@ -129,11 +107,26 @@ impl EucDraw {
                 .push(([self.cx(v.x), self.cy(v.y)], color));
         }
 
-        // println!("Adding vertices: {:?}", vertices);
-        // for (i, v) in vertices.iter().enumerate() {
-        //     let transformed = [self.cx(v[0]), self.cy(v[1])];
-        //     println!("Vertex {}: {:?} -> {:?}", i, v, transformed);
-        // }
+        for i in &indices {
+            self.indices.push(*i as usize + base_index);
+        }
+    }
+
+    pub fn add_textured_polygon(
+        &mut self,
+        vertices: Vec<Vec2f>,
+        indices: Vec<u32>,
+        uvs: Vec<Vec2f>,
+    ) {
+        let base_index = self.colored_vertices.len();
+
+        for v in &vertices {
+            self.vertices.push(Vec2::new(self.cx(v.x), self.cy(v.y)));
+        }
+
+        for uv in &uvs {
+            self.uvs.push(Vec2::new(uv.x, uv.y));
+        }
 
         for i in &indices {
             self.indices.push(*i as usize + base_index);
@@ -160,21 +153,19 @@ impl EucDraw {
 
     pub fn draw_as_textured_triangles(&mut self, texture: &RgbaTexture) {
         if !self.vertices.is_empty() {
-            // let mapped_texture =
-            //     texture.map(|pixel: [u8; 4]| Rgba::from(pixel).map(|e: u8| e as f32 / 255.0));
-
             // Create a linear sampler
-            let sampler = texture.nearest();
+            let sampler = texture.nearest().tiled();
 
             TexturedTriangles {
                 positions: &self.vertices[..],
-                uvs: &self.uv_coordinates[..],
+                uvs: &self.uvs[..],
                 sampler,
             }
             .render(&self.indices, &mut self.buffer, &mut Empty::default());
 
-            self.colored_vertices.clear();
+            self.vertices.clear();
             self.indices.clear();
+            self.uvs.clear();
         }
     }
 

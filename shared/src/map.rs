@@ -321,6 +321,38 @@ impl Sector {
         }
     }
 
+    // Generate bounding box
+    pub fn bounding_box(&self, map: &Map) -> (Vec2f, Vec2f) {
+        // Collect all vertices for the sector
+        let mut vertices = Vec::new();
+        for &linedef_id in &self.linedefs {
+            if let Some(linedef) = map.linedefs.get(linedef_id as usize) {
+                if let Some(start_vertex) = map.vertices.get(linedef.start_vertex as usize) {
+                    vertices.push(Vec2f::new(start_vertex.x, start_vertex.y));
+
+                    if let Some(end_vertex) = map.vertices.get(linedef.end_vertex as usize) {
+                        vertices.push(Vec2f::new(end_vertex.x, end_vertex.y));
+                    }
+                }
+            }
+        }
+
+        // Find min and max coordinates
+        let min_x = vertices.iter().map(|v| v.x).fold(f32::INFINITY, f32::min);
+        let max_x = vertices
+            .iter()
+            .map(|v| v.x)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let min_y = vertices.iter().map(|v| v.y).fold(f32::INFINITY, f32::min);
+        let max_y = vertices
+            .iter()
+            .map(|v| v.y)
+            .fold(f32::NEG_INFINITY, f32::max);
+
+        // Return the bounding box corners
+        (Vec2f::new(min_x, min_y), Vec2f::new(max_x, max_y))
+    }
+
     /// Generate geometry (vertices and indices) for the polygon using earcutr
     pub fn generate_geometry(&self, map: &Map) -> Option<(Vec<[f32; 2]>, Vec<u32>)> {
         // Collect unique vertices from the Linedefs in order
