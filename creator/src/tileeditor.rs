@@ -175,6 +175,10 @@ impl TileEditor {
             .lock()
             .unwrap()
             .set_textures(project.extract_tiles());
+        MAPRENDER
+            .lock()
+            .unwrap()
+            .set_textures(project.extract_tiles());
     }
 
     #[allow(clippy::suspicious_else_formatting)]

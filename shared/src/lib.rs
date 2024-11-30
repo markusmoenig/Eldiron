@@ -29,6 +29,7 @@ pub mod renderer_utils;
 pub mod screen;
 pub mod sdf;
 pub mod server;
+pub mod texture;
 pub mod tiledrawer;
 pub mod tilefx;
 pub mod tilefxnode;
@@ -76,6 +77,7 @@ pub mod prelude {
     pub use crate::sdf::*;
     pub use crate::server::context::ServerContext;
     pub use crate::server::{Server, ServerState};
+    pub use crate::texture::RgbaTexture;
     pub use crate::tiledrawer::{RegionDrawSettings, TileDrawer};
     pub use crate::tilefx::TileFX;
     pub use crate::tilefxnode::*;

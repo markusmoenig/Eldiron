@@ -1,8 +1,7 @@
+use crate::texture::RgbaTexture;
 use crate::{prelude::*, server::context::MapToolType};
 use rayon::prelude::*;
 use theframework::prelude::*;
-
-// use euc::*;
 use vek::*;
 
 pub struct MapRender {
@@ -216,6 +215,22 @@ impl MapRender {
                             );
                         }
                     }
+                }
+            }
+
+            if let Some(value) = self
+                .textures
+                .get(&Uuid::parse_str("7a16f87f-c637-4a18-afcc-8fddb5535906").unwrap())
+            {
+                let texture = Some(RgbaTexture::new(
+                    value.buffer[0].pixels().to_vec(),
+                    value.buffer[0].dim().width as usize,
+                    value.buffer[0].dim().height as usize,
+                ));
+
+                if let Some(texture) = texture {
+                    drawer.add_textured_box(100.0, 100.0, 200.0, 200.0, [0.0, 0.0], [1.0, 1.0]);
+                    drawer.draw_as_textured_triangles(&texture);
                 }
             }
 

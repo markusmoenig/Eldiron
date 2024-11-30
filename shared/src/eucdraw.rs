@@ -1,13 +1,17 @@
 use theframework::prelude::*;
 
 use euc::*;
+use vek::Vec2;
 use vek::*;
 
+use crate::prelude::RgbaTexture;
 pub struct EucDraw {
     view_size: Vec2f,
     buffer: Buffer2d<[u8; 4]>,
 
     colored_vertices: Vec<([f32; 2], Rgba<f32>)>,
+    vertices: Vec<Vec2<f32>>,
+    uv_coordinates: Vec<Vec2<f32>>,
     indices: Vec<usize>,
 }
 
@@ -20,6 +24,9 @@ impl EucDraw {
             buffer,
 
             colored_vertices: vec![],
+            vertices: vec![],
+            uv_coordinates: vec![],
+
             indices: vec![],
         }
     }
@@ -56,6 +63,49 @@ impl EucDraw {
             (bottom_right, color),
         ]);
 
+        self.indices.extend([
+            base_index,     // Top-left
+            base_index + 2, // Bottom-left
+            base_index + 3, // Bottom-right
+            base_index,     // Top-left
+            base_index + 3, // Bottom-right
+            base_index + 1, // Top-right
+        ]);
+    }
+
+    pub fn add_textured_box(
+        &mut self,
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+        uv_top_left: [f32; 2],
+        uv_bottom_right: [f32; 2],
+    ) {
+        // Compute vertex positions
+        let top_left = Vec2::new(self.cx(x), self.cy(y));
+        let top_right = Vec2::new(self.cx(x + width), self.cy(y));
+        let bottom_left = Vec2::new(self.cx(x), self.cy(y + height));
+        let bottom_right = Vec2::new(self.cx(x + width), self.cy(y + height));
+
+        // Compute UV coordinates
+        let uv_top_left = Vec2::new(uv_top_left[0], uv_top_left[1]);
+        let uv_top_right = Vec2::new(uv_bottom_right[0], uv_top_left[1]);
+        let uv_bottom_left = Vec2::new(uv_top_left[0], uv_bottom_right[1]);
+        let uv_bottom_right = Vec2::new(uv_bottom_right[0], uv_bottom_right[1]);
+
+        // Base index for indices
+        let base_index = self.colored_vertices.len();
+
+        // Add vertices and colors
+        self.vertices
+            .extend([top_left, top_right, bottom_left, bottom_right]);
+
+        // Add UV coordinates (separate array for the shader)
+        self.uv_coordinates
+            .extend([uv_top_left, uv_top_right, uv_bottom_left, uv_bottom_right]);
+
+        // Add indices
         self.indices.extend([
             base_index,     // Top-left
             base_index + 2, // Bottom-left
@@ -103,6 +153,26 @@ impl EucDraw {
                 IndexedVertices::new(self.indices.as_slice(), self.colored_vertices.as_slice());
 
             ColoredTriangles {}.render(indexed_vertices, &mut self.buffer, &mut Empty::default());
+            self.colored_vertices.clear();
+            self.indices.clear();
+        }
+    }
+
+    pub fn draw_as_textured_triangles(&mut self, texture: &RgbaTexture) {
+        if !self.vertices.is_empty() {
+            // let mapped_texture =
+            //     texture.map(|pixel: [u8; 4]| Rgba::from(pixel).map(|e: u8| e as f32 / 255.0));
+
+            // Create a linear sampler
+            let sampler = texture.nearest();
+
+            TexturedTriangles {
+                positions: &self.vertices[..],
+                uvs: &self.uv_coordinates[..],
+                sampler,
+            }
+            .render(&self.indices, &mut self.buffer, &mut Empty::default());
+
             self.colored_vertices.clear();
             self.indices.clear();
         }
@@ -204,6 +274,46 @@ impl<'r> Pipeline<'r> for ColoredLines {
             (col[1] * 255.0) as u8,
             (col[2] * 255.0) as u8,
             (col[3] * 255.0) as u8,
+        ]
+    }
+}
+
+struct TexturedTriangles<'r, S> {
+    positions: &'r [Vec2<f32>],
+    uvs: &'r [Vec2<f32>],
+    sampler: S,
+}
+impl<'r, S: Sampler<2, Index = f32, Sample = Rgba<f32>>> Pipeline<'r> for TexturedTriangles<'r, S> {
+    type Vertex = usize;
+    type VertexData = vek::Vec2<f32>;
+    type Primitives = TriangleList;
+    type Fragment = Rgba<f32>;
+    type Pixel = [u8; 4];
+
+    #[inline]
+    fn vertex(&self, v_index: &Self::Vertex) -> ([f32; 4], Self::VertexData) {
+        (
+            [
+                self.positions[*v_index].x,
+                self.positions[*v_index].y,
+                0.0,
+                1.0,
+            ],
+            self.uvs[*v_index],
+        )
+    }
+
+    #[inline]
+    fn fragment(&self, uv: Self::VertexData) -> Self::Fragment {
+        self.sampler.sample(uv.into_array())
+    }
+
+    fn blend(&self, _: Self::Pixel, color: Self::Fragment) -> Self::Pixel {
+        [
+            (color[0] * 255.0) as u8,
+            (color[1] * 255.0) as u8,
+            (color[2] * 255.0) as u8,
+            (color[3] * 255.0) as u8,
         ]
     }
 }
