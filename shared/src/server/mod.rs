@@ -11,7 +11,7 @@ pub mod region_instance;
 pub mod world;
 
 pub mod prelude {
-    pub use super::context::ServerContext;
+    pub use super::context::*;
     pub use super::daylight::Daylight;
     pub use super::execute::*;
     pub use super::region_instance::RegionInstance;

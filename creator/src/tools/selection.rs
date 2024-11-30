@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use ToolEvent::*;
 
-//use crate::editor::{PRERENDERTHREAD, UNDOMANAGER};
+use crate::editor::UNDOMANAGER;
 
 pub struct SelectionTool {
     id: TheId,
@@ -20,8 +20,6 @@ impl Tool for SelectionTool {
             id: TheId::named("Select Tool"),
 
             tile_selection: TileSelection::default(),
-            //copied_area: FxHashSet::default(),
-            //copied_region: None,
         }
     }
 
@@ -57,20 +55,8 @@ impl Tool for SelectionTool {
     ) -> bool {
         match tool_event {
             Activate => {
-                if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
-                    layout.set_mode(TheSharedVLayoutMode::Top);
-                }
-
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();
-
-                    let mut create_area_button =
-                        TheTraybarButton::new(TheId::named("Editor Create Area"));
-                    create_area_button.set_text(str!("Create Area..."));
-                    create_area_button.limiter_mut().set_max_width(140);
-                    create_area_button
-                        .set_status_text("Creates a new area for the current selection.");
-                    create_area_button.set_disabled(self.tile_selection.tiles.is_empty());
 
                     let mut clear_area_button =
                         TheTraybarButton::new(TheId::named("Editor Clear Selection"));
@@ -79,10 +65,8 @@ impl Tool for SelectionTool {
                     clear_area_button
                         .set_status_text("Clears the current selection. Shortcut: 'Escape'.");
 
-                    layout.add_widget(Box::new(create_area_button));
                     layout.add_widget(Box::new(clear_area_button));
-
-                    layout.set_reverse_index(Some(1));
+                    // layout.set_reverse_index(Some(1));
                 }
 
                 ui.set_widget_context_menu(
@@ -101,10 +85,6 @@ impl Tool for SelectionTool {
                 return true;
             }
             DeActivate => {
-                if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
-                    layout.set_mode(TheSharedVLayoutMode::Shared);
-                }
-                server_ctx.tile_selection = None;
                 ui.set_widget_context_menu("Region Editor View", None);
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();
@@ -235,13 +215,91 @@ impl Tool for SelectionTool {
         &mut self,
         event: &TheEvent,
         ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut Server,
+        server: &mut Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match event {
+            TheEvent::RenderViewClicked(id, _coord) => {
+                #[allow(clippy::collapsible_if)]
+                if id.name == "PolyView" {
+                    if !server_ctx.hover_is_empty() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            let prev = region.map.clone();
+                            if ui.shift {
+                                // Add
+                                if let Some(v) = server_ctx.hover.0 {
+                                    if !region.map.selected_vertices.contains(&v) {
+                                        region.map.selected_vertices.push(v);
+                                    }
+                                }
+                                if let Some(l) = server_ctx.hover.1 {
+                                    if !region.map.selected_linedefs.contains(&l) {
+                                        region.map.selected_linedefs.push(l);
+                                    }
+                                }
+                                if let Some(s) = server_ctx.hover.2 {
+                                    if !region.map.selected_sectors.contains(&s) {
+                                        region.map.selected_sectors.push(s);
+                                    }
+                                }
+                            } else if ui.alt {
+                                // Subtract
+                                if let Some(v) = server_ctx.hover.0 {
+                                    region
+                                        .map
+                                        .selected_vertices
+                                        .retain(|&selected| selected != v);
+                                }
+                                if let Some(l) = server_ctx.hover.1 {
+                                    region
+                                        .map
+                                        .selected_linedefs
+                                        .retain(|&selected| selected != l);
+                                }
+                                if let Some(s) = server_ctx.hover.2 {
+                                    region
+                                        .map
+                                        .selected_sectors
+                                        .retain(|&selected| selected != s);
+                                }
+                            } else {
+                                // Replace
+                                if let Some(v) = server_ctx.hover.0 {
+                                    region.map.selected_vertices = vec![v];
+                                } else {
+                                    region.map.selected_vertices.clear();
+                                }
+                                if let Some(l) = server_ctx.hover.1 {
+                                    region.map.selected_linedefs = vec![l];
+                                } else {
+                                    region.map.selected_linedefs.clear();
+                                }
+                                if let Some(s) = server_ctx.hover.2 {
+                                    region.map.selected_sectors = vec![s];
+                                } else {
+                                    region.map.selected_sectors.clear();
+                                }
+                            }
+
+                            let undo = RegionUndoAtom::MapEdit(
+                                Box::new(prev),
+                                Box::new(region.map.clone()),
+                            );
+
+                            UNDOMANAGER
+                                .lock()
+                                .unwrap()
+                                .add_region_undo(&region.id, undo, ctx);
+
+                            server.update_region(region);
+                        }
+                    }
+                }
+                true
+            }
             TheEvent::RenderViewHoverChanged(id, coord) => {
                 if id.name == "PolyView" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -252,6 +310,68 @@ impl Tool for SelectionTool {
                                 vec2f(coord.x as f32, coord.y as f32),
                                 &region.map,
                             );
+                        }
+                    }
+                }
+                true
+            }
+            TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
+                #[allow(clippy::collapsible_if)]
+                if *code == TheKeyCode::Escape {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        // Hover is empty, check if we need to clear selection
+                        if !region.map.selected_vertices.is_empty()
+                            || !region.map.selected_linedefs.is_empty()
+                            || !region.map.selected_sectors.is_empty()
+                        {
+                            let prev = region.map.clone();
+
+                            region.map.selected_vertices.clear();
+                            region.map.selected_linedefs.clear();
+                            region.map.selected_sectors.clear();
+
+                            let undo = RegionUndoAtom::MapEdit(
+                                Box::new(prev),
+                                Box::new(region.map.clone()),
+                            );
+
+                            UNDOMANAGER
+                                .lock()
+                                .unwrap()
+                                .add_region_undo(&region.id, undo, ctx);
+
+                            server.update_region(region);
+                        }
+                    }
+                }
+                if *code == TheKeyCode::Delete {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if !region.map.selected_vertices.is_empty()
+                            || !region.map.selected_linedefs.is_empty()
+                            || !region.map.selected_sectors.is_empty()
+                        {
+                            let prev = region.map.clone();
+
+                            let vertices = region.map.selected_vertices.clone();
+                            let linedefs = region.map.selected_linedefs.clone();
+                            let sectors = region.map.selected_sectors.clone();
+
+                            region.map.delete_elements(&vertices, &linedefs, &sectors);
+                            region.map.selected_vertices.clear();
+                            region.map.selected_linedefs.clear();
+                            region.map.selected_sectors.clear();
+
+                            let undo = RegionUndoAtom::MapEdit(
+                                Box::new(prev),
+                                Box::new(region.map.clone()),
+                            );
+
+                            UNDOMANAGER
+                                .lock()
+                                .unwrap()
+                                .add_region_undo(&region.id, undo, ctx);
+
+                            server.update_region(region);
                         }
                     }
                 }

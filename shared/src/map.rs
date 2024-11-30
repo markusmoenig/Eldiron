@@ -20,6 +20,11 @@ pub struct Map {
     pub vertices: Vec<Vertex>,
     pub linedefs: Vec<Linedef>,
     pub sectors: Vec<Sector>,
+
+    // Selection
+    pub selected_vertices: Vec<u32>,
+    pub selected_linedefs: Vec<u32>,
+    pub selected_sectors: Vec<u32>,
 }
 
 impl Default for Map {
@@ -42,6 +47,10 @@ impl Map {
             vertices: vec![],
             linedefs: vec![],
             sectors: vec![],
+
+            selected_vertices: vec![],
+            selected_linedefs: vec![],
+            selected_sectors: vec![],
         }
     }
 
@@ -173,6 +182,78 @@ impl Map {
             }
         }
         None
+    }
+
+    /// Deletes the specified vertices, linedefs, and sectors, along with their associated geometry.
+    pub fn delete_elements(&mut self, vertex_ids: &[u32], linedef_ids: &[u32], sector_ids: &[u32]) {
+        // 1. Delete specified vertices
+        if !vertex_ids.is_empty() {
+            // Remove vertices
+            self.vertices
+                .retain(|vertex| !vertex_ids.contains(&vertex.id));
+
+            // Remove any linedefs that depend on the deleted vertices
+            self.linedefs.retain(|linedef| {
+                !vertex_ids.contains(&linedef.start_vertex)
+                    && !vertex_ids.contains(&linedef.end_vertex)
+            });
+
+            // Remove references to these linedefs in sectors
+            self.cleanup_sectors();
+        }
+
+        // 2. Delete specified linedefs
+        if !linedef_ids.is_empty() {
+            // Remove linedefs
+            self.linedefs
+                .retain(|linedef| !linedef_ids.contains(&linedef.id));
+
+            // Remove references to these linedefs in sectors
+            self.cleanup_sectors();
+        }
+
+        // 3. Delete specified sectors
+        if !sector_ids.is_empty() {
+            // Remove sectors
+            self.sectors
+                .retain(|sector| !sector_ids.contains(&sector.id));
+
+            // Remove references to these sectors in linedefs
+            for linedef in &mut self.linedefs {
+                if let Some(front_sector) = linedef.front_sector {
+                    if sector_ids.contains(&front_sector) {
+                        linedef.front_sector = None;
+                    }
+                }
+                if let Some(back_sector) = linedef.back_sector {
+                    if sector_ids.contains(&back_sector) {
+                        linedef.back_sector = None;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Cleans up sectors to ensure no references to deleted linedefs remain.
+    fn cleanup_sectors(&mut self) {
+        let valid_linedef_ids: std::collections::HashSet<u32> =
+            self.linedefs.iter().map(|l| l.id).collect();
+
+        for sector in &mut self.sectors {
+            sector
+                .linedefs
+                .retain(|linedef_id| valid_linedef_ids.contains(linedef_id));
+        }
+
+        // Remove empty sectors
+        self.sectors.retain(|sector| !sector.linedefs.is_empty());
+    }
+
+    /// Check if a given linedef ID is part of any sector.
+    pub fn is_linedef_in_closed_polygon(&self, linedef_id: u32) -> bool {
+        self.sectors
+            .iter()
+            .any(|sector| sector.linedefs.contains(&linedef_id))
     }
 }
 

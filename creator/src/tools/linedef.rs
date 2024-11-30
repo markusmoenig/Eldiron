@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use shared::server::prelude::MapToolType;
 use ToolEvent::*;
 
 use crate::editor::UNDOMANAGER;
@@ -57,10 +58,13 @@ impl Tool for LinedefTool {
                 server_ctx.curr_character_instance = None;
                 server_ctx.curr_item_instance = None;
                 server_ctx.curr_area = None;
+                server_ctx.curr_map_tool_type = MapToolType::Linedef;
 
                 return true;
             }
             _ => {
+                server_ctx.curr_map_tool_type = MapToolType::General;
+
                 return false;
             }
         };

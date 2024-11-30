@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, server::context::MapToolType};
 use rayon::prelude::*;
 use theframework::prelude::*;
 
@@ -107,33 +107,67 @@ impl MapRender {
                     }
                 });
 
-            //
             let mut drawer = EucDraw::new(width, height);
 
-            for sector in &region.map.sectors {
-                if let Some(geo) = sector.generate_geometry(&region.map) {
-                    // Convert the triangles from grid to local coordinates
-                    let mut converted: Vec<Vec2f> = vec![];
-                    for g in &geo.0 {
-                        let local = ServerContext::map_grid_to_local(
-                            screen_size,
-                            vec2f(g[0], g[1]),
-                            &region.map,
-                        );
-                        converted.push(local);
-                    }
+            // Draw Sectors
+            if server_ctx.curr_map_tool_type == MapToolType::General
+                || server_ctx.curr_map_tool_type == MapToolType::Sector
+            {
+                for sector in &region.map.sectors {
+                    if let Some(geo) = sector.generate_geometry(&region.map) {
+                        // Convert the triangles from grid to local coordinates
+                        let mut converted: Vec<Vec2f> = vec![];
+                        for g in &geo.0 {
+                            let local = ServerContext::map_grid_to_local(
+                                screen_size,
+                                vec2f(g[0], g[1]),
+                                &region.map,
+                            );
+                            converted.push(local);
+                        }
 
-                    let color = if server_ctx.hover.2 == Some(sector.id)
-                        || server_ctx.selected_sectors.contains(&sector.id)
+                        let color = if server_ctx.hover.2 == Some(sector.id)
+                            || region.map.selected_sectors.contains(&sector.id)
+                        {
+                            [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
+                        } else {
+                            [0.0, 0.0, 0.0, 1.0]
+                        };
+
+                        drawer.add_polygon_from_indexed_vertices_list(
+                            converted,
+                            geo.1,
+                            Rgba::new(color[0], color[1], color[2], color[3]),
+                        );
+                    }
+                }
+            }
+
+            // Draw Vertices
+            if server_ctx.curr_map_tool_type == MapToolType::General
+                || server_ctx.curr_map_tool_type == MapToolType::Vertex
+            {
+                for vertex in &region.map.vertices {
+                    let pos = ServerContext::map_grid_to_local(
+                        screen_size,
+                        vertex.as_vec2f(),
+                        &region.map,
+                    );
+
+                    let color = if server_ctx.hover.0 == Some(vertex.id)
+                        || region.map.selected_vertices.contains(&vertex.id)
                     {
                         [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
                     } else {
-                        [0.0, 0.0, 0.0, 1.0]
+                        [0.5, 0.5, 0.5, 1.0]
                     };
 
-                    drawer.add_polygon_from_indexed_vertices_list(
-                        converted,
-                        geo.1,
+                    let size = 4.0;
+                    drawer.add_box(
+                        pos.x - size,
+                        pos.y - size,
+                        size * 2.0,
+                        size * 2.0,
                         Rgba::new(color[0], color[1], color[2], color[3]),
                     );
                 }
@@ -142,41 +176,50 @@ impl MapRender {
             drawer.draw_as_triangles();
             drawer.blend_into(buffer);
 
-            // For action previews
-
-            for linedef in &region.map.linedefs {
-                if let Some(start_vertex) = region.map.find_vertex(linedef.start_vertex) {
-                    let start_pos = ServerContext::map_grid_to_local(
-                        screen_size,
-                        start_vertex.as_vec2f(),
-                        &region.map,
-                    );
-                    if let Some(end_vertex) = region.map.find_vertex(linedef.end_vertex) {
-                        let end_pos = ServerContext::map_grid_to_local(
+            // Draw Lines
+            if server_ctx.curr_map_tool_type == MapToolType::General
+                || server_ctx.curr_map_tool_type == MapToolType::Linedef
+            {
+                for linedef in &region.map.linedefs {
+                    if let Some(start_vertex) = region.map.find_vertex(linedef.start_vertex) {
+                        let start_pos = ServerContext::map_grid_to_local(
                             screen_size,
-                            end_vertex.as_vec2f(),
+                            start_vertex.as_vec2f(),
                             &region.map,
                         );
+                        if let Some(end_vertex) = region.map.find_vertex(linedef.end_vertex) {
+                            let end_pos = ServerContext::map_grid_to_local(
+                                screen_size,
+                                end_vertex.as_vec2f(),
+                                &region.map,
+                            );
 
-                        let color = if server_ctx.hover.1 == Some(linedef.id)
-                            || server_ctx.selected_sectors.contains(&linedef.id)
-                        {
-                            [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
-                        } else {
-                            [0.5, 0.5, 0.5, 1.0]
-                        };
+                            #[allow(clippy::collapsible_else_if)]
+                            let color = if server_ctx.hover.1 == Some(linedef.id)
+                                || region.map.selected_linedefs.contains(&linedef.id)
+                            {
+                                [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
+                            } else {
+                                if region.map.is_linedef_in_closed_polygon(linedef.id) {
+                                    [1.0, 1.0, 1.0, 1.0]
+                                } else {
+                                    [0.6, 0.6, 0.6, 1.0]
+                                }
+                            };
 
-                        drawer.add_line(
-                            start_pos.x,
-                            start_pos.y,
-                            end_pos.x,
-                            end_pos.y,
-                            Rgba::new(color[0], color[1], color[2], color[3]),
-                        );
+                            drawer.add_line(
+                                start_pos.x,
+                                start_pos.y,
+                                end_pos.x,
+                                end_pos.y,
+                                Rgba::new(color[0], color[1], color[2], color[3]),
+                            );
+                        }
                     }
                 }
             }
 
+            // For action previews
             if let Some(grid_pos) = region.map.curr_grid_pos {
                 let local = ServerContext::map_grid_to_local(screen_size, grid_pos, &region.map);
                 if let Some(mouse_pos) = region.map.curr_mouse_pos {
@@ -329,9 +372,9 @@ impl MapRender {
         let dot_radius = 0.0;
         let squared_dots = false;
 
-        let bg_color = Vec4f::new(0.15, 0.15, 0.15, 1.0);
-        let line_color = Vec4f::new(0.3, 0.3, 0.3, 1.0);
-        let sub_line_color = Vec4f::new(0.2, 0.2, 0.2, 1.0);
+        let bg_color = Vec4f::new(0.05, 0.05, 0.05, 1.0);
+        let line_color = Vec4f::new(0.15, 0.15, 0.15, 1.0);
+        let sub_line_color = Vec4f::new(0.1, 0.1, 0.1, 1.0);
         let dots_color = Vec4f::new(0.3, 0.3, 0.3, 1.0);
         let x_axis_color = Vec4f::new(212.0 / 255.0, 28.0 / 255.0, 15.0 / 255.0, 1.0);
         let y_axis_color = Vec4f::new(21.0 / 255.0, 191.0 / 255.0, 83.0 / 255.0, 1.0);

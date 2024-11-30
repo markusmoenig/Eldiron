@@ -1,6 +1,14 @@
 use crate::prelude::*;
 use theframework::prelude::*;
 
+#[derive(PartialEq)]
+pub enum MapToolType {
+    General,
+    Vertex,
+    Linedef,
+    Sector,
+}
+
 /// This gives context to the server of the editing state for live highlighting.
 pub struct ServerContext {
     /// The currently selected region in the editor.
@@ -58,12 +66,11 @@ pub struct ServerContext {
     /// The screen editor drawing mode.
     pub screen_editor_mode_foreground: bool,
 
-    // Selection
-    pub selected_vertices: Vec<u32>,
-    pub selected_linedefs: Vec<u32>,
-    pub selected_sectors: Vec<u32>,
-
+    /// Hover geometry info
     pub hover: (Option<u32>, Option<u32>, Option<u32>),
+
+    /// Current Tool Type
+    pub curr_map_tool_type: MapToolType,
 }
 
 impl Default for ServerContext {
@@ -109,11 +116,8 @@ impl ServerContext {
 
             screen_editor_mode_foreground: false,
 
-            selected_vertices: vec![],
-            selected_linedefs: vec![],
-            selected_sectors: vec![],
-
             hover: (None, None, None),
+            curr_map_tool_type: MapToolType::Linedef,
         }
     }
 
@@ -259,6 +263,11 @@ impl ServerContext {
         }
 
         selection
+    }
+
+    /// Returns false if the hover is empty
+    pub fn hover_is_empty(&self) -> bool {
+        self.hover.0.is_none() && self.hover.1.is_none() && self.hover.2.is_none()
     }
 
     /// Adds the given interactions provided by a server tick to the context.

@@ -43,7 +43,7 @@ impl ToolList {
             Box::new(MapObjectsTool::new()),
             Box::new(CodeTool::new()),
             Box::new(FXTool::new()),
-            Box::new(EraserTool::new()),
+            // Box::new(EraserTool::new()),
             Box::new(TilemapTool::new()),
             Box::new(RenderTool::new()),
             Box::new(ZoomTool::new()),
