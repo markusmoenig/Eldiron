@@ -126,7 +126,7 @@ impl MapRender {
                                 &region.map,
                             );
 
-                            let texture_scale = 2.0;
+                            let texture_scale = 1.0;
 
                             let uv = vec2f(
                                 (vertex[0] - bbox.0.x) / texture_scale,

@@ -99,6 +99,7 @@ impl EucDraw {
         ]);
     }
 
+    /// Add the colored vertices and indices and indices of a polygon.
     pub fn add_polygon(&mut self, vertices: Vec<Vec2f>, indices: Vec<u32>, color: Rgba<f32>) {
         let base_index = self.colored_vertices.len();
 
@@ -112,6 +113,7 @@ impl EucDraw {
         }
     }
 
+    /// Add the textires vertices and indices and indices of a polygon.
     pub fn add_textured_polygon(
         &mut self,
         vertices: Vec<Vec2f>,
@@ -133,6 +135,7 @@ impl EucDraw {
         }
     }
 
+    /// Add a line.
     pub fn add_line(&mut self, sx: f32, sy: f32, ex: f32, ey: f32, color: Rgba<f32>) {
         self.colored_vertices.extend([
             ([self.cx(sx), self.cy(sy)], color),
@@ -140,6 +143,7 @@ impl EucDraw {
         ]);
     }
 
+    /// Draw the colored triangles.
     pub fn draw_as_triangles(&mut self) {
         if !self.colored_vertices.is_empty() {
             let indexed_vertices =
@@ -151,6 +155,7 @@ impl EucDraw {
         }
     }
 
+    /// Draw the textured triangles.
     pub fn draw_as_textured_triangles(&mut self, texture: &RgbaTexture) {
         if !self.vertices.is_empty() {
             // Create a linear sampler
@@ -169,6 +174,7 @@ impl EucDraw {
         }
     }
 
+    /// Draw the lines.
     pub fn draw_as_lines(&mut self) {
         if !self.colored_vertices.is_empty() {
             ColoredLines.render(

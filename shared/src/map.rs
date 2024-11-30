@@ -321,7 +321,7 @@ impl Sector {
         }
     }
 
-    // Generate bounding box
+    // Generate a bounding box for the sector
     pub fn bounding_box(&self, map: &Map) -> (Vec2f, Vec2f) {
         // Collect all vertices for the sector
         let mut vertices = Vec::new();
@@ -329,7 +329,6 @@ impl Sector {
             if let Some(linedef) = map.linedefs.get(linedef_id as usize) {
                 if let Some(start_vertex) = map.vertices.get(linedef.start_vertex as usize) {
                     vertices.push(Vec2f::new(start_vertex.x, start_vertex.y));
-
                     if let Some(end_vertex) = map.vertices.get(linedef.end_vertex as usize) {
                         vertices.push(Vec2f::new(end_vertex.x, end_vertex.y));
                     }
