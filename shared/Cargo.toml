@@ -37,3 +37,4 @@ half = { version = "2.4", features = ["serde"] }
 vek = { version = "0.17", default-features = false, features = ["rgba"] }
 euc = { git = "https://github.com/zesterer/euc" }
 earcutr = "0.4"
+rect_packer = "0.2.1"

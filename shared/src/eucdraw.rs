@@ -156,10 +156,10 @@ impl EucDraw {
     }
 
     /// Draw the textured triangles.
-    pub fn draw_as_textured_triangles(&mut self, texture: &RgbaTexture) {
+    pub fn draw_as_textured_triangles(&mut self, sampler: &Tiled<Nearest<RgbaTexture>>) {
         if !self.vertices.is_empty() {
             // Create a linear sampler
-            let sampler = texture.nearest().tiled();
+            //let sampler = texture.nearest().tiled();
 
             TexturedTriangles {
                 positions: &self.vertices[..],
@@ -286,6 +286,11 @@ impl<'r, S: Sampler<2, Index = f32, Sample = Rgba<f32>>> Pipeline<'r> for Textur
     type Primitives = TriangleList;
     type Fragment = Rgba<f32>;
     type Pixel = [u8; 4];
+
+    // #[inline(always)]
+    // fn aa_mode(&self) -> AaMode {
+    //     AaMode::Msaa { level: 6 }
+    // }
 
     #[inline]
     fn vertex(&self, v_index: &Self::Vertex) -> ([f32; 4], Self::VertexData) {

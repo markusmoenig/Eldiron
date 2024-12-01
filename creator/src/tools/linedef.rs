@@ -238,20 +238,6 @@ impl Tool for LinedefTool {
                     }
                 }
             }
-            TheEvent::RenderViewScrollBy(id, coord) => {
-                if id.name == "PolyView" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if ui.ctrl || ui.logo {
-                            region.map.grid_size += coord.y as f32;
-                            region.map.grid_size = clamp(region.map.grid_size, 5.0, 100.0);
-                        } else {
-                            region.map.offset += Vec2f::new(-coord.x as f32, coord.y as f32);
-                        }
-                        server.update_region(region);
-                        redraw = true;
-                    }
-                }
-            }
 
             _ => {}
         }

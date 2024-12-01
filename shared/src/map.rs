@@ -94,6 +94,26 @@ impl Map {
         self.vertices.iter_mut().find(|vertex| vertex.id == id)
     }
 
+    /// Finds a reference to a linedef by its ID
+    pub fn find_linedef(&self, id: u32) -> Option<&Linedef> {
+        self.linedefs.iter().find(|linedef| linedef.id == id)
+    }
+
+    /// Finds a reference to a linedef by its ID
+    pub fn find_linedef_mut(&mut self, id: u32) -> Option<&mut Linedef> {
+        self.linedefs.iter_mut().find(|linedef| linedef.id == id)
+    }
+
+    /// Finds a mutable reference to a sector by its ID
+    pub fn find_sector(&self, id: u32) -> Option<&Sector> {
+        self.sectors.iter().find(|sector| sector.id == id)
+    }
+
+    /// Finds a mutable reference to a sector by its ID
+    pub fn find_sector_mut(&mut self, id: u32) -> Option<&mut Sector> {
+        self.sectors.iter_mut().find(|sector| sector.id == id)
+    }
+
     // Create a new (or use an existing) linedef for the given vertices.
     pub fn create_linedef(&mut self, start_vertex: u32, end_vertex: u32) -> (u32, Option<u32>) {
         let id = self.linedefs.len() as u32;
@@ -282,6 +302,7 @@ pub struct Linedef {
     pub front_sector: Option<u32>,
     pub back_sector: Option<u32>,
     pub texture: Option<Uuid>,
+    pub material: Option<u8>,
 }
 
 impl Linedef {
@@ -293,6 +314,7 @@ impl Linedef {
             front_sector: None,
             back_sector: None,
             texture: None,
+            material: None,
         }
     }
 }
@@ -305,6 +327,8 @@ pub struct Sector {
     pub ceiling_height: f32,
     pub floor_texture: Option<Uuid>,
     pub ceiling_texture: Option<Uuid>,
+    pub floor_material: Option<u8>,
+    pub ceiling_material: Option<u8>,
     pub neighbours: Vec<u32>,
 }
 
@@ -317,6 +341,8 @@ impl Sector {
             ceiling_height: 0.0,
             floor_texture: None,
             ceiling_texture: None,
+            floor_material: None,
+            ceiling_material: None,
             neighbours: vec![],
         }
     }

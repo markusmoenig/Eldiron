@@ -50,7 +50,7 @@ pub struct Editor {
     project_path: Option<PathBuf>,
 
     sidebar: Sidebar,
-    tileeditor: TileEditor,
+    mapeditor: MapEditor,
     screeneditor: ScreenEditor,
     materialeditor: MaterialEditor,
 
@@ -83,7 +83,7 @@ impl TheTrait for Editor {
             project_path: None,
 
             sidebar: Sidebar::new(),
-            tileeditor: TileEditor::new(),
+            mapeditor: MapEditor::new(),
             materialeditor: MaterialEditor::new(),
             screeneditor: ScreenEditor::new(),
 
@@ -366,7 +366,7 @@ impl TheTrait for Editor {
         let mut tab_canvas: TheCanvas = TheCanvas::new();
         let mut tab_layout = TheTabLayout::new(TheId::named("Editor Tab"));
 
-        let game_canvas = self.tileeditor.init_ui(ui, ctx, &mut self.project);
+        let game_canvas = self.mapeditor.init_ui(ui, ctx, &mut self.project);
         tab_layout.add_canvas(str!("Game View"), game_canvas);
 
         let model_canvas: TheCanvas =
@@ -665,7 +665,7 @@ impl TheTrait for Editor {
             // );
             //}
             //if render_mode != EditorDrawMode::Draw2D {
-            self.tileeditor.rerender_region(
+            self.mapeditor.rerender_region(
                 ui,
                 &mut self.server,
                 ctx,
@@ -718,7 +718,7 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
-                if self.tileeditor.handle_event(
+                if self.mapeditor.handle_event(
                     &event,
                     ui,
                     ctx,
@@ -1377,7 +1377,7 @@ impl TheTrait for Editor {
                                             &mut self.server_ctx,
                                             &self.project,
                                         );
-                                        self.tileeditor.load_from_project(ui, ctx, &self.project);
+                                        self.mapeditor.load_from_project(ui, ctx, &self.project);
                                         let packages =
                                             self.server.set_project(self.project.clone());
                                         self.client.set_project(self.project.clone());

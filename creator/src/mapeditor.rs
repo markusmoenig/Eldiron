@@ -11,22 +11,32 @@ pub enum EditorDrawMode {
     Draw3D,
 }
 
-pub struct TileEditor {
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum MapTextureMode {
+    Preview,
+    Floor,
+    Wall,
+    Ceiling,
+}
+
+pub struct MapEditor {
     curr_tile_uuid: Option<Uuid>,
 
     curr_layer_role: Layer2DRole,
+    texture_mode: MapTextureMode,
 
     icon_normal_border_color: RGBA,
     icon_selected_border_color: RGBA,
 }
 
 #[allow(clippy::new_without_default)]
-impl TileEditor {
+impl MapEditor {
     pub fn new() -> Self {
         Self {
             curr_tile_uuid: None,
 
             curr_layer_role: Layer2DRole::Ground,
+            texture_mode: MapTextureMode::Floor,
 
             icon_normal_border_color: [100, 100, 100, 255],
             icon_selected_border_color: [255, 255, 255, 255],
@@ -92,15 +102,15 @@ impl TileEditor {
         grid_sub_div.limiter_mut().set_max_width(75);
         vlayout.add_widget(Box::new(grid_sub_div));
 
+        let mut spacer = TheIconView::new(TheId::empty());
+        spacer.limiter_mut().set_max_height(2);
+        vlayout.add_widget(Box::new(spacer));
+
         let mut icon_preview = TheIconView::new(TheId::named("Icon Preview"));
         icon_preview.set_alpha_mode(false);
         icon_preview.limiter_mut().set_max_size(vec2i(65, 65));
         icon_preview.set_border_color(Some([100, 100, 100, 255]));
         vlayout.add_widget(Box::new(icon_preview));
-
-        // let mut spacer = TheIconView::new(TheId::empty());
-        // spacer.limiter_mut().set_max_height(5);
-        // vlayout.add_widget(Box::new(spacer));
 
         let mut ground_icon = TheIconView::new(TheId::named("Ground Icon"));
         ground_icon.set_text(Some("FLOOR".to_string()));
@@ -193,6 +203,26 @@ impl TileEditor {
     ) -> bool {
         let mut redraw = false;
         match event {
+            TheEvent::Custom(id, _) => {
+                if id.name == "Map Selection Changed" {
+                    println!("map selection changed");
+                }
+            }
+            TheEvent::RenderViewScrollBy(id, coord) => {
+                if id.name == "PolyView" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if ui.ctrl || ui.logo {
+                            region.map.grid_size += coord.y as f32;
+                            region.map.grid_size = clamp(region.map.grid_size, 5.0, 100.0);
+                        } else {
+                            region.map.offset += Vec2f::new(-coord.x as f32, coord.y as f32);
+                        }
+                        server.update_region(region);
+                        redraw = true;
+                    }
+                }
+            }
+            /*
             TheEvent::RenderViewScrollBy(id, amount) => {
                 if id.name == "RenderView" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -202,7 +232,7 @@ impl TileEditor {
                         redraw = true;
                     }
                 }
-            }
+            }*/
             TheEvent::RenderViewLostHover(id) => {
                 if id.name == "RenderView" {
                     RENDERER.lock().unwrap().hover_pos = None;
@@ -686,6 +716,29 @@ impl TileEditor {
                             icon_view.set_rgba_tile(t.clone());
                         }
                     }
+
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        let prev = region.map.clone();
+
+                        // Apply to the selected map elements
+                        if self.texture_mode == MapTextureMode::Floor {
+                            for sector_id in &region.map.selected_sectors.clone() {
+                                if let Some(sector) = region.map.find_sector_mut(*sector_id) {
+                                    sector.floor_texture = self.curr_tile_uuid;
+                                }
+                            }
+                        }
+
+                        let undo =
+                            RegionUndoAtom::MapEdit(Box::new(prev), Box::new(region.map.clone()));
+
+                        UNDOMANAGER
+                            .lock()
+                            .unwrap()
+                            .add_region_undo(&region.id, undo, ctx);
+
+                        server.update_region(region);
+                    }
                 } else if id.name == "Tilemap Editor Add Anim"
                     || id.name == "Tilemap Editor Add Multi"
                 {
@@ -693,9 +746,10 @@ impl TileEditor {
                     server.update_tiles(project.extract_tiles());
                 } else if id.name == "Ground Icon" {
                     self.curr_layer_role = Layer2DRole::Ground;
+                    self.texture_mode = MapTextureMode::Floor;
                     server_ctx.curr_layer_role = Layer2DRole::Ground;
 
-                    self.set_icon_colors(ui);
+                    self.set_icon_border_colors(ui);
                     server_ctx.show_fx_marker = false;
                     redraw = true;
                     ctx.ui.send(TheEvent::Custom(
@@ -710,9 +764,10 @@ impl TileEditor {
                     );
                 } else if id.name == "Wall Icon" {
                     self.curr_layer_role = Layer2DRole::Wall;
+                    self.texture_mode = MapTextureMode::Wall;
                     server_ctx.curr_layer_role = Layer2DRole::Wall;
 
-                    self.set_icon_colors(ui);
+                    self.set_icon_border_colors(ui);
                     server_ctx.show_fx_marker = false;
                     redraw = true;
                     ctx.ui.send(TheEvent::Custom(
@@ -731,9 +786,10 @@ impl TileEditor {
                     );
                 } else if id.name == "Ceiling Icon" {
                     self.curr_layer_role = Layer2DRole::Ceiling;
+                    self.texture_mode = MapTextureMode::Ceiling;
                     server_ctx.curr_layer_role = Layer2DRole::Ceiling;
 
-                    self.set_icon_colors(ui);
+                    self.set_icon_border_colors(ui);
                     server_ctx.show_fx_marker = false;
                     redraw = true;
                     ctx.ui.send(TheEvent::Custom(
@@ -752,7 +808,7 @@ impl TileEditor {
                     );
                 } else if id.name == "Tile FX Icon" {
                     self.curr_layer_role = Layer2DRole::FX;
-                    self.set_icon_colors(ui);
+                    self.set_icon_border_colors(ui);
                     server_ctx.show_fx_marker = true;
                     redraw = true;
                     // if self.editor_mode == EditorMode::Draw {
@@ -932,7 +988,7 @@ impl TileEditor {
         }
     }
 
-    fn set_icon_colors(&mut self, ui: &mut TheUI) {
+    fn set_icon_border_colors(&mut self, ui: &mut TheUI) {
         if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
             icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Ground {
                 Some(self.icon_selected_border_color)

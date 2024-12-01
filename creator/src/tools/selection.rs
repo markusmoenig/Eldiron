@@ -295,6 +295,10 @@ impl Tool for SelectionTool {
                                 .add_region_undo(&region.id, undo, ctx);
 
                             server.update_region(region);
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Map Selection Changed"),
+                                TheValue::Empty,
+                            ));
                         }
                     }
                 }
@@ -341,6 +345,10 @@ impl Tool for SelectionTool {
                                 .add_region_undo(&region.id, undo, ctx);
 
                             server.update_region(region);
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Map Selection Changed"),
+                                TheValue::Empty,
+                            ));
                         }
                     }
                 }
@@ -372,6 +380,10 @@ impl Tool for SelectionTool {
                                 .add_region_undo(&region.id, undo, ctx);
 
                             server.update_region(region);
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Map Selection Changed"),
+                                TheValue::Empty,
+                            ));
                         }
                     }
                 }

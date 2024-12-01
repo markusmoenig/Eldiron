@@ -1,11 +1,20 @@
 use crate::texture::RgbaTexture;
 use crate::{prelude::*, server::context::MapToolType};
+use euc::*;
 use rayon::prelude::*;
+use rect_packer::*;
 use theframework::prelude::*;
 use vek::*;
 
 pub struct MapRender {
     pub textures: FxHashMap<Uuid, TheRGBATile>,
+
+    atlas_size: f32,
+    sampler: Option<Tiled<Nearest<RgbaTexture>>>,
+    elements: FxHashMap<Uuid, Vec<Vec4i>>,
+
+    texture_sampler: FxHashMap<Uuid, Vec<Tiled<Nearest<RgbaTexture>>>>,
+
     pub materials: IndexMap<Uuid, MaterialFXObject>,
     pub position: Vec3f,
     pub hover_pos: Option<Vec3i>,
@@ -16,6 +25,12 @@ impl MapRender {
     pub fn new() -> Self {
         Self {
             textures: FxHashMap::default(),
+
+            atlas_size: 1.0,
+            sampler: None,
+            elements: FxHashMap::default(),
+            texture_sampler: FxHashMap::default(),
+
             materials: IndexMap::default(),
             position: Vec3f::zero(),
             hover_pos: None,
@@ -25,7 +40,71 @@ impl MapRender {
     pub fn set_region(&mut self, _region: &Region) {}
 
     pub fn set_textures(&mut self, tiles: FxHashMap<Uuid, TheRGBATile>) {
+        let atlas_size = 1024;
+        let mut packer = Packer::new(Config {
+            width: atlas_size,
+            height: atlas_size,
+            border_padding: 0,
+            rectangle_padding: 0,
+        });
+
+        let mut elements: FxHashMap<Uuid, Vec<Vec4i>> = FxHashMap::default();
+        let mut texture_sampler: FxHashMap<Uuid, Vec<Tiled<Nearest<RgbaTexture>>>> =
+            FxHashMap::default();
+
+        // Create rectangles
+        for (id, tile) in tiles.iter() {
+            let mut array: Vec<Vec4i> = vec![];
+            let mut sammpler_array: Vec<Tiled<Nearest<RgbaTexture>>> = vec![];
+            for b in &tile.buffer {
+                if let Some(rect) = packer.pack(b.dim().width, b.dim().height, false) {
+                    array.push(vec4i(rect.x, rect.y, rect.width, rect.height));
+                }
+
+                let texture = RgbaTexture::new(
+                    b.pixels().to_vec(),
+                    b.dim().width as usize,
+                    b.dim().height as usize,
+                );
+                sammpler_array.push(texture.nearest().tiled());
+            }
+            elements.insert(*id, array);
+            texture_sampler.insert(*id, sammpler_array);
+        }
+
+        // Create atlas
+        let mut atlas = vec![0; atlas_size as usize * atlas_size as usize * 4];
+
+        // Copy textures into atlas
+        for (id, tile) in tiles.iter() {
+            if let Some(rects) = elements.get(id) {
+                for (buffer, rect) in tile.buffer.iter().zip(rects) {
+                    let width = buffer.dim().width as usize;
+                    let height = buffer.dim().height as usize;
+                    let rect_x = rect.x as usize;
+                    let rect_y = rect.y as usize;
+
+                    for y in 0..height {
+                        for x in 0..width {
+                            let src_index = (y * width + x) * 4;
+                            let dest_index =
+                                ((rect_y + y) * atlas_size as usize + (rect_x + x)) * 4;
+
+                            atlas[dest_index..dest_index + 4]
+                                .copy_from_slice(&buffer.pixels()[src_index..src_index + 4]);
+                        }
+                    }
+                }
+            }
+        }
+
+        let texture = RgbaTexture::new(atlas, atlas_size as usize, atlas_size as usize);
+        self.sampler = Some(texture.nearest().tiled());
+        self.atlas_size = atlas_size as f32;
+        self.elements = elements;
+
         self.textures = tiles;
+        self.texture_sampler = texture_sampler;
     }
 
     pub fn set_position(&mut self, position: Vec3f) {
@@ -119,36 +198,59 @@ impl MapRender {
                         let mut uvs: Vec<Vec2f> = vec![];
                         let bbox = sector.bounding_box(&region.map);
 
-                        for vertex in &geo.0 {
-                            let local = ServerContext::map_grid_to_local(
-                                screen_size,
-                                vec2f(vertex[0], vertex[1]),
-                                &region.map,
-                            );
+                        let repeat = true;
 
-                            let texture_scale = 1.0;
+                        if let Some(floor_texture_id) = &sector.floor_texture {
+                            if let Some(el) = self.elements.get(floor_texture_id) {
+                                for vertex in &geo.0 {
+                                    let local = ServerContext::map_grid_to_local(
+                                        screen_size,
+                                        vec2f(vertex[0], vertex[1]),
+                                        &region.map,
+                                    );
 
-                            let uv = vec2f(
-                                (vertex[0] - bbox.0.x) / texture_scale,
-                                (vertex[1] - bbox.0.y) / texture_scale,
-                            );
+                                    // Scale up to polygon bbox
+                                    if !repeat {
+                                        let uv = vec2f(
+                                            (el[0].x as f32
+                                                + ((vertex[0] - bbox.0.x) / (bbox.1.x - bbox.0.x)
+                                                    * el[0].z as f32))
+                                                / self.atlas_size,
+                                            (el[0].y as f32
+                                                + (vertex[1] - bbox.0.y) / (bbox.1.y - bbox.0.y)
+                                                    * el[0].w as f32)
+                                                / self.atlas_size,
+                                        );
+                                        uvs.push(uv);
+                                    } else {
+                                        let texture_scale = 1.0;
+                                        let uv = vec2f(
+                                            (vertex[0] - bbox.0.x) / texture_scale,
+                                            (vertex[1] - bbox.0.y) / texture_scale,
+                                        );
+                                        uvs.push(uv);
+                                    }
+                                    vertices.push(local);
+                                }
 
-                            vertices.push(local);
-                            uvs.push(uv);
-                        }
+                                drawer.add_textured_polygon(vertices, geo.1, uvs);
+                                if !repeat {
+                                    if let Some(sampler) = &self.sampler {
+                                        drawer.draw_as_textured_triangles(sampler);
+                                    }
+                                } else if let Some(sampler_array) =
+                                    self.texture_sampler.get(floor_texture_id)
+                                {
+                                    // let texture = RgbaTexture::new(
+                                    //     tile.buffer[0].pixels().to_vec(),
+                                    //     tile.buffer[0].dim().width as usize,
+                                    //     tile.buffer[0].dim().height as usize,
+                                    // );
 
-                        drawer.add_textured_polygon(vertices, geo.1, uvs);
-                        if let Some(value) = self
-                            .textures
-                            .get(&Uuid::parse_str("7a16f87f-c637-4a18-afcc-8fddb5535906").unwrap())
-                        {
-                            let texture = RgbaTexture::new(
-                                value.buffer[0].pixels().to_vec(),
-                                value.buffer[0].dim().width as usize,
-                                value.buffer[0].dim().height as usize,
-                            );
-                            drawer.draw_as_textured_triangles(&texture);
-                            drawer.blend_into(buffer);
+                                    drawer.draw_as_textured_triangles(&sampler_array[0]);
+                                }
+                                drawer.blend_into(buffer);
+                            }
                         }
                     }
                 }
