@@ -2,6 +2,13 @@ use earcutr::earcut;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub enum MapCamera {
+    TwoD,
+    ThreeDIso,
+    ThreeDFirstPerson,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct Map {
     pub offset: Vec2f,
     pub grid_size: f32,
@@ -22,6 +29,9 @@ pub struct Map {
     pub vertices: Vec<Vertex>,
     pub linedefs: Vec<Linedef>,
     pub sectors: Vec<Sector>,
+
+    // Camera Mode
+    pub camera: MapCamera,
 
     // Selection
     pub selected_vertices: Vec<u32>,
@@ -50,6 +60,8 @@ impl Map {
             vertices: vec![],
             linedefs: vec![],
             sectors: vec![],
+
+            camera: MapCamera::TwoD,
 
             selected_vertices: vec![],
             selected_linedefs: vec![],

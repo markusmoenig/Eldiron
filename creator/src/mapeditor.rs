@@ -91,6 +91,39 @@ impl MapEditor {
         vlayout.limiter_mut().set_max_width(90);
         vlayout.set_margin(vec4i(0, 10, 0, 5));
 
+        let mut icon_preview = TheIconView::new(TheId::named("Icon Preview"));
+        icon_preview.set_alpha_mode(false);
+        icon_preview.limiter_mut().set_max_size(vec2i(65, 65));
+        icon_preview.set_border_color(Some([100, 100, 100, 255]));
+        vlayout.add_widget(Box::new(icon_preview));
+
+        let mut spacer = TheIconView::new(TheId::empty());
+        spacer.limiter_mut().set_max_height(2);
+        vlayout.add_widget(Box::new(spacer));
+
+        let mut view_mode_gb = TheGroupButton::new(TheId::named("Map Editor Camera"));
+        view_mode_gb.add_text_status_icon(
+            "".to_string(),
+            "2D Camera".to_string(),
+            "square".to_string(),
+        );
+        view_mode_gb.add_text_status_icon(
+            "".to_string(),
+            "3D Camera: Iso".to_string(),
+            "cube".to_string(),
+        );
+        view_mode_gb.add_text_status_icon(
+            "".to_string(),
+            "3D Camera: First person".to_string(),
+            "camera".to_string(),
+        );
+        view_mode_gb.set_item_width(26);
+        vlayout.add_widget(Box::new(view_mode_gb));
+
+        let mut spacer = TheIconView::new(TheId::empty());
+        spacer.limiter_mut().set_max_height(0);
+        vlayout.add_widget(Box::new(spacer));
+
         let mut grid_sub_div = TheTextLineEdit::new(TheId::named("Grid Subdiv"));
         grid_sub_div.set_value(TheValue::Float(1.0));
         // opacity.set_default_value(TheValue::Float(1.0));
@@ -105,12 +138,6 @@ impl MapEditor {
         let mut spacer = TheIconView::new(TheId::empty());
         spacer.limiter_mut().set_max_height(2);
         vlayout.add_widget(Box::new(spacer));
-
-        let mut icon_preview = TheIconView::new(TheId::named("Icon Preview"));
-        icon_preview.set_alpha_mode(false);
-        icon_preview.limiter_mut().set_max_size(vec2i(65, 65));
-        icon_preview.set_border_color(Some([100, 100, 100, 255]));
-        vlayout.add_widget(Box::new(icon_preview));
 
         let mut ground_icon = TheIconView::new(TheId::named("Ground Icon"));
         ground_icon.set_text(Some("FLOOR".to_string()));
@@ -154,10 +181,10 @@ impl MapEditor {
         text.set_text_color([200, 200, 200, 255]);
         vlayout.add_widget(Box::new(text));
 
-        let mut text = TheText::new(TheId::named("Cursor Height"));
-        text.set_text("H: -".to_string());
-        text.set_text_color([200, 200, 200, 255]);
-        vlayout.add_widget(Box::new(text));
+        // let mut text = TheText::new(TheId::named("Cursor Height"));
+        // text.set_text("H: -".to_string());
+        // text.set_text_color([200, 200, 200, 255]);
+        // vlayout.add_widget(Box::new(text));
 
         tile_picker.set_layout(vlayout);
         center.set_left(tile_picker);
@@ -349,7 +376,18 @@ impl MapEditor {
             //         redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx, false);
             //     }
             TheEvent::IndexChanged(id, index) => {
-                if id.name == "2D3D Group" {
+                if id.name == "Map Editor Camera" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if *index == 0 {
+                            region.map.camera = MapCamera::TwoD;
+                        } else if *index == 1 {
+                            region.map.camera = MapCamera::ThreeDIso;
+                        } else if *index == 2 {
+                            region.map.camera = MapCamera::ThreeDFirstPerson;
+                        }
+                        server.update_region(region);
+                    }
+                } else if id.name == "2D3D Group" {
                     if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
                         if *index == 0 {
                             project.map_mode = MapMode::TwoD;

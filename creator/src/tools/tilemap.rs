@@ -22,7 +22,7 @@ impl Tool for TilemapTool {
         str!("Tilemap Tool (T). Create new tiles from your tilemaps.")
     }
     fn icon_name(&self) -> String {
-        str!("square")
+        str!("bricks")
     }
     fn accel(&self) -> Option<char> {
         Some('t')
