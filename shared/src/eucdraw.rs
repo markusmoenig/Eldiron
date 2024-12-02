@@ -186,6 +186,7 @@ impl EucDraw {
         }
     }
 
+    /// Blend into the given TheRGBABuffer.
     pub fn blend_into(&mut self, ext: &mut TheRGBABuffer) {
         let b = TheRGBABuffer::from(
             self.buffer
@@ -198,6 +199,14 @@ impl EucDraw {
         );
 
         ext.blend_into(0, 0, &b);
+    }
+
+    /// Clears all data.
+    pub fn clear(&mut self) {
+        self.colored_vertices.clear();
+        self.vertices.clear();
+        self.indices.clear();
+        self.uvs.clear();
     }
 
     fn cx(&self, v: f32) -> f32 {

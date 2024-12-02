@@ -6,6 +6,8 @@ use crate::editor::UNDOMANAGER;
 
 pub struct LinedefTool {
     id: TheId,
+    click_pos: Vec2f,
+    rectangle_undo_map: Map,
 }
 
 impl Tool for LinedefTool {
@@ -15,6 +17,8 @@ impl Tool for LinedefTool {
     {
         Self {
             id: TheId::named("Linedef Tool"),
+            click_pos: Vec2f::zero(),
+            rectangle_undo_map: Map::default(),
         }
     }
 
@@ -37,8 +41,8 @@ impl Tool for LinedefTool {
         _tool_context: ToolContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
-        _server: &mut Server,
+        project: &mut Project,
+        server: &mut Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
@@ -60,11 +64,23 @@ impl Tool for LinedefTool {
                 server_ctx.curr_area = None;
                 server_ctx.curr_map_tool_type = MapToolType::Linedef;
 
+                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    region.map.selected_vertices.clear();
+                    region.map.selected_sectors.clear();
+                    server.update_region(region);
+                }
+
+                return true;
+            }
+            DeActivate => {
+                server_ctx.curr_map_tool_type = MapToolType::General;
+                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    region.map.clear_temp();
+                    server.update_region(region);
+                }
                 return true;
             }
             _ => {
-                server_ctx.curr_map_tool_type = MapToolType::General;
-
                 return false;
             }
         };

@@ -37,8 +37,8 @@ impl Tool for SectorTool {
         _tool_context: ToolContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
-        _server: &mut Server,
+        project: &mut Project,
+        server: &mut Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
@@ -59,6 +59,12 @@ impl Tool for SectorTool {
                 server_ctx.curr_item_instance = None;
                 server_ctx.curr_area = None;
                 server_ctx.curr_map_tool_type = MapToolType::Sector;
+
+                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    region.map.selected_vertices.clear();
+                    region.map.selected_linedefs.clear();
+                    server.update_region(region);
+                }
 
                 return true;
             }

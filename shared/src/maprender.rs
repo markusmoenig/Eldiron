@@ -189,6 +189,7 @@ impl MapRender {
 
             // Draw Sectors
             if server_ctx.curr_map_tool_type == MapToolType::General
+                || server_ctx.curr_map_tool_type == MapToolType::Selection
                 || server_ctx.curr_map_tool_type == MapToolType::Sector
             {
                 for sector in &region.map.sectors {
@@ -241,12 +242,6 @@ impl MapRender {
                                 } else if let Some(sampler_array) =
                                     self.texture_sampler.get(floor_texture_id)
                                 {
-                                    // let texture = RgbaTexture::new(
-                                    //     tile.buffer[0].pixels().to_vec(),
-                                    //     tile.buffer[0].dim().width as usize,
-                                    //     tile.buffer[0].dim().height as usize,
-                                    // );
-
                                     drawer.draw_as_textured_triangles(&sampler_array[0]);
                                 }
                                 drawer.blend_into(buffer);
@@ -257,7 +252,7 @@ impl MapRender {
             }
 
             // Draw Vertices
-            if server_ctx.curr_map_tool_type == MapToolType::General
+            if server_ctx.curr_map_tool_type == MapToolType::Selection
                 || server_ctx.curr_map_tool_type == MapToolType::Vertex
             {
                 for vertex in &region.map.vertices {
@@ -290,8 +285,9 @@ impl MapRender {
             drawer.blend_into(buffer);
 
             // Draw Lines
-            if server_ctx.curr_map_tool_type == MapToolType::General
+            if server_ctx.curr_map_tool_type == MapToolType::Selection
                 || server_ctx.curr_map_tool_type == MapToolType::Linedef
+                || server_ctx.curr_map_tool_type == MapToolType::Sector
             {
                 for linedef in &region.map.linedefs {
                     if let Some(start_vertex) = region.map.find_vertex(linedef.start_vertex) {
@@ -307,10 +303,37 @@ impl MapRender {
                                 &region.map,
                             );
 
-                            #[allow(clippy::collapsible_else_if)]
-                            let color = if server_ctx.hover.1 == Some(linedef.id)
+                            let mut selected = false;
+                            if server_ctx.hover.1 == Some(linedef.id)
                                 || region.map.selected_linedefs.contains(&linedef.id)
                             {
+                                selected = true;
+                            } else if server_ctx.curr_map_tool_type == MapToolType::Sector
+                                || server_ctx.curr_map_tool_type == MapToolType::General
+                            {
+                                // Check for sector selection when in sector mode.
+                                if let Some(front_sector) = linedef.front_sector {
+                                    if let Some(sector) = region.map.find_sector(front_sector) {
+                                        if server_ctx.hover.2 == Some(sector.id)
+                                            || region.map.selected_sectors.contains(&sector.id)
+                                        {
+                                            selected = true;
+                                        }
+                                    }
+                                }
+                                if let Some(back_sector) = linedef.back_sector {
+                                    if let Some(sector) = region.map.find_sector(back_sector) {
+                                        if server_ctx.hover.2 == Some(sector.id)
+                                            || region.map.selected_sectors.contains(&sector.id)
+                                        {
+                                            selected = true;
+                                        }
+                                    }
+                                }
+                            }
+
+                            #[allow(clippy::collapsible_else_if)]
+                            let color = if selected {
                                 [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
                             } else {
                                 if region.map.is_linedef_in_closed_polygon(linedef.id) {
@@ -332,29 +355,20 @@ impl MapRender {
                 }
             }
 
-            /*
-            if let Some(value) = self
-                .textures
-                .get(&Uuid::parse_str("7a16f87f-c637-4a18-afcc-8fddb5535906").unwrap())
-            {
-                let texture = Some(RgbaTexture::new(
-                    value.buffer[0].pixels().to_vec(),
-                    value.buffer[0].dim().width as usize,
-                    value.buffer[0].dim().height as usize,
-                ));
-
-                if let Some(texture) = texture {
-                    drawer.add_textured_box(100.0, 100.0, 200.0, 200.0, [0.0, 0.0], [1.0, 1.0]);
-                    drawer.draw_as_textured_triangles(&texture);
-                }
-            }*/
-
-            // For action previews
+            // For line action previews
             if let Some(grid_pos) = region.map.curr_grid_pos {
                 let local = ServerContext::map_grid_to_local(screen_size, grid_pos, &region.map);
                 if let Some(mouse_pos) = region.map.curr_mouse_pos {
                     drawer.add_line(local.x, local.y, mouse_pos.x, mouse_pos.y, Rgba::white());
                 }
+            }
+
+            // For rectangle selection preview
+            if let Some(rect) = region.map.curr_rectangle {
+                drawer.add_line(rect.0.x, rect.0.y, rect.1.x, rect.0.y, Rgba::white());
+                drawer.add_line(rect.0.x, rect.0.y, rect.0.x, rect.1.y, Rgba::white());
+                drawer.add_line(rect.1.x, rect.1.y, rect.1.x, rect.0.y, Rgba::white());
+                drawer.add_line(rect.1.x, rect.1.y, rect.0.x, rect.1.y, Rgba::white());
             }
 
             drawer.draw_as_lines();

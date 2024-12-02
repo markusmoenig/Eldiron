@@ -16,6 +16,8 @@ pub struct Map {
     pub curr_grid_pos: Option<Vec2f>,
     #[serde(skip)]
     pub curr_mouse_pos: Option<Vec2f>,
+    #[serde(skip)]
+    pub curr_rectangle: Option<(Vec2f, Vec2f)>,
 
     pub vertices: Vec<Vertex>,
     pub linedefs: Vec<Linedef>,
@@ -43,6 +45,7 @@ impl Map {
             possible_polygon: vec![],
             curr_grid_pos: None,
             curr_mouse_pos: None,
+            curr_rectangle: None,
 
             vertices: vec![],
             linedefs: vec![],
@@ -59,6 +62,7 @@ impl Map {
         self.possible_polygon = vec![];
         self.curr_grid_pos = None;
         self.curr_mouse_pos = None;
+        self.curr_rectangle = None;
     }
 
     //
@@ -274,6 +278,43 @@ impl Map {
         self.sectors
             .iter()
             .any(|sector| sector.linedefs.contains(&linedef_id))
+    }
+
+    /// Add the given geometry to the selection.
+    pub fn add_to_selection(&mut self, vertices: Vec<u32>, linedefs: Vec<u32>, sectors: Vec<u32>) {
+        for v in &vertices {
+            if !self.selected_vertices.contains(v) {
+                self.selected_vertices.push(*v);
+            }
+        }
+        for l in &linedefs {
+            if !self.selected_linedefs.contains(l) {
+                self.selected_linedefs.push(*l);
+            }
+        }
+        for s in &sectors {
+            if !self.selected_sectors.contains(s) {
+                self.selected_sectors.push(*s);
+            }
+        }
+    }
+
+    /// Remove the given geometry from the selection.
+    pub fn remove_from_selection(
+        &mut self,
+        vertices: Vec<u32>,
+        linedefs: Vec<u32>,
+        sectors: Vec<u32>,
+    ) {
+        for v in &vertices {
+            self.selected_vertices.retain(|&selected| selected != *v);
+        }
+        for l in &linedefs {
+            self.selected_linedefs.retain(|&selected| selected != *l);
+        }
+        for s in &sectors {
+            self.selected_sectors.retain(|&selected| selected != *s);
+        }
     }
 }
 
