@@ -8,6 +8,7 @@ pub struct LinedefTool {
     id: TheId,
     click_pos: Vec2f,
     rectangle_undo_map: Map,
+    rectangle_mode: bool,
 }
 
 impl Tool for LinedefTool {
@@ -19,6 +20,7 @@ impl Tool for LinedefTool {
             id: TheId::named("Linedef Tool"),
             click_pos: Vec2f::zero(),
             rectangle_undo_map: Map::default(),
+            rectangle_mode: false,
         }
     }
 
@@ -178,83 +180,315 @@ impl Tool for LinedefTool {
     ) -> bool {
         let mut redraw = false;
         match event {
-            TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
-                if *code == TheKeyCode::Escape {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        region.map.clear_temp();
-                        server.update_region(region);
-                    }
-                    redraw = true;
-                } else {
-                    redraw = false;
-                }
-            }
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == "PolyView" {
-                    let mut set_current_gid_pos = true;
+                    if server_ctx.hover.1.is_some() {
+                        // Selected hovered line
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            let prev = region.map.clone();
+                            let mut changed = false;
 
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if let Some(render_view) = ui.get_render_view("PolyView") {
-                            let dim = *render_view.dim();
-                            let grid_pos = server_ctx.local_to_map_grid(
-                                vec2f(dim.width as f32, dim.height as f32),
-                                vec2f(coord.x as f32, coord.y as f32),
-                                &region.map,
-                                region.map.subdivisions,
-                            );
-
-                            if let Some(curr_grid_pos) = region.map.curr_grid_pos {
-                                if curr_grid_pos.x != grid_pos.x || curr_grid_pos.y != grid_pos.y {
-                                    let prev = region.map.clone();
-
-                                    let start_vertex =
-                                        region.map.add_vertex_at(curr_grid_pos.x, curr_grid_pos.y);
-                                    let end_vertex =
-                                        region.map.add_vertex_at(grid_pos.x, grid_pos.y);
-
-                                    // Returns id of linedef and optional id of new sector if polygon closes
-                                    let ids = region.map.create_linedef(start_vertex, end_vertex);
-
-                                    if ids.1.is_some() {
-                                        // When we close a polygon delete the temporary data
-                                        region.map.clear_temp();
-                                        set_current_gid_pos = false;
+                            if ui.shift {
+                                // Add
+                                if let Some(l) = server_ctx.hover.1 {
+                                    if !region.map.selected_linedefs.contains(&l) {
+                                        region.map.selected_linedefs.push(l);
+                                        changed = true;
                                     }
-
-                                    server.update_region(region);
-
-                                    let undo = RegionUndoAtom::MapEdit(
-                                        Box::new(prev),
-                                        Box::new(region.map.clone()),
-                                    );
-
-                                    UNDOMANAGER
-                                        .lock()
-                                        .unwrap()
-                                        .add_region_undo(&region.id, undo, ctx);
+                                }
+                            } else if ui.alt {
+                                // Subtract
+                                if let Some(l) = server_ctx.hover.1 {
+                                    region
+                                        .map
+                                        .selected_linedefs
+                                        .retain(|&selected| selected != l);
+                                    changed = true;
+                                }
+                            } else {
+                                // Replace
+                                if let Some(v) = server_ctx.hover.1 {
+                                    region.map.selected_linedefs = vec![v];
+                                    changed = true;
+                                } else {
+                                    region.map.selected_linedefs.clear();
+                                    changed = true;
                                 }
                             }
 
-                            if set_current_gid_pos {
-                                region.map.curr_grid_pos = Some(grid_pos);
+                            if changed {
+                                let undo = RegionUndoAtom::MapEdit(
+                                    Box::new(prev),
+                                    Box::new(region.map.clone()),
+                                );
+
+                                UNDOMANAGER
+                                    .lock()
+                                    .unwrap()
+                                    .add_region_undo(&region.id, undo, ctx);
+
+                                server.update_region(region);
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Map Selection Changed"),
+                                    TheValue::Empty,
+                                ));
                             }
+                        }
+                    } else {
+                        // Line mode
+                        let mut set_current_gid_pos = true;
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                                let dim = *render_view.dim();
+                                let grid_pos = server_ctx.local_to_map_grid(
+                                    vec2f(dim.width as f32, dim.height as f32),
+                                    vec2f(coord.x as f32, coord.y as f32),
+                                    &region.map,
+                                    region.map.subdivisions,
+                                );
+
+                                if let Some(curr_grid_pos) = region.map.curr_grid_pos {
+                                    if curr_grid_pos.x != grid_pos.x
+                                        || curr_grid_pos.y != grid_pos.y
+                                    {
+                                        let prev = region.map.clone();
+
+                                        let start_vertex = region
+                                            .map
+                                            .add_vertex_at(curr_grid_pos.x, curr_grid_pos.y);
+                                        let end_vertex =
+                                            region.map.add_vertex_at(grid_pos.x, grid_pos.y);
+
+                                        // Returns id of linedef and optional id of new sector if polygon closes
+                                        let ids =
+                                            region.map.create_linedef(start_vertex, end_vertex);
+
+                                        if ids.1.is_some() {
+                                            // When we close a polygon delete the temporary data
+                                            region.map.clear_temp();
+                                            set_current_gid_pos = false;
+                                        }
+
+                                        server.update_region(region);
+
+                                        let undo = RegionUndoAtom::MapEdit(
+                                            Box::new(prev),
+                                            Box::new(region.map.clone()),
+                                        );
+
+                                        UNDOMANAGER
+                                            .lock()
+                                            .unwrap()
+                                            .add_region_undo(&region.id, undo, ctx);
+                                    }
+                                }
+
+                                if set_current_gid_pos {
+                                    region.map.curr_grid_pos = Some(grid_pos);
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        self.click_pos = vec2f(coord.x as f32, coord.y as f32);
+                        self.rectangle_undo_map = region.map.clone();
+                        self.rectangle_mode = false;
+                    }
+
+                    redraw = true;
+                }
+            }
+            TheEvent::RenderViewHoverChanged(id, coord) => {
+                if id.name == "PolyView" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                            let dim = *render_view.dim();
+                            if !self.rectangle_mode {
+                                region.map.curr_mouse_pos =
+                                    Some(vec2f(coord.x as f32, coord.y as f32));
+                            }
+                            let mut hover = server_ctx.geometry_at(
+                                vec2f(dim.width as f32, dim.height as f32),
+                                vec2f(coord.x as f32, coord.y as f32),
+                                &region.map,
+                            );
+                            hover.0 = None;
+                            hover.2 = None;
+                            server_ctx.hover = hover;
+                            server.update_region(region);
                             redraw = true;
                         }
                     }
                 }
             }
-            TheEvent::RenderViewDragged(_id, _coord) => {}
-
-            TheEvent::RenderViewHoverChanged(id, coord) => {
+            TheEvent::RenderViewDragged(id, coord) => {
                 if id.name == "PolyView" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        region.map.curr_mouse_pos = Some(vec2f(coord.x as f32, coord.y as f32));
-                        server.update_region(region);
-                        redraw = true;
+                    if !self.rectangle_mode {
+                        let dist = distance(self.click_pos, vec2f(coord.x as f32, coord.y as f32));
+                        if dist > 10.0 {
+                            self.rectangle_mode = true;
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                region.map.clear_temp();
+                                server.update_region(region);
+                            }
+                        }
+                    }
+
+                    if self.rectangle_mode {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                                let dim = *render_view.dim();
+                                let click_pos = server_ctx.local_to_map_grid(
+                                    vec2f(dim.width as f32, dim.height as f32),
+                                    self.click_pos,
+                                    &region.map,
+                                    region.map.subdivisions,
+                                );
+                                let drag_pos = server_ctx.local_to_map_grid(
+                                    vec2f(dim.width as f32, dim.height as f32),
+                                    vec2f(coord.x as f32, coord.y as f32),
+                                    &region.map,
+                                    region.map.subdivisions,
+                                );
+
+                                let top_left = Vec2f::new(
+                                    click_pos.x.min(drag_pos.x),
+                                    click_pos.y.min(drag_pos.y),
+                                );
+                                let bottom_right = Vec2f::new(
+                                    click_pos.x.max(drag_pos.x),
+                                    click_pos.y.max(drag_pos.y),
+                                );
+
+                                let mut selection = server_ctx.geometry_in_rectangle(
+                                    top_left,
+                                    bottom_right,
+                                    &region.map,
+                                );
+
+                                selection.0 = vec![];
+                                selection.2 = vec![];
+
+                                region.map = self.rectangle_undo_map.clone();
+                                region.map.curr_grid_pos = None;
+                                region.map.curr_rectangle =
+                                    Some((self.click_pos, vec2f(coord.x as f32, coord.y as f32)));
+
+                                if ui.shift {
+                                    // Add
+                                    region.map.add_to_selection(
+                                        selection.0,
+                                        selection.1,
+                                        selection.2,
+                                    );
+                                } else if ui.alt {
+                                    // Remove
+                                    region.map.remove_from_selection(
+                                        selection.0,
+                                        selection.1,
+                                        selection.2,
+                                    );
+                                } else {
+                                    // Replace
+                                    region.map.selected_linedefs = selection.1;
+                                }
+
+                                server.update_region(region);
+                            }
+                        }
                     }
                 }
+                redraw = true;
             }
+            TheEvent::RenderViewUp(id, _coord) => {
+                if self.rectangle_mode && id.name == "PolyView" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if region.map.curr_rectangle.is_some() {
+                            region.map.clear_temp();
+                            self.rectangle_mode = false;
+                            server.update_region(region);
 
+                            let undo = RegionUndoAtom::MapEdit(
+                                Box::new(self.rectangle_undo_map.clone()),
+                                Box::new(region.map.clone()),
+                            );
+
+                            UNDOMANAGER
+                                .lock()
+                                .unwrap()
+                                .add_region_undo(&region.id, undo, ctx);
+
+                            server.update_region(region);
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Map Selection Changed"),
+                                TheValue::Empty,
+                            ));
+                        }
+                    }
+                }
+                redraw = true;
+            }
+            TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
+                #[allow(clippy::collapsible_if)]
+                if *code == TheKeyCode::Escape {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        region.map.clear_temp();
+                        server.update_region(region);
+                        // Hover is empty, check if we need to clear selection
+                        if !region.map.selected_linedefs.is_empty() {
+                            let prev = region.map.clone();
+
+                            region.map.selected_linedefs.clear();
+
+                            let undo = RegionUndoAtom::MapEdit(
+                                Box::new(prev),
+                                Box::new(region.map.clone()),
+                            );
+
+                            UNDOMANAGER
+                                .lock()
+                                .unwrap()
+                                .add_region_undo(&region.id, undo, ctx);
+
+                            server.update_region(region);
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Map Selection Changed"),
+                                TheValue::Empty,
+                            ));
+                        }
+                    }
+                }
+                if *code == TheKeyCode::Delete {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if !region.map.selected_linedefs.is_empty() {
+                            let prev = region.map.clone();
+                            let lines = region.map.selected_linedefs.clone();
+
+                            #[allow(clippy::useless_vec)]
+                            region.map.delete_elements(&vec![], &lines, &vec![]);
+                            region.map.selected_linedefs.clear();
+
+                            let undo = RegionUndoAtom::MapEdit(
+                                Box::new(prev),
+                                Box::new(region.map.clone()),
+                            );
+
+                            UNDOMANAGER
+                                .lock()
+                                .unwrap()
+                                .add_region_undo(&region.id, undo, ctx);
+
+                            server.update_region(region);
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Map Selection Changed"),
+                                TheValue::Empty,
+                            ));
+                        }
+                    }
+                }
+                redraw = true;
+            }
             _ => {}
         }
         redraw
