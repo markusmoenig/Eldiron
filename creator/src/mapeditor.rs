@@ -777,6 +777,19 @@ impl MapEditor {
                                     sector.floor_texture = self.curr_tile_uuid;
                                 }
                             }
+                        } else if self.texture_mode == MapTextureMode::Wall {
+                            let mut linedef_ids = Vec::new();
+                            for sector_id in &region.map.selected_sectors {
+                                if let Some(sector) = region.map.find_sector(*sector_id) {
+                                    linedef_ids.extend(&sector.linedefs);
+                                }
+                            }
+
+                            for linedef_id in linedef_ids {
+                                if let Some(linedef) = region.map.find_linedef_mut(linedef_id) {
+                                    linedef.texture = self.curr_tile_uuid;
+                                }
+                            }
                         }
 
                         let undo =

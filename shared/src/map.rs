@@ -355,6 +355,7 @@ pub struct Linedef {
     pub back_sector: Option<u32>,
     pub texture: Option<Uuid>,
     pub material: Option<u8>,
+    pub wall_height: f32,
 }
 
 impl Linedef {
@@ -367,6 +368,7 @@ impl Linedef {
             back_sector: None,
             texture: None,
             material: None,
+            wall_height: 0.0,
         }
     }
 }
@@ -428,6 +430,15 @@ impl Sector {
 
         // Return the bounding box corners
         (Vec2f::new(min_x, min_y), Vec2f::new(max_x, max_y))
+    }
+
+    /// Sets the wall height for all linedefs in the sector.
+    pub fn set_wall_height(&self, map: &mut Map, height: f32) {
+        for &linedef_id in &self.linedefs {
+            if let Some(linedef) = map.linedefs.iter_mut().find(|l| l.id == linedef_id) {
+                linedef.wall_height = height;
+            }
+        }
     }
 
     /// Generate geometry (vertices and indices) for the polygon using earcutr

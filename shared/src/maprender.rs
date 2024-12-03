@@ -398,6 +398,7 @@ impl MapRender {
 
                 buffer.fill(BLACK);
 
+                /*
                 for sector in &region.map.sectors {
                     if let Some(geo) = sector.generate_geometry(&region.map) {
                         // Convert the triangles from grid to local coordinates
@@ -408,7 +409,7 @@ impl MapRender {
                         if let Some(floor_texture_id) = &sector.floor_texture {
                             if let Some(el) = self.elements.get(floor_texture_id) {
                                 for vertex in geo.0.iter() {
-                                    let v = vec3f(vertex[0] * 1.0, vertex[1] * 1.0, 1.0);
+                                    let v = vec3f(vertex[0], 0.0, vertex[1]);
 
                                     let uv = vec2f(
                                         (el[0].x as f32
@@ -424,11 +425,11 @@ impl MapRender {
                                     vertices.push(v);
                                 }
 
-                                drawer.add_mesh(vertices, geo.1, uvs);
+                                //drawer.add_mesh(vertices, geo.1, uvs);
                             }
                         }
                     }
-                }
+                }*/
 
                 /*
                 let positions = [
@@ -500,16 +501,20 @@ impl MapRender {
                 let indices = [
                     0, 3, 1, 1, 3, 2, 4, 5, 7, 5, 6, 7, 8, 11, 9, 9, 11, 10, 12, 13, 15, 13, 14,
                     15, 16, 17, 19, 17, 18, 19, 20, 23, 21, 21, 23, 22,
-                ];*/
+                ];
 
-                //drawer.add_mesh(positions.to_vec(), indices.to_vec(), uvs.to_vec());
+                drawer.add_mesh(positions.to_vec(), indices.to_vec(), uvs.to_vec());
+                */
+
+                let geo = generate_map_geometry(&region.map, self.atlas_size, &self.elements);
+                drawer.add_mesh(geo.vertices, geo.indices, geo.uvs);
 
                 let projection =
                     vek::Mat4::perspective_fov_rh_no(1.4, width as f32, height as f32, 0.01, 100.0);
 
                 let view: vek::Mat4<f32> = vek::Mat4::look_at_rh(
-                    vek::Vec3::new(0.0, 0.1, 5.0), // Camera position
-                    vek::Vec3::new(0.0, 0.2, 0.0), // Target
+                    vek::Vec3::new(0.0, 1.5, 5.0), // Camera position
+                    vek::Vec3::new(0.0, 1.5, 0.0), // Target
                     vek::Vec3::new(0.0, 1.0, 0.0), // Up vector
                 );
                 //let rotation = vek::Mat4::<f32>::rotation_x(0.0);

@@ -386,13 +386,13 @@ impl<'r, S: Sampler<2, Index = f32, Sample = Rgba<f32>>> Pipeline<'r> for Textur
 
     #[inline(always)]
     fn rasterizer_config(&self) -> CullMode {
-        CullMode::Back
+        CullMode::None
     }
 
     // Y is Down
     #[inline(always)]
     fn coordinate_mode(&self) -> CoordinateMode {
-        CoordinateMode::OPENGL
+        CoordinateMode::METAL
     }
 
     #[inline]

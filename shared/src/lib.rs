@@ -14,6 +14,7 @@ pub mod interaction;
 pub mod item;
 pub mod level;
 pub mod map;
+pub mod map_geometry;
 pub mod maprender;
 pub mod materialfxnode;
 pub mod materialfxobject;
@@ -61,6 +62,7 @@ pub mod prelude {
     pub use crate::item::Item;
     pub use crate::level::*;
     pub use crate::map::*;
+    pub use crate::map_geometry::*;
     pub use crate::maprender::*;
     pub use crate::materialfxnode::*;
     pub use crate::materialfxobject::*;

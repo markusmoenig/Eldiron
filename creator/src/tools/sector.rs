@@ -8,6 +8,8 @@ pub struct SectorTool {
     id: TheId,
     click_pos: Vec2f,
     rectangle_undo_map: Map,
+
+    wall_height: f32,
 }
 
 impl Tool for SectorTool {
@@ -19,6 +21,8 @@ impl Tool for SectorTool {
             id: TheId::named("Sector Tool"),
             click_pos: Vec2f::zero(),
             rectangle_undo_map: Map::default(),
+
+            wall_height: 0.0,
         }
     }
 
@@ -68,6 +72,19 @@ impl Tool for SectorTool {
                     region.map.selected_vertices.clear();
                     region.map.selected_linedefs.clear();
                     server.update_region(region);
+                }
+
+                if let Some(layout) = ui.get_hlayout("Game Tool Params") {
+                    layout.clear();
+                    let mut wall_height = TheTextLineEdit::new(TheId::named("Wall Height"));
+                    wall_height.set_value(TheValue::Float(self.wall_height));
+                    // opacity.set_default_value(TheValue::Float(1.0));
+                    wall_height.set_info_text(Some("Wall Height".to_string()));
+                    wall_height.set_range(TheValue::RangeF32(0.0..=4.0));
+                    wall_height.set_continuous(true);
+                    wall_height.limiter_mut().set_max_width(150);
+                    wall_height.set_status_text("The wall height of the enclosing linedefs.");
+                    layout.add_widget(Box::new(wall_height));
                 }
 
                 return true;
@@ -318,6 +335,29 @@ impl Tool for SectorTool {
                     }
                 }
                 redraw = true;
+            }
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == "Wall Height" {
+                    if let Some(value) = value.to_f32() {
+                        self.wall_height = value;
+
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            let mut linedef_ids = Vec::new();
+                            for sector_id in &region.map.selected_sectors {
+                                if let Some(sector) = region.map.find_sector(*sector_id) {
+                                    linedef_ids.extend(&sector.linedefs);
+                                }
+                            }
+
+                            for linedef_id in linedef_ids {
+                                if let Some(linedef) = region.map.find_linedef_mut(linedef_id) {
+                                    linedef.wall_height = value;
+                                }
+                            }
+                        }
+                    }
+                    redraw = true;
+                }
             }
 
             _ => {}
