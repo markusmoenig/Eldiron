@@ -381,12 +381,17 @@ impl<'r, S: Sampler<2, Index = f32, Sample = Rgba<f32>>> Pipeline<'r> for Textur
 
     #[inline(always)]
     fn aa_mode(&self) -> AaMode {
-        AaMode::Msaa { level: 1 }
+        AaMode::None //Msaa { level: 1 }
     }
 
     #[inline(always)]
     fn rasterizer_config(&self) -> CullMode {
         CullMode::None
+    }
+
+    #[inline(always)]
+    fn depth_mode(&self) -> DepthMode {
+        DepthMode::LESS_WRITE
     }
 
     // Y is Down

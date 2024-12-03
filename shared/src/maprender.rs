@@ -398,116 +398,8 @@ impl MapRender {
 
                 buffer.fill(BLACK);
 
-                /*
-                for sector in &region.map.sectors {
-                    if let Some(geo) = sector.generate_geometry(&region.map) {
-                        // Convert the triangles from grid to local coordinates
-                        let mut vertices: Vec<Vec3f> = vec![];
-                        let mut uvs: Vec<Vec2f> = vec![];
-                        let bbox = sector.bounding_box(&region.map);
-
-                        if let Some(floor_texture_id) = &sector.floor_texture {
-                            if let Some(el) = self.elements.get(floor_texture_id) {
-                                for vertex in geo.0.iter() {
-                                    let v = vec3f(vertex[0], 0.0, vertex[1]);
-
-                                    let uv = vec2f(
-                                        (el[0].x as f32
-                                            + ((vertex[0] - bbox.0.x) / (bbox.1.x - bbox.0.x)
-                                                * el[0].z as f32))
-                                            / self.atlas_size,
-                                        (el[0].y as f32
-                                            + (vertex[1] - bbox.0.y) / (bbox.1.y - bbox.0.y)
-                                                * el[0].w as f32)
-                                            / self.atlas_size,
-                                    );
-                                    uvs.push(uv);
-                                    vertices.push(v);
-                                }
-
-                                //drawer.add_mesh(vertices, geo.1, uvs);
-                            }
-                        }
-                    }
-                }*/
-
-                /*
-                let positions = [
-                    // z = 1
-                    Vec3f::new(-1.0, -1.0, 1.0),
-                    Vec3f::new(-1.0, 1.0, 1.0),
-                    Vec3f::new(1.0, 1.0, 1.0),
-                    Vec3f::new(1.0, -1.0, 1.0),
-                    // z == -1
-                    Vec3f::new(-1.0, -1.0, -1.0),
-                    Vec3f::new(-1.0, 1.0, -1.0),
-                    Vec3f::new(1.0, 1.0, -1.0),
-                    Vec3f::new(1.0, -1.0, -1.0),
-                    // y = 1
-                    Vec3f::new(-1.0, 1.0, 1.0),
-                    Vec3f::new(-1.0, 1.0, -1.0),
-                    Vec3f::new(1.0, 1.0, -1.0),
-                    Vec3f::new(1.0, 1.0, 1.0),
-                    // y = -1
-                    Vec3f::new(-1.0, -1.0, 1.0),
-                    Vec3f::new(-1.0, -1.0, -1.0),
-                    Vec3f::new(1.0, -1.0, -1.0),
-                    Vec3f::new(1.0, -1.0, 1.0),
-                    // x = 1
-                    Vec3f::new(1.0, -1.0, 1.0),
-                    Vec3f::new(1.0, -1.0, -1.0),
-                    Vec3f::new(1.0, 1.0, -1.0),
-                    Vec3f::new(1.0, 1.0, 1.0),
-                    // x = -1
-                    Vec3f::new(-1.0, -1.0, 1.0),
-                    Vec3f::new(-1.0, -1.0, -1.0),
-                    Vec3f::new(-1.0, 1.0, -1.0),
-                    Vec3f::new(-1.0, 1.0, 1.0),
-                ];
-                // Vertex texture coordinates
-                let uvs = [
-                    // z = 1
-                    Vec2f::new(0.0, 1.0),
-                    Vec2f::new(0.0, 0.0),
-                    Vec2f::new(1.0, 0.0),
-                    Vec2f::new(1.0, 1.0),
-                    // z = -1
-                    Vec2f::new(0.0, 0.0),
-                    Vec2f::new(0.0, 1.0),
-                    Vec2f::new(1.0, 1.0),
-                    Vec2f::new(1.0, 0.0),
-                    // y = 1
-                    Vec2f::new(0.0, 0.0),
-                    Vec2f::new(0.0, 1.0),
-                    Vec2f::new(1.0, 1.0),
-                    Vec2f::new(1.0, 0.0),
-                    // y = -1
-                    Vec2f::new(0.0, 0.0),
-                    Vec2f::new(0.0, 1.0),
-                    Vec2f::new(1.0, 1.0),
-                    Vec2f::new(1.0, 0.0),
-                    // x = 1
-                    Vec2f::new(1.0, 1.0),
-                    Vec2f::new(1.0, 0.0),
-                    Vec2f::new(0.0, 0.0),
-                    Vec2f::new(0.0, 1.0),
-                    // x = -1
-                    Vec2f::new(0.0, 1.0),
-                    Vec2f::new(0.0, 0.0),
-                    Vec2f::new(1.0, 0.0),
-                    Vec2f::new(1.0, 1.0),
-                ];
-
-                let indices = [
-                    0, 3, 1, 1, 3, 2, 4, 5, 7, 5, 6, 7, 8, 11, 9, 9, 11, 10, 12, 13, 15, 13, 14,
-                    15, 16, 17, 19, 17, 18, 19, 20, 23, 21, 21, 23, 22,
-                ];
-
-                drawer.add_mesh(positions.to_vec(), indices.to_vec(), uvs.to_vec());
-                */
-
-                let geo = generate_map_geometry(&region.map, self.atlas_size, &self.elements);
-                drawer.add_mesh(geo.vertices, geo.indices, geo.uvs);
+                let geo_map = generate_map_geometry(&region.map, self.atlas_size, &self.elements);
+                //drawer.add_mesh(geo.vertices, geo.indices, geo.uvs);
 
                 let projection =
                     vek::Mat4::perspective_fov_rh_no(1.4, width as f32, height as f32, 0.01, 100.0);
@@ -517,15 +409,26 @@ impl MapRender {
                     vek::Vec3::new(0.0, 1.5, 0.0), // Target
                     vek::Vec3::new(0.0, 1.0, 0.0), // Up vector
                 );
-                //let rotation = vek::Mat4::<f32>::rotation_x(0.0);
-                //let v = /*rotation */ vek::Mat4::<f32>::translation_3d(vek::Vec3::new(0.0, 0.0, -5.0));
+                let m = projection * view;
 
-                if let Some(sampler) = &self.sampler {
-                    drawer.draw_as_mesh(projection * view, sampler);
+                for (id, geo_vec) in geo_map.geometries.iter() {
+                    if let Some(sampler) = self.texture_sampler.get(id) {
+                        for geo in geo_vec.iter() {
+                            drawer.add_mesh(
+                                geo.vertices.clone(),
+                                geo.indices.clone(),
+                                geo.uvs.clone(),
+                            );
+                        }
+                        let index = 0; //settings.anim_counter % geo_vec.len();
+                        drawer.draw_as_mesh(m, &sampler[index]);
+                    }
                 }
                 drawer.blend_into(buffer);
             }
         }
+        let _stop = self.get_time();
+        println!("render time {:?}", _stop - _start);
     }
 
     // Draw the grid
