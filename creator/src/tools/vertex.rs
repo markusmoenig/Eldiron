@@ -72,9 +72,12 @@ impl Tool for VertexTool {
 
                 return true;
             }
-            _ => {
+            DeActivate => {
                 server_ctx.curr_map_tool_type = MapToolType::General;
-
+                server_ctx.hover_cursor = None;
+                return true;
+            }
+            _ => {
                 return false;
             }
         };
@@ -166,6 +169,19 @@ impl Tool for VertexTool {
                                 &region.map,
                             );
                             server_ctx.hover.0 = h.0;
+
+                            let cp = server_ctx.local_to_map_grid(
+                                vec2f(dim.width as f32, dim.height as f32),
+                                vec2f(coord.x as f32, coord.y as f32),
+                                &region.map,
+                                region.map.subdivisions,
+                            );
+
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Cursor Pos Changed"),
+                                TheValue::Float2(cp),
+                            ));
+                            server_ctx.hover_cursor = Some(cp);
                         }
                     }
                 }

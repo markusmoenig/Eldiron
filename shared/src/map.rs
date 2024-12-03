@@ -73,7 +73,6 @@ impl Map {
     pub fn clear_temp(&mut self) {
         self.possible_polygon = vec![];
         self.curr_grid_pos = None;
-        self.curr_mouse_pos = None;
         self.curr_rectangle = None;
     }
 
@@ -435,13 +434,17 @@ impl Sector {
     pub fn generate_geometry(&self, map: &Map) -> Option<(Vec<[f32; 2]>, Vec<u32>)> {
         // Collect unique vertices from the Linedefs in order
         let mut vertices = Vec::new();
-        for &linedef_id in &self.linedefs {
+        for &linedef_id in self.linedefs.iter() {
             let linedef = map.linedefs.get(linedef_id as usize)?;
             let start_vertex = map.vertices.get(linedef.start_vertex as usize)?;
             let vertex = [start_vertex.x, start_vertex.y];
 
             // Add the vertex to the list if it isn't already there
-            if vertices.last() != Some(&vertex) {
+            // if vertices.last() != Some(&vertex) {
+            //     vertices.push(vertex);
+            // }
+            //
+            if !vertices.contains(&vertex) {
                 vertices.push(vertex);
             }
         }

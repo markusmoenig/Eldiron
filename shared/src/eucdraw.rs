@@ -1,16 +1,19 @@
 use theframework::prelude::*;
 
 use euc::*;
-use vek::Vec2;
 use vek::*;
+use vek::{Mat4, Vec2, Vec4};
 
 use crate::prelude::RgbaTexture;
 pub struct EucDraw {
     view_size: Vec2f,
     buffer: Buffer2d<[u8; 4]>,
+    depth: Buffer2d<f32>,
 
     colored_vertices: Vec<([f32; 2], Rgba<f32>)>,
     vertices: Vec<Vec2<f32>>,
+    vertices_4d: Vec<Vec4<f32>>,
+
     uvs: Vec<Vec2<f32>>,
     indices: Vec<usize>,
 }
@@ -19,12 +22,15 @@ pub struct EucDraw {
 impl EucDraw {
     pub fn new(width: usize, height: usize) -> Self {
         let buffer = Buffer2d::fill([width, height], [0; 4]);
+        let depth = Buffer2d::fill([width, height], 1.0);
         Self {
             view_size: vec2f(width as f32, height as f32),
             buffer,
+            depth,
 
             colored_vertices: vec![],
             vertices: vec![],
+            vertices_4d: vec![],
             uvs: vec![],
 
             indices: vec![],
@@ -135,6 +141,23 @@ impl EucDraw {
         }
     }
 
+    /// Add mesh data.
+    pub fn add_mesh(&mut self, vertices: Vec<Vec3f>, indices: Vec<u32>, uvs: Vec<Vec2f>) {
+        let base_index = self.vertices_4d.len();
+
+        for v in &vertices {
+            self.vertices_4d.push(Vec4::new(v.x, v.y, v.z, 1.0));
+        }
+
+        for uv in &uvs {
+            self.uvs.push(Vec2::new(uv.x, uv.y));
+        }
+
+        for i in &indices {
+            self.indices.push(*i as usize + base_index);
+        }
+    }
+
     /// Add a line.
     pub fn add_line(&mut self, sx: f32, sy: f32, ex: f32, ey: f32, color: Rgba<f32>) {
         self.colored_vertices.extend([
@@ -158,9 +181,6 @@ impl EucDraw {
     /// Draw the textured triangles.
     pub fn draw_as_textured_triangles(&mut self, sampler: &Tiled<Nearest<RgbaTexture>>) {
         if !self.vertices.is_empty() {
-            // Create a linear sampler
-            //let sampler = texture.nearest().tiled();
-
             TexturedTriangles {
                 positions: &self.vertices[..],
                 uvs: &self.uvs[..],
@@ -169,6 +189,23 @@ impl EucDraw {
             .render(&self.indices, &mut self.buffer, &mut Empty::default());
 
             self.vertices.clear();
+            self.indices.clear();
+            self.uvs.clear();
+        }
+    }
+
+    /// Draw as mesh.
+    pub fn draw_as_mesh(&mut self, mvp: Mat4<f32>, sampler: &Tiled<Nearest<RgbaTexture>>) {
+        if !self.vertices_4d.is_empty() {
+            TexturedMesh {
+                mvp,
+                positions: &self.vertices_4d[..],
+                uvs: &self.uvs[..],
+                sampler,
+            }
+            .render(&self.indices, &mut self.buffer, &mut self.depth);
+
+            self.vertices_4d.clear();
             self.indices.clear();
             self.uvs.clear();
         }
@@ -310,6 +347,58 @@ impl<'r, S: Sampler<2, Index = f32, Sample = Rgba<f32>>> Pipeline<'r> for Textur
                 0.0,
                 1.0,
             ],
+            self.uvs[*v_index],
+        )
+    }
+
+    #[inline]
+    fn fragment(&self, uv: Self::VertexData) -> Self::Fragment {
+        self.sampler.sample(uv.into_array())
+    }
+
+    fn blend(&self, _: Self::Pixel, color: Self::Fragment) -> Self::Pixel {
+        [
+            (color[0] * 255.0) as u8,
+            (color[1] * 255.0) as u8,
+            (color[2] * 255.0) as u8,
+            (color[3] * 255.0) as u8,
+        ]
+    }
+}
+
+struct TexturedMesh<'r, S> {
+    mvp: Mat4<f32>,
+    positions: &'r [Vec4<f32>],
+    uvs: &'r [Vec2<f32>],
+    sampler: S,
+}
+impl<'r, S: Sampler<2, Index = f32, Sample = Rgba<f32>>> Pipeline<'r> for TexturedMesh<'r, S> {
+    type Vertex = usize;
+    type VertexData = vek::Vec2<f32>;
+    type Primitives = TriangleList;
+    type Fragment = Rgba<f32>;
+    type Pixel = [u8; 4];
+
+    #[inline(always)]
+    fn aa_mode(&self) -> AaMode {
+        AaMode::Msaa { level: 1 }
+    }
+
+    #[inline(always)]
+    fn rasterizer_config(&self) -> CullMode {
+        CullMode::Back
+    }
+
+    // Y is Down
+    #[inline(always)]
+    fn coordinate_mode(&self) -> CoordinateMode {
+        CoordinateMode::OPENGL
+    }
+
+    #[inline]
+    fn vertex(&self, v_index: &Self::Vertex) -> ([f32; 4], Self::VertexData) {
+        (
+            (self.mvp * self.positions[*v_index]).into_array(),
             self.uvs[*v_index],
         )
     }

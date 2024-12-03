@@ -76,6 +76,7 @@ impl Tool for LinedefTool {
             }
             DeActivate => {
                 server_ctx.curr_map_tool_type = MapToolType::General;
+                server_ctx.hover_cursor = None;
                 if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                     region.map.clear_temp();
                     server.update_region(region);
@@ -316,6 +317,20 @@ impl Tool for LinedefTool {
                             hover.0 = None;
                             hover.2 = None;
                             server_ctx.hover = hover;
+
+                            let cp = server_ctx.local_to_map_grid(
+                                vec2f(dim.width as f32, dim.height as f32),
+                                vec2f(coord.x as f32, coord.y as f32),
+                                &region.map,
+                                region.map.subdivisions,
+                            );
+
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Cursor Pos Changed"),
+                                TheValue::Float2(cp),
+                            ));
+                            server_ctx.hover_cursor = Some(cp);
+
                             server.update_region(region);
                             redraw = true;
                         }

@@ -70,6 +70,9 @@ pub struct ServerContext {
     /// Hover geometry info
     pub hover: (Option<u32>, Option<u32>, Option<u32>),
 
+    /// The current grid hover position
+    pub hover_cursor: Option<Vec2f>,
+
     /// Current Tool Type
     pub curr_map_tool_type: MapToolType,
 }
@@ -118,6 +121,8 @@ impl ServerContext {
             screen_editor_mode_foreground: false,
 
             hover: (None, None, None),
+            hover_cursor: None,
+
             curr_map_tool_type: MapToolType::Linedef,
         }
     }

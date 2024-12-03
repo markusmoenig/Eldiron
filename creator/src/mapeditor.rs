@@ -230,9 +230,21 @@ impl MapEditor {
     ) -> bool {
         let mut redraw = false;
         match event {
-            TheEvent::Custom(id, _) => {
+            TheEvent::Custom(id, value) => {
                 if id.name == "Map Selection Changed" {
                     println!("map selection changed");
+                }
+                if id.name == "Cursor Pos Changed" {
+                    if let Some(text) = ui.get_text("Cursor Position") {
+                        if let Some(v) = value.to_vec2f() {
+                            text.set_text(format!("{}, {}", v.x, v.y));
+                        }
+                        redraw = true;
+                    }
+
+                    if let Some(layout) = ui.get_layout("Editor Icon Layout") {
+                        layout.relayout(ctx);
+                    }
                 }
             }
             TheEvent::RenderViewScrollBy(id, coord) => {
