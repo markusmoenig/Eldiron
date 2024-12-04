@@ -401,17 +401,14 @@ impl MapRender {
                 //drawer.add_mesh(geo.vertices, geo.indices, geo.uvs);
 
                 let m = if region.map.camera == MapCamera::ThreeDIso {
-                    let rotation_x: vek::Mat4<f32> = vek::Mat4::rotation_x(35.264_f32.to_radians()); // Tilt down
-                    let rotation_y = vek::Mat4::rotation_z(45_f32.to_radians()); // Rotate horizontally
-
-                    // Step 2: Orthographic projection matrix
-                    let left = -10.0;
-                    let right = 10.0;
-                    let bottom = -10.0;
-                    let top = 10.0;
-                    let near = -100.0; // Near plane distance
-                    let far = 100.0; // Far plane distance
-
+                    let scale = 2.0;
+                    let aspect_ratio = width as f32 / height as f32;
+                    let left = -scale * aspect_ratio;
+                    let right = scale * aspect_ratio;
+                    let bottom = -scale;
+                    let top = scale;
+                    let near = -100.0;
+                    let far = 100.0;
                     let orthographic_planes = FrustumPlanes {
                         left,
                         right,
@@ -420,22 +417,20 @@ impl MapRender {
                         near,
                         far,
                     };
-
-                    let orthographic_projection =
-                        vek::Mat4::orthographic_rh_no(orthographic_planes);
-
-                    let loc_x = 0.0;
-                    let loc_y = 3.0;
-                    let height = 0.0;
-
-                    // Step 3: Translation matrix (camera position)
-                    //let translation = vek::Mat4::translation(vek::Vec3::new(loc_x, loc_y, height));
-
-                    let translation =
-                        vek::Mat4::identity().translated_3d(vek::Vec3::new(loc_x, loc_y, height));
-
-                    // Step 4: Combine transformations
-                    orthographic_projection * translation * rotation_y * rotation_x
+                    let projection = vek::Mat4::orthographic_rh_no(orthographic_planes);
+                    let camera_pos = vek::Vec3::new(
+                        region.editing_position_3d.x - 10.0,
+                        region.editing_position_3d.y + 10.0,
+                        region.editing_position_3d.z + 10.0,
+                    );
+                    let look_at = vek::Vec3::new(
+                        region.editing_position_3d.x,
+                        region.editing_position_3d.y,
+                        region.editing_position_3d.z,
+                    );
+                    let up = vek::Vec3::new(0.0, 1.0, 0.0);
+                    let view = vek::Mat4::look_at_rh(camera_pos, look_at, up);
+                    projection * view
                 } else {
                     let projection = vek::Mat4::perspective_fov_rh_no(
                         1.4,
