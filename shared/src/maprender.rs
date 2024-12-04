@@ -248,7 +248,6 @@ impl MapRender {
                                         let index = settings.anim_counter % sampler_array.len();
                                         drawer.draw_as_textured_triangles(&sampler_array[index]);
                                     }
-                                    drawer.blend_into(buffer);
                                 }
                             }
                         }
@@ -377,7 +376,6 @@ impl MapRender {
                 }
 
                 drawer.draw_as_lines();
-                drawer.blend_into(buffer);
 
                 if let Some(hover_pos) = server_ctx.hover_cursor {
                     let pos = ServerContext::map_grid_to_local(screen_size, hover_pos, &region.map);
@@ -390,8 +388,9 @@ impl MapRender {
                         Rgba::yellow(),
                     );
                     drawer.draw_as_triangles();
-                    drawer.blend_into(buffer);
                 }
+
+                drawer.blend_into(buffer);
             } else {
                 // Render in 3D
                 //if region.map.camera == MapCamera::ThreeDIso {}
@@ -401,15 +400,70 @@ impl MapRender {
                 let geo_map = generate_map_geometry(&region.map, self.atlas_size, &self.elements);
                 //drawer.add_mesh(geo.vertices, geo.indices, geo.uvs);
 
-                let projection =
-                    vek::Mat4::perspective_fov_rh_no(1.4, width as f32, height as f32, 0.01, 100.0);
+                let m = if region.map.camera == MapCamera::ThreeDIso {
+                    let rotation_x: vek::Mat4<f32> = vek::Mat4::rotation_x(35.264_f32.to_radians()); // Tilt down
+                    let rotation_y = vek::Mat4::rotation_z(45_f32.to_radians()); // Rotate horizontally
 
-                let view: vek::Mat4<f32> = vek::Mat4::look_at_rh(
-                    vek::Vec3::new(0.0, 1.5, 5.0), // Camera position
-                    vek::Vec3::new(0.0, 1.5, 0.0), // Target
-                    vek::Vec3::new(0.0, 1.0, 0.0), // Up vector
-                );
-                let m = projection * view;
+                    // Step 2: Orthographic projection matrix
+                    let left = -10.0;
+                    let right = 10.0;
+                    let bottom = -10.0;
+                    let top = 10.0;
+                    let near = -100.0; // Near plane distance
+                    let far = 100.0; // Far plane distance
+
+                    let orthographic_planes = FrustumPlanes {
+                        left,
+                        right,
+                        bottom,
+                        top,
+                        near,
+                        far,
+                    };
+
+                    let orthographic_projection =
+                        vek::Mat4::orthographic_rh_no(orthographic_planes);
+
+                    let loc_x = 0.0;
+                    let loc_y = 3.0;
+                    let height = 0.0;
+
+                    // Step 3: Translation matrix (camera position)
+                    //let translation = vek::Mat4::translation(vek::Vec3::new(loc_x, loc_y, height));
+
+                    let translation =
+                        vek::Mat4::identity().translated_3d(vek::Vec3::new(loc_x, loc_y, height));
+
+                    // Step 4: Combine transformations
+                    orthographic_projection * translation * rotation_y * rotation_x
+                } else {
+                    let projection = vek::Mat4::perspective_fov_rh_no(
+                        1.4,
+                        width as f32,
+                        height as f32,
+                        0.01,
+                        100.0,
+                    );
+
+                    let camera_pos = vek::Vec3::new(
+                        region.editing_position_3d.x,
+                        1.5,
+                        region.editing_position_3d.z,
+                    );
+
+                    let look_at = vek::Vec3::new(
+                        region.editing_position_3d.x,
+                        1.5,
+                        region.editing_position_3d.z - 1.0,
+                    );
+
+                    let view: vek::Mat4<f32> = vek::Mat4::look_at_rh(
+                        camera_pos,
+                        look_at,
+                        vek::Vec3::new(0.0, 1.0, 0.0), // Up vector
+                    );
+                    projection * view
+                };
 
                 for (id, geo_vec) in geo_map.geometries.iter() {
                     if let Some(sampler) = self.texture_sampler.get(id) {
@@ -420,15 +474,80 @@ impl MapRender {
                                 geo.uvs.clone(),
                             );
                         }
-                        let index = 0; //settings.anim_counter % geo_vec.len();
+                        let index = settings.anim_counter % sampler.len();
                         drawer.draw_as_mesh(m, &sampler[index]);
                     }
                 }
                 drawer.blend_into(buffer);
             }
+        } else {
+            // No server ctx, we are live
+            let mut drawer = EucDraw::new(width, height);
+
+            if region.map.camera == MapCamera::TwoD {
+                for sector in &region.map.sectors {
+                    if let Some(geo) = sector.generate_geometry(&region.map) {
+                        // Convert the triangles from grid to local coordinates
+                        let mut vertices: Vec<Vec2f> = vec![];
+                        let mut uvs: Vec<Vec2f> = vec![];
+                        let bbox = sector.bounding_box(&region.map);
+
+                        let repeat = true;
+
+                        if let Some(floor_texture_id) = &sector.floor_texture {
+                            if let Some(el) = self.elements.get(floor_texture_id) {
+                                for vertex in &geo.0 {
+                                    let local = ServerContext::map_grid_to_local(
+                                        screen_size,
+                                        vec2f(vertex[0], vertex[1]),
+                                        &region.map,
+                                    );
+
+                                    // Scale up to polygon bbox
+                                    if !repeat {
+                                        let uv = vec2f(
+                                            (el[0].x as f32
+                                                + ((vertex[0] - bbox.0.x) / (bbox.1.x - bbox.0.x)
+                                                    * el[0].z as f32))
+                                                / self.atlas_size,
+                                            (el[0].y as f32
+                                                + (vertex[1] - bbox.0.y) / (bbox.1.y - bbox.0.y)
+                                                    * el[0].w as f32)
+                                                / self.atlas_size,
+                                        );
+                                        uvs.push(uv);
+                                    } else {
+                                        let texture_scale = 1.0;
+                                        let uv = vec2f(
+                                            (vertex[0] - bbox.0.x) / texture_scale,
+                                            (vertex[1] - bbox.0.y) / texture_scale,
+                                        );
+                                        uvs.push(uv);
+                                    }
+                                    vertices.push(local);
+                                }
+
+                                drawer.add_textured_polygon(vertices, geo.1, uvs);
+                                if !repeat {
+                                    if let Some(sampler) = &self.sampler {
+                                        drawer.draw_as_textured_triangles(sampler);
+                                    }
+                                } else if let Some(sampler_array) =
+                                    self.texture_sampler.get(floor_texture_id)
+                                {
+                                    let index = settings.anim_counter % sampler_array.len();
+                                    drawer.draw_as_textured_triangles(&sampler_array[index]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            drawer.copy_into(buffer);
         }
         let _stop = self.get_time();
-        println!("render time {:?}", _stop - _start);
+        //println!("render time {:?}", _stop - _start);
     }
 
     // Draw the grid

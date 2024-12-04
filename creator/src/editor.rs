@@ -623,7 +623,7 @@ impl TheTrait for Editor {
                                 let dim = *render_view.dim();
                                 let buffer = render_view.render_buffer_mut();
                                 buffer.resize(dim.width, dim.height);
-                                draw_minimap(region, buffer, false);
+                                draw_minimap(region, buffer);
                             }
                         }
                     }

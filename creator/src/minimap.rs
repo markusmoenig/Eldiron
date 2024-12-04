@@ -1,9 +1,9 @@
-use crate::editor::TILEDRAWER;
+use shared::server::prelude::MapToolType;
+
+use crate::editor::MAPRENDER;
 use crate::prelude::*;
 
-use rayon::prelude::*;
-
-pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, lighting: bool) {
+pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer) {
     // let background = *ui
     //     .style
     //     .theme()
@@ -23,13 +23,51 @@ pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, lighting: bool)
     buffer.fill(background);
     let dim = buffer.dim();
 
-    let width = dim.width as usize;
+    let width = dim.width as f32;
+    let height = dim.height as f32;
 
-    let region_width = (region.width * region.grid_size) as usize;
-    let region_height = region.height * region.grid_size;
+    let mut region = orig_region.clone();
+    if let Some(bbox) = region.map.bounding_box() {
+        let scale_x = width / bbox.z;
+        let scale_y = height / bbox.w;
 
-    let minimap_width = dim.width;
-    let minimap_height = dim.height;
+        region.map.selected_linedefs.clear();
+        region.map.selected_sectors.clear();
+        region.map.grid_size = min(scale_x, scale_y);
+        region.map.camera = MapCamera::TwoD;
+
+        // Compute the center of the bounding box
+        let bbox_center_x = bbox.x + bbox.z / 2.0;
+        let bbox_center_y = bbox.y + bbox.w / 2.0;
+
+        // Compute the offset to center the map
+        region.map.offset.x = -bbox_center_x * region.map.grid_size;
+        region.map.offset.y = bbox_center_y * region.map.grid_size;
+
+        let server_ctx = ServerContext {
+            curr_map_tool_type: MapToolType::Sector,
+            ..Default::default()
+        };
+
+        let mut map_render = MAPRENDER.lock().unwrap();
+
+        map_render.render(
+            buffer,
+            &region,
+            &mut RegionUpdate::default(),
+            &mut RegionDrawSettings::new(),
+            Some(&server_ctx),
+            false,
+            &ThePalette::default(),
+        );
+    }
+    /*
+
+    // let region_width = (region.width * region.grid_size) as usize;
+    // let region_height = region.height * region.grid_size;
+
+    // let minimap_width = dim.width;
+    // let minimap_height = dim.height;
 
     let scale_x = region_width as f32 / minimap_width as f32;
     let scale_y = region_height as f32 / minimap_height as f32;
@@ -121,4 +159,5 @@ pub fn draw_minimap(region: &Region, buffer: &mut TheRGBABuffer, lighting: bool)
                 pixel.copy_from_slice(&color);
             }
         });
+        */
 }

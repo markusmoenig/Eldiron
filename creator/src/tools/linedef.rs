@@ -281,6 +281,11 @@ impl Tool for LinedefTool {
                                             .lock()
                                             .unwrap()
                                             .add_region_undo(&region.id, undo, ctx);
+
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Update Minimap"),
+                                            TheValue::Empty,
+                                        ));
                                     }
                                 }
 

@@ -76,6 +76,42 @@ impl Map {
         self.curr_rectangle = None;
     }
 
+    /// Generate a bounding box for all vertices in the map
+    pub fn bounding_box(&self) -> Option<Vec4f> {
+        if self.vertices.is_empty() {
+            return None; // No vertices in the map
+        }
+
+        // Find min and max coordinates among all vertices
+        let min_x = self
+            .vertices
+            .iter()
+            .map(|v| v.x)
+            .fold(f32::INFINITY, f32::min);
+        let max_x = self
+            .vertices
+            .iter()
+            .map(|v| v.x)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let min_y = self
+            .vertices
+            .iter()
+            .map(|v| v.y)
+            .fold(f32::INFINITY, f32::min);
+        let max_y = self
+            .vertices
+            .iter()
+            .map(|v| v.y)
+            .fold(f32::NEG_INFINITY, f32::max);
+
+        // Calculate width and height
+        let width = max_x - min_x;
+        let height = max_y - min_y;
+
+        // Return the bounding box as Vec4f (x, y, width, height)
+        Some(Vec4f::new(min_x, min_y, width, height))
+    }
+
     //
     pub fn add_vertex_at(&mut self, x: f32, y: f32) -> u32 {
         // Check if the vertex already exists

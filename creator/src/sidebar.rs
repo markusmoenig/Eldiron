@@ -911,6 +911,30 @@ impl Sidebar {
                     if let Some(render_view) = ui.get_render_view("MiniMap") {
                         let dim = *render_view.dim();
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            let width = dim.width as f32;
+                            let height = dim.height as f32;
+
+                            if let Some(bbox) = region.map.bounding_box() {
+                                let scale_x = width / bbox.z;
+                                let scale_y = height / bbox.w;
+
+                                let grid_size = min(scale_x, scale_y);
+
+                                let bbox_center_x = bbox.x + bbox.z / 2.0;
+                                let bbox_center_y = bbox.y + bbox.w / 2.0;
+
+                                let offset_x = -bbox_center_x * region.map.grid_size;
+                                let offset_y = bbox_center_y * region.map.grid_size;
+
+                                let grid_x = (coord.x as f32 - width / 2.0 - offset_x) / grid_size;
+                                let grid_y = (coord.y as f32 - height / 2.0 + offset_y) / grid_size;
+
+                                region.editing_position_3d = vec3f(grid_x, 0.0, grid_y);
+                                server.set_editing_position_3d(region.editing_position_3d);
+                                server.update_region(region);
+                            }
+
+                            /*
                             let region_width = region.width * region.grid_size;
                             let region_height = region.height * region.grid_size;
 
@@ -946,6 +970,7 @@ impl Sidebar {
                             if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
                                 rgba_layout.scroll_to_grid(vec2i(tile_x as i32, tile_y as i32));
                             }
+                            */
                             redraw = true;
                         }
                     }
@@ -975,7 +1000,7 @@ impl Sidebar {
                             let dim = *render_view.dim();
                             let buffer = render_view.render_buffer_mut();
                             buffer.resize(dim.width, dim.height);
-                            draw_minimap(region, buffer, false);
+                            draw_minimap(region, buffer);
                         }
                     }
                 } else if id.name == "Update Minimaps" {
@@ -984,7 +1009,7 @@ impl Sidebar {
                             let dim = *render_view.dim();
                             let buffer = render_view.render_buffer_mut();
                             buffer.resize(dim.width, dim.height);
-                            draw_minimap(region, buffer, false);
+                            draw_minimap(region, buffer);
                         }
                     }
                     if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::TerrainEditor {
@@ -3465,7 +3490,7 @@ impl Sidebar {
                 let dim = *render_view.dim();
                 let buffer = render_view.render_buffer_mut();
                 buffer.resize(dim.width, dim.height);
-                draw_minimap(region, buffer, false);
+                draw_minimap(region, buffer);
             }
             RENDERER.lock().unwrap().render_canvas(region);
         }

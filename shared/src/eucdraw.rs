@@ -238,6 +238,21 @@ impl EucDraw {
         ext.blend_into(0, 0, &b);
     }
 
+    /// Copy into the given TheRGBABuffer.
+    pub fn copy_into(&mut self, ext: &mut TheRGBABuffer) {
+        let b = TheRGBABuffer::from(
+            self.buffer
+                .raw()
+                .iter()
+                .flat_map(|&arr| arr.into_iter())
+                .collect(),
+            self.view_size.x as u32,
+            self.view_size.y as u32,
+        );
+
+        ext.copy_into(0, 0, &b);
+    }
+
     /// Clears all data.
     pub fn clear(&mut self) {
         self.colored_vertices.clear();

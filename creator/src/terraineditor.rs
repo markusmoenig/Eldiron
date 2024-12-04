@@ -89,7 +89,7 @@ impl TerrainEditor {
             let region_height = region.height * region.grid_size;
 
             let mut buffer = TheRGBABuffer::new(TheDim::sized(region_width, region_height));
-            crate::minimap::draw_minimap(region, &mut buffer, true);
+            crate::minimap::draw_minimap(region, &mut buffer);
             self.draw_selection(ui, ctx, server_ctx, None);
 
             if let Some(editor) = ui.get_rgba_layout("TerrainMap") {

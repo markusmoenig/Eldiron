@@ -1,3 +1,5 @@
+use shared::server::prelude::MapToolType;
+
 use crate::editor::{
     CODEEDITOR, MAPRENDER, MODELFXEDITOR, PRERENDERTHREAD, RENDERER, RENDERMODE, TILEDRAWER,
     UNDOMANAGER,
@@ -232,9 +234,38 @@ impl MapEditor {
         match event {
             TheEvent::Custom(id, value) => {
                 if id.name == "Map Selection Changed" {
-                    println!("map selection changed");
-                }
-                if id.name == "Cursor Pos Changed" {
+                    let mut floor_icon_id: Option<Uuid> = None;
+                    //let mut wall_icon_id: Option<Uuid> = None;
+                    //let mut ceiling_icon_id: Option<Uuid> = None;
+
+                    if server_ctx.curr_map_tool_type == MapToolType::Sector {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            if region.map.selected_sectors.len() == 1 {
+                                if let Some(sector) =
+                                    region.map.find_sector(region.map.selected_sectors[0])
+                                {
+                                    if let Some(tile_id) = sector.floor_texture {
+                                        floor_icon_id = Some(tile_id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                        if let Some(floor_icon_id) = floor_icon_id {
+                            if let Some(tile) = TILEDRAWER.lock().unwrap().tiles.get(&floor_icon_id)
+                            {
+                                icon_view.set_rgba_tile(tile.clone());
+                            }
+                        } else {
+                            let buffer = TheRGBABuffer::new(TheDim::sized(48, 48));
+                            if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                                icon_view.set_rgba_tile(TheRGBATile::buffer(buffer));
+                            }
+                        }
+                    }
+                } else if id.name == "Cursor Pos Changed" {
                     if let Some(text) = ui.get_text("Cursor Position") {
                         if let Some(v) = value.to_vec2f() {
                             text.set_text(format!("{}, {}", v.x, v.y));
@@ -801,6 +832,11 @@ impl MapEditor {
                             .add_region_undo(&region.id, undo, ctx);
 
                         server.update_region(region);
+
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Minimap"),
+                            TheValue::Empty,
+                        ));
                     }
                 } else if id.name == "Tilemap Editor Add Anim"
                     || id.name == "Tilemap Editor Add Multi"
@@ -1068,13 +1104,6 @@ impl MapEditor {
         }
         if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
             icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Ceiling {
-                Some(self.icon_selected_border_color)
-            } else {
-                Some(self.icon_normal_border_color)
-            });
-        }
-        if let Some(icon_view) = ui.get_icon_view("Tile FX Icon") {
-            icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::FX {
                 Some(self.icon_selected_border_color)
             } else {
                 Some(self.icon_normal_border_color)
