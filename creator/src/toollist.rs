@@ -330,70 +330,70 @@ impl ToolList {
             }
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == "PolyView" {
-                    if let Some(render_view) = ui.get_render_view("PolyView") {
-                        let dim = render_view.dim();
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            // let pos = RENDERER.lock().unwrap().get_hit_position_at(
-                            //     *coord,
-                            //     region,
-                            //     &mut server.get_instance_draw_settings(server_ctx.curr_region),
-                            //     dim.width as usize,
-                            //     dim.height as usize,
-                            // );
-                            //
-                            let pos = Some((*coord, *coord));
+                    // if let Some(render_view) = ui.get_render_view("PolyView") {
+                    // let dim = render_view.dim();
+                    // if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    // let pos = RENDERER.lock().unwrap().get_hit_position_at(
+                    //     *coord,
+                    //     region,
+                    //     &mut server.get_instance_draw_settings(server_ctx.curr_region),
+                    //     dim.width as usize,
+                    //     dim.height as usize,
+                    // );
+                    //
+                    let pos = Some((*coord, *coord));
 
-                            if let Some((pos, pos_f)) = pos {
-                                redraw = self.get_current_tool().tool_event(
-                                    ToolEvent::TileDown(
-                                        vec2i(pos.x, pos.y),
-                                        vec2f(pos.x as f32, pos.y as f32),
-                                    ),
-                                    ToolContext::ThreeD,
-                                    ui,
-                                    ctx,
-                                    project,
-                                    server,
-                                    client,
-                                    server_ctx,
-                                );
-                            }
-                        }
+                    if let Some((pos, _)) = pos {
+                        redraw = self.get_current_tool().tool_event(
+                            ToolEvent::TileDown(
+                                vec2i(pos.x, pos.y),
+                                vec2f(pos.x as f32, pos.y as f32),
+                            ),
+                            ToolContext::ThreeD,
+                            ui,
+                            ctx,
+                            project,
+                            server,
+                            client,
+                            server_ctx,
+                        );
                     }
+                    // }
+                    // }
                 }
             }
             TheEvent::RenderViewDragged(id, coord) => {
-                if id.name == "RenderView" {
-                    if let Some(render_view) = ui.get_render_view("RenderView") {
-                        let dim = render_view.dim();
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            // let pos = RENDERER.lock().unwrap().get_hit_position_at(
-                            //     *coord,
-                            //     region,
-                            //     &mut server.get_instance_draw_settings(server_ctx.curr_region),
-                            //     dim.width as usize,
-                            //     dim.height as usize,
-                            // );
+                if id.name == "PolyView" {
+                    //if let Some(render_view) = ui.get_render_view("RenderView") {
+                    //let dim = render_view.dim();
+                    //if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    // let pos = RENDERER.lock().unwrap().get_hit_position_at(
+                    //     *coord,
+                    //     region,
+                    //     &mut server.get_instance_draw_settings(server_ctx.curr_region),
+                    //     dim.width as usize,
+                    //     dim.height as usize,
+                    // );
 
-                            let pos = Some((*coord, *coord));
+                    let pos = Some((*coord, *coord));
 
-                            if let Some((pos, pos_f)) = pos {
-                                redraw = self.get_current_tool().tool_event(
-                                    ToolEvent::TileDrag(
-                                        vec2i(pos.x, pos.y),
-                                        vec2f(pos.x as f32, pos.y as f32),
-                                    ),
-                                    ToolContext::ThreeD,
-                                    ui,
-                                    ctx,
-                                    project,
-                                    server,
-                                    client,
-                                    server_ctx,
-                                );
-                            }
-                        }
+                    if let Some((pos, _)) = pos {
+                        redraw = self.get_current_tool().tool_event(
+                            ToolEvent::TileDrag(
+                                vec2i(pos.x, pos.y),
+                                vec2f(pos.x as f32, pos.y as f32),
+                            ),
+                            ToolContext::ThreeD,
+                            ui,
+                            ctx,
+                            project,
+                            server,
+                            client,
+                            server_ctx,
+                        );
                     }
+                    //}
+                    //}
                 }
             }
             // TheEvent::ContextMenuSelected(widget_id, item_id) => {

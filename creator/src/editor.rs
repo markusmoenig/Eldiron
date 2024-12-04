@@ -1343,42 +1343,7 @@ impl TheTrait for Editor {
                         //         redraw = true;
                         //     }
                         // } else
-                        if id.name == "2DMap" {
-                            if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
-                                self.project.map_mode = MapMode::TwoD;
-                                shared.set_mode(TheSharedHLayoutMode::Left);
-                                *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
-                                ctx.ui.relayout = true;
-                                if let Some(region) =
-                                    self.project.get_region_mut(&self.server_ctx.curr_region)
-                                {
-                                    if let Some(layout) = ui.get_rgba_layout("Region Editor") {
-                                        layout.set_zoom(region.zoom);
-                                        layout.relayout(ctx);
-                                    }
-                                }
-                            }
-                        } else if id.name == "2D3DMap" {
-                            if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
-                                self.project.map_mode = MapMode::Mixed;
-                                shared.set_mode(TheSharedHLayoutMode::Shared);
-                                *RENDERMODE.lock().unwrap() = EditorDrawMode::DrawMixed;
-                                ctx.ui.relayout = true;
-                            }
-                        } else if id.name == "3DMap" {
-                            if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
-                                self.project.map_mode = MapMode::ThreeD;
-                                shared.set_mode(TheSharedHLayoutMode::Right);
-                                *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw3D;
-
-                                ctx.ui.relayout = true;
-                            }
-                        } else if id.name == "Rerender" {
-                            if let Some(region) =
-                                self.project.get_region_mut(&self.server_ctx.curr_region)
-                            {
-                            }
-                        } else if id.name == "Logo" {
+                        if id.name == "Logo" {
                             _ = open::that("https://eldiron.com");
                             ctx.ui
                                 .set_widget_state("Logo".to_string(), TheWidgetState::None);

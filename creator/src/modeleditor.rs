@@ -224,8 +224,6 @@ impl ModelEditor {
                 if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::ModelEditor {
                     if let Some(geo_obj_id) = server_ctx.curr_geo_object {
                         let palette = project.palette.clone();
-                        let mut region_to_render: Option<Region> = None;
-                        let mut tiles_to_render: Vec<Vec2i> = vec![];
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             if let Some(geo_obj) = region.geometry.get_mut(&geo_obj_id) {
                                 if let Some(selected_index) = geo_obj.selected_node {
@@ -233,15 +231,9 @@ impl ModelEditor {
                                     if geo_obj.nodes[selected_index].set_palette_index(*index) {
                                         let next = geo_obj.to_json();
                                         let geo_obj_id = geo_obj.id;
-                                        let area = geo_obj.area.clone();
-                                        tiles_to_render = area.clone();
 
-                                        let undo = RegionUndoAtom::GeoFXNodeEdit(
-                                            geo_obj_id,
-                                            prev,
-                                            next,
-                                            area.clone(),
-                                        );
+                                        let undo =
+                                            RegionUndoAtom::GeoFXNodeEdit(geo_obj_id, prev, next);
                                         UNDOMANAGER
                                             .lock()
                                             .unwrap()
@@ -254,7 +246,6 @@ impl ModelEditor {
                                         );
 
                                         server.update_region(region);
-                                        region_to_render = Some(region.clone());
 
                                         self.activated(ui, ctx, project, server_ctx, false);
 
@@ -300,7 +291,6 @@ impl ModelEditor {
                                     geo_obj.id,
                                     prev,
                                     geo_obj.to_json(),
-                                    geo_obj.area.clone(),
                                 );
                                 UNDOMANAGER
                                     .lock()
@@ -376,8 +366,6 @@ impl ModelEditor {
                 if id.name == "Model NodeCanvas" {
                     if let Some(geo_obj_id) = server_ctx.curr_geo_object {
                         let palette = project.palette.clone();
-                        let mut region_to_render: Option<Region> = None;
-                        let mut tiles_to_render: Vec<Vec2i> = vec![];
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             if let Some(geo_obj) = region.geometry.get_mut(&geo_obj_id) {
                                 let prev = geo_obj.to_json();
@@ -389,15 +377,8 @@ impl ModelEditor {
 
                                 let next = geo_obj.to_json();
                                 let geo_obj_id = geo_obj.id;
-                                let area = geo_obj.area.clone();
-                                tiles_to_render = area.clone();
 
-                                let undo = RegionUndoAtom::GeoFXNodeEdit(
-                                    geo_obj_id,
-                                    prev,
-                                    next,
-                                    area.clone(),
-                                );
+                                let undo = RegionUndoAtom::GeoFXNodeEdit(geo_obj_id, prev, next);
                                 UNDOMANAGER
                                     .lock()
                                     .unwrap()
@@ -410,7 +391,6 @@ impl ModelEditor {
                                 );
 
                                 server.update_region(region);
-                                region_to_render = Some(region.clone());
 
                                 self.activated(ui, ctx, project, server_ctx, false);
                                 redraw = true;
@@ -423,15 +403,12 @@ impl ModelEditor {
                 if id.name == "Model NodeCanvas" {
                     if let Some(geo_obj_id) = server_ctx.curr_geo_object {
                         let palette = project.palette.clone();
-                        let mut region_to_render: Option<Region> = None;
-                        let mut tiles_to_render: Vec<Vec2i> = vec![];
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             if let Some(geo_obj) = region.geometry.get_mut(&geo_obj_id) {
                                 let prev = geo_obj.to_json();
                                 geo_obj.nodes.remove(*deleted_node_index);
                                 geo_obj.connections.clone_from(connections);
                                 geo_obj.selected_node = None;
-                                tiles_to_render = geo_obj.area.clone();
 
                                 // To update flexible outputs
                                 let node_canvas = geo_obj.to_canvas();
@@ -441,7 +418,6 @@ impl ModelEditor {
                                     geo_obj.id,
                                     prev,
                                     geo_obj.to_json(),
-                                    geo_obj.area.clone(),
                                 );
                                 UNDOMANAGER
                                     .lock()
@@ -455,7 +431,6 @@ impl ModelEditor {
                                 );
 
                                 server.update_region(region);
-                                region_to_render = Some(region.clone());
                                 self.activated(ui, ctx, project, server_ctx, false);
 
                                 redraw = true;
@@ -543,7 +518,6 @@ impl ModelEditor {
                                         geo_obj.update_area();
 
                                         let next = geo_obj.to_json();
-                                        let area = geo_obj.area.clone();
 
                                         new_tiles_to_render.clone_from(&geo_obj.area);
                                         let mut set: FxHashSet<Vec2i> = FxHashSet::default();
@@ -562,9 +536,8 @@ impl ModelEditor {
                                         server.update_region(region);
                                         self.activated(ui, ctx, project, server_ctx, false);
 
-                                        let undo = RegionUndoAtom::GeoFXNodeEdit(
-                                            geo_obj_id, prev, next, area,
-                                        );
+                                        let undo =
+                                            RegionUndoAtom::GeoFXNodeEdit(geo_obj_id, prev, next);
                                         UNDOMANAGER
                                             .lock()
                                             .unwrap()

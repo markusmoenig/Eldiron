@@ -15,7 +15,7 @@ impl MaterialFXUndoAtom {
         server_ctx: &mut ServerContext,
         project: &mut Project,
         ui: &mut TheUI,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
     ) {
         match self {
             MaterialFXUndoAtom::AddMaterial(material) => {
@@ -45,10 +45,10 @@ impl MaterialFXUndoAtom {
     }
     pub fn redo(
         &self,
-        server_ctx: &mut ServerContext,
+        _server_ctx: &mut ServerContext,
         project: &mut Project,
         ui: &mut TheUI,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
     ) {
         match self {
             MaterialFXUndoAtom::AddMaterial(material) => {

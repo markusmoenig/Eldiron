@@ -4,28 +4,28 @@ use theframework::prelude::*;
 #[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum RegionUndoAtom {
-    GeoFXObjectsDeletion(Vec<GeoFXObject>, Vec<Vec2i>),
-    GeoFXObjectEdit(Uuid, Option<GeoFXObject>, Option<GeoFXObject>, Vec<Vec2i>),
-    GeoFXAddNode(Uuid, String, String, Vec<Vec2i>),
-    GeoFXNodeEdit(Uuid, String, String, Vec<Vec2i>),
-    HeightmapEdit(Box<Heightmap>, Box<Heightmap>, Vec<Vec2i>),
+    GeoFXObjectsDeletion(Vec<GeoFXObject>),
+    GeoFXObjectEdit(Uuid, Option<GeoFXObject>, Option<GeoFXObject>),
+    GeoFXAddNode(Uuid, String, String),
+    GeoFXNodeEdit(Uuid, String, String),
+    HeightmapEdit(Box<Heightmap>, Box<Heightmap>),
     MapEdit(Box<Map>, Box<Map>),
     RegionTileEdit(Vec2i, Option<RegionTile>, Option<RegionTile>),
     RegionFXEdit(RegionFXObject, RegionFXObject),
-    RegionEdit(Box<Region>, Box<Region>, Vec<Vec2i>),
+    RegionEdit(Box<Region>, Box<Region>),
     RegionResize(Box<Region>, Box<Region>),
 }
 
 impl RegionUndoAtom {
     pub fn undo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
-            RegionUndoAtom::GeoFXObjectsDeletion(objects, tiles) => {
+            RegionUndoAtom::GeoFXObjectsDeletion(objects) => {
                 for object in objects {
                     region.geometry.insert(object.id, object.clone());
                 }
                 region.update_geometry_areas();
             }
-            RegionUndoAtom::GeoFXObjectEdit(id, prev, _, tiles) => {
+            RegionUndoAtom::GeoFXObjectEdit(id, prev, _) => {
                 if let Some(prev) = prev {
                     region.geometry.insert(*id, prev.clone());
                 } else {
@@ -33,8 +33,8 @@ impl RegionUndoAtom {
                 }
                 region.update_geometry_areas();
             }
-            RegionUndoAtom::GeoFXAddNode(id, prev, _, tiles)
-            | RegionUndoAtom::GeoFXNodeEdit(id, prev, _, tiles) => {
+            RegionUndoAtom::GeoFXAddNode(id, prev, _)
+            | RegionUndoAtom::GeoFXNodeEdit(id, prev, _) => {
                 if let Some(geo_obj) = region.geometry.get_mut(id) {
                     *geo_obj = GeoFXObject::from_json(prev);
 
@@ -47,7 +47,7 @@ impl RegionUndoAtom {
                     ));
                 }
             }
-            RegionUndoAtom::HeightmapEdit(prev, _, tiles) => {
+            RegionUndoAtom::HeightmapEdit(prev, _) => {
                 region.heightmap = *prev.clone();
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimaps"),
@@ -80,7 +80,7 @@ impl RegionUndoAtom {
                     TheValue::Empty,
                 ));
             }
-            RegionUndoAtom::RegionEdit(prev, _, tiles) => {
+            RegionUndoAtom::RegionEdit(prev, _) => {
                 *region = *prev.clone();
             }
             RegionUndoAtom::RegionResize(prev, _) => {
@@ -99,14 +99,14 @@ impl RegionUndoAtom {
     }
     pub fn redo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
-            RegionUndoAtom::GeoFXObjectsDeletion(objects, tiles) => {
+            RegionUndoAtom::GeoFXObjectsDeletion(objects) => {
                 for object in objects {
                     region.geometry.remove(&object.id);
                 }
                 region.update_geometry_areas();
             }
 
-            RegionUndoAtom::GeoFXObjectEdit(id, _, next, tiles) => {
+            RegionUndoAtom::GeoFXObjectEdit(id, _, next) => {
                 if let Some(next) = next {
                     region.geometry.insert(*id, next.clone());
                 } else {
@@ -114,8 +114,8 @@ impl RegionUndoAtom {
                 }
                 region.update_geometry_areas();
             }
-            RegionUndoAtom::GeoFXAddNode(id, _, next, tiles)
-            | RegionUndoAtom::GeoFXNodeEdit(id, _, next, tiles) => {
+            RegionUndoAtom::GeoFXAddNode(id, _, next)
+            | RegionUndoAtom::GeoFXNodeEdit(id, _, next) => {
                 if let Some(geo_obj) = region.geometry.get_mut(id) {
                     *geo_obj = GeoFXObject::from_json(next);
 
@@ -128,7 +128,7 @@ impl RegionUndoAtom {
                     ));
                 }
             }
-            RegionUndoAtom::HeightmapEdit(_, next, tiles) => {
+            RegionUndoAtom::HeightmapEdit(_, next) => {
                 region.heightmap = *next.clone();
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimaps"),
@@ -161,7 +161,7 @@ impl RegionUndoAtom {
                     TheValue::Empty,
                 ));
             }
-            RegionUndoAtom::RegionEdit(_, next, _tiles) => {
+            RegionUndoAtom::RegionEdit(_, next) => {
                 *region = *next.clone();
             }
             RegionUndoAtom::RegionResize(_, next) => {
