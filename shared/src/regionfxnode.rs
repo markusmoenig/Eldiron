@@ -227,6 +227,7 @@ impl RegionFXNode {
         }
     }
 
+    /*
     /// Render the prerendered tiles into the game canvas.
     pub fn cam_render_canvas(&self, region: &Region, canvas: &mut GameCanvas) {
         match self.role {
@@ -237,11 +238,11 @@ impl RegionFXNode {
 
                 canvas.resize(width, height);
 
-                for (key, tile) in &region.prerendered.tiles {
-                    let x = key.x * region.tile_size;
-                    let y = key.y * region.tile_size;
-                    canvas.copy_into(x, y, tile);
-                }
+                // for (key, tile) in &region.prerendered.tiles {
+                //     let x = key.x * region.tile_size;
+                //     let y = key.y * region.tile_size;
+                //     canvas.copy_into(x, y, tile);
+                // }
             }
             TopDownIsoCamera => {
                 let tile_size = region.tile_size;
@@ -266,17 +267,17 @@ impl RegionFXNode {
                 });
 
                 for key in keys {
-                    if let Some(tile) = &region.prerendered.tiles.get(&key) {
-                        let x = sx + (key.x - key.y) * tile_size_half;
-                        let y = (key.x + key.y) * (tile_size_half / 2);
+                    // if let Some(tile) = &region.prerendered.tiles.get(&key) {
+                    //     let x = sx + (key.x - key.y) * tile_size_half;
+                    //     let y = (key.x + key.y) * (tile_size_half / 2);
 
-                        canvas.copy_into(x, y, tile);
-                    }
+                    //     canvas.copy_into(x, y, tile);
+                    // }
                 }
             }
             _ => {}
         }
-    }
+    }*/
 
     /// Returns the size of the region world in pixels
     pub fn cam_region_size(&self, region: &Region) -> Vec2i {

@@ -769,6 +769,7 @@ impl Server {
         }
     }
 
+    /*
     pub fn clear_prerendered(&mut self, region: Uuid) {
         if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
             region.prerendered.clear();
@@ -793,7 +794,7 @@ impl Server {
         if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
             region.prerendered.clear_tile_albedo(tile);
         }
-    }
+    }*/
 
     /// Executes the given client command.
     pub fn execute_client_cmd(&mut self, client_id: Uuid, cmd: String) {

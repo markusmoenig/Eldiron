@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use shared::prelude::*;
 
-use crate::editor::{ACTIVEEDITOR, PRERENDERTHREAD, TILEDRAWER, UNDOMANAGER};
+use crate::editor::{ACTIVEEDITOR, TILEDRAWER, UNDOMANAGER};
 
 pub struct ModelEditor {
     pub palette_indices: FxHashMap<String, Vec<u16>>,
@@ -266,12 +266,6 @@ impl ModelEditor {
                                 }
                             }
                         }
-                        if let Some(region) = region_to_render {
-                            PRERENDERTHREAD
-                                .lock()
-                                .unwrap()
-                                .render_region(region, Some(tiles_to_render));
-                        }
                     }
                 }
             }
@@ -422,12 +416,6 @@ impl ModelEditor {
                                 redraw = true;
                             }
                         }
-                        if let Some(region) = region_to_render {
-                            PRERENDERTHREAD
-                                .lock()
-                                .unwrap()
-                                .render_region(region, Some(tiles_to_render));
-                        }
                     }
                 }
             }
@@ -471,12 +459,6 @@ impl ModelEditor {
                                 self.activated(ui, ctx, project, server_ctx, false);
 
                                 redraw = true;
-                            }
-                            if let Some(region) = region_to_render {
-                                PRERENDERTHREAD
-                                    .lock()
-                                    .unwrap()
-                                    .render_region(region, Some(tiles_to_render));
                             }
                         }
                     }
@@ -567,7 +549,6 @@ impl ModelEditor {
                                         let mut set: FxHashSet<Vec2i> = FxHashSet::default();
                                         set.extend(&old_tiles_to_render);
                                         set.extend(&new_tiles_to_render);
-                                        let tiles_to_render = set.into_iter().collect();
 
                                         let region_id = region.id;
                                         region.update_geometry_areas();
@@ -579,15 +560,7 @@ impl ModelEditor {
                                         );
 
                                         server.update_region(region);
-                                        let region_to_render = Some(region.clone());
                                         self.activated(ui, ctx, project, server_ctx, false);
-
-                                        if let Some(region) = region_to_render {
-                                            PRERENDERTHREAD
-                                                .lock()
-                                                .unwrap()
-                                                .render_region(region, Some(tiles_to_render));
-                                        }
 
                                         let undo = RegionUndoAtom::GeoFXNodeEdit(
                                             geo_obj_id, prev, next, area,

@@ -1,8 +1,6 @@
 use crate::prelude::*;
 use theframework::prelude::*;
 
-use crate::editor::PRERENDERTHREAD;
-
 #[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum RegionUndoAtom {
@@ -26,10 +24,6 @@ impl RegionUndoAtom {
                     region.geometry.insert(object.id, object.clone());
                 }
                 region.update_geometry_areas();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::GeoFXObjectEdit(id, prev, _, tiles) => {
                 if let Some(prev) = prev {
@@ -38,10 +32,6 @@ impl RegionUndoAtom {
                     region.geometry.remove(id);
                 }
                 region.update_geometry_areas();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::GeoFXAddNode(id, prev, _, tiles)
             | RegionUndoAtom::GeoFXNodeEdit(id, prev, _, tiles) => {
@@ -56,18 +46,9 @@ impl RegionUndoAtom {
                         TheValue::Empty,
                     ));
                 }
-
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::HeightmapEdit(prev, _, tiles) => {
                 region.heightmap = *prev.clone();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimaps"),
                     TheValue::Empty,
@@ -87,10 +68,6 @@ impl RegionUndoAtom {
                 } else {
                     region.tiles.remove(&(pos.x, pos.y));
                 }
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(vec![*pos]));
             }
             RegionUndoAtom::RegionFXEdit(prev, _) => {
                 region.regionfx = prev.clone();
@@ -102,18 +79,9 @@ impl RegionUndoAtom {
                     TheId::named("Show RegionFX Node"),
                     TheValue::Empty,
                 ));
-
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), None);
             }
             RegionUndoAtom::RegionEdit(prev, _, tiles) => {
                 *region = *prev.clone();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::RegionResize(prev, _) => {
                 *region = *prev.clone();
@@ -126,10 +94,6 @@ impl RegionUndoAtom {
                         ctx.ui.relayout = true;
                     }
                 }
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), None);
             }
         }
     }
@@ -140,10 +104,6 @@ impl RegionUndoAtom {
                     region.geometry.remove(&object.id);
                 }
                 region.update_geometry_areas();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
 
             RegionUndoAtom::GeoFXObjectEdit(id, _, next, tiles) => {
@@ -153,10 +113,6 @@ impl RegionUndoAtom {
                     region.geometry.remove(id);
                 }
                 region.update_geometry_areas();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::GeoFXAddNode(id, _, next, tiles)
             | RegionUndoAtom::GeoFXNodeEdit(id, _, next, tiles) => {
@@ -171,18 +127,9 @@ impl RegionUndoAtom {
                         TheValue::Empty,
                     ));
                 }
-
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::HeightmapEdit(_, next, tiles) => {
                 region.heightmap = *next.clone();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimaps"),
                     TheValue::Empty,
@@ -202,10 +149,6 @@ impl RegionUndoAtom {
                 } else {
                     region.tiles.remove(&(pos.x, pos.y));
                 }
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(vec![*pos]));
             }
             RegionUndoAtom::RegionFXEdit(_, next) => {
                 region.regionfx = next.clone();
@@ -217,18 +160,9 @@ impl RegionUndoAtom {
                     TheId::named("Show RegionFX Node"),
                     TheValue::Empty,
                 ));
-
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), None);
             }
-            RegionUndoAtom::RegionEdit(_, next, tiles) => {
+            RegionUndoAtom::RegionEdit(_, next, _tiles) => {
                 *region = *next.clone();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::RegionResize(_, next) => {
                 *region = *next.clone();
@@ -241,10 +175,6 @@ impl RegionUndoAtom {
                         ctx.ui.relayout = true;
                     }
                 }
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), None);
             }
         }
     }

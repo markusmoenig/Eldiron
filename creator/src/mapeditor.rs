@@ -1,9 +1,6 @@
 use shared::server::prelude::MapToolType;
 
-use crate::editor::{
-    CODEEDITOR, MAPRENDER, MODELFXEDITOR, PRERENDERTHREAD, RENDERER, RENDERMODE, TILEDRAWER,
-    UNDOMANAGER,
-};
+use crate::editor::{CODEEDITOR, MAPRENDER, TILEDRAWER, UNDOMANAGER};
 use crate::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -210,10 +207,6 @@ impl MapEditor {
             .lock()
             .unwrap()
             .set_tiles(project.extract_tiles());
-        RENDERER
-            .lock()
-            .unwrap()
-            .set_textures(project.extract_tiles());
         MAPRENDER
             .lock()
             .unwrap()
@@ -303,6 +296,7 @@ impl MapEditor {
                     }
                 }
             }*/
+            /*
             TheEvent::RenderViewLostHover(id) => {
                 if id.name == "RenderView" {
                     RENDERER.lock().unwrap().hover_pos = None;
@@ -350,7 +344,7 @@ impl MapEditor {
                         }
                     }
                 }
-            }
+            }*/
             // TheEvent::RenderViewClicked(id, coord) => {
             //     if id.name == "RenderView" {
             //         self.processed_coords.clear();
@@ -430,44 +424,44 @@ impl MapEditor {
                         }
                         server.update_region(region);
                     }
-                } else if id.name == "2D3D Group" {
-                    if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
-                        if *index == 0 {
-                            project.map_mode = MapMode::TwoD;
-                            shared.set_mode(TheSharedHLayoutMode::Left);
-                            *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
-                            PRERENDERTHREAD.lock().unwrap().set_paused(true);
-                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                                if let Some(layout) = ui.get_rgba_layout("Region Editor") {
-                                    layout.set_zoom(region.zoom);
-                                    layout.relayout(ctx);
-                                }
-                            }
-                        } else if *index == 1 {
-                            project.map_mode = MapMode::Mixed;
-                            shared.set_mode(TheSharedHLayoutMode::Shared);
-                            *RENDERMODE.lock().unwrap() = EditorDrawMode::DrawMixed;
-                            PRERENDERTHREAD.lock().unwrap().set_paused(false);
-                        } else if *index == 2 {
-                            project.map_mode = MapMode::ThreeD;
-                            shared.set_mode(TheSharedHLayoutMode::Right);
-                            *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw3D;
-                            PRERENDERTHREAD.lock().unwrap().set_paused(false);
-                        }
-                        ctx.ui.relayout = true;
+                } /*else if id.name == "2D3D Group" {
+                      if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
+                          if *index == 0 {
+                              project.map_mode = MapMode::TwoD;
+                              shared.set_mode(TheSharedHLayoutMode::Left);
+                              *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
+                              PRERENDERTHREAD.lock().unwrap().set_paused(true);
+                              if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                  if let Some(layout) = ui.get_rgba_layout("Region Editor") {
+                                      layout.set_zoom(region.zoom);
+                                      layout.relayout(ctx);
+                                  }
+                              }
+                          } else if *index == 1 {
+                              project.map_mode = MapMode::Mixed;
+                              shared.set_mode(TheSharedHLayoutMode::Shared);
+                              *RENDERMODE.lock().unwrap() = EditorDrawMode::DrawMixed;
+                              PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                          } else if *index == 2 {
+                              project.map_mode = MapMode::ThreeD;
+                              shared.set_mode(TheSharedHLayoutMode::Right);
+                              *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw3D;
+                              PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                          }
+                          ctx.ui.relayout = true;
 
-                        // Set the region and textures to the RenderView if visible
-                        if *index > 0 {
-                            if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                                RENDERER.lock().unwrap().set_region(region);
-                                RENDERER
-                                    .lock()
-                                    .unwrap()
-                                    .set_textures(project.extract_tiles());
-                            }
-                        }
-                    }
-                }
+                          // Set the region and textures to the RenderView if visible
+                          if *index > 0 {
+                              if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                                  RENDERER.lock().unwrap().set_region(region);
+                                  RENDERER
+                                      .lock()
+                                      .unwrap()
+                                      .set_textures(project.extract_tiles());
+                              }
+                          }
+                      }
+                  }*/
             }
             // else if id.name == "Editor Group" {
             //         server_ctx.conceptual_display = None;
@@ -779,8 +773,6 @@ impl MapEditor {
                                 }
                             }
 
-                            RENDERER.lock().unwrap().set_region(r);
-
                             server_ctx.curr_region = r.id;
                             //self.redraw_region(ui, server, ctx, server_ctx);
                             redraw = true;
@@ -830,7 +822,6 @@ impl MapEditor {
                             .lock()
                             .unwrap()
                             .add_region_undo(&region.id, undo, ctx);
-
                         server.update_region(region);
 
                         ctx.ui.send(TheEvent::Custom(
@@ -855,12 +846,6 @@ impl MapEditor {
                         TheId::named("Floor Selected"),
                         TheValue::Empty,
                     ));
-                    MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
-                        Layer2DRole::Ground,
-                        &project.palette,
-                        ui,
-                        ctx,
-                    );
                 } else if id.name == "Wall Icon" {
                     self.curr_layer_role = Layer2DRole::Wall;
                     self.texture_mode = MapTextureMode::Wall;
@@ -877,12 +862,6 @@ impl MapEditor {
                     //     ctx.ui
                     //         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
                     // }
-                    MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
-                        Layer2DRole::Wall,
-                        &project.palette,
-                        ui,
-                        ctx,
-                    );
                 } else if id.name == "Ceiling Icon" {
                     self.curr_layer_role = Layer2DRole::Ceiling;
                     self.texture_mode = MapTextureMode::Ceiling;
@@ -899,12 +878,6 @@ impl MapEditor {
                     //     ctx.ui
                     //         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
                     // }
-                    MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
-                        Layer2DRole::Ceiling,
-                        &project.palette,
-                        ui,
-                        ctx,
-                    );
                 } else if id.name == "Tile FX Icon" {
                     self.curr_layer_role = Layer2DRole::FX;
                     self.set_icon_border_colors(ui);
@@ -914,12 +887,6 @@ impl MapEditor {
                     //     ctx.ui
                     //         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
                     // }
-                    MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
-                        Layer2DRole::FX,
-                        &project.palette,
-                        ui,
-                        ctx,
-                    );
                 }
             }
             _ => {}

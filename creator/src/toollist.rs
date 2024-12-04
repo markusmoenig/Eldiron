@@ -1,4 +1,3 @@
-use crate::editor::{PRERENDERTHREAD, RENDERER};
 use crate::prelude::*;
 
 pub use ActiveEditor::*;
@@ -14,9 +13,6 @@ pub struct ToolList {
 
     pub screen_tools: Vec<Box<dyn Tool>>,
     pub curr_screen_tool: usize,
-
-    pub terrain_tools: Vec<Box<dyn Tool>>,
-    pub curr_terrain_tool: usize,
 
     pub material_tools: Vec<Box<dyn Tool>>,
     pub curr_material_tool: usize,
@@ -57,14 +53,8 @@ impl ToolList {
             Box::new(ScreenEraserTool::new()),
             Box::new(ScreenGameTool::new()),
         ];
-        let terrain_tools: Vec<Box<dyn Tool>> = vec![
-            Box::new(TerrainDrawTool::new()),
-            Box::new(TerrainHeightTool::new()),
-            Box::new(TerrainSelectionTool::new()),
-            Box::new(TerrainZoomTool::new()),
-        ];
         let material_tools: Vec<Box<dyn Tool>> = vec![Box::new(MaterialNodeEditTool::new())];
-        let model_tools: Vec<Box<dyn Tool>> = vec![Box::new(ModelNodeEditTool::new())];
+        let model_tools: Vec<Box<dyn Tool>> = vec![/*Box::new(ModelNodeEditTool::new())*/];
         Self {
             server_time: TheTime::default(),
             render_button_text: "Finished".to_string(),
@@ -76,9 +66,6 @@ impl ToolList {
 
             screen_tools,
             curr_screen_tool: 0,
-
-            terrain_tools,
-            curr_terrain_tool: 0,
 
             material_tools,
             curr_material_tool: 0,
@@ -119,18 +106,6 @@ impl ToolList {
                     b.set_icon_name(tool.icon_name());
                     b.set_status_text(&tool.info());
                     if index == self.curr_screen_tool {
-                        b.set_state(TheWidgetState::Selected);
-                    }
-                    list.add_widget(Box::new(b));
-                }
-            }
-            TerrainEditor => {
-                for (index, tool) in self.terrain_tools.iter().enumerate() {
-                    let mut b = TheToolListButton::new(tool.id());
-
-                    b.set_icon_name(tool.icon_name());
-                    b.set_status_text(&tool.info());
-                    if index == self.curr_terrain_tool {
                         b.set_state(TheWidgetState::Selected);
                     }
                     list.add_widget(Box::new(b));
@@ -232,46 +207,6 @@ impl ToolList {
                                     tool_uuid = Some(tool.id().uuid);
                                     ctx.ui.set_widget_state(
                                         self.screen_tools[self.curr_screen_tool].id().name,
-                                        TheWidgetState::None,
-                                    );
-                                    ctx.ui
-                                        .set_widget_state(tool.id().name, TheWidgetState::Selected);
-                                }
-                            }
-                            if let Some(uuid) = tool_uuid {
-                                self.set_tool(uuid, ui, ctx, project, server, client, server_ctx);
-                            }
-                        }
-                        TerrainEditor => {
-                            if (*c == '-' || *c == '=' || *c == '+') && (ui.ctrl || ui.logo) {
-                                // Global Zoom In / Zoom Out
-                                if let Some(region) =
-                                    project.get_region_mut(&server_ctx.curr_region)
-                                {
-                                    if *c == '=' || *c == '+' {
-                                        region.zoom += 0.2;
-                                    } else {
-                                        region.zoom -= 0.2;
-                                    }
-                                    region.zoom = region.zoom.clamp(1.0, 5.0);
-                                    server.set_zoom(region.id, region.zoom);
-                                    if let Some(layout) = ui.get_rgba_layout("TerrainMap") {
-                                        layout.set_zoom(region.zoom);
-                                        layout.relayout(ctx);
-                                    }
-                                    if let Some(edit) = ui.get_text_line_edit("TerrainMap Zoom") {
-                                        edit.set_value(TheValue::Float(region.zoom));
-                                    }
-                                    return true;
-                                }
-                            }
-
-                            let mut tool_uuid = None;
-                            for tool in self.terrain_tools.iter() {
-                                if tool.accel() == Some(*c) {
-                                    tool_uuid = Some(tool.id().uuid);
-                                    ctx.ui.set_widget_state(
-                                        self.terrain_tools[self.curr_terrain_tool].id().name,
                                         TheWidgetState::None,
                                     );
                                     ctx.ui
@@ -398,19 +333,21 @@ impl ToolList {
                     if let Some(render_view) = ui.get_render_view("PolyView") {
                         let dim = render_view.dim();
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            let pos = RENDERER.lock().unwrap().get_hit_position_at(
-                                *coord,
-                                region,
-                                &mut server.get_instance_draw_settings(server_ctx.curr_region),
-                                dim.width as usize,
-                                dim.height as usize,
-                            );
+                            // let pos = RENDERER.lock().unwrap().get_hit_position_at(
+                            //     *coord,
+                            //     region,
+                            //     &mut server.get_instance_draw_settings(server_ctx.curr_region),
+                            //     dim.width as usize,
+                            //     dim.height as usize,
+                            // );
+                            //
+                            let pos = Some((*coord, *coord));
 
                             if let Some((pos, pos_f)) = pos {
                                 redraw = self.get_current_tool().tool_event(
                                     ToolEvent::TileDown(
-                                        vec2i(pos.x, pos.z),
-                                        vec2f(pos_f.x, pos_f.z),
+                                        vec2i(pos.x, pos.y),
+                                        vec2f(pos.x as f32, pos.y as f32),
                                     ),
                                     ToolContext::ThreeD,
                                     ui,
@@ -430,19 +367,21 @@ impl ToolList {
                     if let Some(render_view) = ui.get_render_view("RenderView") {
                         let dim = render_view.dim();
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            let pos = RENDERER.lock().unwrap().get_hit_position_at(
-                                *coord,
-                                region,
-                                &mut server.get_instance_draw_settings(server_ctx.curr_region),
-                                dim.width as usize,
-                                dim.height as usize,
-                            );
+                            // let pos = RENDERER.lock().unwrap().get_hit_position_at(
+                            //     *coord,
+                            //     region,
+                            //     &mut server.get_instance_draw_settings(server_ctx.curr_region),
+                            //     dim.width as usize,
+                            //     dim.height as usize,
+                            // );
+
+                            let pos = Some((*coord, *coord));
 
                             if let Some((pos, pos_f)) = pos {
                                 redraw = self.get_current_tool().tool_event(
                                     ToolEvent::TileDrag(
-                                        vec2i(pos.x, pos.z),
-                                        vec2f(pos_f.x, pos_f.z),
+                                        vec2i(pos.x, pos.y),
+                                        vec2f(pos.x as f32, pos.y as f32),
                                     ),
                                     ToolContext::ThreeD,
                                     ui,
@@ -457,24 +396,24 @@ impl ToolList {
                     }
                 }
             }
-            TheEvent::ContextMenuSelected(widget_id, item_id) => {
-                if widget_id.name == "Render Button" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if item_id.name == "Start Renderer" {
-                            PRERENDERTHREAD.lock().unwrap().set_paused(false);
-                        } else if item_id.name == "Pause Renderer" {
-                            PRERENDERTHREAD.lock().unwrap().set_paused(true);
-                        } else if item_id.name == "Restart Renderer" {
-                            PRERENDERTHREAD.lock().unwrap().set_paused(false);
-                            PRERENDERTHREAD
-                                .lock()
-                                .unwrap()
-                                .render_region(region.clone(), None);
-                        }
-                        redraw = true;
-                    }
-                }
-            }
+            // TheEvent::ContextMenuSelected(widget_id, item_id) => {
+            //     if widget_id.name == "Render Button" {
+            //         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+            //             if item_id.name == "Start Renderer" {
+            //                 PRERENDERTHREAD.lock().unwrap().set_paused(false);
+            //             } else if item_id.name == "Pause Renderer" {
+            //                 PRERENDERTHREAD.lock().unwrap().set_paused(true);
+            //             } else if item_id.name == "Restart Renderer" {
+            //                 PRERENDERTHREAD.lock().unwrap().set_paused(false);
+            //                 PRERENDERTHREAD
+            //                     .lock()
+            //                     .unwrap()
+            //                     .render_region(region.clone(), None);
+            //             }
+            //             redraw = true;
+            //         }
+            //     }
+            // }
             TheEvent::Custom(id, value) => {
                 if id.name == "Set Game Tool" {
                     if let TheValue::Text(name) = value {
@@ -501,7 +440,6 @@ impl ToolList {
         match &self.active_editor {
             GameEditor => &mut self.game_tools[self.curr_game_tool],
             ScreenEditor => &mut self.screen_tools[self.curr_screen_tool],
-            TerrainEditor => &mut self.terrain_tools[self.curr_terrain_tool],
             MaterialEditor => &mut self.material_tools[self.curr_material_tool],
             ModelEditor => &mut self.model_tools[self.curr_model_tool],
         }
@@ -532,18 +470,6 @@ impl ToolList {
             }
             ScreenEditor => {
                 self.screen_tools[self.curr_screen_tool].tool_event(
-                    ToolEvent::DeActivate,
-                    ToolContext::TwoD,
-                    ui,
-                    ctx,
-                    project,
-                    server,
-                    client,
-                    server_ctx,
-                );
-            }
-            TerrainEditor => {
-                self.terrain_tools[self.curr_terrain_tool].tool_event(
                     ToolEvent::DeActivate,
                     ToolContext::TwoD,
                     ui,
@@ -646,36 +572,6 @@ impl ToolList {
                         }
                     }
                     self.screen_tools[old_tool_index].tool_event(
-                        ToolEvent::DeActivate,
-                        ToolContext::TwoD,
-                        ui,
-                        ctx,
-                        project,
-                        server,
-                        client,
-                        server_ctx,
-                    );
-                }
-            }
-            TerrainEditor => {
-                layout_name = "Terrain Tool Params";
-                let mut old_tool_index = 0;
-                for (index, tool) in self.terrain_tools.iter().enumerate() {
-                    if tool.id().uuid == tool_id && index != self.curr_terrain_tool {
-                        switched_tool = true;
-                        old_tool_index = self.curr_terrain_tool;
-                        self.curr_terrain_tool = index;
-                        redraw = true;
-                    }
-                }
-                if switched_tool {
-                    for tool in self.terrain_tools.iter() {
-                        if tool.id().uuid != tool_id {
-                            ctx.ui
-                                .set_widget_state(tool.id().name.clone(), TheWidgetState::None);
-                        }
-                    }
-                    self.terrain_tools[old_tool_index].tool_event(
                         ToolEvent::DeActivate,
                         ToolContext::TwoD,
                         ui,

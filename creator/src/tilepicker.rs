@@ -1,4 +1,4 @@
-use crate::editor::{PRERENDERTHREAD, RENDERER, TILEDRAWER};
+use crate::editor::TILEDRAWER;
 use crate::prelude::*;
 
 pub struct TilePicker {
@@ -326,9 +326,7 @@ impl TilePicker {
                                 tile.billboard = *billboard == 1;
 
                                 let tiles = project.extract_tiles();
-                                RENDERER.lock().unwrap().set_textures(tiles.clone());
                                 TILEDRAWER.lock().unwrap().set_tiles(tiles.clone());
-                                PRERENDERTHREAD.lock().unwrap().set_textures(tiles.clone());
                                 server.update_tiles(tiles);
                             }
                         }

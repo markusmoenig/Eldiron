@@ -18,16 +18,18 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer) {
     //     ]
     // }
 
-    let background = BLACK;
-
-    buffer.fill(background);
     let dim = buffer.dim();
 
     let width = dim.width as f32;
     let height = dim.height as f32;
 
     let mut region = orig_region.clone();
-    if let Some(bbox) = region.map.bounding_box() {
+    if let Some(mut bbox) = region.map.bounding_box() {
+        bbox.x -= 0.5;
+        bbox.y -= 0.5;
+        bbox.z += 1.0;
+        bbox.w += 1.0;
+
         let scale_x = width / bbox.z;
         let scale_y = height / bbox.w;
 

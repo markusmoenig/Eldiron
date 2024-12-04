@@ -1,7 +1,7 @@
 //use crate::prelude::*;
 use super::{
-    CHARACTER, DRAWSETTINGS, FONTS, IMAGES, PALETTE, REGIONS, RENDERER, SENDCMD, TILEDRAWER,
-    UPDATE, WIDGETBUFFER,
+    CHARACTER, DRAWSETTINGS, FONTS, IMAGES, PALETTE, REGIONS, SENDCMD, TILEDRAWER, UPDATE,
+    WIDGETBUFFER,
 };
 use theframework::prelude::*;
 
@@ -66,7 +66,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
                 } else if mode == 1 {
                     // 3D
 
-                    let mut renderer = RENDERER.write().unwrap();
+                    //let mut renderer = RENDERER.write().unwrap();
 
                     let upscale = 1.0;
                     // TODO: Read from render settings
@@ -74,29 +74,29 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
                     if upscale != 1.0 {
                         let scaled_width = (buffer.dim().width as f32 / upscale) as i32;
                         let scaled_height = (buffer.dim().height as f32 / upscale) as i32;
-                        let mut upscaled_buffer =
+                        let upscaled_buffer =
                             TheRGBABuffer::new(TheDim::new(0, 0, scaled_width, scaled_height));
 
-                        renderer.rendered(
-                            &mut upscaled_buffer,
-                            region,
-                            &mut update,
-                            &mut settings,
-                            true,
-                            &PALETTE.read().unwrap(),
-                        );
+                        // renderer.rendered(
+                        //     &mut upscaled_buffer,
+                        //     region,
+                        //     &mut update,
+                        //     &mut settings,
+                        //     true,
+                        //     &PALETTE.read().unwrap(),
+                        // );
 
                         upscaled_buffer.scaled_into(&mut buffer);
                         // upscaled_buffer.scaled_into_linear(&mut buffer);
                     } else {
-                        renderer.rendered(
-                            &mut buffer,
-                            region,
-                            &mut update,
-                            &mut settings,
-                            true,
-                            &PALETTE.read().unwrap(),
-                        );
+                        // renderer.rendered(
+                        //     &mut buffer,
+                        //     region,
+                        //     &mut update,
+                        //     &mut settings,
+                        //     true,
+                        //     &PALETTE.read().unwrap(),
+                        // );
                     }
                 }
             }

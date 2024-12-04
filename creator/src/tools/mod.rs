@@ -1,21 +1,21 @@
 pub use crate::prelude::*;
 
 pub mod code;
-pub mod draw;
-pub mod eraser;
+// pub mod draw;
+// pub mod eraser;
 pub mod fx;
 pub mod game;
 pub mod linedef;
-pub mod mapobjects;
+// pub mod mapobjects;
 pub mod material;
-pub mod model;
+// pub mod model;
 // pub mod picker;
 pub mod render;
-pub mod resize;
+// pub mod resize;
 pub mod screen;
 pub mod sector;
 pub mod selection;
-pub mod terrain;
+//pub mod terrain;
 pub mod tilemap;
 pub mod vertex;
 pub mod zoom;

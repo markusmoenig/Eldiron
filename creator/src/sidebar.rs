@@ -1,7 +1,4 @@
-use crate::editor::{
-    ACTIVEEDITOR, CODEEDITOR, MAPRENDER, PRERENDERTHREAD, RENDERER, SIDEBARMODE, TERRAINEDITOR,
-    TILEDRAWER, TILEMAPEDITOR, UNDOMANAGER,
-};
+use crate::editor::{CODEEDITOR, MAPRENDER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR, UNDOMANAGER};
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
 
@@ -914,7 +911,12 @@ impl Sidebar {
                             let width = dim.width as f32;
                             let height = dim.height as f32;
 
-                            if let Some(bbox) = region.map.bounding_box() {
+                            if let Some(mut bbox) = region.map.bounding_box() {
+                                bbox.x -= 0.5;
+                                bbox.y -= 0.5;
+                                bbox.z += 1.0;
+                                bbox.w += 1.0;
+
                                 let scale_x = width / bbox.z;
                                 let scale_y = height / bbox.w;
 
@@ -1002,21 +1004,6 @@ impl Sidebar {
                             buffer.resize(dim.width, dim.height);
                             draw_minimap(region, buffer);
                         }
-                    }
-                } else if id.name == "Update Minimaps" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if let Some(render_view) = ui.get_render_view("MiniMap") {
-                            let dim = *render_view.dim();
-                            let buffer = render_view.render_buffer_mut();
-                            buffer.resize(dim.width, dim.height);
-                            draw_minimap(region, buffer);
-                        }
-                    }
-                    if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::TerrainEditor {
-                        TERRAINEDITOR
-                            .lock()
-                            .unwrap()
-                            .activated(ui, ctx, project, server_ctx, false);
                     }
                 } else if id.name == "Update Tiles" {
                     self.update_tiles(ui, ctx, project, server, client);
@@ -1177,11 +1164,6 @@ impl Sidebar {
                             ui,
                             ctx,
                         );
-                    }
-                } else if item_id.name == "Copy Prerendered" {
-                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                        RENDERER.lock().unwrap().render_canvas(region);
-                        RENDERER.lock().unwrap().canvas.canvas.to_clipboard();
                     }
                 } else if item_id.name == "Rename Module" {
                     if let Some(module) = project.codes.get(&widget_id.uuid) {
@@ -1394,10 +1376,6 @@ impl Sidebar {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.grid_size = v;
                             server.update_region(region);
-                            PRERENDERTHREAD
-                                .lock()
-                                .unwrap()
-                                .render_region(region.clone(), None);
 
                             server.update_region(region);
                             if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
@@ -1417,10 +1395,6 @@ impl Sidebar {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.tile_size = v;
                             server.update_region(region);
-                            PRERENDERTHREAD
-                                .lock()
-                                .unwrap()
-                                .render_region(region.clone(), None);
                         }
                     }
                 } else if id.name == "Region Tracer Samples Edit" {
@@ -1428,10 +1402,6 @@ impl Sidebar {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.pathtracer_samples = v;
                             server.update_region(region);
-                            PRERENDERTHREAD
-                                .lock()
-                                .unwrap()
-                                .render_region(region.clone(), None);
                         }
                     }
                 } else if id.name == "Region Min Brightness" {
@@ -1691,11 +1661,6 @@ impl Sidebar {
                         }
                     }
                     server.set_palette(&project.palette);
-                    PRERENDERTHREAD
-                        .lock()
-                        .unwrap()
-                        .set_palette(project.palette.clone());
-                    PRERENDERTHREAD.lock().unwrap().restart();
                     redraw = true;
 
                     let undo = PaletteUndoAtom::Edit(prev, project.palette.clone());
@@ -3492,7 +3457,6 @@ impl Sidebar {
                 buffer.resize(dim.width, dim.height);
                 draw_minimap(region, buffer);
             }
-            RENDERER.lock().unwrap().render_canvas(region);
         }
     }
 
@@ -3852,7 +3816,6 @@ impl Sidebar {
     ) {
         let tiles = project.extract_tiles();
         TILEDRAWER.lock().unwrap().set_tiles(tiles.clone());
-        RENDERER.lock().unwrap().set_textures(tiles.clone());
         MAPRENDER.lock().unwrap().set_textures(tiles.clone());
         server.update_tiles(tiles.clone());
         client.update_tiles(tiles);

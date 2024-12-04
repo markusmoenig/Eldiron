@@ -1,8 +1,6 @@
 use crate::prelude::*;
 use shared::prelude::*;
 
-use crate::editor::MODELFXEDITOR;
-
 pub struct MaterialEditor {}
 
 #[allow(clippy::new_without_default)]
@@ -62,10 +60,6 @@ impl MaterialEditor {
                     if let Some(material) = project.materials.get_mut(&material_id) {
                         let node_canvas = material.to_canvas(&project.palette);
                         ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
-                        MODELFXEDITOR
-                            .lock()
-                            .unwrap()
-                            .render_material_preview(material_id, project);
                     }
                 }
             }

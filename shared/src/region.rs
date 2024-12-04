@@ -70,9 +70,8 @@ pub struct Region {
     #[serde(default)]
     pub heightmap: Heightmap,
 
-    #[serde(default)]
-    pub prerendered: PreRendered,
-
+    // #[serde(default)]
+    // pub prerendered: PreRendered,
     pub width: i32,
     pub height: i32,
     pub grid_size: i32,
@@ -141,8 +140,7 @@ impl Region {
 
             heightmap: Heightmap::default(),
 
-            prerendered: PreRendered::default(),
-
+            // prerendered: PreRendered::default(),
             width: 80,
             height: 80,
             grid_size: 24,

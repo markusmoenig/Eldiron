@@ -92,12 +92,13 @@ impl RegionFXObject {
         }
     }
 
+    /*
     /// Render the prerendered tiles into the game canvas.
     pub fn cam_render_canvas(&self, region: &Region, canvas: &mut GameCanvas) {
         if let Some(node_index) = self.find_connected_output_node(0, 0) {
             self.nodes[node_index].cam_render_canvas(region, canvas)
         }
-    }
+    }*/
 
     /// Render the prerendered tiles into the game canvas.
     pub fn cam_region_size(&self, region: &Region) -> Vec2i {
