@@ -284,6 +284,11 @@ impl MapEditor {
                         region.editing_position_3d.z += coord.y as f32 / region.map.grid_size;
                         server.update_region(region);
                         redraw = true;
+
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Minimap"),
+                            TheValue::Empty,
+                        ));
                     }
                 }
             }

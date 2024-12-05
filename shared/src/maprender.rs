@@ -240,13 +240,16 @@ impl MapRender {
                                     drawer.add_textured_polygon(vertices, geo.1, uvs);
                                     if !repeat {
                                         if let Some(sampler) = &self.sampler {
-                                            drawer.draw_as_textured_triangles(sampler);
+                                            drawer.draw_as_textured_triangles(sampler, false);
                                         }
                                     } else if let Some(sampler_array) =
                                         self.texture_sampler.get(floor_texture_id)
                                     {
                                         let index = settings.anim_counter % sampler_array.len();
-                                        drawer.draw_as_textured_triangles(&sampler_array[index]);
+                                        drawer.draw_as_textured_triangles(
+                                            &sampler_array[index],
+                                            false,
+                                        );
                                     }
                                 }
                             }
@@ -275,7 +278,7 @@ impl MapRender {
                                 [1.0, 1.0],
                             );
 
-                            drawer.draw_as_textured_triangles(&sampler_vec[index]);
+                            drawer.draw_as_textured_triangles(&sampler_vec[index], true);
                         }
                     }
                 }
@@ -300,7 +303,7 @@ impl MapRender {
                             [1.0, 1.0],
                         );
 
-                        drawer.draw_as_textured_triangles(&sampler_vec[index]);
+                        drawer.draw_as_textured_triangles(&sampler_vec[index], true);
                     }
                 }
 
@@ -637,13 +640,13 @@ impl MapRender {
                                 drawer.add_textured_polygon(vertices, geo.1, uvs);
                                 if !repeat {
                                     if let Some(sampler) = &self.sampler {
-                                        drawer.draw_as_textured_triangles(sampler);
+                                        drawer.draw_as_textured_triangles(sampler, false);
                                     }
                                 } else if let Some(sampler_array) =
                                     self.texture_sampler.get(floor_texture_id)
                                 {
                                     let index = settings.anim_counter % sampler_array.len();
-                                    drawer.draw_as_textured_triangles(&sampler_array[index]);
+                                    drawer.draw_as_textured_triangles(&sampler_array[index], false);
                                 }
                             }
                         }

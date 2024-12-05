@@ -316,6 +316,18 @@ impl Tool for SelectionTool {
                                 vec2f(coord.x as f32, coord.y as f32),
                                 &region.map,
                             );
+
+                            let cp = server_ctx.local_to_map_grid(
+                                vec2f(dim.width as f32, dim.height as f32),
+                                vec2f(coord.x as f32, coord.y as f32),
+                                &region.map,
+                                region.map.subdivisions,
+                            );
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Cursor Pos Changed"),
+                                TheValue::Float2(cp),
+                            ));
+                            server_ctx.hover_cursor = Some(cp);
                         }
                     }
                 }

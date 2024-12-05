@@ -178,9 +178,8 @@ impl ServerContext {
     /// Centers the map at the given grid position.
     pub fn center_map_at_grid_pos(&mut self, _screen_size: Vec2f, grid_pos: Vec2f, map: &mut Map) {
         let pixel_pos = grid_pos * map.grid_size;
-
-        map.offset.x = -(pixel_pos.x); // - (screen_size.x / 2.0));
-        map.offset.y = pixel_pos.y; // - (screen_size.y / 2.0);
+        map.offset.x = -(pixel_pos.x);
+        map.offset.y = pixel_pos.y;
     }
 
     /// Returns the geometry at the given screen_position

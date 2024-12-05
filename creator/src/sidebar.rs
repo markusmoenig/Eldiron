@@ -925,8 +925,8 @@ impl Sidebar {
                                 let bbox_center_x = bbox.x + bbox.z / 2.0;
                                 let bbox_center_y = bbox.y + bbox.w / 2.0;
 
-                                let offset_x = -bbox_center_x * region.map.grid_size;
-                                let offset_y = bbox_center_y * region.map.grid_size;
+                                let offset_x = -bbox_center_x * grid_size;
+                                let offset_y = bbox_center_y * grid_size;
 
                                 let grid_x = (coord.x as f32 - width / 2.0 - offset_x) / grid_size;
                                 let grid_y = (coord.y as f32 - height / 2.0 + offset_y) / grid_size;

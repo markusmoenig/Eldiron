@@ -177,12 +177,17 @@ impl EucDraw {
     }
 
     /// Draw the textured triangles.
-    pub fn draw_as_textured_triangles(&mut self, sampler: &Tiled<Nearest<RgbaTexture>>) {
+    pub fn draw_as_textured_triangles(
+        &mut self,
+        sampler: &Tiled<Nearest<RgbaTexture>>,
+        blend: bool,
+    ) {
         if !self.vertices.is_empty() {
             TexturedTriangles {
                 positions: &self.vertices[..],
                 uvs: &self.uvs[..],
                 sampler,
+                blend,
             }
             .render(&self.indices, &mut self.buffer, &mut Empty::default());
 
@@ -344,6 +349,7 @@ struct TexturedTriangles<'r, S> {
     positions: &'r [Vec2<f32>],
     uvs: &'r [Vec2<f32>],
     sampler: S,
+    blend: bool,
 }
 impl<'r, S: Sampler<2, Index = f32, Sample = Rgba<f32>>> Pipeline<'r> for TexturedTriangles<'r, S> {
     type Vertex = usize;
@@ -375,13 +381,27 @@ impl<'r, S: Sampler<2, Index = f32, Sample = Rgba<f32>>> Pipeline<'r> for Textur
         self.sampler.sample(uv.into_array())
     }
 
-    fn blend(&self, _: Self::Pixel, color: Self::Fragment) -> Self::Pixel {
-        [
-            (color[0] * 255.0) as u8,
-            (color[1] * 255.0) as u8,
-            (color[2] * 255.0) as u8,
-            (color[3] * 255.0) as u8,
-        ]
+    fn blend(&self, original: Self::Pixel, color: Self::Fragment) -> Self::Pixel {
+        if !self.blend {
+            [
+                (color[0] * 255.0) as u8,
+                (color[1] * 255.0) as u8,
+                (color[2] * 255.0) as u8,
+                (color[3] * 255.0) as u8,
+            ]
+        } else {
+            #[inline(always)]
+            fn mix_color(a: &[u8; 4], b: &Rgba<f32>, v: f32) -> [u8; 4] {
+                [
+                    (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] * v) * 255.0) as u8,
+                    (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] * v) * 255.0) as u8,
+                    (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] * v) * 255.0) as u8,
+                    255,
+                ]
+            }
+
+            mix_color(&original, &color, color[3])
+        }
     }
 }
 
@@ -434,15 +454,25 @@ impl<'r, S: Sampler<2, Index = f32, Sample = Rgba<f32>>> Pipeline<'r> for Textur
     }
 
     fn blend(&self, original: Self::Pixel, color: Self::Fragment) -> Self::Pixel {
-        if color[3] == 0.0 && self.blend {
-            original
-        } else {
+        if !self.blend {
             [
                 (color[0] * 255.0) as u8,
                 (color[1] * 255.0) as u8,
                 (color[2] * 255.0) as u8,
                 (color[3] * 255.0) as u8,
             ]
+        } else {
+            #[inline(always)]
+            fn mix_color(a: &[u8; 4], b: &Rgba<f32>, v: f32) -> [u8; 4] {
+                [
+                    (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] * v) * 255.0) as u8,
+                    (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] * v) * 255.0) as u8,
+                    (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] * v) * 255.0) as u8,
+                    255,
+                ]
+            }
+
+            mix_color(&original, &color, color[3])
         }
     }
 }
