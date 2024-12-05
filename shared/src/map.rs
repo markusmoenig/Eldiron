@@ -32,6 +32,8 @@ pub struct Map {
 
     // Camera Mode
     pub camera: MapCamera,
+    #[serde(skip)]
+    pub camera_xz: Option<Vec2f>,
 
     // Selection
     pub selected_vertices: Vec<u32>,
@@ -62,6 +64,7 @@ impl Map {
             sectors: vec![],
 
             camera: MapCamera::TwoD,
+            camera_xz: None,
 
             selected_vertices: vec![],
             selected_linedefs: vec![],

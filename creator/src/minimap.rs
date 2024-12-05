@@ -45,6 +45,10 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer) {
         // Compute the offset to center the map
         region.map.offset.x = -bbox_center_x * region.map.grid_size;
         region.map.offset.y = bbox_center_y * region.map.grid_size;
+        region.map.camera_xz = Some(vec2f(
+            region.editing_position_3d.x,
+            region.editing_position_3d.z,
+        ));
 
         let server_ctx = ServerContext {
             curr_map_tool_type: MapToolType::Sector,

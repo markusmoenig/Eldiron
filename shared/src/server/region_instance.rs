@@ -244,7 +244,7 @@ impl RegionInstance {
                     update,
                     &mut self.draw_settings,
                     Some(server_ctx),
-                    compute_delta,
+                    true, //compute_delta,
                     &self.palette,
                 );
             }
@@ -302,11 +302,12 @@ impl RegionInstance {
     #[allow(clippy::too_many_arguments)]
     pub fn draw_selections(
         &mut self,
-        buffer: &mut TheRGBABuffer,
-        tiledrawer: &TileDrawer,
-        ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        _buffer: &mut TheRGBABuffer,
+        _tiledrawer: &TileDrawer,
+        _ctx: &mut TheContext,
+        _server_ctx: &ServerContext,
     ) {
+        /*
         if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
             let grid_size = region.grid_size as f32;
 
@@ -356,7 +357,7 @@ impl RegionInstance {
                     );
                 }
             }
-        }
+        }*/
     }
 
     /// Insert an area (TheCodePackage) to the region.

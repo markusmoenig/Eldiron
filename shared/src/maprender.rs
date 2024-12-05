@@ -130,7 +130,7 @@ impl MapRender {
         let screen_size = vec2f(width as f32, height as f32);
         let region_height = region.height * region.grid_size;
 
-        let grid_size = region.grid_size as f32;
+        let grid_size = region.map.grid_size;
 
         if compute_delta {
             update.generate_character_pixel_positions(
@@ -251,6 +251,56 @@ impl MapRender {
                                 }
                             }
                         }
+                    }
+                }
+
+                // Draw Items
+                for item in update.items.values() {
+                    if let Some(tile_uuid) = self.get_tile_id_by_name(item.tile_name.clone()) {
+                        if let Some(sampler_vec) = self.texture_sampler.get(&tile_uuid) {
+                            let index = settings.anim_counter % sampler_vec.len();
+
+                            let pos = ServerContext::map_grid_to_local(
+                                screen_size,
+                                vec2f(item.position.x, item.position.y),
+                                &region.map,
+                            );
+
+                            drawer.add_textured_box(
+                                pos.x as f32,
+                                pos.y as f32,
+                                grid_size,
+                                grid_size,
+                                [0.0, 0.0],
+                                [1.0, 1.0],
+                            );
+
+                            drawer.draw_as_textured_triangles(&sampler_vec[index]);
+                        }
+                    }
+                }
+
+                // Draw Characters
+                for (pos, tile, _, _) in &update.characters_pixel_pos {
+                    if let Some(sampler_vec) = self.texture_sampler.get(tile) {
+                        let index = settings.anim_counter % sampler_vec.len();
+
+                        let pos = ServerContext::map_grid_to_local(
+                            screen_size,
+                            vec2f(pos.x, pos.y),
+                            &region.map,
+                        );
+
+                        drawer.add_textured_box(
+                            pos.x as f32,
+                            pos.y as f32,
+                            grid_size,
+                            grid_size,
+                            [0.0, 0.0],
+                            [1.0, 1.0],
+                        );
+
+                        drawer.draw_as_textured_triangles(&sampler_vec[index]);
                     }
                 }
 
@@ -377,6 +427,7 @@ impl MapRender {
 
                 drawer.draw_as_lines();
 
+                // Hover Cursor
                 if let Some(hover_pos) = server_ctx.hover_cursor {
                     let pos = ServerContext::map_grid_to_local(screen_size, hover_pos, &region.map);
                     let size = 4.0;
@@ -386,6 +437,21 @@ impl MapRender {
                         size * 2.0,
                         size * 2.0,
                         Rgba::yellow(),
+                    );
+                    drawer.draw_as_triangles();
+                }
+
+                // Camera Pos
+                if let Some(camera_pos) = region.map.camera_xz {
+                    let pos =
+                        ServerContext::map_grid_to_local(screen_size, camera_pos, &region.map);
+                    let size = 4.0;
+                    drawer.add_box(
+                        pos.x - size,
+                        pos.y - size,
+                        size * 2.0,
+                        size * 2.0,
+                        Rgba::red(),
                     );
                     drawer.draw_as_triangles();
                 }
@@ -400,7 +466,7 @@ impl MapRender {
                 let geo_map = generate_map_geometry(&region.map, self.atlas_size, &self.elements);
                 //drawer.add_mesh(geo.vertices, geo.indices, geo.uvs);
 
-                let m = if region.map.camera == MapCamera::ThreeDIso {
+                let (mvp, camera_pos) = if region.map.camera == MapCamera::ThreeDIso {
                     let scale = 2.0;
                     let aspect_ratio = width as f32 / height as f32;
                     let left = -scale * aspect_ratio;
@@ -430,7 +496,7 @@ impl MapRender {
                     );
                     let up = vek::Vec3::new(0.0, 1.0, 0.0);
                     let view = vek::Mat4::look_at_rh(camera_pos, look_at, up);
-                    projection * view
+                    (projection * view, camera_pos)
                 } else {
                     let projection = vek::Mat4::perspective_fov_rh_no(
                         1.4,
@@ -452,12 +518,9 @@ impl MapRender {
                         region.editing_position_3d.z - 1.0,
                     );
 
-                    let view: vek::Mat4<f32> = vek::Mat4::look_at_rh(
-                        camera_pos,
-                        look_at,
-                        vek::Vec3::new(0.0, 1.0, 0.0), // Up vector
-                    );
-                    projection * view
+                    let view: vek::Mat4<f32> =
+                        vek::Mat4::look_at_rh(camera_pos, look_at, vek::Vec3::new(0.0, 1.0, 0.0));
+                    (projection * view, camera_pos)
                 };
 
                 for (id, geo_vec) in geo_map.geometries.iter() {
@@ -470,10 +533,59 @@ impl MapRender {
                             );
                         }
                         let index = settings.anim_counter % sampler.len();
-                        drawer.draw_as_mesh(m, &sampler[index]);
+                        drawer.draw_as_mesh(mvp, &sampler[index], false);
                     }
                 }
-                drawer.blend_into(buffer);
+
+                // Draw Characters via billboarding
+                for (pos, tile, _, _) in &update.characters_pixel_pos {
+                    if let Some(sampler_vec) = self.texture_sampler.get(tile) {
+                        let index = settings.anim_counter % sampler_vec.len();
+
+                        let sprite_position = vek::Vec3::new(pos.x, 0.5, pos.y);
+                        let sprite_size = vek::Vec2::new(1.0, 1.0);
+
+                        let direction = (sprite_position - camera_pos).normalized();
+                        let flat_direction =
+                            vek::Vec3::new(direction.x, 0.0, direction.z).normalized();
+
+                        let angle = flat_direction.x.atan2(flat_direction.z);
+                        let rotation_matrix = vek::Mat4::rotation_y(angle);
+
+                        let half_width = sprite_size.x * 0.5;
+                        let half_height = sprite_size.y * 0.5;
+
+                        let quad_vertices = [
+                            vek::Vec3::new(-half_width, -half_height, 0.0),
+                            vek::Vec3::new(half_width, -half_height, 0.0),
+                            vek::Vec3::new(-half_width, half_height, 0.0),
+                            vek::Vec3::new(half_width, half_height, 0.0),
+                        ];
+
+                        let transformed_vertices: Vec<Vec3f> = quad_vertices
+                            .iter()
+                            .map(|v| {
+                                let v4 = vek::Vec4::new(v.x, v.y, v.z, 1.0);
+                                let rotated = rotation_matrix * v4;
+                                let r = rotated.xyz() + sprite_position;
+                                vec3f(r.x, r.y, r.z)
+                            })
+                            .collect();
+
+                        drawer.add_mesh(
+                            transformed_vertices,
+                            vec![0, 1, 2, 2, 1, 3],
+                            vec![
+                                Vec2f::new(0.0, 1.0),
+                                Vec2f::new(1.0, 1.0),
+                                Vec2f::new(0.0, 0.0),
+                                Vec2f::new(1.0, 0.0),
+                            ],
+                        );
+                        drawer.draw_as_mesh(mvp, &sampler_vec[index], true);
+                    }
+                }
+                drawer.copy_into(buffer);
             }
         } else {
             // No server ctx, we are live
@@ -543,6 +655,16 @@ impl MapRender {
         }
         let _stop = self.get_time();
         //println!("render time {:?}", _stop - _start);
+    }
+
+    /// Get the tile id of the given name.
+    pub fn get_tile_id_by_name(&self, name: String) -> Option<Uuid> {
+        for (id, tile) in &self.textures {
+            if tile.name == name {
+                return Some(*id);
+            }
+        }
+        None
     }
 
     // Draw the grid

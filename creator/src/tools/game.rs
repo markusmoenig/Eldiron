@@ -22,7 +22,7 @@ impl Tool for GameTool {
         str!("Game Tool (G). If the server is running input events are send to the game.")
     }
     fn icon_name(&self) -> String {
-        str!("input")
+        str!("joystick")
     }
     fn accel(&self) -> Option<char> {
         Some('g')

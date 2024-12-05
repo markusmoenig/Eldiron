@@ -37,6 +37,7 @@ impl EucDraw {
         }
     }
 
+    // Draw a colored 2D box
     pub fn add_box(&mut self, x: f32, y: f32, width: f32, height: f32, color: Rgba<f32>) {
         let top_left = [self.cx(x), self.cy(y)];
         let top_right = [self.cx(x + width), self.cy(y)];
@@ -62,6 +63,7 @@ impl EucDraw {
         ]);
     }
 
+    // Draw a textured 3D box
     pub fn add_textured_box(
         &mut self,
         x: f32,
@@ -83,18 +85,14 @@ impl EucDraw {
         let uv_bottom_left = Vec2::new(uv_top_left[0], uv_bottom_right[1]);
         let uv_bottom_right = Vec2::new(uv_bottom_right[0], uv_bottom_right[1]);
 
-        // Base index for indices
         let base_index = self.colored_vertices.len();
 
-        // Add vertices and colors
         self.vertices
             .extend([top_left, top_right, bottom_left, bottom_right]);
 
-        // Add UV coordinates (separate array for the shader)
         self.uvs
             .extend([uv_top_left, uv_top_right, uv_bottom_left, uv_bottom_right]);
 
-        // Add indices
         self.indices.extend([
             base_index,     // Top-left
             base_index + 2, // Bottom-left
@@ -195,13 +193,19 @@ impl EucDraw {
     }
 
     /// Draw as mesh.
-    pub fn draw_as_mesh(&mut self, mvp: Mat4<f32>, sampler: &Tiled<Nearest<RgbaTexture>>) {
+    pub fn draw_as_mesh(
+        &mut self,
+        mvp: Mat4<f32>,
+        sampler: &Tiled<Nearest<RgbaTexture>>,
+        blend: bool,
+    ) {
         if !self.vertices_4d.is_empty() {
             TexturedMesh {
                 mvp,
                 positions: &self.vertices_4d[..],
                 uvs: &self.uvs[..],
                 sampler,
+                blend,
             }
             .render(&self.indices, &mut self.buffer, &mut self.depth);
 
@@ -386,6 +390,7 @@ struct TexturedMesh<'r, S> {
     positions: &'r [Vec4<f32>],
     uvs: &'r [Vec2<f32>],
     sampler: S,
+    blend: bool,
 }
 impl<'r, S: Sampler<2, Index = f32, Sample = Rgba<f32>>> Pipeline<'r> for TexturedMesh<'r, S> {
     type Vertex = usize;
@@ -428,12 +433,16 @@ impl<'r, S: Sampler<2, Index = f32, Sample = Rgba<f32>>> Pipeline<'r> for Textur
         self.sampler.sample(uv.into_array())
     }
 
-    fn blend(&self, _: Self::Pixel, color: Self::Fragment) -> Self::Pixel {
-        [
-            (color[0] * 255.0) as u8,
-            (color[1] * 255.0) as u8,
-            (color[2] * 255.0) as u8,
-            (color[3] * 255.0) as u8,
-        ]
+    fn blend(&self, original: Self::Pixel, color: Self::Fragment) -> Self::Pixel {
+        if color[3] == 0.0 && self.blend {
+            original
+        } else {
+            [
+                (color[0] * 255.0) as u8,
+                (color[1] * 255.0) as u8,
+                (color[2] * 255.0) as u8,
+                (color[3] * 255.0) as u8,
+            ]
+        }
     }
 }

@@ -931,9 +931,19 @@ impl Sidebar {
                                 let grid_x = (coord.x as f32 - width / 2.0 - offset_x) / grid_size;
                                 let grid_y = (coord.y as f32 - height / 2.0 + offset_y) / grid_size;
 
+                                server_ctx.center_map_at_grid_pos(
+                                    vec2f(width, height),
+                                    vec2f(grid_x, grid_y),
+                                    &mut region.map,
+                                );
                                 region.editing_position_3d = vec3f(grid_x, 0.0, grid_y);
                                 server.set_editing_position_3d(region.editing_position_3d);
                                 server.update_region(region);
+
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Update Minimap"),
+                                    TheValue::Empty,
+                                ));
                             }
 
                             /*

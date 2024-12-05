@@ -280,6 +280,8 @@ impl MapEditor {
                         } else {
                             region.map.offset += Vec2f::new(-coord.x as f32, coord.y as f32);
                         }
+                        region.editing_position_3d.x += coord.x as f32 / region.map.grid_size;
+                        region.editing_position_3d.z += coord.y as f32 / region.map.grid_size;
                         server.update_region(region);
                         redraw = true;
                     }
