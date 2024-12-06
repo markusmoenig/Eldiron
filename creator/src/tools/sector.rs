@@ -8,7 +8,8 @@ pub struct SectorTool {
     id: TheId,
     click_pos: Vec2f,
     rectangle_undo_map: Map,
-
+    click_selected: bool,
+    drag_changed: bool,
     wall_height: f32,
 }
 
@@ -20,8 +21,9 @@ impl Tool for SectorTool {
         Self {
             id: TheId::named("Sector Tool"),
             click_pos: Vec2f::zero(),
+            click_selected: false,
+            drag_changed: false,
             rectangle_undo_map: Map::default(),
-
             wall_height: 0.0,
         }
     }
@@ -50,9 +52,7 @@ impl Tool for SectorTool {
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let _coord = match tool_event {
-            TileDown(_, c) => c,
-            TileDrag(_, c) => c,
+        match tool_event {
             Activate => {
                 // Display the tile edit panel.
                 ctx.ui
@@ -91,8 +91,6 @@ impl Tool for SectorTool {
             }
             _ => {
                 server_ctx.curr_map_tool_type = MapToolType::General;
-
-                return false;
             }
         };
         false
@@ -112,6 +110,7 @@ impl Tool for SectorTool {
         match event {
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == "PolyView" {
+                    self.click_selected = false;
                     if server_ctx.hover.2.is_some() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             let prev = region.map.clone();
@@ -123,6 +122,7 @@ impl Tool for SectorTool {
                                     if !region.map.selected_sectors.contains(&s) {
                                         region.map.selected_sectors.push(s);
                                         changed = true;
+                                        self.click_selected = true;
                                     }
                                 }
                             } else if ui.alt {
@@ -143,6 +143,7 @@ impl Tool for SectorTool {
                                     region.map.selected_sectors.clear();
                                     changed = true;
                                 }
+                                self.click_selected = true;
                             }
 
                             if changed {
@@ -172,37 +173,65 @@ impl Tool for SectorTool {
                     redraw = true;
                 }
             }
-            TheEvent::RenderViewHoverChanged(id, coord) => {
-                if id.name == "PolyView" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if let Some(render_view) = ui.get_render_view("PolyView") {
-                            let dim = *render_view.dim();
-                            let h = server_ctx.geometry_at(
-                                vec2f(dim.width as f32, dim.height as f32),
-                                vec2f(coord.x as f32, coord.y as f32),
-                                &region.map,
-                            );
-                            server_ctx.hover.2 = h.2;
-
-                            let cp = server_ctx.local_to_map_grid(
-                                vec2f(dim.width as f32, dim.height as f32),
-                                vec2f(coord.x as f32, coord.y as f32),
-                                &region.map,
-                                region.map.subdivisions,
-                            );
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Cursor Pos Changed"),
-                                TheValue::Float2(cp),
-                            ));
-                            server_ctx.hover_cursor = Some(cp);
-                        }
-                    }
-                }
-                redraw = true;
-            }
             TheEvent::RenderViewDragged(id, coord) => {
                 if id.name == "PolyView" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    if self.click_selected {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            // Dragging selected lines
+                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                                let dim = *render_view.dim();
+                                let click_pos = server_ctx.local_to_map_grid(
+                                    vec2f(dim.width as f32, dim.height as f32),
+                                    self.click_pos,
+                                    &region.map,
+                                    region.map.subdivisions,
+                                );
+                                let drag_pos = server_ctx.local_to_map_grid(
+                                    vec2f(dim.width as f32, dim.height as f32),
+                                    vec2f(coord.x as f32, coord.y as f32),
+                                    &region.map,
+                                    region.map.subdivisions,
+                                );
+
+                                let mut selected_vertices = vec![];
+
+                                let drag_delta = click_pos - drag_pos;
+
+                                for sector_id in self.rectangle_undo_map.selected_sectors.iter() {
+                                    if let Some(sector) =
+                                        self.rectangle_undo_map.find_sector(*sector_id)
+                                    {
+                                        for line_id in &sector.linedefs {
+                                            if let Some(line) =
+                                                self.rectangle_undo_map.find_linedef(*line_id)
+                                            {
+                                                selected_vertices.push(line.start_vertex);
+                                                selected_vertices.push(line.end_vertex);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                for vertex_id in selected_vertices.iter() {
+                                    if let Some(original_vertex) =
+                                        self.rectangle_undo_map.find_vertex_mut(*vertex_id)
+                                    {
+                                        if let Some(vertex) = region.map.find_vertex_mut(*vertex_id)
+                                        {
+                                            vertex.x = original_vertex.x - drag_delta.x;
+                                            vertex.y = original_vertex.y - drag_delta.y;
+                                        }
+                                    }
+                                }
+                                server.update_region(region);
+                                server_ctx.hover_cursor = Some(drag_pos);
+
+                                if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
+                                    self.drag_changed = true;
+                                }
+                            }
+                        }
+                    } else if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if let Some(render_view) = ui.get_render_view("PolyView") {
                             let dim = *render_view.dim();
                             let click_pos = server_ctx.local_to_map_grid(
@@ -266,7 +295,25 @@ impl Tool for SectorTool {
             TheEvent::RenderViewUp(id, _coord) => {
                 if id.name == "PolyView" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if region.map.curr_rectangle.is_some() {
+                        if self.click_selected {
+                            if self.drag_changed {
+                                let undo = RegionUndoAtom::MapEdit(
+                                    Box::new(self.rectangle_undo_map.clone()),
+                                    Box::new(region.map.clone()),
+                                );
+
+                                UNDOMANAGER
+                                    .lock()
+                                    .unwrap()
+                                    .add_region_undo(&region.id, undo, ctx);
+
+                                server.update_region(region);
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Map Selection Changed"),
+                                    TheValue::Empty,
+                                ));
+                            }
+                        } else if region.map.curr_rectangle.is_some() {
                             region.map.curr_rectangle = None;
                             server.update_region(region);
 
@@ -285,6 +332,34 @@ impl Tool for SectorTool {
                                 TheId::named("Map Selection Changed"),
                                 TheValue::Empty,
                             ));
+                        }
+                    }
+                }
+                redraw = true;
+            }
+            TheEvent::RenderViewHoverChanged(id, coord) => {
+                if id.name == "PolyView" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                            let dim = *render_view.dim();
+                            let h = server_ctx.geometry_at(
+                                vec2f(dim.width as f32, dim.height as f32),
+                                vec2f(coord.x as f32, coord.y as f32),
+                                &region.map,
+                            );
+                            server_ctx.hover.2 = h.2;
+
+                            let cp = server_ctx.local_to_map_grid(
+                                vec2f(dim.width as f32, dim.height as f32),
+                                vec2f(coord.x as f32, coord.y as f32),
+                                &region.map,
+                                region.map.subdivisions,
+                            );
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Cursor Pos Changed"),
+                                TheValue::Float2(cp),
+                            ));
+                            server_ctx.hover_cursor = Some(cp);
                         }
                     }
                 }
