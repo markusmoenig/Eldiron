@@ -183,9 +183,9 @@ impl Tool for LinedefTool {
         match event {
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == "PolyView" {
-                    if server_ctx.hover.1.is_some() {
-                        // Selected hovered line
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if region.map.curr_grid_pos.is_none() && server_ctx.hover.1.is_some() {
+                            // Selected hovered line
                             let prev = region.map.clone();
                             let mut changed = false;
 
@@ -234,75 +234,75 @@ impl Tool for LinedefTool {
                                     TheValue::Empty,
                                 ));
                             }
-                        }
-                    } else {
-                        // Line mode
-                        let mut set_current_gid_pos = true;
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            if let Some(render_view) = ui.get_render_view("PolyView") {
-                                let dim = *render_view.dim();
-                                let grid_pos = server_ctx.local_to_map_grid(
-                                    vec2f(dim.width as f32, dim.height as f32),
-                                    vec2f(coord.x as f32, coord.y as f32),
-                                    &region.map,
-                                    region.map.subdivisions,
-                                );
+                        } else {
+                            // Line mode
+                            let mut set_current_gid_pos = true;
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                if let Some(render_view) = ui.get_render_view("PolyView") {
+                                    let dim = *render_view.dim();
+                                    let grid_pos = server_ctx.local_to_map_grid(
+                                        vec2f(dim.width as f32, dim.height as f32),
+                                        vec2f(coord.x as f32, coord.y as f32),
+                                        &region.map,
+                                        region.map.subdivisions,
+                                    );
 
-                                if let Some(curr_grid_pos) = region.map.curr_grid_pos {
-                                    if curr_grid_pos.x != grid_pos.x
-                                        || curr_grid_pos.y != grid_pos.y
-                                    {
-                                        let prev = region.map.clone();
+                                    if let Some(curr_grid_pos) = region.map.curr_grid_pos {
+                                        if curr_grid_pos.x != grid_pos.x
+                                            || curr_grid_pos.y != grid_pos.y
+                                        {
+                                            let prev = region.map.clone();
 
-                                        let start_vertex = region
-                                            .map
-                                            .add_vertex_at(curr_grid_pos.x, curr_grid_pos.y);
-                                        let end_vertex =
-                                            region.map.add_vertex_at(grid_pos.x, grid_pos.y);
+                                            let start_vertex = region
+                                                .map
+                                                .add_vertex_at(curr_grid_pos.x, curr_grid_pos.y);
+                                            let end_vertex =
+                                                region.map.add_vertex_at(grid_pos.x, grid_pos.y);
 
-                                        // Returns id of linedef and optional id of new sector if polygon closes
-                                        let ids =
-                                            region.map.create_linedef(start_vertex, end_vertex);
+                                            // Returns id of linedef and optional id of new sector if polygon closes
+                                            let ids =
+                                                region.map.create_linedef(start_vertex, end_vertex);
 
-                                        if ids.1.is_some() {
-                                            // When we close a polygon delete the temporary data
-                                            region.map.clear_temp();
-                                            set_current_gid_pos = false;
+                                            if ids.1.is_some() {
+                                                // When we close a polygon delete the temporary data
+                                                region.map.clear_temp();
+                                                set_current_gid_pos = false;
+                                            }
+
+                                            server.update_region(region);
+
+                                            let undo = RegionUndoAtom::MapEdit(
+                                                Box::new(prev),
+                                                Box::new(region.map.clone()),
+                                            );
+
+                                            UNDOMANAGER
+                                                .lock()
+                                                .unwrap()
+                                                .add_region_undo(&region.id, undo, ctx);
+
+                                            ctx.ui.send(TheEvent::Custom(
+                                                TheId::named("Update Minimap"),
+                                                TheValue::Empty,
+                                            ));
                                         }
+                                    }
 
-                                        server.update_region(region);
-
-                                        let undo = RegionUndoAtom::MapEdit(
-                                            Box::new(prev),
-                                            Box::new(region.map.clone()),
-                                        );
-
-                                        UNDOMANAGER
-                                            .lock()
-                                            .unwrap()
-                                            .add_region_undo(&region.id, undo, ctx);
-
-                                        ctx.ui.send(TheEvent::Custom(
-                                            TheId::named("Update Minimap"),
-                                            TheValue::Empty,
-                                        ));
+                                    if set_current_gid_pos {
+                                        region.map.curr_grid_pos = Some(grid_pos);
                                     }
                                 }
-
-                                if set_current_gid_pos {
-                                    region.map.curr_grid_pos = Some(grid_pos);
-                                }
                             }
+
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                self.click_pos = vec2f(coord.x as f32, coord.y as f32);
+                                self.rectangle_undo_map = region.map.clone();
+                                self.rectangle_mode = false;
+                            }
+
+                            redraw = true;
                         }
                     }
-
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        self.click_pos = vec2f(coord.x as f32, coord.y as f32);
-                        self.rectangle_undo_map = region.map.clone();
-                        self.rectangle_mode = false;
-                    }
-
-                    redraw = true;
                 }
             }
             TheEvent::RenderViewHoverChanged(id, coord) => {

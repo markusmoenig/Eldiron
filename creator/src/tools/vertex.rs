@@ -7,6 +7,8 @@ use crate::editor::UNDOMANAGER;
 pub struct VertexTool {
     id: TheId,
     click_pos: Vec2f,
+    click_selected: bool,
+    drag_changed: bool,
     rectangle_undo_map: Map,
 }
 
@@ -18,6 +20,8 @@ impl Tool for VertexTool {
         Self {
             id: TheId::named("Vertex Tool"),
             click_pos: Vec2f::zero(),
+            click_selected: false,
+            drag_changed: false,
             rectangle_undo_map: Map::default(),
         }
     }
@@ -46,9 +50,7 @@ impl Tool for VertexTool {
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let _coord = match tool_event {
-            TileDown(_, c) => c,
-            TileDrag(_, c) => c,
+        match tool_event {
             Activate => {
                 // Display the tile edit panel.
                 ctx.ui
@@ -77,9 +79,7 @@ impl Tool for VertexTool {
                 server_ctx.hover_cursor = None;
                 return true;
             }
-            _ => {
-                return false;
-            }
+            _ => {}
         };
         false
     }
@@ -98,6 +98,7 @@ impl Tool for VertexTool {
         match event {
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == "PolyView" {
+                    self.click_selected = false;
                     if server_ctx.hover.0.is_some() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             let prev = region.map.clone();
@@ -111,6 +112,7 @@ impl Tool for VertexTool {
                                         changed = true;
                                     }
                                 }
+                                self.click_selected = true;
                             } else if ui.alt {
                                 // Subtract
                                 if let Some(v) = server_ctx.hover.0 {
@@ -129,6 +131,7 @@ impl Tool for VertexTool {
                                     region.map.selected_vertices.clear();
                                     changed = true;
                                 }
+                                self.click_selected = true;
                             }
 
                             if changed {
@@ -158,39 +161,48 @@ impl Tool for VertexTool {
                     redraw = true;
                 }
             }
-            TheEvent::RenderViewHoverChanged(id, coord) => {
-                if id.name == "PolyView" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if let Some(render_view) = ui.get_render_view("PolyView") {
-                            let dim = *render_view.dim();
-                            let h = server_ctx.geometry_at(
-                                vec2f(dim.width as f32, dim.height as f32),
-                                vec2f(coord.x as f32, coord.y as f32),
-                                &region.map,
-                            );
-                            server_ctx.hover.0 = h.0;
-
-                            let cp = server_ctx.local_to_map_grid(
-                                vec2f(dim.width as f32, dim.height as f32),
-                                vec2f(coord.x as f32, coord.y as f32),
-                                &region.map,
-                                region.map.subdivisions,
-                            );
-
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Cursor Pos Changed"),
-                                TheValue::Float2(cp),
-                            ));
-                            server_ctx.hover_cursor = Some(cp);
-                        }
-                    }
-                }
-                redraw = true;
-            }
             TheEvent::RenderViewDragged(id, coord) => {
                 if id.name == "PolyView" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                        if self.click_selected {
+                            // If we selected a vertex, drag means we move all selected vertices
+                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                                let dim = *render_view.dim();
+                                let click_pos = server_ctx.local_to_map_grid(
+                                    vec2f(dim.width as f32, dim.height as f32),
+                                    self.click_pos,
+                                    &region.map,
+                                    region.map.subdivisions,
+                                );
+                                let drag_pos = server_ctx.local_to_map_grid(
+                                    vec2f(dim.width as f32, dim.height as f32),
+                                    vec2f(coord.x as f32, coord.y as f32),
+                                    &region.map,
+                                    region.map.subdivisions,
+                                );
+
+                                let drag_delta = click_pos - drag_pos;
+                                for vertex_id in &region.map.selected_vertices.clone() {
+                                    if let Some(original_vertex) =
+                                        self.rectangle_undo_map.find_vertex_mut(*vertex_id)
+                                    {
+                                        if let Some(vertex) = region.map.find_vertex_mut(*vertex_id)
+                                        {
+                                            vertex.x = original_vertex.x - drag_delta.x;
+                                            vertex.y = original_vertex.y - drag_delta.y;
+                                        }
+                                    }
+                                }
+                                server.update_region(region);
+
+                                server_ctx.hover_cursor = Some(drag_pos);
+
+                                if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
+                                    self.drag_changed = true;
+                                }
+                            }
+                        } else if let Some(render_view) = ui.get_render_view("PolyView") {
+                            // Otherwise we treat it as rectangle selection
                             let dim = *render_view.dim();
                             let click_pos = server_ctx.local_to_map_grid(
                                 vec2f(dim.width as f32, dim.height as f32),
@@ -253,7 +265,25 @@ impl Tool for VertexTool {
             TheEvent::RenderViewUp(id, _coord) => {
                 if id.name == "PolyView" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if region.map.curr_rectangle.is_some() {
+                        if self.click_selected {
+                            if self.drag_changed {
+                                let undo = RegionUndoAtom::MapEdit(
+                                    Box::new(self.rectangle_undo_map.clone()),
+                                    Box::new(region.map.clone()),
+                                );
+
+                                UNDOMANAGER
+                                    .lock()
+                                    .unwrap()
+                                    .add_region_undo(&region.id, undo, ctx);
+
+                                server.update_region(region);
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Map Selection Changed"),
+                                    TheValue::Empty,
+                                ));
+                            }
+                        } else if region.map.curr_rectangle.is_some() {
                             region.map.curr_rectangle = None;
                             server.update_region(region);
 
@@ -272,6 +302,36 @@ impl Tool for VertexTool {
                                 TheId::named("Map Selection Changed"),
                                 TheValue::Empty,
                             ));
+                        }
+                    }
+                    self.click_selected = false;
+                }
+                redraw = true;
+            }
+            TheEvent::RenderViewHoverChanged(id, coord) => {
+                if id.name == "PolyView" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                            let dim = *render_view.dim();
+                            let h = server_ctx.geometry_at(
+                                vec2f(dim.width as f32, dim.height as f32),
+                                vec2f(coord.x as f32, coord.y as f32),
+                                &region.map,
+                            );
+                            server_ctx.hover.0 = h.0;
+
+                            let cp = server_ctx.local_to_map_grid(
+                                vec2f(dim.width as f32, dim.height as f32),
+                                vec2f(coord.x as f32, coord.y as f32),
+                                &region.map,
+                                region.map.subdivisions,
+                            );
+
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Cursor Pos Changed"),
+                                TheValue::Float2(cp),
+                            ));
+                            server_ctx.hover_cursor = Some(cp);
                         }
                     }
                 }
