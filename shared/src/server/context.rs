@@ -2,6 +2,13 @@ use crate::prelude::*;
 use theframework::prelude::*;
 
 #[derive(PartialEq)]
+pub enum MapContext {
+    Region,
+    Model,
+    Screen,
+}
+
+#[derive(PartialEq)]
 pub enum MapToolType {
     General,
     Selection,
@@ -75,6 +82,9 @@ pub struct ServerContext {
 
     /// Current Tool Type
     pub curr_map_tool_type: MapToolType,
+
+    /// Current Map Context
+    pub curr_map_context: MapContext,
 }
 
 impl Default for ServerContext {
@@ -124,6 +134,7 @@ impl ServerContext {
             hover_cursor: None,
 
             curr_map_tool_type: MapToolType::Linedef,
+            curr_map_context: MapContext::Region,
         }
     }
 

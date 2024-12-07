@@ -24,9 +24,20 @@ pub mod zoom;
 pub enum ToolEvent {
     Activate,
     DeActivate,
+
     TileDown(Vec2i, Vec2f),
     TileDrag(Vec2i, Vec2f),
     TileUp,
+}
+
+#[derive(PartialEq, Clone, Debug, Copy)]
+pub enum MapEvent {
+    MapClicked(Vec2i),
+    MapDragged(Vec2i),
+    MapHover(Vec2i),
+    MapUp(Vec2i),
+    MapDelete,
+    MapEscape,
 }
 
 #[derive(PartialEq, Clone, Debug, Copy)]
@@ -62,6 +73,20 @@ pub trait Tool: Send {
         server_ctx: &mut ServerContext,
     ) -> bool {
         false
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn map_event(
+        &mut self,
+        map_event: MapEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        map: &mut Map,
+        server: &mut Server,
+        client: &mut Client,
+        server_ctx: &mut ServerContext,
+    ) -> Option<RegionUndoAtom> {
+        None
     }
 
     #[allow(clippy::too_many_arguments)]

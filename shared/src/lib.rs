@@ -77,7 +77,7 @@ pub mod prelude {
     pub use crate::renderer_utils::ray_sphere;
     pub use crate::screen::*;
     pub use crate::sdf::*;
-    pub use crate::server::context::ServerContext;
+    pub use crate::server::context::*;
     pub use crate::server::{Server, ServerState};
     pub use crate::texture::RgbaTexture;
     pub use crate::tiledrawer::{RegionDrawSettings, TileDrawer};

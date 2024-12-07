@@ -376,11 +376,12 @@ impl<'r, S: Sampler<2, Index = f32, Sample = Rgba<f32>>> Pipeline<'r> for Textur
         )
     }
 
-    #[inline]
+    #[inline(always)]
     fn fragment(&self, uv: Self::VertexData) -> Self::Fragment {
         self.sampler.sample(uv.into_array())
     }
 
+    #[inline(always)]
     fn blend(&self, original: Self::Pixel, color: Self::Fragment) -> Self::Pixel {
         if !self.blend {
             [

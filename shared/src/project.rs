@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, server::context::MapContext};
 use indexmap::IndexMap;
 use theframework::prelude::*;
 
@@ -169,9 +169,39 @@ impl Project {
         self.regions.iter_mut().find(|t| t.id == *uuid)
     }
 
+    /// Get the region of the given uuid.
+    pub fn get_region_ctx(&self, ctx: &ServerContext) -> Option<&Region> {
+        self.regions.iter().find(|t| t.id == ctx.curr_region)
+    }
+
+    /// Get the region of the given uuid as mutable.
+    pub fn get_region_ctx_mut(&mut self, ctx: &ServerContext) -> Option<&mut Region> {
+        self.regions.iter_mut().find(|t| t.id == ctx.curr_region)
+    }
+
     /// Remove a region
     pub fn remove_region(&mut self, id: &Uuid) {
         self.regions.retain(|item| item.id != *id);
+    }
+
+    /// Get the map of the current context.
+    pub fn get_map(&self, ctx: &ServerContext) -> Option<&Map> {
+        if ctx.curr_map_context == MapContext::Region {
+            if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
+                return Some(&region.map);
+            }
+        }
+        None
+    }
+
+    /// Get the mutable map of the current context.
+    pub fn get_map_mut(&mut self, ctx: &ServerContext) -> Option<&mut Map> {
+        if ctx.curr_map_context == MapContext::Region {
+            if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
+                return Some(&mut region.map);
+            }
+        }
+        None
     }
 
     /// Add Code

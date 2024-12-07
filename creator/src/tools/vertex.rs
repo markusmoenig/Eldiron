@@ -1,8 +1,7 @@
 use crate::prelude::*;
 use shared::server::prelude::MapToolType;
+use MapEvent::*;
 use ToolEvent::*;
-
-use crate::editor::UNDOMANAGER;
 
 pub struct VertexTool {
     id: TheId,
@@ -84,319 +83,236 @@ impl Tool for VertexTool {
         false
     }
 
-    fn handle_event(
+    fn map_event(
         &mut self,
-        event: &TheEvent,
+        map_event: MapEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &mut Project,
-        server: &mut Server,
+        map: &mut Map,
+        _server: &mut Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
-    ) -> bool {
-        let mut redraw = false;
-        match event {
-            TheEvent::RenderViewClicked(id, coord) => {
-                if id.name == "PolyView" {
-                    self.click_selected = false;
-                    if server_ctx.hover.0.is_some() {
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            let prev = region.map.clone();
-                            let mut changed = false;
+    ) -> Option<RegionUndoAtom> {
+        let mut undo_atom: Option<RegionUndoAtom> = None;
 
-                            if ui.shift {
-                                // Add
-                                if let Some(v) = server_ctx.hover.0 {
-                                    if !region.map.selected_vertices.contains(&v) {
-                                        region.map.selected_vertices.push(v);
-                                        changed = true;
-                                    }
-                                }
-                                self.click_selected = true;
-                            } else if ui.alt {
-                                // Subtract
-                                if let Some(v) = server_ctx.hover.0 {
-                                    region
-                                        .map
-                                        .selected_vertices
-                                        .retain(|&selected| selected != v);
-                                    changed = true;
-                                }
-                            } else {
-                                // Replace
-                                if let Some(v) = server_ctx.hover.0 {
-                                    region.map.selected_vertices = vec![v];
-                                    changed = true;
-                                } else {
-                                    region.map.selected_vertices.clear();
-                                    changed = true;
-                                }
-                                self.click_selected = true;
-                            }
+        match map_event {
+            MapClicked(coord) => {
+                self.click_selected = false;
+                if server_ctx.hover.0.is_some() {
+                    let prev = map.clone();
+                    let mut changed = false;
 
-                            if changed {
-                                let undo = RegionUndoAtom::MapEdit(
-                                    Box::new(prev),
-                                    Box::new(region.map.clone()),
-                                );
-
-                                UNDOMANAGER
-                                    .lock()
-                                    .unwrap()
-                                    .add_region_undo(&region.id, undo, ctx);
-
-                                server.update_region(region);
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Map Selection Changed"),
-                                    TheValue::Empty,
-                                ));
+                    if ui.shift {
+                        // Add
+                        if let Some(v) = server_ctx.hover.0 {
+                            if !map.selected_vertices.contains(&v) {
+                                map.selected_vertices.push(v);
+                                changed = true;
                             }
                         }
+                        self.click_selected = true;
+                    } else if ui.alt {
+                        // Subtract
+                        if let Some(v) = server_ctx.hover.0 {
+                            map.selected_vertices.retain(|&selected| selected != v);
+                            changed = true;
+                        }
+                    } else {
+                        // Replace
+                        if let Some(v) = server_ctx.hover.0 {
+                            map.selected_vertices = vec![v];
+                            changed = true;
+                        } else {
+                            map.selected_vertices.clear();
+                            changed = true;
+                        }
+                        self.click_selected = true;
                     }
 
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        self.click_pos = vec2f(coord.x as f32, coord.y as f32);
-                        self.rectangle_undo_map = region.map.clone();
+                    if changed {
+                        undo_atom = Some(RegionUndoAtom::MapEdit(
+                            Box::new(prev),
+                            Box::new(map.clone()),
+                        ));
+
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
                     }
-                    redraw = true;
                 }
-            }
-            TheEvent::RenderViewDragged(id, coord) => {
-                if id.name == "PolyView" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if self.click_selected {
-                            // If we selected a vertex, drag means we move all selected vertices
-                            if let Some(render_view) = ui.get_render_view("PolyView") {
-                                let dim = *render_view.dim();
-                                let click_pos = server_ctx.local_to_map_grid(
-                                    vec2f(dim.width as f32, dim.height as f32),
-                                    self.click_pos,
-                                    &region.map,
-                                    region.map.subdivisions,
-                                );
-                                let drag_pos = server_ctx.local_to_map_grid(
-                                    vec2f(dim.width as f32, dim.height as f32),
-                                    vec2f(coord.x as f32, coord.y as f32),
-                                    &region.map,
-                                    region.map.subdivisions,
-                                );
 
-                                let drag_delta = click_pos - drag_pos;
-                                for vertex_id in &region.map.selected_vertices.clone() {
-                                    if let Some(original_vertex) =
-                                        self.rectangle_undo_map.find_vertex_mut(*vertex_id)
-                                    {
-                                        if let Some(vertex) = region.map.find_vertex_mut(*vertex_id)
-                                        {
-                                            vertex.x = original_vertex.x - drag_delta.x;
-                                            vertex.y = original_vertex.y - drag_delta.y;
-                                        }
-                                    }
+                self.click_pos = vec2f(coord.x as f32, coord.y as f32);
+                self.rectangle_undo_map = map.clone();
+            }
+            MapDragged(coord) => {
+                if self.click_selected {
+                    // If we selected a vertex, drag means we move all selected vertices
+                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                        let dim = *render_view.dim();
+                        let click_pos = server_ctx.local_to_map_grid(
+                            vec2f(dim.width as f32, dim.height as f32),
+                            self.click_pos,
+                            map,
+                            map.subdivisions,
+                        );
+                        let drag_pos = server_ctx.local_to_map_grid(
+                            vec2f(dim.width as f32, dim.height as f32),
+                            vec2f(coord.x as f32, coord.y as f32),
+                            map,
+                            map.subdivisions,
+                        );
+
+                        let drag_delta = click_pos - drag_pos;
+                        for vertex_id in &map.selected_vertices.clone() {
+                            if let Some(original_vertex) =
+                                self.rectangle_undo_map.find_vertex_mut(*vertex_id)
+                            {
+                                if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
+                                    vertex.x = original_vertex.x - drag_delta.x;
+                                    vertex.y = original_vertex.y - drag_delta.y;
                                 }
-                                server.update_region(region);
-
-                                server_ctx.hover_cursor = Some(drag_pos);
-
-                                if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
-                                    self.drag_changed = true;
-                                }
                             }
-                        } else if let Some(render_view) = ui.get_render_view("PolyView") {
-                            // Otherwise we treat it as rectangle selection
-                            let dim = *render_view.dim();
-                            let click_pos = server_ctx.local_to_map_grid(
-                                vec2f(dim.width as f32, dim.height as f32),
-                                self.click_pos,
-                                &region.map,
-                                region.map.subdivisions,
-                            );
-                            let drag_pos = server_ctx.local_to_map_grid(
-                                vec2f(dim.width as f32, dim.height as f32),
-                                vec2f(coord.x as f32, coord.y as f32),
-                                &region.map,
-                                region.map.subdivisions,
-                            );
+                        }
+                        server_ctx.hover_cursor = Some(drag_pos);
 
-                            let top_left = Vec2f::new(
-                                click_pos.x.min(drag_pos.x),
-                                click_pos.y.min(drag_pos.y),
-                            );
-                            let bottom_right = Vec2f::new(
-                                click_pos.x.max(drag_pos.x),
-                                click_pos.y.max(drag_pos.y),
-                            );
-
-                            let mut selection = server_ctx.geometry_in_rectangle(
-                                top_left,
-                                bottom_right,
-                                &region.map,
-                            );
-
-                            selection.1 = vec![];
-                            selection.2 = vec![];
-
-                            region.map = self.rectangle_undo_map.clone();
-                            region.map.curr_rectangle =
-                                Some((self.click_pos, vec2f(coord.x as f32, coord.y as f32)));
-
-                            if ui.shift {
-                                // Add
-                                region
-                                    .map
-                                    .add_to_selection(selection.0, selection.1, selection.2);
-                            } else if ui.alt {
-                                // Remove
-                                region.map.remove_from_selection(
-                                    selection.0,
-                                    selection.1,
-                                    selection.2,
-                                );
-                            } else {
-                                // Replace
-                                region.map.selected_vertices = selection.0;
-                            }
-
-                            server.update_region(region);
+                        if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
+                            self.drag_changed = true;
                         }
                     }
+                } else if let Some(render_view) = ui.get_render_view("PolyView") {
+                    // Otherwise we treat it as rectangle selection
+                    let dim = *render_view.dim();
+                    let click_pos = server_ctx.local_to_map_grid(
+                        vec2f(dim.width as f32, dim.height as f32),
+                        self.click_pos,
+                        map,
+                        map.subdivisions,
+                    );
+                    let drag_pos = server_ctx.local_to_map_grid(
+                        vec2f(dim.width as f32, dim.height as f32),
+                        vec2f(coord.x as f32, coord.y as f32),
+                        map,
+                        map.subdivisions,
+                    );
+
+                    let top_left =
+                        Vec2f::new(click_pos.x.min(drag_pos.x), click_pos.y.min(drag_pos.y));
+                    let bottom_right =
+                        Vec2f::new(click_pos.x.max(drag_pos.x), click_pos.y.max(drag_pos.y));
+
+                    let mut selection =
+                        server_ctx.geometry_in_rectangle(top_left, bottom_right, map);
+
+                    selection.1 = vec![];
+                    selection.2 = vec![];
+
+                    *map = self.rectangle_undo_map.clone();
+                    map.curr_rectangle =
+                        Some((self.click_pos, vec2f(coord.x as f32, coord.y as f32)));
+
+                    if ui.shift {
+                        // Add
+                        map.add_to_selection(selection.0, selection.1, selection.2);
+                    } else if ui.alt {
+                        // Remove
+                        map.remove_from_selection(selection.0, selection.1, selection.2);
+                    } else {
+                        // Replace
+                        map.selected_vertices = selection.0;
+                    }
                 }
-                redraw = true;
             }
-            TheEvent::RenderViewUp(id, _coord) => {
-                if id.name == "PolyView" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if self.click_selected {
-                            if self.drag_changed {
-                                let undo = RegionUndoAtom::MapEdit(
-                                    Box::new(self.rectangle_undo_map.clone()),
-                                    Box::new(region.map.clone()),
-                                );
+            MapUp(_) => {
+                if self.click_selected {
+                    if self.drag_changed {
+                        undo_atom = Some(RegionUndoAtom::MapEdit(
+                            Box::new(self.rectangle_undo_map.clone()),
+                            Box::new(map.clone()),
+                        ));
 
-                                UNDOMANAGER
-                                    .lock()
-                                    .unwrap()
-                                    .add_region_undo(&region.id, undo, ctx);
-
-                                server.update_region(region);
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Map Selection Changed"),
-                                    TheValue::Empty,
-                                ));
-                            }
-                        } else if region.map.curr_rectangle.is_some() {
-                            region.map.curr_rectangle = None;
-                            server.update_region(region);
-
-                            let undo = RegionUndoAtom::MapEdit(
-                                Box::new(self.rectangle_undo_map.clone()),
-                                Box::new(region.map.clone()),
-                            );
-
-                            UNDOMANAGER
-                                .lock()
-                                .unwrap()
-                                .add_region_undo(&region.id, undo, ctx);
-
-                            server.update_region(region);
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Map Selection Changed"),
-                                TheValue::Empty,
-                            ));
-                        }
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
                     }
-                    self.click_selected = false;
+                } else if map.curr_rectangle.is_some() {
+                    map.curr_rectangle = None;
+
+                    undo_atom = Some(RegionUndoAtom::MapEdit(
+                        Box::new(self.rectangle_undo_map.clone()),
+                        Box::new(map.clone()),
+                    ));
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
                 }
-                redraw = true;
+                self.click_selected = false;
             }
-            TheEvent::RenderViewHoverChanged(id, coord) => {
-                if id.name == "PolyView" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if let Some(render_view) = ui.get_render_view("PolyView") {
-                            let dim = *render_view.dim();
-                            let h = server_ctx.geometry_at(
-                                vec2f(dim.width as f32, dim.height as f32),
-                                vec2f(coord.x as f32, coord.y as f32),
-                                &region.map,
-                            );
-                            server_ctx.hover.0 = h.0;
+            MapHover(coord) => {
+                if let Some(render_view) = ui.get_render_view("PolyView") {
+                    let dim = *render_view.dim();
+                    let h = server_ctx.geometry_at(
+                        vec2f(dim.width as f32, dim.height as f32),
+                        vec2f(coord.x as f32, coord.y as f32),
+                        map,
+                    );
+                    server_ctx.hover.0 = h.0;
 
-                            let cp = server_ctx.local_to_map_grid(
-                                vec2f(dim.width as f32, dim.height as f32),
-                                vec2f(coord.x as f32, coord.y as f32),
-                                &region.map,
-                                region.map.subdivisions,
-                            );
+                    let cp = server_ctx.local_to_map_grid(
+                        vec2f(dim.width as f32, dim.height as f32),
+                        vec2f(coord.x as f32, coord.y as f32),
+                        map,
+                        map.subdivisions,
+                    );
 
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Cursor Pos Changed"),
-                                TheValue::Float2(cp),
-                            ));
-                            server_ctx.hover_cursor = Some(cp);
-                        }
-                    }
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Cursor Pos Changed"),
+                        TheValue::Float2(cp),
+                    ));
+                    server_ctx.hover_cursor = Some(cp);
                 }
-                redraw = true;
             }
-            TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
-                #[allow(clippy::collapsible_if)]
-                if *code == TheKeyCode::Escape {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        // Hover is empty, check if we need to clear selection
-                        if !region.map.selected_vertices.is_empty() {
-                            let prev = region.map.clone();
+            MapDelete => {
+                if !map.selected_vertices.is_empty() {
+                    let prev = map.clone();
+                    let vertices = map.selected_vertices.clone();
 
-                            region.map.selected_vertices.clear();
+                    #[allow(clippy::useless_vec)]
+                    map.delete_elements(&vertices, &vec![], &vec![]);
+                    map.selected_vertices.clear();
 
-                            let undo = RegionUndoAtom::MapEdit(
-                                Box::new(prev),
-                                Box::new(region.map.clone()),
-                            );
-
-                            UNDOMANAGER
-                                .lock()
-                                .unwrap()
-                                .add_region_undo(&region.id, undo, ctx);
-
-                            server.update_region(region);
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Map Selection Changed"),
-                                TheValue::Empty,
-                            ));
-                        }
-                    }
+                    undo_atom = Some(RegionUndoAtom::MapEdit(
+                        Box::new(prev),
+                        Box::new(map.clone()),
+                    ));
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
                 }
-                if *code == TheKeyCode::Delete {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if !region.map.selected_vertices.is_empty() {
-                            let prev = region.map.clone();
-                            let vertices = region.map.selected_vertices.clone();
-
-                            #[allow(clippy::useless_vec)]
-                            region.map.delete_elements(&vertices, &vec![], &vec![]);
-                            region.map.selected_vertices.clear();
-
-                            let undo = RegionUndoAtom::MapEdit(
-                                Box::new(prev),
-                                Box::new(region.map.clone()),
-                            );
-
-                            UNDOMANAGER
-                                .lock()
-                                .unwrap()
-                                .add_region_undo(&region.id, undo, ctx);
-
-                            server.update_region(region);
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Map Selection Changed"),
-                                TheValue::Empty,
-                            ));
-                        }
-                    }
-                }
-                redraw = true;
             }
-            _ => {}
-        }
-        redraw
+            MapEscape => {
+                // Hover is empty, check if we need to clear selection
+                if !map.selected_vertices.is_empty() {
+                    let prev = map.clone();
+
+                    map.selected_vertices.clear();
+
+                    undo_atom = Some(RegionUndoAtom::MapEdit(
+                        Box::new(prev),
+                        Box::new(map.clone()),
+                    ));
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
+                }
+            }
+        };
+        undo_atom
     }
 }

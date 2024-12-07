@@ -1,5 +1,6 @@
 use crate::prelude::*;
 
+use crate::editor::UNDOMANAGER;
 pub use ActiveEditor::*;
 
 pub struct ToolList {
@@ -139,6 +140,32 @@ impl ToolList {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// If the map has been changed, update its context and add an undo.
+    fn update_map_context(
+        &mut self,
+        _ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server: &mut Server,
+        _client: &mut Client,
+        server_ctx: &mut ServerContext,
+        undo_atom: Option<RegionUndoAtom>,
+    ) {
+        if server_ctx.curr_map_context == MapContext::Region {
+            if let Some(region) = project.get_region_ctx(server_ctx) {
+                if let Some(undo_atom) = undo_atom {
+                    UNDOMANAGER.lock().unwrap().add_region_undo(
+                        &server_ctx.curr_region,
+                        undo_atom,
+                        ctx,
+                    );
+                }
+                server.update_region(region);
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn handle_event(
         &mut self,
         event: &TheEvent,
@@ -259,6 +286,116 @@ impl ToolList {
                     redraw = self.set_tool(id.uuid, ui, ctx, project, server, client, server_ctx);
                 }
             }
+            TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
+                if *code == TheKeyCode::Escape {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        let undo_atom = self.get_current_tool().map_event(
+                            MapEvent::MapEscape,
+                            ui,
+                            ctx,
+                            map,
+                            server,
+                            client,
+                            server_ctx,
+                        );
+                        self.update_map_context(
+                            ui, ctx, project, server, client, server_ctx, undo_atom,
+                        );
+                    }
+                } else if *code == TheKeyCode::Delete {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        let undo_atom = self.get_current_tool().map_event(
+                            MapEvent::MapDelete,
+                            ui,
+                            ctx,
+                            map,
+                            server,
+                            client,
+                            server_ctx,
+                        );
+                        self.update_map_context(
+                            ui, ctx, project, server, client, server_ctx, undo_atom,
+                        );
+                    }
+                }
+            }
+            TheEvent::RenderViewClicked(id, coord) => {
+                if id.name == "PolyView" {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        let undo_atom = self.get_current_tool().map_event(
+                            MapEvent::MapClicked(*coord),
+                            ui,
+                            ctx,
+                            map,
+                            server,
+                            client,
+                            server_ctx,
+                        );
+                        self.update_map_context(
+                            ui, ctx, project, server, client, server_ctx, undo_atom,
+                        );
+                    }
+                    redraw = true;
+                }
+            }
+            TheEvent::RenderViewDragged(id, coord) => {
+                if id.name == "PolyView" {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        let undo_atom = self.get_current_tool().map_event(
+                            MapEvent::MapDragged(*coord),
+                            ui,
+                            ctx,
+                            map,
+                            server,
+                            client,
+                            server_ctx,
+                        );
+                        self.update_map_context(
+                            ui, ctx, project, server, client, server_ctx, undo_atom,
+                        );
+                    }
+                    redraw = true;
+                }
+            }
+            TheEvent::RenderViewUp(id, coord) => {
+                if id.name == "PolyView" {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        let undo_atom = self.get_current_tool().map_event(
+                            MapEvent::MapUp(*coord),
+                            ui,
+                            ctx,
+                            map,
+                            server,
+                            client,
+                            server_ctx,
+                        );
+                        self.update_map_context(
+                            ui, ctx, project, server, client, server_ctx, undo_atom,
+                        );
+                    }
+                    redraw = true;
+                }
+            }
+            TheEvent::RenderViewHoverChanged(id, coord) => {
+                if id.name == "PolyView" {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        let undo_atom = self.get_current_tool().map_event(
+                            MapEvent::MapHover(*coord),
+                            ui,
+                            ctx,
+                            map,
+                            server,
+                            client,
+                            server_ctx,
+                        );
+                        self.update_map_context(
+                            ui, ctx, project, server, client, server_ctx, undo_atom,
+                        );
+                    }
+                    redraw = true;
+                }
+            }
+            /*
             TheEvent::TileEditorClicked(id, coord) => {
                 if id.name == "Region Editor View"
                     || id.name == "Screen Editor View"
@@ -395,7 +532,7 @@ impl ToolList {
                     //}
                     //}
                 }
-            }
+            }*/
             // TheEvent::ContextMenuSelected(widget_id, item_id) => {
             //     if widget_id.name == "Render Button" {
             //         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
