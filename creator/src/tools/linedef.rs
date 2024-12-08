@@ -53,9 +53,10 @@ impl Tool for LinedefTool {
     ) -> bool {
         match tool_event {
             Activate => {
-                // Display the tile edit panel.
-                ctx.ui
-                    .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
+                ctx.ui.send(TheEvent::SetStackIndex(
+                    TheId::named("Main Stack"),
+                    PanelIndices::TilePicker as usize,
+                ));
 
                 if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
                     layout.set_mode(TheSharedHLayoutMode::Right);

@@ -1,7 +1,18 @@
 use crate::editor::{
-    CODEEDITOR, MODELEDITOR, REGIONFXEDITOR, TILEDRAWER, TILEFXEDITOR, TILEMAPEDITOR, TILEPICKER,
+    CODEEDITOR, MATERIALEDITOR, MODELEDITOR, REGIONFXEDITOR, TILEDRAWER, TILEFXEDITOR,
+    TILEMAPEDITOR, TILEPICKER,
 };
 use crate::prelude::*;
+
+pub enum PanelIndices {
+    TilePicker,
+    CodeEditor,
+    TileMapEditor,
+    TileFxEditor,
+    ModelEditor,
+    RegionFxEditor,
+    MaterialEditor,
+}
 
 pub struct Panels {
     pub curr_atom: Option<TheCodeAtom>,
@@ -56,6 +67,7 @@ impl Panels {
         // code_canvas.set_widget(widget);
         // main_stack.add_canvas(code_canvas);
         main_stack.add_canvas(REGIONFXEDITOR.lock().unwrap().build(ctx));
+        main_stack.add_canvas(MATERIALEDITOR.lock().unwrap().build());
 
         main_stack.set_index(0);
 

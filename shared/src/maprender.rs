@@ -366,6 +366,7 @@ impl MapRender {
                                     selected = true;
                                 } else if server_ctx.curr_map_tool_type == MapToolType::Sector
                                     || server_ctx.curr_map_tool_type == MapToolType::General
+                                    || server_ctx.curr_map_tool_type == MapToolType::Selection
                                 {
                                     // Check for sector selection when in sector mode.
                                     if let Some(front_sector) = linedef.front_sector {

@@ -32,6 +32,7 @@ lazy_static! {
     pub static ref BRUSHLIST: Mutex<BrushList> = Mutex::new(BrushList::default());
     pub static ref PANELS: Mutex<Panels> = Mutex::new(Panels::new());
     pub static ref MODELEDITOR: Mutex<ModelEditor> = Mutex::new(ModelEditor::new());
+    pub static ref MATERIALEDITOR: Mutex<MaterialEditor> = Mutex::new(MaterialEditor::new());
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -360,11 +361,12 @@ impl TheTrait for Editor {
                 .init_ui(ui, ctx, &mut self.project, &mut self.server_ctx);
 
         // Editor
-        let mut tab_canvas: TheCanvas = TheCanvas::new();
-        let mut tab_layout = TheTabLayout::new(TheId::named("Editor Tab"));
+        //let mut tab_canvas: TheCanvas = TheCanvas::new();
+        //let mut tab_layout = TheTabLayout::new(TheId::named("Editor Tab"));
 
-        let game_canvas = self.mapeditor.init_ui(ui, ctx, &mut self.project);
-        tab_layout.add_canvas(str!("Game View"), game_canvas);
+        let poly_canvas = self.mapeditor.init_ui(ui, ctx, &mut self.project);
+
+        //tab_layout.add_canvas(str!("Game View"), game_canvas);
 
         // let model_canvas: TheCanvas =
         //     MODELEDITOR
@@ -373,6 +375,7 @@ impl TheTrait for Editor {
         //         .init_ui(ui, ctx, &mut self.project);
         // tab_layout.add_canvas(str!("Model View"), model_canvas);
 
+        /*
         let material_canvas = self.materialeditor.init_ui(ui, ctx, &mut self.project);
         tab_layout.add_canvas(str!("Material View"), material_canvas);
 
@@ -380,9 +383,9 @@ impl TheTrait for Editor {
         tab_layout.add_canvas(str!("Screen View"), screen_canvas);
 
         tab_canvas.set_layout(tab_layout);
-
+        */
         let mut vsplitlayout = TheSharedVLayout::new(TheId::named("Shared VLayout"));
-        vsplitlayout.add_canvas(tab_canvas);
+        vsplitlayout.add_canvas(poly_canvas);
         vsplitlayout.add_canvas(bottom_panels);
         vsplitlayout.set_shared_ratio(crate::DEFAULT_VLAYOUT_RATIO);
         vsplitlayout.set_mode(TheSharedVLayoutMode::Shared);
@@ -797,6 +800,7 @@ impl TheTrait for Editor {
                                 .insert_context_menu_id(action, ui, ctx);
                         }
                     }
+                    /*
                     TheEvent::IndexChanged(id, index) => {
                         if id.name == "Editor Tab Tabbar" {
                             if index == 0 {
@@ -836,7 +840,7 @@ impl TheTrait for Editor {
                             );
                             redraw = true;
                         }
-                    }
+                    }*/
                     TheEvent::DialogValueOnClose(role, name, uuid, _value) => {
                         //println!("Dialog Value On Close: {} -> {:?}", name, value);
 

@@ -85,6 +85,9 @@ pub struct ServerContext {
 
     /// Current Map Context
     pub curr_map_context: MapContext,
+
+    /// For map tools, 0 shows tile picker, 1 shows procedural materials
+    pub curr_map_material: i32,
 }
 
 impl Default for ServerContext {
@@ -135,6 +138,7 @@ impl ServerContext {
 
             curr_map_tool_type: MapToolType::Linedef,
             curr_map_context: MapContext::Region,
+            curr_map_material: 0,
         }
     }
 

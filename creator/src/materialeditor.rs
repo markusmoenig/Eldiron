@@ -9,12 +9,7 @@ impl MaterialEditor {
         Self {}
     }
 
-    pub fn init_ui(
-        &mut self,
-        _ui: &mut TheUI,
-        _ctx: &mut TheContext,
-        _project: &mut Project,
-    ) -> TheCanvas {
+    pub fn build(&mut self) -> TheCanvas {
         let mut center = TheCanvas::new();
 
         let render_view = TheRenderView::new(TheId::named("MaterialView"));
@@ -28,11 +23,27 @@ impl MaterialEditor {
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(10, 4, 5, 4));
 
+        for i in 0..20 {
+            let mut icon = TheIconView::new(TheId::named(&format!("Material Icon #{}", i)));
+            // ground_icon.set_text(Some("FLOOR".to_string()));
+            // ground_icon.set_text_size(10.0);
+            // ground_icon.set_text_color([200, 200, 200, 255]);
+            icon.limiter_mut().set_max_size(vec2i(20, 20));
+
+            if i == 0 {
+                icon.set_border_color(Some(WHITE));
+            } else {
+                icon.set_border_color(Some(BLACK));
+            }
+
+            toolbar_hlayout.add_widget(Box::new(icon));
+        }
+
         top_toolbar.set_layout(toolbar_hlayout);
         center.set_top(top_toolbar);
 
         let mut material_node_canvas = TheCanvas::new();
-        let node_view = TheNodeCanvasView::new(TheId::named("MaterialFX NodeCanvas"));
+        let node_view = TheNodeCanvasView::new(TheId::named("Map NodeCanvas"));
         material_node_canvas.set_widget(node_view);
 
         center.set_center(material_node_canvas);
