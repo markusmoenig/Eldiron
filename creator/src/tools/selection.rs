@@ -82,6 +82,10 @@ impl Tool for SelectionTool {
                             TheId::named("Main Stack"),
                             PanelIndices::MaterialEditor as usize,
                         ));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Material Previews"),
+                            TheValue::Empty,
+                        ));
                     };
 
                     // let mut clear_selection_button =
@@ -445,6 +449,10 @@ impl Tool for SelectionTool {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::MaterialEditor as usize,
+                        ));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Material Previews"),
+                            TheValue::Empty,
                         ));
                     };
                 }

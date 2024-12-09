@@ -1,12 +1,16 @@
 use crate::prelude::*;
 use shared::prelude::*;
 
-pub struct MaterialEditor {}
+pub struct MaterialEditor {
+    material_start_index: i32,
+}
 
 #[allow(clippy::new_without_default)]
 impl MaterialEditor {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            material_start_index: 0,
+        }
     }
 
     pub fn build(&mut self) -> TheCanvas {
@@ -59,21 +63,50 @@ impl MaterialEditor {
         _ctx: &mut TheContext,
         project: &mut Project,
         _client: &mut Client,
-        server_ctx: &mut ServerContext,
+        _server_ctx: &mut ServerContext,
     ) -> bool {
         let redraw = false;
         #[allow(clippy::single_match)]
         match event {
-            TheEvent::StateChanged(id, TheWidgetState::Selected) => {
-                if id.name == "Material Item" {
-                    let material_id = id.uuid;
-                    server_ctx.curr_material_object = Some(material_id);
-                    if let Some(material) = project.materials.get_mut(&material_id) {
-                        let node_canvas = material.to_canvas(&project.palette);
-                        ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
+            TheEvent::Custom(id, _) => {
+                if id.name == "Update Material Previews" {
+                    for i in 0..20 {
+                        if let Some(icon_view) = ui.get_icon_view(&format!("Material Icon #{}", i))
+                        {
+                            let index = self.material_start_index + i;
+                            if let Some((_, material)) = project.materials.get_index(index as usize)
+                            {
+                                icon_view.set_rgba_tile(TheRGBATile::buffer(
+                                    material.get_preview().scaled(20, 20),
+                                ));
+                            }
+                        }
                     }
                 }
             }
+            TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
+                if id.name.starts_with("Material Icon #") {
+                    let index_str = id.name.replace("Material Icon #", "");
+                    if let Ok(index) = index_str.parse::<i32>() {
+                        let index = index + self.material_start_index;
+                        if let Some((_, material)) = project.materials.get_index_mut(index as usize)
+                        {
+                            let node_canvas = material.to_canvas(&project.palette);
+                            ui.set_node_canvas("Map NodeCanvas", node_canvas);
+                        }
+                    }
+                }
+            }
+            // TheEvent::StateChanged(id, TheWidgetState::Selected) => {
+            //     if id.name == "Material Item" {
+            //         let material_id = id.uuid;
+            //         server_ctx.curr_material_object = Some(material_id);
+            //         if let Some(material) = project.materials.get_mut(&material_id) {
+            //             let node_canvas = material.to_canvas(&project.palette);
+            //             ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
+            //         }
+            //     }
+            // }
             _ => {}
         }
 
