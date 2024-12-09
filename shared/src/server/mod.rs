@@ -11,7 +11,7 @@ pub mod region_instance;
 pub mod world;
 
 pub mod prelude {
-    pub use super::context::ServerContext;
+    pub use super::context::*;
     pub use super::daylight::Daylight;
     pub use super::execute::*;
     pub use super::region_instance::RegionInstance;
@@ -410,7 +410,7 @@ impl Server {
         &mut self,
         uuid: &Uuid,
         buffer: &mut TheRGBABuffer,
-        renderer: &mut Renderer,
+        renderer: &mut MapRender,
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
         compute_delta: bool,
@@ -530,7 +530,7 @@ impl Server {
         name
     }
 
-    /// Get the debug module for the given module id.
+    // Get the debug module for the given module id.
     // pub fn get_region_debug_module(&mut self, region: Uuid, module_id: Uuid) -> TheDebugModule {
     //     if let Some(instance) = self.instances.get_mut(&region) {
     //         instance.get_module_debug_module(module_id)
@@ -769,6 +769,7 @@ impl Server {
         }
     }
 
+    /*
     pub fn clear_prerendered(&mut self, region: Uuid) {
         if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
             region.prerendered.clear();
@@ -793,7 +794,7 @@ impl Server {
         if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
             region.prerendered.clear_tile_albedo(tile);
         }
-    }
+    }*/
 
     /// Executes the given client command.
     pub fn execute_client_cmd(&mut self, client_id: Uuid, cmd: String) {

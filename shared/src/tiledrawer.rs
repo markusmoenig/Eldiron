@@ -450,6 +450,7 @@ impl TileDrawer {
                     }
 
                     // Characters
+                    /*
                     for (pos, tile, _, _) in &update.characters_pixel_pos {
                         if let Some(data) = self.tiles.get(tile) {
                             let index = settings.anim_counter % data.buffer.len();
@@ -461,7 +462,7 @@ impl TileDrawer {
                                 color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
                             }
                         }
-                    }
+                    }*/
 
                     // self.render(
                     //     vec2i(x, y),
@@ -653,15 +654,15 @@ impl TileDrawer {
                 let tile = vec2i(pos.x as i32, pos.y as i32);
 
                 // Characters
-                for (character_pos, tile_id, _, _) in &update.characters_pixel_pos {
+                for (_character_pos, tile_id, _, _) in &update.characters_pixel_pos {
                     if let Some(data) = self.tiles.get(tile_id) {
                         let index = settings.anim_counter % data.buffer.len();
 
                         let w = data.buffer[index].dim().width;
                         let h = data.buffer[index].dim().height;
 
-                        let mut xx = (pos.x * grid_size) as i32 - character_pos.x;
-                        let mut yy = (pos.y * grid_size) as i32 - character_pos.y;
+                        let mut xx = (pos.x * grid_size) as i32; // - character_pos.x;
+                        let mut yy = (pos.y * grid_size) as i32; // - character_pos.y;
 
                         if xx >= 0 && xx < w && yy >= 0 && yy < h {
                             if direction == 0 || direction == 2 {

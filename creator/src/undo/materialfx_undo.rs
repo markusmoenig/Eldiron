@@ -1,4 +1,4 @@
-use crate::editor::{MODELFXEDITOR, TILEDRAWER};
+use crate::editor::TILEDRAWER;
 use crate::prelude::*;
 use theframework::prelude::*;
 
@@ -15,7 +15,7 @@ impl MaterialFXUndoAtom {
         server_ctx: &mut ServerContext,
         project: &mut Project,
         ui: &mut TheUI,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
     ) {
         match self {
             MaterialFXUndoAtom::AddMaterial(material) => {
@@ -24,8 +24,8 @@ impl MaterialFXUndoAtom {
                     server_ctx.curr_material_object = None;
                 }
 
-                let mut editor = MODELFXEDITOR.lock().unwrap();
-                editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
+                // let mut editor = MODELFXEDITOR.lock().unwrap();
+                // editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
             }
             MaterialFXUndoAtom::AddNode(id, prev, _) | MaterialFXUndoAtom::Edit(id, prev, _) => {
                 if let Some(material) = project.materials.get_mut(id) {
@@ -35,20 +35,20 @@ impl MaterialFXUndoAtom {
                     let node_canvas = material.to_canvas(&project.palette);
                     ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
 
-                    let mut editor = MODELFXEDITOR.lock().unwrap();
-                    editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
-                    editor.set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
-                    editor.render_material_changes(*id, server_ctx, project, ui);
+                    // let mut editor = MODELFXEDITOR.lock().unwrap();
+                    // editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
+                    // editor.set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
+                    // editor.render_material_changes(*id, server_ctx, project, ui);
                 }
             }
         }
     }
     pub fn redo(
         &self,
-        server_ctx: &mut ServerContext,
+        _server_ctx: &mut ServerContext,
         project: &mut Project,
         ui: &mut TheUI,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
     ) {
         match self {
             MaterialFXUndoAtom::AddMaterial(material) => {
@@ -62,10 +62,10 @@ impl MaterialFXUndoAtom {
                     let node_canvas = material.to_canvas(&project.palette);
                     ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
 
-                    let mut editor = MODELFXEDITOR.lock().unwrap();
-                    editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
-                    editor.set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
-                    editor.render_material_changes(*id, server_ctx, project, ui);
+                    // let mut editor = MODELFXEDITOR.lock().unwrap();
+                    // editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
+                    // editor.set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
+                    // editor.render_material_changes(*id, server_ctx, project, ui);
                 }
             }
         }

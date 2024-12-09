@@ -1,30 +1,43 @@
 pub use crate::prelude::*;
 
 pub mod code;
-pub mod draw;
-pub mod eraser;
+// pub mod draw;
+// pub mod eraser;
 pub mod fx;
 pub mod game;
-pub mod mapobjects;
+pub mod linedef;
+// pub mod mapobjects;
 pub mod material;
-pub mod model;
-pub mod picker;
+// pub mod model;
+// pub mod picker;
 pub mod render;
-pub mod resize;
+// pub mod resize;
 pub mod screen;
+pub mod sector;
 pub mod selection;
-pub mod terrain;
-pub mod tiledrawer;
+//pub mod terrain;
 pub mod tilemap;
+pub mod vertex;
 pub mod zoom;
 
 #[derive(PartialEq, Clone, Debug, Copy)]
 pub enum ToolEvent {
     Activate,
     DeActivate,
+
     TileDown(Vec2i, Vec2f),
     TileDrag(Vec2i, Vec2f),
     TileUp,
+}
+
+#[derive(PartialEq, Clone, Debug, Copy)]
+pub enum MapEvent {
+    MapClicked(Vec2i),
+    MapDragged(Vec2i),
+    MapHover(Vec2i),
+    MapUp(Vec2i),
+    MapDelete,
+    MapEscape,
 }
 
 #[derive(PartialEq, Clone, Debug, Copy)]
@@ -60,6 +73,20 @@ pub trait Tool: Send {
         server_ctx: &mut ServerContext,
     ) -> bool {
         false
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn map_event(
+        &mut self,
+        map_event: MapEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        map: &mut Map,
+        server: &mut Server,
+        client: &mut Client,
+        server_ctx: &mut ServerContext,
+    ) -> Option<RegionUndoAtom> {
+        None
     }
 
     #[allow(clippy::too_many_arguments)]

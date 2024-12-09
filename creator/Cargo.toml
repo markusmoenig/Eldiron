@@ -62,3 +62,6 @@ Create classical RPGs with Eldiron.
 # [lib]
 # name = "rustapi"
 # crate-type = ["staticlib"]
+
+# vek = { version = "0.17", default-features = false, features = ["rgba"] }
+# euc = { git = "https://github.com/zesterer/euc" }

@@ -1,4 +1,4 @@
-use crate::editor::{PRERENDERTHREAD, UNDOMANAGER};
+use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
 
 pub struct RegionFXEditor {
@@ -230,11 +230,6 @@ impl RegionFXEditor {
                             .lock()
                             .unwrap()
                             .add_region_undo(&region_id, undo, ctx);
-
-                        PRERENDERTHREAD
-                            .lock()
-                            .unwrap()
-                            .render_region(region.clone(), None);
                     }
                 }
             }
@@ -257,11 +252,6 @@ impl RegionFXEditor {
 
                         redraw = true;
                         server.update_region(region);
-
-                        PRERENDERTHREAD
-                            .lock()
-                            .unwrap()
-                            .render_region(region.clone(), None);
                     }
                     self.set_selected_node_ui(server_ctx, project, ui, ctx);
                 }
@@ -313,13 +303,6 @@ impl RegionFXEditor {
 
                                 server.update_region(region);
                                 //let next = material.to_json();
-
-                                if region.regionfx.nodes[selected_index].is_camera() {
-                                    PRERENDERTHREAD
-                                        .lock()
-                                        .unwrap()
-                                        .render_region(region.clone(), None);
-                                }
 
                                 let next = region.regionfx.clone();
                                 let region_id = region.id;

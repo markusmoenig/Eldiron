@@ -11,7 +11,7 @@ lazy_static! {
     pub static ref RNG: Mutex<rand::rngs::StdRng> = Mutex::new(rand::rngs::StdRng::from_entropy());
     pub static ref TILEDRAWER: RwLock<TileDrawer> = RwLock::new(TileDrawer::new());
     pub static ref PALETTE: RwLock<ThePalette> = RwLock::new(ThePalette::default());
-    pub static ref RENDERER: RwLock<Renderer> = RwLock::new(Renderer::new());
+    //pub static ref RENDERER: RwLock<Renderer> = RwLock::new(Renderer::new());
     pub static ref KEY_DOWN: RwLock<Option<String>> = RwLock::new(None);
     pub static ref UPDATE: RwLock<RegionUpdate> = RwLock::new(RegionUpdate::default());
     pub static ref CHARACTER: RwLock<Uuid> = RwLock::new(Uuid::nil());
@@ -112,10 +112,10 @@ impl Client {
             .materials
             .clone_from(&project.materials);
 
-        RENDERER
-            .write()
-            .unwrap()
-            .set_textures(project.extract_tiles());
+        // RENDERER
+        //     .write()
+        //     .unwrap()
+        //     .set_textures(project.extract_tiles());
 
         *PALETTE.write().unwrap() = project.palette.clone();
 
@@ -146,7 +146,7 @@ impl Client {
 
     pub fn update_tiles(&mut self, tiles: FxHashMap<Uuid, TheRGBATile>) {
         TILEDRAWER.write().unwrap().set_tiles(tiles.clone());
-        RENDERER.write().unwrap().set_textures(tiles);
+        //RENDERER.write().unwrap().set_textures(tiles);
     }
 
     /// Compile the given screen.

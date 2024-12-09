@@ -1,8 +1,18 @@
 use crate::editor::{
-    CODEEDITOR, MODELEDITOR, MODELFXEDITOR, REGIONFXEDITOR, TILEDRAWER, TILEFXEDITOR,
+    CODEEDITOR, MATERIALEDITOR, MODELEDITOR, REGIONFXEDITOR, TILEDRAWER, TILEFXEDITOR,
     TILEMAPEDITOR, TILEPICKER,
 };
 use crate::prelude::*;
+
+pub enum PanelIndices {
+    TilePicker,
+    CodeEditor,
+    TileMapEditor,
+    TileFxEditor,
+    ModelEditor,
+    RegionFxEditor,
+    MaterialEditor,
+}
 
 pub struct Panels {
     pub curr_atom: Option<TheCodeAtom>,
@@ -22,8 +32,8 @@ impl Panels {
         &mut self,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &mut Project,
-        server_ctx: &mut ServerContext,
+        _project: &mut Project,
+        _server_ctx: &mut ServerContext,
     ) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
@@ -40,13 +50,13 @@ impl Panels {
         main_stack.add_canvas(CODEEDITOR.lock().unwrap().build_canvas(ctx));
         main_stack.add_canvas(TILEMAPEDITOR.lock().unwrap().build());
         main_stack.add_canvas(TILEFXEDITOR.lock().unwrap().build(ctx));
-        main_stack.add_canvas(MODELFXEDITOR.lock().unwrap().build_mapobjects(ctx));
-        main_stack.add_canvas(
-            MODELFXEDITOR
-                .lock()
-                .unwrap()
-                .build_brush_ui(project, ctx, server_ctx),
-        );
+        // main_stack.add_canvas(MODELFXEDITOR.lock().unwrap().build_mapobjects(ctx));
+        // main_stack.add_canvas(
+        //     MODELFXEDITOR
+        //         .lock()
+        //         .unwrap()
+        //         .build_brush_ui(project, ctx, server_ctx),
+        // );
         main_stack.add_canvas(MODELEDITOR.lock().unwrap().build_node_ui());
 
         // let mut code_canvas = TheCanvas::new();
@@ -57,6 +67,7 @@ impl Panels {
         // code_canvas.set_widget(widget);
         // main_stack.add_canvas(code_canvas);
         main_stack.add_canvas(REGIONFXEDITOR.lock().unwrap().build(ctx));
+        main_stack.add_canvas(MATERIALEDITOR.lock().unwrap().build());
 
         main_stack.set_index(0);
 
@@ -269,10 +280,10 @@ impl Panels {
                         ctx.ui.relayout = true;
                         redraw = true;
                     }
-                    MODELFXEDITOR
-                        .lock()
-                        .unwrap()
-                        .activated(server_ctx, project, ui, ctx);
+                    // MODELFXEDITOR
+                    //     .lock()
+                    //     .unwrap()
+                    //     .activated(server_ctx, project, ui, ctx);
                 } else if id.name == "Set Region Brush" {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 5));
@@ -281,10 +292,10 @@ impl Panels {
                         ctx.ui.relayout = true;
                         redraw = true;
                     }
-                    MODELFXEDITOR
-                        .lock()
-                        .unwrap()
-                        .activated(server_ctx, project, ui, ctx);
+                    // MODELFXEDITOR
+                    //     .lock()
+                    //     .unwrap()
+                    //     .activated(server_ctx, project, ui, ctx);
                 } else if id.name == "Set Region Render" {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 7));

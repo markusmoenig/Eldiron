@@ -1,4 +1,4 @@
-use crate::editor::{ACTIVEEDITOR, BRUSHLIST, PRERENDERTHREAD, TILEDRAWER, UNDOMANAGER};
+use crate::editor::{ACTIVEEDITOR, BRUSHLIST, TILEDRAWER, UNDOMANAGER};
 use crate::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -318,28 +318,10 @@ impl ModelFXEditor {
 
                                     let next = material.to_json();
 
-                                    PRERENDERTHREAD
-                                        .lock()
-                                        .unwrap()
-                                        .material_changed(material.clone());
-
                                     TILEDRAWER
                                         .lock()
                                         .unwrap()
                                         .set_materials(project.materials.clone());
-
-                                    if let Some(region) =
-                                        project.get_region(&server_ctx.curr_region)
-                                    {
-                                        let area = region.get_material_area(
-                                            material_id,
-                                            project.materials.get_index_of(&material_id).unwrap(),
-                                        );
-                                        PRERENDERTHREAD
-                                            .lock()
-                                            .unwrap()
-                                            .render_region(region.clone(), Some(area));
-                                    }
 
                                     // if let Some(widget) = ui.get_widget(&id.name) {
                                     //     widget.set_value(TheValue::ColorObject(color));
@@ -382,10 +364,6 @@ impl ModelFXEditor {
                         list.set_item_image(material.id, material.get_preview());
                     }
 
-                    PRERENDERTHREAD
-                        .lock()
-                        .unwrap()
-                        .material_changed(material.clone());
                     // if let Some(region) = project.get_region(&server_ctx.curr_region) {
                     //     let area = region.get_material_area(material.id);
                     //     PRERENDERTHREAD.lock().unwrap().render_region(
@@ -570,31 +548,10 @@ impl ModelFXEditor {
 
                                         let next = material.to_json();
 
-                                        PRERENDERTHREAD
-                                            .lock()
-                                            .unwrap()
-                                            .material_changed(material.clone());
-
                                         TILEDRAWER
                                             .lock()
                                             .unwrap()
                                             .set_materials(project.materials.clone());
-
-                                        if let Some(region) =
-                                            project.get_region(&server_ctx.curr_region)
-                                        {
-                                            let area = region.get_material_area(
-                                                material_id,
-                                                project
-                                                    .materials
-                                                    .get_index_of(&material_id)
-                                                    .unwrap(),
-                                            );
-                                            PRERENDERTHREAD
-                                                .lock()
-                                                .unwrap()
-                                                .render_region(region.clone(), Some(area));
-                                        }
 
                                         if let Some(widget) = ui.get_widget(&id.name) {
                                             widget.set_value(TheValue::ColorObject(color));
@@ -669,10 +626,8 @@ impl ModelFXEditor {
 
                         if self.geometry_mode {
                             if let Some(curr_geo_node) = server_ctx.curr_geo_node {
-                                let mut region_to_render: Option<Region> = None;
                                 let mut old_tiles_to_render: Vec<Vec2i> = vec![];
                                 let mut new_tiles_to_render: Vec<Vec2i> = vec![];
-                                let mut tiles_to_render: Vec<Vec2i> = vec![];
                                 let palette = project.palette.clone();
 
                                 if let Some(region) =
@@ -721,7 +676,6 @@ impl ModelFXEditor {
                                         let mut set: FxHashSet<Vec2i> = FxHashSet::default();
                                         set.extend(&old_tiles_to_render);
                                         set.extend(&new_tiles_to_render);
-                                        tiles_to_render = set.into_iter().collect();
 
                                         region.update_geometry_areas();
                                         server.update_region(region);
@@ -730,15 +684,7 @@ impl ModelFXEditor {
                                             &palette,
                                             &TILEDRAWER.lock().unwrap().tiles,
                                         );
-                                        region_to_render = Some(region.clone());
                                     }
-                                }
-
-                                if let Some(region) = region_to_render {
-                                    PRERENDERTHREAD
-                                        .lock()
-                                        .unwrap()
-                                        .render_region(region, Some(tiles_to_render));
                                 }
                             } else if let Some(editor) = ui.get_rgba_layout("GeoFX RGBA Layout") {
                                 if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
@@ -752,8 +698,7 @@ impl ModelFXEditor {
                                 }
                             }
                         } else {
-                            let mut region_to_render: Option<Region> = None;
-                            let mut tiles_to_render: Vec<Vec2i> = vec![];
+                            #[allow(clippy::collapsible_else_if)]
                             if let Some(material_id) = server_ctx.curr_material_object {
                                 if let Some(material) = project.materials.get_mut(&material_id) {
                                     if let Some(selected_index) = material.selected_node {
@@ -808,28 +753,10 @@ impl ModelFXEditor {
                                             material.get_preview(),
                                         );
                                         let next = material.to_json();
-
-                                        PRERENDERTHREAD
-                                            .lock()
-                                            .unwrap()
-                                            .material_changed(material.clone());
-
                                         TILEDRAWER
                                             .lock()
                                             .unwrap()
                                             .set_materials(project.materials.clone());
-
-                                        if let Some(material_index) =
-                                            project.materials.get_index_of(&material_id)
-                                        {
-                                            if let Some(region) =
-                                                project.get_region_mut(&server_ctx.curr_region)
-                                            {
-                                                tiles_to_render = region
-                                                    .get_material_area(material_id, material_index);
-                                                region_to_render = Some(region.clone());
-                                            }
-                                        }
 
                                         let undo =
                                             MaterialFXUndoAtom::Edit(material_id, prev, next);
@@ -842,12 +769,6 @@ impl ModelFXEditor {
                                         );
                                     }
                                 }
-                            }
-                            if let Some(region) = region_to_render {
-                                PRERENDERTHREAD
-                                    .lock()
-                                    .unwrap()
-                                    .render_region(region, Some(tiles_to_render));
                             }
                         }
                         /*
@@ -1426,18 +1347,11 @@ impl ModelFXEditor {
     pub fn render_material_changes(
         &mut self,
         material_id: Uuid,
-        server_ctx: &mut ServerContext,
+        _server_ctx: &mut ServerContext,
         project: &mut Project,
         ui: &mut TheUI,
     ) {
-        let mut region_to_render: Option<Region> = None;
-        let mut tiles_to_render: Vec<Vec2i> = vec![];
         if let Some(material) = project.materials.get_mut(&material_id) {
-            PRERENDERTHREAD
-                .lock()
-                .unwrap()
-                .material_changed(material.clone());
-
             if let Some(layout) = ui.get_list_layout("Material List") {
                 let preview = material.get_preview();
                 layout.set_item_icon(material_id, preview.scaled(36, 36));
@@ -1448,28 +1362,8 @@ impl ModelFXEditor {
             .lock()
             .unwrap()
             .set_materials(project.materials.clone());
-
-        if let Some(material_index) = project.materials.get_index_of(&material_id) {
-            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                tiles_to_render = region.get_material_area(material_id, material_index);
-                region_to_render = Some(region.clone());
-            }
-        }
-        if let Some(region) = region_to_render {
-            PRERENDERTHREAD
-                .lock()
-                .unwrap()
-                .render_region(region, Some(tiles_to_render));
-        }
     }
 
     /// Renders the preview of the material.
-    pub fn render_material_preview(&mut self, material_id: Uuid, project: &mut Project) {
-        if let Some(material) = project.materials.get_mut(&material_id) {
-            PRERENDERTHREAD
-                .lock()
-                .unwrap()
-                .material_changed(material.clone());
-        }
-    }
+    pub fn render_material_preview(&mut self, _material_id: Uuid, _project: &mut Project) {}
 }

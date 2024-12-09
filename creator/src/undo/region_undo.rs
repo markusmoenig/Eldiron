@@ -1,49 +1,40 @@
 use crate::prelude::*;
 use theframework::prelude::*;
 
-use crate::editor::PRERENDERTHREAD;
-
 #[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum RegionUndoAtom {
-    GeoFXObjectsDeletion(Vec<GeoFXObject>, Vec<Vec2i>),
-    GeoFXObjectEdit(Uuid, Option<GeoFXObject>, Option<GeoFXObject>, Vec<Vec2i>),
-    GeoFXAddNode(Uuid, String, String, Vec<Vec2i>),
-    GeoFXNodeEdit(Uuid, String, String, Vec<Vec2i>),
-    HeightmapEdit(Box<Heightmap>, Box<Heightmap>, Vec<Vec2i>),
+    GeoFXObjectsDeletion(Vec<GeoFXObject>),
+    GeoFXObjectEdit(Uuid, Option<GeoFXObject>, Option<GeoFXObject>),
+    GeoFXAddNode(Uuid, String, String),
+    GeoFXNodeEdit(Uuid, String, String),
+    HeightmapEdit(Box<Heightmap>, Box<Heightmap>),
+    MapEdit(Box<Map>, Box<Map>),
     RegionTileEdit(Vec2i, Option<RegionTile>, Option<RegionTile>),
     RegionFXEdit(RegionFXObject, RegionFXObject),
-    RegionEdit(Box<Region>, Box<Region>, Vec<Vec2i>),
+    RegionEdit(Box<Region>, Box<Region>),
     RegionResize(Box<Region>, Box<Region>),
 }
 
 impl RegionUndoAtom {
     pub fn undo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
-            RegionUndoAtom::GeoFXObjectsDeletion(objects, tiles) => {
+            RegionUndoAtom::GeoFXObjectsDeletion(objects) => {
                 for object in objects {
                     region.geometry.insert(object.id, object.clone());
                 }
                 region.update_geometry_areas();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
-            RegionUndoAtom::GeoFXObjectEdit(id, prev, _, tiles) => {
+            RegionUndoAtom::GeoFXObjectEdit(id, prev, _) => {
                 if let Some(prev) = prev {
                     region.geometry.insert(*id, prev.clone());
                 } else {
                     region.geometry.remove(id);
                 }
                 region.update_geometry_areas();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
-            RegionUndoAtom::GeoFXAddNode(id, prev, _, tiles)
-            | RegionUndoAtom::GeoFXNodeEdit(id, prev, _, tiles) => {
+            RegionUndoAtom::GeoFXAddNode(id, prev, _)
+            | RegionUndoAtom::GeoFXNodeEdit(id, prev, _) => {
                 if let Some(geo_obj) = region.geometry.get_mut(id) {
                     *geo_obj = GeoFXObject::from_json(prev);
 
@@ -55,18 +46,17 @@ impl RegionUndoAtom {
                         TheValue::Empty,
                     ));
                 }
-
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
-            RegionUndoAtom::HeightmapEdit(prev, _, tiles) => {
+            RegionUndoAtom::HeightmapEdit(prev, _) => {
                 region.heightmap = *prev.clone();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Minimaps"),
+                    TheValue::Empty,
+                ));
+            }
+            RegionUndoAtom::MapEdit(prev, _) => {
+                region.map = *prev.clone();
+                region.map.clear_temp();
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimaps"),
                     TheValue::Empty,
@@ -78,10 +68,6 @@ impl RegionUndoAtom {
                 } else {
                     region.tiles.remove(&(pos.x, pos.y));
                 }
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(vec![*pos]));
             }
             RegionUndoAtom::RegionFXEdit(prev, _) => {
                 region.regionfx = prev.clone();
@@ -93,18 +79,9 @@ impl RegionUndoAtom {
                     TheId::named("Show RegionFX Node"),
                     TheValue::Empty,
                 ));
-
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), None);
             }
-            RegionUndoAtom::RegionEdit(prev, _, tiles) => {
+            RegionUndoAtom::RegionEdit(prev, _) => {
                 *region = *prev.clone();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::RegionResize(prev, _) => {
                 *region = *prev.clone();
@@ -117,40 +94,28 @@ impl RegionUndoAtom {
                         ctx.ui.relayout = true;
                     }
                 }
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), None);
             }
         }
     }
     pub fn redo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
-            RegionUndoAtom::GeoFXObjectsDeletion(objects, tiles) => {
+            RegionUndoAtom::GeoFXObjectsDeletion(objects) => {
                 for object in objects {
                     region.geometry.remove(&object.id);
                 }
                 region.update_geometry_areas();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
 
-            RegionUndoAtom::GeoFXObjectEdit(id, _, next, tiles) => {
+            RegionUndoAtom::GeoFXObjectEdit(id, _, next) => {
                 if let Some(next) = next {
                     region.geometry.insert(*id, next.clone());
                 } else {
                     region.geometry.remove(id);
                 }
                 region.update_geometry_areas();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
-            RegionUndoAtom::GeoFXAddNode(id, _, next, tiles)
-            | RegionUndoAtom::GeoFXNodeEdit(id, _, next, tiles) => {
+            RegionUndoAtom::GeoFXAddNode(id, _, next)
+            | RegionUndoAtom::GeoFXNodeEdit(id, _, next) => {
                 if let Some(geo_obj) = region.geometry.get_mut(id) {
                     *geo_obj = GeoFXObject::from_json(next);
 
@@ -162,18 +127,17 @@ impl RegionUndoAtom {
                         TheValue::Empty,
                     ));
                 }
-
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
-            RegionUndoAtom::HeightmapEdit(_, next, tiles) => {
+            RegionUndoAtom::HeightmapEdit(_, next) => {
                 region.heightmap = *next.clone();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Minimaps"),
+                    TheValue::Empty,
+                ));
+            }
+            RegionUndoAtom::MapEdit(_, next) => {
+                region.map = *next.clone();
+                region.map.clear_temp();
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimaps"),
                     TheValue::Empty,
@@ -185,10 +149,6 @@ impl RegionUndoAtom {
                 } else {
                     region.tiles.remove(&(pos.x, pos.y));
                 }
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(vec![*pos]));
             }
             RegionUndoAtom::RegionFXEdit(_, next) => {
                 region.regionfx = next.clone();
@@ -200,18 +160,9 @@ impl RegionUndoAtom {
                     TheId::named("Show RegionFX Node"),
                     TheValue::Empty,
                 ));
-
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), None);
             }
-            RegionUndoAtom::RegionEdit(_, next, tiles) => {
+            RegionUndoAtom::RegionEdit(_, next) => {
                 *region = *next.clone();
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), Some(tiles.clone()));
             }
             RegionUndoAtom::RegionResize(_, next) => {
                 *region = *next.clone();
@@ -224,10 +175,6 @@ impl RegionUndoAtom {
                         ctx.ui.relayout = true;
                     }
                 }
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region.clone(), None);
             }
         }
     }

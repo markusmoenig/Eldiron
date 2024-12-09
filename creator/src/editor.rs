@@ -1,4 +1,3 @@
-use crate::minimap::draw_minimap;
 use crate::prelude::*;
 use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
@@ -21,25 +20,25 @@ lazy_static! {
     pub static ref TILEMAPEDITOR: Mutex<TilemapEditor> = Mutex::new(TilemapEditor::new());
     pub static ref SIDEBARMODE: Mutex<SidebarMode> = Mutex::new(SidebarMode::Region);
     pub static ref TILEDRAWER: Mutex<TileDrawer> = Mutex::new(TileDrawer::new());
-    pub static ref RENDERER: Mutex<Renderer> = Mutex::new(Renderer::new());
+    // pub static ref RENDERER: Mutex<Renderer> = Mutex::new(Renderer::new());
+    pub static ref MAPRENDER: Mutex<MapRender> = Mutex::new(MapRender::new());
     pub static ref RENDERMODE: Mutex<EditorDrawMode> = Mutex::new(EditorDrawMode::Draw2D);
     pub static ref TILEFXEDITOR: Mutex<TileFXEditor> = Mutex::new(TileFXEditor::new());
-    pub static ref MODELFXEDITOR: Mutex<ModelFXEditor> = Mutex::new(ModelFXEditor::new());
+    // pub static ref MODELFXEDITOR: Mutex<ModelFXEditor> = Mutex::new(ModelFXEditor::new());
     pub static ref REGIONFXEDITOR: Mutex<RegionFXEditor> = Mutex::new(RegionFXEditor::new());
-    pub static ref PRERENDERTHREAD: Mutex<PreRenderThread> = Mutex::new(PreRenderThread::default());
+    // pub static ref PRERENDERTHREAD: Mutex<PreRenderThread> = Mutex::new(PreRenderThread::default());
     pub static ref UNDOMANAGER: Mutex<UndoManager> = Mutex::new(UndoManager::default());
     pub static ref TOOLLIST: Mutex<ToolList> = Mutex::new(ToolList::default());
     pub static ref BRUSHLIST: Mutex<BrushList> = Mutex::new(BrushList::default());
     pub static ref PANELS: Mutex<Panels> = Mutex::new(Panels::new());
     pub static ref MODELEDITOR: Mutex<ModelEditor> = Mutex::new(ModelEditor::new());
-    pub static ref TERRAINEDITOR: Mutex<TerrainEditor> = Mutex::new(TerrainEditor::new());
+    pub static ref MATERIALEDITOR: Mutex<MaterialEditor> = Mutex::new(MaterialEditor::new());
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum ActiveEditor {
     GameEditor,
     ModelEditor,
-    TerrainEditor,
     MaterialEditor,
     ScreenEditor,
 }
@@ -49,7 +48,7 @@ pub struct Editor {
     project_path: Option<PathBuf>,
 
     sidebar: Sidebar,
-    tileeditor: TileEditor,
+    mapeditor: MapEditor,
     screeneditor: ScreenEditor,
     materialeditor: MaterialEditor,
 
@@ -82,7 +81,7 @@ impl TheTrait for Editor {
             project_path: None,
 
             sidebar: Sidebar::new(),
-            tileeditor: TileEditor::new(),
+            mapeditor: MapEditor::new(),
             materialeditor: MaterialEditor::new(),
             screeneditor: ScreenEditor::new(),
 
@@ -362,25 +361,21 @@ impl TheTrait for Editor {
                 .init_ui(ui, ctx, &mut self.project, &mut self.server_ctx);
 
         // Editor
-        let mut tab_canvas: TheCanvas = TheCanvas::new();
-        let mut tab_layout = TheTabLayout::new(TheId::named("Editor Tab"));
+        //let mut tab_canvas: TheCanvas = TheCanvas::new();
+        //let mut tab_layout = TheTabLayout::new(TheId::named("Editor Tab"));
 
-        let game_canvas = self.tileeditor.init_ui(ui, ctx, &mut self.project);
-        tab_layout.add_canvas(str!("Game View"), game_canvas);
+        let poly_canvas = self.mapeditor.init_ui(ui, ctx, &mut self.project);
 
-        let model_canvas: TheCanvas =
-            MODELEDITOR
-                .lock()
-                .unwrap()
-                .init_ui(ui, ctx, &mut self.project);
-        tab_layout.add_canvas(str!("Model View"), model_canvas);
+        //tab_layout.add_canvas(str!("Game View"), game_canvas);
 
-        let terrain_canvas = TERRAINEDITOR
-            .lock()
-            .unwrap()
-            .init_ui(ui, ctx, &mut self.project);
-        tab_layout.add_canvas(str!("Terrain View"), terrain_canvas);
+        // let model_canvas: TheCanvas =
+        //     MODELEDITOR
+        //         .lock()
+        //         .unwrap()
+        //         .init_ui(ui, ctx, &mut self.project);
+        // tab_layout.add_canvas(str!("Model View"), model_canvas);
 
+        /*
         let material_canvas = self.materialeditor.init_ui(ui, ctx, &mut self.project);
         tab_layout.add_canvas(str!("Material View"), material_canvas);
 
@@ -388,9 +383,9 @@ impl TheTrait for Editor {
         tab_layout.add_canvas(str!("Screen View"), screen_canvas);
 
         tab_canvas.set_layout(tab_layout);
-
+        */
         let mut vsplitlayout = TheSharedVLayout::new(TheId::named("Shared VLayout"));
-        vsplitlayout.add_canvas(tab_canvas);
+        vsplitlayout.add_canvas(poly_canvas);
         vsplitlayout.add_canvas(bottom_panels);
         vsplitlayout.set_shared_ratio(crate::DEFAULT_VLAYOUT_RATIO);
         vsplitlayout.set_mode(TheSharedVLayoutMode::Shared);
@@ -450,7 +445,7 @@ impl TheTrait for Editor {
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
 
         // Startup the prerender thread.
-        PRERENDERTHREAD.lock().unwrap().startup();
+        // PRERENDERTHREAD.lock().unwrap().startup();
     }
 
     /// Set the command line arguments
@@ -576,6 +571,7 @@ impl TheTrait for Editor {
             }
         }
 
+        /*
         // Get prerendered results
         {
             let mut renderer = RENDERER.lock().unwrap();
@@ -622,7 +618,7 @@ impl TheTrait for Editor {
                                 let dim = *render_view.dim();
                                 let buffer = render_view.render_buffer_mut();
                                 buffer.resize(dim.width, dim.height);
-                                draw_minimap(region, buffer, false);
+                                draw_minimap(region, buffer);
                             }
                         }
                     }
@@ -646,33 +642,33 @@ impl TheTrait for Editor {
                     break;
                 }
             }
-        }
+        }*/
 
         if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::GameEditor
             && redraw_update
             && !self.project.regions.is_empty()
         {
             let render_mode = *RENDERMODE.lock().unwrap();
-            if render_mode != EditorDrawMode::Draw3D {
-                self.tileeditor.redraw_region(
-                    &self.project,
-                    ui,
-                    &mut self.server,
-                    ctx,
-                    &self.server_ctx,
-                    true,
-                );
-            }
-            if render_mode != EditorDrawMode::Draw2D {
-                self.tileeditor.rerender_region(
-                    ui,
-                    &mut self.server,
-                    ctx,
-                    &self.server_ctx,
-                    &self.project,
-                    render_mode == EditorDrawMode::Draw3D,
-                );
-            }
+            //if render_mode != EditorDrawMode::Draw3D {
+            // self.tileeditor.redraw_region(
+            //     &self.project,
+            //     ui,
+            //     &mut self.server,
+            //     ctx,
+            //     &self.server_ctx,
+            //     true,
+            // );
+            //}
+            //if render_mode != EditorDrawMode::Draw2D {
+            self.mapeditor.rerender_region(
+                ui,
+                &mut self.server,
+                ctx,
+                &self.server_ctx,
+                &self.project,
+                render_mode == EditorDrawMode::Draw3D,
+            );
+            //}
             redraw = true;
         } else if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::ScreenEditor && redraw_update {
             self.screeneditor.redraw_screen(
@@ -717,7 +713,7 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
-                if self.tileeditor.handle_event(
+                if self.mapeditor.handle_event(
                     &event,
                     ui,
                     ctx,
@@ -728,16 +724,6 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
                 if self.screeneditor.handle_event(
-                    &event,
-                    ui,
-                    ctx,
-                    &mut self.project,
-                    &mut self.client,
-                    &mut self.server_ctx,
-                ) {
-                    redraw = true;
-                }
-                if TERRAINEDITOR.lock().unwrap().handle_event(
                     &event,
                     ui,
                     ctx,
@@ -787,16 +773,6 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
-                if MODELFXEDITOR.lock().unwrap().handle_event(
-                    &event,
-                    ui,
-                    ctx,
-                    &mut self.project,
-                    &mut self.server,
-                    &mut self.server_ctx,
-                ) {
-                    redraw = true;
-                }
                 if REGIONFXEDITOR.lock().unwrap().handle_event(
                     &event,
                     ui,
@@ -814,15 +790,6 @@ impl TheTrait for Editor {
                             if let Some(menu) = ui.get_menu("Menu") {
                                 menu.replace_context_menu(codemenu);
                             }
-                        } else if id.name == "Prerender" {
-                            if let Some(region) =
-                                self.project.get_region_mut(&self.server_ctx.curr_region)
-                            {
-                                PRERENDERTHREAD
-                                    .lock()
-                                    .unwrap()
-                                    .render_region(region.clone(), None);
-                            }
                         }
                     }
                     TheEvent::ContextMenuSelected(_, action) => {
@@ -833,44 +800,15 @@ impl TheTrait for Editor {
                                 .insert_context_menu_id(action, ui, ctx);
                         }
                     }
+                    /*
                     TheEvent::IndexChanged(id, index) => {
                         if id.name == "Editor Tab Tabbar" {
                             if index == 0 {
                                 *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::GameEditor;
-                                if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
-                                    let mode = shared.get_mode();
-                                    if mode == TheSharedHLayoutMode::Shared
-                                        || mode == TheSharedHLayoutMode::Right
-                                    {
-                                        PRERENDERTHREAD.lock().unwrap().set_paused(false);
-                                    }
-                                }
                             } else if index == 1 {
-                                *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::ModelEditor;
-                                PRERENDERTHREAD.lock().unwrap().set_paused(true);
-                                MODELEDITOR.lock().unwrap().activated(
-                                    ui,
-                                    ctx,
-                                    &mut self.project,
-                                    &self.server_ctx,
-                                    true,
-                                );
-                            } else if index == 2 {
-                                *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::TerrainEditor;
-                                PRERENDERTHREAD.lock().unwrap().set_paused(true);
-                                TERRAINEDITOR.lock().unwrap().activated(
-                                    ui,
-                                    ctx,
-                                    &mut self.project,
-                                    &self.server_ctx,
-                                    true,
-                                );
-                            } else if index == 3 {
                                 *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::MaterialEditor;
-                                PRERENDERTHREAD.lock().unwrap().set_paused(true);
-                            } else if index == 4 {
+                            } else if index == 2 {
                                 *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::ScreenEditor;
-                                PRERENDERTHREAD.lock().unwrap().set_paused(true);
                             }
 
                             TOOLLIST.lock().unwrap().deactivte_tool(
@@ -902,7 +840,7 @@ impl TheTrait for Editor {
                             );
                             redraw = true;
                         }
-                    }
+                    }*/
                     TheEvent::DialogValueOnClose(role, name, uuid, _value) => {
                         //println!("Dialog Value On Close: {} -> {:?}", name, value);
 
@@ -1264,11 +1202,6 @@ impl TheTrait for Editor {
                                     }
                                 }
                                 self.server.set_palette(&self.project.palette);
-                                PRERENDERTHREAD
-                                    .lock()
-                                    .unwrap()
-                                    .set_palette(self.project.palette.clone());
-                                PRERENDERTHREAD.lock().unwrap().restart();
                                 redraw = true;
 
                                 let undo =
@@ -1311,21 +1244,6 @@ impl TheTrait for Editor {
                                             mat_obj.update_parameters();
                                         }
 
-                                        PRERENDERTHREAD
-                                            .lock()
-                                            .unwrap()
-                                            .set_palette(self.project.palette.clone());
-
-                                        PRERENDERTHREAD
-                                            .lock()
-                                            .unwrap()
-                                            .set_textures(self.project.extract_tiles());
-
-                                        PRERENDERTHREAD
-                                            .lock()
-                                            .unwrap()
-                                            .set_materials(self.project.materials.clone());
-
                                         if let Some(widget) = ui.get_widget("Server Time Slider") {
                                             widget.set_value(TheValue::Time(self.project.time));
                                             TOOLLIST.lock().unwrap().server_time =
@@ -1344,28 +1262,16 @@ impl TheTrait for Editor {
                                                     *RENDERMODE.lock().unwrap() =
                                                         EditorDrawMode::Draw2D;
                                                     shared.set_mode(TheSharedHLayoutMode::Left);
-                                                    PRERENDERTHREAD
-                                                        .lock()
-                                                        .unwrap()
-                                                        .set_paused(true);
                                                 }
                                                 MapMode::Mixed => {
                                                     *RENDERMODE.lock().unwrap() =
                                                         EditorDrawMode::DrawMixed;
                                                     shared.set_mode(TheSharedHLayoutMode::Shared);
-                                                    PRERENDERTHREAD
-                                                        .lock()
-                                                        .unwrap()
-                                                        .set_paused(false);
                                                 }
                                                 MapMode::ThreeD => {
                                                     *RENDERMODE.lock().unwrap() =
                                                         EditorDrawMode::Draw3D;
                                                     shared.set_mode(TheSharedHLayoutMode::Right);
-                                                    PRERENDERTHREAD
-                                                        .lock()
-                                                        .unwrap()
-                                                        .set_paused(false);
                                                 }
                                             }
                                         }
@@ -1376,7 +1282,7 @@ impl TheTrait for Editor {
                                             &mut self.server_ctx,
                                             &self.project,
                                         );
-                                        self.tileeditor.load_from_project(ui, ctx, &self.project);
+                                        self.mapeditor.load_from_project(ui, ctx, &self.project);
                                         let packages =
                                             self.server.set_project(self.project.clone());
                                         self.client.set_project(self.project.clone());
@@ -1441,68 +1347,7 @@ impl TheTrait for Editor {
                         //         redraw = true;
                         //     }
                         // } else
-                        if id.name == "2DMap" {
-                            if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
-                                self.project.map_mode = MapMode::TwoD;
-                                shared.set_mode(TheSharedHLayoutMode::Left);
-                                *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
-                                PRERENDERTHREAD.lock().unwrap().set_paused(true);
-                                ctx.ui.relayout = true;
-                                if let Some(region) =
-                                    self.project.get_region_mut(&self.server_ctx.curr_region)
-                                {
-                                    if let Some(layout) = ui.get_rgba_layout("Region Editor") {
-                                        layout.set_zoom(region.zoom);
-                                        layout.relayout(ctx);
-                                    }
-                                }
-                            }
-                        } else if id.name == "2D3DMap" {
-                            if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
-                                self.project.map_mode = MapMode::Mixed;
-                                shared.set_mode(TheSharedHLayoutMode::Shared);
-                                *RENDERMODE.lock().unwrap() = EditorDrawMode::DrawMixed;
-                                PRERENDERTHREAD.lock().unwrap().set_paused(false);
-                                ctx.ui.relayout = true;
-                                if let Some(region) =
-                                    self.project.get_region(&self.server_ctx.curr_region)
-                                {
-                                    RENDERER.lock().unwrap().set_region(region);
-                                    RENDERER
-                                        .lock()
-                                        .unwrap()
-                                        .set_textures(self.project.extract_tiles());
-                                }
-                            }
-                        } else if id.name == "3DMap" {
-                            if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
-                                self.project.map_mode = MapMode::ThreeD;
-                                shared.set_mode(TheSharedHLayoutMode::Right);
-                                *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw3D;
-                                PRERENDERTHREAD.lock().unwrap().set_paused(false);
-
-                                ctx.ui.relayout = true;
-                                if let Some(region) =
-                                    self.project.get_region(&self.server_ctx.curr_region)
-                                {
-                                    RENDERER.lock().unwrap().set_region(region);
-                                    RENDERER
-                                        .lock()
-                                        .unwrap()
-                                        .set_textures(self.project.extract_tiles());
-                                }
-                            }
-                        } else if id.name == "Rerender" {
-                            if let Some(region) =
-                                self.project.get_region_mut(&self.server_ctx.curr_region)
-                            {
-                                PRERENDERTHREAD.lock().unwrap().set_paused(false);
-                                PRERENDERTHREAD
-                                    .lock()
-                                    .unwrap()
-                                    .render_region(region.clone(), None);
-                            }
-                        } else if id.name == "Logo" {
+                        if id.name == "Logo" {
                             _ = open::that("https://eldiron.com");
                             ctx.ui
                                 .set_widget_state("Logo".to_string(), TheWidgetState::None);
@@ -1668,7 +1513,6 @@ impl TheTrait for Editor {
                                     self.project.get_region(&self.server_ctx.curr_region)
                                 {
                                     self.server.update_region(region);
-                                    RENDERER.lock().unwrap().set_region(region);
                                 }
                             } else if manager.context == UndoManagerContext::MaterialFX {
                                 if id.name == "Undo" {
@@ -1707,11 +1551,6 @@ impl TheTrait for Editor {
                                     );
                                 }
                                 self.server.set_palette(&self.project.palette);
-                                PRERENDERTHREAD
-                                    .lock()
-                                    .unwrap()
-                                    .set_palette(self.project.palette.clone());
-                                PRERENDERTHREAD.lock().unwrap().restart();
                             }
                         } else if id.name == "Cut" {
                             if ui.focus_widget_supports_clipboard(ctx) {

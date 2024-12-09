@@ -36,6 +36,9 @@ pub struct Region {
     pub name: String,
 
     #[serde(default)]
+    pub map: Map,
+
+    #[serde(default)]
     pub regionfx: RegionFXObject,
 
     #[serde(with = "vectorize")]
@@ -67,9 +70,8 @@ pub struct Region {
     #[serde(default)]
     pub heightmap: Heightmap,
 
-    #[serde(default)]
-    pub prerendered: PreRendered,
-
+    // #[serde(default)]
+    // pub prerendered: PreRendered,
     pub width: i32,
     pub height: i32,
     pub grid_size: i32,
@@ -120,6 +122,8 @@ impl Region {
 
             name: "New Region".to_string(),
 
+            map: Map::default(),
+
             regionfx: RegionFXObject::default(),
 
             tiles: FxHashMap::default(),
@@ -136,8 +140,7 @@ impl Region {
 
             heightmap: Heightmap::default(),
 
-            prerendered: PreRendered::default(),
-
+            // prerendered: PreRendered::default(),
             width: 80,
             height: 80,
             grid_size: 24,

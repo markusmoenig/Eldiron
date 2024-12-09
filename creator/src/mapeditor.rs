@@ -1,6 +1,6 @@
-use crate::editor::{
-    CODEEDITOR, MODELFXEDITOR, PRERENDERTHREAD, RENDERER, RENDERMODE, TILEDRAWER, UNDOMANAGER,
-};
+use shared::server::prelude::MapToolType;
+
+use crate::editor::{CODEEDITOR, MAPRENDER, TILEDRAWER, UNDOMANAGER};
 use crate::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -10,22 +10,32 @@ pub enum EditorDrawMode {
     Draw3D,
 }
 
-pub struct TileEditor {
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum MapTextureMode {
+    Preview,
+    Floor,
+    Wall,
+    Ceiling,
+}
+
+pub struct MapEditor {
     curr_tile_uuid: Option<Uuid>,
 
     curr_layer_role: Layer2DRole,
+    texture_mode: MapTextureMode,
 
     icon_normal_border_color: RGBA,
     icon_selected_border_color: RGBA,
 }
 
 #[allow(clippy::new_without_default)]
-impl TileEditor {
+impl MapEditor {
     pub fn new() -> Self {
         Self {
             curr_tile_uuid: None,
 
             curr_layer_role: Layer2DRole::Ground,
+            texture_mode: MapTextureMode::Floor,
 
             icon_normal_border_color: [100, 100, 100, 255],
             icon_selected_border_color: [255, 255, 255, 255],
@@ -35,36 +45,42 @@ impl TileEditor {
     pub fn init_ui(
         &mut self,
         _ui: &mut TheUI,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
         _project: &mut Project,
     ) -> TheCanvas {
         let mut center = TheCanvas::new();
 
-        let mut shared_layout = TheSharedHLayout::new(TheId::named("Editor Shared"));
+        // let mut shared_layout = TheSharedHLayout::new(TheId::named("Editor Shared"));
 
-        let mut region_editor = TheRGBALayout::new(TheId::named("Region Editor"));
-        if let Some(rgba_view) = region_editor.rgba_view_mut().as_rgba_view() {
-            rgba_view.set_mode(TheRGBAViewMode::Display);
+        // let mut region_editor = TheRGBALayout::new(TheId::named("Region Editor"));
+        // if let Some(rgba_view) = region_editor.rgba_view_mut().as_rgba_view() {
+        //     rgba_view.set_mode(TheRGBAViewMode::Display);
 
-            if let Some(buffer) = ctx.ui.icon("eldiron_map") {
-                rgba_view.set_buffer(buffer.clone());
-            }
+        //     if let Some(buffer) = ctx.ui.icon("eldiron_map") {
+        //         rgba_view.set_buffer(buffer.clone());
+        //     }
 
-            rgba_view.set_grid_color([255, 255, 255, 5]);
-            rgba_view.set_hover_color(Some([255, 255, 255, 100]));
-            rgba_view.set_wheel_scale(-0.2);
-        }
+        //     rgba_view.set_grid_color([255, 255, 255, 5]);
+        //     rgba_view.set_hover_color(Some([255, 255, 255, 100]));
+        //     rgba_view.set_wheel_scale(-0.2);
+        // }
 
-        let mut region_editor_canvas = TheCanvas::new();
-        region_editor_canvas.set_layout(region_editor);
-        shared_layout.add_canvas(region_editor_canvas);
+        // let mut region_editor_canvas = TheCanvas::new();
+        // region_editor_canvas.set_layout(region_editor);
+        // shared_layout.add_canvas(region_editor_canvas);
 
-        let mut render_canvas: TheCanvas = TheCanvas::new();
-        let render_view = TheRenderView::new(TheId::named("RenderView"));
-        render_canvas.set_widget(render_view);
-        shared_layout.add_canvas(render_canvas);
+        // let mut render_canvas: TheCanvas = TheCanvas::new();
+        // let render_view = TheRenderView::new(TheId::named("RenderView"));
+        // render_canvas.set_widget(render_view);
+        // shared_layout.add_canvas(render_canvas);
 
-        center.set_layout(shared_layout);
+        //center.set_layout(shared_layout);
+
+        let mut poly_canvas: TheCanvas = TheCanvas::new();
+        let render_view = TheRenderView::new(TheId::named("PolyView"));
+        poly_canvas.set_widget(render_view);
+
+        center.set_center(poly_canvas);
 
         // Picker
 
@@ -80,9 +96,47 @@ impl TileEditor {
         icon_preview.set_border_color(Some([100, 100, 100, 255]));
         vlayout.add_widget(Box::new(icon_preview));
 
-        // let mut spacer = TheIconView::new(TheId::empty());
-        // spacer.limiter_mut().set_max_height(5);
-        // vlayout.add_widget(Box::new(spacer));
+        let mut spacer = TheIconView::new(TheId::empty());
+        spacer.limiter_mut().set_max_height(2);
+        vlayout.add_widget(Box::new(spacer));
+
+        let mut view_mode_gb = TheGroupButton::new(TheId::named("Map Editor Camera"));
+        view_mode_gb.add_text_status_icon(
+            "".to_string(),
+            "2D Camera".to_string(),
+            "square".to_string(),
+        );
+        view_mode_gb.add_text_status_icon(
+            "".to_string(),
+            "3D Camera: Iso".to_string(),
+            "cube".to_string(),
+        );
+        view_mode_gb.add_text_status_icon(
+            "".to_string(),
+            "3D Camera: First person".to_string(),
+            "camera".to_string(),
+        );
+        view_mode_gb.set_item_width(26);
+        vlayout.add_widget(Box::new(view_mode_gb));
+
+        let mut spacer = TheIconView::new(TheId::empty());
+        spacer.limiter_mut().set_max_height(0);
+        vlayout.add_widget(Box::new(spacer));
+
+        let mut grid_sub_div = TheTextLineEdit::new(TheId::named("Grid Subdiv"));
+        grid_sub_div.set_value(TheValue::Float(1.0));
+        // opacity.set_default_value(TheValue::Float(1.0));
+        grid_sub_div.set_info_text(Some("Subdiv".to_string()));
+        grid_sub_div.set_range(TheValue::RangeI32(1..=10));
+        grid_sub_div.set_continuous(true);
+        grid_sub_div.limiter_mut().set_max_width(150);
+        grid_sub_div.set_status_text("The subdivision level of the grid.");
+        grid_sub_div.limiter_mut().set_max_width(75);
+        vlayout.add_widget(Box::new(grid_sub_div));
+
+        let mut spacer = TheIconView::new(TheId::empty());
+        spacer.limiter_mut().set_max_height(2);
+        vlayout.add_widget(Box::new(spacer));
 
         let mut ground_icon = TheIconView::new(TheId::named("Ground Icon"));
         ground_icon.set_text(Some("FLOOR".to_string()));
@@ -126,10 +180,10 @@ impl TileEditor {
         text.set_text_color([200, 200, 200, 255]);
         vlayout.add_widget(Box::new(text));
 
-        let mut text = TheText::new(TheId::named("Cursor Height"));
-        text.set_text("H: -".to_string());
-        text.set_text_color([200, 200, 200, 255]);
-        vlayout.add_widget(Box::new(text));
+        // let mut text = TheText::new(TheId::named("Cursor Height"));
+        // text.set_text("H: -".to_string());
+        // text.set_text_color([200, 200, 200, 255]);
+        // vlayout.add_widget(Box::new(text));
 
         tile_picker.set_layout(vlayout);
         center.set_left(tile_picker);
@@ -153,7 +207,7 @@ impl TileEditor {
             .lock()
             .unwrap()
             .set_tiles(project.extract_tiles());
-        RENDERER
+        MAPRENDER
             .lock()
             .unwrap()
             .set_textures(project.extract_tiles());
@@ -171,6 +225,74 @@ impl TileEditor {
     ) -> bool {
         let mut redraw = false;
         match event {
+            TheEvent::Custom(id, value) => {
+                if id.name == "Map Selection Changed" {
+                    let mut floor_icon_id: Option<Uuid> = None;
+                    //let mut wall_icon_id: Option<Uuid> = None;
+                    //let mut ceiling_icon_id: Option<Uuid> = None;
+
+                    if server_ctx.curr_map_tool_type == MapToolType::Sector {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            if region.map.selected_sectors.len() == 1 {
+                                if let Some(sector) =
+                                    region.map.find_sector(region.map.selected_sectors[0])
+                                {
+                                    if let Some(tile_id) = sector.floor_texture {
+                                        floor_icon_id = Some(tile_id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                        if let Some(floor_icon_id) = floor_icon_id {
+                            if let Some(tile) = TILEDRAWER.lock().unwrap().tiles.get(&floor_icon_id)
+                            {
+                                icon_view.set_rgba_tile(tile.clone());
+                            }
+                        } else {
+                            let buffer = TheRGBABuffer::new(TheDim::sized(48, 48));
+                            if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                                icon_view.set_rgba_tile(TheRGBATile::buffer(buffer));
+                            }
+                        }
+                    }
+                } else if id.name == "Cursor Pos Changed" {
+                    if let Some(text) = ui.get_text("Cursor Position") {
+                        if let Some(v) = value.to_vec2f() {
+                            text.set_text(format!("{}, {}", v.x, v.y));
+                        }
+                        redraw = true;
+                    }
+
+                    if let Some(layout) = ui.get_layout("Editor Icon Layout") {
+                        layout.relayout(ctx);
+                    }
+                }
+            }
+            TheEvent::RenderViewScrollBy(id, coord) => {
+                if id.name == "PolyView" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if ui.ctrl || ui.logo {
+                            region.map.grid_size += coord.y as f32;
+                            region.map.grid_size = clamp(region.map.grid_size, 5.0, 100.0);
+                        } else {
+                            region.map.offset += Vec2f::new(-coord.x as f32, coord.y as f32);
+                        }
+                        region.editing_position_3d.x += coord.x as f32 / region.map.grid_size;
+                        region.editing_position_3d.z += coord.y as f32 / region.map.grid_size;
+                        server.update_region(region);
+                        redraw = true;
+
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Minimap"),
+                            TheValue::Empty,
+                        ));
+                    }
+                }
+            }
+            /*
             TheEvent::RenderViewScrollBy(id, amount) => {
                 if id.name == "RenderView" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -180,7 +302,8 @@ impl TileEditor {
                         redraw = true;
                     }
                 }
-            }
+            }*/
+            /*
             TheEvent::RenderViewLostHover(id) => {
                 if id.name == "RenderView" {
                     RENDERER.lock().unwrap().hover_pos = None;
@@ -228,7 +351,7 @@ impl TileEditor {
                         }
                     }
                 }
-            }
+            }*/
             // TheEvent::RenderViewClicked(id, coord) => {
             //     if id.name == "RenderView" {
             //         self.processed_coords.clear();
@@ -297,44 +420,55 @@ impl TileEditor {
             //         redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx, false);
             //     }
             TheEvent::IndexChanged(id, index) => {
-                if id.name == "2D3D Group" {
-                    if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
+                if id.name == "Map Editor Camera" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if *index == 0 {
-                            project.map_mode = MapMode::TwoD;
-                            shared.set_mode(TheSharedHLayoutMode::Left);
-                            *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
-                            PRERENDERTHREAD.lock().unwrap().set_paused(true);
-                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                                if let Some(layout) = ui.get_rgba_layout("Region Editor") {
-                                    layout.set_zoom(region.zoom);
-                                    layout.relayout(ctx);
-                                }
-                            }
+                            region.map.camera = MapCamera::TwoD;
                         } else if *index == 1 {
-                            project.map_mode = MapMode::Mixed;
-                            shared.set_mode(TheSharedHLayoutMode::Shared);
-                            *RENDERMODE.lock().unwrap() = EditorDrawMode::DrawMixed;
-                            PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                            region.map.camera = MapCamera::ThreeDIso;
                         } else if *index == 2 {
-                            project.map_mode = MapMode::ThreeD;
-                            shared.set_mode(TheSharedHLayoutMode::Right);
-                            *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw3D;
-                            PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                            region.map.camera = MapCamera::ThreeDFirstPerson;
                         }
-                        ctx.ui.relayout = true;
-
-                        // Set the region and textures to the RenderView if visible
-                        if *index > 0 {
-                            if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                                RENDERER.lock().unwrap().set_region(region);
-                                RENDERER
-                                    .lock()
-                                    .unwrap()
-                                    .set_textures(project.extract_tiles());
-                            }
-                        }
+                        server.update_region(region);
                     }
-                }
+                } /*else if id.name == "2D3D Group" {
+                      if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
+                          if *index == 0 {
+                              project.map_mode = MapMode::TwoD;
+                              shared.set_mode(TheSharedHLayoutMode::Left);
+                              *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
+                              PRERENDERTHREAD.lock().unwrap().set_paused(true);
+                              if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                  if let Some(layout) = ui.get_rgba_layout("Region Editor") {
+                                      layout.set_zoom(region.zoom);
+                                      layout.relayout(ctx);
+                                  }
+                              }
+                          } else if *index == 1 {
+                              project.map_mode = MapMode::Mixed;
+                              shared.set_mode(TheSharedHLayoutMode::Shared);
+                              *RENDERMODE.lock().unwrap() = EditorDrawMode::DrawMixed;
+                              PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                          } else if *index == 2 {
+                              project.map_mode = MapMode::ThreeD;
+                              shared.set_mode(TheSharedHLayoutMode::Right);
+                              *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw3D;
+                              PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                          }
+                          ctx.ui.relayout = true;
+
+                          // Set the region and textures to the RenderView if visible
+                          if *index > 0 {
+                              if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                                  RENDERER.lock().unwrap().set_region(region);
+                                  RENDERER
+                                      .lock()
+                                      .unwrap()
+                                      .set_textures(project.extract_tiles());
+                              }
+                          }
+                      }
+                  }*/
             }
             // else if id.name == "Editor Group" {
             //         server_ctx.conceptual_display = None;
@@ -480,6 +614,16 @@ impl TileEditor {
                     UNDOMANAGER.lock().unwrap().context = UndoManagerContext::MaterialFX;
                 } else if id.name == "Palette Picker" {
                     UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Palette;
+                }
+            }
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == "Grid Subdiv" {
+                    if let Some(value) = value.to_i32() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.map.subdivisions = value as f32;
+                            server.update_region(region);
+                        }
+                    }
                 }
             }
             TheEvent::StateChanged(id, _state) => {
@@ -636,8 +780,6 @@ impl TileEditor {
                                 }
                             }
 
-                            RENDERER.lock().unwrap().set_region(r);
-
                             server_ctx.curr_region = r.id;
                             //self.redraw_region(ui, server, ctx, server_ctx);
                             redraw = true;
@@ -654,6 +796,46 @@ impl TileEditor {
                             icon_view.set_rgba_tile(t.clone());
                         }
                     }
+
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        let prev = region.map.clone();
+
+                        // Apply to the selected map elements
+                        if self.texture_mode == MapTextureMode::Floor {
+                            for sector_id in &region.map.selected_sectors.clone() {
+                                if let Some(sector) = region.map.find_sector_mut(*sector_id) {
+                                    sector.floor_texture = self.curr_tile_uuid;
+                                }
+                            }
+                        } else if self.texture_mode == MapTextureMode::Wall {
+                            let mut linedef_ids = Vec::new();
+                            for sector_id in &region.map.selected_sectors {
+                                if let Some(sector) = region.map.find_sector(*sector_id) {
+                                    linedef_ids.extend(&sector.linedefs);
+                                }
+                            }
+
+                            for linedef_id in linedef_ids {
+                                if let Some(linedef) = region.map.find_linedef_mut(linedef_id) {
+                                    linedef.texture = self.curr_tile_uuid;
+                                }
+                            }
+                        }
+
+                        let undo =
+                            RegionUndoAtom::MapEdit(Box::new(prev), Box::new(region.map.clone()));
+
+                        UNDOMANAGER
+                            .lock()
+                            .unwrap()
+                            .add_region_undo(&region.id, undo, ctx);
+                        server.update_region(region);
+
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Minimap"),
+                            TheValue::Empty,
+                        ));
+                    }
                 } else if id.name == "Tilemap Editor Add Anim"
                     || id.name == "Tilemap Editor Add Multi"
                 {
@@ -661,26 +843,22 @@ impl TileEditor {
                     server.update_tiles(project.extract_tiles());
                 } else if id.name == "Ground Icon" {
                     self.curr_layer_role = Layer2DRole::Ground;
+                    self.texture_mode = MapTextureMode::Floor;
                     server_ctx.curr_layer_role = Layer2DRole::Ground;
 
-                    self.set_icon_colors(ui);
+                    self.set_icon_border_colors(ui);
                     server_ctx.show_fx_marker = false;
                     redraw = true;
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Floor Selected"),
                         TheValue::Empty,
                     ));
-                    MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
-                        Layer2DRole::Ground,
-                        &project.palette,
-                        ui,
-                        ctx,
-                    );
                 } else if id.name == "Wall Icon" {
                     self.curr_layer_role = Layer2DRole::Wall;
+                    self.texture_mode = MapTextureMode::Wall;
                     server_ctx.curr_layer_role = Layer2DRole::Wall;
 
-                    self.set_icon_colors(ui);
+                    self.set_icon_border_colors(ui);
                     server_ctx.show_fx_marker = false;
                     redraw = true;
                     ctx.ui.send(TheEvent::Custom(
@@ -691,17 +869,12 @@ impl TileEditor {
                     //     ctx.ui
                     //         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
                     // }
-                    MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
-                        Layer2DRole::Wall,
-                        &project.palette,
-                        ui,
-                        ctx,
-                    );
                 } else if id.name == "Ceiling Icon" {
                     self.curr_layer_role = Layer2DRole::Ceiling;
+                    self.texture_mode = MapTextureMode::Ceiling;
                     server_ctx.curr_layer_role = Layer2DRole::Ceiling;
 
-                    self.set_icon_colors(ui);
+                    self.set_icon_border_colors(ui);
                     server_ctx.show_fx_marker = false;
                     redraw = true;
                     ctx.ui.send(TheEvent::Custom(
@@ -712,27 +885,15 @@ impl TileEditor {
                     //     ctx.ui
                     //         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
                     // }
-                    MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
-                        Layer2DRole::Ceiling,
-                        &project.palette,
-                        ui,
-                        ctx,
-                    );
                 } else if id.name == "Tile FX Icon" {
                     self.curr_layer_role = Layer2DRole::FX;
-                    self.set_icon_colors(ui);
+                    self.set_icon_border_colors(ui);
                     server_ctx.show_fx_marker = true;
                     redraw = true;
                     // if self.editor_mode == EditorMode::Draw {
                     //     ctx.ui
                     //         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
                     // }
-                    MODELFXEDITOR.lock().unwrap().set_curr_layer_role(
-                        Layer2DRole::FX,
-                        &project.palette,
-                        ui,
-                        ctx,
-                    );
                 }
             }
             _ => {}
@@ -900,7 +1061,7 @@ impl TileEditor {
         }
     }
 
-    fn set_icon_colors(&mut self, ui: &mut TheUI) {
+    fn set_icon_border_colors(&mut self, ui: &mut TheUI) {
         if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
             icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Ground {
                 Some(self.icon_selected_border_color)
@@ -917,13 +1078,6 @@ impl TileEditor {
         }
         if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
             icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Ceiling {
-                Some(self.icon_selected_border_color)
-            } else {
-                Some(self.icon_normal_border_color)
-            });
-        }
-        if let Some(icon_view) = ui.get_icon_view("Tile FX Icon") {
-            icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::FX {
                 Some(self.icon_selected_border_color)
             } else {
                 Some(self.icon_normal_border_color)
@@ -1051,26 +1205,25 @@ impl TileEditor {
         server: &mut Server,
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
-        project: &Project,
+        _project: &Project,
         compute_delta: bool,
     ) {
-        if let Some(render_view) = ui.get_render_view("RenderView") {
+        if let Some(render_view) = ui.get_render_view("PolyView") {
             let dim = *render_view.dim();
 
-            let mut upscale: f32 = 1.0; //1.5;
-            if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                // if let Some(v) = region.regionfx.get(
-                //     str!("Renderer"),
-                //     str!("Upscale"),
-                //     &project.time,
-                //     TheInterpolation::Linear,
-                // ) {
-                //     if let Some(value) = v.to_f32() {
-                //         upscale = value;
-                //     }
-                // }
-                upscale = (region.zoom / 2.0).max(1.0);
-            }
+            let b = render_view.render_buffer_mut();
+            b.resize(dim.width, dim.height);
+
+            server.render_region(
+                &server_ctx.curr_region,
+                render_view.render_buffer_mut(),
+                &mut MAPRENDER.lock().unwrap(),
+                ctx,
+                server_ctx,
+                compute_delta,
+            );
+
+            /*
 
             if upscale != 1.0 {
                 let width = (dim.width as f32 / upscale) as i32;
@@ -1087,20 +1240,8 @@ impl TileEditor {
                     server_ctx,
                     compute_delta,
                 );
-            } else {
-                let b = render_view.render_buffer_mut();
-                b.resize(dim.width, dim.height);
-
-                server.render_region(
-                    &server_ctx.curr_region,
-                    render_view.render_buffer_mut(),
-                    &mut RENDERER.lock().unwrap(),
-                    ctx,
-                    server_ctx,
-                    compute_delta,
-                );
             }
-
+            */
             /*
             let width = (dim.width as f32 / upscale) as i32;
             let height = (dim.height as f32 / upscale) as i32;

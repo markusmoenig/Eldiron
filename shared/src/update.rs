@@ -12,7 +12,7 @@ pub struct RegionUpdate {
 
     #[serde(skip)]
     // The pixel position of the characters, their tile id, their character id and facing.
-    pub characters_pixel_pos: Vec<(Vec2i, Uuid, Uuid, Vec2f)>,
+    pub characters_pixel_pos: Vec<(Vec2f, Uuid, Uuid, Vec2f)>,
 
     pub server_tick: i64,
     pub daylight: Vec3f,
@@ -45,16 +45,17 @@ impl RegionUpdate {
     /// Generate the map pixel positions of each character between ticks.
     pub fn generate_character_pixel_positions(
         &mut self,
-        grid_size: f32,
+        _grid_size: f32,
         tiles: &FxHashMap<Uuid, TheRGBATile>,
-        buffer_size: Vec2i,
-        region_height: i32,
+        _buffer_size: Vec2i,
+        _region_height: i32,
         draw_settings: &mut RegionDrawSettings,
     ) {
         // Position, tile id, character id, facing
-        let mut characters_pixel_pos: Vec<(Vec2i, Uuid, Uuid, Vec2f)> = vec![];
+        let mut characters_pixel_pos: Vec<(Vec2f, Uuid, Uuid, Vec2f)> = vec![];
 
-        for (id, character) in &mut self.characters {
+        #[allow(clippy::for_kv_map)]
+        for (_id, character) in &mut self.characters {
             let draw_pos = if let Some((start, end)) = &mut character.moving {
                 // pub fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
                 //     let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
@@ -72,14 +73,14 @@ impl RegionUpdate {
                 let x = start.x * (1.0 - d) + end.x * d;
                 let y = start.y * (1.0 - d) + end.y * d;
                 character.move_delta = sum;
-                vec2i(
-                    (x * grid_size).round() as i32,
-                    (y * grid_size).round() as i32,
+                vec2f(
+                    x, //(x * grid_size).round() as i32,
+                    y, //(y * grid_size).round() as i32,
                 )
             } else {
-                vec2i(
-                    (character.position.x * grid_size) as i32,
-                    (character.position.y * grid_size) as i32,
+                vec2f(
+                    character.position.x, //(character.position.x * grid_size) as i32,
+                    character.position.y, //(character.position.y * grid_size) as i32,
                 )
             };
 
@@ -105,6 +106,7 @@ impl RegionUpdate {
                 character.facing
             };
 
+            /*
             if Some(*id) == draw_settings.center_on_character {
                 let center_x = (buffer_size.x as f32 / 2.0) as i32 - grid_size as i32 / 2;
                 let center_y = (buffer_size.y as f32 / 2.0) as i32 + grid_size as i32 / 2;
@@ -116,7 +118,7 @@ impl RegionUpdate {
                     draw_pos.y as f32 / grid_size,
                 );
                 draw_settings.facing_3d = vec3f(facing.x, 0.0, facing.y);
-            }
+            }*/
 
             // Find the tile id for the character.
             for (id, tile) in tiles {

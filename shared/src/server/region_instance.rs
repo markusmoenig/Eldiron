@@ -186,7 +186,7 @@ impl RegionInstance {
         self.sandbox.debug_mode = debug_mode;
     }
 
-    /// Returns the debug module (if any) for the given module_id.
+    // Returns the debug module (if any) for the given module_id.
     // pub fn get_module_debug_module(&self, id: Uuid) -> TheDebugModule {
     //     self.sandbox.get_module_debug_module(id)
     // }
@@ -200,7 +200,7 @@ impl RegionInstance {
     pub fn render(
         &mut self,
         buffer: &mut TheRGBABuffer,
-        renderer: &mut Renderer,
+        renderer: &mut MapRender,
         anim_counter: &usize,
         _ctx: &mut TheContext,
         server_ctx: &ServerContext,
@@ -238,12 +238,13 @@ impl RegionInstance {
                 //         &self.palette,
                 //     );
                 // } else {
-                renderer.rendered(
+                renderer.render(
                     buffer,
                     region,
                     update,
                     &mut self.draw_settings,
-                    compute_delta,
+                    Some(server_ctx),
+                    true, //compute_delta,
                     &self.palette,
                 );
             }
@@ -301,11 +302,12 @@ impl RegionInstance {
     #[allow(clippy::too_many_arguments)]
     pub fn draw_selections(
         &mut self,
-        buffer: &mut TheRGBABuffer,
-        tiledrawer: &TileDrawer,
-        ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        _buffer: &mut TheRGBABuffer,
+        _tiledrawer: &TileDrawer,
+        _ctx: &mut TheContext,
+        _server_ctx: &ServerContext,
     ) {
+        /*
         if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
             let grid_size = region.grid_size as f32;
 
@@ -355,7 +357,7 @@ impl RegionInstance {
                     );
                 }
             }
-        }
+        }*/
     }
 
     /// Insert an area (TheCodePackage) to the region.
