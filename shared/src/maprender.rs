@@ -14,6 +14,7 @@ pub struct MapRender {
     elements: FxHashMap<Uuid, Vec<Vec4i>>,
 
     texture_sampler: FxHashMap<Uuid, Vec<Tiled<Nearest<RgbaTexture>>>>,
+    material_sampler: Vec<Tiled<Nearest<RgbaTexture>>>,
 
     pub materials: IndexMap<Uuid, MaterialFXObject>,
     pub position: Vec3f,
@@ -29,11 +30,28 @@ impl MapRender {
             atlas_size: 1.0,
             sampler: None,
             elements: FxHashMap::default(),
+
             texture_sampler: FxHashMap::default(),
+            material_sampler: vec![],
 
             materials: IndexMap::default(),
             position: Vec3f::zero(),
             hover_pos: None,
+        }
+    }
+
+    pub fn set_materials(&mut self, project: &Project) {
+        self.material_sampler.clear();
+
+        for (_, material) in &project.materials {
+            let b = material.get_preview();
+
+            let texture = RgbaTexture::new(
+                b.pixels().to_vec(),
+                b.dim().width as usize,
+                b.dim().height as usize,
+            );
+            self.material_sampler.push(texture.nearest().tiled());
         }
     }
 
@@ -251,6 +269,30 @@ impl MapRender {
                                             false,
                                         );
                                     }
+                                }
+                            } else if let Some(material_index) = &sector.floor_material {
+                                for vertex in &geo.0 {
+                                    let local = ServerContext::map_grid_to_local(
+                                        screen_size,
+                                        vec2f(vertex[0], vertex[1]),
+                                        &region.map,
+                                    );
+
+                                    let texture_scale = 1.0;
+                                    let uv = vec2f(
+                                        (vertex[0] - bbox.0.x) / texture_scale,
+                                        (vertex[1] - bbox.0.y) / texture_scale,
+                                    );
+                                    uvs.push(uv);
+                                    vertices.push(local);
+                                }
+
+                                drawer.add_textured_polygon(vertices, geo.1, uvs);
+                                if let Some(sampler) =
+                                    self.material_sampler.get(*material_index as usize)
+                                {
+                                    //let index = settings.anim_counter % sampler_array.len();
+                                    drawer.draw_as_textured_triangles(sampler, false);
                                 }
                             }
                         }

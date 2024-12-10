@@ -1,4 +1,4 @@
-use crate::editor::TILEDRAWER;
+use crate::editor::{MAPRENDER, MATERIALEDITOR, TEXTURES};
 use crate::prelude::*;
 use theframework::prelude::*;
 
@@ -15,7 +15,7 @@ impl MaterialFXUndoAtom {
         server_ctx: &mut ServerContext,
         project: &mut Project,
         ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
     ) {
         match self {
             MaterialFXUndoAtom::AddMaterial(material) => {
@@ -30,25 +30,27 @@ impl MaterialFXUndoAtom {
             MaterialFXUndoAtom::AddNode(id, prev, _) | MaterialFXUndoAtom::Edit(id, prev, _) => {
                 if let Some(material) = project.materials.get_mut(id) {
                     *material = MaterialFXObject::from_json(prev);
-                    material.render_preview(&project.palette, &TILEDRAWER.lock().unwrap().tiles);
+                    material.render_preview(&project.palette, &TEXTURES.lock().unwrap());
 
                     let node_canvas = material.to_canvas(&project.palette);
-                    ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
+                    ui.set_node_canvas("Map NodeCanvas", node_canvas);
 
-                    // let mut editor = MODELFXEDITOR.lock().unwrap();
-                    // editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
-                    // editor.set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
-                    // editor.render_material_changes(*id, server_ctx, project, ui);
+                    MATERIALEDITOR
+                        .lock()
+                        .unwrap()
+                        .set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
+
+                    MAPRENDER.lock().unwrap().set_materials(project);
                 }
             }
         }
     }
     pub fn redo(
         &self,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
         project: &mut Project,
         ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
     ) {
         match self {
             MaterialFXUndoAtom::AddMaterial(material) => {
@@ -57,15 +59,17 @@ impl MaterialFXUndoAtom {
             MaterialFXUndoAtom::AddNode(id, _, next) | MaterialFXUndoAtom::Edit(id, _, next) => {
                 if let Some(material) = project.materials.get_mut(id) {
                     *material = MaterialFXObject::from_json(next);
-                    material.render_preview(&project.palette, &TILEDRAWER.lock().unwrap().tiles);
+                    material.render_preview(&project.palette, &TEXTURES.lock().unwrap());
 
                     let node_canvas = material.to_canvas(&project.palette);
-                    ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
+                    ui.set_node_canvas("Map NodeCanvas", node_canvas);
 
-                    // let mut editor = MODELFXEDITOR.lock().unwrap();
-                    // editor.set_material_node_ui(server_ctx, project, ui, ctx, false);
-                    // editor.set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
-                    // editor.render_material_changes(*id, server_ctx, project, ui);
+                    MATERIALEDITOR
+                        .lock()
+                        .unwrap()
+                        .set_selected_material_node_ui(server_ctx, project, ui, ctx, false);
+
+                    MAPRENDER.lock().unwrap().set_materials(project);
                 }
             }
         }

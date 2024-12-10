@@ -287,35 +287,39 @@ impl ToolList {
                 }
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
-                if *code == TheKeyCode::Escape {
-                    if let Some(map) = project.get_map_mut(server_ctx) {
-                        let undo_atom = self.get_current_tool().map_event(
-                            MapEvent::MapEscape,
-                            ui,
-                            ctx,
-                            map,
-                            server,
-                            client,
-                            server_ctx,
-                        );
-                        self.update_map_context(
-                            ui, ctx, project, server, client, server_ctx, undo_atom,
-                        );
-                    }
-                } else if *code == TheKeyCode::Delete {
-                    if let Some(map) = project.get_map_mut(server_ctx) {
-                        let undo_atom = self.get_current_tool().map_event(
-                            MapEvent::MapDelete,
-                            ui,
-                            ctx,
-                            map,
-                            server,
-                            client,
-                            server_ctx,
-                        );
-                        self.update_map_context(
-                            ui, ctx, project, server, client, server_ctx, undo_atom,
-                        );
+                if let Some(id) = &ctx.ui.focus {
+                    if id.name == "PolyView" {
+                        if *code == TheKeyCode::Escape {
+                            if let Some(map) = project.get_map_mut(server_ctx) {
+                                let undo_atom = self.get_current_tool().map_event(
+                                    MapEvent::MapEscape,
+                                    ui,
+                                    ctx,
+                                    map,
+                                    server,
+                                    client,
+                                    server_ctx,
+                                );
+                                self.update_map_context(
+                                    ui, ctx, project, server, client, server_ctx, undo_atom,
+                                );
+                            }
+                        } else if *code == TheKeyCode::Delete {
+                            if let Some(map) = project.get_map_mut(server_ctx) {
+                                let undo_atom = self.get_current_tool().map_event(
+                                    MapEvent::MapDelete,
+                                    ui,
+                                    ctx,
+                                    map,
+                                    server,
+                                    client,
+                                    server_ctx,
+                                );
+                                self.update_map_context(
+                                    ui, ctx, project, server, client, server_ctx, undo_atom,
+                                );
+                            }
+                        }
                     }
                 }
             }

@@ -33,6 +33,8 @@ lazy_static! {
     pub static ref PANELS: Mutex<Panels> = Mutex::new(Panels::new());
     pub static ref MODELEDITOR: Mutex<ModelEditor> = Mutex::new(ModelEditor::new());
     pub static ref MATERIALEDITOR: Mutex<MaterialEditor> = Mutex::new(MaterialEditor::new());
+    pub static ref TEXTURES: Mutex<FxHashMap<Uuid, TheRGBATile>> = Mutex::new(FxHashMap::default());
+    pub static ref PALETTE: Mutex<ThePalette> = Mutex::new(ThePalette::default());
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -738,6 +740,7 @@ impl TheTrait for Editor {
                     ui,
                     ctx,
                     &mut self.project,
+                    &mut self.server,
                     &mut self.client,
                     &mut self.server_ctx,
                 ) {
@@ -1292,15 +1295,9 @@ impl TheTrait for Editor {
                                         redraw = true;
                                         self.server_ctx.clear();
 
-                                        // Compile Geo
-                                        let palette = self.project.palette.clone();
-                                        for r in &mut self.project.regions {
-                                            r.compile_geo_all(
-                                                &palette,
-                                                &TILEDRAWER.lock().unwrap().tiles,
-                                            );
-                                            self.server.update_region(r);
-                                        }
+                                        // Set palette and textures
+                                        *PALETTE.lock().unwrap() = self.project.palette.clone();
+                                        *TEXTURES.lock().unwrap() = self.project.extract_tiles();
 
                                         ctx.ui.send(TheEvent::SetStatusText(
                                             TheId::empty(),

@@ -2800,10 +2800,10 @@ impl Sidebar {
                             "Rename Region...".to_string(),
                             TheId::named("Rename Region"),
                         ),
-                        TheContextMenuItem::new(
-                            "Copy Prerendered...".to_string(),
-                            TheId::named("Copy Prerendered"),
-                        ),
+                        // TheContextMenuItem::new(
+                        //     "Copy Prerendered...".to_string(),
+                        //     TheId::named("Copy Prerendered"),
+                        // ),
                     ],
                     ..Default::default()
                 }));
@@ -2943,6 +2943,7 @@ impl Sidebar {
         };
 
         server_ctx.curr_material_object = selected_material;
+        MAPRENDER.lock().unwrap().set_materials(project);
 
         self.show_filtered_models(ui, ctx, project, server_ctx);
         self.show_filtered_materials(ui, ctx, project, server_ctx);

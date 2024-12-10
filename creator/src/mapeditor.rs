@@ -1,4 +1,4 @@
-use shared::server::prelude::MapToolType;
+//use shared::server::prelude::MapToolType;
 
 use crate::editor::{CODEEDITOR, MAPRENDER, TILEDRAWER, UNDOMANAGER};
 use crate::prelude::*;
@@ -10,19 +10,10 @@ pub enum EditorDrawMode {
     Draw3D,
 }
 
-#[derive(PartialEq, Clone, Copy, Debug)]
-pub enum MapTextureMode {
-    Preview,
-    Floor,
-    Wall,
-    Ceiling,
-}
-
 pub struct MapEditor {
     curr_tile_uuid: Option<Uuid>,
 
     curr_layer_role: Layer2DRole,
-    texture_mode: MapTextureMode,
 
     icon_normal_border_color: RGBA,
     icon_selected_border_color: RGBA,
@@ -35,7 +26,6 @@ impl MapEditor {
             curr_tile_uuid: None,
 
             curr_layer_role: Layer2DRole::Ground,
-            texture_mode: MapTextureMode::Floor,
 
             icon_normal_border_color: [100, 100, 100, 255],
             icon_selected_border_color: [255, 255, 255, 255],
@@ -227,34 +217,41 @@ impl MapEditor {
         match event {
             TheEvent::Custom(id, value) => {
                 if id.name == "Map Selection Changed" {
-                    let mut floor_icon_id: Option<Uuid> = None;
-                    //let mut wall_icon_id: Option<Uuid> = None;
-                    //let mut ceiling_icon_id: Option<Uuid> = None;
+                    // We handle only the tilepicker
+                    if server_ctx.curr_map_material == 0 {
+                        let mut floor_icon_id: Option<Uuid> = None;
+                        //let mut wall_icon_id: Option<Uuid> = None;
+                        //let mut ceiling_icon_id: Option<Uuid> = None;
 
-                    if server_ctx.curr_map_tool_type == MapToolType::Sector {
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            if region.map.selected_sectors.len() == 1 {
-                                if let Some(sector) =
-                                    region.map.find_sector(region.map.selected_sectors[0])
-                                {
+                        //if server_ctx.curr_map_tool_type == MapToolType::Sector {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            // if let Some(rc) =
+                            //     server_ctx.get_texture_for_mode(server_ctx.curr_texture_mode, map)
+                            // {
+                            // }
+
+                            if map.selected_sectors.len() == 1 {
+                                if let Some(sector) = map.find_sector(map.selected_sectors[0]) {
                                     if let Some(tile_id) = sector.floor_texture {
                                         floor_icon_id = Some(tile_id);
                                     }
                                 }
                             }
                         }
-                    }
+                        //}
 
-                    if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
-                        if let Some(floor_icon_id) = floor_icon_id {
-                            if let Some(tile) = TILEDRAWER.lock().unwrap().tiles.get(&floor_icon_id)
-                            {
-                                icon_view.set_rgba_tile(tile.clone());
-                            }
-                        } else {
-                            let buffer = TheRGBABuffer::new(TheDim::sized(48, 48));
-                            if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
-                                icon_view.set_rgba_tile(TheRGBATile::buffer(buffer));
+                        if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                            if let Some(floor_icon_id) = floor_icon_id {
+                                if let Some(tile) =
+                                    TILEDRAWER.lock().unwrap().tiles.get(&floor_icon_id)
+                                {
+                                    icon_view.set_rgba_tile(tile.clone());
+                                }
+                            } else {
+                                let buffer = TheRGBABuffer::new(TheDim::sized(48, 48));
+                                if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                                    icon_view.set_rgba_tile(TheRGBATile::buffer(buffer));
+                                }
                             }
                         }
                     }
@@ -801,13 +798,14 @@ impl MapEditor {
                         let prev = region.map.clone();
 
                         // Apply to the selected map elements
-                        if self.texture_mode == MapTextureMode::Floor {
+                        if server_ctx.curr_texture_mode == MapTextureMode::Floor {
                             for sector_id in &region.map.selected_sectors.clone() {
                                 if let Some(sector) = region.map.find_sector_mut(*sector_id) {
                                     sector.floor_texture = self.curr_tile_uuid;
+                                    sector.floor_material = None;
                                 }
                             }
-                        } else if self.texture_mode == MapTextureMode::Wall {
+                        } else if server_ctx.curr_texture_mode == MapTextureMode::Wall {
                             let mut linedef_ids = Vec::new();
                             for sector_id in &region.map.selected_sectors {
                                 if let Some(sector) = region.map.find_sector(*sector_id) {
@@ -818,6 +816,7 @@ impl MapEditor {
                             for linedef_id in linedef_ids {
                                 if let Some(linedef) = region.map.find_linedef_mut(linedef_id) {
                                     linedef.texture = self.curr_tile_uuid;
+                                    linedef.material = None;
                                 }
                             }
                         }
@@ -835,6 +834,11 @@ impl MapEditor {
                             TheId::named("Update Minimap"),
                             TheValue::Empty,
                         ));
+
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
                     }
                 } else if id.name == "Tilemap Editor Add Anim"
                     || id.name == "Tilemap Editor Add Multi"
@@ -843,7 +847,7 @@ impl MapEditor {
                     server.update_tiles(project.extract_tiles());
                 } else if id.name == "Ground Icon" {
                     self.curr_layer_role = Layer2DRole::Ground;
-                    self.texture_mode = MapTextureMode::Floor;
+                    server_ctx.curr_texture_mode = MapTextureMode::Floor;
                     server_ctx.curr_layer_role = Layer2DRole::Ground;
 
                     self.set_icon_border_colors(ui);
@@ -855,7 +859,7 @@ impl MapEditor {
                     ));
                 } else if id.name == "Wall Icon" {
                     self.curr_layer_role = Layer2DRole::Wall;
-                    self.texture_mode = MapTextureMode::Wall;
+                    server_ctx.curr_texture_mode = MapTextureMode::Wall;
                     server_ctx.curr_layer_role = Layer2DRole::Wall;
 
                     self.set_icon_border_colors(ui);
@@ -871,7 +875,7 @@ impl MapEditor {
                     // }
                 } else if id.name == "Ceiling Icon" {
                     self.curr_layer_role = Layer2DRole::Ceiling;
-                    self.texture_mode = MapTextureMode::Ceiling;
+                    server_ctx.curr_texture_mode = MapTextureMode::Ceiling;
                     server_ctx.curr_layer_role = Layer2DRole::Ceiling;
 
                     self.set_icon_border_colors(ui);
