@@ -52,7 +52,7 @@ pub struct Project {
     pub materials: IndexMap<Uuid, MaterialFXObject>,
 
     #[serde(default)]
-    pub models: IndexMap<Uuid, GeoFXObject>,
+    pub models: IndexMap<Uuid, Map>,
 
     #[serde(default = "default_target_fps")]
     pub target_fps: u32,
@@ -182,6 +182,12 @@ impl Project {
     /// Remove a region
     pub fn remove_region(&mut self, id: &Uuid) {
         self.regions.retain(|item| item.id != *id);
+    }
+
+    /// Remove a model
+    pub fn remove_model(&mut self, id: &Uuid) {
+        #[allow(deprecated)]
+        self.models.remove(id);
     }
 
     /// Get the map of the current context.

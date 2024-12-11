@@ -9,6 +9,7 @@ pub struct SectorTool {
     rectangle_undo_map: Map,
     click_selected: bool,
     drag_changed: bool,
+    wall_width: f32,
     wall_height: f32,
 }
 
@@ -23,6 +24,7 @@ impl Tool for SectorTool {
             click_selected: false,
             drag_changed: false,
             rectangle_undo_map: Map::default(),
+            wall_width: 0.0,
             wall_height: 0.0,
         }
     }
@@ -75,6 +77,17 @@ impl Tool for SectorTool {
 
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();
+
+                    let mut wall_width = TheTextLineEdit::new(TheId::named("Wall Width"));
+                    wall_width.set_value(TheValue::Float(self.wall_width));
+                    // opacity.set_default_value(TheValue::Float(1.0));
+                    wall_width.set_info_text(Some("Wall Width".to_string()));
+                    wall_width.set_range(TheValue::RangeF32(0.0..=4.0));
+                    wall_width.set_continuous(true);
+                    wall_width.limiter_mut().set_max_width(150);
+                    wall_width.set_status_text("The wall width of the enclosing linedefs.");
+                    layout.add_widget(Box::new(wall_width));
+
                     let mut wall_height = TheTextLineEdit::new(TheId::named("Wall Height"));
                     wall_height.set_value(TheValue::Float(self.wall_height));
                     // opacity.set_default_value(TheValue::Float(1.0));
@@ -341,7 +354,7 @@ impl Tool for SectorTool {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut Server,
+        server: &mut Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
@@ -349,6 +362,29 @@ impl Tool for SectorTool {
         #[allow(clippy::single_match)]
         match event {
             TheEvent::ValueChanged(id, value) => {
+                if id.name == "Wall Width" {
+                    if let Some(value) = value.to_f32() {
+                        self.wall_width = value;
+
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            let mut linedef_ids = Vec::new();
+                            for sector_id in &region.map.selected_sectors {
+                                if let Some(sector) = region.map.find_sector(*sector_id) {
+                                    linedef_ids.extend(&sector.linedefs);
+                                }
+                            }
+
+                            for linedef_id in linedef_ids {
+                                if let Some(linedef) = region.map.find_linedef_mut(linedef_id) {
+                                    linedef.wall_width = value;
+                                }
+                            }
+
+                            server.update_region(region);
+                        }
+                    }
+                    redraw = true;
+                }
                 if id.name == "Wall Height" {
                     if let Some(value) = value.to_f32() {
                         self.wall_height = value;

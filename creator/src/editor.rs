@@ -1302,7 +1302,7 @@ impl TheTrait for Editor {
                                         ctx.ui.send(TheEvent::SetStatusText(
                                             TheId::empty(),
                                             "Project loaded successfully.".to_string(),
-                                        ))
+                                        ));
                                     }
                                 }
                             }

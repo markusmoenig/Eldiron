@@ -813,6 +813,12 @@ impl MapEditor {
                                 }
                             }
 
+                            for linedef_id in &region.map.selected_linedefs {
+                                if !linedef_ids.contains(linedef_id) {
+                                    linedef_ids.push(*linedef_id);
+                                }
+                            }
+
                             for linedef_id in linedef_ids {
                                 if let Some(linedef) = region.map.find_linedef_mut(linedef_id) {
                                     linedef.texture = self.curr_tile_uuid;

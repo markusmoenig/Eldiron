@@ -12,7 +12,7 @@ pub enum SidebarMode {
     Screen,
     Asset,
     Model,
-    Material,
+    //Material,
     Node,
     Debug,
     Palette,
@@ -97,10 +97,12 @@ impl Sidebar {
         model_sectionbar_button.set_text("Model".to_string());
         model_sectionbar_button.set_status_text("Models");
 
+        /*
         let mut material_sectionbar_button =
             TheSectionbarButton::new(TheId::named("Material Section"));
         material_sectionbar_button.set_text("Material".to_string());
         material_sectionbar_button.set_status_text("Currently available Materials.");
+        */
 
         let mut node_sectionbar_button = TheSectionbarButton::new(TheId::named("Node Section"));
         node_sectionbar_button.set_text("Node".to_string());
@@ -127,7 +129,7 @@ impl Sidebar {
         vlayout.add_widget(Box::new(screen_sectionbar_button));
         vlayout.add_widget(Box::new(asset_sectionbar_button));
         vlayout.add_widget(Box::new(model_sectionbar_button));
-        vlayout.add_widget(Box::new(material_sectionbar_button));
+        //vlayout.add_widget(Box::new(material_sectionbar_button));
         vlayout.add_widget(Box::new(node_sectionbar_button));
         vlayout.add_widget(Box::new(debug_sectionbar_button));
         vlayout.add_widget(Box::new(palette_sectionbar_button));
@@ -717,11 +719,24 @@ impl Sidebar {
         model_list_header_canvas.set_widget(TheStatusbar::new(TheId::empty()));
         let mut model_list_header_canvas_hlayout = TheHLayout::new(TheId::empty());
         model_list_header_canvas_hlayout.set_background_color(None);
+
+        let mut model_add_button = TheTraybarButton::new(TheId::named("Model Add"));
+        model_add_button.set_icon_name("icon_role_add".to_string());
+        model_add_button.set_status_text("Add a new model.");
+
+        let mut model_remove_button = TheTraybarButton::new(TheId::named("Model Remove"));
+        model_remove_button.set_icon_name("icon_role_remove".to_string());
+        model_remove_button.set_status_text("Remove the current asset.");
+        model_remove_button.set_disabled(true);
+
         let mut filter_text = TheText::new(TheId::empty());
         filter_text.set_text("Filter".to_string());
 
         model_list_header_canvas_hlayout.set_margin(vec4i(10, 1, 5, 1));
         model_list_header_canvas_hlayout.set_padding(3);
+        model_list_header_canvas_hlayout.add_widget(Box::new(model_add_button));
+        model_list_header_canvas_hlayout.add_widget(Box::new(model_remove_button));
+        //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
         model_list_header_canvas_hlayout.add_widget(Box::new(filter_text));
         let mut filter_edit = TheTextLineEdit::new(TheId::named("Model Filter Edit"));
         filter_edit.set_text("".to_string());
@@ -750,7 +765,7 @@ impl Sidebar {
         stack_layout.add_canvas(model_canvas);
 
         // Material UI
-
+        /*
         let mut material_canvas = TheCanvas::default();
         let mut material_list_canvas = TheCanvas::default();
 
@@ -789,6 +804,7 @@ impl Sidebar {
 
         material_canvas.set_center(material_list_canvas);
         stack_layout.add_canvas(material_canvas);
+        */
 
         // Node UI
 
@@ -1761,6 +1777,48 @@ impl Sidebar {
                             redraw = true;
                         }
                     }
+                }
+                // Regions Add
+                else if id.name == "Model Add" {
+                    if let Some(list_layout) = ui.get_list_layout("Model List") {
+                        let map = Map::default();
+
+                        let mut item = TheListItem::new(TheId::named_with_id("Model Item", map.id));
+                        item.set_text(map.name.clone());
+                        item.set_state(TheWidgetState::Selected);
+                        item.set_context_menu(Some(TheContextMenu {
+                            items: vec![TheContextMenuItem::new(
+                                "Rename Model...".to_string(),
+                                TheId::named("Rename Model"),
+                            )],
+                            ..Default::default()
+                        }));
+                        list_layout.deselect_all();
+                        let id = item.id().clone();
+                        list_layout.add_item(item, ctx);
+                        ctx.ui
+                            .send_widget_state_changed(&id, TheWidgetState::Selected);
+
+                        server_ctx.clear();
+                        server_ctx.curr_region = map.id;
+                        project.models.insert(map.id, map);
+                        server.set_project(project.clone());
+                    }
+                } else if id.name == "Model Remove" {
+                    if let Some(list_layout) = ui.get_list_layout("Model List") {
+                        if let Some(selected) = list_layout.selected() {
+                            list_layout.remove(selected.clone());
+                            project.remove_model(&selected.uuid);
+                            //self.apply_region(ui, ctx, None, server, &project.palette);
+                        }
+                    }
+                } else if id.name == "Model Item" {
+                    for r in &project.regions {
+                        if r.id == id.uuid {
+                            //self.apply_region(ui, ctx, Some(r), server, &project.palette);
+                            redraw = true;
+                        }
+                    }
                 } else if id.name == "Character Add" {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         let mut bundle = TheCodeBundle::new();
@@ -2441,7 +2499,7 @@ impl Sidebar {
                         SidebarMode::Model as usize,
                     ));
                     redraw = true;
-                } else if id.name == "Material Section" && *state == TheWidgetState::Selected {
+                    /* } else if id.name == "Material Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
 
                     if let Some(widget) = ui
@@ -2457,7 +2515,7 @@ impl Sidebar {
                         self.stack_layout_id.clone(),
                         SidebarMode::Material as usize,
                     ));
-                    redraw = true;
+                    redraw = true;*/
                 } else if id.name == "Node Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
 
@@ -3577,34 +3635,35 @@ impl Sidebar {
     /// Shows the filtered models of the project.
     pub fn show_filtered_models(
         &mut self,
-        ui: &mut TheUI,
-        ctx: &mut TheContext,
-        project: &Project,
-        server_ctx: &ServerContext,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _project: &Project,
+        _server_ctx: &ServerContext,
     ) {
-        let mut filter_text = if let Some(widget) = ui
-            .canvas
-            .get_widget(Some(&"Model Filter Edit".to_string()), None)
-        {
-            widget.value().to_string().unwrap_or_default()
-        } else {
-            "".to_string()
-        };
+        // let mut filter_text = if let Some(widget) = ui
+        //     .canvas
+        //     .get_widget(Some(&"Model Filter Edit".to_string()), None)
+        // {
+        //     widget.value().to_string().unwrap_or_default()
+        // } else {
+        //     "".to_string()
+        // };
 
-        let _filter_role = if let Some(widget) = ui
-            .canvas
-            .get_widget(Some(&"Model Filter Role".to_string()), None)
-        {
-            if let Some(drop_down_menu) = widget.as_drop_down_menu() {
-                drop_down_menu.selected_index()
-            } else {
-                0
-            }
-        } else {
-            0
-        };
+        // let _filter_role = if let Some(widget) = ui
+        //     .canvas
+        //     .get_widget(Some(&"Model Filter Role".to_string()), None)
+        // {
+        //     if let Some(drop_down_menu) = widget.as_drop_down_menu() {
+        //         drop_down_menu.selected_index()
+        //     } else {
+        //         0
+        //     }
+        // } else {
+        //     0
+        // };
 
-        filter_text = filter_text.to_lowercase();
+        //filter_text = filter_text.to_lowercase();
+        /*
 
         if let Some(layout) = ui.canvas.get_layout(Some(&"Model List".to_string()), None) {
             if let Some(list_layout) = layout.as_list_layout() {
@@ -3642,7 +3701,7 @@ impl Sidebar {
                     }
                 }
             }
-        }
+        }*/
         //ui.select_first_list_item("Material List", ctx);
     }
 
