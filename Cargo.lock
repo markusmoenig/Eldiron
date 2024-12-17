@@ -3321,7 +3321,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.1.4"
-source = "git+https://github.com/markusmoenig/Rusterix#0f215be749a612859249180e46fd9bc249ee42e0"
+source = "git+https://github.com/markusmoenig/Rusterix#3f2d359fe0147999ce096aab9f1dee3c323ff8b5"
 dependencies = [
  "earcutr",
  "image",
