@@ -1,13 +1,14 @@
+use crate::prelude::*;
 use crate::texture::RgbaTexture;
-use crate::{prelude::*, server::context::MapToolType};
 use euc::*;
-use rayon::prelude::*;
 use rect_packer::*;
+use rusterix::prelude::*;
 use theframework::prelude::*;
 use vek::*;
 
 pub struct MapRender {
     pub textures: FxHashMap<Uuid, TheRGBATile>,
+    pub tiles: FxHashMap<Uuid, rusterix::Tile>,
 
     atlas_size: f32,
     sampler: Option<Tiled<Nearest<RgbaTexture>>>,
@@ -26,6 +27,7 @@ impl MapRender {
     pub fn new() -> Self {
         Self {
             textures: FxHashMap::default(),
+            tiles: FxHashMap::default(),
 
             atlas_size: 1.0,
             sampler: None,
@@ -57,7 +59,8 @@ impl MapRender {
 
     pub fn set_region(&mut self, _region: &Region) {}
 
-    pub fn set_textures(&mut self, tiles: FxHashMap<Uuid, TheRGBATile>) {
+    pub fn set_textures(&mut self, textures: FxHashMap<Uuid, TheRGBATile>) {
+        /*
         let atlas_size = 1024;
         let mut packer = Packer::new(Config {
             width: atlas_size,
@@ -121,8 +124,9 @@ impl MapRender {
         self.atlas_size = atlas_size as f32;
         self.elements = elements;
 
-        self.textures = tiles;
         self.texture_sampler = texture_sampler;
+        */
+        self.textures = textures;
     }
 
     pub fn set_position(&mut self, position: Vec3f) {
@@ -180,6 +184,7 @@ impl MapRender {
             let mut drawer = EucDraw::new(width, height);
 
             if region.map.camera == MapCamera::TwoD {
+                /*
                 // Draw Grid
                 buffer
                     .pixels_mut()
@@ -205,6 +210,39 @@ impl MapRender {
                             pixel.copy_from_slice(&TheColor::from_vec4f(col).to_u8_array());
                         }
                     });
+
+                    */
+
+                let mut builder = D2PreviewBuilder::new();
+                builder.set_map_tool_type(server_ctx.curr_map_tool_type);
+                if let Some(hover_cursor) = server_ctx.hover_cursor {
+                    builder.set_map_hover_info(
+                        server_ctx.hover,
+                        Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
+                    );
+                } else {
+                    builder.set_map_hover_info(server_ctx.hover, None);
+                }
+
+                let tiles: FxHashMap<Uuid, rusterix::Tile> = FxHashMap::default();
+
+                let mut scene = builder.build(
+                    &region.map,
+                    tiles,
+                    vek::Vec2::new(width as f32, height as f32),
+                );
+
+                Rasterizer {}.rasterize(
+                    &mut scene,
+                    buffer.pixels_mut(),
+                    width,
+                    height,
+                    100,
+                    None,
+                    vek::Mat4::identity(),
+                );
+
+                return;
 
                 // Draw Sectors
                 if server_ctx.curr_map_tool_type == MapToolType::General
@@ -394,18 +432,18 @@ impl MapRender {
                                 // Convert the triangles from grid to local coordinates
                                 let mut vertices: Vec<Vec2f> = vec![];
 
+                                //if let Some(el) = self.elements.get(texture_id) {
+                                for vertex in &geo.0 {
+                                    let local = ServerContext::map_grid_to_local(
+                                        screen_size,
+                                        vec2f(vertex[0], vertex[1]),
+                                        &region.map,
+                                    );
+
+                                    vertices.push(local);
+                                }
+                                //}
                                 if let Some(texture_id) = &linedef.texture {
-                                    //if let Some(el) = self.elements.get(texture_id) {
-                                    for vertex in &geo.0 {
-                                        let local = ServerContext::map_grid_to_local(
-                                            screen_size,
-                                            vec2f(vertex[0], vertex[1]),
-                                            &region.map,
-                                        );
-
-                                        vertices.push(local);
-                                    }
-
                                     drawer.add_textured_polygon(vertices, geo.2, geo.1);
                                     if let Some(sampler_array) =
                                         self.texture_sampler.get(texture_id)
@@ -416,18 +454,25 @@ impl MapRender {
                                             false,
                                         );
                                     }
-                                    // }
+                                } else if let Some(material_index) = &linedef.material {
+                                    drawer.add_textured_polygon(vertices, geo.2, geo.1);
+                                    if let Some(sampler) =
+                                        self.material_sampler.get(*material_index as usize)
+                                    {
+                                        //let index = settings.anim_counter % sampler_array.len();
+                                        drawer.draw_as_textured_triangles(sampler, false);
+                                    }
                                 }
                             }
                         }
                     }
 
+                    // Draw wall lines
                     if server_ctx.curr_map_tool_type == MapToolType::Selection
                         || server_ctx.curr_map_tool_type == MapToolType::Linedef
                         || server_ctx.curr_map_tool_type == MapToolType::Sector
                     {
                         for linedef in &region.map.linedefs {
-                            // The wall has no width, we draw it as a line.
                             if let Some(start_vertex) = region.map.find_vertex(linedef.start_vertex)
                             {
                                 let start_pos = ServerContext::map_grid_to_local(
@@ -509,8 +554,11 @@ impl MapRender {
 
                 // For line action previews
                 if let Some(grid_pos) = region.map.curr_grid_pos {
-                    let local =
-                        ServerContext::map_grid_to_local(screen_size, grid_pos, &region.map);
+                    let local = ServerContext::map_grid_to_local(
+                        screen_size,
+                        vec2f(grid_pos.x, grid_pos.y),
+                        &region.map,
+                    );
                     if let Some(mouse_pos) = region.map.curr_mouse_pos {
                         drawer.add_line(local.x, local.y, mouse_pos.x, mouse_pos.y, Rgba::white());
                     }
@@ -526,6 +574,7 @@ impl MapRender {
 
                 drawer.draw_as_lines();
 
+                /*
                 // Hover Cursor
                 if let Some(hover_pos) = server_ctx.hover_cursor {
                     let pos = ServerContext::map_grid_to_local(screen_size, hover_pos, &region.map);
@@ -538,12 +587,15 @@ impl MapRender {
                         Rgba::yellow(),
                     );
                     drawer.draw_as_triangles();
-                }
+                }*/
 
                 // Camera Pos
                 if let Some(camera_pos) = region.map.camera_xz {
-                    let pos =
-                        ServerContext::map_grid_to_local(screen_size, camera_pos, &region.map);
+                    let pos = ServerContext::map_grid_to_local(
+                        screen_size,
+                        vec2f(camera_pos.x, camera_pos.y),
+                        &region.map,
+                    );
                     let size = 4.0;
                     drawer.add_box(
                         pos.x - size,
@@ -560,6 +612,7 @@ impl MapRender {
                 // Render in 3D
                 //if region.map.camera == MapCamera::ThreeDIso {}
 
+                /*
                 buffer.fill(BLACK);
 
                 let geo_map = generate_map_geometry(&region.map, self.atlas_size, &self.elements);
@@ -685,6 +738,7 @@ impl MapRender {
                     }
                 }
                 drawer.copy_into(buffer);
+                */
             }
         } else {
             // No server ctx, we are live
@@ -764,171 +818,6 @@ impl MapRender {
             }
         }
         None
-    }
-
-    // Draw the grid
-    fn grid_at(
-        &self,
-        position: Vec2f,
-        size: Vec2f,
-        grid_size: f32,
-        offset: Vec2f,
-        subdivisions: f32,
-    ) -> Vec4f {
-        fn odd(n: i32) -> bool {
-            n % 2 != 0
-        }
-
-        // Return the multiple of delta closest to value
-        fn closest_mul(delta: Vec2f, value: Vec2f) -> Vec2f {
-            delta * round(value / delta)
-        }
-
-        // Return the distance of value to the closest multiple of delta
-        fn mul_dist(delta: Vec2f, value: Vec2f) -> Vec2f {
-            abs(value - closest_mul(delta, value))
-        }
-
-        // Align the given point to a pixel center if thickness is odd,
-        // otherwise align the point to a crossing point between pixels
-        fn align_pixel(point: Vec2f, thickness: i32) -> Vec2f {
-            if odd(thickness) {
-                round(point - Vec2f::new(0.5, 0.5)) + Vec2f::new(0.5, 0.5)
-            } else {
-                round(point)
-            }
-        }
-
-        #[allow(clippy::too_many_arguments)]
-        fn draw_grid(
-            position: Vec2f,
-            origin: Vec2f,
-            grid_size: Vec2f,
-            sub_grid_div: Vec2f,
-            thickness: i32,
-            sub_thickness: i32,
-            dot_radius: f32,
-            squared_dots: bool,
-            bg_color: Vec4f,
-            line_color: Vec4f,
-            sub_line_color: Vec4f,
-            dots_color: Vec4f,
-            x_axis_color: Vec4f,
-            y_axis_color: Vec4f,
-        ) -> Vec4f {
-            let th = thickness as f32;
-            let sth = sub_thickness as f32;
-
-            let aligned_origin = align_pixel(origin, thickness);
-            let rel_p = position - aligned_origin;
-
-            // Draw the axes
-            if abs(rel_p.y) < th * 0.5 {
-                return x_axis_color;
-            }
-            if abs(rel_p.x) < th * 0.5 {
-                return y_axis_color;
-            }
-
-            let mul = closest_mul(grid_size, rel_p);
-
-            // Pixel distance
-            let dist = mul_dist(grid_size, rel_p);
-
-            if dot_radius > 0.0 {
-                // Antialiasing threshold
-                let aa = 1.0;
-
-                let dot_dist = if squared_dots {
-                    max(dist.x, dist.y)
-                } else {
-                    length(dist)
-                };
-
-                // Prevent dots from being drawn on the axes
-                let draw_dots = abs(mul.x) > 0.5 && abs(mul.y) > 0.5;
-
-                if draw_dots && dot_dist <= dot_radius + aa {
-                    // Draw the dots
-                    let val = max(dot_dist - dot_radius, 0.0) / aa;
-                    return lerp(dots_color, bg_color, val);
-                }
-            }
-
-            if min(dist.x, dist.y) <= th * 0.5 {
-                return line_color;
-            }
-
-            let dist_to_floor = abs(rel_p - grid_size * floor(rel_p / grid_size));
-            let sub_size = grid_size / round(sub_grid_div);
-
-            let dist = if odd(thickness) != odd(sub_thickness) {
-                abs(dist_to_floor - Vec2f::new(0.5, 0.5))
-            } else {
-                dist_to_floor
-            };
-
-            let sub_dist = mul_dist(sub_size, dist);
-
-            // Number of columns and rows
-            let rc = round(dist / sub_size);
-
-            // Extra pixels for the last row/column
-            let extra = grid_size - sub_size * sub_grid_div;
-
-            let sub_dist = Vec2f::new(
-                if rc.x == sub_grid_div.x {
-                    sub_dist.x + extra.x
-                } else {
-                    sub_dist.x
-                },
-                if rc.y == sub_grid_div.y {
-                    sub_dist.y + extra.y
-                } else {
-                    sub_dist.y
-                },
-            );
-
-            if min(sub_dist.x, sub_dist.y) <= sth * 0.5 {
-                return sub_line_color;
-            }
-
-            // Default to background color
-            bg_color
-        }
-
-        let origin = size / 2.0 + offset; //vec2f(0.5, 0.5); //size + size / 2.0;
-        let grid_size = Vec2f::new(grid_size, grid_size);
-        let sub_grid_div = Vec2f::new(subdivisions, subdivisions);
-
-        let thickness = 1;
-        let sub_thickness = 1;
-        let dot_radius = 0.0;
-        let squared_dots = false;
-
-        let bg_color = Vec4f::new(0.05, 0.05, 0.05, 1.0);
-        let line_color = Vec4f::new(0.15, 0.15, 0.15, 1.0);
-        let sub_line_color = Vec4f::new(0.1, 0.1, 0.1, 1.0);
-        let dots_color = Vec4f::new(0.3, 0.3, 0.3, 1.0);
-        let x_axis_color = Vec4f::new(212.0 / 255.0, 28.0 / 255.0, 15.0 / 255.0, 1.0);
-        let y_axis_color = Vec4f::new(21.0 / 255.0, 191.0 / 255.0, 83.0 / 255.0, 1.0);
-
-        draw_grid(
-            position,
-            origin,
-            grid_size,
-            sub_grid_div,
-            thickness,
-            sub_thickness,
-            dot_radius,
-            squared_dots,
-            bg_color,
-            line_color,
-            sub_line_color,
-            dots_color,
-            x_axis_color,
-            y_axis_color,
-        )
     }
 
     /// Gets the current time in milliseconds

@@ -752,8 +752,9 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
- "theframework",
+ "theframework 0.1.20",
  "vectorize",
+ "vek",
 ]
 
 [[package]]
@@ -1179,7 +1180,7 @@ dependencies = [
  "maths-rs",
  "rand",
  "rayon",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "serde",
  "serde_json",
 ]
@@ -2286,7 +2287,7 @@ dependencies = [
  "hexf-parse",
  "indexmap 2.7.0",
  "log",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "spirv",
  "termcolor",
  "thiserror",
@@ -2494,6 +2495,16 @@ name = "number_prefix"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
+
+[[package]]
+name = "obj-rs"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8247fd8f66340ad9c969f96e63a80a2f74b04e5403d92584b75e046006f4c7e1"
+dependencies = [
+ "num-traits",
+ "serde",
+]
 
 [[package]]
 name = "objc"
@@ -3293,12 +3304,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
+name = "rustc-hash"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7fb8039b3032c191086b10f11f319a6e99e1e82889c5cc6046f515c9db1d497"
+
+[[package]]
 name = "rustc_version"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
 dependencies = [
  "semver",
+]
+
+[[package]]
+name = "rusterix"
+version = "0.1.4"
+source = "git+https://github.com/markusmoenig/Rusterix#0f215be749a612859249180e46fd9bc249ee42e0"
+dependencies = [
+ "earcutr",
+ "image",
+ "obj-rs",
+ "rayon",
+ "rect_packer",
+ "rustc-hash 2.1.0",
+ "serde",
+ "serde_json",
+ "theframework 0.1.30",
+ "uuid",
+ "vek",
 ]
 
 [[package]]
@@ -3517,9 +3552,10 @@ dependencies = [
  "rayon",
  "rect_packer",
  "regex",
+ "rusterix",
  "serde",
  "serde_json",
- "theframework",
+ "theframework 0.1.20",
  "vectorize",
  "vek",
 ]
@@ -3635,7 +3671,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
- "theframework",
+ "theframework 0.1.20",
  "vectorize",
 ]
 
@@ -3842,7 +3878,7 @@ dependencies = [
  "rayon",
  "rfd",
  "rust-embed",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "serde",
  "serde_json",
  "syntect",
@@ -3856,6 +3892,45 @@ dependencies = [
  "winit",
  "winit_input_helper",
  "zeno",
+]
+
+[[package]]
+name = "theframework"
+version = "0.1.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "55062c35eb0e0b1991540a697cbb6c789ce229ca5b7effa101c0b0aecea036db"
+dependencies = [
+ "aict",
+ "arboard",
+ "bytemuck",
+ "console_error_panic_hook",
+ "console_log",
+ "env_logger",
+ "flags",
+ "fontdue",
+ "futures",
+ "half",
+ "indexmap 2.7.0",
+ "itertools 0.13.0",
+ "lazy_static",
+ "log",
+ "maths-rs",
+ "png",
+ "rand",
+ "rust-embed",
+ "rustc-hash 1.1.0",
+ "serde",
+ "serde_json",
+ "syntect",
+ "unicode-segmentation",
+ "uuid",
+ "vectorize",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wgpu",
+ "winit",
+ "winit_input_helper",
 ]
 
 [[package]]
@@ -4643,7 +4718,7 @@ dependencies = [
  "parking_lot",
  "profiling",
  "raw-window-handle 0.6.2",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "smallvec",
  "thiserror",
  "wgpu-hal",
@@ -4686,7 +4761,7 @@ dependencies = [
  "range-alloc",
  "raw-window-handle 0.6.2",
  "renderdoc-sys",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "smallvec",
  "thiserror",
  "wasm-bindgen",

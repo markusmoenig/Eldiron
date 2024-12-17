@@ -1,4 +1,4 @@
-use crate::map::Map;
+use rusterix::map::Map;
 use theframework::prelude::*;
 
 #[derive(Debug)]

@@ -1511,6 +1511,10 @@ impl TheTrait for Editor {
                                 {
                                     self.server.update_region(region);
                                 }
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Update Minimap"),
+                                    TheValue::Empty,
+                                ));
                             } else if manager.context == UndoManagerContext::MaterialFX {
                                 if id.name == "Undo" {
                                     manager.undo(

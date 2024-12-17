@@ -46,6 +46,7 @@ self_update = { version = "0.39.0", features = [
     "archive-tar",
     "compression-flate2",
 ] }
+vek = { version = "0.17.1", default-features = true }
 
 [package.metadata.bundle]
 name = "Eldiron"

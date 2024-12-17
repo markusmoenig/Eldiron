@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use shared::server::prelude::MapToolType;
 use MapEvent::*;
 use ToolEvent::*;
 
@@ -208,8 +207,10 @@ impl Tool for VertexTool {
                     selection.2 = vec![];
 
                     *map = self.rectangle_undo_map.clone();
-                    map.curr_rectangle =
-                        Some((self.click_pos, vec2f(coord.x as f32, coord.y as f32)));
+                    map.curr_rectangle = Some((
+                        vek::Vec2::new(self.click_pos.x, self.click_pos.y),
+                        vek::Vec2::new(coord.x as f32, coord.y as f32),
+                    ));
 
                     if ui.shift {
                         // Add

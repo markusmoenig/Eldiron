@@ -2,6 +2,7 @@
 
 use crate::editor::{CODEEDITOR, MAPRENDER, TILEDRAWER, UNDOMANAGER};
 use crate::prelude::*;
+use vek::Vec2;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum EditorDrawMode {
@@ -275,7 +276,7 @@ impl MapEditor {
                             region.map.grid_size += coord.y as f32;
                             region.map.grid_size = clamp(region.map.grid_size, 5.0, 100.0);
                         } else {
-                            region.map.offset += Vec2f::new(-coord.x as f32, coord.y as f32);
+                            region.map.offset += Vec2::new(-coord.x as f32, coord.y as f32);
                         }
                         region.editing_position_3d.x += coord.x as f32 / region.map.grid_size;
                         region.editing_position_3d.z += coord.y as f32 / region.map.grid_size;

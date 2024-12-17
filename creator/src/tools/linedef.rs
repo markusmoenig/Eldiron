@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use shared::server::prelude::MapToolType;
+use vek::Vec2;
 use MapEvent::*;
 use ToolEvent::*;
 
@@ -268,7 +268,7 @@ impl Tool for LinedefTool {
                         }
 
                         if set_current_gid_pos {
-                            map.curr_grid_pos = Some(grid_pos);
+                            map.curr_grid_pos = Some(vek::Vec2::new(grid_pos.x, grid_pos.y));
                         }
                     }
                 }
@@ -362,8 +362,10 @@ impl Tool for LinedefTool {
 
                             *map = self.rectangle_undo_map.clone();
                             map.curr_grid_pos = None;
-                            map.curr_rectangle =
-                                Some((self.click_pos, vec2f(coord.x as f32, coord.y as f32)));
+                            map.curr_rectangle = Some((
+                                Vec2::new(self.click_pos.x, self.click_pos.y),
+                                Vec2::new(coord.x as f32, coord.y as f32),
+                            ));
 
                             if ui.shift {
                                 // Add
@@ -410,7 +412,7 @@ impl Tool for LinedefTool {
                 if let Some(render_view) = ui.get_render_view("PolyView") {
                     let dim = *render_view.dim();
                     if !self.rectangle_mode {
-                        map.curr_mouse_pos = Some(vec2f(coord.x as f32, coord.y as f32));
+                        map.curr_mouse_pos = Some(Vec2::new(coord.x as f32, coord.y as f32));
                     }
                     let mut hover = server_ctx.geometry_at(
                         vec2f(dim.width as f32, dim.height as f32),

@@ -8,15 +8,6 @@ pub enum MapContext {
     Screen,
 }
 
-#[derive(PartialEq)]
-pub enum MapToolType {
-    General,
-    Selection,
-    Vertex,
-    Linedef,
-    Sector,
-}
-
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum MapTextureMode {
     Preview,

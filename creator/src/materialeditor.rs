@@ -112,6 +112,8 @@ impl MaterialEditor {
                         //     ui.set_node_canvas("Map NodeCanvas", node_canvas);
                         // }
                         if let Some(map) = project.get_map_mut(server_ctx) {
+                            let prev = map.clone();
+
                             match server_ctx.curr_texture_mode {
                                 MapTextureMode::Floor => {
                                     for sector_id in &map.selected_sectors.clone() {
@@ -121,7 +123,27 @@ impl MaterialEditor {
                                         }
                                     }
                                 }
-                                MapTextureMode::Wall => {}
+                                MapTextureMode::Wall => {
+                                    let mut linedef_ids = Vec::new();
+                                    for sector_id in &map.selected_sectors {
+                                        if let Some(sector) = map.find_sector(*sector_id) {
+                                            linedef_ids.extend(&sector.linedefs);
+                                        }
+                                    }
+
+                                    for linedef_id in &map.selected_linedefs {
+                                        if !linedef_ids.contains(linedef_id) {
+                                            linedef_ids.push(*linedef_id);
+                                        }
+                                    }
+
+                                    for linedef_id in linedef_ids {
+                                        if let Some(linedef) = map.find_linedef_mut(linedef_id) {
+                                            linedef.material = Some(index);
+                                            linedef.texture = None;
+                                        }
+                                    }
+                                }
                                 MapTextureMode::Ceiling => {
                                     for sector_id in &map.selected_sectors.clone() {
                                         if let Some(sector) = map.find_sector_mut(*sector_id) {
@@ -132,6 +154,21 @@ impl MaterialEditor {
                                 }
                                 _ => {}
                             }
+
+                            let undo =
+                                RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+
+                            UNDOMANAGER.lock().unwrap().add_region_undo(
+                                &server_ctx.curr_region,
+                                undo,
+                                ctx,
+                            );
+
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Update Minimap"),
+                                TheValue::Empty,
+                            ));
+
                             self.set_material_selection(ui, ctx, project, server_ctx, Some(index));
                         }
                     }

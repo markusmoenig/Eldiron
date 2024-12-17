@@ -1,7 +1,6 @@
-use shared::server::prelude::MapToolType;
-
 use crate::editor::MAPRENDER;
 use crate::prelude::*;
+use vek::Vec2;
 
 pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer) {
     // let background = *ui
@@ -45,7 +44,7 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer) {
         // Compute the offset to center the map
         region.map.offset.x = -bbox_center_x * region.map.grid_size;
         region.map.offset.y = bbox_center_y * region.map.grid_size;
-        region.map.camera_xz = Some(vec2f(
+        region.map.camera_xz = Some(Vec2::new(
             region.editing_position_3d.x,
             region.editing_position_3d.z,
         ));
