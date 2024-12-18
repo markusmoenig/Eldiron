@@ -4,18 +4,12 @@ use euc::*;
 use rect_packer::*;
 use rusterix::prelude::*;
 use theframework::prelude::*;
-use vek::*;
 
 pub struct MapRender {
     pub textures: FxHashMap<Uuid, TheRGBATile>,
     tiles: FxHashMap<Uuid, rusterix::Tile>,
     atlas: rusterix::Texture,
 
-    atlas_size: f32,
-    sampler: Option<Tiled<Nearest<RgbaTexture>>>,
-    elements: FxHashMap<Uuid, Vec<Vec4i>>,
-
-    texture_sampler: FxHashMap<Uuid, Vec<Tiled<Nearest<RgbaTexture>>>>,
     material_sampler: Vec<Tiled<Nearest<RgbaTexture>>>,
 
     pub materials: IndexMap<Uuid, MaterialFXObject>,
@@ -31,11 +25,6 @@ impl MapRender {
             tiles: FxHashMap::default(),
             atlas: rusterix::Texture::default(),
 
-            atlas_size: 1.0,
-            sampler: None,
-            elements: FxHashMap::default(),
-
-            texture_sampler: FxHashMap::default(),
             material_sampler: vec![],
 
             materials: IndexMap::default(),
@@ -100,8 +89,6 @@ impl MapRender {
             };
             elements.insert(*id, array);
             tiles.insert(*id, tile);
-
-            // texture_sampler.insert(*id, sammpler_array);
         }
 
         // Create atlas
@@ -129,74 +116,8 @@ impl MapRender {
                 }
             }
         }
-        /*
-        let atlas_size = 1024;
-        let mut packer = Packer::new(Config {
-            width: atlas_size,
-            height: atlas_size,
-            border_padding: 0,
-            rectangle_padding: 0,
-        });
 
-        let mut elements: FxHashMap<Uuid, Vec<Vec4i>> = FxHashMap::default();
-        let mut texture_sampler: FxHashMap<Uuid, Vec<Tiled<Nearest<RgbaTexture>>>> =
-            FxHashMap::default();
-
-        // Create rectangles
-        for (id, tile) in tiles.iter() {
-            let mut array: Vec<Vec4i> = vec![];
-            let mut sammpler_array: Vec<Tiled<Nearest<RgbaTexture>>> = vec![];
-            for b in &tile.buffer {
-                if let Some(rect) = packer.pack(b.dim().width, b.dim().height, false) {
-                    array.push(vec4i(rect.x, rect.y, rect.width, rect.height));
-                }
-
-                let texture = RgbaTexture::new(
-                    b.pixels().to_vec(),
-                    b.dim().width as usize,
-                    b.dim().height as usize,
-                );
-                sammpler_array.push(texture.nearest().tiled());
-            }
-            elements.insert(*id, array);
-            texture_sampler.insert(*id, sammpler_array);
-        }
-
-        // Create atlas
-        let mut atlas = vec![0; atlas_size as usize * atlas_size as usize * 4];
-
-        // Copy textures into atlas
-        for (id, tile) in tiles.iter() {
-            if let Some(rects) = elements.get(id) {
-                for (buffer, rect) in tile.buffer.iter().zip(rects) {
-                    let width = buffer.dim().width as usize;
-                    let height = buffer.dim().height as usize;
-                    let rect_x = rect.x as usize;
-                    let rect_y = rect.y as usize;
-
-                    for y in 0..height {
-                        for x in 0..width {
-                            let src_index = (y * width + x) * 4;
-                            let dest_index =
-                                ((rect_y + y) * atlas_size as usize + (rect_x + x)) * 4;
-
-                            atlas[dest_index..dest_index + 4]
-                                .copy_from_slice(&buffer.pixels()[src_index..src_index + 4]);
-                        }
-                    }
-                }
-            }
-        }
-
-        let texture = RgbaTexture::new(atlas, atlas_size as usize, atlas_size as usize);
-        self.sampler = Some(texture.nearest().tiled());
-        self.atlas_size = atlas_size as f32;
-        self.elements = elements;
-
-        self.texture_sampler = texture_sampler;
-        */
         self.atlas = rusterix::Texture::new(atlas, atlas_size as usize, atlas_size as usize);
-        self.atlas_size = atlas_size as f32;
         self.tiles = tiles;
         self.textures = textures;
     }
@@ -221,7 +142,6 @@ impl MapRender {
         let width = buffer.dim().width as usize;
         let height = buffer.dim().height as usize;
 
-        let screen_size = vec2f(width as f32, height as f32);
         let region_height = region.height * region.grid_size;
 
         let grid_size = region.map.grid_size;
@@ -253,8 +173,6 @@ impl MapRender {
         // let render_settings_params: Vec<Vec<f32>> = region.regionfx.load_parameters(&settings.time);
 
         if let Some(server_ctx) = server_ctx {
-            let drawer = EucDraw::new(width, height);
-
             if region.map.camera == MapCamera::TwoD {
                 /*
                 // Draw Grid
@@ -296,11 +214,9 @@ impl MapRender {
                     builder.set_map_hover_info(server_ctx.hover, None);
                 }
 
-                let tiles: FxHashMap<Uuid, rusterix::Tile> = FxHashMap::default();
-
                 let mut scene = builder.build(
                     &region.map,
-                    tiles,
+                    &self.tiles,
                     self.atlas.clone(),
                     vek::Vec2::new(width as f32, height as f32),
                 );
@@ -315,8 +231,7 @@ impl MapRender {
                     vek::Mat4::identity(),
                 );
 
-                return;
-
+                /*
                 // Draw Sectors
                 if server_ctx.curr_map_tool_type == MapToolType::General
                     || server_ctx.curr_map_tool_type == MapToolType::Selection
@@ -646,7 +561,7 @@ impl MapRender {
                 }
 
                 drawer.draw_as_lines();
-
+                */
                 /*
                 // Hover Cursor
                 if let Some(hover_pos) = server_ctx.hover_cursor {
@@ -662,6 +577,7 @@ impl MapRender {
                     drawer.draw_as_triangles();
                 }*/
 
+                /*
                 // Camera Pos
                 if let Some(camera_pos) = region.map.camera_xz {
                     let pos = ServerContext::map_grid_to_local(
@@ -678,9 +594,9 @@ impl MapRender {
                         Rgba::red(),
                     );
                     drawer.draw_as_triangles();
-                }
+                }*/
 
-                drawer.blend_into(buffer);
+                //    drawer.blend_into(buffer);
             } else {
                 // Render in 3D
                 //if region.map.camera == MapCamera::ThreeDIso {}
@@ -814,6 +730,7 @@ impl MapRender {
                 */
             }
         } else {
+            /*
             // No server ctx, we are live
             let mut drawer = EucDraw::new(width, height);
 
@@ -875,9 +792,9 @@ impl MapRender {
                         }
                     }
                 }
-            }
+            }*/
 
-            drawer.copy_into(buffer);
+            //drawer.copy_into(buffer);
         }
         let _stop = self.get_time();
         //println!("render time {:?}", _stop - _start);

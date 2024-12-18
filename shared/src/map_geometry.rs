@@ -1,4 +1,3 @@
-use rusterix::map::Map;
 use theframework::prelude::*;
 
 #[derive(Debug)]
@@ -52,6 +51,7 @@ impl GeometryMap {
     }
 }
 
+/*
 pub fn generate_map_geometry(
     map: &Map,
     _atlas_size: f32,
@@ -244,3 +244,4 @@ pub fn generate_map_geometry(
 
     geometry_map
 }
+*/
