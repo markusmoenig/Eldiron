@@ -260,7 +260,7 @@ impl RegionInstance {
         anim_counter: &usize,
         server_ctx: &ServerContext,
         compute_delta: bool,
-        offset: Vec2i,
+        offset: Vec2<i32>,
         palette: &ThePalette,
     ) {
         let delta = self.redraw_ms as f32 / self.tick_ms as f32;
@@ -473,7 +473,10 @@ impl RegionInstance {
         let mut o = TheCodeObject::new();
         o.id = character.id;
         // Faces north by default
-        o.set(str!("facing"), TheValue::Direction(vec3f(0.0, 0.0, -1.0)));
+        o.set(
+            str!("facing"),
+            TheValue::Direction(Vec3::new(0.0, 0.0, -1.0)),
+        );
         o.set(str!("_type"), TheValue::Text(str!("Character")));
         o.set(str!("inventory"), TheValue::List(vec![]));
 
@@ -673,10 +676,10 @@ impl RegionInstance {
     }
 
     /// Returns the character instance id and the character id for the character at the given position.
-    pub fn get_character_at(&self, pos: Vec2i) -> Option<(Uuid, Uuid)> {
+    pub fn get_character_at(&self, pos: Vec2<i32>) -> Option<(Uuid, Uuid)> {
         for c in self.sandbox.objects.values() {
             if let Some(TheValue::Position(p)) = c.get(&"position".into()).cloned() {
-                if vec2i(p.x as i32, p.z as i32) == pos {
+                if Vec2::new(p.x as i32, p.z as i32) == pos {
                     for (instance_id, character_id) in &self.character_ids {
                         if *instance_id == c.id {
                             return Some((*instance_id, *character_id));
@@ -690,10 +693,10 @@ impl RegionInstance {
     }
 
     /// Returns the item instance id and the item id for the item at the given position.
-    pub fn get_item_at(&self, pos: Vec2i) -> Option<(Uuid, Uuid)> {
+    pub fn get_item_at(&self, pos: Vec2<i32>) -> Option<(Uuid, Uuid)> {
         for c in self.sandbox.items.values() {
             if let Some(TheValue::Position(p)) = c.get(&"position".into()).cloned() {
-                if vec2i(p.x as i32, p.z as i32) == pos {
+                if Vec2::new(p.x as i32, p.z as i32) == pos {
                     for (instance_id, item_id) in &self.item_ids {
                         if *instance_id == c.id {
                             return Some((*instance_id, *item_id));
@@ -780,7 +783,7 @@ impl RegionInstance {
         if let Some(object) = self.sandbox.objects.get_mut(&character) {
             let mut character_update = CharacterUpdate::new();
             if let Some(TheValue::Position(p)) = object.get(&"position".into()) {
-                character_update.position = vec2f(p.x, p.z);
+                character_update.position = Vec2::new(p.x, p.z);
             }
             if let Some(TheValue::Text(t)) = object.get(&"name".into()) {
                 character_update.name.clone_from(t);
@@ -802,7 +805,7 @@ impl RegionInstance {
         if let Some(item_object) = self.sandbox.items.get_mut(&item) {
             let mut item_update = ItemUpdate::new();
             if let Some(TheValue::Position(p)) = item_object.get(&"position".into()) {
-                item_update.position = vec2f(p.x, p.z);
+                item_update.position = Vec2::new(p.x, p.z);
             }
             if let Some(TheValue::Text(t)) = item_object.get(&"name".into()) {
                 item_update.name.clone_from(t);

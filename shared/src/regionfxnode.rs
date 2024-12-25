@@ -19,7 +19,7 @@ pub struct RegionFXNode {
     pub role: RegionFXNodeRole,
     pub timeline: TheTimeline,
 
-    pub position: Vec2i,
+    pub position: Vec2<i32>,
 
     pub supports_preview: bool,
     pub preview_is_open: bool,
@@ -66,7 +66,7 @@ impl RegionFXNode {
             id: Uuid::new_v4(),
             role,
             timeline,
-            position: Vec2i::new(10, 5),
+            position: Vec2::new(10, 5),
             supports_preview,
             preview_is_open,
             preview: TheRGBABuffer::empty(),
@@ -183,7 +183,7 @@ impl RegionFXNode {
     }
 
     /// Convert a world position into a pixel offset in the canvas.
-    pub fn cam_world_to_canvas(&self, region: &Region, world_pos: Vec3f) -> Vec2i {
+    pub fn cam_world_to_canvas(&self, region: &Region, world_pos: Vec3<f32>) -> Vec2<i32> {
         match self.role {
             TopDownIsoCamera => {
                 let tile_size = region.tile_size;
@@ -193,9 +193,9 @@ impl RegionFXNode {
 
                 let x = sx + ((world_pos.x - world_pos.z) * tile_size_half) as i32;
                 let y = ((world_pos.x + world_pos.z) * (tile_size_half / 2.0)) as i32;
-                vec2i(x, y)
+                Vec2::new(x, y)
             }
-            _ => vec2i(
+            _ => Vec2::new(
                 (world_pos.x * region.tile_size as f32) as i32,
                 (world_pos.z * region.tile_size as f32) as i32,
             ),
@@ -203,7 +203,7 @@ impl RegionFXNode {
     }
 
     /// Convert a canvas pixel position into a world position.
-    pub fn cam_canvas_to_world(&self, region: &Region, mut canvas_pos: Vec2i) -> Vec3f {
+    pub fn cam_canvas_to_world(&self, region: &Region, mut canvas_pos: Vec2<i32>) -> Vec3<f32> {
         match self.role {
             TopDownIsoCamera => {
                 canvas_pos.x -= region.width * region.tile_size;
@@ -217,9 +217,9 @@ impl RegionFXNode {
                 let map_x = (x / tile_width + y / tile_height_half) / 2.0;
                 let map_y = (y / tile_height_half - (x / tile_width)) / 2.0;
 
-                vec3f(map_x, 0.0, map_y)
+                Vec3::new(map_x, 0.0, map_y)
             }
-            _ => vec3f(
+            _ => Vec3::new(
                 canvas_pos.x as f32 / region.tile_size as f32,
                 0.0,
                 canvas_pos.y as f32 / region.tile_size as f32,
@@ -280,8 +280,8 @@ impl RegionFXNode {
     }*/
 
     /// Returns the size of the region world in pixels
-    pub fn cam_region_size(&self, region: &Region) -> Vec2i {
-        let mut size = Vec2i::zero();
+    pub fn cam_region_size(&self, region: &Region) -> Vec2<i32> {
+        let mut size = Vec2::zero();
         match self.role {
             TiltedIsoCamera => {
                 let tile_size = region.tile_size;
@@ -302,10 +302,10 @@ impl RegionFXNode {
     /// Create a cameray ray
     pub fn cam_create_ray(
         &self,
-        uv: Vec2f,
-        position: Vec3f,
-        size: Vec2f,
-        offset: Vec2f,
+        uv: Vec2<f32>,
+        position: Vec3<f32>,
+        size: Vec2<f32>,
+        offset: Vec2<f32>,
         params: &[f32],
     ) -> Ray {
         match self.role {
@@ -314,8 +314,8 @@ impl RegionFXNode {
                 let angle = params[1];
                 let alignment = params[2] as i32;
 
-                let mut ro = vec3f(position.x, height, position.z + 1.0);
-                let mut rd = vec3f(position.x, 0.0, position.z);
+                let mut ro = Vec3::new(position.x, height, position.z + 1.0);
+                let mut rd = Vec3::new(position.x, 0.0, position.z);
 
                 if alignment == 0 {
                     ro.x += height / 2.0;
@@ -326,7 +326,7 @@ impl RegionFXNode {
                 }
 
                 let ratio = size.x / size.y;
-                let pixel_size = Vec2f::new(1.0 / size.x, 1.0 / size.y);
+                let pixel_size = Vec2::new(1.0 / size.x, 1.0 / size.y);
 
                 let cam_origin = ro;
                 let cam_look_at = rd;
@@ -335,11 +335,11 @@ impl RegionFXNode {
                 let half_width = (fov.to_radians() * 0.5).tan();
                 let half_height = half_width / ratio;
 
-                let up_vector = Vec3f::new(0.0, 1.0, 0.0);
+                let up_vector = Vec3::new(0.0, 1.0, 0.0);
 
-                let w = normalize(cam_origin - cam_look_at);
-                let u = cross(up_vector, w);
-                let v = cross(w, u);
+                let w = (cam_origin - cam_look_at).normalized();
+                let u = up_vector.cross(w);
+                let v = w.cross(u);
 
                 let horizontal = u * half_width * 2.0;
                 let vertical = v * half_height * 2.0;
@@ -351,21 +351,18 @@ impl RegionFXNode {
 
                 Ray::new(
                     out_origin,
-                    normalize(vec3f(
-                        if alignment == 0 { -angle } else { angle },
-                        -1.0,
-                        -angle,
-                    )),
+                    Vec3::new(if alignment == 0 { -angle } else { angle }, -1.0, -angle)
+                        .normalized(),
                 )
             }
             TopDownIsoCamera => {
                 let height = params[0];
 
-                let ro = vec3f(position.x + height, height - 0.5, position.z + height);
-                let rd = vec3f(position.x, 0.0, position.z);
+                let ro = Vec3::new(position.x + height, height - 0.5, position.z + height);
+                let rd = Vec3::new(position.x, 0.0, position.z);
 
                 let ratio = size.x / size.y;
-                let pixel_size = Vec2f::new(1.0 / size.x, 1.0 / size.y);
+                let pixel_size = Vec2::new(1.0 / size.x, 1.0 / size.y);
 
                 let cam_origin = ro;
                 let cam_look_at = rd;
@@ -374,11 +371,11 @@ impl RegionFXNode {
                 let half_width = (fov.to_radians() * 0.5).tan();
                 let half_height = half_width / ratio;
 
-                let up_vector = Vec3f::new(0.0, 1.0, 0.0);
+                let up_vector = Vec3::new(0.0, 1.0, 0.0);
 
-                let w = normalize(cam_origin - cam_look_at);
-                let u = cross(up_vector, w);
-                let v = cross(w, u);
+                let w = (cam_origin - cam_look_at).normalized();
+                let u = up_vector.cross(w);
+                let v = w.cross(u);
 
                 let horizontal = u * half_width * 2.0;
                 let vertical = v * half_height * 2.0;
@@ -387,9 +384,9 @@ impl RegionFXNode {
                 out_origin += horizontal * (pixel_size.x * offset.x + uv.x - 0.5);
                 out_origin += vertical * (pixel_size.y * offset.y + uv.y - 0.5);
 
-                Ray::new(out_origin, normalize(-w))
+                Ray::new(out_origin, (-w).normalized())
             }
-            _ => Ray::new(Vec3f::zero(), Vec3f::zero()),
+            _ => Ray::new(Vec3::zero(), Vec3::zero()),
         }
     }
 
@@ -398,15 +395,15 @@ impl RegionFXNode {
         &self,
         _region: &Region,
         _palette: &ThePalette,
-        _canvas_pos: Vec2i,
-        color: &mut Vec3f,
+        _canvas_pos: Vec2<i32>,
+        color: &mut Vec3<f32>,
         params: &[f32],
     ) -> Option<u8> {
         match self.role {
             RegionFXNodeRole::Saturation => {
-                let mut hsl = TheColor::from_vec3f(*color).as_hsl();
+                let mut hsl = TheColor::from_vec3(*color).as_hsl();
                 hsl.y *= params[0];
-                *color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec3f();
+                *color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec3();
                 Some(0)
             }
             _ => None,

@@ -60,7 +60,7 @@ pub fn set_server_externals() {
         "Move".to_string(),
         "Moves the character in the specified direction.".to_string(),
         vec!["By".to_string()],
-        vec![TheValue::Float2(vec2f(0.0, 0.0))],
+        vec![TheValue::Float2(Vec2::new(0.0, 0.0))],
         Some(TheValue::Bool(false)),
     ));
 
@@ -113,7 +113,7 @@ pub fn set_server_externals() {
         "Applies an effect on the wall at the given position.".to_string(),
         vec!["Position".to_string(), "FX".to_string()],
         vec![
-            TheValue::Position(vec3f(0.0, 0.0, 0.0)),
+            TheValue::Position(Vec3::new(0.0, 0.0, 0.0)),
             TheValue::TextList(
                 0,
                 vec![
@@ -184,8 +184,8 @@ pub fn set_client_externals() {
         ],
         vec![
             TheValue::Text("name".to_string()),
-            TheValue::Int2(vec2i(0, 0)),
-            TheValue::Int2(vec2i(100, 100)),
+            TheValue::Int2(Vec2::new(0, 0)),
+            TheValue::Int2(Vec2::new(100, 100)),
         ],
         Some(TheValue::Image(TheRGBABuffer::default())),
     ));
@@ -222,7 +222,7 @@ pub fn set_client_externals() {
         vec!["Image".to_string(), "Position".to_string()],
         vec![
             TheValue::Image(TheRGBABuffer::default()),
-            TheValue::Int2(vec2i(0, 0)),
+            TheValue::Int2(Vec2::new(0, 0)),
         ],
         None,
     ));
@@ -241,7 +241,7 @@ pub fn set_client_externals() {
         vec!["Image".to_string(), "Size".to_string()],
         vec![
             TheValue::Image(TheRGBABuffer::default()),
-            TheValue::Int2(vec2i(0, 0)),
+            TheValue::Int2(Vec2::new(0, 0)),
         ],
         Some(TheValue::Image(TheRGBABuffer::default())),
     ));

@@ -36,7 +36,7 @@ impl Widget {
     }
 
     /// Checks if the given position is inside the widget.
-    pub fn is_inside(&self, pos: &Vec2i) -> bool {
+    pub fn is_inside(&self, pos: &Vec2<i32>) -> bool {
         pos.x >= self.x as i32
             && pos.x <= (self.x + self.width) as i32
             && pos.y >= self.y as i32

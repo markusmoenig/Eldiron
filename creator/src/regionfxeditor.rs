@@ -27,7 +27,7 @@ impl RegionFXEditor {
         let mut toolbar_canvas = TheCanvas::default();
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.limiter_mut().set_max_height(25);
-        toolbar_hlayout.set_margin(vec4i(10, 2, 5, 3));
+        toolbar_hlayout.set_margin(Vec4::new(10, 2, 5, 3));
 
         let mut cameras_button = TheTraybarButton::new(TheId::named("RegionFX Camera Nodes"));
         //add_button.set_icon_name("icon_role_add".to_string());
@@ -173,7 +173,7 @@ impl RegionFXEditor {
                         let prev = region.regionfx.clone();
 
                         let mut node = RegionFXNode::new_from_name(item.name.clone());
-                        node.position = vec2i(
+                        node.position = Vec2::new(
                             region.regionfx.scroll_offset.x + 220,
                             region.regionfx.scroll_offset.y + 10,
                         );
@@ -522,7 +522,7 @@ impl RegionFXEditor {
                             let name_id = ":MODELFX: ".to_owned() + name;
                             let mut color_picker =
                                 TheColorButton::new(TheId::named(name_id.as_str()));
-                            color_picker.limiter_mut().set_max_size(vec2i(80, 20));
+                            color_picker.limiter_mut().set_max_size(Vec2::new(80, 20));
                             if let Some(color) = &project.palette[*index as usize] {
                                 color_picker.set_color(color.to_u8_array());
                             }

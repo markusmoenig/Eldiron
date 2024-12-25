@@ -8,7 +8,7 @@ pub struct Tilemap {
     pub buffer: TheRGBABuffer,
 
     pub grid_size: i32,
-    pub scroll_offset: Vec2i,
+    pub scroll_offset: Vec2<i32>,
     pub zoom: f32,
 
     pub tiles: Vec<Tile>,
@@ -29,7 +29,7 @@ impl Tilemap {
             buffer: TheRGBABuffer::empty(),
 
             grid_size: 24,
-            scroll_offset: Vec2i::zero(),
+            scroll_offset: Vec2::zero(),
             zoom: 1.0,
 
             tiles: vec![],

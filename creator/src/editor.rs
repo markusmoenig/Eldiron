@@ -31,8 +31,9 @@ lazy_static! {
     pub static ref TOOLLIST: Mutex<ToolList> = Mutex::new(ToolList::default());
     pub static ref BRUSHLIST: Mutex<BrushList> = Mutex::new(BrushList::default());
     pub static ref PANELS: Mutex<Panels> = Mutex::new(Panels::new());
-    pub static ref MODELEDITOR: Mutex<ModelEditor> = Mutex::new(ModelEditor::new());
+    // pub static ref MODELEDITOR: Mutex<ModelEditor> = Mutex::new(ModelEditor::new());
     pub static ref MATERIALEDITOR: Mutex<MaterialEditor> = Mutex::new(MaterialEditor::new());
+    pub static ref TEXTEDITOR: Mutex<TextEditor> = Mutex::new(TextEditor::new());
     pub static ref TEXTURES: Mutex<FxHashMap<Uuid, TheRGBATile>> = Mutex::new(FxHashMap::default());
     pub static ref PALETTE: Mutex<ThePalette> = Mutex::new(ThePalette::default());
 }
@@ -218,7 +219,7 @@ impl TheTrait for Editor {
         edit_menu.add(TheContextMenuItem::new_with_accel(
             str!("Paste"),
             TheId::named("Paste"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'p'),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'v'),
         ));
         let mut view_menu = TheContextMenu::named(str!("View"));
         view_menu.add(TheContextMenuItem::new_with_accel(
@@ -278,7 +279,7 @@ impl TheTrait for Editor {
         let mut save_as_button = TheMenubarButton::new(TheId::named("Save As"));
         save_as_button.set_icon_name("icon_role_save_as".to_string());
         save_as_button.set_status_text("Save the current project to a new file.");
-        save_as_button.set_icon_offset(vec2i(2, -5));
+        save_as_button.set_icon_offset(Vec2::new(2, -5));
 
         let mut undo_button = TheMenubarButton::new(TheId::named("Undo"));
         undo_button.set_status_text("Undo the last action.");
@@ -314,11 +315,11 @@ impl TheTrait for Editor {
         patreon_button.set_status_text("Visit my Patreon page.");
         patreon_button.set_icon_name("patreon".to_string());
         // patreon_button.set_fixed_size(vec2i(36, 36));
-        patreon_button.set_icon_offset(vec2i(-4, -2));
+        patreon_button.set_icon_offset(Vec2::new(-4, -2));
 
         let mut hlayout = TheHLayout::new(TheId::named("Menu Layout"));
         hlayout.set_background_color(None);
-        hlayout.set_margin(vec4i(10, 2, 10, 1));
+        hlayout.set_margin(Vec4::new(10, 2, 10, 1));
         hlayout.add_widget(Box::new(logo_button));
         hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
         hlayout.add_widget(Box::new(open_button));
@@ -404,7 +405,7 @@ impl TheTrait for Editor {
 
         let mut v_tool_list_layout = TheVLayout::new(TheId::named("Tool List Layout"));
         v_tool_list_layout.limiter_mut().set_max_width(51);
-        v_tool_list_layout.set_margin(vec4i(2, 2, 2, 2));
+        v_tool_list_layout.set_margin(Vec4::new(2, 2, 2, 2));
         v_tool_list_layout.set_padding(1);
 
         TOOLLIST.lock().unwrap().set_active_editor(
@@ -746,16 +747,16 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
-                if MODELEDITOR.lock().unwrap().handle_event(
-                    &event,
-                    ui,
-                    ctx,
-                    &mut self.project,
-                    &mut self.server,
-                    &mut self.server_ctx,
-                ) {
-                    redraw = true;
-                }
+                // if MODELEDITOR.lock().unwrap().handle_event(
+                //     &event,
+                //     ui,
+                //     ctx,
+                //     &mut self.project,
+                //     &mut self.server,
+                //     &mut self.server_ctx,
+                // ) {
+                //     redraw = true;
+                // }
                 if TILEMAPEDITOR.lock().unwrap().handle_event(
                     &event,
                     ui,
@@ -1003,7 +1004,7 @@ impl TheTrait for Editor {
                             );
                             init.insert_atom(
                                 (2, 0),
-                                TheCodeAtom::Value(TheValue::Position(vec3f(
+                                TheCodeAtom::Value(TheValue::Position(Vec3::new(
                                     location.x as f32,
                                     0.0,
                                     location.y as f32,
@@ -1105,7 +1106,7 @@ impl TheTrait for Editor {
                             );
                             init.insert_atom(
                                 (2, 0),
-                                TheCodeAtom::Value(TheValue::Position(vec3f(
+                                TheCodeAtom::Value(TheValue::Position(Vec3::new(
                                     location.x as f32,
                                     0.0,
                                     location.y as f32,
@@ -1231,16 +1232,16 @@ impl TheTrait for Editor {
                                         self.project = project;
 
                                         // Update geo_obj parameters if necessary
-                                        for r in &mut self.project.regions {
-                                            for geo_obj in r.geometry.values_mut() {
-                                                geo_obj.update_parameters();
+                                        // for r in &mut self.project.regions {
+                                        //     for geo_obj in r.geometry.values_mut() {
+                                        //         geo_obj.update_parameters();
 
-                                                r.regionfx.update_parameters();
-                                            }
-                                            // r.heightmap.material_mask.clear();
-                                            //
-                                            r.update_geometry_areas();
-                                        }
+                                        //         r.regionfx.update_parameters();
+                                        //     }
+                                        //     // r.heightmap.material_mask.clear();
+                                        //     //
+                                        //     r.update_geometry_areas();
+                                        // }
 
                                         // Update mat_obj parameters if necessary
                                         for mat_obj in &mut self.project.materials.values_mut() {
@@ -1629,7 +1630,7 @@ impl TheTrait for Editor {
                     let height = 100;
 
                     let mut canvas = TheCanvas::new();
-                    canvas.limiter_mut().set_max_size(vec2i(width, height));
+                    canvas.limiter_mut().set_max_size(Vec2::new(width, height));
 
                     let mut hlayout: TheHLayout = TheHLayout::new(TheId::empty());
                     hlayout.limiter_mut().set_max_width(width);
@@ -1664,7 +1665,7 @@ impl TheTrait for Editor {
                     let height = 100;
 
                     let mut canvas = TheCanvas::new();
-                    canvas.limiter_mut().set_max_size(vec2i(width, height));
+                    canvas.limiter_mut().set_max_size(Vec2::new(width, height));
 
                     let mut hlayout: TheHLayout = TheHLayout::new(TheId::empty());
                     hlayout.limiter_mut().set_max_width(width);

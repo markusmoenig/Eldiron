@@ -1,22 +1,22 @@
 pub mod area;
 pub mod asset;
-pub mod bsdf;
-pub mod camera;
+// pub mod bsdf;
+// pub mod camera;
 pub mod character;
 pub mod client;
 pub mod fx;
 // pub mod gamecanvas;
-pub mod geofxnode;
-pub mod geofxobject;
-pub mod heightmap;
+// pub mod geofxnode;
+// pub mod geofxobject;
+// pub mod heightmap;
 pub mod interaction;
 pub mod item;
 pub mod level;
-pub mod map_geometry;
+// pub mod map_geometry;
 pub mod maprender;
 pub mod materialfxnode;
 pub mod materialfxobject;
-pub mod patterns;
+// pub mod patterns;
 // pub mod prerendered;
 // pub mod prerenderthread;
 pub mod project;
@@ -26,9 +26,8 @@ pub mod regionfxobject;
 // pub mod renderer;
 pub mod renderer_utils;
 pub mod screen;
-pub mod sdf;
+// pub mod sdf;
 pub mod server;
-pub mod texture;
 pub mod tiledrawer;
 pub mod tilefx;
 pub mod tilefxnode;
@@ -46,23 +45,22 @@ pub mod prelude {
 
     pub use crate::area::Area;
     pub use crate::asset::*;
-    pub use crate::bsdf::*;
-    pub use crate::camera::Camera;
+    //pub use crate::bsdf::*;
+    //pub use crate::camera::Camera;
     pub use crate::character::Character;
     pub use crate::client::*;
     pub use crate::fx::*;
     // pub use crate::gamecanvas::GameCanvas;
-    pub use crate::geofxnode::*;
-    pub use crate::geofxobject::*;
-    pub use crate::heightmap::*;
+    // pub use crate::geofxobject::*;
+    // pub use crate::heightmap::*;
     pub use crate::interaction::*;
     pub use crate::item::Item;
     pub use crate::level::*;
-    pub use crate::map_geometry::*;
+    // pub use crate::map_geometry::*;
     pub use crate::maprender::*;
     pub use crate::materialfxnode::*;
     pub use crate::materialfxobject::*;
-    pub use crate::patterns::*;
+    // pub use crate::patterns::*;
     pub use rusterix::map::*;
     // pub use crate::prerendered::*;
     // pub use crate::prerenderthread::*;
@@ -73,10 +71,9 @@ pub mod prelude {
     // pub use crate::renderer::Renderer;
     pub use crate::renderer_utils::ray_sphere;
     pub use crate::screen::*;
-    pub use crate::sdf::*;
+    // pub use crate::sdf::*;
     pub use crate::server::context::*;
     pub use crate::server::{Server, ServerState};
-    pub use crate::texture::RgbaTexture;
     pub use crate::tiledrawer::{RegionDrawSettings, TileDrawer};
     pub use crate::tilefx::TileFX;
     pub use crate::tilefxnode::*;
@@ -87,11 +84,8 @@ pub mod prelude {
     pub use crate::widget::*;
     pub use crate::ServerMessage;
     pub use crate::{do_intersect, Hit, HitFace, HitMode, Ray, RenderTile, AABB2D};
-    pub use forgedtiles::prelude::*;
     pub use indexmap::IndexMap;
 }
-
-pub use forgedtiles::prelude::BSDFMaterial;
 
 use theframework::prelude::*;
 
@@ -106,17 +100,17 @@ pub enum ServerMessage {
 /// Ray
 #[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]
 pub struct Ray {
-    pub o: Vec3f,
-    pub d: Vec3f,
+    pub o: Vec3<f32>,
+    pub d: Vec3<f32>,
 }
 
 impl Ray {
-    pub fn new(o: Vec3f, d: Vec3f) -> Self {
+    pub fn new(o: Vec3<f32>, d: Vec3<f32>) -> Self {
         Self { o, d }
     }
 
     /// Returns the position on the ray at the given distance
-    pub fn at(&self, d: f32) -> Vec3f {
+    pub fn at(&self, d: f32) -> Vec3<f32> {
         self.o + self.d * d
     }
 }
@@ -144,7 +138,7 @@ pub struct Hit {
 
     pub eps: f32,
 
-    pub key: Vec3f,
+    pub key: Vec3<f32>,
     pub hash: f32,
 
     pub bump: f32,
@@ -152,18 +146,17 @@ pub struct Hit {
     pub distance: f32,
     pub interior_distance: f32,
 
-    pub hit_point: Vec3f,
-    pub normal: Vec3f,
-    pub uv: Vec2f,
-    pub global_uv: Vec2f,
+    pub hit_point: Vec3<f32>,
+    pub normal: Vec3<f32>,
+    pub uv: Vec2<f32>,
+    pub global_uv: Vec2<f32>,
     pub face: HitFace,
 
-    pub pattern_pos: Vec2f,
+    pub pattern_pos: Vec2<f32>,
 
-    pub color: Vec4f,
+    pub color: Vec4<f32>,
 
-    pub mat: BSDFMaterial,
-
+    //pub mat: BSDFMaterial,
     pub noise: Option<f32>,
     pub noise_scale: f32,
 
@@ -189,7 +182,7 @@ impl Hit {
 
             eps: 0.001, //0.0003,
 
-            key: Vec3f::zero(),
+            key: Vec3::zero(),
             hash: 0.0,
 
             bump: 0.0,
@@ -197,18 +190,17 @@ impl Hit {
             distance: f32::MAX,
             interior_distance: f32::MAX,
 
-            hit_point: Vec3f::zero(),
-            normal: Vec3f::zero(),
-            uv: Vec2f::zero(),
-            global_uv: Vec2f::zero(),
+            hit_point: Vec3::zero(),
+            normal: Vec3::zero(),
+            uv: Vec2::zero(),
+            global_uv: Vec2::zero(),
             face: HitFace::XFace,
 
-            pattern_pos: Vec2f::zero(),
+            pattern_pos: Vec2::zero(),
 
-            color: Vec4f::zero(),
+            color: Vec4::zero(),
 
-            mat: BSDFMaterial::default(),
-
+            // mat: BSDFMaterial::default(),
             noise: None,
             noise_scale: 1.0,
 
@@ -221,8 +213,8 @@ impl Hit {
 
 #[derive(Debug, Clone, Copy)]
 pub struct AABB2D {
-    min: Vec2f,
-    max: Vec2f,
+    min: Vec2<f32>,
+    max: Vec2<f32>,
 }
 
 impl Default for AABB2D {
@@ -232,14 +224,14 @@ impl Default for AABB2D {
 }
 
 impl AABB2D {
-    pub fn new(min: Vec2f, max: Vec2f) -> Self {
+    pub fn new(min: Vec2<f32>, max: Vec2<f32>) -> Self {
         AABB2D { min, max }
     }
 
     pub fn zero() -> Self {
         AABB2D {
-            min: Vec2f::new(f32::MAX, f32::MAX),
-            max: Vec2f::new(f32::MIN, f32::MIN),
+            min: Vec2::new(f32::MAX, f32::MAX),
+            max: Vec2::new(f32::MIN, f32::MIN),
         }
     }
 
@@ -254,19 +246,19 @@ impl AABB2D {
         self.max.y = self.max.y.max(other.max.y);
     }
 
-    pub fn to_int(&self) -> (Vec2i, Vec2i) {
-        let min_int = Vec2i::new(self.min.x.floor() as i32, self.min.y.floor() as i32);
-        let max_int = Vec2i::new(self.max.x.ceil() as i32, self.max.y.ceil() as i32);
+    pub fn to_int(&self) -> (Vec2<i32>, Vec2<i32>) {
+        let min_int = Vec2::new(self.min.x.floor() as i32, self.min.y.floor() as i32);
+        let max_int = Vec2::new(self.max.x.ceil() as i32, self.max.y.ceil() as i32);
         (min_int, max_int)
     }
 
-    pub fn to_tiles(&self) -> Vec<Vec2i> {
+    pub fn to_tiles(&self) -> Vec<Vec2<i32>> {
         let (min_int, max_int) = self.to_int();
         let mut tiles = Vec::new();
 
         for x in min_int.x..=max_int.x {
             for y in min_int.y..=max_int.y {
-                tiles.push(Vec2i::new(x, y));
+                tiles.push(Vec2::new(x, y));
             }
         }
 

@@ -33,7 +33,7 @@ impl TileFXEditor {
         let mut toolbar_canvas = TheCanvas::default();
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.limiter_mut().set_max_height(25);
-        toolbar_hlayout.set_margin(vec4i(10, 2, 5, 3));
+        toolbar_hlayout.set_margin(Vec4::new(10, 2, 5, 3));
 
         let mut nodes_button = TheTraybarButton::new(TheId::named("TileFX Nodes"));
         //add_button.set_icon_name("icon_role_add".to_string());
@@ -195,7 +195,7 @@ impl TileFXEditor {
                 #[allow(clippy::collapsible_if)]
                 if id.name == "TileFX Nodes" {
                     let mut node = TileFXNode::new_from_name(item.name.clone());
-                    node.position = vec2i(
+                    node.position = Vec2::new(
                         self.object.scroll_offset.x + 220,
                         self.object.scroll_offset.y + 10,
                     );
@@ -334,7 +334,7 @@ impl TileFXEditor {
 
                             let mut lt = TheTileMask::default();
                             for s in &selection {
-                                lt.add_pixel(vec2i(s.0, s.1), true);
+                                lt.add_pixel(Vec2::new(s.0, s.1), true);
                             }
                             self.curr_collection.set("Mask", TheValue::TileMask(lt));
 
@@ -612,7 +612,7 @@ impl TileFXEditor {
                     } else if let TheValue::PaletteIndex(index) = value {
                         let name_id = ":TILEFX: ".to_owned() + name;
                         let mut color_picker = TheColorButton::new(TheId::named(name_id.as_str()));
-                        color_picker.limiter_mut().set_max_size(vec2i(80, 20));
+                        color_picker.limiter_mut().set_max_size(Vec2::new(80, 20));
                         if let Some(color) = &project.palette[*index as usize] {
                             color_picker.set_color(color.to_u8_array());
                         }
@@ -628,8 +628,8 @@ impl TileFXEditor {
                         let mut color_picker = TheColorPicker::new(TheId::named(
                             (":TILEFX: ".to_owned() + name).as_str(),
                         ));
-                        color_picker.limiter_mut().set_max_size(vec2i(120, 120));
-                        color_picker.set_color(color.to_vec3f());
+                        color_picker.limiter_mut().set_max_size(Vec2::new(120, 120));
+                        color_picker.set_color(color.to_vec3());
                         text_layout.add_pair(name.clone(), Box::new(color_picker));
                     }
                 }

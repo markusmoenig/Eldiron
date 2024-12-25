@@ -18,7 +18,7 @@ pub trait Brush: Send + Sync {
     fn id(&self) -> TheId;
     fn info(&self) -> String;
 
-    fn distance(&self, p: Vec2f, pos: Vec2f, settings: &BrushSettings) -> f32;
+    fn distance(&self, p: Vec2<f32>, pos: Vec2<f32>, settings: &BrushSettings) -> f32;
 
     fn preview(&self, buffer: &mut TheRGBABuffer);
 }

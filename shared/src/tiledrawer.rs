@@ -8,18 +8,18 @@ use theframework::prelude::*;
 pub struct RegionDrawSettings {
     pub anim_counter: usize,
     pub delta_in_tick: f32,
-    pub offset: Vec2i,
-    pub display_offset: Vec2i,
+    pub offset: Vec2<i32>,
+    pub display_offset: Vec2<i32>,
     pub delta: f32,
 
-    pub daylight: Vec3f,
+    pub daylight: Vec3<f32>,
     pub daylight_intensity: f32,
-    pub sun_direction: Vec3f,
+    pub sun_direction: Vec3<f32>,
 
     pub show_fx_marker: bool,
 
-    pub center_3d: Vec3f,
-    pub facing_3d: Vec3f,
+    pub center_3d: Vec3<f32>,
+    pub facing_3d: Vec3<f32>,
 
     pub pbr: bool,
 
@@ -37,18 +37,18 @@ impl RegionDrawSettings {
         Self {
             anim_counter: 0,
             delta_in_tick: 0.0,
-            offset: Vec2i::zero(),
-            display_offset: Vec2i::zero(),
+            offset: Vec2::zero(),
+            display_offset: Vec2::zero(),
             delta: 0.0,
 
-            daylight: Vec3f::one(),
+            daylight: Vec3::one(),
             daylight_intensity: 0.0,
-            sun_direction: Vec3f::zero(),
+            sun_direction: Vec3::zero(),
 
             show_fx_marker: false,
 
-            center_3d: Vec3f::zero(),
-            facing_3d: Vec3f::zero(),
+            center_3d: Vec3::zero(),
+            facing_3d: Vec3::zero(),
 
             pbr: false,
 
@@ -133,6 +133,7 @@ impl TileDrawer {
         compute_delta: bool,
         palette: &ThePalette,
     ) {
+        /*
         // pub fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
         //     [
         //         (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
@@ -611,6 +612,7 @@ impl TileDrawer {
 
         let _stop = self.get_time();
         // println!("draw time {:?}", _stop - _start);
+        */
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -618,17 +620,17 @@ impl TileDrawer {
     /// Sample the lights and apply all TileFX for the pixel.
     pub fn render(
         &self,
-        p: Vec2i,
+        p: Vec2<i32>,
         c: &mut [u8; 4],
         region: &Region,
         update: &RegionUpdate,
         level: &Level,
-        daylight: Vec3f,
+        daylight: Vec3<f32>,
         settings: &RegionDrawSettings,
         mirror: Option<(i32, i32)>,
     ) {
         //let mut rng = rand::thread_rng();
-
+        /*
         let mut color = TheColor::from_u8_array(*c).to_vec3f();
 
         let ro = Vec2f::from(p) / region.grid_size as f32;
@@ -871,156 +873,7 @@ impl TileDrawer {
         c[0] = (color.x * 255.0) as u8;
         c[1] = (color.y * 255.0) as u8;
         c[2] = (color.z * 255.0) as u8;
-    }
-
-    #[inline(always)]
-    fn _ray_casting(
-        &self,
-        ro: Vec2f,
-        rd: Vec2f,
-        pixels_per_cell: f32,
-        target: Vec2i,
-        level: &Level,
-    ) -> Option<f32> {
-        let (mut x, mut y) = (ro.x / pixels_per_cell, ro.y / pixels_per_cell); // Convert to grid coords
-
-        let step_x = if rd.x > 0.0 { 1 } else { -1 };
-        let step_y = if rd.y > 0.0 { 1 } else { -1 };
-
-        let mut t_max_x = if rd.x > 0.0 {
-            ((x.floor() + 1.0) * pixels_per_cell - ro.x) / rd.x
-        } else {
-            (x.floor() * pixels_per_cell - ro.x) / rd.x
-        };
-
-        let mut t_max_y = if rd.y > 0.0 {
-            ((y.floor() + 1.0) * pixels_per_cell - ro.y) / rd.y
-        } else {
-            (y.floor() * pixels_per_cell - ro.y) / rd.y
-        };
-
-        let t_delta_x = pixels_per_cell / rd.x.abs();
-        let t_delta_y = pixels_per_cell / rd.y.abs();
-
-        for _ in 0..10 {
-            let ix = x as i32;
-            let iy = y as i32;
-
-            if ix == target.x && iy == target.y {
-                let distance = ((ro.x - x * pixels_per_cell).powi(2)
-                    + (ro.y - y * pixels_per_cell).powi(2))
-                .sqrt();
-                return Some(distance); // Return distance in pixels
-            }
-
-            if level.is_blocking((ix, iy)) {
-                break;
-            }
-
-            // Advance to next grid cell
-            if t_max_x < t_max_y {
-                t_max_x += t_delta_x;
-                x += step_x as f32;
-            } else {
-                t_max_y += t_delta_y;
-                y += step_y as f32;
-            }
-        }
-
-        None // No obstacle hit
-    }
-
-    #[inline(always)]
-    fn _ray_casting_2(
-        &self,
-        ro: Vec2f,
-        rd: Vec2f,
-        pixels_per_cell: f32,
-        level: &Level,
-    ) -> Option<(f32, Vec2i, Vec2f)> {
-        // Return type changed to include normal vector
-        let (mut x, mut y) = (ro.x / pixels_per_cell, ro.y / pixels_per_cell);
-
-        let step_x = if rd.x > 0.0 { 1 } else { -1 };
-        let step_y = if rd.y > 0.0 { 1 } else { -1 };
-
-        let mut t_max_x = if rd.x > 0.0 {
-            ((x.floor() + 1.0) * pixels_per_cell - ro.x) / rd.x
-        } else {
-            (x.floor() * pixels_per_cell - ro.x) / rd.x
-        };
-
-        let mut t_max_y = if rd.y > 0.0 {
-            ((y.floor() + 1.0) * pixels_per_cell - ro.y) / rd.y
-        } else {
-            (y.floor() * pixels_per_cell - ro.y) / rd.y
-        };
-
-        let t_delta_x = pixels_per_cell / rd.x.abs();
-        let t_delta_y = pixels_per_cell / rd.y.abs();
-
-        for _ in 0..3 {
-            let ix = x as i32;
-            let iy = y as i32;
-
-            if level.is_blocking((ix, iy)) {
-                let distance = ((ro.x - x * pixels_per_cell).powi(2)
-                    + (ro.y - y * pixels_per_cell).powi(2))
-                .sqrt();
-
-                let normal = if t_max_x < t_max_y {
-                    // Hit was on a vertical wall
-                    Vec2f::new(-step_x as f32, 0.0)
-                } else {
-                    // Hit was on a horizontal wall
-                    Vec2f::new(0.0, -step_y as f32)
-                };
-
-                return Some((distance, vec2i(ix, iy), normal)); // Return distance, grid hit and normal
-            }
-
-            // Advance to next grid cell
-            if t_max_x < t_max_y {
-                t_max_x += t_delta_x;
-                x += step_x as f32;
-            } else {
-                t_max_y += t_delta_y;
-                y += step_y as f32;
-            }
-        }
-
-        None // No obstacle hit
-    }
-
-    fn _uniform_vector(&self, rng: &mut ThreadRng) -> Vec2f {
-        let an = rng.gen_range(0.0..=1.0) * 2.0 * std::f32::consts::PI;
-        vec2f(an.sin(), an.cos())
-    }
-
-    fn _box_intersect(&self, ro: Vec2f, rd: Vec2f, bo: Vec4f) -> f32 {
-        let oc = ro - bo.xy();
-        let m = 1.0 / rd;
-        let n = -m * oc;
-        let k = abs(m) * bo.zw();
-
-        let t1 = n - k;
-        let t2 = n + k;
-
-        let tn = max(t1.x, t1.y);
-        let tf = min(t2.x, t2.y);
-
-        if tn > tf || tf < 0.0 {
-            return -1.;
-        }
-
-        let q = abs(oc) - bo.zw();
-        let g = max(q.x, q.y);
-
-        if g > 0.0 {
-            tn
-        } else {
-            tf
-        }
+        */
     }
 
     pub fn get_tile(&self, tile: &Uuid) -> Option<&TheRGBATile> {
@@ -1029,7 +882,7 @@ impl TileDrawer {
 
     pub fn draw_tile(
         &self,
-        at: Vec2i,
+        at: Vec2<i32>,
         buffer: &mut TheRGBABuffer,
         grid: i32,
         tile: Uuid,
@@ -1098,7 +951,7 @@ impl TileDrawer {
 
     pub fn draw_tile_outline_at_pixel(
         &self,
-        at: Vec2i,
+        at: Vec2<i32>,
         buffer: &mut TheRGBABuffer,
         color: [u8; 4],
         ctx: &mut TheContext,
@@ -1181,7 +1034,7 @@ impl TileDrawer {
                 let dd = d + x * 4;
                 let ss = s + x * 4;
 
-                if let Some(background) = buffer.at(vec2i(x as i32, y as i32)) {
+                if let Some(background) = buffer.at(Vec2::new(x as i32, y as i32)) {
                     let color = &[source[ss], source[ss + 1], source[ss + 2], source[ss + 3]];
                     buffer.pixels_mut()[dd..dd + 4].copy_from_slice(&self.mix_color(
                         &background,
@@ -1194,7 +1047,7 @@ impl TileDrawer {
     }
 
     /// Gets the current time in milliseconds
-    fn get_time(&self) -> u128 {
+    fn _get_time(&self) -> u128 {
         let time;
         #[cfg(not(target_arch = "wasm32"))]
         {

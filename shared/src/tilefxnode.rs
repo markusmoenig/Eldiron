@@ -16,7 +16,7 @@ pub struct TileFXNode {
     pub role: TileFXNodeRole,
     pub timeline: TheTimeline,
 
-    pub position: Vec2i,
+    pub position: Vec2<i32>,
 
     pub supports_preview: bool,
     pub preview_is_open: bool,
@@ -72,7 +72,7 @@ impl TileFXNode {
             id: Uuid::new_v4(),
             role,
             timeline,
-            position: Vec2i::new(10, 5),
+            position: Vec2::new(10, 5),
             supports_preview,
             preview_is_open,
             preview: TheRGBABuffer::empty(),
@@ -148,17 +148,17 @@ impl TileFXNode {
         &self,
         _region: &Region,
         _palette: &ThePalette,
-        _pos: Vec3f,
-        color: &mut Vec3f,
+        _pos: Vec3<f32>,
+        color: &mut Vec3<f32>,
         _three_d: bool,
         params: &[f32],
     ) {
         #[allow(clippy::single_match)]
         match self.role {
             TileFXNodeRole::Saturation => {
-                let mut hsl = TheColor::from_vec3f(*color).as_hsl();
+                let mut hsl = TheColor::from_vec3(*color).as_hsl();
                 hsl.y *= params[0];
-                *color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec3f();
+                *color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec3();
             }
             _ => {}
         }
@@ -223,7 +223,7 @@ impl TileFXNode {
                     let _xx = (i % width) as f32;
                     let _yy = (i / width) as f32;
 
-                    let color = Vec4f::zero();
+                    let color = Vec4::zero();
 
                     // match &self.role {
                     //     Brightness => {}

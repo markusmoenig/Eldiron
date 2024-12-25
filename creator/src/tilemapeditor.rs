@@ -61,7 +61,7 @@ impl TilemapEditor {
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(10, 4, 5, 4));
+        toolbar_hlayout.set_margin(Vec4::new(10, 4, 5, 4));
 
         toolbar_hlayout.add_widget(Box::new(tile_name_text));
         toolbar_hlayout.add_widget(Box::new(tile_name_edit));
@@ -108,7 +108,7 @@ impl TilemapEditor {
         let mut details_canvas = TheCanvas::new();
 
         let mut vlayout = TheVLayout::new(TheId::named(" Tile Details Layout"));
-        vlayout.set_margin(vec4i(5, 20, 5, 10));
+        vlayout.set_margin(Vec4::new(5, 20, 5, 10));
         vlayout.set_alignment(TheHorizontalAlign::Center);
         vlayout.limiter_mut().set_max_width(120);
 
@@ -119,7 +119,7 @@ impl TilemapEditor {
 
         let mut icon_preview = TheIconView::new(TheId::named("Tilemap Selection Preview"));
         icon_preview.set_alpha_mode(false);
-        icon_preview.limiter_mut().set_max_size(vec2i(100, 100));
+        icon_preview.limiter_mut().set_max_size(Vec2::new(100, 100));
         icon_preview.set_border_color(Some([100, 100, 100, 255]));
 
         vlayout.add_widget(Box::new(switch_button));

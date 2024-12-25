@@ -79,11 +79,11 @@ impl MapEditor {
         let mut vlayout = TheVLayout::new(TheId::named("Editor Icon Layout"));
         vlayout.set_background_color(Some(TheThemeColors::ListLayoutBackground));
         vlayout.limiter_mut().set_max_width(90);
-        vlayout.set_margin(vec4i(0, 10, 0, 5));
+        vlayout.set_margin(Vec4::new(0, 10, 0, 5));
 
         let mut icon_preview = TheIconView::new(TheId::named("Icon Preview"));
         icon_preview.set_alpha_mode(false);
-        icon_preview.limiter_mut().set_max_size(vec2i(65, 65));
+        icon_preview.limiter_mut().set_max_size(Vec2::new(65, 65));
         icon_preview.set_border_color(Some([100, 100, 100, 255]));
         vlayout.add_widget(Box::new(icon_preview));
 
@@ -133,21 +133,21 @@ impl MapEditor {
         ground_icon.set_text(Some("FLOOR".to_string()));
         ground_icon.set_text_size(10.0);
         ground_icon.set_text_color([200, 200, 200, 255]);
-        ground_icon.limiter_mut().set_max_size(vec2i(48, 48));
+        ground_icon.limiter_mut().set_max_size(Vec2::new(48, 48));
         ground_icon.set_border_color(Some(self.icon_selected_border_color));
 
         let mut wall_icon = TheIconView::new(TheId::named("Wall Icon"));
         wall_icon.set_text(Some("WALL".to_string()));
         wall_icon.set_text_size(10.0);
         wall_icon.set_text_color([200, 200, 200, 255]);
-        wall_icon.limiter_mut().set_max_size(vec2i(48, 48));
+        wall_icon.limiter_mut().set_max_size(Vec2::new(48, 48));
         wall_icon.set_border_color(Some(self.icon_normal_border_color));
 
         let mut ceiling_icon = TheIconView::new(TheId::named("Ceiling Icon"));
         ceiling_icon.set_text(Some("CEILING".to_string()));
         ceiling_icon.set_text_size(10.0);
         ceiling_icon.set_text_color([200, 200, 200, 255]);
-        ceiling_icon.limiter_mut().set_max_size(vec2i(48, 48));
+        ceiling_icon.limiter_mut().set_max_size(Vec2::new(48, 48));
         ceiling_icon.set_border_color(Some(self.icon_normal_border_color));
 
         // let mut cc_icon = TheIconView::new(TheId::named("Tile FX Icon"));
@@ -182,13 +182,14 @@ impl MapEditor {
         // Tool Params
         let mut toolbar_hlayout = TheHLayout::new(TheId::named("Game Tool Params"));
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(10, 2, 5, 2));
+        toolbar_hlayout.set_margin(Vec4::new(10, 2, 5, 2));
 
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
         toolbar_canvas.set_layout(toolbar_hlayout);
 
-        center.set_top(toolbar_canvas);
+        center.bottom_is_expanding = true;
+        center.set_bottom(toolbar_canvas);
 
         center
     }
@@ -219,7 +220,7 @@ impl MapEditor {
             TheEvent::Custom(id, value) => {
                 if id.name == "Map Selection Changed" {
                     // We handle only the tilepicker
-                    if server_ctx.curr_map_material == 0 {
+                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
                         let mut floor_icon_id: Option<Uuid> = None;
                         //let mut wall_icon_id: Option<Uuid> = None;
                         //let mut ceiling_icon_id: Option<Uuid> = None;
@@ -274,7 +275,7 @@ impl MapEditor {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if ui.ctrl || ui.logo {
                             region.map.grid_size += coord.y as f32;
-                            region.map.grid_size = clamp(region.map.grid_size, 5.0, 100.0);
+                            region.map.grid_size = region.map.grid_size.clamp(5.0, 100.0);
                         } else {
                             region.map.offset += Vec2::new(-coord.x as f32, coord.y as f32);
                         }
@@ -578,6 +579,7 @@ impl MapEditor {
             //         }
             //     }
             // }
+            /*
             TheEvent::TileEditorHoverChanged(id, coord) => {
                 if id.name == "Region Editor View" {
                     if let Some(text) = ui.get_text("Cursor Position") {
@@ -604,7 +606,7 @@ impl MapEditor {
                         }
                     }
                 }
-            }
+            }*/
             TheEvent::GainedFocus(id) => {
                 if id.name == "Region Editor View" || id.name == "RenderView" {
                     UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
@@ -648,7 +650,7 @@ impl MapEditor {
 
                         // Set 3D editing position to Zero.
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            region.editing_position_3d = Vec3f::zero();
+                            region.editing_position_3d = Vec3::zero();
                             server.set_editing_position_3d(region.editing_position_3d);
                         }
 
@@ -672,9 +674,9 @@ impl MapEditor {
                         }
 
                         if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
-                            rgba_layout.scroll_to_grid(vec2i(p.x as i32, p.z as i32));
+                            rgba_layout.scroll_to_grid(Vec2::new(p.x as i32, p.z as i32));
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                                region.scroll_offset = vec2i(
+                                region.scroll_offset = Vec2::new(
                                     p.x as i32 * region.grid_size,
                                     p.z as i32 * region.grid_size,
                                 );
@@ -709,11 +711,11 @@ impl MapEditor {
                         }
 
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            region.editing_position_3d = vec3f(p.x, 0.0, p.z);
+                            region.editing_position_3d = Vec3::new(p.x, 0.0, p.z);
                             server.set_editing_position_3d(region.editing_position_3d);
                             if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
-                                rgba_layout.scroll_to_grid(vec2i(p.x as i32, p.z as i32));
-                                region.scroll_offset = vec2i(
+                                rgba_layout.scroll_to_grid(Vec2::new(p.x as i32, p.z as i32));
+                                region.scroll_offset = Vec2::new(
                                     p.x as i32 * region.grid_size,
                                     p.z as i32 * region.grid_size,
                                 );
@@ -743,12 +745,12 @@ impl MapEditor {
                             // ? server.insert_area(region.id, area.clone());
 
                             if let Some(p) = area.center() {
-                                region.editing_position_3d = vec3f(p.0 as f32, 0.0, p.1 as f32);
+                                region.editing_position_3d = Vec3::new(p.0 as f32, 0.0, p.1 as f32);
                                 server.set_editing_position_3d(region.editing_position_3d);
                                 if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
-                                    rgba_layout.scroll_to_grid(vec2i(p.0, p.1));
+                                    rgba_layout.scroll_to_grid(Vec2::new(p.0, p.1));
                                     region.scroll_offset =
-                                        vec2i(p.0 * region.grid_size, p.1 * region.grid_size);
+                                        Vec2::new(p.0 * region.grid_size, p.1 * region.grid_size);
                                 }
                             }
                         }
@@ -912,20 +914,21 @@ impl MapEditor {
         redraw
     }
 
+    /*
     fn set_icon_previews(
         &mut self,
         region: &mut Region,
-        palette: &ThePalette,
-        coord: Vec2i,
+        _palette: &ThePalette,
+        coord: Vec2<i32>,
         ui: &mut TheUI,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
     ) {
         let mut found_ground_icon = false;
         let mut found_wall_icon = false;
         let mut found_ceiling_icon = false;
 
-        let tile_coord = vec2f(coord.x as f32, coord.y as f32);
-
+        // let tile_coord = Vec2::new(coord.x as f32, coord.y as f32);
+        /*
         if let Some(geo_ids) = region.geometry_areas.get(&vec3i(coord.x, 0, coord.y)) {
             for geo_id in geo_ids {
                 if let Some(geo_obj) = region.geometry.get(geo_id) {
@@ -1012,7 +1015,7 @@ impl MapEditor {
                     }
                 }
             }
-        }
+        }*/
 
         if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
             // Ground
@@ -1070,7 +1073,7 @@ impl MapEditor {
                 icon_view.set_rgba_tile(TheRGBATile::default());
             }
         }
-    }
+    }*/
 
     fn set_icon_border_colors(&mut self, ui: &mut TheUI) {
         if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
@@ -1188,7 +1191,7 @@ impl MapEditor {
                             &TILEDRAWER.lock().unwrap(),
                             server_ctx,
                             compute_delta,
-                            vec2i(rect.x, dest_dim.height - (rect.y + rect.height)),
+                            Vec2::new(rect.x, dest_dim.height - (rect.y + rect.height)),
                         );
 
                         rgba_view.buffer_mut().copy_into(rect.x, rect.y, &b);

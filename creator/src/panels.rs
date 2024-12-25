@@ -1,5 +1,5 @@
 use crate::editor::{
-    CODEEDITOR, MATERIALEDITOR, MODELEDITOR, REGIONFXEDITOR, TILEDRAWER, TILEFXEDITOR,
+    CODEEDITOR, MATERIALEDITOR, REGIONFXEDITOR, TEXTEDITOR, TILEDRAWER, TILEFXEDITOR,
     TILEMAPEDITOR, TILEPICKER,
 };
 use crate::prelude::*;
@@ -9,9 +9,10 @@ pub enum PanelIndices {
     CodeEditor,
     TileMapEditor,
     TileFxEditor,
-    ModelEditor,
+    //ModelEditor,
     RegionFxEditor,
     MaterialEditor,
+    TextEditor,
 }
 
 pub struct Panels {
@@ -57,7 +58,7 @@ impl Panels {
         //         .unwrap()
         //         .build_brush_ui(project, ctx, server_ctx),
         // );
-        main_stack.add_canvas(MODELEDITOR.lock().unwrap().build_node_ui());
+        //main_stack.add_canvas(MODELEDITOR.lock().unwrap().build_node_ui());
 
         // let mut code_canvas = TheCanvas::new();
         // let mut widget = TheTextAreaEdit::new(TheId::named("Text"));
@@ -68,6 +69,7 @@ impl Panels {
         // main_stack.add_canvas(code_canvas);
         main_stack.add_canvas(REGIONFXEDITOR.lock().unwrap().build(ctx));
         main_stack.add_canvas(MATERIALEDITOR.lock().unwrap().build());
+        main_stack.add_canvas(TEXTEDITOR.lock().unwrap().build());
 
         main_stack.set_index(0);
 
@@ -99,7 +101,7 @@ impl Panels {
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(10, 2, 5, 2));
+        toolbar_hlayout.set_margin(Vec4::new(10, 2, 5, 2));
 
         // let mut text = TheText::new(TheId::named("Panel Object Text"));
         // text.set_text("Object".to_string());
@@ -216,7 +218,7 @@ impl Panels {
                         let mut w = TheColorPicker::new(TheId::named("Atom Color Picker"));
                         w.set_value(TheValue::ColorObject(color.clone()));
                         vlayout.set_background_color(Some(ListLayoutBackground));
-                        vlayout.set_margin(vec4i(20, 20, 20, 20));
+                        vlayout.set_margin(Vec4::new(20, 20, 20, 20));
                         vlayout.add_widget(Box::new(w));
                         set_to.set_layout(vlayout);
                         set_already = true;
@@ -227,7 +229,7 @@ impl Panels {
                         let mut w = TheDirectionPicker::new(TheId::named("Atom Direction Picker"));
                         w.set_value(TheValue::Direction(*value));
                         vlayout.set_background_color(Some(ListLayoutBackground));
-                        vlayout.set_margin(vec4i(20, 20, 20, 20));
+                        vlayout.set_margin(Vec4::new(20, 20, 20, 20));
                         vlayout.add_widget(Box::new(w));
                         set_to.set_layout(vlayout);
                         set_already = true;

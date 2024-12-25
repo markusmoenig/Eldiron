@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use lazy_static::lazy_static;
-use std::sync::{mpsc, Mutex, RwLock};
+use std::sync::{mpsc, RwLock};
 use theframework::prelude::*;
 
 pub mod context;
@@ -21,7 +21,7 @@ pub mod prelude {
 
 lazy_static! {
     pub static ref REGIONS: RwLock<FxHashMap<Uuid, Region>> = RwLock::new(FxHashMap::default());
-    pub static ref RNG: Mutex<rand::rngs::StdRng> = Mutex::new(rand::rngs::StdRng::from_entropy());
+    // pub static ref RNG: Mutex<rand::rngs::StdRng> = Mutex::new(rand::rngs::StdRng::from_entropy());
     pub static ref TILES: RwLock<FxHashMap<Uuid, TheRGBATile>> = RwLock::new(FxHashMap::default());
     pub static ref KEY_DOWN: RwLock<Option<String>> = RwLock::new(None);
     pub static ref UPDATES: RwLock<FxHashMap<Uuid, RegionUpdate>> =
@@ -376,7 +376,7 @@ impl Server {
         tiledrawer: &TileDrawer,
         server_ctx: &ServerContext,
         compute_delta: bool,
-        offset: Vec2i,
+        offset: Vec2<i32>,
     ) {
         if let Some(instance) = self.instances.get_mut(uuid) {
             instance.draw(
@@ -609,7 +609,7 @@ impl Server {
     }
 
     /// Returns the character instance id and the character id for the character at the given position for the given region.
-    pub fn get_character_at(&self, region: Uuid, pos: Vec2i) -> Option<(Uuid, Uuid)> {
+    pub fn get_character_at(&self, region: Uuid, pos: Vec2<i32>) -> Option<(Uuid, Uuid)> {
         if let Some(instance) = self.instances.get(&region) {
             instance.get_character_at(pos)
         } else {
@@ -618,7 +618,7 @@ impl Server {
     }
 
     /// Returns the item instance id and the item id for the item at the given position for the given region.
-    pub fn get_item_at(&self, region: Uuid, pos: Vec2i) -> Option<(Uuid, Uuid)> {
+    pub fn get_item_at(&self, region: Uuid, pos: Vec2<i32>) -> Option<(Uuid, Uuid)> {
         if let Some(instance) = self.instances.get(&region) {
             instance.get_item_at(pos)
         } else {
@@ -744,7 +744,7 @@ impl Server {
     }
 
     /// Sets the current 3d editing postion.
-    pub fn set_editing_position_3d(&mut self, position: Vec3f) {
+    pub fn set_editing_position_3d(&mut self, position: Vec3<f32>) {
         for region in REGIONS.write().unwrap().values_mut() {
             region.editing_position_3d = position;
         }

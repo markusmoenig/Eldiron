@@ -20,8 +20,7 @@ pub struct MaterialFXObject {
     pub zoom: f32,
     pub selected_node: Option<usize>,
 
-    #[serde(default = "Vec2i::zero")]
-    pub scroll_offset: Vec2i,
+    pub scroll_offset: Vec2<i32>,
 }
 
 impl Default for MaterialFXObject {
@@ -47,7 +46,7 @@ impl MaterialFXObject {
             zoom: 1.0,
             selected_node,
 
-            scroll_offset: Vec2i::zero(),
+            scroll_offset: Vec2::zero(),
         }
     }
 
@@ -135,13 +134,14 @@ impl MaterialFXObject {
     /// Get the distance to the material.
     pub fn get_material_normal(
         &self,
-        material_index: usize,
-        p: Vec3f,
-        hit: &mut Hit,
-        palette: &ThePalette,
-        textures: &FxHashMap<Uuid, TheRGBATile>,
-        mat_obj_params: &[Vec<f32>],
-    ) -> Vec3f {
+        _material_index: usize,
+        _p: Vec3<f32>,
+        _hit: &mut Hit,
+        _palette: &ThePalette,
+        _textures: &FxHashMap<Uuid, TheRGBATile>,
+        _mat_obj_params: &[Vec<f32>],
+    ) -> Vec3<f32> {
+        /*
         let scale = 0.5773 * 0.0005;
         let e = vec2f(1.0 * scale, -1.0 * scale);
 
@@ -204,6 +204,8 @@ impl MaterialFXObject {
         //     + e3 * self.get_heightmap_distance_3d(time, p + e3, hit, mat_obj_params)
         //     + e4 * self.get_heightmap_distance_3d(time, p + e4, hit, mat_obj_params);
         normalize(re1 + re2 + re3 + re4)
+        */
+        Vec3::zero()
     }
 
     /// After exiting a geometry node follow the trail of material nodes to compute the material.
@@ -570,25 +572,25 @@ impl MaterialFXObject {
                     let xx = (i % width) as f32;
                     let yy = (i / width) as f32;
 
-                    let mut color = Vec4f::zero();
+                    let color = Vec4::zero();
 
                     let mut hit = Hit {
-                        normal: vec3f(0., 1., 0.),
-                        uv: vec2f(xx / width as f32, 1.0 - yy / height as f32),
+                        normal: Vec3::new(0., 1., 0.),
+                        uv: Vec2::new(xx / width as f32, 1.0 - yy / height as f32),
                         two_d: true,
                         ..Default::default()
                     };
 
-                    hit.hit_point = vec3f(hit.uv.x, 0.0, hit.uv.y);
+                    hit.hit_point = Vec3::new(hit.uv.x, 0.0, hit.uv.y);
                     hit.global_uv = hit.uv;
                     hit.pattern_pos = hit.global_uv;
 
                     self.compute(&mut hit, palette, textures, &mat_obj_params);
 
-                    color.x = hit.mat.base_color.x;
-                    color.y = hit.mat.base_color.y;
-                    color.z = hit.mat.base_color.z;
-                    color.w = 1.0;
+                    // color.x = hit.mat.base_color.x;
+                    // color.y = hit.mat.base_color.y;
+                    // color.z = hit.mat.base_color.z;
+                    // color.w = 1.0;
 
                     pixel.copy_from_slice(&TheColor::from_vec4f(color).to_u8_array());
                 }
@@ -599,21 +601,22 @@ impl MaterialFXObject {
 
     pub fn render_preview_3d(
         &mut self,
-        palette: &ThePalette,
-        textures: &FxHashMap<Uuid, TheRGBATile>,
-        buffer: &mut TheRGBABuffer,
-        sample: i32,
+        _palette: &ThePalette,
+        _textures: &FxHashMap<Uuid, TheRGBATile>,
+        _buffer: &mut TheRGBABuffer,
+        _sample: i32,
     ) {
-        let width = buffer.dim().width as usize;
-        let height = buffer.dim().height;
+        // let width = buffer.dim().width as usize;
+        // let height = buffer.dim().height;
 
-        let time = TheTime::default();
-        let mat_obj_params = self.load_parameters(&time);
+        // let time = TheTime::default();
+        // let mat_obj_params = self.load_parameters(&time);
 
-        let camera = Camera::new(vec3f(0., 0., 2.), Vec3f::zero(), 70.0);
+        // //let camera = Camera::new(Vec3::new(0., 0., 2.), Vec3::zero(), 70.0);
 
-        let has_bump = self.has_bump();
+        // let has_bump = self.has_bump();
 
+        /*
         buffer
             .pixels_mut()
             .par_rchunks_exact_mut(width * 4)
@@ -876,7 +879,7 @@ impl MaterialFXObject {
                         );
                     }
                 }
-            });
+            });*/
     }
 
     pub fn get_preview(&self) -> TheRGBABuffer {

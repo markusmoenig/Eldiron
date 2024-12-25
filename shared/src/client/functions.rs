@@ -145,7 +145,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
 
             if let Some(font) = FONTS.read().unwrap().get(&font_name) {
                 buffer.draw_text(
-                    vec2i(0, 0),
+                    Vec2::new(0, 0),
                     font,
                     text.as_str(),
                     size,
@@ -163,12 +163,12 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
     compiler.add_external_call(
         "CreateImg".to_string(),
         |stack, _data, _sandbox| {
-            let mut source_size = vec2i(0, 0);
+            let mut source_size = Vec2::new(0, 0);
             if let Some(TheValue::Int2(v)) = stack.pop() {
                 source_size = v;
             }
 
-            let mut source_pos = vec2i(0, 0);
+            let mut source_pos = Vec2::new(0, 0);
             if let Some(TheValue::Int2(v)) = stack.pop() {
                 source_pos = v;
             }
@@ -277,7 +277,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
         |stack, _data, _sandbox| {
             let mut buffer = WIDGETBUFFER.write().unwrap();
 
-            let mut pos = vec2i(0, 0);
+            let mut pos = Vec2::new(0, 0);
             if let Some(TheValue::Int2(v)) = stack.pop() {
                 pos = v;
             }
@@ -299,7 +299,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
     compiler.add_external_call(
         "ScaleImg".to_string(),
         |stack, _data, _sandbox| {
-            let mut size = vec2i(1, 1);
+            let mut size = Vec2::new(1, 1);
             if let Some(TheValue::Int2(v)) = stack.pop() {
                 size = v;
             }

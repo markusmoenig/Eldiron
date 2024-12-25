@@ -47,7 +47,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
             }
             TheCodeNodeCallResult::Continue
         },
-        vec![TheValue::Float2(vec2f(0.0, 0.0))],
+        vec![TheValue::Float2(Vec2::new(0.0, 0.0))],
     );
     /*
     // RandWalk
@@ -109,7 +109,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
         |stack, data, sandbox| {
             let region_id = sandbox.id;
 
-            let mut by: Vec2<f32> = vec2f(0.0, 0.0);
+            let mut by: Vec2<f32> = Vec2::new(0.0, 0.0);
             if let Some(v) = stack.pop() {
                 if let Some(f2) = v.to_vec2f() {
                     by = f2;
@@ -128,7 +128,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
 
                     // Set the facing direction to the direction we are moving to
                     if let Some(TheValue::Direction(dir)) = object.get_mut(&"facing".into()) {
-                        *dir = vec3f(by.x, 0.0, by.y);
+                        *dir = Vec3::new(by.x, 0.0, by.y);
                     }
 
                     if let Some(TheValue::Position(p)) = object.get_mut(&"position".into()) {
@@ -137,7 +137,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
 
                         if let Some(update) = UPDATES.write().unwrap().get_mut(&region_id) {
                             if region.can_move_to(
-                                vec2i(x as i32, z as i32),
+                                Vec2::new(x as i32, z as i32),
                                 &TILES.read().unwrap(),
                                 update,
                             ) {
@@ -151,11 +151,14 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
 
                                 if can_move {
                                     let old_position = *p;
-                                    *p = vec3f(x, p.y, z);
+                                    *p = Vec3::new(x, p.y, z);
 
                                     if let Some(cu) = update.characters.get_mut(&object.id) {
-                                        cu.position = vec2f(x, z);
-                                        cu.moving = Some((old_position.xz(), cu.position));
+                                        cu.position = Vec2::new(x, z);
+                                        cu.moving = Some((
+                                            Vec2::new(old_position.x, old_position.z),
+                                            cu.position,
+                                        ));
 
                                         cu.facing = by;
                                         cu.move_delta = 0.0;
@@ -205,7 +208,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
             }
             TheCodeNodeCallResult::Continue
         },
-        vec![TheValue::Float2(vec2f(0.0, 0.0))],
+        vec![TheValue::Float2(Vec2::new(0.0, 0.0))],
     );
 
     // Walk
@@ -238,21 +241,21 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                     self_instance_id = object.id;
                     // self_package_id = object.package_id;
 
-                    let mut facing = vec3f(0.0, 0.0, 0.0);
+                    let mut facing = Vec3::new(0.0, 0.0, 0.0);
                     // Get the facing direction.
                     if let Some(TheValue::Direction(dir)) = object.get_mut(&"facing".into()) {
                         facing = *dir;
                     }
 
-                    let mut by = vec2f(0.0, 0.0);
+                    let mut by = Vec2::new(0.0, 0.0);
                     if direction == 0 {
-                        by = vec2f(facing.x, facing.z) * distance;
+                        by = Vec2::new(facing.x, facing.z) * distance;
                     } else if direction == 1 {
-                        by = vec2f(facing.x, facing.z) * -distance;
+                        by = Vec2::new(facing.x, facing.z) * -distance;
                     } else if direction == 2 {
-                        by = vec2f(-facing.z, facing.x);
+                        by = Vec2::new(-facing.z, facing.x);
                     } else if direction == 3 {
-                        by = vec2f(facing.z, -facing.x);
+                        by = Vec2::new(facing.z, -facing.x);
                     }
 
                     if let Some(TheValue::Position(p)) = object.get_mut(&"position".into()) {
@@ -261,7 +264,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
 
                         if let Some(update) = UPDATES.write().unwrap().get_mut(&region_id) {
                             if region.can_move_to(
-                                vec2i(x as i32, z as i32),
+                                Vec2::new(x as i32, z as i32),
                                 &TILES.read().unwrap(),
                                 update,
                             ) {
@@ -275,11 +278,14 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
 
                                 if can_move {
                                     let old_position = *p;
-                                    *p = vec3f(x, p.y, z);
+                                    *p = Vec3::new(x, p.y, z);
 
                                     if let Some(cu) = update.characters.get_mut(&object.id) {
-                                        cu.position = vec2f(x, z);
-                                        cu.moving = Some((old_position.xz(), cu.position));
+                                        cu.position = Vec2::new(x, z);
+                                        cu.moving = Some((
+                                            Vec2::new(old_position.x, old_position.z),
+                                            cu.position,
+                                        ));
                                     }
                                 }
                             }
@@ -326,22 +332,23 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
             }
             TheCodeNodeCallResult::Continue
         },
-        vec![TheValue::Float2(vec2f(0.0, 0.0))],
+        vec![TheValue::Float2(Vec2::new(0.0, 0.0))],
     );
 
     // Rotate
     compiler.add_external_call(
         "Rotate".to_string(),
-        |stack, _data, sandbox| {
-            let region_id = sandbox.id;
+        |_stack, _data, _sandbox| {
+            // let region_id = sandbox.id;
 
-            let mut angle: f32 = 0.0;
-            if let Some(v) = stack.pop() {
-                if let Some(f) = v.to_f32() {
-                    angle = f;
-                }
-            }
+            // let mut angle: f32 = 0.0;
+            // if let Some(v) = stack.pop() {
+            //     if let Some(f) = v.to_f32() {
+            //         angle = f;
+            //     }
+            // }
 
+            /*
             if let Some(object) = sandbox.get_self_mut() {
                 if let Some(TheValue::Direction(dir)) = object.get_mut(&"facing".into()) {
                     let new_dir_2d = rotate_2d(vec2f(dir.x, dir.z), angle.to_radians());
@@ -359,10 +366,10 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                         }
                     }
                 }
-            }
+            }*/
             TheCodeNodeCallResult::Continue
         },
-        vec![TheValue::Float2(vec2f(0.0, 0.0))],
+        vec![TheValue::Float2(Vec2::new(0.0, 0.0))],
     );
 
     // Create

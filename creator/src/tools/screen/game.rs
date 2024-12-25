@@ -44,7 +44,7 @@ impl Tool for ScreenGameTool {
                 if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
                     client.touch_down(
                         &server_ctx.curr_screen,
-                        vec2i(coord.x * screen.grid_size, coord.y * screen.grid_size),
+                        Vec2::new(coord.x * screen.grid_size, coord.y * screen.grid_size),
                     );
                 }
             }
@@ -52,7 +52,7 @@ impl Tool for ScreenGameTool {
                 if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
                     client.touch_down(
                         &server_ctx.curr_screen,
-                        vec2i(coord.x * screen.grid_size, coord.y * screen.grid_size),
+                        Vec2::new(coord.x * screen.grid_size, coord.y * screen.grid_size),
                     );
                 }
             }

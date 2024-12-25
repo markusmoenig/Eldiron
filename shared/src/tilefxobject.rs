@@ -15,8 +15,7 @@ pub struct TileFXObject {
     pub zoom: f32,
     pub selected_node: Option<usize>,
 
-    #[serde(default = "Vec2i::zero")]
-    pub scroll_offset: Vec2i,
+    pub scroll_offset: Vec2<i32>,
 }
 
 impl Default for TileFXObject {
@@ -35,7 +34,7 @@ impl TileFXObject {
             zoom: 1.0,
             selected_node: None,
 
-            scroll_offset: Vec2i::zero(),
+            scroll_offset: Vec2::zero(),
         }
     }
 
@@ -71,8 +70,8 @@ impl TileFXObject {
         &self,
         region: &Region,
         palette: &ThePalette,
-        pos: Vec3f,
-        color: &mut Vec3f,
+        pos: Vec3<f32>,
+        color: &mut Vec3<f32>,
         three_d: bool,
         fx_obj_params: &[Vec<f32>],
     ) {

@@ -13,8 +13,7 @@ pub struct RegionFXObject {
     pub zoom: f32,
     pub selected_node: Option<usize>,
 
-    #[serde(default = "Vec2i::zero")]
-    pub scroll_offset: Vec2i,
+    pub scroll_offset: Vec2<i32>,
 }
 
 impl Default for RegionFXObject {
@@ -28,11 +27,11 @@ impl RegionFXObject {
         let mut nodes = vec![];
 
         let mut node = RegionFXNode::new_from_name(str!("Renderer"));
-        node.position = vec2i(220, 50);
+        node.position = Vec2::new(220, 50);
         nodes.push(node);
 
         let mut node = RegionFXNode::new_from_name(str!("Tilted Iso Camera"));
-        node.position = vec2i(20, 20);
+        node.position = Vec2::new(20, 20);
         nodes.push(node);
 
         let connections = vec![(1, 0, 0, 0)];
@@ -44,7 +43,7 @@ impl RegionFXObject {
             zoom: 1.0,
             selected_node: None,
 
-            scroll_offset: Vec2i::zero(),
+            scroll_offset: Vec2::zero(),
         }
     }
 
@@ -75,20 +74,20 @@ impl RegionFXObject {
     }
 
     /// Convert a world position into a pixel offset in the canvas.
-    pub fn cam_world_to_canvas(&self, region: &Region, world_pos: Vec3f) -> Vec2i {
+    pub fn cam_world_to_canvas(&self, region: &Region, world_pos: Vec3<f32>) -> Vec2<i32> {
         if let Some(node_index) = self.find_connected_output_node(0, 0) {
             self.nodes[node_index].cam_world_to_canvas(region, world_pos)
         } else {
-            Vec2i::zero()
+            Vec2::zero()
         }
     }
 
     /// Convert a canvas pixel position into a world position.
-    pub fn cam_canvas_to_world(&self, region: &Region, canvas_pos: Vec2i) -> Vec3f {
+    pub fn cam_canvas_to_world(&self, region: &Region, canvas_pos: Vec2<i32>) -> Vec3<f32> {
         if let Some(node_index) = self.find_connected_output_node(0, 0) {
             self.nodes[node_index].cam_canvas_to_world(region, canvas_pos)
         } else {
-            Vec3f::zero()
+            Vec3::zero()
         }
     }
 
@@ -101,11 +100,11 @@ impl RegionFXObject {
     }*/
 
     /// Render the prerendered tiles into the game canvas.
-    pub fn cam_region_size(&self, region: &Region) -> Vec2i {
+    pub fn cam_region_size(&self, region: &Region) -> Vec2<i32> {
         if let Some(node_index) = self.find_connected_output_node(0, 0) {
             self.nodes[node_index].cam_region_size(region)
         } else {
-            Vec2i::zero()
+            Vec2::zero()
         }
     }
 
@@ -118,16 +117,16 @@ impl RegionFXObject {
     /// Create a camera ray
     pub fn cam_create_ray(
         &self,
-        uv: Vec2f,
-        position: Vec3f,
-        size: Vec2f,
-        offset: Vec2f,
+        uv: Vec2<f32>,
+        position: Vec3<f32>,
+        size: Vec2<f32>,
+        offset: Vec2<f32>,
         params: &[Vec<f32>],
-    ) -> Ray {
+    ) -> crate::Ray {
         if let Some(node_index) = self.find_connected_output_node(0, 0) {
             self.nodes[node_index].cam_create_ray(uv, position, size, offset, &params[node_index])
         } else {
-            Ray::new(Vec3f::zero(), Vec3f::zero())
+            crate::Ray::new(Vec3::zero(), Vec3::zero())
         }
     }
 
@@ -136,8 +135,8 @@ impl RegionFXObject {
         &self,
         region: &Region,
         palette: &ThePalette,
-        canvas_pos: Vec2i,
-        color: &mut Vec3f,
+        canvas_pos: Vec2<i32>,
+        color: &mut Vec3<f32>,
         fx_obj_params: &[Vec<f32>],
     ) {
         self.follow_trail(0, 0, region, palette, canvas_pos, color, fx_obj_params)
@@ -148,8 +147,8 @@ impl RegionFXObject {
         &self,
         region: &Region,
         palette: &ThePalette,
-        canvas_pos: Vec2i,
-        color: &mut Vec3f,
+        canvas_pos: Vec2<i32>,
+        color: &mut Vec3<f32>,
         fx_obj_params: &[Vec<f32>],
     ) {
         self.follow_trail(0, 1, region, palette, canvas_pos, color, fx_obj_params)
@@ -163,8 +162,8 @@ impl RegionFXObject {
         terminal_index: usize,
         region: &Region,
         palette: &ThePalette,
-        canvas_pos: Vec2i,
-        color: &mut Vec3f,
+        canvas_pos: Vec2<i32>,
+        color: &mut Vec3<f32>,
         fx_obj_params: &[Vec<f32>],
     ) {
         let mut connections = vec![];

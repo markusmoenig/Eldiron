@@ -4,7 +4,7 @@ use ToolEvent::*;
 
 pub struct VertexTool {
     id: TheId,
-    click_pos: Vec2f,
+    click_pos: Vec2<f32>,
     click_selected: bool,
     drag_changed: bool,
     rectangle_undo_map: Map,
@@ -17,7 +17,7 @@ impl Tool for VertexTool {
     {
         Self {
             id: TheId::named("Vertex Tool"),
-            click_pos: Vec2f::zero(),
+            click_pos: Vec2::zero(),
             click_selected: false,
             drag_changed: false,
             rectangle_undo_map: Map::default(),
@@ -141,7 +141,7 @@ impl Tool for VertexTool {
                     }
                 }
 
-                self.click_pos = vec2f(coord.x as f32, coord.y as f32);
+                self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);
                 self.rectangle_undo_map = map.clone();
             }
             MapDragged(coord) => {
@@ -150,14 +150,14 @@ impl Tool for VertexTool {
                     if let Some(render_view) = ui.get_render_view("PolyView") {
                         let dim = *render_view.dim();
                         let click_pos = server_ctx.local_to_map_grid(
-                            vec2f(dim.width as f32, dim.height as f32),
+                            Vec2::new(dim.width as f32, dim.height as f32),
                             self.click_pos,
                             map,
                             map.subdivisions,
                         );
                         let drag_pos = server_ctx.local_to_map_grid(
-                            vec2f(dim.width as f32, dim.height as f32),
-                            vec2f(coord.x as f32, coord.y as f32),
+                            Vec2::new(dim.width as f32, dim.height as f32),
+                            Vec2::new(coord.x as f32, coord.y as f32),
                             map,
                             map.subdivisions,
                         );
@@ -183,22 +183,22 @@ impl Tool for VertexTool {
                     // Otherwise we treat it as rectangle selection
                     let dim = *render_view.dim();
                     let click_pos = server_ctx.local_to_map_grid(
-                        vec2f(dim.width as f32, dim.height as f32),
+                        Vec2::new(dim.width as f32, dim.height as f32),
                         self.click_pos,
                         map,
                         map.subdivisions,
                     );
                     let drag_pos = server_ctx.local_to_map_grid(
-                        vec2f(dim.width as f32, dim.height as f32),
-                        vec2f(coord.x as f32, coord.y as f32),
+                        Vec2::new(dim.width as f32, dim.height as f32),
+                        Vec2::new(coord.x as f32, coord.y as f32),
                         map,
                         map.subdivisions,
                     );
 
                     let top_left =
-                        Vec2f::new(click_pos.x.min(drag_pos.x), click_pos.y.min(drag_pos.y));
+                        Vec2::new(click_pos.x.min(drag_pos.x), click_pos.y.min(drag_pos.y));
                     let bottom_right =
-                        Vec2f::new(click_pos.x.max(drag_pos.x), click_pos.y.max(drag_pos.y));
+                        Vec2::new(click_pos.x.max(drag_pos.x), click_pos.y.max(drag_pos.y));
 
                     let mut selection =
                         server_ctx.geometry_in_rectangle(top_left, bottom_right, map);
@@ -256,15 +256,15 @@ impl Tool for VertexTool {
                 if let Some(render_view) = ui.get_render_view("PolyView") {
                     let dim = *render_view.dim();
                     let h = server_ctx.geometry_at(
-                        vec2f(dim.width as f32, dim.height as f32),
-                        vec2f(coord.x as f32, coord.y as f32),
+                        Vec2::new(dim.width as f32, dim.height as f32),
+                        Vec2::new(coord.x as f32, coord.y as f32),
                         map,
                     );
                     server_ctx.hover.0 = h.0;
 
                     let cp = server_ctx.local_to_map_grid(
-                        vec2f(dim.width as f32, dim.height as f32),
-                        vec2f(coord.x as f32, coord.y as f32),
+                        Vec2::new(dim.width as f32, dim.height as f32),
+                        Vec2::new(coord.x as f32, coord.y as f32),
                         map,
                         map.subdivisions,
                     );

@@ -82,7 +82,7 @@ impl Tool for FXTool {
             }
         };
 
-        let fx_coord = vec3i(coord.x, 0, coord.y);
+        let fx_coord = Vec3::new(coord.x, 0, coord.y);
 
         if self.edit_mode_index == 0 {
             // Add

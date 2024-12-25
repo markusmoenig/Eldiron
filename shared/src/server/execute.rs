@@ -18,14 +18,14 @@ pub fn execute(
                 let y = caps.get(3).unwrap().as_str().parse::<f32>().unwrap();
                 //println!("move x, y {} {}", x, y);
                 //return true;
-                rc = move_cmd(vec2f(x, y), player, sandbox);
+                rc = move_cmd(Vec2::new(x, y), player, sandbox);
             }
         }
     }
     rc
 }
 
-pub fn move_cmd(by: Vec2f, player: &mut ActivePlayer, sandbox: &mut TheCodeSandbox) -> bool {
+pub fn move_cmd(by: Vec2<f32>, player: &mut ActivePlayer, sandbox: &mut TheCodeSandbox) -> bool {
     if let Some(region) = REGIONS.read().unwrap().get(&player.region_id) {
         let mut self_instance_id = Uuid::nil();
         // let mut self_package_id = Uuid::nil();
@@ -38,7 +38,7 @@ pub fn move_cmd(by: Vec2f, player: &mut ActivePlayer, sandbox: &mut TheCodeSandb
 
             // Set the facing direction to the direction we are moving to
             if let Some(TheValue::Direction(dir)) = object.get_mut(&"facing".into()) {
-                *dir = vec3f(by.x, 0.0, by.y);
+                *dir = Vec3::new(by.x, 0.0, by.y);
             }
 
             if let Some(TheValue::Position(p)) = object.get_mut(&"position".into()) {
@@ -46,8 +46,11 @@ pub fn move_cmd(by: Vec2f, player: &mut ActivePlayer, sandbox: &mut TheCodeSandb
                 let z = p.z + by.y;
 
                 if let Some(update) = UPDATES.write().unwrap().get_mut(&player.region_id) {
-                    if region.can_move_to(vec2i(x as i32, z as i32), &TILES.read().unwrap(), update)
-                    {
+                    if region.can_move_to(
+                        Vec2::new(x as i32, z as i32),
+                        &TILES.read().unwrap(),
+                        update,
+                    ) {
                         let mut can_move = true;
                         for c in update.characters.values() {
                             if c.position.x == x && c.position.y == z {
@@ -58,11 +61,12 @@ pub fn move_cmd(by: Vec2f, player: &mut ActivePlayer, sandbox: &mut TheCodeSandb
 
                         if can_move {
                             let old_position = *p;
-                            *p = vec3f(x, p.y, z);
+                            *p = Vec3::new(x, p.y, z);
 
                             if let Some(cu) = update.characters.get_mut(&object.id) {
-                                cu.position = vec2f(x, z);
-                                cu.moving = Some((old_position.xz(), cu.position));
+                                cu.position = Vec2::new(x, z);
+                                cu.moving =
+                                    Some((Vec2::new(old_position.x, old_position.z), cu.position));
 
                                 cu.facing = by;
                                 cu.move_delta = 0.0;

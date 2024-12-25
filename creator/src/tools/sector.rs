@@ -5,12 +5,12 @@ use ToolEvent::*;
 
 pub struct SectorTool {
     id: TheId,
-    click_pos: Vec2f,
+    click_pos: Vec2<f32>,
     rectangle_undo_map: Map,
     click_selected: bool,
     drag_changed: bool,
-    wall_width: f32,
-    wall_height: f32,
+
+    properties_code: String,
 }
 
 impl Tool for SectorTool {
@@ -20,12 +20,15 @@ impl Tool for SectorTool {
     {
         Self {
             id: TheId::named("Sector Tool"),
-            click_pos: Vec2f::zero(),
+            click_pos: Vec2::zero(),
             click_selected: false,
             drag_changed: false,
             rectangle_undo_map: Map::default(),
-            wall_width: 0.0,
-            wall_height: 0.0,
+
+            properties_code: r#"# Sets the wall height (default is 2.0)
+# set("wall_height", 2.0)
+"#
+            .to_string(),
         }
     }
 
@@ -78,6 +81,68 @@ impl Tool for SectorTool {
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();
 
+                    let mut material_switch =
+                        TheGroupButton::new(TheId::named("Map Helper Switch"));
+                    material_switch.add_text_status_icon(
+                        "Tile Picker".to_string(),
+                        "Show tile picker.".to_string(),
+                        "bricks".to_string(),
+                    );
+                    material_switch.add_text_status_icon(
+                        "Materials".to_string(),
+                        "Apply procedural materials.".to_string(),
+                        "faders".to_string(),
+                    );
+                    material_switch.add_text_status_icon(
+                        "Properties".to_string(),
+                        "Set sector properties.".to_string(),
+                        "code".to_string(),
+                    );
+                    material_switch.set_item_width(100);
+                    material_switch.set_index(server_ctx.curr_map_tool_helper as i32);
+                    layout.add_widget(Box::new(material_switch));
+
+                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::TilePicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Material {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::MaterialEditor as usize,
+                        ));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Material Previews"),
+                            TheValue::Empty,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Properties {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::TextEditor as usize,
+                        ));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Material Previews"),
+                            TheValue::Empty,
+                        ));
+                    };
+
+                    let mut run_properties_button =
+                        TheTraybarButton::new(TheId::named("Apply Sector Properties"));
+                    run_properties_button.set_status_text(
+                        "Run and apply the sector properties on the selected sectors.",
+                    );
+                    run_properties_button.set_text("Apply Properties".to_string());
+                    layout.add_widget(Box::new(run_properties_button));
+                    layout.set_reverse_index(Some(1));
+
+                    ui.set_widget_value(
+                        "CodeEdit",
+                        ctx,
+                        TheValue::Text(self.properties_code.clone()),
+                    );
+
+                    /*
                     let mut wall_width = TheTextLineEdit::new(TheId::named("Wall Width"));
                     wall_width.set_value(TheValue::Float(self.wall_width));
                     // opacity.set_default_value(TheValue::Float(1.0));
@@ -96,7 +161,7 @@ impl Tool for SectorTool {
                     wall_height.set_continuous(true);
                     wall_height.limiter_mut().set_max_width(150);
                     wall_height.set_status_text("The wall height of the enclosing linedefs.");
-                    layout.add_widget(Box::new(wall_height));
+                    layout.add_widget(Box::new(wall_height));*/
                 }
 
                 return true;
@@ -166,7 +231,7 @@ impl Tool for SectorTool {
                     }
                 }
 
-                self.click_pos = vec2f(coord.x as f32, coord.y as f32);
+                self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);
                 self.rectangle_undo_map = map.clone();
             }
             MapDragged(coord) => {
@@ -175,14 +240,14 @@ impl Tool for SectorTool {
                     if let Some(render_view) = ui.get_render_view("PolyView") {
                         let dim = *render_view.dim();
                         let click_pos = server_ctx.local_to_map_grid(
-                            vec2f(dim.width as f32, dim.height as f32),
+                            Vec2::new(dim.width as f32, dim.height as f32),
                             self.click_pos,
                             map,
                             map.subdivisions,
                         );
                         let drag_pos = server_ctx.local_to_map_grid(
-                            vec2f(dim.width as f32, dim.height as f32),
-                            vec2f(coord.x as f32, coord.y as f32),
+                            Vec2::new(dim.width as f32, dim.height as f32),
+                            Vec2::new(coord.x as f32, coord.y as f32),
                             map,
                             map.subdivisions,
                         );
@@ -223,22 +288,22 @@ impl Tool for SectorTool {
                 } else if let Some(render_view) = ui.get_render_view("PolyView") {
                     let dim = *render_view.dim();
                     let click_pos = server_ctx.local_to_map_grid(
-                        vec2f(dim.width as f32, dim.height as f32),
+                        Vec2::new(dim.width as f32, dim.height as f32),
                         self.click_pos,
                         map,
                         map.subdivisions,
                     );
                     let drag_pos = server_ctx.local_to_map_grid(
-                        vec2f(dim.width as f32, dim.height as f32),
-                        vec2f(coord.x as f32, coord.y as f32),
+                        Vec2::new(dim.width as f32, dim.height as f32),
+                        Vec2::new(coord.x as f32, coord.y as f32),
                         map,
                         map.subdivisions,
                     );
 
                     let top_left =
-                        Vec2f::new(click_pos.x.min(drag_pos.x), click_pos.y.min(drag_pos.y));
+                        Vec2::new(click_pos.x.min(drag_pos.x), click_pos.y.min(drag_pos.y));
                     let bottom_right =
-                        Vec2f::new(click_pos.x.max(drag_pos.x), click_pos.y.max(drag_pos.y));
+                        Vec2::new(click_pos.x.max(drag_pos.x), click_pos.y.max(drag_pos.y));
 
                     let mut selection =
                         server_ctx.geometry_in_rectangle(top_left, bottom_right, map);
@@ -292,15 +357,15 @@ impl Tool for SectorTool {
                 if let Some(render_view) = ui.get_render_view("PolyView") {
                     let dim = *render_view.dim();
                     let h = server_ctx.geometry_at(
-                        vec2f(dim.width as f32, dim.height as f32),
-                        vec2f(coord.x as f32, coord.y as f32),
+                        Vec2::new(dim.width as f32, dim.height as f32),
+                        Vec2::new(coord.x as f32, coord.y as f32),
                         map,
                     );
                     server_ctx.hover.2 = h.2;
 
                     let cp = server_ctx.local_to_map_grid(
-                        vec2f(dim.width as f32, dim.height as f32),
-                        vec2f(coord.x as f32, coord.y as f32),
+                        Vec2::new(dim.width as f32, dim.height as f32),
+                        Vec2::new(coord.x as f32, coord.y as f32),
                         map,
                         map.subdivisions,
                     );
@@ -352,16 +417,80 @@ impl Tool for SectorTool {
     fn handle_event(
         &mut self,
         event: &TheEvent,
-        _ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut Server,
+        _server: &mut Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
         #[allow(clippy::single_match)]
         match event {
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == "CodeEdit" {
+                    if let Some(code) = value.to_string() {
+                        self.properties_code = code;
+                    }
+                }
+            }
+            TheEvent::StateChanged(id, state) => {
+                if id.name == "Apply Sector Properties" && *state == TheWidgetState::Clicked {
+                    if let Some(value) = ui.get_widget_value("CodeEdit") {
+                        if let Some(code) = value.to_string() {
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                for sector_id in &region.map.selected_sectors.clone() {
+                                    let mut mapscript = rusterix::MapScript::new();
+                                    let result = mapscript.transform(
+                                        code.clone(),
+                                        Some(region.map.clone()),
+                                        None,
+                                        Some(*sector_id),
+                                    );
+                                    match &result {
+                                        Ok(meta) => region.map = meta.map.clone(),
+                                        Err(err) => {
+                                            if let Some(first) = err.first() {
+                                                ctx.ui.send(TheEvent::SetStatusText(
+                                                    TheId::empty(),
+                                                    first.to_string(),
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == "Map Helper Switch" {
+                    server_ctx.curr_map_tool_helper.set_from_index(*index);
+                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::TilePicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Material {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::MaterialEditor as usize,
+                        ));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Material Previews"),
+                            TheValue::Empty,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Properties {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::TextEditor as usize,
+                        ));
+                    };
+                    redraw = true;
+                }
+            }
+            /*
             TheEvent::ValueChanged(id, value) => {
                 if id.name == "Wall Width" {
                     if let Some(value) = value.to_f32() {
@@ -407,7 +536,7 @@ impl Tool for SectorTool {
                     }
                     redraw = true;
                 }
-            }
+            }*/
             _ => {}
         }
         redraw

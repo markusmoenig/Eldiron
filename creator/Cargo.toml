@@ -10,20 +10,15 @@ name = "eldiron"
 path = "src/main.rs"
 
 [dependencies]
-theframework = { git = "https://github.com/markusmoenig/TheFramework", features = [
-    "ui",
-    "code",
-], default-features = true }
-# theframework = { path = "../../TheFramework", features = [
-#     "ui",
-#     "code",
-#     "winit_app",
-# ], default-features = false }
 # theframework = { git = "https://github.com/markusmoenig/TheFramework", features = [
 #     "ui",
 #     "code",
-#     "ui",
 # ], default-features = true }
+theframework = { path = "../../TheFramework", features = [
+    "ui",
+    "code",
+    "winit_app",
+], default-features = true }
 # theframework = { version = "0.1.20", features = [
 #     "ui",
 #     "code",
@@ -47,6 +42,8 @@ self_update = { version = "0.39.0", features = [
     "compression-flate2",
 ] }
 vek = { version = "0.17.1", default-features = true }
+rusterix = { path = "../../rusterix" }
+# rusterix = { git = "https://github.com/markusmoenig/Rusterix" }
 
 [package.metadata.bundle]
 name = "Eldiron"

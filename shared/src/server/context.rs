@@ -1,11 +1,28 @@
 use crate::prelude::*;
 use theframework::prelude::*;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum MapContext {
     Region,
     Model,
     Screen,
+}
+
+#[derive(PartialEq, Clone, Copy)]
+pub enum MapToolHelper {
+    TilePicker,
+    Material,
+    Properties,
+}
+
+impl MapToolHelper {
+    pub fn set_from_index(&mut self, index: usize) {
+        match index {
+            1 => *self = MapToolHelper::Material,
+            2 => *self = MapToolHelper::Properties,
+            _ => *self = MapToolHelper::TilePicker,
+        }
+    }
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -77,7 +94,7 @@ pub struct ServerContext {
     pub hover: (Option<u32>, Option<u32>, Option<u32>),
 
     /// The current grid hover position
-    pub hover_cursor: Option<Vec2f>,
+    pub hover_cursor: Option<Vec2<f32>>,
 
     /// Current Tool Type
     pub curr_map_tool_type: MapToolType,
@@ -85,8 +102,8 @@ pub struct ServerContext {
     /// Current Map Context
     pub curr_map_context: MapContext,
 
-    /// For map tools, 0 shows tile picker, 1 shows procedural materials
-    pub curr_map_material: i32,
+    /// For map tools, indicates which helper is active
+    pub curr_map_tool_helper: MapToolHelper,
 
     /// Map texture mode
     pub curr_texture_mode: MapTextureMode,
@@ -140,7 +157,7 @@ impl ServerContext {
 
             curr_map_tool_type: MapToolType::Linedef,
             curr_map_context: MapContext::Region,
-            curr_map_material: 0,
+            curr_map_tool_helper: MapToolHelper::TilePicker,
             curr_texture_mode: MapTextureMode::Floor,
         }
     }
@@ -201,36 +218,39 @@ impl ServerContext {
     /// Convert local screen position to a map grid position
     pub fn local_to_map_grid(
         &self,
-        screen_size: Vec2f,
-        coord: Vec2f,
+        screen_size: Vec2<f32>,
+        coord: Vec2<f32>,
         map: &Map,
         subdivisions: f32,
-    ) -> Vec2f {
-        let grid_space_pos = coord - screen_size / 2.0 - vec2f(map.offset.x, -map.offset.y);
+    ) -> Vec2<f32> {
+        let grid_space_pos = coord - screen_size / 2.0 - Vec2::new(map.offset.x, -map.offset.y);
         let snapped = grid_space_pos / map.grid_size;
-        let rounded = round(snapped);
+        let rounded = snapped.map(|x| x.round());
 
         if subdivisions > 1.0 {
             let subdivision_size = 1.0 / subdivisions;
-
             // Calculate fractional part of the snapped position
             let fractional = snapped - rounded;
-
             // Snap the fractional part to the nearest subdivision
-            rounded + round(fractional / subdivision_size) * subdivision_size
+            rounded + fractional.map(|x| (x / subdivision_size).round() * subdivision_size)
         } else {
             rounded
         }
     }
 
     /// Convert a map grid position to a local screen position
-    pub fn map_grid_to_local(screen_size: Vec2f, grid_pos: Vec2f, map: &Map) -> Vec2f {
+    pub fn map_grid_to_local(screen_size: Vec2<f32>, grid_pos: Vec2<f32>, map: &Map) -> Vec2<f32> {
         let grid_space_pos = grid_pos * map.grid_size;
-        grid_space_pos + vec2f(map.offset.x, -map.offset.y) + screen_size / 2.0
+        grid_space_pos + Vec2::new(map.offset.x, -map.offset.y) + screen_size / 2.0
     }
 
     /// Centers the map at the given grid position.
-    pub fn center_map_at_grid_pos(&mut self, _screen_size: Vec2f, grid_pos: Vec2f, map: &mut Map) {
+    pub fn center_map_at_grid_pos(
+        &mut self,
+        _screen_size: Vec2<f32>,
+        grid_pos: Vec2<f32>,
+        map: &mut Map,
+    ) {
         let pixel_pos = grid_pos * map.grid_size;
         map.offset.x = -(pixel_pos.x);
         map.offset.y = pixel_pos.y;
@@ -239,8 +259,8 @@ impl ServerContext {
     /// Returns the geometry at the given screen_position
     pub fn geometry_at(
         &self,
-        screen_size: Vec2f,
-        screen_pos: Vec2f,
+        screen_size: Vec2<f32>,
+        screen_pos: Vec2<f32>,
         map: &Map,
     ) -> (Option<u32>, Option<u32>, Option<u32>) {
         let mut selection: (Option<u32>, Option<u32>, Option<u32>) = (None, None, None);
@@ -248,8 +268,8 @@ impl ServerContext {
 
         // Check the vertices
         for vertex in &map.vertices {
-            let vertex_pos = Self::map_grid_to_local(screen_size, vertex.as_vec2f(), map);
-            if length(screen_pos - vertex_pos) <= hover_threshold {
+            let vertex_pos = Self::map_grid_to_local(screen_size, vertex.as_vec2(), map);
+            if (screen_pos - vertex_pos).magnitude() <= hover_threshold {
                 selection.0 = Some(vertex.id);
                 //break;
                 return selection;
@@ -264,16 +284,16 @@ impl ServerContext {
             if let Some(start_vertex) = start_vertex {
                 if let Some(end_vertex) = end_vertex {
                     let start_pos =
-                        Self::map_grid_to_local(screen_size, start_vertex.as_vec2f(), map);
-                    let end_pos = Self::map_grid_to_local(screen_size, end_vertex.as_vec2f(), map);
+                        Self::map_grid_to_local(screen_size, start_vertex.as_vec2(), map);
+                    let end_pos = Self::map_grid_to_local(screen_size, end_vertex.as_vec2(), map);
 
                     // Compute the perpendicular distance from the point to the line
                     let line_vec = end_pos - start_pos;
                     let mouse_vec = screen_pos - start_pos;
-                    let line_vec_length = length(line_vec);
-                    let projection = dot(mouse_vec, line_vec) / (line_vec_length * line_vec_length);
+                    let line_vec_length = line_vec.magnitude();
+                    let projection = mouse_vec.dot(line_vec) / (line_vec_length * line_vec_length);
                     let closest_point = start_pos + projection.clamp(0.0, 1.0) * line_vec;
-                    let distance = length(screen_pos - closest_point);
+                    let distance = (screen_pos - closest_point).magnitude();
 
                     if distance <= hover_threshold {
                         selection.1 = Some(linedef.id);
@@ -287,7 +307,7 @@ impl ServerContext {
         // Check the sectors
 
         /// Point-in-polygon test using the ray-casting method
-        fn point_in_polygon(point: Vec2f, polygon: &[Vec2f]) -> bool {
+        fn point_in_polygon(point: Vec2<f32>, polygon: &[Vec2<f32>]) -> bool {
             let mut inside = false;
             let mut j = polygon.len() - 1;
 
@@ -312,7 +332,7 @@ impl ServerContext {
                 if let Some(linedef) = map.linedefs.get(linedef_id as usize) {
                     if let Some(start_vertex) = map.vertices.get(linedef.start_vertex as usize) {
                         let vertex =
-                            Self::map_grid_to_local(screen_size, start_vertex.as_vec2f(), map);
+                            Self::map_grid_to_local(screen_size, start_vertex.as_vec2(), map);
 
                         // Add the vertex to the list if it isn't already there
                         if vertices.last() != Some(&vertex) {
@@ -335,14 +355,18 @@ impl ServerContext {
     /// Returns all geometry within the given rectangle.
     pub fn geometry_in_rectangle(
         &self,
-        top_left: Vec2f,
-        bottom_right: Vec2f,
+        top_left: Vec2<f32>,
+        bottom_right: Vec2<f32>,
         map: &Map,
     ) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
         let mut selection: (Vec<u32>, Vec<u32>, Vec<u32>) = (Vec::new(), Vec::new(), Vec::new());
 
         // Define helper to check if a point is within the rectangle
-        fn point_in_rectangle(point: Vec2f, top_left: Vec2f, bottom_right: Vec2f) -> bool {
+        fn point_in_rectangle(
+            point: Vec2<f32>,
+            top_left: Vec2<f32>,
+            bottom_right: Vec2<f32>,
+        ) -> bool {
             point.x >= top_left.x
                 && point.x <= bottom_right.x
                 && point.y >= top_left.y
@@ -351,10 +375,10 @@ impl ServerContext {
 
         /// Check if a line segment intersects a rectangle
         fn line_intersects_rectangle(
-            a: Vec2f,
-            b: Vec2f,
-            top_left: Vec2f,
-            bottom_right: Vec2f,
+            a: Vec2<f32>,
+            b: Vec2<f32>,
+            top_left: Vec2<f32>,
+            bottom_right: Vec2<f32>,
         ) -> bool {
             // fn between(x: f32, min: f32, max: f32) -> bool {
             //     x >= min && x <= max
@@ -381,10 +405,10 @@ impl ServerContext {
 
             // Check edge intersections
             let rect_edges = [
-                (top_left, Vec2f::new(bottom_right.x, top_left.y)), // Top
-                (Vec2f::new(bottom_right.x, top_left.y), bottom_right), // Right
-                (bottom_right, Vec2f::new(top_left.x, bottom_right.y)), // Bottom
-                (Vec2f::new(top_left.x, bottom_right.y), top_left), // Left
+                (top_left, Vec2::new(bottom_right.x, top_left.y)), // Top
+                (Vec2::new(bottom_right.x, top_left.y), bottom_right), // Right
+                (bottom_right, Vec2::new(top_left.x, bottom_right.y)), // Bottom
+                (Vec2::new(top_left.x, bottom_right.y), top_left), // Left
             ];
 
             rect_edges
@@ -393,8 +417,13 @@ impl ServerContext {
         }
 
         /// Check if two line segments intersect
-        fn line_segments_intersect(p1: Vec2f, p2: Vec2f, q1: Vec2f, q2: Vec2f) -> bool {
-            fn ccw(a: Vec2f, b: Vec2f, c: Vec2f) -> bool {
+        fn line_segments_intersect(
+            p1: Vec2<f32>,
+            p2: Vec2<f32>,
+            q1: Vec2<f32>,
+            q2: Vec2<f32>,
+        ) -> bool {
+            fn ccw(a: Vec2<f32>, b: Vec2<f32>, c: Vec2<f32>) -> bool {
                 (c.y - a.y) * (b.x - a.x) > (b.y - a.y) * (c.x - a.x)
             }
 
@@ -403,7 +432,7 @@ impl ServerContext {
 
         // Check vertices
         for vertex in &map.vertices {
-            let vertex_pos = vertex.as_vec2f();
+            let vertex_pos = vertex.as_vec2();
             if point_in_rectangle(vertex_pos, top_left, bottom_right) {
                 selection.0.push(vertex.id);
             }
@@ -415,8 +444,8 @@ impl ServerContext {
             let end_vertex = map.find_vertex(linedef.end_vertex);
 
             if let (Some(start_vertex), Some(end_vertex)) = (start_vertex, end_vertex) {
-                let start_pos = start_vertex.as_vec2f();
-                let end_pos = end_vertex.as_vec2f();
+                let start_pos = start_vertex.as_vec2();
+                let end_pos = end_vertex.as_vec2();
 
                 // Check if either endpoint is inside the rectangle
                 if point_in_rectangle(start_pos, top_left, bottom_right)
@@ -452,7 +481,7 @@ impl ServerContext {
             for &linedef_id in &sector.linedefs {
                 if let Some(linedef) = map.linedefs.get(linedef_id as usize) {
                     if let Some(start_vertex) = map.vertices.get(linedef.start_vertex as usize) {
-                        let vertex = start_vertex.as_vec2f();
+                        let vertex = start_vertex.as_vec2();
 
                         // Add the vertex to the list if it isn't already there
                         if vertices.last() != Some(&vertex) {

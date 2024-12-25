@@ -1,5 +1,3 @@
-use theframework::prelude::*;
-
 #[inline(always)]
 pub fn sdf_box2d(p: Vec2f, pos: Vec2f, dim1: f32, dim2: f32) -> f32 {
     let d = abs(p - pos) - vec2f(dim1, dim2);

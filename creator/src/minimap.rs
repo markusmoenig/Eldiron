@@ -34,7 +34,7 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer) {
 
         region.map.selected_linedefs.clear();
         region.map.selected_sectors.clear();
-        region.map.grid_size = min(scale_x, scale_y);
+        region.map.grid_size = scale_x.min(scale_y);
         region.map.camera = MapCamera::TwoD;
 
         // Compute the center of the bounding box

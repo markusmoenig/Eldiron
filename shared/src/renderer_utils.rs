@@ -1,4 +1,3 @@
-use crate::prelude::*;
 use theframework::prelude::*;
 
 /// Gets the current time in milliseconds
@@ -19,10 +18,10 @@ pub fn get_time() -> u128 {
     time
 }
 
-pub fn ray_sphere(ray: Ray, center: Vec3f, radius: f32) -> Option<f32> {
+pub fn ray_sphere(ray: crate::Ray, center: Vec3<f32>, radius: f32) -> Option<f32> {
     let l = center - ray.o;
-    let tca = dot(l, ray.d);
-    let d2 = dot(l, l) - tca * tca;
+    let tca = l.dot(ray.d);
+    let d2 = l.dot(l) - tca * tca;
     let radius2 = radius * radius;
     if d2 > radius2 {
         return None;

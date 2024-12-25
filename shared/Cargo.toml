@@ -5,21 +5,20 @@ edition = "2021"
 
 [dependencies]
 # theframework = { path = "../../TheFramework", features = ["ui", "code"] }
-# theframework = { path = "../../TheFramework", features = [
-#     "ui",
-#     "code",
-#     "winit_app",
-# ], default-features = false }
-theframework = { git = "https://github.com/markusmoenig/TheFramework", features = [
+theframework = { path = "../../TheFramework", features = [
     "ui",
     "code",
 ], default-features = true }
+# theframework = { git = "https://github.com/markusmoenig/TheFramework", features = [
+#     "ui",
+#     "code",
+# ], default-features = true }
 # theframework = { version = "0.1.20", features = [
 #     "ui",
 #     "code",
 # ], default-features = true }
 # forgedtiles = { path = "../../ForgedTiles/forgedtiles" }
-forgedtiles = { git = "https://github.com/markusmoenig/ForgedTiles" }
+#forgedtiles = { git = "https://github.com/markusmoenig/ForgedTiles" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 vectorize = "0.2.0"
@@ -34,10 +33,9 @@ regex = "1"
 num_cpus = "1.16.0"
 half = { version = "2.4", features = ["serde"] }
 # rusterix = "0.1.0"
-# rusterix = { path = "../../rusterix" }
-rusterix = { git = "https://github.com/markusmoenig/Rusterix" }
+rusterix = { path = "../../rusterix" }
+# rusterix = { git = "https://github.com/markusmoenig/Rusterix" }
 
 vek = { version = "0.17", default-features = false, features = ["rgba"] }
-euc = { git = "https://github.com/zesterer/euc" }
 earcutr = "0.4"
 rect_packer = "0.2.1"

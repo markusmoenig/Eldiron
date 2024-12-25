@@ -25,17 +25,17 @@ pub enum ToolEvent {
     Activate,
     DeActivate,
 
-    TileDown(Vec2i, Vec2f),
-    TileDrag(Vec2i, Vec2f),
+    TileDown(Vec2<i32>, Vec2<f32>),
+    TileDrag(Vec2<i32>, Vec2<f32>),
     TileUp,
 }
 
 #[derive(PartialEq, Clone, Debug, Copy)]
 pub enum MapEvent {
-    MapClicked(Vec2i),
-    MapDragged(Vec2i),
-    MapHover(Vec2i),
-    MapUp(Vec2i),
+    MapClicked(Vec2<i32>),
+    MapDragged(Vec2<i32>),
+    MapHover(Vec2<i32>),
+    MapUp(Vec2<i32>),
     MapDelete,
     MapEscape,
 }
@@ -108,8 +108,8 @@ pub trait Tool: Send {
         &self,
         material_offset: usize,
         buffer: &mut TheRGBBuffer,
-        p: Vec2f,
-        coord: Vec2f,
+        p: Vec2<f32>,
+        coord: Vec2<f32>,
         material_index: u8,
         brush: &dyn Brush,
         settings: &BrushSettings,

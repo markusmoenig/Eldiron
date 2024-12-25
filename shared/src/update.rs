@@ -12,10 +12,10 @@ pub struct RegionUpdate {
 
     #[serde(skip)]
     // The pixel position of the characters, their tile id, their character id and facing.
-    pub characters_pixel_pos: Vec<(Vec2f, Uuid, Uuid, Vec2f)>,
+    pub characters_pixel_pos: Vec<(Vec2<f32>, Uuid, Uuid, Vec2<f32>)>,
 
     pub server_tick: i64,
-    pub daylight: Vec3f,
+    pub daylight: Vec3<f32>,
 }
 
 impl Default for RegionUpdate {
@@ -32,7 +32,7 @@ impl RegionUpdate {
             characters: FxHashMap::default(),
             items: FxHashMap::default(),
             server_tick: 0,
-            daylight: Vec3f::one(),
+            daylight: Vec3::one(),
             characters_pixel_pos: vec![],
         }
     }
@@ -47,12 +47,12 @@ impl RegionUpdate {
         &mut self,
         _grid_size: f32,
         tiles: &FxHashMap<Uuid, TheRGBATile>,
-        _buffer_size: Vec2i,
+        _buffer_size: Vec2<i32>,
         _region_height: i32,
         draw_settings: &mut RegionDrawSettings,
     ) {
         // Position, tile id, character id, facing
-        let mut characters_pixel_pos: Vec<(Vec2f, Uuid, Uuid, Vec2f)> = vec![];
+        let mut characters_pixel_pos: Vec<(Vec2<f32>, Uuid, Uuid, Vec2<f32>)> = vec![];
 
         #[allow(clippy::for_kv_map)]
         for (_id, character) in &mut self.characters {
@@ -73,12 +73,12 @@ impl RegionUpdate {
                 let x = start.x * (1.0 - d) + end.x * d;
                 let y = start.y * (1.0 - d) + end.y * d;
                 character.move_delta = sum;
-                vec2f(
+                Vec2::new(
                     x, //(x * grid_size).round() as i32,
                     y, //(y * grid_size).round() as i32,
                 )
             } else {
-                vec2f(
+                Vec2::new(
                     character.position.x, //(character.position.x * grid_size) as i32,
                     character.position.y, //(character.position.y * grid_size) as i32,
                 )
@@ -101,7 +101,7 @@ impl RegionUpdate {
                 let x = start.x * (1.0 - d) + end.x * d;
                 let y = start.y * (1.0 - d) + end.y * d;
                 character.move_delta = sum;
-                vec2f(x, y)
+                Vec2::new(x, y)
             } else {
                 character.facing
             };
@@ -154,11 +154,11 @@ pub struct CharacterUpdate {
 
     pub name: String,
 
-    pub position: Vec2f,
-    pub moving: Option<(Vec2f, Vec2f)>,
+    pub position: Vec2<f32>,
+    pub moving: Option<(Vec2<f32>, Vec2<f32>)>,
 
-    pub facing: Vec2f,
-    pub facing_anim: Option<(Vec2f, Vec2f)>,
+    pub facing: Vec2<f32>,
+    pub facing_anim: Option<(Vec2<f32>, Vec2<f32>)>,
 
     #[serde(skip)]
     pub move_delta: f32,
@@ -178,10 +178,10 @@ impl CharacterUpdate {
 
             name: "".to_string(),
 
-            position: vec2f(0.0, 0.0),
+            position: Vec2::new(0.0, 0.0),
             moving: None,
 
-            facing: vec2f(0.0, -1.0),
+            facing: Vec2::new(0.0, -1.0),
             facing_anim: None,
 
             move_delta: 0.0,
@@ -196,7 +196,7 @@ pub struct ItemUpdate {
     pub tile_name: String,
 
     pub name: String,
-    pub position: Vec2f,
+    pub position: Vec2<f32>,
 }
 
 impl Default for ItemUpdate {
@@ -212,7 +212,7 @@ impl ItemUpdate {
             tile_name: "".to_string(),
 
             name: "".to_string(),
-            position: vec2f(0.0, 0.0),
+            position: Vec2::new(0.0, 0.0),
         }
     }
 }

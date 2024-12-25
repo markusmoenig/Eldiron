@@ -6,7 +6,7 @@ use theframework::prelude::*;
 pub struct Level {
     pub time: TheTime,
     pub blocking: TheFlattenedMap<bool>,
-    pub lights: FxHashMap<Vec2i, Light>,
+    pub lights: FxHashMap<Vec2<i32>, Light>,
 }
 
 impl Level {
@@ -42,7 +42,7 @@ impl Level {
 
     /// Adds a light to the level.
     #[inline(always)]
-    pub fn add_light(&mut self, position: Vec2i, light: TheCollection) {
+    pub fn add_light(&mut self, position: Vec2<i32>, light: TheCollection) {
         let light = Light::from_collection(&light);
         self.lights.insert(position, light);
     }
@@ -55,7 +55,7 @@ pub struct Light {
     pub sampling_offset: f32,
     pub samples: usize,
     pub color_type: i32,
-    pub color: Vec3f,
+    pub color: Vec3<f32>,
     pub limiter: i32,
 }
 
@@ -66,7 +66,7 @@ impl Light {
         let sampling_offset = light_coll.get_f32_default("Sample Offset", 0.5);
         let samples = light_coll.get_i32_default("Samples #", 5) as usize;
         let color_type = light_coll.get_i32_default("Light Color", 0);
-        let color = light_coll.get_float3_default("Color", vec3f(1.0, 1.0, 1.0));
+        let color = light_coll.get_float3_default("Color", Vec3::new(1.0, 1.0, 1.0));
         let limiter = light_coll.get_i32_default("Limit Direction", 0);
 
         Light {

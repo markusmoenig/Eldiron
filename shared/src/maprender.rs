@@ -1,6 +1,4 @@
 use crate::prelude::*;
-use crate::texture::RgbaTexture;
-use euc::*;
 use rect_packer::*;
 use rusterix::prelude::*;
 use theframework::prelude::*;
@@ -10,11 +8,9 @@ pub struct MapRender {
     tiles: FxHashMap<Uuid, rusterix::Tile>,
     atlas: rusterix::Texture,
 
-    material_sampler: Vec<Tiled<Nearest<RgbaTexture>>>,
-
     pub materials: IndexMap<Uuid, MaterialFXObject>,
-    pub position: Vec3f,
-    pub hover_pos: Option<Vec3i>,
+    pub position: Vec3<f32>,
+    pub hover_pos: Option<Vec3<f32>>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -25,15 +21,14 @@ impl MapRender {
             tiles: FxHashMap::default(),
             atlas: rusterix::Texture::default(),
 
-            material_sampler: vec![],
-
             materials: IndexMap::default(),
-            position: Vec3f::zero(),
+            position: Vec3::zero(),
             hover_pos: None,
         }
     }
 
-    pub fn set_materials(&mut self, project: &Project) {
+    pub fn set_materials(&mut self, _project: &Project) {
+        /*
         self.material_sampler.clear();
 
         for (_, material) in &project.materials {
@@ -45,7 +40,7 @@ impl MapRender {
                 b.dim().height as usize,
             );
             self.material_sampler.push(texture.nearest().tiled());
-        }
+        }*/
     }
 
     pub fn set_region(&mut self, _region: &Region) {}
@@ -122,7 +117,7 @@ impl MapRender {
         self.textures = textures;
     }
 
-    pub fn set_position(&mut self, position: Vec3f) {
+    pub fn set_position(&mut self, position: Vec3<f32>) {
         self.position = position;
     }
 
@@ -150,7 +145,7 @@ impl MapRender {
             update.generate_character_pixel_positions(
                 grid_size,
                 &self.textures,
-                vec2i(width as i32, height as i32),
+                Vec2::new(width as i32, height as i32),
                 region_height,
                 settings,
             );
@@ -163,11 +158,11 @@ impl MapRender {
         region.fill_code_level(&mut level, &self.textures, update, region);
 
         // Collect the material params
-        let mut material_params: FxHashMap<Uuid, Vec<Vec<f32>>> = FxHashMap::default();
-        for (id, material) in &self.materials {
-            let params = material.load_parameters(&settings.time);
-            material_params.insert(*id, params);
-        }
+        // let mut material_params: FxHashMap<Uuid, Vec<Vec<f32>>> = FxHashMap::default();
+        // for (id, material) in &self.materials {
+        //     let params = material.load_parameters(&settings.time);
+        //     material_params.insert(*id, params);
+        // }
 
         // Collect the render settings params
         // let render_settings_params: Vec<Vec<f32>> = region.regionfx.load_parameters(&settings.time);
@@ -214,6 +209,13 @@ impl MapRender {
                     builder.set_map_hover_info(server_ctx.hover, None);
                 }
 
+                if let Some(camera_pos) = region.map.camera_xz {
+                    builder.set_camera_info(
+                        Some(vek::Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
+                        vek::Vec3::zero(),
+                    );
+                }
+
                 let mut scene = builder.build(
                     &region.map,
                     &self.tiles,
@@ -228,6 +230,7 @@ impl MapRender {
                     height,
                     100,
                     None,
+                    vek::Mat4::identity(),
                     vek::Mat4::identity(),
                 );
 
@@ -599,6 +602,52 @@ impl MapRender {
                 //    drawer.blend_into(buffer);
             } else {
                 // Render in 3D
+
+                let builder = D3Builder::new();
+                let mut scene = builder.build(
+                    &region.map,
+                    &self.tiles,
+                    self.atlas.clone(),
+                    vek::Vec2::new(width as f32, height as f32),
+                );
+
+                let view_matrix; // = vek::Mat4::identity();
+                let projection_matrix; // = vek::Mat4::identity();
+
+                let p = vek::Vec3::new(
+                    region.editing_position_3d.x,
+                    region.editing_position_3d.y,
+                    region.editing_position_3d.z,
+                );
+
+                if region.map.camera == MapCamera::ThreeDIso {
+                    let mut camera = D3IsoCamera::new();
+
+                    camera.set_parameter_vec3("center", p);
+                    camera.set_parameter_vec3("position", p + vek::Vec3::new(-10.0, 10.0, 10.0));
+                    view_matrix = camera.view_matrix();
+                    projection_matrix =
+                        camera.projection_matrix(0.0, width as f32, height as f32, 0.1, 100.0);
+                } else {
+                    let mut camera = D3FirstPCamera::new();
+
+                    camera.set_parameter_vec3("position", vek::Vec3::new(p.x, 1.0, p.z));
+                    camera.set_parameter_vec3("center", vek::Vec3::new(p.x, 1.0, p.z - 1.0));
+                    view_matrix = camera.view_matrix();
+                    projection_matrix =
+                        camera.projection_matrix(75.0, width as f32, height as f32, 0.1, 100.0);
+                }
+
+                Rasterizer {}.rasterize(
+                    &mut scene,
+                    buffer.pixels_mut(),
+                    width,
+                    height,
+                    100,
+                    None,
+                    view_matrix,
+                    projection_matrix,
+                );
                 //if region.map.camera == MapCamera::ThreeDIso {}
 
                 /*

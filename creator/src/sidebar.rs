@@ -133,7 +133,7 @@ impl Sidebar {
         vlayout.add_widget(Box::new(node_sectionbar_button));
         vlayout.add_widget(Box::new(debug_sectionbar_button));
         vlayout.add_widget(Box::new(palette_sectionbar_button));
-        vlayout.set_margin(vec4i(5, 10, 5, 5));
+        vlayout.set_margin(Vec4::new(5, 10, 5, 5));
         vlayout.set_padding(4);
         vlayout.set_background_color(Some(SectionbarBackground));
         vlayout.limiter_mut().set_max_width(90);
@@ -161,7 +161,7 @@ impl Sidebar {
         let mut list_layout = TheListLayout::new(TheId::named("Region List"));
         list_layout
             .limiter_mut()
-            .set_max_size(vec2i(self.width, 200));
+            .set_max_size(Vec2::new(self.width, 200));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -176,7 +176,7 @@ impl Sidebar {
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
         toolbar_hlayout.add_widget(Box::new(region_add_button));
         toolbar_hlayout.add_widget(Box::new(region_remove_button));
         //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
@@ -193,20 +193,20 @@ impl Sidebar {
         let mut list_layout = TheListLayout::new(TheId::named("Region Content List"));
         list_layout
             .limiter_mut()
-            .set_max_size(vec2i(self.width, 250));
+            .set_max_size(Vec2::new(self.width, 250));
         let mut content_canvas = TheCanvas::default();
         content_canvas.set_layout(list_layout);
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
         let mut filter_text = TheText::new(TheId::empty());
         filter_text.set_text("Filter".to_string());
 
         toolbar_hlayout.add_widget(Box::new(filter_text));
         let mut filter_edit = TheTextLineEdit::new(TheId::named("Region Content Filter Edit"));
         filter_edit.set_text("".to_string());
-        filter_edit.limiter_mut().set_max_size(vec2i(85, 18));
+        filter_edit.limiter_mut().set_max_size(Vec2::new(85, 18));
         filter_edit.set_font_size(12.5);
         filter_edit.set_embedded(true);
         filter_edit.set_status_text("Show content containing the given text.");
@@ -234,7 +234,7 @@ impl Sidebar {
         let mut text_layout: TheTextLayout = TheTextLayout::new(TheId::empty());
         text_layout
             .limiter_mut()
-            .set_max_size(vec2i(self.width, 250));
+            .set_max_size(Vec2::new(self.width, 250));
 
         let mut grid_edit = TheTextLineEdit::new(TheId::named("Region Grid Edit"));
         grid_edit.set_range(TheValue::RangeI32(1..=1000));
@@ -296,7 +296,9 @@ impl Sidebar {
         let mut minimap_canvas = TheCanvas::default();
         let mut minimap = TheRenderView::new(TheId::named("MiniMap"));
 
-        minimap.limiter_mut().set_max_size(vec2i(self.width, 200));
+        minimap
+            .limiter_mut()
+            .set_max_size(Vec2::new(self.width, 200));
         minimap_canvas.set_widget(minimap);
 
         regions_canvas.set_bottom(minimap_canvas);
@@ -308,7 +310,7 @@ impl Sidebar {
         let mut list_layout = TheListLayout::new(TheId::named("Character List"));
         list_layout
             .limiter_mut()
-            .set_max_size(vec2i(self.width, 400));
+            .set_max_size(Vec2::new(self.width, 400));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -321,7 +323,7 @@ impl Sidebar {
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
         toolbar_hlayout.add_widget(Box::new(regions_add_button));
         toolbar_hlayout.add_widget(Box::new(regions_remove_button));
         //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
@@ -349,7 +351,7 @@ impl Sidebar {
         let mut list_layout = TheListLayout::new(TheId::named("Item List"));
         list_layout
             .limiter_mut()
-            .set_max_size(vec2i(self.width, 400));
+            .set_max_size(Vec2::new(self.width, 400));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -362,7 +364,7 @@ impl Sidebar {
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
         toolbar_hlayout.add_widget(Box::new(item_add_button));
         toolbar_hlayout.add_widget(Box::new(item_remove_button));
         //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
@@ -382,7 +384,7 @@ impl Sidebar {
         let mut list_layout = TheListLayout::new(TheId::named("Tilemap List"));
         list_layout
             .limiter_mut()
-            .set_max_size(vec2i(self.width, 200));
+            .set_max_size(Vec2::new(self.width, 200));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -411,7 +413,7 @@ impl Sidebar {
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
         toolbar_hlayout.add_widget(Box::new(regions_add_button));
         toolbar_hlayout.add_widget(Box::new(regions_remove_button));
         toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
@@ -436,12 +438,12 @@ impl Sidebar {
         let mut filter_text = TheText::new(TheId::empty());
         filter_text.set_text("Filter".to_string());
 
-        tiles_list_header_canvas_hlayout.set_margin(vec4i(10, 1, 5, 1));
+        tiles_list_header_canvas_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
         tiles_list_header_canvas_hlayout.set_padding(3);
         tiles_list_header_canvas_hlayout.add_widget(Box::new(filter_text));
         let mut filter_edit = TheTextLineEdit::new(TheId::named("Tilemap Filter Edit"));
         filter_edit.set_text("".to_string());
-        filter_edit.limiter_mut().set_max_size(vec2i(75, 18));
+        filter_edit.limiter_mut().set_max_size(Vec2::new(75, 18));
         filter_edit.set_font_size(12.5);
         filter_edit.set_embedded(true);
         filter_edit.set_status_text("Show tiles containing the given text.");
@@ -480,7 +482,7 @@ impl Sidebar {
         let mut list_layout = TheListLayout::new(TheId::named("Module List"));
         list_layout
             .limiter_mut()
-            .set_max_size(vec2i(self.width, 400));
+            .set_max_size(Vec2::new(self.width, 400));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -493,7 +495,7 @@ impl Sidebar {
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
         toolbar_hlayout.add_widget(Box::new(module_add_button));
         toolbar_hlayout.add_widget(Box::new(module_remove_button));
         //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
@@ -513,7 +515,7 @@ impl Sidebar {
         let mut list_layout = TheListLayout::new(TheId::named("Screen List"));
         list_layout
             .limiter_mut()
-            .set_max_size(vec2i(self.width, 200));
+            .set_max_size(Vec2::new(self.width, 200));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -528,7 +530,7 @@ impl Sidebar {
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
         toolbar_hlayout.add_widget(Box::new(screen_add_button));
         toolbar_hlayout.add_widget(Box::new(screen_remove_button));
         //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
@@ -546,20 +548,20 @@ impl Sidebar {
         let mut list_layout = TheListLayout::new(TheId::named("Screen Content List"));
         list_layout
             .limiter_mut()
-            .set_max_size(vec2i(self.width, 250));
+            .set_max_size(Vec2::new(self.width, 250));
         let mut content_canvas = TheCanvas::default();
         content_canvas.set_layout(list_layout);
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
         let mut filter_text = TheText::new(TheId::empty());
         filter_text.set_text("Filter".to_string());
 
         toolbar_hlayout.add_widget(Box::new(filter_text));
         let mut filter_edit = TheTextLineEdit::new(TheId::named("Screen Content Filter Edit"));
         filter_edit.set_text("".to_string());
-        filter_edit.limiter_mut().set_max_size(vec2i(85, 18));
+        filter_edit.limiter_mut().set_max_size(Vec2::new(85, 18));
         filter_edit.set_font_size(12.5);
         filter_edit.set_embedded(true);
         filter_edit.set_status_text("Show content containing the given text.");
@@ -592,7 +594,7 @@ impl Sidebar {
 
         let mut widget_bottom_toolbar_hlayout = TheHLayout::new(TheId::empty());
         widget_bottom_toolbar_hlayout.set_background_color(None);
-        widget_bottom_toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        widget_bottom_toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
         widget_bottom_toolbar_hlayout.add_widget(Box::new(widget_add_button));
         widget_bottom_toolbar_hlayout.add_widget(Box::new(widget_remove_button));
         widget_bottom_toolbar_hlayout.add_widget(Box::new(move_up_button));
@@ -619,7 +621,7 @@ impl Sidebar {
         let mut text_layout: TheTextLayout = TheTextLayout::new(TheId::empty());
         text_layout
             .limiter_mut()
-            .set_max_size(vec2i(self.width, 250));
+            .set_max_size(Vec2::new(self.width, 250));
         let mut drop_down = TheDropdownMenu::new(TheId::named("Screen Aspect Ratio Dropdown"));
         for aspect in ScreenAspectRatio::iterator() {
             drop_down.add_option(aspect.to_string().to_string());
@@ -664,7 +666,7 @@ impl Sidebar {
         let mut list_layout = TheListLayout::new(TheId::named("Asset List"));
         list_layout
             .limiter_mut()
-            .set_max_size(vec2i(self.width, 300));
+            .set_max_size(Vec2::new(self.width, 300));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -687,7 +689,7 @@ impl Sidebar {
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
         toolbar_hlayout.add_widget(Box::new(screen_add_button));
         toolbar_hlayout.add_widget(Box::new(screen_remove_button));
         //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
@@ -732,7 +734,7 @@ impl Sidebar {
         let mut filter_text = TheText::new(TheId::empty());
         filter_text.set_text("Filter".to_string());
 
-        model_list_header_canvas_hlayout.set_margin(vec4i(10, 1, 5, 1));
+        model_list_header_canvas_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
         model_list_header_canvas_hlayout.set_padding(3);
         model_list_header_canvas_hlayout.add_widget(Box::new(model_add_button));
         model_list_header_canvas_hlayout.add_widget(Box::new(model_remove_button));
@@ -740,7 +742,7 @@ impl Sidebar {
         model_list_header_canvas_hlayout.add_widget(Box::new(filter_text));
         let mut filter_edit = TheTextLineEdit::new(TheId::named("Model Filter Edit"));
         filter_edit.set_text("".to_string());
-        filter_edit.limiter_mut().set_max_size(vec2i(120, 18));
+        filter_edit.limiter_mut().set_max_size(Vec2::new(120, 18));
         filter_edit.set_font_size(12.5);
         filter_edit.set_embedded(true);
         filter_edit.set_status_text("Show models containing the given text.");
@@ -843,7 +845,7 @@ impl Sidebar {
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
 
         let mut hex_edit = TheTextLineEdit::new(TheId::named("Palette Hex Edit"));
         hex_edit.limiter_mut().set_max_width(100);
@@ -870,14 +872,14 @@ impl Sidebar {
         picker_canvas.set_top(toolbar_canvas);
         picker_layout
             .limiter_mut()
-            .set_max_size(vec2i(self.width, 240));
+            .set_max_size(Vec2::new(self.width, 240));
         //toolbar_hlayout.add_widget(Box::new(screen_add_button));
         //toolbar_hlayout.add_widget(Box::new(screen_remove_button));
 
         let w = TheColorPicker::new(TheId::named("Palette Color Picker"));
         //w.set_value(TheValue::ColorObject(color.clone(), 0.0));
         picker_layout.set_background_color(Some(ListLayoutBackground));
-        picker_layout.set_margin(vec4i(20, 10, 20, 10));
+        picker_layout.set_margin(Vec4::new(20, 10, 20, 10));
         picker_layout.add_widget(Box::new(w));
         picker_canvas.set_layout(picker_layout);
 
@@ -936,7 +938,7 @@ impl Sidebar {
                                 let scale_x = width / bbox.z;
                                 let scale_y = height / bbox.w;
 
-                                let grid_size = min(scale_x, scale_y);
+                                let grid_size = scale_x.min(scale_y);
 
                                 let bbox_center_x = bbox.x + bbox.z / 2.0;
                                 let bbox_center_y = bbox.y + bbox.w / 2.0;
@@ -948,11 +950,11 @@ impl Sidebar {
                                 let grid_y = (coord.y as f32 - height / 2.0 + offset_y) / grid_size;
 
                                 server_ctx.center_map_at_grid_pos(
-                                    vec2f(width, height),
-                                    vec2f(grid_x, grid_y),
+                                    Vec2::new(width, height),
+                                    Vec2::new(grid_x, grid_y),
                                     &mut region.map,
                                 );
-                                region.editing_position_3d = vec3f(grid_x, 0.0, grid_y);
+                                region.editing_position_3d = Vec3::new(grid_x, 0.0, grid_y);
                                 server.set_editing_position_3d(region.editing_position_3d);
                                 server.update_region(region);
 
@@ -3133,7 +3135,7 @@ impl Sidebar {
                         rgba_view.set_grid(None);
                         ctx.ui.relayout = true;
                     }
-                    rgba_layout.scroll_to(vec2i(0, 0));
+                    rgba_layout.scroll_to(Vec2::new(0, 0));
                 }
             }
         }
@@ -3302,7 +3304,7 @@ impl Sidebar {
                         rgba_view.set_grid(None);
                         ctx.ui.relayout = true;
                     }
-                    rgba_layout.scroll_to(vec2i(0, 0));
+                    rgba_layout.scroll_to(Vec2::new(0, 0));
                 }
             }
         }

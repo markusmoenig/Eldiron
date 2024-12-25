@@ -26,14 +26,14 @@ impl MaterialEditor {
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::named("Material Tool Params"));
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(10, 4, 5, 4));
+        toolbar_hlayout.set_margin(Vec4::new(10, 4, 5, 4));
 
         for i in 0..20 {
             let mut icon = TheIconView::new(TheId::named(&format!("Material Icon #{}", i)));
             // ground_icon.set_text(Some("FLOOR".to_string()));
             // ground_icon.set_text_size(10.0);
             // ground_icon.set_text_color([200, 200, 200, 255]);
-            icon.limiter_mut().set_max_size(vec2i(20, 20));
+            icon.limiter_mut().set_max_size(Vec2::new(20, 20));
             icon.set_border_color(Some(BLACK));
 
             toolbar_hlayout.add_widget(Box::new(icon));

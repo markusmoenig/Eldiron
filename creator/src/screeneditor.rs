@@ -66,7 +66,7 @@ impl ScreenEditor {
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(10, 4, 5, 4));
+        toolbar_hlayout.set_margin(Vec4::new(10, 4, 5, 4));
         //toolbar_hlayout.add_widget(Box::new(gb));
         toolbar_hlayout.add_widget(Box::new(max_text));
         //toolbar_hlayout.add_widget(Box::new(zoom));
@@ -97,7 +97,7 @@ impl ScreenEditor {
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(10, 4, 10, 4));
+        toolbar_hlayout.set_margin(Vec4::new(10, 4, 10, 4));
 
         toolbar_hlayout.add_widget(Box::new(layer_gb));
         toolbar_hlayout.add_widget(Box::new(drop_down));
@@ -111,7 +111,7 @@ impl ScreenEditor {
         let mut details_canvas = TheCanvas::new();
 
         let mut vlayout = TheVLayout::new(TheId::named("Widget Details Layout"));
-        vlayout.set_margin(vec4i(10, 10, 5, 10));
+        vlayout.set_margin(Vec4::new(10, 10, 5, 10));
         vlayout.set_alignment(TheHorizontalAlign::Left);
         vlayout.limiter_mut().set_max_width(90);
         vlayout.set_background_color(Some(TheThemeColors::ListLayoutBackground));

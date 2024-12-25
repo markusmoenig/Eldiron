@@ -8,7 +8,7 @@ pub mod functions;
 
 lazy_static! {
     pub static ref REGIONS: RwLock<FxHashMap<Uuid, Region>> = RwLock::new(FxHashMap::default());
-    pub static ref RNG: Mutex<rand::rngs::StdRng> = Mutex::new(rand::rngs::StdRng::from_entropy());
+    //pub static ref RNG: Mutex<rand::rngs::StdRng> = Mutex::new(rand::rngs::StdRng::from_entropy());
     pub static ref TILEDRAWER: RwLock<TileDrawer> = RwLock::new(TileDrawer::new());
     pub static ref PALETTE: RwLock<ThePalette> = RwLock::new(ThePalette::default());
     //pub static ref RENDERER: RwLock<Renderer> = RwLock::new(Renderer::new());
@@ -459,7 +459,7 @@ impl Client {
     }
 
     /// Touch down event.
-    pub fn touch_down(&mut self, uuid: &Uuid, pos: Vec2i) {
+    pub fn touch_down(&mut self, uuid: &Uuid, pos: Vec2<i32>) {
         if self.clicked.is_some() {
             return;
         }

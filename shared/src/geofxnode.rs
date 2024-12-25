@@ -977,7 +977,7 @@ impl GeoFXNode {
                     let t = smoothstep(-0.04, 0.0, d);
 
                     let color = if material.is_some() {
-                        TheColor::from_vec3f(hit.mat.base_color).to_u8_array()
+                        TheColor::from_vec3(hit.mat.base_color).to_u8_array()
                     } else {
                         [209, 209, 209, 255]
                     };

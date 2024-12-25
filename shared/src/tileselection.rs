@@ -75,7 +75,7 @@ impl TileSelection {
     }
 
     /// Returns the bounding box dimensions of the tiles in the selection
-    pub fn tile_dimensions(&self) -> Option<(Vec2i, Vec2i, i32, i32)> {
+    pub fn tile_dimensions(&self) -> Option<(Vec2<i32>, Vec2<i32>, i32, i32)> {
         if self.tiles.is_empty() {
             None
         } else {
@@ -101,7 +101,12 @@ impl TileSelection {
 
             let width = max_x - min_x + 1; // inclusive range
             let height = max_y - min_y + 1; // inclusive range
-            Some((vec2i(min_x, min_y), vec2i(max_x, max_y), width, height))
+            Some((
+                Vec2::new(min_x, min_y),
+                Vec2::new(max_x, max_y),
+                width,
+                height,
+            ))
         }
     }
 

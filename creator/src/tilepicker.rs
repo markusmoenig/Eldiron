@@ -42,14 +42,14 @@ impl TilePicker {
         let mut filter_text = TheText::new(TheId::empty());
         filter_text.set_text("Filter".to_string());
 
-        toolbar_hlayout.set_margin(vec4i(10, 1, 5, 1));
+        toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
         toolbar_hlayout.set_padding(3);
         toolbar_hlayout.add_widget(Box::new(filter_text));
         let mut filter_edit = TheTextLineEdit::new(TheId::named(&self.make_id(" Filter Edit")));
         filter_edit.set_text("".to_string());
         filter_edit
             .limiter_mut()
-            .set_max_size(vec2i(if minimal { 75 } else { 120 }, 18));
+            .set_max_size(Vec2::new(if minimal { 75 } else { 120 }, 18));
         filter_edit.set_font_size(12.5);
         filter_edit.set_embedded(true);
         filter_edit.set_status_text("Show tiles containing the given text.");
@@ -109,7 +109,7 @@ impl TilePicker {
         let mut details_canvas = TheCanvas::new();
 
         let mut vlayout = TheVLayout::new(TheId::named(" Tile Details Layout"));
-        vlayout.set_margin(vec4i(5, 10, 5, 10));
+        vlayout.set_margin(Vec4::new(5, 10, 5, 10));
         vlayout.set_alignment(TheHorizontalAlign::Left);
         vlayout.limiter_mut().set_max_width(150);
 
@@ -196,7 +196,7 @@ impl TilePicker {
                 let lines = filtered_tiles.len() as i32 / tiles_per_row + 1;
 
                 let mut buffer =
-                    TheRGBABuffer::new(TheDim::sized(width, max(lines * grid, height)));
+                    TheRGBABuffer::new(TheDim::sized(width, (lines * grid).max(height)));
 
                 for (i, tile) in filtered_tiles.iter().enumerate() {
                     let x = i as i32 % tiles_per_row;

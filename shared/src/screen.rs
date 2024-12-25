@@ -11,7 +11,7 @@ pub struct Screen {
     pub width: i32,
     pub height: i32,
     pub grid_size: i32,
-    pub scroll_offset: Vec2i,
+    pub scroll_offset: Vec2<i32>,
     pub zoom: f32,
 
     /// The tiles which get drawn in the background, i.e. before widgets are drawn.
@@ -48,7 +48,7 @@ impl Screen {
             width: 1280,
             height: 720,
             grid_size: 16,
-            scroll_offset: Vec2i::zero(),
+            scroll_offset: Vec2::zero(),
             zoom: 1.0,
 
             tiles: FxHashMap::default(),
