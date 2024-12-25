@@ -865,7 +865,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
- "theframework 0.1.32 (git+https://github.com/markusmoenig/TheFramework)",
+ "theframework",
  "vectorize",
  "vek",
 ]
@@ -3999,7 +3999,7 @@ dependencies = [
  "rustpython",
  "serde",
  "serde_json",
- "theframework 0.1.32 (git+https://github.com/markusmoenig/TheFramework)",
+ "theframework",
  "uuid",
  "vek",
 ]
@@ -4655,7 +4655,7 @@ dependencies = [
  "rusterix",
  "serde",
  "serde_json",
- "theframework 0.1.32 (git+https://github.com/markusmoenig/TheFramework)",
+ "theframework",
  "vectorize",
  "vek",
 ]
@@ -4777,7 +4777,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
- "theframework 0.1.32",
+ "theframework",
  "vectorize",
 ]
 
@@ -5015,48 +5015,6 @@ name = "textwrap"
 version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
-
-[[package]]
-name = "theframework"
-version = "0.1.32"
-dependencies = [
- "aict",
- "arboard",
- "bytemuck",
- "console_error_panic_hook",
- "console_log",
- "env_logger 0.11.6",
- "flags",
- "flate2",
- "fontdue",
- "futures",
- "half 2.4.1",
- "indexmap 2.7.0",
- "itertools 0.13.0",
- "lazy_static",
- "log",
- "maths-rs",
- "png",
- "rand",
- "rayon",
- "rfd",
- "rust-embed",
- "rustc-hash 1.1.0",
- "serde",
- "serde_json",
- "syntect",
- "unicode-segmentation",
- "uuid",
- "vectorize",
- "vek",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "wgpu",
- "winit",
- "winit_input_helper",
- "zeno",
-]
 
 [[package]]
 name = "theframework"
