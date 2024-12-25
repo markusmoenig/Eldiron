@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use rusterix::prelude::*;
 use vek::Vec2;
 use MapEvent::*;
 use ToolEvent::*;
@@ -573,7 +574,7 @@ impl Tool for LinedefTool {
                         if let Some(code) = value.to_string() {
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 for linedef_id in &region.map.selected_linedefs.clone() {
-                                    let mut mapscript = rusterix::MapScript::new();
+                                    let mut mapscript = MapScript::new();
                                     let result = mapscript.transform(
                                         code.clone(),
                                         Some(region.map.clone()),

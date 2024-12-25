@@ -161,7 +161,7 @@ impl TheTrait for Solo {
                 self.curr_screen = screen_id;
             }
 
-            self.client.draw_screen(&screen_id, &mut ui.canvas.buffer);
+            //self.client.draw_screen(&screen_id, &mut ui.canvas.buffer);
         }
 
         if let Some(receiver) = &mut self.event_receiver {
