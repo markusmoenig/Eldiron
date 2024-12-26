@@ -5019,7 +5019,7 @@ checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
 [[package]]
 name = "theframework"
 version = "0.1.32"
-source = "git+https://github.com/markusmoenig/TheFramework#49e0a4b044403071cabc714dfa1d30fea5a58cf6"
+source = "git+https://github.com/markusmoenig/TheFramework#103131646a99cdc426bd48794f4ab8187a85a61c"
 dependencies = [
  "aict",
  "arboard",

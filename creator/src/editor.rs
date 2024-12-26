@@ -1487,72 +1487,80 @@ impl TheTrait for Editor {
                             self.server.stop();
                             update_server_icons = true;
                         } else if id.name == "Undo" || id.name == "Redo" {
-                            let mut manager = UNDOMANAGER.lock().unwrap();
+                            if ui.focus_widget_supports_undo_redo(ctx) {
+                                if id.name == "Undo" {
+                                    ui.undo(ctx);
+                                } else {
+                                    ui.redo(ctx);
+                                }
+                            } else {
+                                let mut manager = UNDOMANAGER.lock().unwrap();
 
-                            if manager.context == UndoManagerContext::Region {
-                                if id.name == "Undo" {
-                                    manager.undo(
-                                        self.server_ctx.curr_region,
-                                        &mut self.server_ctx,
-                                        &mut self.project,
-                                        ui,
-                                        ctx,
-                                    );
-                                } else {
-                                    manager.redo(
-                                        self.server_ctx.curr_region,
-                                        &mut self.server_ctx,
-                                        &mut self.project,
-                                        ui,
-                                        ctx,
-                                    );
+                                if manager.context == UndoManagerContext::Region {
+                                    if id.name == "Undo" {
+                                        manager.undo(
+                                            self.server_ctx.curr_region,
+                                            &mut self.server_ctx,
+                                            &mut self.project,
+                                            ui,
+                                            ctx,
+                                        );
+                                    } else {
+                                        manager.redo(
+                                            self.server_ctx.curr_region,
+                                            &mut self.server_ctx,
+                                            &mut self.project,
+                                            ui,
+                                            ctx,
+                                        );
+                                    }
+                                    if let Some(region) =
+                                        self.project.get_region(&self.server_ctx.curr_region)
+                                    {
+                                        self.server.update_region(region);
+                                    }
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Update Minimap"),
+                                        TheValue::Empty,
+                                    ));
+                                } else if manager.context == UndoManagerContext::MaterialFX {
+                                    if id.name == "Undo" {
+                                        manager.undo(
+                                            Uuid::nil(),
+                                            &mut self.server_ctx,
+                                            &mut self.project,
+                                            ui,
+                                            ctx,
+                                        );
+                                    } else {
+                                        manager.redo(
+                                            Uuid::nil(),
+                                            &mut self.server_ctx,
+                                            &mut self.project,
+                                            ui,
+                                            ctx,
+                                        );
+                                    }
+                                } else if manager.context == UndoManagerContext::Palette {
+                                    if id.name == "Undo" {
+                                        manager.undo(
+                                            Uuid::nil(),
+                                            &mut self.server_ctx,
+                                            &mut self.project,
+                                            ui,
+                                            ctx,
+                                        );
+                                    } else {
+                                        manager.redo(
+                                            Uuid::nil(),
+                                            &mut self.server_ctx,
+                                            &mut self.project,
+                                            ui,
+                                            ctx,
+                                        );
+                                    }
+                                    self.server.set_palette(&self.project.palette);
                                 }
-                                if let Some(region) =
-                                    self.project.get_region(&self.server_ctx.curr_region)
-                                {
-                                    self.server.update_region(region);
-                                }
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Update Minimap"),
-                                    TheValue::Empty,
-                                ));
-                            } else if manager.context == UndoManagerContext::MaterialFX {
-                                if id.name == "Undo" {
-                                    manager.undo(
-                                        Uuid::nil(),
-                                        &mut self.server_ctx,
-                                        &mut self.project,
-                                        ui,
-                                        ctx,
-                                    );
-                                } else {
-                                    manager.redo(
-                                        Uuid::nil(),
-                                        &mut self.server_ctx,
-                                        &mut self.project,
-                                        ui,
-                                        ctx,
-                                    );
-                                }
-                            } else if manager.context == UndoManagerContext::Palette {
-                                if id.name == "Undo" {
-                                    manager.undo(
-                                        Uuid::nil(),
-                                        &mut self.server_ctx,
-                                        &mut self.project,
-                                        ui,
-                                        ctx,
-                                    );
-                                } else {
-                                    manager.redo(
-                                        Uuid::nil(),
-                                        &mut self.server_ctx,
-                                        &mut self.project,
-                                        ui,
-                                        ctx,
-                                    );
-                                }
-                                self.server.set_palette(&self.project.palette);
                             }
                         } else if id.name == "Cut" {
                             if ui.focus_widget_supports_clipboard(ctx) {
