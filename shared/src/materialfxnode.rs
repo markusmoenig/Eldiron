@@ -295,7 +295,6 @@ impl MaterialFXNode {
         resolved: Vec<Hit>,
         params: &[f32],
     ) -> Option<u8> {
-        /*
         match self.role {
             Material => {
                 let mut used_texture = false;
@@ -333,14 +332,6 @@ impl MaterialFXNode {
 
                 hit.mat.roughness = params[1];
                 hit.mat.metallic = params[2];
-                hit.mat.anisotropic = params[3];
-                hit.mat.subsurface = params[4];
-                hit.mat.specular_tint = params[5];
-                hit.mat.sheen = params[6];
-                hit.mat.sheen_tint = params[7];
-                hit.mat.clearcoat = params[8];
-                hit.mat.clearcoat_roughness = params[9];
-                hit.mat.spec_trans = params[10];
                 hit.mat.ior = params[11];
 
                 Some(0)
@@ -430,6 +421,7 @@ impl MaterialFXNode {
                     Some(3)
                 }
             }
+            /*
             Distance => {
                 let collection = self.collection();
                 let from = collection.get_f32_default("From", 0.0);
@@ -439,11 +431,11 @@ impl MaterialFXNode {
                     return None;
                 }
 
-                fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
-                    let t = ((x - edge0) / (edge1 - edge0)).clamped(0.0, 1.0);
-                    t * t * (3.0 - 2.0 * t)
-                }
-                let value = smoothstep(from, to, -hit.interior_distance);
+                // fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
+                //     let t = ((x - edge0) / (edge1 - edge0)).clamped(0.0, 1.0);
+                //     t * t * (3.0 - 2.0 * t)
+                // }
+                // let value = smoothstep(from, to, -hit.interior_distance);
 
                 // if resolved.len() == 1 {
                 //     hit.mat.base_color =
@@ -453,14 +445,13 @@ impl MaterialFXNode {
                 // }
 
                 Some(0)
-            }
+            }*/
             Bump => {
                 hit.bump = hit.value * params[0];
                 None
             }
             _ => None,
-        }*/
-        None
+        }
     }
 
     /// Creates a new node from a name.
@@ -532,29 +523,29 @@ impl MaterialFXNode {
                     let xx = (i % width) as f32;
                     let yy = (i / width) as f32;
 
-                    let color = Vec4::zero();
+                    let mut color = Vec4::zero();
 
-                    // match &self.role {
-                    //     Noise2D => {
-                    //         let uv = Vec2::new(xx / width as f32, yy / height as f32);
+                    match &self.role {
+                        Noise2D => {
+                            let uv = Vec2::new(xx / width as f32, yy / height as f32);
 
-                    //         let scale = Vec2::new(
-                    //             collection.get_f32_default("UV Scale X", 1.0),
-                    //             collection.get_f32_default("UV Scale Y", 1.0),
-                    //         );
-                    //         let octaves = collection.get_i32_default("Octaves", 5);
+                            let scale = Vec2::new(
+                                collection.get_f32_default("UV Scale X", 1.0),
+                                collection.get_f32_default("UV Scale Y", 1.0),
+                            );
+                            let octaves = collection.get_i32_default("Octaves", 5);
 
-                    //         let value = 0.0; //noise2d(&uv, scale, octaves);
-                    //         color = Vec4::new(value, value, value, 1.0);
-                    //     }
-                    //     Noise3D => {
-                    //         let hit_point = Vec3::new(xx / width as f32, 0.0, yy / height as f32);
+                            let value = noise2d(&uv, scale, octaves);
+                            color = Vec4::new(value, value, value, 1.0);
+                        }
+                        Noise3D => {
+                            let hit_point = Vec3::new(xx / width as f32, 0.0, yy / height as f32);
 
-                    //         let value = 0.0; //noise3d(&collection, &hit_point);
-                    //         color = Vec4::new(value, value, value, 1.0);
-                    //     }
-                    //     _ => {}
-                    // }
+                            let value = noise3d(&collection, &hit_point);
+                            color = Vec4::new(value, value, value, 1.0);
+                        }
+                        _ => {}
+                    }
 
                     pixel.copy_from_slice(&TheColor::from_vec4f(color).to_u8_array());
                 }

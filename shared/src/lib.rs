@@ -16,7 +16,7 @@ pub mod level;
 pub mod maprender;
 pub mod materialfxnode;
 pub mod materialfxobject;
-// pub mod patterns;
+pub mod patterns;
 // pub mod prerendered;
 // pub mod prerenderthread;
 pub mod project;
@@ -60,7 +60,7 @@ pub mod prelude {
     pub use crate::maprender::*;
     pub use crate::materialfxnode::*;
     pub use crate::materialfxobject::*;
-    // pub use crate::patterns::*;
+    pub use crate::patterns::*;
     pub use rusterix::map::*;
     // pub use crate::prerendered::*;
     // pub use crate::prerenderthread::*;
@@ -129,6 +129,53 @@ pub enum HitFace {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub enum MaterialType {
+    Off,
+    PBR,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct Material {
+    pub base_color: Vec3<f32>,
+
+    pub roughness: f32,
+    pub metallic: f32,
+    pub ior: f32,
+
+    pub mat_type: MaterialType,
+}
+
+impl Default for Material {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Material {
+    pub fn new() -> Self {
+        Self {
+            base_color: Vec3::new(0.5, 0.5, 0.5),
+            roughness: 0.5,
+            metallic: 0.0,
+            ior: 1.45,
+
+            mat_type: MaterialType::Off,
+        }
+    }
+
+    /// Mixes two materials.
+    pub fn mix(&mut self, mat1: &Material, mat2: &Material, t: f32) {
+        self.base_color = mat1
+            .base_color
+            .map2(mat2.base_color, |a, b| a + t * (b - a));
+
+        self.metallic = f32::lerp(mat1.metallic, mat2.metallic, t);
+        self.roughness = f32::lerp(mat1.roughness, mat2.roughness, t);
+        self.ior = f32::lerp(mat1.ior, mat2.ior, t);
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Hit {
     pub is_valid: bool,
 
@@ -156,7 +203,7 @@ pub struct Hit {
 
     pub color: Vec4<f32>,
 
-    //pub mat: BSDFMaterial,
+    pub mat: Material,
     pub noise: Option<f32>,
     pub noise_scale: f32,
 
@@ -200,7 +247,7 @@ impl Hit {
 
             color: Vec4::zero(),
 
-            // mat: BSDFMaterial::default(),
+            mat: Material::default(),
             noise: None,
             noise_scale: 1.0,
 
