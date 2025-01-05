@@ -17,7 +17,7 @@ pub enum UndoManagerContext {
     Palette,
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct UndoManager {
     pub context: UndoManagerContext,
 

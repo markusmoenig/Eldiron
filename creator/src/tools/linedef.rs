@@ -55,7 +55,7 @@ impl Tool for LinedefTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut Server,
+        server: &mut shared::server::Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
@@ -248,7 +248,7 @@ impl Tool for LinedefTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        _server: &mut Server,
+        _server: &mut shared::server::Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
@@ -554,7 +554,7 @@ impl Tool for LinedefTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut Server,
+        _server: &mut shared::server::Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
@@ -574,8 +574,9 @@ impl Tool for LinedefTool {
                         if let Some(code) = value.to_string() {
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 for linedef_id in &region.map.selected_linedefs.clone() {
+                                    /*
                                     let mut mapscript = MapScript::new();
-                                    let result = mapscript.transform(
+                                    let result = mapscript.compile(
                                         code.clone(),
                                         Some(region.map.clone()),
                                         Some(*linedef_id),
@@ -591,7 +592,7 @@ impl Tool for LinedefTool {
                                                 ));
                                             }
                                         }
-                                    }
+                                    }*/
                                 }
                             }
                         }

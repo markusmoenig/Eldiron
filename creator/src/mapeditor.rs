@@ -219,44 +219,7 @@ impl MapEditor {
         match event {
             TheEvent::Custom(id, value) => {
                 if id.name == "Map Selection Changed" {
-                    // We handle only the tilepicker
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-                        let mut floor_icon_id: Option<Uuid> = None;
-                        //let mut wall_icon_id: Option<Uuid> = None;
-                        //let mut ceiling_icon_id: Option<Uuid> = None;
-
-                        //if server_ctx.curr_map_tool_type == MapToolType::Sector {
-                        if let Some(map) = project.get_map_mut(server_ctx) {
-                            // if let Some(rc) =
-                            //     server_ctx.get_texture_for_mode(server_ctx.curr_texture_mode, map)
-                            // {
-                            // }
-
-                            if map.selected_sectors.len() == 1 {
-                                if let Some(sector) = map.find_sector(map.selected_sectors[0]) {
-                                    if let Some(tile_id) = sector.floor_texture {
-                                        floor_icon_id = Some(tile_id);
-                                    }
-                                }
-                            }
-                        }
-                        //}
-
-                        if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
-                            if let Some(floor_icon_id) = floor_icon_id {
-                                if let Some(tile) =
-                                    TILEDRAWER.lock().unwrap().tiles.get(&floor_icon_id)
-                                {
-                                    icon_view.set_rgba_tile(tile.clone());
-                                }
-                            } else {
-                                let buffer = TheRGBABuffer::new(TheDim::sized(48, 48));
-                                if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
-                                    icon_view.set_rgba_tile(TheRGBATile::buffer(buffer));
-                                }
-                            }
-                        }
-                    }
+                    self.apply_map_settings(ui, ctx, project, server, server_ctx);
                 } else if id.name == "Cursor Pos Changed" {
                     if let Some(text) = ui.get_text("Cursor Position") {
                         if let Some(v) = value.to_vec2f() {
@@ -624,6 +587,89 @@ impl MapEditor {
                             server.update_region(region);
                         }
                     }
+                } else if id.name == "linedefWallHeight" {
+                    if let Some(value) = value.to_f32() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            for linedef_id in &region.map.selected_linedefs.clone() {
+                                let prev = region.map.clone();
+                                if let Some(linedef) = region.map.find_linedef_mut(*linedef_id) {
+                                    if linedef.wall_height != value {
+                                        linedef.wall_height = value;
+                                        let undo_atom = RegionUndoAtom::MapEdit(
+                                            Box::new(prev),
+                                            Box::new(region.map.clone()),
+                                        );
+                                        UNDOMANAGER.lock().unwrap().add_region_undo(
+                                            &server_ctx.curr_region,
+                                            undo_atom,
+                                            ctx,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if id.name == "linedefName" {
+                    if let Some(value) = value.to_string() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            for linedef_id in &region.map.selected_linedefs.clone() {
+                                let prev = region.map.clone();
+                                if let Some(linedef) = region.map.find_linedef_mut(*linedef_id) {
+                                    linedef.name = value.to_string();
+                                    let undo_atom = RegionUndoAtom::MapEdit(
+                                        Box::new(prev),
+                                        Box::new(region.map.clone()),
+                                    );
+                                    UNDOMANAGER.lock().unwrap().add_region_undo(
+                                        &server_ctx.curr_region,
+                                        undo_atom,
+                                        ctx,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                } else if id.name == "sectorWallHeight" {
+                    if let Some(value) = value.to_f32() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            let mut linedef_ids = Vec::new();
+                            for sector_id in &region.map.selected_sectors {
+                                if let Some(sector) = region.map.find_sector(*sector_id) {
+                                    linedef_ids.extend(&sector.linedefs);
+                                }
+                            }
+
+                            for linedef_id in linedef_ids {
+                                if let Some(linedef) = region.map.find_linedef_mut(linedef_id) {
+                                    linedef.wall_height = value;
+                                }
+                            }
+                        }
+                    }
+                    redraw = true;
+                } else if id.name == "sectorName" {
+                    if let Some(value) = value.to_string() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            for sector_id in &region.map.selected_sectors.clone() {
+                                let prev = region.map.clone();
+                                if let Some(sector) = region.map.find_sector_mut(*sector_id) {
+                                    if sector.name != value.clone() {
+                                        sector.name = value.clone();
+                                        let undo_atom = RegionUndoAtom::MapEdit(
+                                            Box::new(prev),
+                                            Box::new(region.map.clone()),
+                                        );
+                                        UNDOMANAGER.lock().unwrap().add_region_undo(
+                                            &server_ctx.curr_region,
+                                            undo_atom,
+                                            ctx,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    redraw = true;
                 }
             }
             TheEvent::StateChanged(id, _state) => {
@@ -912,6 +958,154 @@ impl MapEditor {
             _ => {}
         }
         redraw
+    }
+
+    /// Applies the icons for the tilepicker and sets the node settings for the map selection.
+    fn apply_map_settings(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        _server: &mut Server,
+        server_ctx: &mut ServerContext,
+    ) {
+        // Apply Tile Picker based Icons
+        if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
+            let mut floor_icon_id: Option<Uuid> = None;
+            //let mut wall_icon_id: Option<Uuid> = None;
+            //let mut ceiling_icon_id: Option<Uuid> = None;
+
+            //if server_ctx.curr_map_tool_type == MapToolType::Sector {
+            if let Some(map) = project.get_map(server_ctx) {
+                // if let Some(rc) =
+                //     server_ctx.get_texture_for_mode(server_ctx.curr_texture_mode, map)
+                // {
+                // }
+
+                if map.selected_sectors.len() == 1 {
+                    if let Some(sector) = map.find_sector(map.selected_sectors[0]) {
+                        if let Some(tile_id) = sector.floor_texture {
+                            floor_icon_id = Some(tile_id);
+                        }
+                    }
+                }
+            }
+            //}
+
+            if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                if let Some(floor_icon_id) = floor_icon_id {
+                    if let Some(tile) = TILEDRAWER.lock().unwrap().tiles.get(&floor_icon_id) {
+                        icon_view.set_rgba_tile(tile.clone());
+                    }
+                } else {
+                    let buffer = TheRGBABuffer::new(TheDim::sized(48, 48));
+                    if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                        icon_view.set_rgba_tile(TheRGBATile::buffer(buffer));
+                    }
+                }
+            }
+        }
+
+        // Create Node Settings if necessary
+        if let Some(layout) = ui.get_text_layout("Node Settings") {
+            layout.clear();
+        }
+
+        if let Some(map) = project.get_map(server_ctx) {
+            if server_ctx.curr_map_tool_type == MapToolType::Linedef
+                && map.selected_linedefs.len() == 1
+            {
+                self.create_linedef_settings(map, map.selected_linedefs[0], ui, ctx);
+            } else if server_ctx.curr_map_tool_type == MapToolType::Sector
+                && map.selected_sectors.len() == 1
+            {
+                self.create_sector_settings(map, map.selected_sectors[0], ui, ctx);
+            }
+        }
+    }
+
+    fn create_linedef_settings(
+        &self,
+        map: &Map,
+        linedef_id: u32,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        let mut nodeui = TheNodeUI::default();
+
+        if let Some(linedef) = map.find_linedef(linedef_id) {
+            let item = TheNodeUIItem::Text(
+                "linedefName".into(),
+                "Name".into(),
+                "Set the name of the wall".into(),
+                linedef.name.clone(),
+                None,
+                false,
+            );
+            nodeui.add_item(item);
+            let item = TheNodeUIItem::FloatEditSlider(
+                "linedefWallHeight".into(),
+                "Wall Height".into(),
+                "Set the height for the wall.".into(),
+                linedef.wall_height,
+                0.0..=4.0,
+                false,
+            );
+            nodeui.add_item(item);
+        }
+
+        if let Some(layout) = ui.get_text_layout("Node Settings") {
+            nodeui.apply_to_text_layout(layout);
+            // layout.relayout(ctx);
+            ctx.ui.relayout = true;
+
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Show Node Settings"),
+                TheValue::Text("Linedef Settings".to_string()),
+            ));
+        }
+    }
+
+    fn create_sector_settings(
+        &self,
+        map: &Map,
+        sector_id: u32,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        let mut nodeui = TheNodeUI::default();
+
+        if let Some(sector) = map.find_sector(sector_id) {
+            let item = TheNodeUIItem::Text(
+                "sectorName".into(),
+                "Name".into(),
+                "Set the name of the sector".into(),
+                sector.name.clone(),
+                None,
+                false,
+            );
+            nodeui.add_item(item);
+            let item = TheNodeUIItem::FloatEditSlider(
+                "sectorWallHeight".into(),
+                "Wall Height".into(),
+                "Set the height for all walls of the sector.".into(),
+                2.0,
+                0.0..=4.0,
+                false,
+            );
+            nodeui.add_item(item);
+        }
+
+        if let Some(layout) = ui.get_text_layout("Node Settings") {
+            nodeui.apply_to_text_layout(layout);
+            // layout.relayout(ctx);
+            ctx.ui.relayout = true;
+
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Show Node Settings"),
+                TheValue::Text("Sector Settings".to_string()),
+            ));
+        }
     }
 
     /*

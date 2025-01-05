@@ -440,6 +440,7 @@ impl Tool for SectorTool {
                         if let Some(code) = value.to_string() {
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 for sector_id in &region.map.selected_sectors.clone() {
+                                    /*
                                     let mut mapscript = rusterix::MapScript::new();
                                     let result = mapscript.transform(
                                         code.clone(),
@@ -457,7 +458,7 @@ impl Tool for SectorTool {
                                                 ));
                                             }
                                         }
-                                    }
+                                    }*/
                                 }
                             }
                         }

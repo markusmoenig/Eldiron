@@ -221,17 +221,15 @@ impl MapRender {
                     &self.tiles,
                     self.atlas.clone(),
                     vek::Vec2::new(width as f32, height as f32),
+                    "preview",
                 );
 
-                Rasterizer {}.rasterize(
+                Rasterizer::setup(None, Mat4::identity(), Mat4::identity()).rasterize(
                     &mut scene,
                     buffer.pixels_mut(),
                     width,
                     height,
                     100,
-                    None,
-                    vek::Mat4::identity(),
-                    vek::Mat4::identity(),
                 );
 
                 /*
@@ -609,6 +607,7 @@ impl MapRender {
                     &self.tiles,
                     self.atlas.clone(),
                     vek::Vec2::new(width as f32, height as f32),
+                    "firstp",
                 );
 
                 let view_matrix; // = vek::Mat4::identity();
@@ -626,27 +625,22 @@ impl MapRender {
                     camera.set_parameter_vec3("center", p);
                     camera.set_parameter_vec3("position", p + vek::Vec3::new(-10.0, 10.0, 10.0));
                     view_matrix = camera.view_matrix();
-                    projection_matrix =
-                        camera.projection_matrix(0.0, width as f32, height as f32, 0.1, 100.0);
+                    projection_matrix = camera.projection_matrix(width as f32, height as f32);
                 } else {
                     let mut camera = D3FirstPCamera::new();
 
                     camera.set_parameter_vec3("position", vek::Vec3::new(p.x, 1.0, p.z));
                     camera.set_parameter_vec3("center", vek::Vec3::new(p.x, 1.0, p.z - 1.0));
                     view_matrix = camera.view_matrix();
-                    projection_matrix =
-                        camera.projection_matrix(75.0, width as f32, height as f32, 0.1, 100.0);
+                    projection_matrix = camera.projection_matrix(width as f32, height as f32);
                 }
 
-                Rasterizer {}.rasterize(
+                Rasterizer::setup(None, view_matrix, projection_matrix).rasterize(
                     &mut scene,
                     buffer.pixels_mut(),
                     width,
                     height,
                     100,
-                    None,
-                    view_matrix,
-                    projection_matrix,
                 );
                 //if region.map.camera == MapCamera::ThreeDIso {}
 

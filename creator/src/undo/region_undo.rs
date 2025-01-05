@@ -2,7 +2,7 @@ use crate::prelude::*;
 use theframework::prelude::*;
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum RegionUndoAtom {
     // GeoFXObjectsDeletion(Vec<GeoFXObject>),
     // GeoFXObjectEdit(Uuid, Option<GeoFXObject>, Option<GeoFXObject>),
@@ -59,6 +59,10 @@ impl RegionUndoAtom {
                 region.map.clear_temp();
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimaps"),
+                    TheValue::Empty,
+                ));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Map Selection Changed"),
                     TheValue::Empty,
                 ));
             }
@@ -142,6 +146,10 @@ impl RegionUndoAtom {
                     TheId::named("Update Minimaps"),
                     TheValue::Empty,
                 ));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Map Selection Changed"),
+                    TheValue::Empty,
+                ));
             }
             // RegionUndoAtom::RegionTileEdit(pos, _, next) => {
             //     if let Some(next) = next {
@@ -180,7 +188,7 @@ impl RegionUndoAtom {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RegionUndo {
     pub stack: Vec<RegionUndoAtom>,
     pub index: isize,
