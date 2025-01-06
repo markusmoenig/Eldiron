@@ -406,6 +406,7 @@ impl Server {
     }
 
     /// Renders the given region instance into the given buffer. This drawing routine is only used by the editor.
+    ///
     pub fn render_region(
         &mut self,
         uuid: &Uuid,

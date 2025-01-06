@@ -1,4 +1,6 @@
-use crate::editor::{CODEEDITOR, MAPRENDER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR, UNDOMANAGER};
+use crate::editor::{
+    CODEEDITOR, MAPRENDER, RUSTERIX, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR, UNDOMANAGER,
+};
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
 
@@ -3887,8 +3889,11 @@ impl Sidebar {
         client: &mut Client,
     ) {
         let tiles = project.extract_tiles();
-        TILEDRAWER.lock().unwrap().set_tiles(tiles.clone());
-        MAPRENDER.lock().unwrap().set_textures(tiles.clone());
+        RUSTERIX
+            .lock()
+            .unwrap()
+            .assets
+            .set_rgba_tiles(tiles.clone());
         server.update_tiles(tiles.clone());
         client.update_tiles(tiles);
 

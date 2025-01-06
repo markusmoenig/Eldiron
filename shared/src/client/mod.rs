@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use lazy_static::lazy_static;
 use std::sync::mpsc;
-use std::sync::{Mutex, RwLock};
+use std::sync::RwLock;
 use theframework::prelude::*;
 
 pub mod functions;

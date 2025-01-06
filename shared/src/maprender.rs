@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use rect_packer::*;
 use rusterix::prelude::*;
 use theframework::prelude::*;
 
@@ -44,78 +43,6 @@ impl MapRender {
     }
 
     pub fn set_region(&mut self, _region: &Region) {}
-
-    pub fn set_textures(&mut self, textures: FxHashMap<Uuid, TheRGBATile>) {
-        let atlas_size = 1024;
-
-        let mut packer = Packer::new(Config {
-            width: atlas_size,
-            height: atlas_size,
-            border_padding: 0,
-            rectangle_padding: 0,
-        });
-
-        let mut tiles: FxHashMap<Uuid, rusterix::Tile> = FxHashMap::default();
-        let mut elements: FxHashMap<Uuid, Vec<vek::Vec4<i32>>> = FxHashMap::default();
-
-        for (id, t) in textures.iter() {
-            let mut array: Vec<vek::Vec4<i32>> = vec![];
-            let mut texture_array: Vec<rusterix::Texture> = vec![];
-            for b in &t.buffer {
-                if let Some(rect) = packer.pack(b.dim().width, b.dim().height, false) {
-                    array.push(vek::Vec4::new(rect.x, rect.y, rect.width, rect.height));
-                }
-
-                let texture = rusterix::Texture::new(
-                    b.pixels().to_vec(),
-                    b.dim().width as usize,
-                    b.dim().height as usize,
-                );
-                texture_array.push(texture);
-            }
-            let tile = rusterix::Tile {
-                id: t.id,
-                name: t.name.clone(),
-                role: t.role,
-                blocking: t.blocking,
-                billboard: t.billboard,
-                uvs: array.clone(),
-                textures: texture_array.clone(),
-            };
-            elements.insert(*id, array);
-            tiles.insert(*id, tile);
-        }
-
-        // Create atlas
-        let mut atlas = vec![0; atlas_size as usize * atlas_size as usize * 4];
-
-        // Copy textures into atlas
-        for (id, tile) in textures.iter() {
-            if let Some(rects) = elements.get(id) {
-                for (buffer, rect) in tile.buffer.iter().zip(rects) {
-                    let width = buffer.dim().width as usize;
-                    let height = buffer.dim().height as usize;
-                    let rect_x = rect.x as usize;
-                    let rect_y = rect.y as usize;
-
-                    for y in 0..height {
-                        for x in 0..width {
-                            let src_index = (y * width + x) * 4;
-                            let dest_index =
-                                ((rect_y + y) * atlas_size as usize + (rect_x + x)) * 4;
-
-                            atlas[dest_index..dest_index + 4]
-                                .copy_from_slice(&buffer.pixels()[src_index..src_index + 4]);
-                        }
-                    }
-                }
-            }
-        }
-
-        self.atlas = rusterix::Texture::new(atlas, atlas_size as usize, atlas_size as usize);
-        self.tiles = tiles;
-        self.textures = textures;
-    }
 
     pub fn set_position(&mut self, position: Vec3<f32>) {
         self.position = position;

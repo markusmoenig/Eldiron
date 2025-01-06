@@ -159,10 +159,21 @@ impl ToolList {
                         undo_atom,
                         ctx,
                     );
+                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                 }
                 server.update_region(region);
             }
         }
+    }
+
+    pub fn draw_hud(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        map: &mut Map,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+        self.game_tools[self.curr_game_tool].draw_hud(buffer, map, ctx, server_ctx);
     }
 
     #[allow(clippy::too_many_arguments)]

@@ -103,6 +103,15 @@ pub trait Tool: Send {
         false
     }
 
+    fn draw_hud(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        map: &mut Map,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn fill_mask(
         &self,

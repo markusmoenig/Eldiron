@@ -12,6 +12,7 @@ pub mod minimap;
 pub mod misc;
 // pub mod modeleditor;
 // pub mod modelfxeditor;
+pub mod hud;
 pub mod panels;
 pub mod regionfxeditor;
 pub mod screeneditor;

@@ -3,13 +3,13 @@ use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
 use crate::Embedded;
 use lazy_static::lazy_static;
+use rusterix::{Rusterix, SceneBuilder};
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::mpsc::channel;
-use std::sync::mpsc::Receiver;
-use std::sync::mpsc::Sender;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{
+    mpsc::{channel, Receiver, Sender},
+    Arc, Mutex,
+};
 use std::thread;
 
 lazy_static! {
@@ -36,6 +36,8 @@ lazy_static! {
     pub static ref TEXTEDITOR: Mutex<TextEditor> = Mutex::new(TextEditor::new());
     pub static ref TEXTURES: Mutex<FxHashMap<Uuid, TheRGBATile>> = Mutex::new(FxHashMap::default());
     pub static ref PALETTE: Mutex<ThePalette> = Mutex::new(ThePalette::default());
+
+    pub static ref RUSTERIX: Mutex<Rusterix> = Mutex::new(Rusterix::default());
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -445,6 +447,8 @@ impl TheTrait for Editor {
         ctx.ui.set_disabled("Undo");
         ctx.ui.set_disabled("Redo");
 
+        RUSTERIX.lock().unwrap().set_d2();
+
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
 
         // Startup the prerender thread.
@@ -651,27 +655,60 @@ impl TheTrait for Editor {
             && redraw_update
             && !self.project.regions.is_empty()
         {
-            let render_mode = *RENDERMODE.lock().unwrap();
-            //if render_mode != EditorDrawMode::Draw3D {
-            // self.tileeditor.redraw_region(
-            //     &self.project,
-            //     ui,
-            //     &mut self.server,
-            //     ctx,
-            //     &self.server_ctx,
-            //     true,
-            // );
-            //}
-            //if render_mode != EditorDrawMode::Draw2D {
-            self.mapeditor.rerender_region(
-                ui,
-                &mut self.server,
-                ctx,
-                &self.server_ctx,
-                &self.project,
-                render_mode == EditorDrawMode::Draw3D,
-            );
-            //}
+            // let render_mode = *RENDERMODE.lock().unwrap();
+
+            // Draw Region
+
+            if let Some(render_view) = ui.get_render_view("PolyView") {
+                let dim = *render_view.dim();
+
+                let buffer = render_view.render_buffer_mut();
+                buffer.resize(dim.width, dim.height);
+
+                {
+                    let rusterix = &mut RUSTERIX.lock().unwrap();
+                    let b = &mut rusterix.client.builder_d2;
+
+                    if let Some(region) = self.project.get_region(&self.server_ctx.curr_region) {
+                        b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                        if let Some(hover_cursor) = self.server_ctx.hover_cursor {
+                            b.set_map_hover_info(
+                                self.server_ctx.hover,
+                                Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
+                            );
+                        } else {
+                            b.set_map_hover_info(self.server_ctx.hover, None);
+                        }
+
+                        if let Some(camera_pos) = region.map.camera_xz {
+                            b.set_camera_info(
+                                Some(vek::Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
+                                vek::Vec3::zero(),
+                            );
+                        }
+
+                        rusterix.build_scene(
+                            Vec2::new(dim.width as f32, dim.height as f32),
+                            &region.map,
+                        );
+                        rusterix.draw_scene(
+                            render_view.render_buffer_mut().pixels_mut(),
+                            dim.width as usize,
+                            dim.height as usize,
+                        );
+                    }
+                }
+
+                if let Some(region) = self.project.get_region_ctx_mut(&self.server_ctx) {
+                    TOOLLIST.lock().unwrap().draw_hud(
+                        render_view.render_buffer_mut(),
+                        &mut region.map,
+                        ctx,
+                        &mut self.server_ctx,
+                    );
+                }
+            }
+
             redraw = true;
         } else if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::ScreenEditor && redraw_update {
             self.screeneditor.redraw_screen(

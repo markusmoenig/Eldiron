@@ -1,3 +1,4 @@
+use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use rusterix::prelude::*;
 use vek::Vec2;
@@ -13,6 +14,8 @@ pub struct LinedefTool {
     rectangle_mode: bool,
 
     properties_code: String,
+
+    hud: Hud,
 }
 
 impl Tool for LinedefTool {
@@ -32,6 +35,7 @@ impl Tool for LinedefTool {
 # set("wall_height", 2.0)
 "#
             .to_string(),
+            hud: Hud::new(HudMode::Linedef),
         }
     }
 
@@ -56,7 +60,7 @@ impl Tool for LinedefTool {
         ctx: &mut TheContext,
         project: &mut Project,
         server: &mut shared::server::Server,
-        _client: &mut Client,
+        _client: &mut shared::client::Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
@@ -249,7 +253,7 @@ impl Tool for LinedefTool {
         ctx: &mut TheContext,
         map: &mut Map,
         _server: &mut shared::server::Server,
-        _client: &mut Client,
+        _client: &mut shared::client::Client,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         let mut undo_atom: Option<RegionUndoAtom> = None;
@@ -505,6 +509,8 @@ impl Tool for LinedefTool {
                         TheValue::Float2(cp),
                     ));
                     server_ctx.hover_cursor = Some(cp);
+
+                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                 }
             }
             MapDelete => {
@@ -548,14 +554,24 @@ impl Tool for LinedefTool {
         undo_atom
     }
 
+    fn draw_hud(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        map: &mut Map,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+        self.hud.draw(buffer, map, ctx, server_ctx);
+    }
+
     fn handle_event(
         &mut self,
         event: &TheEvent,
-        ui: &mut TheUI,
+        _ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &mut Project,
+        _project: &mut Project,
         _server: &mut shared::server::Server,
-        _client: &mut Client,
+        _client: &mut shared::client::Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
@@ -568,13 +584,13 @@ impl Tool for LinedefTool {
                     }
                 }
             }
+            /*
             TheEvent::StateChanged(id, state) => {
                 if id.name == "Apply Linedef Properties" && *state == TheWidgetState::Clicked {
                     if let Some(value) = ui.get_widget_value("CodeEdit") {
                         if let Some(code) = value.to_string() {
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 for linedef_id in &region.map.selected_linedefs.clone() {
-                                    /*
                                     let mut mapscript = MapScript::new();
                                     let result = mapscript.compile(
                                         code.clone(),
@@ -592,13 +608,13 @@ impl Tool for LinedefTool {
                                                 ));
                                             }
                                         }
-                                    }*/
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
+            }*/
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Map Helper Switch" {
                     server_ctx.curr_map_tool_helper.set_from_index(*index);

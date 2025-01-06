@@ -274,6 +274,8 @@ impl Tool for VertexTool {
                         TheValue::Float2(cp),
                     ));
                     server_ctx.hover_cursor = Some(cp);
+
+                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                 }
             }
             MapDelete => {

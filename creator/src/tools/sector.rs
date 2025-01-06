@@ -374,6 +374,8 @@ impl Tool for SectorTool {
                         TheValue::Float2(cp),
                     ));
                     server_ctx.hover_cursor = Some(cp);
+
+                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                 }
             }
             MapDelete => {
@@ -417,9 +419,9 @@ impl Tool for SectorTool {
     fn handle_event(
         &mut self,
         event: &TheEvent,
-        ui: &mut TheUI,
+        _ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &mut Project,
+        _project: &mut Project,
         _server: &mut Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
@@ -434,13 +436,13 @@ impl Tool for SectorTool {
                     }
                 }
             }
+            /*
             TheEvent::StateChanged(id, state) => {
                 if id.name == "Apply Sector Properties" && *state == TheWidgetState::Clicked {
                     if let Some(value) = ui.get_widget_value("CodeEdit") {
                         if let Some(code) = value.to_string() {
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 for sector_id in &region.map.selected_sectors.clone() {
-                                    /*
                                     let mut mapscript = rusterix::MapScript::new();
                                     let result = mapscript.transform(
                                         code.clone(),
@@ -458,13 +460,13 @@ impl Tool for SectorTool {
                                                 ));
                                             }
                                         }
-                                    }*/
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
+            }*/
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Map Helper Switch" {
                     server_ctx.curr_map_tool_helper.set_from_index(*index);

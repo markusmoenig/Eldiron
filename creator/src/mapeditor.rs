@@ -1,6 +1,6 @@
 //use shared::server::prelude::MapToolType;
 
-use crate::editor::{CODEEDITOR, MAPRENDER, TILEDRAWER, UNDOMANAGER};
+use crate::editor::{CODEEDITOR, RUSTERIX, TILEDRAWER, UNDOMANAGER};
 use crate::prelude::*;
 use vek::Vec2;
 
@@ -177,7 +177,7 @@ impl MapEditor {
         // vlayout.add_widget(Box::new(text));
 
         tile_picker.set_layout(vlayout);
-        center.set_left(tile_picker);
+        //center.set_left(tile_picker);
 
         // Tool Params
         let mut toolbar_hlayout = TheHLayout::new(TheId::named("Game Tool Params"));
@@ -199,10 +199,11 @@ impl MapEditor {
             .lock()
             .unwrap()
             .set_tiles(project.extract_tiles());
-        MAPRENDER
+        RUSTERIX
             .lock()
             .unwrap()
-            .set_textures(project.extract_tiles());
+            .assets
+            .set_rgba_tiles(project.extract_tiles());
     }
 
     #[allow(clippy::suspicious_else_formatting)]
@@ -251,6 +252,7 @@ impl MapEditor {
                             TheId::named("Update Minimap"),
                             TheValue::Empty,
                         ));
+                        crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                     }
                 }
             }
@@ -972,7 +974,7 @@ impl MapEditor {
         // Apply Tile Picker based Icons
         if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
             let mut floor_icon_id: Option<Uuid> = None;
-            //let mut wall_icon_id: Option<Uuid> = None;
+            // let mut wall_icon_id: Option<Uuid> = None;
             //let mut ceiling_icon_id: Option<Uuid> = None;
 
             //if server_ctx.curr_map_tool_type == MapToolType::Sector {
@@ -1406,15 +1408,15 @@ impl MapEditor {
         }
     }
 
-    /// Redraw the map of the current region on tick.
-    pub fn rerender_region(
+    /*
+    /// Draw the current region.
+    pub fn draw_region(
         &mut self,
         ui: &mut TheUI,
-        server: &mut Server,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
+        project: &Project,
         server_ctx: &ServerContext,
-        _project: &Project,
-        compute_delta: bool,
+        rusterix: &mut Rusterix,
     ) {
         if let Some(render_view) = ui.get_render_view("PolyView") {
             let dim = *render_view.dim();
@@ -1422,14 +1424,42 @@ impl MapEditor {
             let b = render_view.render_buffer_mut();
             b.resize(dim.width, dim.height);
 
-            server.render_region(
-                &server_ctx.curr_region,
-                render_view.render_buffer_mut(),
-                &mut MAPRENDER.lock().unwrap(),
-                ctx,
-                server_ctx,
-                compute_delta,
-            );
+            let b = &mut rusterix.client.builder_d2;
+            if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                b.set_map_tool_type(server_ctx.curr_map_tool_type);
+                if let Some(hover_cursor) = server_ctx.hover_cursor {
+                    b.set_map_hover_info(
+                        server_ctx.hover,
+                        Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
+                    );
+                } else {
+                    b.set_map_hover_info(server_ctx.hover, None);
+                }
+
+                if let Some(camera_pos) = region.map.camera_xz {
+                    b.set_camera_info(
+                        Some(vek::Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
+                        vek::Vec3::zero(),
+                    );
+                }
+
+                rusterix.client_build(Vec2::new(dim.width as f32, dim.height as f32), &region.map);
+                rusterix.client_draw(
+                    render_view.render_buffer_mut().pixels_mut(),
+                    dim.width as usize,
+                    dim.height as usize,
+                );
+                //rusterix.render_region(&region, b, &TILEDRAWER.lock().unwrap(), ctx, server_ctx);
+            }
+
+            // server.render_region(
+            //     &server_ctx.curr_region,
+            //     render_view.render_buffer_mut(),
+            //     &mut MAPRENDER.lock().unwrap(),
+            //     ctx,
+            //     server_ctx,
+            //     compute_delta,
+            // );
 
             /*
 
@@ -1466,7 +1496,7 @@ impl MapEditor {
                 compute_delta,
                 );*/
         }
-    }
+    }*/
 
     /*
     /// Perform the given action at the given coordinate.
