@@ -260,6 +260,11 @@ impl Tool for LinedefTool {
 
         match map_event {
             MapClicked(coord) => {
+                if self.hud.clicked(coord.x, coord.y, map) {
+                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    return None;
+                }
+
                 self.click_selected = false;
                 if map.curr_grid_pos.is_none() && server_ctx.hover.1.is_some() {
                     // Selected hovered line
@@ -561,7 +566,12 @@ impl Tool for LinedefTool {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
-        self.hud.draw(buffer, map, ctx, server_ctx);
+        let id = if map.selected_linedefs.len() == 1 {
+            Some(map.selected_linedefs[0])
+        } else {
+            None
+        };
+        self.hud.draw(buffer, map, ctx, server_ctx, id);
     }
 
     fn handle_event(
@@ -569,7 +579,7 @@ impl Tool for LinedefTool {
         event: &TheEvent,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         _server: &mut shared::server::Server,
         _client: &mut shared::client::Client,
         server_ctx: &mut ServerContext,
@@ -577,13 +587,35 @@ impl Tool for LinedefTool {
         let mut redraw = false;
         #[allow(clippy::single_match)]
         match event {
-            TheEvent::ValueChanged(id, value) => {
-                if id.name == "CodeEdit" {
-                    if let Some(code) = value.to_string() {
-                        self.properties_code = code;
+            TheEvent::Custom(id, TheValue::Id(uuid)) => {
+                if id.name == "Tile Picked" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        for linedef_id in &region.map.selected_linedefs.clone() {
+                            if let Some(linedef) = region.map.find_linedef_mut(*linedef_id) {
+                                if self.hud.selected_icon_index == 0 {
+                                    linedef.texture_row1 = Some(*uuid);
+                                    linedef.material_row1 = None;
+                                } else if self.hud.selected_icon_index == 1 {
+                                    linedef.texture_row2 = Some(*uuid);
+                                    linedef.material_row2 = None;
+                                } else if self.hud.selected_icon_index == 2 {
+                                    linedef.texture_row3 = Some(*uuid);
+                                    linedef.material_row3 = None;
+                                }
+                                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                            }
+                        }
                     }
                 }
+                redraw = true;
             }
+            // TheEvent::ValueChanged(id, value) => {
+            //     if id.name == "CodeEdit" {
+            //         if let Some(code) = value.to_string() {
+            //             self.properties_code = code;
+            //         }
+            //     }
+            // }
             /*
             TheEvent::StateChanged(id, state) => {
                 if id.name == "Apply Linedef Properties" && *state == TheWidgetState::Clicked {

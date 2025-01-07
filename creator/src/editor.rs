@@ -670,21 +670,46 @@ impl TheTrait for Editor {
                     let b = &mut rusterix.client.builder_d2;
 
                     if let Some(region) = self.project.get_region(&self.server_ctx.curr_region) {
-                        b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
-                        if let Some(hover_cursor) = self.server_ctx.hover_cursor {
-                            b.set_map_hover_info(
-                                self.server_ctx.hover,
-                                Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
-                            );
-                        } else {
-                            b.set_map_hover_info(self.server_ctx.hover, None);
-                        }
+                        if region.map.camera == MapCamera::TwoD {
+                            b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                            if let Some(hover_cursor) = self.server_ctx.hover_cursor {
+                                b.set_map_hover_info(
+                                    self.server_ctx.hover,
+                                    Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
+                                );
+                            } else {
+                                b.set_map_hover_info(self.server_ctx.hover, None);
+                            }
 
-                        if let Some(camera_pos) = region.map.camera_xz {
-                            b.set_camera_info(
-                                Some(vek::Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
-                                vek::Vec3::zero(),
+                            if let Some(camera_pos) = region.map.camera_xz {
+                                b.set_camera_info(
+                                    Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
+                                    vek::Vec3::zero(),
+                                );
+                            }
+                        } else if region.map.camera == MapCamera::ThreeDIso {
+                            let p = vek::Vec3::new(
+                                region.editing_position_3d.x,
+                                0.0,
+                                region.editing_position_3d.z,
                             );
+
+                            rusterix.client.camera_d3.set_parameter_vec3("center", p);
+                            rusterix.client.camera_d3.set_parameter_vec3(
+                                "position",
+                                p + vek::Vec3::new(-10.0, 10.0, 10.0),
+                            );
+                        } else if region.map.camera == MapCamera::ThreeDFirstPerson {
+                            let p = vek::Vec3::new(
+                                region.editing_position_3d.x,
+                                1.5,
+                                region.editing_position_3d.z,
+                            );
+                            rusterix.client.camera_d3.set_parameter_vec3("position", p);
+                            rusterix
+                                .client
+                                .camera_d3
+                                .set_parameter_vec3("center", p + vek::Vec3::new(0.0, 0.0, -1.0));
                         }
 
                         rusterix.build_scene(

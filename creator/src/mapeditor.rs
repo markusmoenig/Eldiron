@@ -845,6 +845,7 @@ impl MapEditor {
                         }
                     }
 
+                    /*
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         let prev = region.map.clone();
 
@@ -896,7 +897,7 @@ impl MapEditor {
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,
                         ));
-                    }
+                    }*/
                 } else if id.name == "Tilemap Editor Add Anim"
                     || id.name == "Tilemap Editor Add Multi"
                 {

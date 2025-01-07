@@ -102,6 +102,7 @@ impl MaterialEditor {
                 }
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
+                /*
                 if id.name.starts_with("Material Icon #") {
                     let index_str = id.name.replace("Material Icon #", "");
                     if let Ok(index) = index_str.parse::<i32>() {
@@ -175,7 +176,7 @@ impl MaterialEditor {
                     if let Some(region) = project.get_region_ctx(server_ctx) {
                         server.update_region(region);
                     }
-                }
+                }*/
             }
             TheEvent::NodeSelectedIndexChanged(id, index) => {
                 if id.name == "Map NodeCanvas" {

@@ -1,3 +1,4 @@
+use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use vek::Vec2;
 use MapEvent::*;
@@ -11,6 +12,7 @@ pub struct SectorTool {
     drag_changed: bool,
 
     properties_code: String,
+    hud: Hud,
 }
 
 impl Tool for SectorTool {
@@ -29,6 +31,7 @@ impl Tool for SectorTool {
 # set("wall_height", 2.0)
 "#
             .to_string(),
+            hud: Hud::new(HudMode::Sector),
         }
     }
 
@@ -187,6 +190,10 @@ impl Tool for SectorTool {
 
         match map_event {
             MapClicked(coord) => {
+                if self.hud.clicked(coord.x, coord.y, map) {
+                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    return None;
+                }
                 self.click_selected = false;
                 if server_ctx.hover.2.is_some() {
                     let prev = map.clone();
@@ -416,12 +423,27 @@ impl Tool for SectorTool {
         undo_atom
     }
 
+    fn draw_hud(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        map: &mut Map,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+        let id = if map.selected_sectors.len() == 1 {
+            Some(map.selected_sectors[0])
+        } else {
+            None
+        };
+        self.hud.draw(buffer, map, ctx, server_ctx, id);
+    }
+
     fn handle_event(
         &mut self,
         event: &TheEvent,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         _server: &mut Server,
         _client: &mut Client,
         server_ctx: &mut ServerContext,
@@ -429,13 +451,41 @@ impl Tool for SectorTool {
         let mut redraw = false;
         #[allow(clippy::single_match)]
         match event {
-            TheEvent::ValueChanged(id, value) => {
-                if id.name == "CodeEdit" {
-                    if let Some(code) = value.to_string() {
-                        self.properties_code = code;
+            TheEvent::Custom(id, TheValue::Id(uuid)) => {
+                if id.name == "Tile Picked" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        for sector_id in &region.map.selected_sectors.clone() {
+                            if let Some(sector) = region.map.find_sector_mut(*sector_id) {
+                                if self.hud.selected_icon_index == 0 {
+                                    sector.floor_texture = Some(*uuid);
+                                    sector.floor_material = None;
+                                } else if self.hud.selected_icon_index == 1 {
+                                    sector.ceiling_texture = Some(*uuid);
+                                    sector.floor_material = None;
+                                } else if self.hud.selected_icon_index == 2 {
+                                    sector.texture_row1 = Some(*uuid);
+                                    sector.material_row1 = None;
+                                } else if self.hud.selected_icon_index == 3 {
+                                    sector.texture_row2 = Some(*uuid);
+                                    sector.material_row2 = None;
+                                } else if self.hud.selected_icon_index == 4 {
+                                    sector.texture_row3 = Some(*uuid);
+                                    sector.material_row3 = None;
+                                }
+                                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                            }
+                        }
                     }
                 }
+                redraw = true;
             }
+            // TheEvent::ValueChanged(id, value) => {
+            //     if id.name == "CodeEdit" {
+            //         if let Some(code) = value.to_string() {
+            //             self.properties_code = code;
+            //         }
+            //     }
+            // }
             /*
             TheEvent::StateChanged(id, state) => {
                 if id.name == "Apply Sector Properties" && *state == TheWidgetState::Clicked {

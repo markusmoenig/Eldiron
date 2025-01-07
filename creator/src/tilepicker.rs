@@ -241,9 +241,13 @@ impl TilePicker {
             TheEvent::TilePicked(id, pos) => {
                 if id.name == self.make_id(" RGBA Layout View") {
                     if let Some(tile_id) = self.tile_ids.get(&(pos.x, pos.y)) {
-                        ctx.ui.send(TheEvent::StateChanged(
-                            TheId::named_with_id("Tilemap Tile", *tile_id),
-                            TheWidgetState::Selected,
+                        // ctx.ui.send(TheEvent::StateChanged(
+                        //     TheId::named_with_id("Tilemap Tile", *tile_id),
+                        //     TheWidgetState::Selected,
+                        // ));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Tile Picked"),
+                            TheValue::Id(*tile_id),
                         ));
                         self.curr_tile = Some(*tile_id);
                         self.apply_tile(ui, ctx, project);
