@@ -35,26 +35,26 @@ impl Tool for MaterialNodeEditTool {
         _tool_context: ToolContext,
         ui: &mut TheUI,
         _ctx: &mut TheContext,
-        project: &mut Project,
+        _project: &mut Project,
         _server: &mut Server,
         _client: &mut Client,
-        server_ctx: &mut ServerContext,
+        _server_ctx: &mut ServerContext,
     ) -> bool {
         if let ToolEvent::Activate = tool_event {
             // MODELFXEDITOR.lock().unwrap().set_geometry_mode(false);
 
             if !self.first_run {
                 // Set the current material
-                if let Some(material_id) = server_ctx.curr_material_object {
-                    if let Some(material) = project.materials.get_mut(&material_id) {
-                        let node_canvas = material.to_canvas(&project.palette);
-                        ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
-                        // MODELFXEDITOR
-                        //     .lock()
-                        //     .unwrap()
-                        //     .render_material_preview(material_id, project);
-                    }
-                }
+                // if let Some(material_id) = server_ctx.curr_material_object {
+                //     if let Some(material) = project.materials.get_mut(&material_id) {
+                //         let node_canvas = material.to_canvas(&project.palette);
+                //         ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
+                //         // MODELFXEDITOR
+                //         //     .lock()
+                //         //     .unwrap()
+                //         //     .render_material_preview(material_id, project);
+                //     }
+                // }
                 self.first_run = true;
             }
 

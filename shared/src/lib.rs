@@ -27,6 +27,7 @@ pub mod regionfxobject;
 pub mod renderer_utils;
 pub mod screen;
 // pub mod sdf;
+pub mod context;
 pub mod server;
 pub mod tiledrawer;
 pub mod tilefx;
@@ -45,6 +46,7 @@ pub mod prelude {
 
     pub use crate::area::Area;
     pub use crate::asset::*;
+    pub use crate::context::*;
     //pub use crate::bsdf::*;
     //pub use crate::camera::Camera;
     pub use crate::character::Character;
@@ -72,7 +74,6 @@ pub mod prelude {
     pub use crate::renderer_utils::ray_sphere;
     pub use crate::screen::*;
     // pub use crate::sdf::*;
-    pub use crate::server::context::*;
     pub use crate::server::{Server, ServerState};
     pub use crate::tiledrawer::{RegionDrawSettings, TileDrawer};
     pub use crate::tilefx::TileFX;

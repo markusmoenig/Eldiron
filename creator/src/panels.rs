@@ -1,6 +1,5 @@
 use crate::editor::{
-    CODEEDITOR, MATERIALEDITOR, REGIONFXEDITOR, TEXTEDITOR, TILEDRAWER, TILEFXEDITOR,
-    TILEMAPEDITOR, TILEPICKER,
+    CODEEDITOR, REGIONFXEDITOR, TEXTEDITOR, TILEDRAWER, TILEFXEDITOR, TILEMAPEDITOR, TILEPICKER,
 };
 use crate::prelude::*;
 
@@ -11,7 +10,7 @@ pub enum PanelIndices {
     TileFxEditor,
     //ModelEditor,
     RegionFxEditor,
-    MaterialEditor,
+    ColorPicker,
     TextEditor,
 }
 
@@ -68,9 +67,22 @@ impl Panels {
         // code_canvas.set_widget(widget);
         // main_stack.add_canvas(code_canvas);
         main_stack.add_canvas(REGIONFXEDITOR.lock().unwrap().build(ctx));
-        main_stack.add_canvas(MATERIALEDITOR.lock().unwrap().build());
-        main_stack.add_canvas(TEXTEDITOR.lock().unwrap().build());
+        // main_stack.add_canvas(MATERIALEDITOR.lock().unwrap().build());
+        let mut color_picker_canvas: TheCanvas = TheCanvas::default();
+        let mut color_picker_layout = TheHLayout::new(TheId::empty());
 
+        let mut color_picker = TheColorPicker::new(TheId::named("Panel Color Picker"));
+        color_picker.set_color(Vec3::one());
+
+        color_picker_layout.set_background_color(Some(ListLayoutBackground));
+        color_picker_layout.set_margin(Vec4::new(20, 5, 20, 5));
+        color_picker_layout.add_widget(Box::new(color_picker));
+        color_picker_layout.set_reverse_index(Some(1));
+
+        color_picker_canvas.set_layout(color_picker_layout);
+        main_stack.add_canvas(color_picker_canvas);
+
+        main_stack.add_canvas(TEXTEDITOR.lock().unwrap().build());
         main_stack.set_index(0);
 
         let tilemap_editor = TheRGBALayout::new(TheId::named("Tilemap Editor"));
@@ -164,7 +176,7 @@ impl Panels {
         if TILEPICKER
             .lock()
             .unwrap()
-            .handle_event(event, ui, ctx, project, server)
+            .handle_event(event, ui, ctx, project, server, server_ctx)
         {
             redraw = true;
         }
@@ -255,7 +267,9 @@ impl Panels {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "Atom Color Picker" || id.name == "Atom Direction Picker" {
+                if id.name == "Panel Color Picker" {
+                    server_ctx.curr_panel_picker_color = value.to_color().unwrap();
+                } else if id.name == "Atom Color Picker" || id.name == "Atom Direction Picker" {
                     let mut editor = CODEEDITOR.lock().unwrap();
                     editor.start_undo(ui);
                     editor.set_selected_atom(ui, TheCodeAtom::Value(value.clone()));

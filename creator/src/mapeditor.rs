@@ -2,6 +2,7 @@
 
 use crate::editor::{CODEEDITOR, RUSTERIX, TILEDRAWER, UNDOMANAGER};
 use crate::prelude::*;
+use rusterix::{PixelSource, Value};
 use vek::Vec2;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -236,23 +237,29 @@ impl MapEditor {
             }
             TheEvent::RenderViewScrollBy(id, coord) => {
                 if id.name == "PolyView" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
                         if ui.ctrl || ui.logo {
-                            region.map.grid_size += coord.y as f32;
-                            region.map.grid_size = region.map.grid_size.clamp(5.0, 100.0);
+                            map.grid_size += coord.y as f32;
+                            map.grid_size = map.grid_size.clamp(5.0, 100.0);
                         } else {
-                            region.map.offset += Vec2::new(-coord.x as f32, coord.y as f32);
+                            map.offset += Vec2::new(-coord.x as f32, coord.y as f32);
                         }
-                        region.editing_position_3d.x += coord.x as f32 / region.map.grid_size;
-                        region.editing_position_3d.z += coord.y as f32 / region.map.grid_size;
-                        server.update_region(region);
-                        redraw = true;
-
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Minimap"),
-                            TheValue::Empty,
-                        ));
                         crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    }
+
+                    if server_ctx.curr_map_context == MapContext::Region {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.editing_position_3d.x += coord.x as f32 / region.map.grid_size;
+                            region.editing_position_3d.z += coord.y as f32 / region.map.grid_size;
+                            server.update_region(region);
+                            redraw = true;
+
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Update Minimap"),
+                                TheValue::Empty,
+                            ));
+                            crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                        }
                     }
                 }
             }
@@ -595,8 +602,10 @@ impl MapEditor {
                             for linedef_id in &region.map.selected_linedefs.clone() {
                                 let prev = region.map.clone();
                                 if let Some(linedef) = region.map.find_linedef_mut(*linedef_id) {
-                                    if linedef.wall_height != value {
-                                        linedef.wall_height = value;
+                                    if linedef.properties.get_float_default("wall_height", 0.0)
+                                        != value
+                                    {
+                                        linedef.properties.set("wall_height", Value::Float(value));
                                         let undo_atom = RegionUndoAtom::MapEdit(
                                             Box::new(prev),
                                             Box::new(region.map.clone()),
@@ -643,7 +652,7 @@ impl MapEditor {
 
                             for linedef_id in linedef_ids {
                                 if let Some(linedef) = region.map.find_linedef_mut(linedef_id) {
-                                    linedef.wall_height = value;
+                                    linedef.properties.set("wall_height", Value::Float(value));
                                 }
                             }
                         }
@@ -837,7 +846,6 @@ impl MapEditor {
                 // An item in the tile list was selected
                 else if id.name == "Tilemap Tile" {
                     self.curr_tile_uuid = Some(id.uuid);
-                    server_ctx.curr_tile_id = Some(id.uuid);
 
                     if let Some(t) = TILEDRAWER.lock().unwrap().tiles.get(&id.uuid) {
                         if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
@@ -963,7 +971,7 @@ impl MapEditor {
         redraw
     }
 
-    /// Applies the icons for the tilepicker and sets the node settings for the map selection.
+    /// Sets the node settings for the map selection.
     fn apply_map_settings(
         &mut self,
         ui: &mut TheUI,
@@ -972,43 +980,6 @@ impl MapEditor {
         _server: &mut Server,
         server_ctx: &mut ServerContext,
     ) {
-        // Apply Tile Picker based Icons
-        if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-            let mut floor_icon_id: Option<Uuid> = None;
-            // let mut wall_icon_id: Option<Uuid> = None;
-            //let mut ceiling_icon_id: Option<Uuid> = None;
-
-            //if server_ctx.curr_map_tool_type == MapToolType::Sector {
-            if let Some(map) = project.get_map(server_ctx) {
-                // if let Some(rc) =
-                //     server_ctx.get_texture_for_mode(server_ctx.curr_texture_mode, map)
-                // {
-                // }
-
-                if map.selected_sectors.len() == 1 {
-                    if let Some(sector) = map.find_sector(map.selected_sectors[0]) {
-                        if let Some(tile_id) = sector.floor_texture {
-                            floor_icon_id = Some(tile_id);
-                        }
-                    }
-                }
-            }
-            //}
-
-            if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
-                if let Some(floor_icon_id) = floor_icon_id {
-                    if let Some(tile) = TILEDRAWER.lock().unwrap().tiles.get(&floor_icon_id) {
-                        icon_view.set_rgba_tile(tile.clone());
-                    }
-                } else {
-                    let buffer = TheRGBABuffer::new(TheDim::sized(48, 48));
-                    if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
-                        icon_view.set_rgba_tile(TheRGBATile::buffer(buffer));
-                    }
-                }
-            }
-        }
-
         // Create Node Settings if necessary
         if let Some(layout) = ui.get_text_layout("Node Settings") {
             layout.clear();
@@ -1050,7 +1021,7 @@ impl MapEditor {
                 "linedefWallHeight".into(),
                 "Wall Height".into(),
                 "Set the height for the wall.".into(),
-                linedef.wall_height,
+                linedef.properties.get_float_default("wall_height", 0.0),
                 0.0..=4.0,
                 false,
             );

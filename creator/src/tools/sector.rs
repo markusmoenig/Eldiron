@@ -1,5 +1,6 @@
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
+use rusterix::{PixelSource, Value};
 use vek::Vec2;
 use MapEvent::*;
 use ToolEvent::*;
@@ -93,12 +94,17 @@ impl Tool for SectorTool {
                     );
                     material_switch.add_text_status_icon(
                         "Materials".to_string(),
-                        "Apply procedural materials.".to_string(),
+                        "Apply materials.".to_string(),
                         "faders".to_string(),
                     );
                     material_switch.add_text_status_icon(
-                        "Properties".to_string(),
-                        "Set sector properties.".to_string(),
+                        "Colors".to_string(),
+                        "Apply a color.".to_string(),
+                        "square".to_string(),
+                    );
+                    material_switch.add_text_status_icon(
+                        "Script".to_string(),
+                        "Sector Script.".to_string(),
                         "code".to_string(),
                     );
                     material_switch.set_item_width(100);
@@ -110,7 +116,8 @@ impl Tool for SectorTool {
                             TheId::named("Main Stack"),
                             PanelIndices::TilePicker as usize,
                         ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Material {
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+                        /*
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::MaterialEditor as usize,
@@ -118,7 +125,7 @@ impl Tool for SectorTool {
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Update Material Previews"),
                             TheValue::Empty,
-                        ));
+                        ));*/
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::Properties {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
@@ -131,11 +138,9 @@ impl Tool for SectorTool {
                     };
 
                     let mut run_properties_button =
-                        TheTraybarButton::new(TheId::named("Apply Sector Properties"));
-                    run_properties_button.set_status_text(
-                        "Run and apply the sector properties on the selected sectors.",
-                    );
-                    run_properties_button.set_text("Apply Properties".to_string());
+                        TheTraybarButton::new(TheId::named("Apply Map Properties"));
+                    run_properties_button.set_status_text("Apply to the selected sectors.");
+                    run_properties_button.set_text("Apply Property".to_string());
                     layout.add_widget(Box::new(run_properties_button));
                     layout.set_reverse_index(Some(1));
 
@@ -189,8 +194,16 @@ impl Tool for SectorTool {
         let mut undo_atom: Option<RegionUndoAtom> = None;
 
         match map_event {
+            MapKey(c) => {
+                match c {
+                    '1'..='9' => map.subdivisions = (c as u8 - b'0') as f32,
+                    '0' => map.subdivisions = 10.0,
+                    _ => {}
+                }
+                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+            }
             MapClicked(coord) => {
-                if self.hud.clicked(coord.x, coord.y, map) {
+                if self.hud.clicked(coord.x, coord.y, map, server_ctx) {
                     crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                     return None;
                 }
@@ -418,6 +431,7 @@ impl Tool for SectorTool {
                         TheValue::Empty,
                     ));
                 }
+                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
             }
         }
         undo_atom
@@ -451,33 +465,54 @@ impl Tool for SectorTool {
         let mut redraw = false;
         #[allow(clippy::single_match)]
         match event {
-            TheEvent::Custom(id, TheValue::Id(uuid)) => {
-                if id.name == "Tile Picked" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        for sector_id in &region.map.selected_sectors.clone() {
-                            if let Some(sector) = region.map.find_sector_mut(*sector_id) {
-                                if self.hud.selected_icon_index == 0 {
-                                    sector.floor_texture = Some(*uuid);
-                                    sector.floor_material = None;
-                                } else if self.hud.selected_icon_index == 1 {
-                                    sector.ceiling_texture = Some(*uuid);
-                                    sector.floor_material = None;
-                                } else if self.hud.selected_icon_index == 2 {
-                                    sector.texture_row1 = Some(*uuid);
-                                    sector.material_row1 = None;
-                                } else if self.hud.selected_icon_index == 3 {
-                                    sector.texture_row2 = Some(*uuid);
-                                    sector.material_row2 = None;
-                                } else if self.hud.selected_icon_index == 4 {
-                                    sector.texture_row3 = Some(*uuid);
-                                    sector.material_row3 = None;
+            TheEvent::StateChanged(id, state) => {
+                #[allow(clippy::collapsible_if)]
+                if id.name == "Apply Map Properties" && *state == TheWidgetState::Clicked {
+                    let mut source: Option<Value> = None;
+
+                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
+                        if let Some(id) = server_ctx.curr_tile_id {
+                            source = Some(Value::Source(PixelSource::TileId(id)));
+                        }
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
+                        source = Some(Value::Source(PixelSource::Color(
+                            server_ctx.curr_panel_picker_color.clone(),
+                        )));
+                    }
+
+                    if let Some(source) = source {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            let prev = map.clone();
+
+                            for sector_id in &map.selected_sectors.clone() {
+                                if let Some(sector) = map.find_sector_mut(*sector_id) {
+                                    if self.hud.selected_icon_index == 0 {
+                                        sector.properties.set("floor_source", source.clone());
+                                    } else if self.hud.selected_icon_index == 1 {
+                                        sector.properties.set("ceiling_source", source.clone());
+                                    } else if self.hud.selected_icon_index == 2 {
+                                        sector.properties.set("row1_source", source.clone());
+                                    } else if self.hud.selected_icon_index == 3 {
+                                        sector.properties.set("row2_source", source.clone());
+                                    } else if self.hud.selected_icon_index == 4 {
+                                        sector.properties.set("row3_source", source.clone());
+                                    }
+                                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                                 }
-                                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                             }
+
+                            let undo_atom =
+                                RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+
+                            crate::editor::UNDOMANAGER.lock().unwrap().add_region_undo(
+                                &server_ctx.curr_region,
+                                undo_atom,
+                                ctx,
+                            );
+                            crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                         }
                     }
                 }
-                redraw = true;
             }
             // TheEvent::ValueChanged(id, value) => {
             //     if id.name == "CodeEdit" {
@@ -525,7 +560,8 @@ impl Tool for SectorTool {
                             TheId::named("Main Stack"),
                             PanelIndices::TilePicker as usize,
                         ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Material {
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+                        /*
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::MaterialEditor as usize,
@@ -533,6 +569,11 @@ impl Tool for SectorTool {
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Update Material Previews"),
                             TheValue::Empty,
+                        ));**/
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::ColorPicker as usize,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::Properties {
                         ctx.ui.send(TheEvent::SetStackIndex(

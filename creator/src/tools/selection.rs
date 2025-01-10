@@ -214,6 +214,14 @@ impl Tool for SelectionTool {
         let mut undo_atom: Option<RegionUndoAtom> = None;
 
         match map_event {
+            MapKey(c) => {
+                match c {
+                    '1'..='9' => map.subdivisions = (c as u8 - b'0') as f32,
+                    '0' => map.subdivisions = 10.0,
+                    _ => {}
+                }
+                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+            }
             MapClicked(coord) => {
                 if !server_ctx.hover_is_empty() {
                     let prev = map.clone();

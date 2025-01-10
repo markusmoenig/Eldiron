@@ -95,6 +95,14 @@ impl Tool for VertexTool {
         let mut undo_atom: Option<RegionUndoAtom> = None;
 
         match map_event {
+            MapKey(c) => {
+                match c {
+                    '1'..='9' => map.subdivisions = (c as u8 - b'0') as f32,
+                    '0' => map.subdivisions = 10.0,
+                    _ => {}
+                }
+                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+            }
             MapClicked(coord) => {
                 self.click_selected = false;
                 if server_ctx.hover.0.is_some() {
@@ -314,6 +322,7 @@ impl Tool for VertexTool {
                         TheValue::Empty,
                     ));
                 }
+                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
             }
         };
         undo_atom

@@ -6,20 +6,23 @@ pub enum MapContext {
     Region,
     Model,
     Screen,
+    Material,
 }
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum MapToolHelper {
     TilePicker,
-    Material,
+    MaterialPicker,
+    ColorPicker,
     Properties,
 }
 
 impl MapToolHelper {
     pub fn set_from_index(&mut self, index: usize) {
         match index {
-            1 => *self = MapToolHelper::Material,
-            2 => *self = MapToolHelper::Properties,
+            1 => *self = MapToolHelper::MaterialPicker,
+            2 => *self = MapToolHelper::ColorPicker,
+            3 => *self = MapToolHelper::Properties,
             _ => *self = MapToolHelper::TilePicker,
         }
     }
@@ -84,7 +87,7 @@ pub struct ServerContext {
     pub curr_geo_object: Option<Uuid>,
     pub curr_geo_node: Option<Uuid>,
 
-    pub curr_material_object: Option<Uuid>,
+    pub curr_material: Option<Uuid>,
     pub curr_brush: Uuid,
 
     /// The screen editor drawing mode.
@@ -107,6 +110,11 @@ pub struct ServerContext {
 
     /// Map texture mode
     pub curr_texture_mode: MapTextureMode,
+
+    pub editing_camera_position: Vec3<f32>,
+    pub editing_preview_camera: MapCamera,
+
+    pub curr_panel_picker_color: TheColor,
 }
 
 impl Default for ServerContext {
@@ -147,7 +155,7 @@ impl ServerContext {
             curr_geo_object: None,
             curr_geo_node: None,
 
-            curr_material_object: None,
+            curr_material: None,
             curr_brush: Uuid::nil(),
 
             screen_editor_mode_foreground: false,
@@ -159,6 +167,11 @@ impl ServerContext {
             curr_map_context: MapContext::Region,
             curr_map_tool_helper: MapToolHelper::TilePicker,
             curr_texture_mode: MapTextureMode::Floor,
+
+            editing_camera_position: Vec3::zero(),
+            editing_preview_camera: MapCamera::TwoD,
+
+            curr_panel_picker_color: TheColor::white(),
         }
     }
 
@@ -170,6 +183,7 @@ impl ServerContext {
         mode: MapTextureMode,
         map: &Map,
     ) -> Option<(Option<Uuid>, Option<u8>)> {
+        /*
         match mode {
             MapTextureMode::Floor => {
                 if let Some(sector_id) = map.selected_sectors.first() {
@@ -194,7 +208,7 @@ impl ServerContext {
                 }
             }
             _ => {}
-        }
+        }*/
         None
     }
 

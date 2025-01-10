@@ -1,4 +1,4 @@
-pub mod materialfx_undo;
+// pub mod materialfx_undo;
 pub mod palette_undo;
 pub mod region_undo;
 
@@ -6,7 +6,7 @@ use crate::prelude::*;
 
 //use crate::editor::MODELFXEDITOR;
 
-use self::materialfx_undo::MaterialFXUndo;
+// use self::materialfx_undo::MaterialFXUndo;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum UndoManagerContext {
@@ -22,7 +22,7 @@ pub struct UndoManager {
     pub context: UndoManagerContext,
 
     regions: FxHashMap<Uuid, RegionUndo>,
-    materialfx: MaterialFXUndo,
+    // materialfx: MaterialFXUndo,
     palette: PaletteUndo,
 }
 
@@ -38,7 +38,7 @@ impl UndoManager {
             context: UndoManagerContext::None,
 
             regions: FxHashMap::default(),
-            materialfx: MaterialFXUndo::default(),
+            // materialfx: MaterialFXUndo::default(),
             palette: PaletteUndo::default(),
         }
     }
@@ -51,12 +51,12 @@ impl UndoManager {
         self.can_save(ctx);
     }
 
-    pub fn add_materialfx_undo(&mut self, atom: MaterialFXUndoAtom, ctx: &mut TheContext) {
-        self.context = UndoManagerContext::MaterialFX;
-        self.materialfx.add(atom);
-        ctx.ui.set_enabled("Undo");
-        self.can_save(ctx);
-    }
+    // pub fn add_materialfx_undo(&mut self, atom: MaterialFXUndoAtom, ctx: &mut TheContext) {
+    //     self.context = UndoManagerContext::MaterialFX;
+    //     self.materialfx.add(atom);
+    //     ctx.ui.set_enabled("Undo");
+    //     self.can_save(ctx);
+    // }
 
     pub fn add_palette_undo(&mut self, atom: PaletteUndoAtom, ctx: &mut TheContext) {
         self.context = UndoManagerContext::Palette;
@@ -96,21 +96,21 @@ impl UndoManager {
                     }
                 }
             }
-            UndoManagerContext::MaterialFX => {
-                self.materialfx.undo(server_ctx, project, ui, ctx);
+            // UndoManagerContext::MaterialFX => {
+            //     self.materialfx.undo(server_ctx, project, ui, ctx);
 
-                if !self.materialfx.has_undo() {
-                    ctx.ui.set_disabled("Undo");
-                } else {
-                    ctx.ui.set_enabled("Undo");
-                }
+            //     if !self.materialfx.has_undo() {
+            //         ctx.ui.set_disabled("Undo");
+            //     } else {
+            //         ctx.ui.set_enabled("Undo");
+            //     }
 
-                if !self.materialfx.has_redo() {
-                    ctx.ui.set_disabled("Redo");
-                } else {
-                    ctx.ui.set_enabled("Redo");
-                }
-            }
+            //     if !self.materialfx.has_redo() {
+            //         ctx.ui.set_disabled("Redo");
+            //     } else {
+            //         ctx.ui.set_enabled("Redo");
+            //     }
+            // }
             UndoManagerContext::Palette => {
                 self.palette.undo(server_ctx, project, ui, ctx);
 
@@ -162,21 +162,21 @@ impl UndoManager {
                     }
                 }
             }
-            UndoManagerContext::MaterialFX => {
-                self.materialfx.redo(server_ctx, project, ui, ctx);
+            // UndoManagerContext::MaterialFX => {
+            //     self.materialfx.redo(server_ctx, project, ui, ctx);
 
-                if !self.materialfx.has_undo() {
-                    ctx.ui.set_disabled("Undo");
-                } else {
-                    ctx.ui.set_enabled("Undo");
-                }
+            //     if !self.materialfx.has_undo() {
+            //         ctx.ui.set_disabled("Undo");
+            //     } else {
+            //         ctx.ui.set_enabled("Undo");
+            //     }
 
-                if !self.materialfx.has_redo() {
-                    ctx.ui.set_disabled("Redo");
-                } else {
-                    ctx.ui.set_enabled("Redo");
-                }
-            }
+            //     if !self.materialfx.has_redo() {
+            //         ctx.ui.set_disabled("Redo");
+            //     } else {
+            //         ctx.ui.set_enabled("Redo");
+            //     }
+            // }
             UndoManagerContext::Palette => {
                 self.palette.redo(server_ctx, project, ui, ctx);
 
@@ -218,8 +218,8 @@ impl UndoManager {
         true
     }
 
-    /// Clears the ModelFX undo.
-    pub fn clear_materialfx(&mut self) {
-        self.materialfx.clear();
-    }
+    // Clears the ModelFX undo.
+    // pub fn clear_materialfx(&mut self) {
+    //     self.materialfx.clear();
+    // }
 }

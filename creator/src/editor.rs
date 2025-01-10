@@ -32,7 +32,7 @@ lazy_static! {
     pub static ref BRUSHLIST: Mutex<BrushList> = Mutex::new(BrushList::default());
     pub static ref PANELS: Mutex<Panels> = Mutex::new(Panels::new());
     // pub static ref MODELEDITOR: Mutex<ModelEditor> = Mutex::new(ModelEditor::new());
-    pub static ref MATERIALEDITOR: Mutex<MaterialEditor> = Mutex::new(MaterialEditor::new());
+    // pub static ref MATERIALEDITOR: Mutex<MaterialEditor> = Mutex::new(MaterialEditor::new());
     pub static ref TEXTEDITOR: Mutex<TextEditor> = Mutex::new(TextEditor::new());
     pub static ref TEXTURES: Mutex<FxHashMap<Uuid, TheRGBATile>> = Mutex::new(FxHashMap::default());
     pub static ref PALETTE: Mutex<ThePalette> = Mutex::new(ThePalette::default());
@@ -55,8 +55,7 @@ pub struct Editor {
     sidebar: Sidebar,
     mapeditor: MapEditor,
     screeneditor: ScreenEditor,
-    materialeditor: MaterialEditor,
-
+    // materialeditor: MaterialEditor,
     server: Server,
     client: Client,
     server_ctx: ServerContext,
@@ -87,7 +86,7 @@ impl TheTrait for Editor {
 
             sidebar: Sidebar::new(),
             mapeditor: MapEditor::new(),
-            materialeditor: MaterialEditor::new(),
+            // materialeditor: MaterialEditor::new(),
             screeneditor: ScreenEditor::new(),
 
             server_ctx: ServerContext::default(),
@@ -669,9 +668,73 @@ impl TheTrait for Editor {
                     let rusterix = &mut RUSTERIX.lock().unwrap();
                     let b = &mut rusterix.client.builder_d2;
 
-                    if let Some(region) = self.project.get_region(&self.server_ctx.curr_region) {
-                        if region.map.camera == MapCamera::TwoD {
-                            b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                    // Draw the region map
+                    if self.server_ctx.curr_map_context == MapContext::Region {
+                        if let Some(region) = self.project.get_region(&self.server_ctx.curr_region)
+                        {
+                            if region.map.camera == MapCamera::TwoD {
+                                b.set_material_mode(false);
+                                b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                                if let Some(hover_cursor) = self.server_ctx.hover_cursor {
+                                    b.set_map_hover_info(
+                                        self.server_ctx.hover,
+                                        Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
+                                    );
+                                } else {
+                                    b.set_map_hover_info(self.server_ctx.hover, None);
+                                }
+
+                                if let Some(camera_pos) = region.map.camera_xz {
+                                    b.set_camera_info(
+                                        Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
+                                        vek::Vec3::zero(),
+                                    );
+                                }
+
+                                self.server_ctx.editing_camera_position = vek::Vec3::new(
+                                    region.editing_position_3d.x,
+                                    0.0,
+                                    region.editing_position_3d.z,
+                                );
+                            } else if region.map.camera == MapCamera::ThreeDIso {
+                                let p = vek::Vec3::new(
+                                    region.editing_position_3d.x,
+                                    0.0,
+                                    region.editing_position_3d.z,
+                                );
+
+                                rusterix.client.camera_d3.set_parameter_vec3("center", p);
+                                rusterix.client.camera_d3.set_parameter_vec3(
+                                    "position",
+                                    p + vek::Vec3::new(-10.0, 10.0, 10.0),
+                                );
+                            } else if region.map.camera == MapCamera::ThreeDFirstPerson {
+                                let p = vek::Vec3::new(
+                                    region.editing_position_3d.x,
+                                    1.5,
+                                    region.editing_position_3d.z,
+                                );
+                                rusterix.client.camera_d3.set_parameter_vec3("position", p);
+                                rusterix.client.camera_d3.set_parameter_vec3(
+                                    "center",
+                                    p + vek::Vec3::new(0.0, 0.0, -1.0),
+                                );
+                            }
+
+                            rusterix.build_scene(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                &region.map,
+                            );
+                            rusterix.draw_scene(
+                                render_view.render_buffer_mut().pixels_mut(),
+                                dim.width as usize,
+                                dim.height as usize,
+                            );
+                        }
+                    } else
+                    // Draw the material mapp
+                    if self.server_ctx.curr_map_context == MapContext::Material {
+                        if let Some(material) = self.project.get_map_mut(&self.server_ctx) {
                             if let Some(hover_cursor) = self.server_ctx.hover_cursor {
                                 b.set_map_hover_info(
                                     self.server_ctx.hover,
@@ -680,54 +743,24 @@ impl TheTrait for Editor {
                             } else {
                                 b.set_map_hover_info(self.server_ctx.hover, None);
                             }
-
-                            if let Some(camera_pos) = region.map.camera_xz {
-                                b.set_camera_info(
-                                    Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
-                                    vek::Vec3::zero(),
-                                );
-                            }
-                        } else if region.map.camera == MapCamera::ThreeDIso {
-                            let p = vek::Vec3::new(
-                                region.editing_position_3d.x,
-                                0.0,
-                                region.editing_position_3d.z,
+                            b.set_material_mode(true);
+                            rusterix.build_scene(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                material,
                             );
-
-                            rusterix.client.camera_d3.set_parameter_vec3("center", p);
-                            rusterix.client.camera_d3.set_parameter_vec3(
-                                "position",
-                                p + vek::Vec3::new(-10.0, 10.0, 10.0),
+                            rusterix.draw_scene(
+                                render_view.render_buffer_mut().pixels_mut(),
+                                dim.width as usize,
+                                dim.height as usize,
                             );
-                        } else if region.map.camera == MapCamera::ThreeDFirstPerson {
-                            let p = vek::Vec3::new(
-                                region.editing_position_3d.x,
-                                1.5,
-                                region.editing_position_3d.z,
-                            );
-                            rusterix.client.camera_d3.set_parameter_vec3("position", p);
-                            rusterix
-                                .client
-                                .camera_d3
-                                .set_parameter_vec3("center", p + vek::Vec3::new(0.0, 0.0, -1.0));
                         }
-
-                        rusterix.build_scene(
-                            Vec2::new(dim.width as f32, dim.height as f32),
-                            &region.map,
-                        );
-                        rusterix.draw_scene(
-                            render_view.render_buffer_mut().pixels_mut(),
-                            dim.width as usize,
-                            dim.height as usize,
-                        );
                     }
                 }
 
-                if let Some(region) = self.project.get_region_ctx_mut(&self.server_ctx) {
+                if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
                     TOOLLIST.lock().unwrap().draw_hud(
                         render_view.render_buffer_mut(),
-                        &mut region.map,
+                        map,
                         ctx,
                         &mut self.server_ctx,
                     );
@@ -788,27 +821,27 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
-                if self.screeneditor.handle_event(
-                    &event,
-                    ui,
-                    ctx,
-                    &mut self.project,
-                    &mut self.client,
-                    &mut self.server_ctx,
-                ) {
-                    redraw = true;
-                }
-                if self.materialeditor.handle_event(
-                    &event,
-                    ui,
-                    ctx,
-                    &mut self.project,
-                    &mut self.server,
-                    &mut self.client,
-                    &mut self.server_ctx,
-                ) {
-                    redraw = true;
-                }
+                // if self.screeneditor.handle_event(
+                //     &event,
+                //     ui,
+                //     ctx,
+                //     &mut self.project,
+                //     &mut self.client,
+                //     &mut self.server_ctx,
+                // ) {
+                //     redraw = true;
+                // }
+                // if self.materialeditor.handle_event(
+                //     &event,
+                //     ui,
+                //     ctx,
+                //     &mut self.project,
+                //     &mut self.server,
+                //     &mut self.client,
+                //     &mut self.server_ctx,
+                // ) {
+                //     redraw = true;
+                // }
                 // if MODELEDITOR.lock().unwrap().handle_event(
                 //     &event,
                 //     ui,
@@ -1274,7 +1307,9 @@ impl TheTrait for Editor {
                                     PaletteUndoAtom::Edit(prev, self.project.palette.clone());
                                 UNDOMANAGER.lock().unwrap().add_palette_undo(undo, ctx);
                             }
-                        } else if id.name == "Open" {
+                        } else
+                        // Open
+                        if id.name == "Open" {
                             for p in paths {
                                 self.project_path = Some(p.clone());
                                 // let contents =
@@ -1306,9 +1341,23 @@ impl TheTrait for Editor {
                                         // }
 
                                         // Update mat_obj parameters if necessary
-                                        for mat_obj in &mut self.project.materials.values_mut() {
-                                            mat_obj.update_parameters();
-                                        }
+                                        // for mat_obj in &mut self.project.materials.values_mut() {
+                                        //     mat_obj.update_parameters();
+                                        // }
+                                        //
+
+                                        // self.project.materials.clear();
+                                        // if self.project.materials.len() == 0 {
+                                        //     let mut materials = IndexMap::default();
+                                        //     for _ in 0..=255 {
+                                        //         let map = Map {
+                                        //             name: "Unnamed Material".to_string(),
+                                        //             ..Default::default()
+                                        //         };
+                                        //         materials.insert(map.id, map);
+                                        //     }
+                                        //     self.project.materials = materials;
+                                        // }
 
                                         if let Some(widget) = ui.get_widget("Server Time Slider") {
                                             widget.set_value(TheValue::Time(self.project.time));

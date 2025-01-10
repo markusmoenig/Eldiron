@@ -7,7 +7,7 @@ pub mod brushlist;
 pub mod editor;
 pub mod externals;
 pub mod mapeditor;
-pub mod materialeditor;
+// pub mod materialeditor;
 pub mod minimap;
 pub mod misc;
 // pub mod modeleditor;
@@ -46,7 +46,7 @@ pub mod prelude {
     pub use crate::brushlist::*;
     pub use crate::externals::*;
     pub use crate::mapeditor::*;
-    pub use crate::materialeditor::*;
+    // pub use crate::materialeditor::*;
     pub use crate::misc::*;
     // pub use crate::modeleditor::*;
     // pub use crate::modelfxeditor::*;
@@ -59,7 +59,7 @@ pub mod prelude {
     pub use crate::tilemapeditor::*;
     pub use crate::tilepicker::*;
     pub use crate::toollist::*;
-    pub use crate::undo::materialfx_undo::*;
+    // pub use crate::undo::materialfx_undo::*;
     pub use crate::undo::palette_undo::*;
     pub use crate::undo::region_undo::*;
     pub use crate::undo::*;

@@ -231,6 +231,7 @@ impl TilePicker {
         ctx: &mut TheContext,
         project: &mut Project,
         server: &mut Server,
+        server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
 
@@ -245,6 +246,7 @@ impl TilePicker {
                         //     TheId::named_with_id("Tilemap Tile", *tile_id),
                         //     TheWidgetState::Selected,
                         // ));
+                        server_ctx.curr_tile_id = Some(*tile_id);
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Tile Picked"),
                             TheValue::Id(*tile_id),

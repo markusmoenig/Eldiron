@@ -854,6 +854,7 @@ version = "0.8.14"
 dependencies = [
  "fontdue",
  "forgedtiles",
+ "indexmap 2.7.0",
  "lazy_static",
  "open",
  "png",
@@ -3992,7 +3993,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.0"
-source = "git+https://github.com/markusmoenig/Rusterix#cd82c87ff0bb19584f0f1118eec6c93c0aa26344"
+source = "git+https://github.com/markusmoenig/Rusterix#b0896e32dca337da93079c6cccf2d8fb891c3ca3"
 dependencies = [
  "bincode",
  "crossbeam-channel",

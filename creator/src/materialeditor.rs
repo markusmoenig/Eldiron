@@ -180,7 +180,7 @@ impl MaterialEditor {
             }
             TheEvent::NodeSelectedIndexChanged(id, index) => {
                 if id.name == "Map NodeCanvas" {
-                    if let Some(material_id) = server_ctx.curr_material_object {
+                    if let Some(material_id) = server_ctx.curr_material {
                         if let Some(material) = project.materials.get_mut(&material_id) {
                             material.selected_node = *index;
                         }
@@ -190,7 +190,7 @@ impl MaterialEditor {
             }
             TheEvent::NodeDragged(id, index, position) => {
                 if id.name == "Map NodeCanvas" {
-                    if let Some(material_id) = server_ctx.curr_material_object {
+                    if let Some(material_id) = server_ctx.curr_material {
                         if let Some(material) = project.materials.get_mut(&material_id) {
                             material.nodes[*index].position = *position;
                         }
@@ -200,7 +200,7 @@ impl MaterialEditor {
             TheEvent::NodeConnectionAdded(id, connections)
             | TheEvent::NodeConnectionRemoved(id, connections) => {
                 if id.name == "Map NodeCanvas" {
-                    if let Some(material_id) = server_ctx.curr_material_object {
+                    if let Some(material_id) = server_ctx.curr_material {
                         if let Some(material) = project.materials.get_mut(&material_id) {
                             let prev = material.to_json();
                             material.connections.clone_from(connections);
@@ -217,7 +217,7 @@ impl MaterialEditor {
             }
             TheEvent::NodeDeleted(id, deleted_node_index, connections) => {
                 if id.name == "Map NodeCanvas" {
-                    if let Some(material_id) = server_ctx.curr_material_object {
+                    if let Some(material_id) = server_ctx.curr_material {
                         if let Some(material) = project.materials.get_mut(&material_id) {
                             let prev = material.to_json();
                             material.nodes.remove(*deleted_node_index);
@@ -241,7 +241,7 @@ impl MaterialEditor {
             }
             TheEvent::NodeViewScrolled(id, offset) => {
                 if id.name == "Map NodeCanvas" {
-                    if let Some(material_id) = server_ctx.curr_material_object {
+                    if let Some(material_id) = server_ctx.curr_material {
                         if let Some(material) = project.materials.get_mut(&material_id) {
                             material.scroll_offset = *offset;
                         }
@@ -377,7 +377,7 @@ impl MaterialEditor {
             if let Some((id, material)) = project.materials.get_index_mut(index as usize) {
                 let node_canvas = material.to_canvas(&project.palette);
                 ui.set_node_canvas("Map NodeCanvas", node_canvas);
-                server_ctx.curr_material_object = Some(*id);
+                server_ctx.curr_material = Some(*id);
             }
         } else {
             let mut material = MaterialFXObject::default();
@@ -394,7 +394,7 @@ impl MaterialEditor {
         ctx: &mut TheContext,
         switch_to_nodes: bool,
     ) {
-        if let Some(material_id) = server_ctx.curr_material_object {
+        if let Some(material_id) = server_ctx.curr_material {
             if let Some(material) = project.materials.get_mut(&material_id) {
                 if let Some(selected_index) = material.selected_node {
                     // Safeguard, not actually needed

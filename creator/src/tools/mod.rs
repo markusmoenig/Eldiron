@@ -38,6 +38,7 @@ pub enum MapEvent {
     MapUp(Vec2<i32>),
     MapDelete,
     MapEscape,
+    MapKey(char),
 }
 
 #[derive(PartialEq, Clone, Debug, Copy)]

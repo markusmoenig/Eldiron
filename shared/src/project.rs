@@ -1,4 +1,4 @@
-use crate::{prelude::*, server::context::MapContext};
+use crate::prelude::*;
 use indexmap::IndexMap;
 use theframework::prelude::*;
 
@@ -49,7 +49,7 @@ pub struct Project {
     pub palette: ThePalette,
 
     #[serde(default)]
-    pub materials: IndexMap<Uuid, MaterialFXObject>,
+    pub materials: IndexMap<Uuid, Map>,
 
     #[serde(default)]
     pub models: IndexMap<Uuid, Map>,
@@ -71,8 +71,11 @@ impl Project {
     pub fn new() -> Self {
         let mut materials = IndexMap::default();
         for _ in 0..=255 {
-            let mat_obj = MaterialFXObject::default();
-            materials.insert(mat_obj.id, mat_obj);
+            let map = Map {
+                name: "Unnamed Material".to_string(),
+                ..Default::default()
+            };
+            materials.insert(map.id, map);
         }
 
         Self {
@@ -205,6 +208,12 @@ impl Project {
         if ctx.curr_map_context == MapContext::Region {
             if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
                 return Some(&mut region.map);
+            }
+        } else if ctx.curr_map_context == MapContext::Material {
+            if let Some(material_id) = ctx.curr_material {
+                if let Some(material) = self.materials.get_mut(&material_id) {
+                    return Some(material);
+                }
             }
         }
         None

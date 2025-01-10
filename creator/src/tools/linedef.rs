@@ -102,10 +102,15 @@ impl Tool for LinedefTool {
                         "faders".to_string(),
                     );
                     material_switch.add_text_status_icon(
-                        "Properties".to_string(),
-                        "Set sector properties.".to_string(),
-                        "code".to_string(),
+                        "Colors".to_string(),
+                        "Apply a color.".to_string(),
+                        "square".to_string(),
                     );
+                    // material_switch.add_text_status_icon(
+                    //     "Properties".to_string(),
+                    //     "Set sector properties.".to_string(),
+                    //     "code".to_string(),
+                    // );
                     material_switch.set_item_width(100);
                     material_switch.set_index(server_ctx.curr_map_tool_helper as i32);
                     layout.add_widget(Box::new(material_switch));
@@ -115,7 +120,8 @@ impl Tool for LinedefTool {
                             TheId::named("Main Stack"),
                             PanelIndices::TilePicker as usize,
                         ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Material {
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+                        /*
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::MaterialEditor as usize,
@@ -123,7 +129,7 @@ impl Tool for LinedefTool {
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Update Material Previews"),
                             TheValue::Empty,
-                        ));
+                        ));*/
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::Properties {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
@@ -136,11 +142,9 @@ impl Tool for LinedefTool {
                     };
 
                     let mut run_properties_button =
-                        TheTraybarButton::new(TheId::named("Apply Linedef Properties"));
-                    run_properties_button.set_status_text(
-                        "Run and apply the linedef properties on the selected lines.",
-                    );
-                    run_properties_button.set_text("Apply Properties".to_string());
+                        TheTraybarButton::new(TheId::named("Apply Map Properties"));
+                    run_properties_button.set_status_text("Apply to the selected linedefs.");
+                    run_properties_button.set_text("Apply Property".to_string());
                     layout.add_widget(Box::new(run_properties_button));
                     layout.set_reverse_index(Some(1));
 
@@ -259,8 +263,16 @@ impl Tool for LinedefTool {
         let mut undo_atom: Option<RegionUndoAtom> = None;
 
         match map_event {
+            MapKey(c) => {
+                match c {
+                    '1'..='9' => map.subdivisions = (c as u8 - b'0') as f32,
+                    '0' => map.subdivisions = 10.0,
+                    _ => {}
+                }
+                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+            }
             MapClicked(coord) => {
-                if self.hud.clicked(coord.x, coord.y, map) {
+                if self.hud.clicked(coord.x, coord.y, map, server_ctx) {
                     crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                     return None;
                 }
@@ -554,6 +566,7 @@ impl Tool for LinedefTool {
                         TheValue::Empty,
                     ));
                 }
+                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
             }
         }
         undo_atom
@@ -587,28 +600,55 @@ impl Tool for LinedefTool {
         let mut redraw = false;
         #[allow(clippy::single_match)]
         match event {
-            TheEvent::Custom(id, TheValue::Id(uuid)) => {
-                if id.name == "Tile Picked" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        for linedef_id in &region.map.selected_linedefs.clone() {
-                            if let Some(linedef) = region.map.find_linedef_mut(*linedef_id) {
-                                if self.hud.selected_icon_index == 0 {
-                                    linedef.texture_row1 = Some(*uuid);
-                                    linedef.material_row1 = None;
-                                } else if self.hud.selected_icon_index == 1 {
-                                    linedef.texture_row2 = Some(*uuid);
-                                    linedef.material_row2 = None;
-                                } else if self.hud.selected_icon_index == 2 {
-                                    linedef.texture_row3 = Some(*uuid);
-                                    linedef.material_row3 = None;
+            TheEvent::StateChanged(id, state) => {
+                #[allow(clippy::collapsible_if)]
+                if id.name == "Apply Map Properties" && *state == TheWidgetState::Clicked {
+                    let mut source: Option<Value> = None;
+
+                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
+                        if let Some(id) = server_ctx.curr_tile_id {
+                            source = Some(Value::Source(PixelSource::TileId(id)));
+                        }
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
+                        source = Some(Value::Source(PixelSource::Color(
+                            server_ctx.curr_panel_picker_color.clone(),
+                        )));
+                    }
+
+                    if let Some(source) = source {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            let prev = map.clone();
+
+                            for linedef_id in map.selected_linedefs.clone() {
+                                if let Some(linedef) = map.find_linedef_mut(linedef_id) {
+                                    if self.hud.selected_icon_index == 0 {
+                                        linedef.properties.set("row1_source", source.clone());
+                                    } else if self.hud.selected_icon_index == 1 {
+                                        linedef.properties.set("row2_source", source.clone());
+                                    } else if self.hud.selected_icon_index == 2 {
+                                        linedef.properties.set("row3_source", source.clone());
+                                    }
+                                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                                 }
-                                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                             }
+
+                            let undo_atom =
+                                RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+
+                            crate::editor::UNDOMANAGER.lock().unwrap().add_region_undo(
+                                &server_ctx.curr_region,
+                                undo_atom,
+                                ctx,
+                            );
+                            crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                         }
                     }
                 }
-                redraw = true;
             }
+            // TheEvent::Custom(id, TheValue::Id(uuid)) => {
+            //     if id.name == "Tile Picked" {}
+            //     redraw = true;
+            // }
             // TheEvent::ValueChanged(id, value) => {
             //     if id.name == "CodeEdit" {
             //         if let Some(code) = value.to_string() {
@@ -655,14 +695,19 @@ impl Tool for LinedefTool {
                             TheId::named("Main Stack"),
                             PanelIndices::TilePicker as usize,
                         ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Material {
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+                        // ctx.ui.send(TheEvent::SetStackIndex(
+                        //     TheId::named("Main Stack"),
+                        //     PanelIndices::ColorPicker as usize,
+                        // ));
+                        // ctx.ui.send(TheEvent::Custom(
+                        //     TheId::named("Update Material Previews"),
+                        //     TheValue::Empty,
+                        // ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
-                            PanelIndices::MaterialEditor as usize,
-                        ));
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Material Previews"),
-                            TheValue::Empty,
+                            PanelIndices::ColorPicker as usize,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::Properties {
                         ctx.ui.send(TheEvent::SetStackIndex(

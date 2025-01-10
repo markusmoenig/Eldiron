@@ -101,17 +101,6 @@ impl Client {
 
     /// Sets the project
     pub fn set_project(&mut self, project: Project) {
-        TILEDRAWER
-            .write()
-            .unwrap()
-            .set_tiles(project.extract_tiles());
-
-        TILEDRAWER
-            .write()
-            .unwrap()
-            .materials
-            .clone_from(&project.materials);
-
         // RENDERER
         //     .write()
         //     .unwrap()

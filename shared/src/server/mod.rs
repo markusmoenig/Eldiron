@@ -3,7 +3,6 @@ use lazy_static::lazy_static;
 use std::sync::{mpsc, RwLock};
 use theframework::prelude::*;
 
-pub mod context;
 pub mod daylight;
 pub mod execute;
 pub mod functions;
@@ -11,7 +10,6 @@ pub mod region_instance;
 pub mod world;
 
 pub mod prelude {
-    pub use super::context::*;
     pub use super::daylight::Daylight;
     pub use super::execute::*;
     pub use super::region_instance::RegionInstance;

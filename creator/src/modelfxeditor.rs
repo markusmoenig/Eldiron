@@ -296,7 +296,7 @@ impl ModelFXEditor {
         match event {
             TheEvent::PaletteIndexChanged(_, index) => {
                 if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::MaterialEditor {
-                    if let Some(material_id) = server_ctx.curr_material_object {
+                    if let Some(material_id) = server_ctx.curr_material {
                         if let Some(material) = project.materials.get_mut(&material_id) {
                             if let Some(selected_index) = material.selected_node {
                                 let prev = material.to_json();
@@ -347,9 +347,9 @@ impl ModelFXEditor {
                     server_ctx.curr_brush = id.uuid;
                 } else if id.name == "Material Object" {
                     if let Some(material) = project.materials.get(&id.uuid) {
-                        server_ctx.curr_material_object = Some(material.id);
+                        server_ctx.curr_material = Some(material.id);
                     } else {
-                        server_ctx.curr_material_object = None;
+                        server_ctx.curr_material = None;
                         ui.set_node_canvas("MaterialFX NodeCanvas", TheNodeCanvas::default());
                     }
                     self.set_current_brush(ui, project, server_ctx, ctx);
@@ -378,7 +378,7 @@ impl ModelFXEditor {
                     UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
 
                     project.materials.insert(material.id, material);
-                    server_ctx.curr_material_object = Some(material_id);
+                    server_ctx.curr_material = Some(material_id);
                     TILEDRAWER
                         .lock()
                         .unwrap()
@@ -404,7 +404,7 @@ impl ModelFXEditor {
                 //let prev = self.modelfx.to_json();
                 #[allow(clippy::collapsible_if)]
                 if id.name == "MaterialFX Nodes" || id.name.is_empty() {
-                    if let Some(material_id) = server_ctx.curr_material_object {
+                    if let Some(material_id) = server_ctx.curr_material {
                         if let Some(material) = project.materials.get_mut(&material_id) {
                             let prev = material.to_json();
                             let mut node = MaterialFXNode::new_from_name(item.name.clone());
@@ -437,9 +437,9 @@ impl ModelFXEditor {
                     self.set_current_brush(ui, project, server_ctx, ctx);
                 } else if id.name == "MaterialFX RGBA Layout View" {
                     if let Some(material) = self.materials.get(&(coord.x, coord.y)) {
-                        server_ctx.curr_material_object = Some(*material);
+                        server_ctx.curr_material = Some(*material);
                     } else {
-                        server_ctx.curr_material_object = None;
+                        server_ctx.curr_material = None;
                         ui.set_node_canvas("MaterialFX NodeCanvas", TheNodeCanvas::default());
                     }
                     self.set_current_brush(ui, project, server_ctx, ctx);
@@ -511,7 +511,7 @@ impl ModelFXEditor {
                 if id.name.starts_with(":MODELFX:") {
                     //let prev = self.modelfx.to_json();
                     if let Some(name) = id.name.strip_prefix(":MODELFX: ") {
-                        if let Some(material_id) = server_ctx.curr_material_object {
+                        if let Some(material_id) = server_ctx.curr_material {
                             if let Some(material) = project.materials.get_mut(&material_id) {
                                 if let Some(selected_index) = material.selected_node {
                                     if let Some(color) = project.palette.get_current_color() {
@@ -699,7 +699,7 @@ impl ModelFXEditor {
                             }
                         } else {
                             #[allow(clippy::collapsible_else_if)]
-                            if let Some(material_id) = server_ctx.curr_material_object {
+                            if let Some(material_id) = server_ctx.curr_material {
                                 if let Some(material) = project.materials.get_mut(&material_id) {
                                     if let Some(selected_index) = material.selected_node {
                                         let prev = material.to_json();
@@ -872,7 +872,7 @@ impl ModelFXEditor {
             }
             TheEvent::NodeSelectedIndexChanged(id, index) => {
                 if id.name == "MaterialFX NodeCanvas" {
-                    if let Some(material_id) = server_ctx.curr_material_object {
+                    if let Some(material_id) = server_ctx.curr_material {
                         if let Some(material) = project.materials.get_mut(&material_id) {
                             material.selected_node = *index;
                         }
@@ -882,7 +882,7 @@ impl ModelFXEditor {
             }
             TheEvent::NodeDragged(id, index, position) => {
                 if id.name == "MaterialFX NodeCanvas" {
-                    if let Some(material_id) = server_ctx.curr_material_object {
+                    if let Some(material_id) = server_ctx.curr_material {
                         if let Some(material) = project.materials.get_mut(&material_id) {
                             material.nodes[*index].position = *position;
                         }

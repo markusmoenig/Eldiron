@@ -1,6 +1,4 @@
-use crate::editor::{
-    CODEEDITOR, MAPRENDER, RUSTERIX, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR, UNDOMANAGER,
-};
+use crate::editor::{CODEEDITOR, MAPRENDER, RUSTERIX, SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER};
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
 
@@ -14,7 +12,7 @@ pub enum SidebarMode {
     Screen,
     Asset,
     Model,
-    //Material,
+    Material,
     Node,
     Debug,
     Palette,
@@ -99,12 +97,10 @@ impl Sidebar {
         model_sectionbar_button.set_text("Model".to_string());
         model_sectionbar_button.set_status_text("Models");
 
-        /*
         let mut material_sectionbar_button =
             TheSectionbarButton::new(TheId::named("Material Section"));
         material_sectionbar_button.set_text("Material".to_string());
         material_sectionbar_button.set_status_text("Currently available Materials.");
-        */
 
         let mut node_sectionbar_button = TheSectionbarButton::new(TheId::named("Node Section"));
         node_sectionbar_button.set_text("Node".to_string());
@@ -131,7 +127,7 @@ impl Sidebar {
         vlayout.add_widget(Box::new(screen_sectionbar_button));
         vlayout.add_widget(Box::new(asset_sectionbar_button));
         vlayout.add_widget(Box::new(model_sectionbar_button));
-        //vlayout.add_widget(Box::new(material_sectionbar_button));
+        vlayout.add_widget(Box::new(material_sectionbar_button));
         vlayout.add_widget(Box::new(node_sectionbar_button));
         vlayout.add_widget(Box::new(debug_sectionbar_button));
         vlayout.add_widget(Box::new(palette_sectionbar_button));
@@ -769,27 +765,40 @@ impl Sidebar {
         stack_layout.add_canvas(model_canvas);
 
         // Material UI
-        /*
+
         let mut material_canvas = TheCanvas::default();
         let mut material_list_canvas = TheCanvas::default();
 
         let mut material_list_header_canvas = TheCanvas::default();
-        material_list_header_canvas.set_widget(TheStatusbar::new(TheId::empty()));
+        material_list_header_canvas.set_widget(TheTraybar::new(TheId::empty()));
         let mut material_list_header_canvas_hlayout = TheHLayout::new(TheId::empty());
         material_list_header_canvas_hlayout.set_background_color(None);
         let mut filter_text = TheText::new(TheId::empty());
         filter_text.set_text("Filter".to_string());
 
-        material_list_header_canvas_hlayout.set_margin(vec4i(10, 1, 5, 1));
+        material_list_header_canvas_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
         material_list_header_canvas_hlayout.set_padding(3);
-        material_list_header_canvas_hlayout.add_widget(Box::new(filter_text));
+
+        let mut material_add_button = TheTraybarButton::new(TheId::named("Material Add"));
+        material_add_button.set_icon_name("icon_role_add".to_string());
+        material_add_button.set_status_text("Add a new material.");
+
+        let mut material_remove_button = TheTraybarButton::new(TheId::named("Material Remove"));
+        material_remove_button.set_icon_name("icon_role_remove".to_string());
+        material_remove_button.set_status_text("Remove the current material.");
+        material_remove_button.set_disabled(true);
+
         let mut filter_edit = TheTextLineEdit::new(TheId::named("Material Filter Edit"));
         filter_edit.set_text("".to_string());
-        filter_edit.limiter_mut().set_max_size(vec2i(120, 18));
+        filter_edit.limiter_mut().set_max_size(Vec2::new(120, 18));
         filter_edit.set_font_size(12.5);
         filter_edit.set_embedded(true);
         filter_edit.set_status_text("Show materials containing the given text.");
         filter_edit.set_continuous(true);
+        material_list_header_canvas_hlayout.add_widget(Box::new(material_add_button));
+        material_list_header_canvas_hlayout.add_widget(Box::new(material_remove_button));
+        material_list_header_canvas_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+        material_list_header_canvas_hlayout.add_widget(Box::new(filter_text));
         material_list_header_canvas_hlayout.add_widget(Box::new(filter_edit));
 
         // let mut drop_down = TheDropdownMenu::new(TheId::named("Material Filter Role"));
@@ -808,7 +817,6 @@ impl Sidebar {
 
         material_canvas.set_center(material_list_canvas);
         stack_layout.add_canvas(material_canvas);
-        */
 
         // Node UI
 
@@ -964,6 +972,8 @@ impl Sidebar {
                                     TheId::named("Update Minimap"),
                                     TheValue::Empty,
                                 ));
+
+                                RUSTERIX.lock().unwrap().set_dirty();
                             }
 
                             /*
@@ -1010,7 +1020,7 @@ impl Sidebar {
             }
             TheEvent::Resize => {
                 ctx.ui.redraw_all = true;
-                // self.show_filtered_materials(ui, ctx, project, server_ctx);
+                self.show_filtered_materials(ui, ctx, project, server_ctx);
                 // self.show_filtered_models(ui, ctx, project, server_ctx);
             }
             TheEvent::Custom(id, value) => {
@@ -1672,7 +1682,11 @@ impl Sidebar {
                 }
             }
             TheEvent::StateChanged(id, state) => {
-                if id.name == "Palette Clear" {
+                if id.name == "Material Item" {
+                    let material_id = id.uuid;
+                    server_ctx.curr_material = Some(material_id);
+                    RUSTERIX.lock().unwrap().set_dirty();
+                } else if id.name == "Palette Clear" {
                     let prev = project.palette.clone();
                     project.palette.clear();
                     if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
@@ -1964,6 +1978,14 @@ impl Sidebar {
                             self.apply_item(ui, ctx, None);
                         }
                     }
+                } else if id.name == "Material Add" {
+                    let map = Map {
+                        name: "Unnamed Material".to_string(),
+                        ..Default::default()
+                    };
+                    server_ctx.curr_material = Some(map.id);
+                    project.materials.insert(map.id, map);
+                    self.show_filtered_materials(ui, ctx, project, server_ctx);
                 } else if id.name == "Module Add" {
                     if let Some(list_layout) = ui.get_list_layout("Module List") {
                         let bundle = TheCodeBundle::new();
@@ -2329,6 +2351,8 @@ impl Sidebar {
                     // }
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Region;
+                    server_ctx.curr_map_context = MapContext::Region;
+                    RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2355,6 +2379,8 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Character;
+                    server_ctx.curr_map_context = MapContext::Region;
+                    RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2381,6 +2407,8 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Item;
+                    server_ctx.curr_map_context = MapContext::Region;
+                    RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2403,6 +2431,8 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Tilemap;
+                    server_ctx.curr_map_context = MapContext::Region;
+                    RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2430,6 +2460,8 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Module;
+                    server_ctx.curr_map_context = MapContext::Region;
+                    RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2456,6 +2488,8 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Screen;
+                    server_ctx.curr_map_context = MapContext::Screen;
+                    RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2480,6 +2514,8 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Asset;
+                    server_ctx.curr_map_context = MapContext::Region;
+                    RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2503,7 +2539,7 @@ impl Sidebar {
                         SidebarMode::Model as usize,
                     ));
                     redraw = true;
-                    /* } else if id.name == "Material Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Material Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
 
                     if let Some(widget) = ui
@@ -2514,12 +2550,14 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Material;
+                    server_ctx.curr_map_context = MapContext::Material;
+                    RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
                         SidebarMode::Material as usize,
                     ));
-                    redraw = true;*/
+                    redraw = true;
                 } else if id.name == "Node Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
 
@@ -2977,11 +3015,6 @@ impl Sidebar {
             }
         }
 
-        TILEDRAWER
-            .lock()
-            .unwrap()
-            .set_materials(project.materials.clone());
-
         ui.select_first_list_item("Region List", ctx);
         ui.select_first_list_item("Character List", ctx);
         ui.select_first_list_item("Item List", ctx);
@@ -3004,7 +3037,7 @@ impl Sidebar {
             None
         };
 
-        server_ctx.curr_material_object = selected_material;
+        server_ctx.curr_material = selected_material;
         MAPRENDER.lock().unwrap().set_materials(project);
 
         self.show_filtered_models(ui, ctx, project, server_ctx);
@@ -3758,10 +3791,10 @@ impl Sidebar {
                         let sub_text = format!("Index: {}", index);
                         item.set_sub_text(sub_text);
                         item.set_size(42);
-                        if Some(material.id) == server_ctx.curr_material_object {
+                        if Some(material.id) == server_ctx.curr_material {
                             item.set_state(TheWidgetState::Selected);
                         }
-                        item.set_icon(material.get_preview().scaled(36, 36));
+                        // item.set_icon(material.get_preview().scaled(36, 36));
                         item.set_context_menu(Some(TheContextMenu {
                             items: vec![TheContextMenuItem::new(
                                 "Rename Material...".to_string(),

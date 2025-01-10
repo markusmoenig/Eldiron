@@ -190,6 +190,25 @@ impl ToolList {
         let mut redraw = false;
         match event {
             TheEvent::KeyDown(TheValue::Char(c)) => {
+                if let Some(id) = &ctx.ui.focus {
+                    if id.name == "PolyView" {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            let undo_atom = self.get_current_tool().map_event(
+                                MapEvent::MapKey(*c),
+                                ui,
+                                ctx,
+                                map,
+                                server,
+                                client,
+                                server_ctx,
+                            );
+                            self.update_map_context(
+                                ui, ctx, project, server, client, server_ctx, undo_atom,
+                            );
+                        }
+                    }
+                }
+
                 let mut acc = !ui.focus_widget_supports_text_input(ctx);
 
                 if self.get_current_tool().id().name == "Game Tool" {
@@ -813,6 +832,8 @@ impl ToolList {
             client,
             server_ctx,
         );
+
+        crate::editor::RUSTERIX.lock().unwrap().set_dirty();
 
         /*
         if let Some(layout) = ui.get_hlayout(layout_name) {
