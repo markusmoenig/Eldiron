@@ -17,6 +17,8 @@ lazy_static! {
     pub static ref CODEEDITOR: Mutex<TheCodeEditor> = Mutex::new(TheCodeEditor::new());
     pub static ref TILEPICKER: Mutex<TilePicker> =
         Mutex::new(TilePicker::new("Main Tile Picker".to_string()));
+        pub static ref MATERIALPICKER: Mutex<MaterialPicker> =
+            Mutex::new(MaterialPicker::new("Main Material Picker".to_string()));
     pub static ref TILEMAPEDITOR: Mutex<TilemapEditor> = Mutex::new(TilemapEditor::new());
     pub static ref SIDEBARMODE: Mutex<SidebarMode> = Mutex::new(SidebarMode::Region);
     pub static ref TILEDRAWER: Mutex<TileDrawer> = Mutex::new(TileDrawer::new());
@@ -66,6 +68,8 @@ pub struct Editor {
     self_update_rx: Receiver<SelfUpdateEvent>,
     self_update_tx: Sender<SelfUpdateEvent>,
     self_updater: Arc<Mutex<SelfUpdater>>,
+
+    first_update: bool,
 }
 
 impl TheTrait for Editor {
@@ -103,6 +107,8 @@ impl TheTrait for Editor {
                 "Eldiron",
                 "eldiron",
             ))),
+
+            first_update: true,
         }
     }
 
@@ -472,6 +478,22 @@ impl TheTrait for Editor {
         let mut redraw = false;
         let mut update_server_icons = false;
 
+        if self.first_update {
+            let mut toollist = TOOLLIST.lock().unwrap();
+            let id = toollist.get_current_tool().id().uuid;
+
+            toollist.set_tool(
+                id,
+                ui,
+                ctx,
+                &mut self.project,
+                &mut self.server,
+                &mut self.client,
+                &mut self.server_ctx,
+            );
+            self.first_update = false;
+        }
+
         let (redraw_update, tick_update) = self.update_tracker.update(
             (1000 / self.project.target_fps) as u64,
             self.project.tick_ms as u64,
@@ -734,6 +756,7 @@ impl TheTrait for Editor {
                     } else
                     // Draw the material mapp
                     if self.server_ctx.curr_map_context == MapContext::Material {
+                        b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
                         if let Some(material) = self.project.get_map_mut(&self.server_ctx) {
                             if let Some(hover_cursor) = self.server_ctx.hover_cursor {
                                 b.set_map_hover_info(

@@ -234,6 +234,7 @@ impl MapEditor {
                         layout.relayout(ctx);
                     }
                 }
+                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
             }
             TheEvent::RenderViewScrollBy(id, coord) => {
                 if id.name == "PolyView" {

@@ -1,5 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, REGIONFXEDITOR, TEXTEDITOR, TILEDRAWER, TILEFXEDITOR, TILEMAPEDITOR, TILEPICKER,
+    CODEEDITOR, MATERIALPICKER, REGIONFXEDITOR, TEXTEDITOR, TILEDRAWER, TILEFXEDITOR,
+    TILEMAPEDITOR, TILEPICKER,
 };
 use crate::prelude::*;
 
@@ -8,10 +9,10 @@ pub enum PanelIndices {
     CodeEditor,
     TileMapEditor,
     TileFxEditor,
-    //ModelEditor,
     RegionFxEditor,
     ColorPicker,
     TextEditor,
+    MaterialPicker,
 }
 
 pub struct Panels {
@@ -32,7 +33,7 @@ impl Panels {
         &mut self,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         _server_ctx: &mut ServerContext,
     ) -> TheCanvas {
         let mut canvas = TheCanvas::new();
@@ -71,18 +72,28 @@ impl Panels {
         let mut color_picker_canvas: TheCanvas = TheCanvas::default();
         let mut color_picker_layout = TheHLayout::new(TheId::empty());
 
-        let mut color_picker = TheColorPicker::new(TheId::named("Panel Color Picker"));
-        color_picker.set_color(Vec3::one());
+        let mut palette_picker = ThePalettePicker::new(TheId::named("Panel Palette Picker"));
+        palette_picker
+            .limiter_mut()
+            .set_max_size(Vec2::new(500, 200));
+        palette_picker.set_palette(project.palette.clone());
+        palette_picker.set_rows_columns(10, 24);
 
-        color_picker_layout.set_background_color(Some(ListLayoutBackground));
+        color_picker_layout.add_widget(Box::new(palette_picker));
+
+        // let mut color_picker = TheColorPicker::new(TheId::named("Panel Color Picker"));
+        // color_picker.set_color(Vec3::one());
+
+        color_picker_layout.set_background_color(Some(DefaultWidgetDarkBackground));
         color_picker_layout.set_margin(Vec4::new(20, 5, 20, 5));
-        color_picker_layout.add_widget(Box::new(color_picker));
-        color_picker_layout.set_reverse_index(Some(1));
+        // color_picker_layout.add_widget(Box::new(color_picker));
+        // color_picker_layout.set_reverse_index(Some(1));
 
         color_picker_canvas.set_layout(color_picker_layout);
         main_stack.add_canvas(color_picker_canvas);
 
         main_stack.add_canvas(TEXTEDITOR.lock().unwrap().build());
+        main_stack.add_canvas(MATERIALPICKER.lock().unwrap().build(false));
         main_stack.set_index(0);
 
         let tilemap_editor = TheRGBALayout::new(TheId::named("Tilemap Editor"));
@@ -180,6 +191,13 @@ impl Panels {
         {
             redraw = true;
         }
+        if MATERIALPICKER
+            .lock()
+            .unwrap()
+            .handle_event(event, ui, ctx, project, server, server_ctx)
+        {
+            redraw = true;
+        }
 
         match event {
             TheEvent::StateChanged(id, state) => {
@@ -267,9 +285,10 @@ impl Panels {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "Panel Color Picker" {
-                    server_ctx.curr_panel_picker_color = value.to_color().unwrap();
-                } else if id.name == "Atom Color Picker" || id.name == "Atom Direction Picker" {
+                // if id.name == "Panel Color Picker" {
+                //     server_ctx.curr_panel_picker_color = value.to_color().unwrap();
+                // } else
+                if id.name == "Atom Color Picker" || id.name == "Atom Direction Picker" {
                     let mut editor = CODEEDITOR.lock().unwrap();
                     editor.start_undo(ui);
                     editor.set_selected_atom(ui, TheCodeAtom::Value(value.clone()));

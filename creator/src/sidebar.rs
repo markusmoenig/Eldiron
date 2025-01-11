@@ -1,6 +1,7 @@
 use crate::editor::{CODEEDITOR, MAPRENDER, RUSTERIX, SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER};
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
+use rusterix::{D2MaterialBuilder, SceneBuilder, Texture};
 
 #[derive(PartialEq, Debug)]
 pub enum SidebarMode {
@@ -1024,7 +1025,9 @@ impl Sidebar {
                 // self.show_filtered_models(ui, ctx, project, server_ctx);
             }
             TheEvent::Custom(id, value) => {
-                if id.name == "Update Model List" {
+                if id.name == "Update Materialpicker" {
+                    self.show_filtered_materials(ui, ctx, project, server_ctx);
+                } else if id.name == "Update Model List" {
                     self.show_filtered_models(ui, ctx, project, server_ctx);
 
                     self.deselect_sections_buttons(ui, "Model Section".to_string());
@@ -1068,16 +1071,18 @@ impl Sidebar {
                     ));
                 }
             }
-            TheEvent::PaletteIndexChanged(_, index) => {
-                project.palette.current_index = *index;
-                if let Some(widget) = ui.get_widget("Palette Color Picker") {
-                    if let Some(color) = &project.palette[*index as usize] {
-                        widget.set_value(TheValue::ColorObject(color.clone()));
+            TheEvent::PaletteIndexChanged(id, index) => {
+                if id.name == "Palette Picker" {
+                    project.palette.current_index = *index;
+                    if let Some(widget) = ui.get_widget("Palette Color Picker") {
+                        if let Some(color) = &project.palette[*index as usize] {
+                            widget.set_value(TheValue::ColorObject(color.clone()));
+                        }
                     }
-                }
-                if let Some(widget) = ui.get_widget("Palette Hex Edit") {
-                    if let Some(color) = &project.palette[*index as usize] {
-                        widget.set_value(TheValue::Text(color.to_hex()));
+                    if let Some(widget) = ui.get_widget("Palette Hex Edit") {
+                        if let Some(color) = &project.palette[*index as usize] {
+                            widget.set_value(TheValue::Text(color.to_hex()));
+                        }
                     }
                 }
             }
@@ -1343,6 +1348,10 @@ impl Sidebar {
                         if let Some(widget) = ui.get_widget("Palette Color Picker") {
                             widget.set_value(TheValue::ColorObject(color.clone()));
                         }
+                        if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker")
+                        {
+                            palette_picker.set_palette(project.palette.clone());
+                        }
                     }
                 } else if id.name == "Palette Color Picker" {
                     if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
@@ -1357,6 +1366,9 @@ impl Sidebar {
                         if let Some(color) = value.to_color() {
                             widget.set_value(TheValue::Text(color.to_hex()));
                         }
+                    }
+                    if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker") {
+                        palette_picker.set_palette(project.palette.clone());
                     }
                 } else if id.name == "Screen Aspect Ratio Dropdown" {
                     if let Some(index) = value.to_i32() {
@@ -2999,6 +3011,11 @@ impl Sidebar {
         }
 
         // Adjust Palette and Color Picker
+        if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker") {
+            palette_picker.set_palette(project.palette.clone());
+        }
+
+        // Adjust Palette and Color Picker
         if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
             palette_picker.set_palette(project.palette.clone());
             let index = palette_picker.index();
@@ -3025,6 +3042,11 @@ impl Sidebar {
 
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Tilepicker"),
+            TheValue::Empty,
+        ));
+
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Materialpicker"),
             TheValue::Empty,
         ));
 
@@ -3780,6 +3802,9 @@ impl Sidebar {
         {
             if let Some(list_layout) = layout.as_list_layout() {
                 list_layout.clear();
+
+                let b = D2MaterialBuilder::new();
+
                 for (index, material) in project.materials.values().enumerate() {
                     if filter_text.is_empty() || material.name.to_lowercase().contains(&filter_text)
                     //&& (filter_role == 0
@@ -3794,7 +3819,15 @@ impl Sidebar {
                         if Some(material.id) == server_ctx.curr_material {
                             item.set_state(TheWidgetState::Selected);
                         }
-                        // item.set_icon(material.get_preview().scaled(36, 36));
+
+                        let mut texture = Texture::new(vec![0_u8; 36 * 36 * 4], 36, 36);
+                        b.build_texture(material, &FxHashMap::default(), &mut texture);
+                        let rgba = TheRGBABuffer::from(
+                            texture.data,
+                            texture.width as u32,
+                            texture.height as u32,
+                        );
+                        item.set_icon(rgba);
                         item.set_context_menu(Some(TheContextMenu {
                             items: vec![TheContextMenuItem::new(
                                 "Rename Material...".to_string(),

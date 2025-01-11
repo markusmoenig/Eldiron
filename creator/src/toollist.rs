@@ -143,7 +143,7 @@ impl ToolList {
     /// If the map has been changed, update its context and add an undo.
     fn update_map_context(
         &mut self,
-        _ui: &mut TheUI,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
         server: &mut Server,
@@ -162,6 +162,24 @@ impl ToolList {
                     crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                 }
                 server.update_region(region);
+            }
+        } else if server_ctx.curr_map_context == MapContext::Material {
+            // if let Some(region) = project.get_region_ctx(server_ctx) {
+            //     if let Some(undo_atom) = undo_atom {
+            //         UNDOMANAGER.lock().unwrap().add_region_undo(
+            //             &server_ctx.curr_region,
+            //             undo_atom,
+            //             ctx,
+            //         );
+            //         crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+            //     }
+            //     server.update_region(region);
+            // }
+            if let Some(_undo_atom) = undo_atom {
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Materialpicker"),
+                    TheValue::Empty,
+                ));
             }
         }
     }

@@ -13,6 +13,7 @@ pub mod misc;
 // pub mod modeleditor;
 // pub mod modelfxeditor;
 pub mod hud;
+pub mod materialpicker;
 pub mod panels;
 pub mod regionfxeditor;
 pub mod screeneditor;
@@ -50,6 +51,7 @@ pub mod prelude {
     pub use crate::misc::*;
     // pub use crate::modeleditor::*;
     // pub use crate::modelfxeditor::*;
+    pub use crate::materialpicker::*;
     pub use crate::panels::*;
     pub use crate::regionfxeditor::*;
     pub use crate::screeneditor::*;

@@ -80,6 +80,9 @@ pub struct ServerContext {
     /// The currently selected layer role
     pub curr_layer_role: Layer2DRole,
 
+    /// The currently selected Material
+    pub curr_material_id: Option<Uuid>,
+
     /// The conceptual display range [0..1] of the 2D preview.
     /// Only relevent in Model view. 0 is full conceptual display. 1 is full detail.
     pub conceptual_display: Option<f32>,
@@ -113,8 +116,6 @@ pub struct ServerContext {
 
     pub editing_camera_position: Vec3<f32>,
     pub editing_preview_camera: MapCamera,
-
-    pub curr_panel_picker_color: TheColor,
 }
 
 impl Default for ServerContext {
@@ -150,6 +151,8 @@ impl ServerContext {
             curr_tile_id: None,
             curr_layer_role: Layer2DRole::Ground,
 
+            curr_material_id: None,
+
             conceptual_display: None,
 
             curr_geo_object: None,
@@ -170,8 +173,6 @@ impl ServerContext {
 
             editing_camera_position: Vec3::zero(),
             editing_preview_camera: MapCamera::TwoD,
-
-            curr_panel_picker_color: TheColor::white(),
         }
     }
 

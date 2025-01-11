@@ -87,25 +87,25 @@ impl Tool for SectorTool {
 
                     let mut material_switch =
                         TheGroupButton::new(TheId::named("Map Helper Switch"));
-                    material_switch.add_text_status_icon(
+                    material_switch.add_text_status(
                         "Tile Picker".to_string(),
                         "Show tile picker.".to_string(),
-                        "bricks".to_string(),
+                        // "bricks".to_string(),
                     );
-                    material_switch.add_text_status_icon(
+                    material_switch.add_text_status(
                         "Materials".to_string(),
                         "Apply materials.".to_string(),
-                        "faders".to_string(),
+                        // "faders".to_string(),
                     );
-                    material_switch.add_text_status_icon(
+                    material_switch.add_text_status(
                         "Colors".to_string(),
                         "Apply a color.".to_string(),
-                        "square".to_string(),
+                        // "square".to_string(),
                     );
-                    material_switch.add_text_status_icon(
+                    material_switch.add_text_status(
                         "Script".to_string(),
                         "Sector Script.".to_string(),
-                        "code".to_string(),
+                        // "code".to_string(),
                     );
                     material_switch.set_item_width(100);
                     material_switch.set_index(server_ctx.curr_map_tool_helper as i32);
@@ -117,15 +117,15 @@ impl Tool for SectorTool {
                             PanelIndices::TilePicker as usize,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                        /*
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
-                            PanelIndices::MaterialEditor as usize,
+                            PanelIndices::MaterialPicker as usize,
                         ));
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Material Previews"),
-                            TheValue::Empty,
-                        ));*/
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::ColorPicker as usize,
+                        ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::Properties {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
@@ -455,7 +455,7 @@ impl Tool for SectorTool {
     fn handle_event(
         &mut self,
         event: &TheEvent,
-        _ui: &mut TheUI,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
         _server: &mut Server,
@@ -475,9 +475,12 @@ impl Tool for SectorTool {
                             source = Some(Value::Source(PixelSource::TileId(id)));
                         }
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-                        source = Some(Value::Source(PixelSource::Color(
-                            server_ctx.curr_panel_picker_color.clone(),
-                        )));
+                        if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker")
+                        {
+                            if let Some(color) = &project.palette.colors[palette_picker.index()] {
+                                source = Some(Value::Source(PixelSource::Color(color.clone())));
+                            }
+                        }
                     }
 
                     if let Some(source) = source {
@@ -561,15 +564,10 @@ impl Tool for SectorTool {
                             PanelIndices::TilePicker as usize,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                        /*
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
-                            PanelIndices::MaterialEditor as usize,
+                            PanelIndices::MaterialPicker as usize,
                         ));
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Material Previews"),
-                            TheValue::Empty,
-                        ));**/
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
