@@ -1657,7 +1657,7 @@ impl TheTrait for Editor {
                                         TheId::named("Update Minimap"),
                                         TheValue::Empty,
                                     ));
-                                } else if manager.context == UndoManagerContext::MaterialFX {
+                                } else if manager.context == UndoManagerContext::Material {
                                     if id.name == "Undo" {
                                         manager.undo(
                                             Uuid::nil(),

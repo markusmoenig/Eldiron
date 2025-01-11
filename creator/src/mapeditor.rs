@@ -581,10 +581,17 @@ impl MapEditor {
                 }
             }*/
             TheEvent::GainedFocus(id) => {
-                if id.name == "Region Editor View" || id.name == "RenderView" {
-                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
+                if id.name == "Region Editor View"
+                    || id.name == "RenderView"
+                    || id.name == "PolyView"
+                {
+                    if server_ctx.curr_map_context == MapContext::Material {
+                        UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Material;
+                    } else {
+                        UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
+                    }
                 } else if id.name == "ModelFX RGBA Layout View" {
-                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::MaterialFX;
+                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Material;
                 } else if id.name == "Palette Picker" {
                     UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Palette;
                 }

@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::undo::material_undo::MaterialUndoAtom;
 use theframework::prelude::*;
 
 #[allow(clippy::large_enum_variant)]
@@ -17,6 +18,13 @@ pub enum RegionUndoAtom {
 }
 
 impl RegionUndoAtom {
+    pub fn to_material_atom(self) -> Option<MaterialUndoAtom> {
+        match self {
+            RegionUndoAtom::MapEdit(map1, map2) => Some(MaterialUndoAtom::MapEdit(map1, map2)),
+            _ => None, // Return None for unsupported variants
+        }
+    }
+
     pub fn undo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             // RegionUndoAtom::GeoFXObjectsDeletion(objects) => {

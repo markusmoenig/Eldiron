@@ -2364,6 +2364,7 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Region;
                     server_ctx.curr_map_context = MapContext::Region;
+                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
@@ -2392,6 +2393,7 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Character;
                     server_ctx.curr_map_context = MapContext::Region;
+                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
@@ -2420,6 +2422,7 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Item;
                     server_ctx.curr_map_context = MapContext::Region;
+                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
@@ -2444,6 +2447,7 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Tilemap;
                     server_ctx.curr_map_context = MapContext::Region;
+                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
@@ -2473,6 +2477,7 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Module;
                     server_ctx.curr_map_context = MapContext::Region;
+                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
@@ -2501,6 +2506,7 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Screen;
                     server_ctx.curr_map_context = MapContext::Screen;
+                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
@@ -2527,6 +2533,7 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Asset;
                     server_ctx.curr_map_context = MapContext::Region;
+                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
@@ -2563,6 +2570,7 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Material;
                     server_ctx.curr_map_context = MapContext::Material;
+                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Material;
                     RUSTERIX.lock().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
