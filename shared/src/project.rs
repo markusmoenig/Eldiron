@@ -199,6 +199,12 @@ impl Project {
             if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
                 return Some(&region.map);
             }
+        } else if ctx.curr_map_context == MapContext::Material {
+            if let Some(material_id) = ctx.curr_material {
+                if let Some(material) = self.materials.get(&material_id) {
+                    return Some(material);
+                }
+            }
         }
         None
     }

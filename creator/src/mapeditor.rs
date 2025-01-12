@@ -221,7 +221,7 @@ impl MapEditor {
         match event {
             TheEvent::Custom(id, value) => {
                 if id.name == "Map Selection Changed" {
-                    self.apply_map_settings(ui, ctx, project, server, server_ctx);
+                    self.apply_map_settings(ui, ctx, project, server_ctx);
                 } else if id.name == "Cursor Pos Changed" {
                     if let Some(text) = ui.get_text("Cursor Position") {
                         if let Some(v) = value.to_vec2f() {
@@ -648,24 +648,6 @@ impl MapEditor {
                             }
                         }
                     }
-                } else if id.name == "sectorWallHeight" {
-                    if let Some(value) = value.to_f32() {
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            let mut linedef_ids = Vec::new();
-                            for sector_id in &region.map.selected_sectors {
-                                if let Some(sector) = region.map.find_sector(*sector_id) {
-                                    linedef_ids.extend(&sector.linedefs);
-                                }
-                            }
-
-                            for linedef_id in linedef_ids {
-                                if let Some(linedef) = region.map.find_linedef_mut(linedef_id) {
-                                    linedef.properties.set("wall_height", Value::Float(value));
-                                }
-                            }
-                        }
-                    }
-                    redraw = true;
                 } else if id.name == "sectorName" {
                     if let Some(value) = value.to_string() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -684,6 +666,56 @@ impl MapEditor {
                                             ctx,
                                         );
                                     }
+                                }
+                            }
+                        }
+                    }
+                    redraw = true;
+                } else if id.name == "sectorNoiseIntensity" || id.name == "sectorWallHeight" {
+                    if let Some(value) = value.to_f32() {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            for sector_id in &map.selected_sectors.clone() {
+                                let prev = map.clone();
+                                if let Some(sector) = map.find_sector_mut(*sector_id) {
+                                    sector.properties.set(
+                                        &self.transform_to_snake_case(&id.name, "sector"),
+                                        Value::Float(value),
+                                    );
+                                    let undo_atom = RegionUndoAtom::MapEdit(
+                                        Box::new(prev),
+                                        Box::new(map.clone()),
+                                    );
+                                    UNDOMANAGER.lock().unwrap().add_region_undo(
+                                        &server_ctx.curr_region,
+                                        undo_atom,
+                                        ctx,
+                                    );
+                                    RUSTERIX.lock().unwrap().set_dirty();
+                                }
+                            }
+                        }
+                    }
+                    redraw = true;
+                } else if id.name == "sectorPixelization" || id.name == "sectorNoiseTarget" {
+                    if let Some(value) = value.to_i32() {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            for sector_id in &map.selected_sectors.clone() {
+                                let prev = map.clone();
+                                if let Some(sector) = map.find_sector_mut(*sector_id) {
+                                    sector.properties.set(
+                                        &self.transform_to_snake_case(&id.name, "sector"),
+                                        Value::Int(value),
+                                    );
+                                    let undo_atom = RegionUndoAtom::MapEdit(
+                                        Box::new(prev),
+                                        Box::new(map.clone()),
+                                    );
+                                    UNDOMANAGER.lock().unwrap().add_region_undo(
+                                        &server_ctx.curr_region,
+                                        undo_atom,
+                                        ctx,
+                                    );
+                                    RUSTERIX.lock().unwrap().set_dirty();
                                 }
                             }
                         }
@@ -985,7 +1017,6 @@ impl MapEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut Server,
         server_ctx: &mut ServerContext,
     ) {
         // Create Node Settings if necessary
@@ -997,11 +1028,11 @@ impl MapEditor {
             if server_ctx.curr_map_tool_type == MapToolType::Linedef
                 && map.selected_linedefs.len() == 1
             {
-                self.create_linedef_settings(map, map.selected_linedefs[0], ui, ctx);
+                self.create_linedef_settings(map, map.selected_linedefs[0], ui, ctx, server_ctx);
             } else if server_ctx.curr_map_tool_type == MapToolType::Sector
                 && map.selected_sectors.len() == 1
             {
-                self.create_sector_settings(map, map.selected_sectors[0], ui, ctx);
+                self.create_sector_settings(map, map.selected_sectors[0], ui, ctx, server_ctx);
             }
         }
     }
@@ -1012,28 +1043,31 @@ impl MapEditor {
         linedef_id: u32,
         ui: &mut TheUI,
         ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
     ) {
         let mut nodeui = TheNodeUI::default();
 
         if let Some(linedef) = map.find_linedef(linedef_id) {
-            let item = TheNodeUIItem::Text(
-                "linedefName".into(),
-                "Name".into(),
-                "Set the name of the wall".into(),
-                linedef.name.clone(),
-                None,
-                false,
-            );
-            nodeui.add_item(item);
-            let item = TheNodeUIItem::FloatEditSlider(
-                "linedefWallHeight".into(),
-                "Wall Height".into(),
-                "Set the height for the wall.".into(),
-                linedef.properties.get_float_default("wall_height", 0.0),
-                0.0..=4.0,
-                false,
-            );
-            nodeui.add_item(item);
+            if server_ctx.curr_map_context == MapContext::Region {
+                let item = TheNodeUIItem::Text(
+                    "linedefName".into(),
+                    "Name".into(),
+                    "Set the name of the wall".into(),
+                    linedef.name.clone(),
+                    None,
+                    false,
+                );
+                nodeui.add_item(item);
+                let item = TheNodeUIItem::FloatEditSlider(
+                    "linedefWallHeight".into(),
+                    "Wall Height".into(),
+                    "Set the height for the wall.".into(),
+                    linedef.properties.get_float_default("wall_height", 0.0),
+                    0.0..=4.0,
+                    false,
+                );
+                nodeui.add_item(item);
+            }
         }
 
         if let Some(layout) = ui.get_text_layout("Node Settings") {
@@ -1054,26 +1088,62 @@ impl MapEditor {
         sector_id: u32,
         ui: &mut TheUI,
         ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
     ) {
         let mut nodeui = TheNodeUI::default();
 
         if let Some(sector) = map.find_sector(sector_id) {
-            let item = TheNodeUIItem::Text(
-                "sectorName".into(),
-                "Name".into(),
-                "Set the name of the sector".into(),
-                sector.name.clone(),
-                None,
+            if server_ctx.curr_map_context == MapContext::Region {
+                let item = TheNodeUIItem::Text(
+                    "sectorName".into(),
+                    "Name".into(),
+                    "Set the name of the sector".into(),
+                    sector.name.clone(),
+                    None,
+                    false,
+                );
+                nodeui.add_item(item);
+                let item = TheNodeUIItem::FloatEditSlider(
+                    "sectorWallHeight".into(),
+                    "Wall Height".into(),
+                    "Set the height for all walls of the sector.".into(),
+                    2.0,
+                    0.0..=4.0,
+                    false,
+                );
+                nodeui.add_item(item);
+            }
+
+            let item = TheNodeUIItem::IntEditSlider(
+                "sectorPixelization".into(),
+                "Pixelization".into(),
+                "Set the height for all walls of the sector.".into(),
+                1,
+                1..=20,
                 false,
             );
             nodeui.add_item(item);
+
             let item = TheNodeUIItem::FloatEditSlider(
-                "sectorWallHeight".into(),
-                "Wall Height".into(),
+                "sectorNoiseIntensity".into(),
+                "Noise Intensity".into(),
                 "Set the height for all walls of the sector.".into(),
-                2.0,
-                0.0..=4.0,
+                0.0,
+                0.0..=1.0,
                 false,
+            );
+            nodeui.add_item(item);
+
+            let item = TheNodeUIItem::Selector(
+                "sectorNoiseTarget".into(),
+                "Noise Target".into(),
+                "Set the height for all walls of the sector.".into(),
+                vec![
+                    "RGB".to_string(),
+                    "Hue".to_string(),
+                    "Luminance".to_string(),
+                ],
+                0,
             );
             nodeui.add_item(item);
         }
@@ -1090,6 +1160,30 @@ impl MapEditor {
         }
     }
 
+    fn transform_to_snake_case(&self, input: &str, strip_prefix: &str) -> String {
+        // Strip the prefix if it exists
+        let stripped = if let Some(remainder) = input.strip_prefix(strip_prefix) {
+            remainder
+        } else {
+            input
+        };
+
+        // Convert to snake_case
+        let mut snake_case = String::new();
+        for (i, c) in stripped.chars().enumerate() {
+            if c.is_uppercase() {
+                // Add an underscore before uppercase letters (except for the first character)
+                if i > 0 {
+                    snake_case.push('_');
+                }
+                snake_case.push(c.to_ascii_lowercase());
+            } else {
+                snake_case.push(c);
+            }
+        }
+
+        snake_case
+    }
     /*
     fn set_icon_previews(
         &mut self,

@@ -10,7 +10,7 @@ name = "eldiron"
 path = "src/main.rs"
 
 [dependencies]
-theframework = { git = "https://github.com/markusmoenig/TheFramework", features = [
+theframework = { version = "0.1.37", git = "https://github.com/markusmoenig/TheFramework", features = [
     "ui",
     "code",
 ], default-features = true }
@@ -44,7 +44,7 @@ self_update = { version = "0.39.0", features = [
 indexmap = { version = "2", features = ["serde"], default-features = true }
 vek = { version = "0.17.1", default-features = true }
 # rusterix = { path = "../../rusterix" }
-rusterix = { git = "https://github.com/markusmoenig/Rusterix" }
+rusterix = { version = "0.2.0", git = "https://github.com/markusmoenig/Rusterix" }
 
 [package.metadata.bundle]
 name = "Eldiron"
