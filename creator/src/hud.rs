@@ -64,91 +64,27 @@ impl Hud {
 
         self.subdiv_rects = vec![];
 
-        // Material Mode
-        if server_ctx.curr_map_context == MapContext::Material {
-            ctx.draw.rect(
-                buffer.pixels_mut(),
-                &(0, 0, width, info_height),
-                stride,
-                &bg_color,
-            );
+        ctx.draw.rect(
+            buffer.pixels_mut(),
+            &(0, 0, width, info_height),
+            stride,
+            &bg_color,
+        );
 
-            if let Some(font) = &ctx.ui.font {
-                if let Some(v) = server_ctx.hover_cursor {
-                    ctx.draw.text(
-                        buffer.pixels_mut(),
-                        &(10, 2),
-                        stride,
-                        font,
-                        13.0,
-                        &format!("{}, {}", v.x, v.y),
-                        &text_color,
-                        &bg_color,
-                    );
-                }
+        if let Some(font) = &ctx.ui.font {
+            if let Some(v) = server_ctx.hover_cursor {
+                ctx.draw.text(
+                    buffer.pixels_mut(),
+                    &(10, 2),
+                    stride,
+                    font,
+                    13.0,
+                    &format!("{}, {}", v.x, v.y),
+                    &text_color,
+                    &bg_color,
+                );
             }
-
-            // Show Subdivs
-            let x = 100;
-            let size = 20;
-            for i in 0..10 {
-                let rect = TheDim::rect(x + (i * size), 0, size, size);
-
-                if let Some(font) = &ctx.ui.font {
-                    let r = rect.to_buffer_utuple();
-                    ctx.draw.text_rect(
-                        buffer.pixels_mut(),
-                        &(r.0, 1, r.2, 19),
-                        stride,
-                        font,
-                        13.0,
-                        &(i + 1).to_string(),
-                        &if (i + 1) as f32 == map.subdivisions {
-                            sel_text_color
-                        } else {
-                            text_color
-                        },
-                        &bg_color,
-                        TheHorizontalAlign::Center,
-                        TheVerticalAlign::Center,
-                    );
-                }
-                self.subdiv_rects.push(rect);
-            }
-
-            // Draw Preview
-
-            let preview_width = 150;
-            let preview_height = 150;
-            let preview_rect = TheDim::rect(
-                width as i32 - preview_width - 1,
-                height as i32 - preview_height - 1,
-                preview_width,
-                preview_height,
-            );
-
-            self.preview_rect_text = TheDim::rect(width as i32 - 50 - 1, height as i32 - 1, 50, 20);
-
-            let mut pixels = vec![0; (preview_width * preview_height * 4) as usize];
-            pixels.fill(255);
-            let mut texture = Texture::new(pixels, preview_width as usize, preview_height as usize);
-
-            let builder = D2MaterialBuilder::new();
-            builder.build_texture(map, &RUSTERIX.lock().unwrap().assets.tiles, &mut texture);
-
-            ctx.draw.copy_slice(
-                buffer.pixels_mut(),
-                &texture.data,
-                &preview_rect.to_buffer_utuple(),
-                stride,
-            );
-
-            self.preview_rect = preview_rect;
-
-            return;
         }
-
-        // Region Mode
 
         ctx.draw.rect(
             buffer.pixels_mut(),
@@ -171,66 +107,74 @@ impl Hud {
                 );
             }
 
-            ctx.draw.text_rect(
-                buffer.pixels_mut(),
-                &self.d2_rect.to_buffer_utuple(),
-                stride,
-                font,
-                13.0,
-                "EDIT 2D",
-                if map.camera == MapCamera::TwoD {
-                    &sel_text_color
-                } else {
-                    &text_color
-                },
-                &bg_color,
-                TheHorizontalAlign::Center,
-                TheVerticalAlign::Center,
-            );
+            if server_ctx.curr_map_context == MapContext::Region {
+                ctx.draw.text_rect(
+                    buffer.pixels_mut(),
+                    &self.d2_rect.to_buffer_utuple(),
+                    stride,
+                    font,
+                    13.0,
+                    "EDIT 2D",
+                    if map.camera == MapCamera::TwoD {
+                        &sel_text_color
+                    } else {
+                        &text_color
+                    },
+                    &bg_color,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
 
-            ctx.draw.text_rect(
-                buffer.pixels_mut(),
-                &self.d3iso_rect.to_buffer_utuple(),
-                stride,
-                font,
-                13.0,
-                "ISO",
-                if map.camera == MapCamera::ThreeDIso {
-                    &sel_text_color
-                } else {
-                    &text_color
-                },
-                &bg_color,
-                TheHorizontalAlign::Center,
-                TheVerticalAlign::Center,
-            );
+                ctx.draw.text_rect(
+                    buffer.pixels_mut(),
+                    &self.d3iso_rect.to_buffer_utuple(),
+                    stride,
+                    font,
+                    13.0,
+                    "ISO",
+                    if map.camera == MapCamera::ThreeDIso {
+                        &sel_text_color
+                    } else {
+                        &text_color
+                    },
+                    &bg_color,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
 
-            ctx.draw.text_rect(
-                buffer.pixels_mut(),
-                &self.d3firstp_rect.to_buffer_utuple(),
-                stride,
-                font,
-                13.0,
-                "FIRSTP",
-                if map.camera == MapCamera::ThreeDFirstPerson {
-                    &sel_text_color
-                } else {
-                    &text_color
-                },
-                &bg_color,
-                TheHorizontalAlign::Center,
-                TheVerticalAlign::Center,
-            );
+                ctx.draw.text_rect(
+                    buffer.pixels_mut(),
+                    &self.d3firstp_rect.to_buffer_utuple(),
+                    stride,
+                    font,
+                    13.0,
+                    "FIRSTP",
+                    if map.camera == MapCamera::ThreeDFirstPerson {
+                        &sel_text_color
+                    } else {
+                        &text_color
+                    },
+                    &bg_color,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
+            }
         }
 
         let icon_size = 40;
-        let icons = if self.mode == HudMode::Vertex {
-            0
-        } else if self.mode == HudMode::Linedef {
-            3
-        } else {
-            5
-        };
+        let mut icons = 0;
+
+        if server_ctx.curr_map_context == MapContext::Region {
+            icons = if self.mode == HudMode::Vertex {
+                0
+            } else if self.mode == HudMode::Linedef {
+                3
+            } else {
+                5
+            };
+        } else if server_ctx.curr_map_context == MapContext::Material {
+            icons = 1;
+        }
 
         let x = width as i32 - (icon_size * icons) - 1;
         for i in 0..icons {
@@ -250,7 +194,7 @@ impl Hud {
                     stride,
                     font,
                     10.0,
-                    &self.get_icon_text(i),
+                    &self.get_icon_text(i, server_ctx),
                     &text_color,
                     &bg_color,
                     TheHorizontalAlign::Center,
@@ -259,7 +203,7 @@ impl Hud {
             }
 
             if let Some(id) = id {
-                if let Some(tile) = self.get_icon(i, map, id) {
+                if let Some(tile) = self.get_icon(i, map, id, icon_size as usize) {
                     let texture = tile.textures[0].resized(icon_size as usize, icon_size as usize);
                     // let texture = Texture::checkerboard(icon_size as usize, 20);
                     ctx.draw.copy_slice(
@@ -292,8 +236,11 @@ impl Hud {
         }
 
         // Show Subdivs
-        if map.camera == MapCamera::TwoD {
-            let x = 330;
+        if map.camera == MapCamera::TwoD || server_ctx.curr_map_context == MapContext::Material {
+            let mut x = 330;
+            if server_ctx.curr_map_context == MapContext::Material {
+                x = 100;
+            }
             let size = 20;
             for i in 0..10 {
                 let rect = TheDim::rect(x + (i * size), 0, size, size);
@@ -323,7 +270,37 @@ impl Hud {
 
         // ----- Preview
 
-        if map.camera == MapCamera::TwoD {
+        if server_ctx.curr_map_context == MapContext::Material {
+            let preview_width = 150;
+            let preview_height = 150;
+            let preview_rect = TheDim::rect(
+                width as i32 - preview_width - 1,
+                height as i32 - preview_height - 1,
+                preview_width,
+                preview_height,
+            );
+
+            self.preview_rect_text = TheDim::rect(width as i32 - 50 - 1, height as i32 - 1, 50, 20);
+
+            let mut pixels = vec![0; (preview_width * preview_height * 4) as usize];
+            pixels.fill(255);
+            let mut texture = Texture::new(pixels, preview_width as usize, preview_height as usize);
+
+            let builder = D2MaterialBuilder::new();
+            builder.build_texture(map, &RUSTERIX.lock().unwrap().assets.tiles, &mut texture);
+
+            ctx.draw.copy_slice(
+                buffer.pixels_mut(),
+                &texture.data,
+                &preview_rect.to_buffer_utuple(),
+                stride,
+            );
+
+            self.preview_rect = preview_rect;
+        } else
+        // 3D Previews in Region mode
+        if server_ctx.curr_map_context == MapContext::Region && map.camera == MapCamera::TwoD
+        {
             let preview_width = (width / 3) as i32;
             let preview_height = (height / 2) as i32;
             let preview_rect = TheDim::rect(
@@ -462,98 +439,148 @@ impl Hud {
     }
 
     #[allow(clippy::collapsible_if)]
-    pub fn get_icon_text(&self, index: i32) -> String {
+    pub fn get_icon_text(&self, index: i32, server_ctx: &mut ServerContext) -> String {
         let mut text: String = "".into();
-        if self.mode == HudMode::Linedef {
-            if index == 0 {
-                text = "WALL".into();
-            } else if index == 1 {
-                text = "R#2".into();
-            } else if index == 2 {
-                text = "R#3".into();
+        if server_ctx.curr_map_context == MapContext::Region {
+            if self.mode == HudMode::Linedef {
+                if index == 0 {
+                    text = "WALL".into();
+                } else if index == 1 {
+                    text = "ROW2".into();
+                } else if index == 2 {
+                    text = "ROW3".into();
+                }
+            } else if self.mode == HudMode::Sector {
+                if index == 0 {
+                    text = "FLOOR".into();
+                } else if index == 1 {
+                    text = "CEIL".into();
+                } else if index == 2 {
+                    text = "WALL".into();
+                } else if index == 3 {
+                    text = "ROW2".into();
+                } else if index == 4 {
+                    text = "ROW3".into();
+                }
             }
-        } else if self.mode == HudMode::Sector {
+        } else if server_ctx.curr_map_context == MapContext::Material {
             if index == 0 {
-                text = "FLOOR".into();
+                text = "IN 1".into();
             } else if index == 1 {
-                text = "CEIL".into();
-            } else if index == 2 {
-                text = "WALL".into();
-            } else if index == 3 {
-                text = "R#2".into();
-            } else if index == 4 {
-                text = "R#3".into();
+                text = "IN 2".into();
             }
         }
+
         text
     }
 
     #[allow(clippy::collapsible_if)]
-    pub fn get_icon(&self, index: i32, map: &Map, id: u32) -> Option<rusterix::Tile> {
-        let mut texture_id: Option<Uuid> = None;
+    pub fn get_icon(
+        &self,
+        index: i32,
+        map: &Map,
+        id: u32,
+        icon_size: usize,
+    ) -> Option<rusterix::Tile> {
         if self.mode == HudMode::Linedef {
             if let Some(linedef) = map.find_linedef(id) {
                 if index == 0 {
-                    if let Some(Value::Source(PixelSource::TileId(tile_id))) =
-                        &linedef.properties.get("row1_source")
+                    if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row1_source")
                     {
-                        texture_id = Some(*tile_id);
+                        if let Some(tile) = pixelsource.to_tile(
+                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            icon_size,
+                            &linedef.properties,
+                        ) {
+                            return Some(tile);
+                        }
                     }
                 } else if index == 1 {
-                    if let Some(Value::Source(PixelSource::TileId(tile_id))) =
-                        &linedef.properties.get("row2_source")
+                    if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row2_source")
                     {
-                        texture_id = Some(*tile_id);
+                        if let Some(tile) = pixelsource.to_tile(
+                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            icon_size,
+                            &linedef.properties,
+                        ) {
+                            return Some(tile);
+                        }
                     }
                 } else if index == 2 {
-                    if let Some(Value::Source(PixelSource::TileId(tile_id))) =
-                        &linedef.properties.get("row3_source")
+                    if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row3_source")
                     {
-                        texture_id = Some(*tile_id);
+                        if let Some(tile) = pixelsource.to_tile(
+                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            icon_size,
+                            &linedef.properties,
+                        ) {
+                            return Some(tile);
+                        }
                     }
                 }
             }
         } else if self.mode == HudMode::Sector {
             if let Some(sector) = map.find_sector(id) {
                 if index == 0 {
-                    if let Some(Value::Source(PixelSource::TileId(tile_id))) =
-                        &sector.properties.get("floor_source")
+                    if let Some(Value::Source(pixelsource)) = &sector.properties.get("floor_source")
                     {
-                        texture_id = Some(*tile_id);
+                        if let Some(tile) = pixelsource.to_tile(
+                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            icon_size,
+                            &sector.properties,
+                        ) {
+                            return Some(tile);
+                        }
                     }
                 } else if index == 1 {
-                    if let Some(Value::Source(PixelSource::TileId(tile_id))) =
+                    if let Some(Value::Source(pixelsource)) =
                         &sector.properties.get("ceiling_source")
                     {
-                        texture_id = Some(*tile_id);
+                        if let Some(tile) = pixelsource.to_tile(
+                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            icon_size,
+                            &sector.properties,
+                        ) {
+                            return Some(tile);
+                        }
                     }
                 } else if index == 2 {
-                    if let Some(Value::Source(PixelSource::TileId(tile_id))) =
-                        &sector.properties.get("row1_source")
+                    if let Some(Value::Source(pixelsource)) = &sector.properties.get("row1_source")
                     {
-                        texture_id = Some(*tile_id);
+                        if let Some(tile) = pixelsource.to_tile(
+                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            icon_size,
+                            &sector.properties,
+                        ) {
+                            return Some(tile);
+                        }
                     }
                 } else if index == 3 {
-                    if let Some(Value::Source(PixelSource::TileId(tile_id))) =
-                        &sector.properties.get("row2_source")
+                    if let Some(Value::Source(pixelsource)) = &sector.properties.get("row2_source")
                     {
-                        texture_id = Some(*tile_id);
+                        if let Some(tile) = pixelsource.to_tile(
+                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            icon_size,
+                            &sector.properties,
+                        ) {
+                            return Some(tile);
+                        }
                     }
                 } else if index == 4 {
-                    if let Some(Value::Source(PixelSource::TileId(tile_id))) =
-                        &sector.properties.get("row3_source")
+                    if let Some(Value::Source(pixelsource)) = &sector.properties.get("row3_source")
                     {
-                        texture_id = Some(*tile_id);
+                        if let Some(tile) = pixelsource.to_tile(
+                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            icon_size,
+                            &sector.properties,
+                        ) {
+                            return Some(tile);
+                        }
                     }
                 }
             }
         }
 
-        if let Some(texture_id) = texture_id {
-            if let Some(tile) = RUSTERIX.lock().unwrap().assets.tiles.get(&texture_id) {
-                return Some(tile.clone());
-            }
-        }
         None
     }
 }

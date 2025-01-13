@@ -717,7 +717,7 @@ impl Sidebar {
         let mut model_list_canvas = TheCanvas::default();
 
         let mut model_list_header_canvas = TheCanvas::default();
-        model_list_header_canvas.set_widget(TheStatusbar::new(TheId::empty()));
+        model_list_header_canvas.set_widget(TheTraybar::new(TheId::empty()));
         let mut model_list_header_canvas_hlayout = TheHLayout::new(TheId::empty());
         model_list_header_canvas_hlayout.set_background_color(None);
 
@@ -737,7 +737,7 @@ impl Sidebar {
         model_list_header_canvas_hlayout.set_padding(3);
         model_list_header_canvas_hlayout.add_widget(Box::new(model_add_button));
         model_list_header_canvas_hlayout.add_widget(Box::new(model_remove_button));
-        //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+        model_list_header_canvas_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
         model_list_header_canvas_hlayout.add_widget(Box::new(filter_text));
         let mut filter_edit = TheTextLineEdit::new(TheId::named("Model Filter Edit"));
         filter_edit.set_text("".to_string());

@@ -604,30 +604,46 @@ impl MapEditor {
                             server.update_region(region);
                         }
                     }
-                } else if id.name == "linedefWallHeight" {
+                } else if id.name == "linedefWallHeight"
+                    || id.name == "linedefMaterialWidth"
+                    || id.name == "linedefNoiseIntensity"
+                {
                     if let Some(value) = value.to_f32() {
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            for linedef_id in &region.map.selected_linedefs.clone() {
-                                let prev = region.map.clone();
-                                if let Some(linedef) = region.map.find_linedef_mut(*linedef_id) {
-                                    if linedef.properties.get_float_default("wall_height", 0.0)
-                                        != value
-                                    {
-                                        linedef.properties.set("wall_height", Value::Float(value));
-                                        let undo_atom = RegionUndoAtom::MapEdit(
-                                            Box::new(prev),
-                                            Box::new(region.map.clone()),
-                                        );
-                                        UNDOMANAGER.lock().unwrap().add_region_undo(
-                                            &server_ctx.curr_region,
-                                            undo_atom,
-                                            ctx,
-                                        );
-                                    }
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            for linedef_id in &map.selected_linedefs.clone() {
+                                let prev = map.clone();
+                                if let Some(linedef) = map.find_linedef_mut(*linedef_id) {
+                                    // if linedef.properties.get_float_default(
+                                    //     &self.transform_to_snake_case(&id.name, "linedef"),
+                                    //     0.0,
+                                    // ) != value
+                                    // {
+                                    linedef.properties.set(
+                                        &self.transform_to_snake_case(&id.name, "linedef"),
+                                        Value::Float(value),
+                                    );
+                                    self.add_map_undo(map, prev, ctx, server_ctx);
+                                    // }
                                 }
                             }
                         }
                     }
+                } else if id.name == "linedefPixelization" || id.name == "linedefNoiseTarget" {
+                    if let Some(value) = value.to_i32() {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            for linedef_id in &map.selected_linedefs.clone() {
+                                let prev = map.clone();
+                                if let Some(linedef) = map.find_linedef_mut(*linedef_id) {
+                                    linedef.properties.set(
+                                        &self.transform_to_snake_case(&id.name, "linedef"),
+                                        Value::Int(value),
+                                    );
+                                    self.add_map_undo(map, prev, ctx, server_ctx);
+                                }
+                            }
+                        }
+                    }
+                    redraw = true;
                 } else if id.name == "linedefName" {
                     if let Some(value) = value.to_string() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -681,16 +697,7 @@ impl MapEditor {
                                         &self.transform_to_snake_case(&id.name, "sector"),
                                         Value::Float(value),
                                     );
-                                    let undo_atom = RegionUndoAtom::MapEdit(
-                                        Box::new(prev),
-                                        Box::new(map.clone()),
-                                    );
-                                    UNDOMANAGER.lock().unwrap().add_region_undo(
-                                        &server_ctx.curr_region,
-                                        undo_atom,
-                                        ctx,
-                                    );
-                                    RUSTERIX.lock().unwrap().set_dirty();
+                                    self.add_map_undo(map, prev, ctx, server_ctx);
                                 }
                             }
                         }
@@ -706,16 +713,7 @@ impl MapEditor {
                                         &self.transform_to_snake_case(&id.name, "sector"),
                                         Value::Int(value),
                                     );
-                                    let undo_atom = RegionUndoAtom::MapEdit(
-                                        Box::new(prev),
-                                        Box::new(map.clone()),
-                                    );
-                                    UNDOMANAGER.lock().unwrap().add_region_undo(
-                                        &server_ctx.curr_region,
-                                        undo_atom,
-                                        ctx,
-                                    );
-                                    RUSTERIX.lock().unwrap().set_dirty();
+                                    self.add_map_undo(map, prev, ctx, server_ctx);
                                 }
                             }
                         }
@@ -1037,6 +1035,24 @@ impl MapEditor {
         }
     }
 
+    /// Adds an undo step for the given map change.
+    fn add_map_undo(&self, map: &Map, prev: Map, ctx: &mut TheContext, server_ctx: &ServerContext) {
+        if server_ctx.curr_map_context == MapContext::Region {
+            let undo_atom = RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+            UNDOMANAGER
+                .lock()
+                .unwrap()
+                .add_region_undo(&server_ctx.curr_region, undo_atom, ctx);
+        } else if server_ctx.curr_map_context == MapContext::Material {
+            let undo_atom = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+            UNDOMANAGER
+                .lock()
+                .unwrap()
+                .add_material_undo(undo_atom, ctx);
+        }
+        RUSTERIX.lock().unwrap().set_dirty();
+    }
+
     fn create_linedef_settings(
         &self,
         map: &Map,
@@ -1065,6 +1081,51 @@ impl MapEditor {
                     linedef.properties.get_float_default("wall_height", 0.0),
                     0.0..=4.0,
                     false,
+                );
+                nodeui.add_item(item);
+            }
+
+            if server_ctx.curr_map_context == MapContext::Material {
+                let item = TheNodeUIItem::FloatEditSlider(
+                    "linedefMaterialWidth".into(),
+                    "Width".into(),
+                    "Set the width.".into(),
+                    linedef.properties.get_float_default("material_width", 1.0),
+                    1.0..=20.0,
+                    false,
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::IntEditSlider(
+                    "linedefPixelization".into(),
+                    "Pixelization".into(),
+                    "Set the amount of pixelization.".into(),
+                    1,
+                    1..=20,
+                    false,
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::FloatEditSlider(
+                    "linedefNoiseIntensity".into(),
+                    "Noise Intensity".into(),
+                    "Set the noise intensity.".into(),
+                    0.0,
+                    0.0..=1.0,
+                    false,
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::Selector(
+                    "linedefNoiseTarget".into(),
+                    "Noise Target".into(),
+                    "Set the target property for the noise.".into(),
+                    vec![
+                        "RGB".to_string(),
+                        "Hue".to_string(),
+                        "Luminance".to_string(),
+                    ],
+                    0,
                 );
                 nodeui.add_item(item);
             }
@@ -1117,7 +1178,7 @@ impl MapEditor {
             let item = TheNodeUIItem::IntEditSlider(
                 "sectorPixelization".into(),
                 "Pixelization".into(),
-                "Set the height for all walls of the sector.".into(),
+                "Set the amount of pixelization.".into(),
                 1,
                 1..=20,
                 false,
@@ -1127,7 +1188,7 @@ impl MapEditor {
             let item = TheNodeUIItem::FloatEditSlider(
                 "sectorNoiseIntensity".into(),
                 "Noise Intensity".into(),
-                "Set the height for all walls of the sector.".into(),
+                "Set the noise intensity.".into(),
                 0.0,
                 0.0..=1.0,
                 false,
@@ -1137,7 +1198,7 @@ impl MapEditor {
             let item = TheNodeUIItem::Selector(
                 "sectorNoiseTarget".into(),
                 "Noise Target".into(),
-                "Set the height for all walls of the sector.".into(),
+                "Set the target property for the noise.".into(),
                 vec![
                     "RGB".to_string(),
                     "Hue".to_string(),
