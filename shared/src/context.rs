@@ -283,24 +283,25 @@ impl ServerContext {
 
         // Check the vertices
         for vertex in &map.vertices {
-            let vertex_pos = Self::map_grid_to_local(screen_size, vertex.as_vec2(), map);
-            if (screen_pos - vertex_pos).magnitude() <= hover_threshold {
-                selection.0 = Some(vertex.id);
-                //break;
-                return selection;
+            if let Some(vertex_pos) = map.get_vertex(vertex.id) {
+                let vertex_pos = Self::map_grid_to_local(screen_size, vertex_pos, map);
+                if (screen_pos - vertex_pos).magnitude() <= hover_threshold {
+                    selection.0 = Some(vertex.id);
+                    //break;
+                    return selection;
+                }
             }
         }
 
         // Check the lines
         for linedef in &map.linedefs {
-            let start_vertex = map.find_vertex(linedef.start_vertex);
-            let end_vertex = map.find_vertex(linedef.end_vertex);
+            let start_vertex = map.get_vertex(linedef.start_vertex);
+            let end_vertex = map.get_vertex(linedef.end_vertex);
 
             if let Some(start_vertex) = start_vertex {
                 if let Some(end_vertex) = end_vertex {
-                    let start_pos =
-                        Self::map_grid_to_local(screen_size, start_vertex.as_vec2(), map);
-                    let end_pos = Self::map_grid_to_local(screen_size, end_vertex.as_vec2(), map);
+                    let start_pos = Self::map_grid_to_local(screen_size, start_vertex, map);
+                    let end_pos = Self::map_grid_to_local(screen_size, end_vertex, map);
 
                     // Compute the perpendicular distance from the point to the line
                     let line_vec = end_pos - start_pos;
@@ -361,7 +362,6 @@ impl ServerContext {
 
             if point_in_polygon(screen_pos, &vertices) {
                 selection.2 = Some(sector.id);
-                // break;
                 return selection;
             }
         }
@@ -449,20 +449,21 @@ impl ServerContext {
 
         // Check vertices
         for vertex in &map.vertices {
-            let vertex_pos = vertex.as_vec2();
-            if point_in_rectangle(vertex_pos, top_left, bottom_right) {
-                selection.0.push(vertex.id);
+            if let Some(vertex_pos) = map.get_vertex(vertex.id) {
+                if point_in_rectangle(vertex_pos, top_left, bottom_right) {
+                    selection.0.push(vertex.id);
+                }
             }
         }
 
         // Check linedefs
         for linedef in &map.linedefs {
-            let start_vertex = map.find_vertex(linedef.start_vertex);
-            let end_vertex = map.find_vertex(linedef.end_vertex);
+            let start_vertex = map.get_vertex(linedef.start_vertex);
+            let end_vertex = map.get_vertex(linedef.end_vertex);
 
             if let (Some(start_vertex), Some(end_vertex)) = (start_vertex, end_vertex) {
-                let start_pos = start_vertex.as_vec2();
-                let end_pos = end_vertex.as_vec2();
+                let start_pos = start_vertex;
+                let end_pos = end_vertex;
 
                 // Check if either endpoint is inside the rectangle
                 if point_in_rectangle(start_pos, top_left, bottom_right)

@@ -35,6 +35,7 @@ impl Tool for LinedefTool {
 # set("wall_height", 2.0)
 "#
             .to_string(),
+
             hud: Hud::new(HudMode::Linedef),
         }
     }
@@ -263,7 +264,7 @@ impl Tool for LinedefTool {
                 crate::editor::RUSTERIX.lock().unwrap().set_dirty();
             }
             MapClicked(coord) => {
-                if self.hud.clicked(coord.x, coord.y, map, server_ctx) {
+                if self.hud.clicked(coord.x, coord.y, map, ctx, server_ctx) {
                     crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                     return None;
                 }
@@ -394,10 +395,15 @@ impl Tool for LinedefTool {
                             if let Some(original_vertex) =
                                 self.rectangle_undo_map.find_vertex_mut(*vertex_id)
                             {
-                                if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
-                                    vertex.x = original_vertex.x - drag_delta.x;
-                                    vertex.y = original_vertex.y - drag_delta.y;
-                                }
+                                // if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
+                                //     vertex.x = original_vertex.x - drag_delta.x;
+                                //     vertex.y = original_vertex.y - drag_delta.y;
+                                // }
+                                let new_pos = Vec2::new(
+                                    original_vertex.x - drag_delta.x,
+                                    original_vertex.y - drag_delta.y,
+                                );
+                                map.update_vertex(*vertex_id, new_pos);
                             }
                         }
                         server_ctx.hover_cursor = Some(drag_pos);
@@ -490,6 +496,8 @@ impl Tool for LinedefTool {
                         TheValue::Empty,
                     ));
                 }
+                self.drag_changed = false;
+                self.click_selected = false;
             }
             MapHover(coord) => {
                 if let Some(render_view) = ui.get_render_view("PolyView") {

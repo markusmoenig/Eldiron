@@ -1,6 +1,7 @@
 use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use rusterix::prelude::*;
+use state::AnimationVertexState;
 use theframework::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -25,15 +26,18 @@ pub struct Hud {
     preview_rect_text: TheDim,
 
     subdiv_rects: Vec<TheDim>,
+
+    state_rects: Vec<TheDim>,
+    add_state_rect: TheDim,
 }
 
 impl Hud {
     pub fn new(mode: HudMode) -> Self {
         Self {
             mode,
-            d2_rect: TheDim::rect(80, 1, 75, 19),
-            d3iso_rect: TheDim::rect(155, 1, 50, 19),
-            d3firstp_rect: TheDim::rect(205, 1, 75, 19),
+            d2_rect: TheDim::rect(100, 1, 75, 19),
+            d3iso_rect: TheDim::rect(175, 1, 50, 19),
+            d3firstp_rect: TheDim::rect(225, 1, 75, 19),
 
             icon_rects: vec![],
             selected_icon_index: 0,
@@ -42,6 +46,9 @@ impl Hud {
             preview_rect_text: TheDim::rect(0, 0, 0, 0),
 
             subdiv_rects: vec![],
+
+            state_rects: vec![],
+            add_state_rect: TheDim::rect(0, 0, 0, 0),
         }
     }
 
@@ -59,9 +66,11 @@ impl Hud {
 
         let info_height = 20;
         let bg_color = [50, 50, 50, 255];
+        let dark_bg_color = [30, 30, 30, 255];
         let text_color = [150, 150, 150, 255];
         let sel_text_color = [220, 220, 220, 255];
 
+        self.state_rects.clear();
         self.subdiv_rects = vec![];
 
         ctx.draw.rect(
@@ -79,29 +88,7 @@ impl Hud {
                     stride,
                     font,
                     13.0,
-                    &format!("{}, {}", v.x, v.y),
-                    &text_color,
-                    &bg_color,
-                );
-            }
-        }
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &(0, 0, width, info_height),
-            stride,
-            &bg_color,
-        );
-
-        if let Some(font) = &ctx.ui.font {
-            if let Some(v) = server_ctx.hover_cursor {
-                ctx.draw.text(
-                    buffer.pixels_mut(),
-                    &(10, 2),
-                    stride,
-                    font,
-                    13.0,
-                    &format!("{}, {}", v.x, v.y),
+                    &format!("{:.2}, {:.2}", v.x, v.y),
                     &text_color,
                     &bg_color,
                 );
@@ -160,6 +147,110 @@ impl Hud {
                 );
             }
         }
+
+        // States
+
+        let x = 0;
+        let state_width = 70;
+        let state_height = 25_i32;
+        let mut y =
+            height - state_height as usize - map.animation.states.len() * state_height as usize;
+
+        // Base State
+        let rect = TheDim::rect(x, y as i32, state_width, state_height);
+        ctx.draw.rect(
+            buffer.pixels_mut(),
+            &rect.to_buffer_utuple(),
+            stride,
+            &dark_bg_color,
+        );
+
+        if let Some(font) = &ctx.ui.font {
+            ctx.draw.text_rect(
+                buffer.pixels_mut(),
+                &rect.to_buffer_utuple(),
+                stride,
+                font,
+                11.5,
+                "Base State",
+                if map.animation.current_state.is_none() {
+                    &sel_text_color
+                } else {
+                    &text_color
+                },
+                &dark_bg_color,
+                TheHorizontalAlign::Center,
+                TheVerticalAlign::Center,
+            );
+        }
+
+        self.state_rects.push(rect);
+
+        // Animation States
+        y += state_height as usize;
+        for i in 0..map.animation.states.len() {
+            let rect = TheDim::rect(x, y as i32, state_width, state_height);
+            ctx.draw.rect(
+                buffer.pixels_mut(),
+                &rect.to_buffer_utuple(),
+                stride,
+                &dark_bg_color,
+            );
+            if let Some(font) = &ctx.ui.font {
+                ctx.draw.text_rect(
+                    buffer.pixels_mut(),
+                    &rect.to_buffer_utuple(),
+                    stride,
+                    font,
+                    11.5,
+                    &map.animation.states[i].state_name,
+                    if map.animation.current_state == Some(i) {
+                        &sel_text_color
+                    } else {
+                        &text_color
+                    },
+                    &dark_bg_color,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
+            }
+
+            self.state_rects.push(rect);
+            y += state_height as usize;
+        }
+
+        // Plus buttton
+        y -= state_height as usize;
+        let rect = TheDim::rect(state_width, y as i32, state_height, state_height);
+        ctx.draw.rect(
+            buffer.pixels_mut(),
+            &rect.to_buffer_utuple(),
+            stride,
+            &bg_color,
+        );
+
+        if let Some(font) = &ctx.ui.font {
+            ctx.draw.text_rect(
+                buffer.pixels_mut(),
+                &rect.to_buffer_utuple(),
+                stride,
+                font,
+                11.5,
+                "+",
+                if map.animation.current_state.is_none() {
+                    &sel_text_color
+                } else {
+                    &text_color
+                },
+                &dark_bg_color,
+                TheHorizontalAlign::Center,
+                TheVerticalAlign::Center,
+            );
+        }
+
+        self.add_state_rect = rect;
+
+        // Icons
 
         let icon_size = 40;
         let mut icons = 0;
@@ -392,6 +483,7 @@ impl Hud {
         x: i32,
         y: i32,
         map: &mut Map,
+        ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> bool {
         if server_ctx.curr_map_context != MapContext::Region
@@ -420,6 +512,38 @@ impl Hud {
             } else {
                 server_ctx.editing_preview_camera = MapCamera::ThreeDIso;
             }
+            return true;
+        }
+        // Parse States
+        for (i, rect) in self.state_rects.iter().enumerate() {
+            if rect.contains(Vec2::new(x, y)) {
+                if i == 0 {
+                    map.animation.current_state = None;
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Base Anim State Selected"),
+                        TheValue::Int(i as i32 - 1),
+                    ));
+                } else {
+                    map.animation.current_state = Some(i - 1);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Anim State Selected"),
+                        TheValue::Int(i as i32 - 1),
+                    ));
+                }
+                return true;
+            }
+        }
+        // Add State
+        if self.add_state_rect.contains(Vec2::new(x, y)) {
+            let offset =
+                map.animation
+                    .add_state("New State", vec![], state::InterpolationType::Linear);
+
+            map.animation.current_state = Some(offset);
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Anim State Selected"),
+                TheValue::Int(offset as i32),
+            ));
             return true;
         }
         if y < 20 {

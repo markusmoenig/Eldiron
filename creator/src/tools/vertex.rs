@@ -1,3 +1,4 @@
+use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
@@ -8,6 +9,8 @@ pub struct VertexTool {
     click_selected: bool,
     drag_changed: bool,
     rectangle_undo_map: Map,
+
+    hud: Hud,
 }
 
 impl Tool for VertexTool {
@@ -21,6 +24,8 @@ impl Tool for VertexTool {
             click_selected: false,
             drag_changed: false,
             rectangle_undo_map: Map::default(),
+
+            hud: Hud::new(HudMode::Vertex),
         }
     }
 
@@ -104,6 +109,11 @@ impl Tool for VertexTool {
                 crate::editor::RUSTERIX.lock().unwrap().set_dirty();
             }
             MapClicked(coord) => {
+                if self.hud.clicked(coord.x, coord.y, map, ctx, server_ctx) {
+                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    return None;
+                }
+
                 self.click_selected = false;
                 if server_ctx.hover.0.is_some() {
                     let prev = map.clone();
@@ -175,10 +185,16 @@ impl Tool for VertexTool {
                             if let Some(original_vertex) =
                                 self.rectangle_undo_map.find_vertex_mut(*vertex_id)
                             {
-                                if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
-                                    vertex.x = original_vertex.x - drag_delta.x;
-                                    vertex.y = original_vertex.y - drag_delta.y;
-                                }
+                                // if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
+                                //     vertex.x = original_vertex.x - drag_delta.x;
+                                //     vertex.y = original_vertex.y - drag_delta.y;
+                                // }
+
+                                let new_pos = Vec2::new(
+                                    original_vertex.x - drag_delta.x,
+                                    original_vertex.y - drag_delta.y,
+                                );
+                                map.update_vertex(*vertex_id, new_pos);
                             }
                         }
                         server_ctx.hover_cursor = Some(drag_pos);
@@ -258,6 +274,7 @@ impl Tool for VertexTool {
                         TheValue::Empty,
                     ));
                 }
+                self.drag_changed = false;
                 self.click_selected = false;
             }
             MapHover(coord) => {
@@ -326,5 +343,20 @@ impl Tool for VertexTool {
             }
         };
         undo_atom
+    }
+
+    fn draw_hud(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        map: &mut Map,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+        let id = if map.selected_linedefs.len() == 1 {
+            Some(map.selected_linedefs[0])
+        } else {
+            None
+        };
+        self.hud.draw(buffer, map, ctx, server_ctx, id);
     }
 }

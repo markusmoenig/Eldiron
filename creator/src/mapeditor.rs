@@ -2,7 +2,7 @@
 
 use crate::editor::{CODEEDITOR, RUSTERIX, TILEDRAWER, UNDOMANAGER};
 use crate::prelude::*;
-use rusterix::{PixelSource, Value};
+use rusterix::Value;
 use vek::Vec2;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -220,7 +220,38 @@ impl MapEditor {
         let mut redraw = false;
         match event {
             TheEvent::Custom(id, value) => {
-                if id.name == "Map Selection Changed" {
+                if id.name == "Base Anim State Selected" {
+                    if let Some(layout) = ui.get_text_layout("Node Settings") {
+                        layout.clear();
+                    }
+                } else if id.name == "Anim State Selected" {
+                    if let TheValue::Int(i) = value {
+                        let mut nodeui = TheNodeUI::default();
+
+                        if let Some(map) = project.get_map(server_ctx) {
+                            let item = TheNodeUIItem::Text(
+                                "animStateName".into(),
+                                "State Name".into(),
+                                "Set the name of the wall".into(),
+                                map.animation.states[*i as usize].state_name.clone(),
+                                None,
+                                false,
+                            );
+                            nodeui.add_item(item);
+                        }
+
+                        if let Some(layout) = ui.get_text_layout("Node Settings") {
+                            nodeui.apply_to_text_layout(layout);
+                            // layout.relayout(ctx);
+                            ctx.ui.relayout = true;
+
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Show Node Settings"),
+                                TheValue::Text("Animation State Setting".to_string()),
+                            ));
+                        }
+                    }
+                } else if id.name == "Map Selection Changed" {
                     self.apply_map_settings(ui, ctx, project, server_ctx);
                 } else if id.name == "Cursor Pos Changed" {
                     if let Some(text) = ui.get_text("Cursor Position") {
@@ -719,6 +750,23 @@ impl MapEditor {
                         }
                     }
                     redraw = true;
+                } else if id.name == "animStateName" {
+                    if let Some(value) = value.to_string() {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            if let Some(state) = map.animation.current_state {
+                                let prev = map.clone();
+                                map.animation.states[state].state_name = value;
+
+                                let undo_atom =
+                                    RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+                                UNDOMANAGER.lock().unwrap().add_region_undo(
+                                    &server_ctx.curr_region,
+                                    undo_atom,
+                                    ctx,
+                                );
+                            }
+                        }
+                    }
                 }
             }
             TheEvent::StateChanged(id, _state) => {
