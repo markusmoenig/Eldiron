@@ -341,7 +341,9 @@ impl ServerContext {
             inside
         }
 
-        for sector in &map.sectors {
+        // Reverse on sorted sectors by area (to allow to pick small sectors first)
+        let ordered = map.sorted_sectors_by_area();
+        for sector in ordered.iter().rev() {
             let mut vertices = Vec::new();
             for &linedef_id in &sector.linedefs {
                 if let Some(linedef) = map.linedefs.get(linedef_id as usize) {
