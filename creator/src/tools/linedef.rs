@@ -133,12 +133,20 @@ impl Tool for LinedefTool {
                         ));
                     };
 
-                    let mut run_properties_button =
+                    let mut set_source_button =
                         TheTraybarButton::new(TheId::named("Apply Map Properties"));
-                    run_properties_button.set_status_text("Apply to the selected linedefs.");
-                    run_properties_button.set_text("Apply Property".to_string());
-                    layout.add_widget(Box::new(run_properties_button));
-                    layout.set_reverse_index(Some(1));
+                    set_source_button.set_status_text("Apply the source to the selected geometry.");
+                    set_source_button.set_text("Apply Source".to_string());
+                    layout.add_widget(Box::new(set_source_button));
+
+                    let mut rem_source_button =
+                        TheTraybarButton::new(TheId::named("Remove Map Properties"));
+                    rem_source_button
+                        .set_status_text("Remove the source from the selected geometry.");
+                    rem_source_button.set_text("Remove".to_string());
+                    layout.add_widget(Box::new(rem_source_button));
+
+                    layout.set_reverse_index(Some(2));
 
                     ui.set_widget_value(
                         "CodeEdit",
@@ -264,7 +272,7 @@ impl Tool for LinedefTool {
                 crate::editor::RUSTERIX.lock().unwrap().set_dirty();
             }
             MapClicked(coord) => {
-                if self.hud.clicked(coord.x, coord.y, map, ctx, server_ctx) {
+                if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
                     crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                     return None;
                 }
@@ -364,6 +372,11 @@ impl Tool for LinedefTool {
                 self.rectangle_mode = false;
             }
             MapDragged(coord) => {
+                if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx) {
+                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    return None;
+                }
+
                 if self.click_selected {
                     // Dragging selected lines
                     if let Some(render_view) = ui.get_render_view("PolyView") {
@@ -469,6 +482,7 @@ impl Tool for LinedefTool {
                         }
                     }
                 }
+                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
             }
             MapUp(_) => {
                 if self.click_selected {
@@ -578,7 +592,7 @@ impl Tool for LinedefTool {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
-        let id = if map.selected_linedefs.len() == 1 {
+        let id = if !map.selected_linedefs.is_empty() {
             Some(map.selected_linedefs[0])
         } else {
             None
@@ -644,6 +658,39 @@ impl Tool for LinedefTool {
                             );
                             crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                         }
+                    }
+                } else if id.name == "Remove Map Properties" && *state == TheWidgetState::Clicked {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        let prev = map.clone();
+
+                        for linedef_id in map.selected_linedefs.clone() {
+                            if let Some(linedef) = map.find_linedef_mut(linedef_id) {
+                                if self.hud.selected_icon_index == 0 {
+                                    linedef
+                                        .properties
+                                        .set("row1_source", Value::Source(PixelSource::Off));
+                                } else if self.hud.selected_icon_index == 1 {
+                                    linedef
+                                        .properties
+                                        .set("row2_source", Value::Source(PixelSource::Off));
+                                } else if self.hud.selected_icon_index == 2 {
+                                    linedef
+                                        .properties
+                                        .set("row3_source", Value::Source(PixelSource::Off));
+                                }
+                                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                            }
+                        }
+
+                        let undo_atom =
+                            RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+
+                        crate::editor::UNDOMANAGER.lock().unwrap().add_region_undo(
+                            &server_ctx.curr_region,
+                            undo_atom,
+                            ctx,
+                        );
+                        crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                     }
                 }
             }

@@ -256,9 +256,9 @@ impl RegionFXEditor {
                     self.set_selected_node_ui(server_ctx, project, ui, ctx);
                 }
             }
-            TheEvent::NodeViewScrolled(id, offset) => {
+            TheEvent::NodeViewScrolled(id, _offset) => {
                 if id.name == "RegionFX NodeCanvas" {
-                    if let Some(material_id) = server_ctx.curr_material {
+                    if let Some(_material_id) = server_ctx.curr_material {
                         // if let Some(material) = project.materials.get_mut(&material_id) {
                         //     material.scroll_offset = *offset;
                         // }

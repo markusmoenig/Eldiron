@@ -295,6 +295,7 @@ impl Tool for SelectionTool {
                         map.selected_sectors = selection.2;
                     }
                 }
+                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
             }
             MapUp(_) => {
                 if map.curr_rectangle.is_some() {

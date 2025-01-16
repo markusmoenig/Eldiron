@@ -140,7 +140,7 @@ impl Tool for SectorTool {
                     let mut run_properties_button =
                         TheTraybarButton::new(TheId::named("Apply Map Properties"));
                     run_properties_button.set_status_text("Apply to the selected sectors.");
-                    run_properties_button.set_text("Apply Property".to_string());
+                    run_properties_button.set_text("Apply Source".to_string());
                     layout.add_widget(Box::new(run_properties_button));
                     layout.set_reverse_index(Some(1));
 
@@ -203,7 +203,7 @@ impl Tool for SectorTool {
                 crate::editor::RUSTERIX.lock().unwrap().set_dirty();
             }
             MapClicked(coord) => {
-                if self.hud.clicked(coord.x, coord.y, map, ctx, server_ctx) {
+                if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
                     crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                     return None;
                 }
@@ -255,6 +255,11 @@ impl Tool for SectorTool {
                 self.rectangle_undo_map = map.clone();
             }
             MapDragged(coord) => {
+                if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx) {
+                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    return None;
+                }
+
                 if self.click_selected {
                     // Dragging selected lines
                     if let Some(render_view) = ui.get_render_view("PolyView") {
@@ -352,6 +357,7 @@ impl Tool for SectorTool {
                         map.selected_sectors = selection.2;
                     }
                 }
+                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
             }
             MapUp(_) => {
                 if self.click_selected {
@@ -451,7 +457,7 @@ impl Tool for SectorTool {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
-        let id = if map.selected_sectors.len() == 1 {
+        let id = if !map.selected_sectors.is_empty() {
             Some(map.selected_sectors[0])
         } else {
             None
@@ -500,12 +506,6 @@ impl Tool for SectorTool {
                                         sector.properties.set("floor_source", source.clone());
                                     } else if self.hud.selected_icon_index == 1 {
                                         sector.properties.set("ceiling_source", source.clone());
-                                    } else if self.hud.selected_icon_index == 2 {
-                                        sector.properties.set("row1_source", source.clone());
-                                    } else if self.hud.selected_icon_index == 3 {
-                                        sector.properties.set("row2_source", source.clone());
-                                    } else if self.hud.selected_icon_index == 4 {
-                                        sector.properties.set("row3_source", source.clone());
                                     }
                                     crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                                 }

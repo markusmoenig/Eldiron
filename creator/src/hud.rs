@@ -1,7 +1,6 @@
 use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use rusterix::prelude::*;
-use state::AnimationVertexState;
 use theframework::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -29,6 +28,11 @@ pub struct Hud {
 
     state_rects: Vec<TheDim>,
     add_state_rect: TheDim,
+
+    play_button_rect: TheDim,
+    timeline_rect: TheDim,
+
+    is_playing: bool,
 }
 
 impl Hud {
@@ -49,6 +53,11 @@ impl Hud {
 
             state_rects: vec![],
             add_state_rect: TheDim::rect(0, 0, 0, 0),
+
+            play_button_rect: TheDim::rect(0, 0, 0, 0),
+            timeline_rect: TheDim::rect(0, 0, 0, 0),
+
+            is_playing: false,
         }
     }
 
@@ -204,7 +213,9 @@ impl Hud {
                     font,
                     11.5,
                     &map.animation.states[i].state_name,
-                    if map.animation.current_state == Some(i) {
+                    if map.animation.current_state == Some(i)
+                        || map.animation.loop_states.contains(&i)
+                    {
                         &sel_text_color
                     } else {
                         &text_color
@@ -250,6 +261,51 @@ impl Hud {
 
         self.add_state_rect = rect;
 
+        // Play button and timeline
+
+        let rect = TheDim::rect(150, y as i32, state_height, state_height);
+        ctx.draw.rect(
+            buffer.pixels_mut(),
+            &rect.to_buffer_utuple(),
+            stride,
+            &bg_color,
+        );
+
+        if let Some(font) = &ctx.ui.font {
+            ctx.draw.text_rect(
+                buffer.pixels_mut(),
+                &rect.to_buffer_utuple(),
+                stride,
+                font,
+                11.5,
+                "P",
+                if map.animation.current_state.is_none() {
+                    &sel_text_color
+                } else {
+                    &text_color
+                },
+                &dark_bg_color,
+                TheHorizontalAlign::Center,
+                TheVerticalAlign::Center,
+            );
+        }
+
+        self.play_button_rect = rect;
+
+        if self.is_playing {
+            map.tick(1000.0 / 30.0);
+        }
+
+        let rect = TheDim::rect(150 + state_height, y as i32, 150, state_height);
+        ctx.draw.rect(
+            buffer.pixels_mut(),
+            &rect.to_buffer_utuple(),
+            stride,
+            &dark_bg_color,
+        );
+
+        self.timeline_rect = rect;
+
         // Icons
 
         let icon_size = 40;
@@ -261,7 +317,7 @@ impl Hud {
             } else if self.mode == HudMode::Linedef {
                 3
             } else {
-                5
+                2
             };
         } else if server_ctx.curr_map_context == MapContext::Material {
             icons = 1;
@@ -293,10 +349,17 @@ impl Hud {
                 );
             }
 
+            let r = &rect.to_buffer_utuple();
+            ctx.draw.rect(
+                buffer.pixels_mut(),
+                &(r.0 + 1, r.1 + 1, r.2 - 2, r.3 - 2),
+                stride,
+                &[30, 30, 30, 255],
+            );
+
             if let Some(id) = id {
                 if let Some(tile) = self.get_icon(i, map, id, icon_size as usize) {
                     let texture = tile.textures[0].resized(icon_size as usize, icon_size as usize);
-                    // let texture = Texture::checkerboard(icon_size as usize, 20);
                     ctx.draw.copy_slice(
                         buffer.pixels_mut(),
                         &texture.data,
@@ -304,14 +367,6 @@ impl Hud {
                         stride,
                     );
                 }
-            } else {
-                let r = &rect.to_buffer_utuple();
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
-                    &(r.0 + 1, r.1 + 1, r.2 - 2, r.3 - 2),
-                    stride,
-                    &[30, 30, 30, 255],
-                );
             }
 
             if i == self.selected_icon_index {
@@ -483,6 +538,7 @@ impl Hud {
         x: i32,
         y: i32,
         map: &mut Map,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> bool {
@@ -523,6 +579,9 @@ impl Hud {
                         TheId::named("Base Anim State Selected"),
                         TheValue::Int(i as i32 - 1),
                     ));
+                } else if ui.shift && !map.animation.loop_states.contains(&i) {
+                    // map.animation.loop_states.push(i - 1);
+                    map.animation.next_state = Some(i - 1);
                 } else {
                     map.animation.current_state = Some(i - 1);
                     ctx.ui.send(TheEvent::Custom(
@@ -530,6 +589,7 @@ impl Hud {
                         TheValue::Int(i as i32 - 1),
                     ));
                 }
+
                 return true;
             }
         }
@@ -546,6 +606,19 @@ impl Hud {
             ));
             return true;
         }
+        // Play Button
+        if self.play_button_rect.contains(Vec2::new(x, y)) {
+            //self.is_playing = !self.is_playing;
+            return true;
+        }
+        // Timeline
+        if self.timeline_rect.contains(Vec2::new(x, y)) {
+            let offset = x - self.timeline_rect.x;
+            let progress = offset as f32 / self.timeline_rect.width as f32;
+            map.animation.transition_progress = progress;
+            println!("{:?}", map.animation);
+            return true;
+        }
         if y < 20 {
             if self.d2_rect.contains(Vec2::new(x, y)) {
                 map.camera = MapCamera::TwoD;
@@ -560,6 +633,25 @@ impl Hud {
         } else {
             false
         }
+    }
+
+    pub fn dragged(
+        &mut self,
+        x: i32,
+        y: i32,
+        map: &mut Map,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _server_ctx: &mut ServerContext,
+    ) -> bool {
+        if self.timeline_rect.contains(Vec2::new(x, y)) {
+            let offset = x - self.timeline_rect.x;
+            let progress = offset as f32 / self.timeline_rect.width as f32;
+            map.animation.transition_progress = progress;
+            return true;
+        }
+
+        false
     }
 
     #[allow(clippy::collapsible_if)]
@@ -579,12 +671,6 @@ impl Hud {
                     text = "FLOOR".into();
                 } else if index == 1 {
                     text = "CEIL".into();
-                } else if index == 2 {
-                    text = "WALL".into();
-                } else if index == 3 {
-                    text = "ROW2".into();
-                } else if index == 4 {
-                    text = "ROW3".into();
                 }
             }
         } else if server_ctx.curr_map_context == MapContext::Material {
@@ -659,39 +745,6 @@ impl Hud {
                 } else if index == 1 {
                     if let Some(Value::Source(pixelsource)) =
                         &sector.properties.get("ceiling_source")
-                    {
-                        if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.lock().unwrap().assets.tiles,
-                            icon_size,
-                            &sector.properties,
-                        ) {
-                            return Some(tile);
-                        }
-                    }
-                } else if index == 2 {
-                    if let Some(Value::Source(pixelsource)) = &sector.properties.get("row1_source")
-                    {
-                        if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.lock().unwrap().assets.tiles,
-                            icon_size,
-                            &sector.properties,
-                        ) {
-                            return Some(tile);
-                        }
-                    }
-                } else if index == 3 {
-                    if let Some(Value::Source(pixelsource)) = &sector.properties.get("row2_source")
-                    {
-                        if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.lock().unwrap().assets.tiles,
-                            icon_size,
-                            &sector.properties,
-                        ) {
-                            return Some(tile);
-                        }
-                    }
-                } else if index == 4 {
-                    if let Some(Value::Source(pixelsource)) = &sector.properties.get("row3_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
                             &RUSTERIX.lock().unwrap().assets.tiles,

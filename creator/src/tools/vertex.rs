@@ -109,7 +109,7 @@ impl Tool for VertexTool {
                 crate::editor::RUSTERIX.lock().unwrap().set_dirty();
             }
             MapClicked(coord) => {
-                if self.hud.clicked(coord.x, coord.y, map, ctx, server_ctx) {
+                if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
                     crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                     return None;
                 }
@@ -163,6 +163,11 @@ impl Tool for VertexTool {
                 self.rectangle_undo_map = map.clone();
             }
             MapDragged(coord) => {
+                if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx) {
+                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    return None;
+                }
+
                 if self.click_selected {
                     // If we selected a vertex, drag means we move all selected vertices
                     if let Some(render_view) = ui.get_render_view("PolyView") {
@@ -247,6 +252,7 @@ impl Tool for VertexTool {
                         map.selected_vertices = selection.0;
                     }
                 }
+                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
             }
             MapUp(_) => {
                 if self.click_selected {
@@ -352,8 +358,8 @@ impl Tool for VertexTool {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
-        let id = if map.selected_linedefs.len() == 1 {
-            Some(map.selected_linedefs[0])
+        let id = if !map.selected_vertices.is_empty() {
+            Some(map.selected_vertices[0])
         } else {
             None
         };

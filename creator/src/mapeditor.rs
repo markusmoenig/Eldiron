@@ -659,7 +659,10 @@ impl MapEditor {
                             }
                         }
                     }
-                } else if id.name == "linedefPixelization" || id.name == "linedefNoiseTarget" {
+                } else if id.name == "linedefPixelization"
+                    || id.name == "linedefNoiseTarget"
+                    || id.name == "linedefSourceRepeat"
+                {
                     if let Some(value) = value.to_i32() {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             for linedef_id in &map.selected_linedefs.clone() {
@@ -718,7 +721,10 @@ impl MapEditor {
                         }
                     }
                     redraw = true;
-                } else if id.name == "sectorNoiseIntensity" || id.name == "sectorWallHeight" {
+                } else if id.name == "sectorNoiseIntensity"
+                    || id.name == "sectorFloorHeight"
+                    || id.name == "sectorCeilingHeight"
+                {
                     if let Some(value) = value.to_f32() {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             for sector_id in &map.selected_sectors.clone() {
@@ -734,7 +740,10 @@ impl MapEditor {
                         }
                     }
                     redraw = true;
-                } else if id.name == "sectorPixelization" || id.name == "sectorNoiseTarget" {
+                } else if id.name == "sectorPixelization"
+                    || id.name == "sectorNoiseTarget"
+                    || id.name == "sectorCeilingInIso"
+                {
                     if let Some(value) = value.to_i32() {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             for sector_id in &map.selected_sectors.clone() {
@@ -769,7 +778,20 @@ impl MapEditor {
                     }
                 }
             }
-            TheEvent::StateChanged(id, _state) => {
+            TheEvent::StateChanged(id, state) => {
+                if id.name == "linedefAddMidpoint" && *state == TheWidgetState::Clicked {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        let prev = map.clone();
+                        let mut changed = false;
+                        for linedef_id in &map.selected_linedefs.clone() {
+                            map.add_midpoint(*linedef_id);
+                            changed = true;
+                        }
+                        if changed {
+                            self.add_map_undo(map, prev, ctx, server_ctx);
+                        }
+                    }
+                }
                 // Region Content List Selection
                 if id.name == "Region Content List Item" {
                     if let Some((TheValue::Position(p), character_id)) = server
@@ -1072,11 +1094,11 @@ impl MapEditor {
 
         if let Some(map) = project.get_map(server_ctx) {
             if server_ctx.curr_map_tool_type == MapToolType::Linedef
-                && map.selected_linedefs.len() == 1
+                && !map.selected_linedefs.is_empty()
             {
                 self.create_linedef_settings(map, map.selected_linedefs[0], ui, ctx, server_ctx);
             } else if server_ctx.curr_map_tool_type == MapToolType::Sector
-                && map.selected_sectors.len() == 1
+                && !map.selected_sectors.is_empty()
             {
                 self.create_sector_settings(map, map.selected_sectors[0], ui, ctx, server_ctx);
             }
@@ -1122,6 +1144,7 @@ impl MapEditor {
                     false,
                 );
                 nodeui.add_item(item);
+
                 let item = TheNodeUIItem::FloatEditSlider(
                     "linedefWallHeight".into(),
                     "Wall Height".into(),
@@ -1129,6 +1152,23 @@ impl MapEditor {
                     linedef.properties.get_float_default("wall_height", 0.0),
                     0.0..=4.0,
                     false,
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::Selector(
+                    "linedefSourceRepeat".into(),
+                    "Repeat Source".into(),
+                    "Set if the source textures should be repeated or applied individually for each row (allowing gaps).".into(),
+                    vec!["Yes".to_string(), "No".to_string()],
+                    linedef.properties.get_int_default("source_repeat", 0),
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::Button(
+                    "linedefAddMidpoint".into(),
+                    "Add Midpoint".into(),
+                    "Adds a new midpoint vertex to the line, splitting it.".into(),
+                    "Split Line".into(),
                 );
                 nodeui.add_item(item);
             }
@@ -1212,13 +1252,33 @@ impl MapEditor {
                     false,
                 );
                 nodeui.add_item(item);
+
                 let item = TheNodeUIItem::FloatEditSlider(
-                    "sectorWallHeight".into(),
-                    "Wall Height".into(),
-                    "Set the height for all walls of the sector.".into(),
-                    2.0,
+                    "sectorFloorHeight".into(),
+                    "Floor Height".into(),
+                    "Set the elevation of of the sector's floor.".into(),
+                    sector.properties.get_float_default("floor_height", 0.0),
                     0.0..=4.0,
                     false,
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::FloatEditSlider(
+                    "sectorCeilingHeight".into(),
+                    "Ceiling Height".into(),
+                    "Set the elevation of the sector's ceiling.".into(),
+                    sector.properties.get_float_default("ceiling_height", 0.0),
+                    0.0..=4.0,
+                    false,
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::Selector(
+                    "sectorCeilingInIso".into(),
+                    "Ceiling in ISO".into(),
+                    "Set if the ceiling should be displayed in an ISO camera.".into(),
+                    vec!["Yes".to_string(), "No".to_string()],
+                    sector.properties.get_int_default("ceiling_in_iso", 0),
                 );
                 nodeui.add_item(item);
             }

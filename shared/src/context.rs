@@ -176,43 +176,7 @@ impl ServerContext {
         }
     }
 
-    /// Returns the material or texture for the given mode (Floor, Wall, Ceiling) for the current map selection.
-    /// None means nothing selected
-    /// Some(None, None) means there is a selection but its ambigous
-    pub fn get_texture_for_mode(
-        &self,
-        mode: MapTextureMode,
-        map: &Map,
-    ) -> Option<(Option<Uuid>, Option<u8>)> {
-        /*
-        match mode {
-            MapTextureMode::Floor => {
-                if let Some(sector_id) = map.selected_sectors.first() {
-                    if let Some(sector) = map.find_sector(*sector_id) {
-                        if let Some(texture_uuid) = sector.floor_texture {
-                            return Some((Some(texture_uuid), None));
-                        }
-                        if let Some(material_index) = sector.floor_material {
-                            return Some((None, Some(material_index)));
-                        }
-                    }
-                }
-            }
-            MapTextureMode::Wall => {}
-            MapTextureMode::Ceiling => {
-                if let Some(sector_id) = map.selected_sectors.first() {
-                    if let Some(sector) = map.find_sector(*sector_id) {
-                        if let Some(texture_uuid) = sector.ceiling_texture {
-                            return Some((Some(texture_uuid), None));
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }*/
-        None
-    }
-
+    /// Clears all state data.
     pub fn clear(&mut self) {
         self.curr_region = Uuid::nil();
         self.curr_character = None;

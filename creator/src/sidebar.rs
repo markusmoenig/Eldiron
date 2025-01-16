@@ -3358,6 +3358,19 @@ impl Sidebar {
                 zoom.set_value(TheValue::Float(1.0));
             }
 
+            // if let Some(renderview) = ui.get_render_view("PolyView") {
+            //     if let Some(buffer) = ctx.ui.icon("eldiron_map") {
+            //         let dim = *renderview.dim();
+            //         renderview.render_buffer_mut().fill(BLACK);
+            //         renderview.render_buffer_mut().copy_into(
+            //             (dim.width - buffer.dim().width) / 2,
+            //             (dim.height - buffer.dim().height) / 2,
+            //             buffer,
+            //         );
+            //         renderview.set_needs_redraw(true);
+            //     }
+            // }
+
             if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
                 if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
                     if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
