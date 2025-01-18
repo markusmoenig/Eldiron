@@ -643,6 +643,8 @@ impl Tool for LinedefTool {
                                         linedef.properties.set("row2_source", source.clone());
                                     } else if self.hud.selected_icon_index == 2 {
                                         linedef.properties.set("row3_source", source.clone());
+                                    } else if self.hud.selected_icon_index == 3 {
+                                        linedef.properties.set("row4_source", source.clone());
                                     }
                                     crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                                 }
@@ -677,6 +679,10 @@ impl Tool for LinedefTool {
                                     linedef
                                         .properties
                                         .set("row3_source", Value::Source(PixelSource::Off));
+                                } else if self.hud.selected_icon_index == 3 {
+                                    linedef
+                                        .properties
+                                        .set("row4_source", Value::Source(PixelSource::Off));
                                 }
                                 crate::editor::RUSTERIX.lock().unwrap().set_dirty();
                             }

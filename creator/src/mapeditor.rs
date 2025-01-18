@@ -635,6 +635,27 @@ impl MapEditor {
                             server.update_region(region);
                         }
                     }
+                } else if id.name == "lightIntensity"
+                    || id.name == "lightStartDistance"
+                    || id.name == "lightEndDistance"
+                {
+                    if let Some(value) = value.to_f32() {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            if let Some(light_index) = &map.selected_light.clone() {
+                                let prev = map.clone();
+
+                                if id.name == "lightIntensity" {
+                                    map.lights[*light_index as usize].set_intensity(value);
+                                }
+                                if id.name == "lightStartDistance" {
+                                    map.lights[*light_index as usize].set_start_distance(value);
+                                } else if id.name == "lightEndDistance" {
+                                    map.lights[*light_index as usize].set_end_distance(value);
+                                }
+                                self.add_map_undo(map, prev, ctx, server_ctx);
+                            }
+                        }
+                    }
                 } else if id.name == "linedefWallHeight"
                     || id.name == "linedefMaterialWidth"
                     || id.name == "linedefNoiseIntensity"
@@ -1093,7 +1114,11 @@ impl MapEditor {
         }
 
         if let Some(map) = project.get_map(server_ctx) {
-            if server_ctx.curr_map_tool_type == MapToolType::Linedef
+            if server_ctx.curr_map_tool_type == MapToolType::Effects {
+                if let Some(index) = map.selected_light {
+                    self.create_light_settings(map, index, ui, ctx, server_ctx);
+                }
+            } else if server_ctx.curr_map_tool_type == MapToolType::Linedef
                 && !map.selected_linedefs.is_empty()
             {
                 self.create_linedef_settings(map, map.selected_linedefs[0], ui, ctx, server_ctx);
@@ -1121,6 +1146,26 @@ impl MapEditor {
                 .add_material_undo(undo_atom, ctx);
         }
         RUSTERIX.lock().unwrap().set_dirty();
+    }
+
+    fn create_light_settings(
+        &self,
+        map: &Map,
+        index: u32,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        _server_ctx: &mut ServerContext,
+    ) {
+        let nodeui = EffectWrapper::create_light_ui(&map.lights[index as usize]);
+        if let Some(layout) = ui.get_text_layout("Node Settings") {
+            nodeui.apply_to_text_layout(layout);
+            ctx.ui.relayout = true;
+
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Show Node Settings"),
+                TheValue::Text("Light Settings".to_string()),
+            ));
+        }
     }
 
     fn create_linedef_settings(

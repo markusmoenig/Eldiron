@@ -93,6 +93,8 @@ pub struct ServerContext {
     pub curr_material: Option<Uuid>,
     pub curr_brush: Uuid,
 
+    pub curr_effect: Option<EffectWrapper>,
+
     /// The screen editor drawing mode.
     pub screen_editor_mode_foreground: bool,
 
@@ -152,6 +154,7 @@ impl ServerContext {
             curr_layer_role: Layer2DRole::Ground,
 
             curr_material_id: None,
+            curr_effect: None,
 
             conceptual_display: None,
 

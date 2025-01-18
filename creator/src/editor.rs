@@ -3,7 +3,7 @@ use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
 use crate::Embedded;
 use lazy_static::lazy_static;
-use rusterix::{Rusterix, SceneBuilder};
+use rusterix::{Rusterix, SceneBuilder, Texture, Value, ValueContainer};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{
@@ -17,8 +17,10 @@ lazy_static! {
     pub static ref CODEEDITOR: Mutex<TheCodeEditor> = Mutex::new(TheCodeEditor::new());
     pub static ref TILEPICKER: Mutex<TilePicker> =
         Mutex::new(TilePicker::new("Main Tile Picker".to_string()));
-        pub static ref MATERIALPICKER: Mutex<MaterialPicker> =
+    pub static ref MATERIALPICKER: Mutex<MaterialPicker> =
             Mutex::new(MaterialPicker::new("Main Material Picker".to_string()));
+    pub static ref EFFECTPICKER: Mutex<EffectPicker> =
+                    Mutex::new(EffectPicker::new("Main Effect Picker".to_string()));
     pub static ref TILEMAPEDITOR: Mutex<TilemapEditor> = Mutex::new(TilemapEditor::new());
     pub static ref SIDEBARMODE: Mutex<SidebarMode> = Mutex::new(SidebarMode::Region);
     pub static ref TILEDRAWER: Mutex<TileDrawer> = Mutex::new(TileDrawer::new());
@@ -70,6 +72,8 @@ pub struct Editor {
     self_updater: Arc<Mutex<SelfUpdater>>,
 
     first_update: bool,
+
+    build_values: ValueContainer,
 }
 
 impl TheTrait for Editor {
@@ -109,6 +113,8 @@ impl TheTrait for Editor {
             ))),
 
             first_update: true,
+
+            build_values: ValueContainer::default(),
         }
     }
 
@@ -452,6 +458,18 @@ impl TheTrait for Editor {
         ctx.ui.set_disabled("Undo");
         ctx.ui.set_disabled("Redo");
 
+        // Init Rusterix
+
+        if let Some(icon) = ctx.ui.icon("light_on") {
+            let texture = Texture::from_rgbabuffer(icon);
+            self.build_values.set("light_on", Value::Texture(texture));
+        }
+
+        if let Some(icon) = ctx.ui.icon("light_off") {
+            let texture = Texture::from_rgbabuffer(icon);
+            self.build_values.set("light_off", Value::Texture(texture));
+        }
+
         RUSTERIX.lock().unwrap().set_d2();
 
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
@@ -746,6 +764,7 @@ impl TheTrait for Editor {
                             rusterix.build_scene(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 &region.map,
+                                &self.build_values,
                             );
                             rusterix.draw_scene(
                                 render_view.render_buffer_mut().pixels_mut(),
@@ -770,6 +789,7 @@ impl TheTrait for Editor {
                             rusterix.build_scene(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 material,
+                                &self.build_values,
                             );
                             rusterix.draw_scene(
                                 render_view.render_buffer_mut().pixels_mut(),

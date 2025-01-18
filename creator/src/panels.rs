@@ -1,5 +1,5 @@
 use crate::editor::{
-    CODEEDITOR, MATERIALPICKER, REGIONFXEDITOR, TEXTEDITOR, TILEDRAWER, TILEFXEDITOR,
+    CODEEDITOR, EFFECTPICKER, MATERIALPICKER, REGIONFXEDITOR, TEXTEDITOR, TILEDRAWER, TILEFXEDITOR,
     TILEMAPEDITOR, TILEPICKER,
 };
 use crate::prelude::*;
@@ -13,6 +13,7 @@ pub enum PanelIndices {
     ColorPicker,
     TextEditor,
     MaterialPicker,
+    EffectPicker,
 }
 
 pub struct Panels {
@@ -94,6 +95,7 @@ impl Panels {
 
         main_stack.add_canvas(TEXTEDITOR.lock().unwrap().build());
         main_stack.add_canvas(MATERIALPICKER.lock().unwrap().build(false));
+        main_stack.add_canvas(EFFECTPICKER.lock().unwrap().build(false));
         main_stack.set_index(0);
 
         let tilemap_editor = TheRGBALayout::new(TheId::named("Tilemap Editor"));
@@ -192,6 +194,13 @@ impl Panels {
             redraw = true;
         }
         if MATERIALPICKER
+            .lock()
+            .unwrap()
+            .handle_event(event, ui, ctx, project, server, server_ctx)
+        {
+            redraw = true;
+        }
+        if EFFECTPICKER
             .lock()
             .unwrap()
             .handle_event(event, ui, ctx, project, server, server_ctx)

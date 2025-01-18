@@ -28,6 +28,7 @@ pub mod renderer_utils;
 pub mod screen;
 // pub mod sdf;
 pub mod context;
+pub mod effectwrapper;
 pub mod server;
 pub mod tiledrawer;
 pub mod tilefx;
@@ -74,6 +75,7 @@ pub mod prelude {
     pub use crate::renderer_utils::ray_sphere;
     pub use crate::screen::*;
     // pub use crate::sdf::*;
+    pub use crate::effectwrapper::*;
     pub use crate::server::{Server, ServerState};
     pub use crate::tiledrawer::{RegionDrawSettings, TileDrawer};
     pub use crate::tilefx::TileFX;

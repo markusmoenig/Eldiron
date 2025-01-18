@@ -34,7 +34,7 @@ num_cpus = "1.16.0"
 half = { version = "2.4", features = ["serde"] }
 # rusterix = "0.1.0"
 # rusterix = { path = "../../rusterix" }
-rusterix = { version = "0.2.2", git = "https://github.com/markusmoenig/Rusterix" }
+rusterix = { version = "0.2.3", git = "https://github.com/markusmoenig/Rusterix" }
 
 vek = { version = "0.17", default-features = false, features = ["rgba"] }
 earcutr = "0.4"

@@ -149,6 +149,7 @@ impl MapRender {
                     self.atlas.clone(),
                     vek::Vec2::new(width as f32, height as f32),
                     "preview",
+                    &ValueContainer::default(),
                 );
 
                 Rasterizer::setup(None, Mat4::identity(), Mat4::identity()).rasterize(
@@ -535,6 +536,7 @@ impl MapRender {
                     self.atlas.clone(),
                     vek::Vec2::new(width as f32, height as f32),
                     "firstp",
+                    &ValueContainer::default(),
                 );
 
                 let view_matrix; // = vek::Mat4::identity();

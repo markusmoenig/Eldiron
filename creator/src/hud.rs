@@ -8,6 +8,7 @@ pub enum HudMode {
     Vertex,
     Linedef,
     Sector,
+    Effects,
 }
 
 pub struct Hud {
@@ -158,46 +159,14 @@ impl Hud {
         }
 
         // States
+        if self.mode != HudMode::Effects {
+            let x = 0;
+            let state_width = 70;
+            let state_height = 25_i32;
+            let mut y =
+                height - state_height as usize - map.animation.states.len() * state_height as usize;
 
-        let x = 0;
-        let state_width = 70;
-        let state_height = 25_i32;
-        let mut y =
-            height - state_height as usize - map.animation.states.len() * state_height as usize;
-
-        // Base State
-        let rect = TheDim::rect(x, y as i32, state_width, state_height);
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &rect.to_buffer_utuple(),
-            stride,
-            &dark_bg_color,
-        );
-
-        if let Some(font) = &ctx.ui.font {
-            ctx.draw.text_rect(
-                buffer.pixels_mut(),
-                &rect.to_buffer_utuple(),
-                stride,
-                font,
-                11.5,
-                "Base State",
-                if map.animation.current_state.is_none() {
-                    &sel_text_color
-                } else {
-                    &text_color
-                },
-                &dark_bg_color,
-                TheHorizontalAlign::Center,
-                TheVerticalAlign::Center,
-            );
-        }
-
-        self.state_rects.push(rect);
-
-        // Animation States
-        y += state_height as usize;
-        for i in 0..map.animation.states.len() {
+            // Base State
             let rect = TheDim::rect(x, y as i32, state_width, state_height);
             ctx.draw.rect(
                 buffer.pixels_mut(),
@@ -205,6 +174,7 @@ impl Hud {
                 stride,
                 &dark_bg_color,
             );
+
             if let Some(font) = &ctx.ui.font {
                 ctx.draw.text_rect(
                     buffer.pixels_mut(),
@@ -212,10 +182,8 @@ impl Hud {
                     stride,
                     font,
                     11.5,
-                    &map.animation.states[i].state_name,
-                    if map.animation.current_state == Some(i)
-                        || map.animation.loop_states.contains(&i)
-                    {
+                    "Base State",
+                    if map.animation.current_state.is_none() {
                         &sel_text_color
                     } else {
                         &text_color
@@ -227,84 +195,118 @@ impl Hud {
             }
 
             self.state_rects.push(rect);
+
+            // Animation States
             y += state_height as usize;
-        }
+            for i in 0..map.animation.states.len() {
+                let rect = TheDim::rect(x, y as i32, state_width, state_height);
+                ctx.draw.rect(
+                    buffer.pixels_mut(),
+                    &rect.to_buffer_utuple(),
+                    stride,
+                    &dark_bg_color,
+                );
+                if let Some(font) = &ctx.ui.font {
+                    ctx.draw.text_rect(
+                        buffer.pixels_mut(),
+                        &rect.to_buffer_utuple(),
+                        stride,
+                        font,
+                        11.5,
+                        &map.animation.states[i].state_name,
+                        if map.animation.current_state == Some(i)
+                            || map.animation.loop_states.contains(&i)
+                        {
+                            &sel_text_color
+                        } else {
+                            &text_color
+                        },
+                        &dark_bg_color,
+                        TheHorizontalAlign::Center,
+                        TheVerticalAlign::Center,
+                    );
+                }
 
-        // Plus buttton
-        y -= state_height as usize;
-        let rect = TheDim::rect(state_width, y as i32, state_height, state_height);
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &rect.to_buffer_utuple(),
-            stride,
-            &bg_color,
-        );
+                self.state_rects.push(rect);
+                y += state_height as usize;
+            }
 
-        if let Some(font) = &ctx.ui.font {
-            ctx.draw.text_rect(
+            // Plus buttton
+            y -= state_height as usize;
+            let rect = TheDim::rect(state_width, y as i32, state_height, state_height);
+            ctx.draw.rect(
                 buffer.pixels_mut(),
                 &rect.to_buffer_utuple(),
                 stride,
-                font,
-                11.5,
-                "+",
-                if map.animation.current_state.is_none() {
-                    &sel_text_color
-                } else {
-                    &text_color
-                },
-                &dark_bg_color,
-                TheHorizontalAlign::Center,
-                TheVerticalAlign::Center,
+                &bg_color,
             );
-        }
 
-        self.add_state_rect = rect;
+            if let Some(font) = &ctx.ui.font {
+                ctx.draw.text_rect(
+                    buffer.pixels_mut(),
+                    &rect.to_buffer_utuple(),
+                    stride,
+                    font,
+                    11.5,
+                    "+",
+                    if map.animation.current_state.is_none() {
+                        &sel_text_color
+                    } else {
+                        &text_color
+                    },
+                    &dark_bg_color,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
+            }
 
-        // Play button and timeline
+            self.add_state_rect = rect;
 
-        let rect = TheDim::rect(150, y as i32, state_height, state_height);
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &rect.to_buffer_utuple(),
-            stride,
-            &bg_color,
-        );
+            // Play button and timeline
 
-        if let Some(font) = &ctx.ui.font {
-            ctx.draw.text_rect(
+            let rect = TheDim::rect(150, y as i32, state_height, state_height);
+            ctx.draw.rect(
                 buffer.pixels_mut(),
                 &rect.to_buffer_utuple(),
                 stride,
-                font,
-                11.5,
-                "P",
-                if map.animation.current_state.is_none() {
-                    &sel_text_color
-                } else {
-                    &text_color
-                },
-                &dark_bg_color,
-                TheHorizontalAlign::Center,
-                TheVerticalAlign::Center,
+                &bg_color,
             );
+
+            if let Some(font) = &ctx.ui.font {
+                ctx.draw.text_rect(
+                    buffer.pixels_mut(),
+                    &rect.to_buffer_utuple(),
+                    stride,
+                    font,
+                    11.5,
+                    "P",
+                    if map.animation.current_state.is_none() {
+                        &sel_text_color
+                    } else {
+                        &text_color
+                    },
+                    &dark_bg_color,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
+            }
+
+            self.play_button_rect = rect;
+
+            if self.is_playing {
+                map.tick(1000.0 / 30.0);
+            }
+
+            let rect = TheDim::rect(150 + state_height, y as i32, 150, state_height);
+            ctx.draw.rect(
+                buffer.pixels_mut(),
+                &rect.to_buffer_utuple(),
+                stride,
+                &dark_bg_color,
+            );
+
+            self.timeline_rect = rect;
         }
-
-        self.play_button_rect = rect;
-
-        if self.is_playing {
-            map.tick(1000.0 / 30.0);
-        }
-
-        let rect = TheDim::rect(150 + state_height, y as i32, 150, state_height);
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &rect.to_buffer_utuple(),
-            stride,
-            &dark_bg_color,
-        );
-
-        self.timeline_rect = rect;
 
         // Icons
 
@@ -315,12 +317,16 @@ impl Hud {
             icons = if self.mode == HudMode::Vertex {
                 0
             } else if self.mode == HudMode::Linedef {
-                3
+                4
             } else {
                 2
             };
         } else if server_ctx.curr_map_context == MapContext::Material {
             icons = 1;
+        }
+
+        if self.mode == HudMode::Effects {
+            icons = 0;
         }
 
         let x = width as i32 - (icon_size * icons) - 1;
@@ -665,6 +671,8 @@ impl Hud {
                     text = "ROW2".into();
                 } else if index == 2 {
                     text = "ROW3".into();
+                } else if index == 3 {
+                    text = "ROW4".into();
                 }
             } else if self.mode == HudMode::Sector {
                 if index == 0 {
@@ -718,6 +726,17 @@ impl Hud {
                     }
                 } else if index == 2 {
                     if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row3_source")
+                    {
+                        if let Some(tile) = pixelsource.to_tile(
+                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            icon_size,
+                            &linedef.properties,
+                        ) {
+                            return Some(tile);
+                        }
+                    }
+                } else if index == 3 {
+                    if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row4_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
                             &RUSTERIX.lock().unwrap().assets.tiles,
