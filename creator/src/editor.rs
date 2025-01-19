@@ -1121,6 +1121,7 @@ impl TheTrait for Editor {
                             }
                         }
                     }
+                    /*
                     TheEvent::TileEditorDrop(_id, location, drop) => {
                         if drop.id.name.starts_with("Character") {
                             let mut instance = TheCodeBundle::new();
@@ -1318,7 +1319,7 @@ impl TheTrait for Editor {
                             //     self.sidebar.code_editor.set_debug_module(debug_module, ui);
                             // }
                         }
-                    }
+                    }*/
                     TheEvent::FileRequesterResult(id, paths) => {
                         // Load a palette from a file
                         if id.name == "Palette Import" {

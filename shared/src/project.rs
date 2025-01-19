@@ -33,7 +33,7 @@ pub struct Project {
     pub map_mode: MapMode,
 
     #[serde(default)]
-    pub characters: FxHashMap<Uuid, TheCodeBundle>,
+    pub characters: IndexMap<Uuid, Character>,
     #[serde(default)]
     pub items: FxHashMap<Uuid, TheCodeBundle>,
     #[serde(default)]
@@ -70,13 +70,11 @@ impl Default for Project {
 impl Project {
     pub fn new() -> Self {
         let mut materials = IndexMap::default();
-        for _ in 0..=255 {
-            let map = Map {
-                name: "Unnamed Material".to_string(),
-                ..Default::default()
-            };
-            materials.insert(map.id, map);
-        }
+        let map = Map {
+            name: "Unnamed Material".to_string(),
+            ..Default::default()
+        };
+        materials.insert(map.id, map);
 
         Self {
             name: String::new(),
@@ -87,7 +85,7 @@ impl Project {
             time: TheTime::default(),
             map_mode: MapMode::default(),
 
-            characters: FxHashMap::default(),
+            characters: IndexMap::default(),
             items: FxHashMap::default(),
             codes: FxHashMap::default(),
 
@@ -104,13 +102,13 @@ impl Project {
     }
 
     /// Add Character
-    pub fn add_character(&mut self, character: TheCodeBundle) {
+    pub fn add_character(&mut self, character: Character) {
         self.characters.insert(character.id, character);
     }
 
     /// Removes the given character from the project.
     pub fn remove_character(&mut self, id: &Uuid) {
-        self.characters.remove(id);
+        self.characters.shift_remove(id);
     }
 
     /// Returns a list of all characters sorted by name.

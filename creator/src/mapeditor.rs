@@ -635,6 +635,16 @@ impl MapEditor {
                             server.update_region(region);
                         }
                     }
+                } else if id.name == "lightColor" {
+                    if let Some(value) = value.to_color() {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            if let Some(light_index) = &map.selected_light.clone() {
+                                let prev = map.clone();
+                                map.lights[*light_index as usize].set_color(value.to_array_3());
+                                self.add_map_undo(map, prev, ctx, server_ctx);
+                            }
+                        }
+                    }
                 } else if id.name == "lightIntensity"
                     || id.name == "lightStartDistance"
                     || id.name == "lightEndDistance"

@@ -1,4 +1,6 @@
-use crate::editor::{CODEEDITOR, MAPRENDER, RUSTERIX, SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER};
+use crate::editor::{
+    CODEEDITOR, MAPRENDER, RUSTERIX, SIDEBARMODE, TEXTEDITOR, TILEMAPEDITOR, UNDOMANAGER,
+};
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
 use rusterix::{D2MaterialBuilder, SceneBuilder, Texture};
@@ -1850,6 +1852,7 @@ impl Sidebar {
                         }
                     }
                 } else if id.name == "Character Add" {
+                    /*
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         let mut bundle = TheCodeBundle::new();
 
@@ -1904,6 +1907,30 @@ impl Sidebar {
                         self.apply_character(ui, ctx, Some(&bundle));
                         server.insert_character(bundle.clone());
                         project.add_character(bundle);
+                    }*/
+
+                    if let Some(list_layout) = ui.get_list_layout("Character List") {
+                        let mut character = Character::default();
+
+                        if let Some(bytes) = crate::Embedded::get("basecharacter.py") {
+                            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                                character.source = source.to_string();
+                            }
+                        }
+
+                        let mut item =
+                            TheListItem::new(TheId::named_with_id("Character Item", character.id));
+                        item.set_text(character.name.clone());
+                        item.set_state(TheWidgetState::Selected);
+                        list_layout.deselect_all();
+                        let id = item.id().clone();
+                        list_layout.add_item(item, ctx);
+                        ctx.ui
+                            .send_widget_state_changed(&id, TheWidgetState::Selected);
+
+                        self.apply_character(ui, ctx, Some(&character));
+
+                        project.add_character(character);
                     }
                 } else if id.name == "Character Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
@@ -2857,12 +2884,13 @@ impl Sidebar {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
+                                /*
                                 if let Some(character) = project.characters.get_mut(&bundle.id) {
                                     if character.id == bundle.id {
                                         *character = bundle.clone();
                                         server.insert_character(character.clone());
                                     }
-                                }
+                                }*/
                                 redraw = true;
                             }
                         }
@@ -3079,10 +3107,14 @@ impl Sidebar {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        character: Option<&TheCodeBundle>,
+        character: Option<&Character>,
     ) {
         ui.set_widget_disabled_state("Character Remove", ctx, character.is_none());
 
+        if let Some(character) = character {
+            ui.set_widget_value("CodeEdit", ctx, TheValue::Text(character.source.clone()));
+        }
+        /*
         // Set the character bundle.
         if let Some(character) = character {
             let char_list_canvas: TheCanvas =
@@ -3103,7 +3135,7 @@ impl Sidebar {
                 empty.set_layout(TheListLayout::new(TheId::empty()));
                 canvas.set_bottom(empty);
             }
-        }
+        }*/
 
         ctx.ui.relayout = true;
     }

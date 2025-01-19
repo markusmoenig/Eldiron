@@ -9,7 +9,7 @@ edition = "2021"
 #     "ui",
 #     "code",
 # ], default-features = true }
-theframework = { version = "0.1.37", git = "https://github.com/markusmoenig/TheFramework", features = [
+theframework = { version = "0.1.38", git = "https://github.com/markusmoenig/TheFramework", features = [
     "ui",
     "code",
 ], default-features = true }

@@ -26,11 +26,21 @@ impl EffectWrapper {
 
         match light {
             rusterix::Light::PointLight {
+                color,
                 intensity,
                 start_distance,
                 end_distance,
                 ..
             } => {
+                let item = TheNodeUIItem::ColorPicker(
+                    "lightColor".into(),
+                    "".into(),
+                    "Set the color of the light".into(),
+                    TheColor::from(*color),
+                    false,
+                );
+                nodeui.add_item(item);
+
                 let item = TheNodeUIItem::FloatEditSlider(
                     "lightIntensity".into(),
                     "Intensity".into(),

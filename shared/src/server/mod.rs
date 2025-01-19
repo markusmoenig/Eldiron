@@ -217,7 +217,7 @@ impl Server {
 
         // Add all characters
         for bundle in project.characters.values() {
-            self.insert_character(bundle.clone());
+            //self.insert_character(bundle.clone());
         }
 
         // .. and items
