@@ -27,6 +27,7 @@ pub mod tilepicker;
 pub mod toollist;
 pub mod tools;
 pub mod undo;
+pub mod utils;
 
 use rust_embed::RustEmbed;
 #[derive(RustEmbed)]
@@ -48,6 +49,7 @@ pub mod prelude {
     pub use crate::brushlist::*;
     pub use crate::externals::*;
     pub use crate::mapeditor::*;
+    pub use crate::utils::*;
     // pub use crate::materialeditor::*;
     pub use crate::misc::*;
     // pub use crate::modeleditor::*;

@@ -12,7 +12,6 @@ pub struct SectorTool {
     click_selected: bool,
     drag_changed: bool,
 
-    properties_code: String,
     hud: Hud,
 }
 
@@ -28,10 +27,6 @@ impl Tool for SectorTool {
             drag_changed: false,
             rectangle_undo_map: Map::default(),
 
-            properties_code: r#"# Sets the wall height (default is 2.0)
-# set("wall_height", 2.0)
-"#
-            .to_string(),
             hud: Hud::new(HudMode::Sector),
         }
     }
@@ -143,12 +138,6 @@ impl Tool for SectorTool {
                     run_properties_button.set_text("Apply Source".to_string());
                     layout.add_widget(Box::new(run_properties_button));
                     layout.set_reverse_index(Some(1));
-
-                    ui.set_widget_value(
-                        "CodeEdit",
-                        ctx,
-                        TheValue::Text(self.properties_code.clone()),
-                    );
 
                     /*
                     let mut wall_width = TheTextLineEdit::new(TheId::named("Wall Width"));

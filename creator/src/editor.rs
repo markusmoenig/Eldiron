@@ -1121,6 +1121,68 @@ impl TheTrait for Editor {
                             }
                         }
                     }
+                    TheEvent::RenderViewDrop(_id, location, drop) => {
+                        let mut grid_pos = Vec2::zero();
+
+                        if let Some(map) = self.project.get_map(&self.server_ctx) {
+                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                                let dim = *render_view.dim();
+                                grid_pos = self.server_ctx.local_to_map_grid(
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    Vec2::new(location.x as f32, location.y as f32),
+                                    map,
+                                    map.subdivisions,
+                                );
+                            }
+                        }
+
+                        if drop.id.name.starts_with("Character") {
+                            let mut instance = Character {
+                                character_id: drop.id.uuid,
+                                position: Vec3::new(grid_pos.x, 0.0, grid_pos.y),
+                                ..Default::default()
+                            };
+
+                            if let Some(bytes) = crate::Embedded::get("python/instcharacter.py") {
+                                if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                                    instance.source = source.to_string();
+                                }
+                            }
+
+                            let mut name = "Character".to_string();
+                            if let Some(character) = self.project.characters.get(&drop.id.uuid) {
+                                name.clone_from(&character.name);
+                            }
+
+                            if let Some(list) = ui.get_list_layout("Region Content List") {
+                                let mut item = TheListItem::new(TheId::named_with_id(
+                                    "Region Content List Item",
+                                    instance.id,
+                                ));
+                                item.set_text(name);
+                                item.set_state(TheWidgetState::Selected);
+                                item.add_value_column(100, TheValue::Text("Character".to_string()));
+
+                                list.deselect_all();
+                                item.set_context_menu(Some(TheContextMenu {
+                                    items: vec![TheContextMenuItem::new(
+                                        "Delete Character...".to_string(),
+                                        TheId::named("Sidebar Delete Character Instance"),
+                                    )],
+                                    ..Default::default()
+                                }));
+                                list.add_item(item, ctx);
+                                list.select_item(instance.id, ctx, true);
+                            }
+
+                            // Add the character instance to the project
+                            if let Some(region) =
+                                self.project.get_region_mut(&self.server_ctx.curr_region)
+                            {
+                                region.characters.insert(instance.id, instance.clone());
+                            }
+                        }
+                    }
                     /*
                     TheEvent::TileEditorDrop(_id, location, drop) => {
                         if drop.id.name.starts_with("Character") {
@@ -1608,6 +1670,12 @@ impl TheTrait for Editor {
                         }
                         // Server
                         else if id.name == "Play" {
+                            start_server(&mut RUSTERIX.lock().unwrap(), &mut self.project);
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                "Server has been started.".to_string(),
+                            ));
+                            /*
                             self.server.start();
                             self.client.reset();
                             self.client.set_project(self.project.clone());
@@ -1617,6 +1685,7 @@ impl TheTrait for Editor {
                                 "Server has been started.".to_string(),
                             ));
                             self.sidebar.clear_debug_messages(ui, ctx);
+                            */
                             update_server_icons = true;
                         } else if id.name == "Pause" {
                             if self.server.state == ServerState::Running {

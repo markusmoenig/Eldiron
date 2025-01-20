@@ -13,8 +13,6 @@ pub struct LinedefTool {
     rectangle_undo_map: Map,
     rectangle_mode: bool,
 
-    properties_code: String,
-
     hud: Hud,
 }
 
@@ -30,11 +28,6 @@ impl Tool for LinedefTool {
             drag_changed: false,
             rectangle_undo_map: Map::default(),
             rectangle_mode: false,
-
-            properties_code: r#"# Sets the wall height (default is 2.0)
-# set("wall_height", 2.0)
-"#
-            .to_string(),
 
             hud: Hud::new(HudMode::Linedef),
         }
@@ -147,12 +140,6 @@ impl Tool for LinedefTool {
                     layout.add_widget(Box::new(rem_source_button));
 
                     layout.set_reverse_index(Some(2));
-
-                    ui.set_widget_value(
-                        "CodeEdit",
-                        ctx,
-                        TheValue::Text(self.properties_code.clone()),
-                    );
                 }
 
                 return true;

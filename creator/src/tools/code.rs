@@ -129,7 +129,20 @@ impl Tool for CodeTool {
             TheEvent::ValueChanged(id, value) => {
                 if id.name == "CodeEdit" {
                     if let Some(code) = value.to_string() {
-                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
+                            // Region mode, check the currently selected region content
+                            if let Some(region_content_id) = server_ctx.curr_region_content {
+                                if let Some(region) =
+                                    project.get_region_mut(&server_ctx.curr_region)
+                                {
+                                    if let Some(character_instance) =
+                                        region.characters.get_mut(&region_content_id)
+                                    {
+                                        character_instance.source = code;
+                                    }
+                                }
+                            }
+                        } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                             // Character mode, store the code in the current character
                             if let Some(character_id) = server_ctx.curr_character {
                                 if let Some(character) = project.characters.get_mut(&character_id) {

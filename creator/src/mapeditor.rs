@@ -1,6 +1,6 @@
 //use shared::server::prelude::MapToolType;
 
-use crate::editor::{CODEEDITOR, RUSTERIX, TILEDRAWER, UNDOMANAGER};
+use crate::editor::{RUSTERIX, SIDEBARMODE, TILEDRAWER, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::Value;
 use vek::Vec2;
@@ -825,6 +825,20 @@ impl MapEditor {
                 }
                 // Region Content List Selection
                 if id.name == "Region Content List Item" {
+                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                        server_ctx.curr_region_content = Some(id.uuid);
+                        if let Some(character) = region.characters.get(&id.uuid) {
+                            if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
+                                ui.set_widget_value(
+                                    "CodeEdit",
+                                    ctx,
+                                    TheValue::Text(character.source.clone()),
+                                );
+                            }
+                        }
+                    }
+
+                    /*
                     if let Some((TheValue::Position(p), character_id)) = server
                         .get_character_property(server_ctx.curr_region, id.uuid, "position".into())
                     {
@@ -950,7 +964,7 @@ impl MapEditor {
                                 }
                             }
                         }
-                    }
+                    }*/
                 }
                 // Region Selection
                 else if id.name == "Region Item" {

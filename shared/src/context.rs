@@ -41,6 +41,9 @@ pub struct ServerContext {
     /// The currently selected region in the editor.
     pub curr_region: Uuid,
 
+    /// The currently selected region content.
+    pub curr_region_content: Option<Uuid>,
+
     /// The currently selected character in the editor.
     pub curr_character: Option<Uuid>,
 
@@ -130,6 +133,7 @@ impl ServerContext {
     pub fn new() -> Self {
         Self {
             curr_region: Uuid::nil(),
+            curr_region_content: None,
 
             curr_character: None,
             curr_character_instance: None,

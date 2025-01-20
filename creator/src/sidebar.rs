@@ -1912,7 +1912,7 @@ impl Sidebar {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         let mut character = Character::default();
 
-                        if let Some(bytes) = crate::Embedded::get("basecharacter.py") {
+                        if let Some(bytes) = crate::Embedded::get("python/basecharacter.py") {
                             if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
                                 character.source = source.to_string();
                             }
@@ -1943,7 +1943,6 @@ impl Sidebar {
                 } else if id.name == "Character Item" {
                     if let Some(c) = project.characters.get(&id.uuid) {
                         server_ctx.curr_character = Some(id.uuid);
-                        //server_ctx.curr_character_instance = None;
                         self.apply_character(ui, ctx, Some(c));
                         redraw = true;
                     }
@@ -2383,16 +2382,11 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Regions".to_string()));
                     }
 
-                    // if let Some(button) = ui.get_group_button("Editor Group") {
-                    //     if button.index() == EditorMode::Pick as i32 {
-                    //         ctx.ui.send(TheEvent::IndexChanged(button.id().clone(), 1));
-                    //     }
-                    // }
-
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Region;
                     server_ctx.curr_map_context = MapContext::Region;
                     UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.lock().unwrap().set_dirty();
+                    set_code(ui, ctx, project, server_ctx);
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2422,6 +2416,7 @@ impl Sidebar {
                     server_ctx.curr_map_context = MapContext::Region;
                     UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.lock().unwrap().set_dirty();
+                    set_code(ui, ctx, project, server_ctx);
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),

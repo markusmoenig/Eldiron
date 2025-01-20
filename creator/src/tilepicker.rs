@@ -119,14 +119,27 @@ impl TilePicker {
         }
         drop_down.set_disabled(true);
 
-        let mut blocking = TheDropdownMenu::new(TheId::named(&self.make_id(" Tile Blocking")));
-        blocking.add_option("No".to_string());
-        blocking.add_option("Yes".to_string());
-        blocking.set_disabled(true);
+        // let mut blocking = TheDropdownMenu::new(TheId::named(&self.make_id(" Tile Blocking")));
+        // blocking.add_option("No".to_string());
+        // blocking.add_option("Yes".to_string());
+        // blocking.set_disabled(true);
+
+        let mut copy = TheTraybarButton::new(TheId::named(&self.make_id(" Tile Copy")));
+        copy.set_text("Copy ID to Clipboard".into());
+        copy.set_status_text(
+            "Copies the ID of the tile to the clipboard for later use in the code editor.".into(),
+        );
+        copy.limiter_mut().set_max_width(130);
+        copy.set_disabled(true);
 
         let mut tags = TheTextLineEdit::new(TheId::named(&self.make_id(" Tile Tags")));
         tags.limiter_mut().set_max_width(130);
         tags.set_disabled(true);
+
+        // let mut text = TheText::new(TheId::empty());
+        // text.set_text_size(12.0);
+        // text.set_text("Copy ID to Clipboard".to_string());
+        // vlayout.add_widget(Box::new(text));
 
         let mut text = TheText::new(TheId::empty());
         text.set_text_size(12.0);
@@ -140,22 +153,26 @@ impl TilePicker {
         vlayout.add_widget(Box::new(text));
         vlayout.add_widget(Box::new(tags));
 
-        let mut text = TheText::new(TheId::empty());
-        text.set_text_size(12.0);
-        text.set_text("Blocking".to_string());
-        vlayout.add_widget(Box::new(text));
-        vlayout.add_widget(Box::new(blocking));
+        vlayout.set_reverse_index(Some(1));
 
-        let mut billboard_text = TheText::new(TheId::empty());
-        billboard_text.set_text_size(12.0);
-        billboard_text.set_text("Render in 3D".to_string());
-        vlayout.add_widget(Box::new(billboard_text));
+        vlayout.add_widget(Box::new(copy));
 
-        let mut render_drop_down =
-            TheDropdownMenu::new(TheId::named(&self.make_id(" Tile Billboard")));
-        render_drop_down.add_option("As Cube".to_string());
-        render_drop_down.add_option("As Billboard".to_string());
-        vlayout.add_widget(Box::new(render_drop_down));
+        // let mut text = TheText::new(TheId::empty());
+        // text.set_text_size(12.0);
+        // text.set_text("Blocking".to_string());
+        // vlayout.add_widget(Box::new(text));
+        // vlayout.add_widget(Box::new(blocking));
+
+        // let mut billboard_text = TheText::new(TheId::empty());
+        // billboard_text.set_text_size(12.0);
+        // billboard_text.set_text("Render in 3D".to_string());
+        // vlayout.add_widget(Box::new(billboard_text));
+
+        // let mut render_drop_down =
+        //     TheDropdownMenu::new(TheId::named(&self.make_id(" Tile Billboard")));
+        // render_drop_down.add_option("As Cube".to_string());
+        // render_drop_down.add_option("As Billboard".to_string());
+        // vlayout.add_widget(Box::new(render_drop_down));
 
         details_canvas.set_layout(vlayout);
 
@@ -230,12 +247,20 @@ impl TilePicker {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut Server,
+        _server: &mut Server,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
 
         match event {
+            TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
+                if id.name == self.make_id(" Tile Copy") {
+                    if let Some(tile_id) = self.curr_tile {
+                        let txt = format!("\"{}\"", tile_id.to_string());
+                        ctx.ui.clipboard = Some(TheValue::Text(txt));
+                    }
+                }
+            }
             TheEvent::Resize => {
                 self.set_tiles(project.extract_tiles_vec(), ui, ctx);
             }
@@ -317,26 +342,26 @@ impl TilePicker {
                             }
                         }
                     }
-                } else if id.name == self.make_id(" Tile Blocking") {
-                    if let Some(tile_id) = self.curr_tile {
-                        if let Some(tile) = project.get_tile_mut(&tile_id) {
-                            if let TheValue::Int(role) = value {
-                                tile.blocking = *role == 1;
-                            }
-                        }
-                    }
-                } else if id.name == self.make_id(" Tile Billboard") {
-                    if let Some(tile_id) = self.curr_tile {
-                        if let Some(tile) = project.get_tile_mut(&tile_id) {
-                            if let TheValue::Int(billboard) = value {
-                                tile.billboard = *billboard == 1;
+                // } else if id.name == self.make_id(" Tile Blocking") {
+                //     if let Some(tile_id) = self.curr_tile {
+                //         if let Some(tile) = project.get_tile_mut(&tile_id) {
+                //             if let TheValue::Int(role) = value {
+                //                 tile.blocking = *role == 1;
+                //             }
+                //         }
+                //     }
+                // } else if id.name == self.make_id(" Tile Billboard") {
+                //     if let Some(tile_id) = self.curr_tile {
+                //         if let Some(tile) = project.get_tile_mut(&tile_id) {
+                //             if let TheValue::Int(billboard) = value {
+                //                 tile.billboard = *billboard == 1;
 
-                                let tiles = project.extract_tiles();
-                                TILEDRAWER.lock().unwrap().set_tiles(tiles.clone());
-                                server.update_tiles(tiles);
-                            }
-                        }
-                    }
+                //                 let tiles = project.extract_tiles();
+                //                 TILEDRAWER.lock().unwrap().set_tiles(tiles.clone());
+                //                 server.update_tiles(tiles);
+                //             }
+                //         }
+                //     }
                 } else if id.name == self.make_id(" Filter Edit") {
                     if let TheValue::Text(filter) = value {
                         self.filter = filter.to_lowercase();
@@ -384,23 +409,31 @@ impl TilePicker {
             }
         }
 
-        if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Blocking")) {
-            if let Some(tile) = tile {
-                widget.set_selected_index(if tile.blocking { 1 } else { 0 });
+        // if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Blocking")) {
+        //     if let Some(tile) = tile {
+        //         widget.set_selected_index(if tile.blocking { 1 } else { 0 });
+        //         widget.set_disabled(false);
+        //     } else {
+        //         widget.set_disabled(true);
+        //     }
+        // }
+
+        if let Some(widget) = ui.get_widget(&self.make_id(" Tile Copy")) {
+            if tile.is_some() {
                 widget.set_disabled(false);
             } else {
                 widget.set_disabled(true);
             }
         }
 
-        if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Billboard")) {
-            if let Some(tile) = tile {
-                widget.set_selected_index(if tile.billboard { 1 } else { 0 });
-                widget.set_disabled(false);
-            } else {
-                widget.set_disabled(true);
-            }
-        }
+        // if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Billboard")) {
+        //     if let Some(tile) = tile {
+        //         widget.set_selected_index(if tile.billboard { 1 } else { 0 });
+        //         widget.set_disabled(false);
+        //     } else {
+        //         widget.set_disabled(true);
+        //     }
+        // }
     }
 
     ///  Create an id.

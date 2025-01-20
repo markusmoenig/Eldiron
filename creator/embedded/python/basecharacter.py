@@ -1,27 +1,15 @@
 from array import array
 
-class Character(Entity):
-    def __init__(self, position=None, orientation=None, attributes=None, level=1):
+class NewCharacter(Entity):
+    def __init__(self):
         """Initializes the Player."""
-        super().__init__(position, orientation, attributes)
+        super().__init__()
 
         self.type = EntityType.PLAYER
 
-    def attack(self, target):
-        """Attacks another fighter, reducing its health."""
-        if not isinstance(target, Monster):
-            print("Target must be an EntityFighter.")
-            return
-
-        target.take_damage(self.damage)
-        print(f"{self} attacked {target}, dealing {self.damage} damage!")
-
-    def take_damage(self, amount):
-        """Reduces the fighter's health."""
-        self.health -= amount
-        print(f"{self} took {amount} damage, health is now {self.health}")
-        if self.health <= 0:
-            print(f"{self} has been defeated!")
+    def init(self):
+        """Init the entity."""
+        pass
 
     def update(self):
         """Update"""
@@ -48,8 +36,3 @@ class Character(Entity):
         # match event:
         #    case "a":
         #        action(self.id, self.manager_id, EntityAction.NORTH)
-
-
-    def __str__(self):
-        """String representation of the fighter."""
-        return f"EntityFighter at {list(self.position)} with {self.health} HP and {self.damage} damage"
