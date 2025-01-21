@@ -1133,19 +1133,19 @@ impl Sidebar {
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
                 if item_id.name == "Sidebar Delete Character Instance" {
                     if let Some(char_inst) = server_ctx.curr_character_instance {
-                        if let Some((value, _)) = server.get_character_property(
-                            server_ctx.curr_region,
+                        // if let Some((value, _)) = server.get_character_property(
+                        //     server_ctx.curr_region,
+                        //     char_inst,
+                        //     "name".to_string(),
+                        // ) {
+                        open_delete_confirmation_dialog(
+                            "Delete Character Instance ?",
+                            format!("Permanently delete '{}' ?", "the instance").as_str(),
                             char_inst,
-                            "name".to_string(),
-                        ) {
-                            open_delete_confirmation_dialog(
-                                "Delete Character Instance ?",
-                                format!("Permanently delete '{}' ?", value.describe()).as_str(),
-                                char_inst,
-                                ui,
-                                ctx,
-                            );
-                        }
+                            ui,
+                            ctx,
+                        );
+                        // }
                     }
                 } else if item_id.name == "Sidebar Delete Item Instance" {
                     if let Some(item_inst) = server_ctx.curr_item_instance {

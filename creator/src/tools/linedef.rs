@@ -264,11 +264,16 @@ impl Tool for LinedefTool {
                     return None;
                 }
 
+                // ---
+
                 self.click_selected = false;
                 if map.curr_grid_pos.is_none() && server_ctx.hover.1.is_some() {
                     // Selected hovered line
                     let prev = map.clone();
                     let mut changed = false;
+
+                    map.selected_entity = None;
+                    map.selected_light = None;
 
                     if ui.shift {
                         // Add

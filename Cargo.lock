@@ -3899,8 +3899,8 @@ dependencies = [
 
 [[package]]
 name = "rusterix"
-version = "0.2.4"
-source = "git+https://github.com/markusmoenig/Rusterix#86fc605e527747da0c27c7cb707dc911346e0529"
+version = "0.2.5"
+source = "git+https://github.com/markusmoenig/Rusterix#9960b763ab5531c5dd490d2231c01b7df9d13f43"
 dependencies = [
  "bincode",
  "crossbeam-channel",
@@ -4944,7 +4944,7 @@ checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
 [[package]]
 name = "theframework"
 version = "0.1.39"
-source = "git+https://github.com/markusmoenig/TheFramework#3ca4fbb4a93011d2a941e34e962192ccefa22c2e"
+source = "git+https://github.com/markusmoenig/TheFramework#da43a8c37c3bf76b3b9415c7573bb64ad2d78729"
 dependencies = [
  "aict",
  "bytemuck",

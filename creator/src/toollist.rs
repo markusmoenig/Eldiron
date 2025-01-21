@@ -20,6 +20,12 @@ pub struct ToolList {
 
     pub model_tools: Vec<Box<dyn Tool>>,
     pub curr_model_tool: usize,
+
+    pub char_click_selected: bool,
+    pub char_click_pos: Vec2<f32>,
+
+    drag_changed: bool,
+    undo_map: Map,
 }
 
 impl Default for ToolList {
@@ -73,6 +79,12 @@ impl ToolList {
 
             model_tools,
             curr_model_tool: 0,
+
+            char_click_selected: false,
+            char_click_pos: Vec2::zero(),
+
+            drag_changed: false,
+            undo_map: Map::default(),
         }
     }
 
@@ -350,6 +362,16 @@ impl ToolList {
                             }
                         } else if *code == TheKeyCode::Delete {
                             if let Some(map) = project.get_map_mut(server_ctx) {
+                                if server_ctx.curr_map_context == MapContext::Region
+                                    && server_ctx.curr_map_tool_type != MapToolType::Effects
+                                    && map.selected_entity.is_some()
+                                {
+                                    ctx.ui.send(TheEvent::ContextMenuSelected(
+                                        TheId::empty(),
+                                        TheId::named("Sidebar Delete Character Instance"),
+                                    ));
+                                    return false;
+                                }
                                 let undo_atom = self.get_current_tool().map_event(
                                     MapEvent::MapDelete,
                                     ui,
@@ -368,8 +390,63 @@ impl ToolList {
                 }
             }
             TheEvent::RenderViewClicked(id, coord) => {
-                if id.name == "PolyView" {
-                    if let Some(map) = project.get_map_mut(server_ctx) {
+                self.char_click_selected = false;
+
+                if let Some(map) = project.get_map_mut(server_ctx) {
+                    // Test for character click
+                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                        let dim = *render_view.dim();
+
+                        let grid_pos = server_ctx.local_to_map_grid(
+                            Vec2::new(dim.width as f32, dim.height as f32),
+                            Vec2::new(coord.x as f32, coord.y as f32),
+                            map,
+                            map.subdivisions,
+                        );
+
+                        if server_ctx.curr_map_context == MapContext::Region
+                            && server_ctx.curr_map_tool_type != MapToolType::Effects
+                            && id.name == "PolyView"
+                        {
+                            self.char_click_pos = grid_pos;
+
+                            for entity in map.entities.iter().cloned() {
+                                let ep = entity.position;
+                                let ep = Vec2::new(ep.x, ep.z);
+                                let d = ep.distance(grid_pos);
+                                if d < 1.0 {
+                                    let prev = map.clone();
+                                    self.undo_map = map.clone();
+                                    self.char_click_selected = true;
+                                    self.drag_changed = false;
+                                    if map.selected_entity != Some(entity.creator_id) {
+                                        map.clear_selection();
+                                        map.selected_entity = Some(entity.creator_id);
+                                        let undo_atom = RegionUndoAtom::MapEdit(
+                                            Box::new(prev),
+                                            Box::new(map.clone()),
+                                        );
+                                        UNDOMANAGER.lock().unwrap().add_region_undo(
+                                            &server_ctx.curr_region,
+                                            undo_atom,
+                                            ctx,
+                                        );
+                                        if let Some(layout) =
+                                            ui.get_list_layout("Region Content List")
+                                        {
+                                            layout.select_item(entity.creator_id, ctx, true);
+                                        }
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Map Selection Changed"),
+                                            TheValue::Empty,
+                                        ));
+                                        crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                                    }
+                                    return true;
+                                }
+                            }
+                        }
+
                         let undo_atom = self.get_current_tool().map_event(
                             MapEvent::MapClicked(*coord),
                             ui,
@@ -389,6 +466,39 @@ impl ToolList {
             TheEvent::RenderViewDragged(id, coord) => {
                 if id.name == "PolyView" {
                     if let Some(map) = project.get_map_mut(server_ctx) {
+                        if self.char_click_selected {
+                            // Dragging selected lines
+                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                                let dim = *render_view.dim();
+
+                                let drag_pos = server_ctx.local_to_map_grid(
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    Vec2::new(coord.x as f32, coord.y as f32),
+                                    map,
+                                    map.subdivisions,
+                                );
+
+                                let drag_delta = self.char_click_pos - drag_pos;
+
+                                for entity in map.entities.iter_mut() {
+                                    if Some(entity.creator_id) == map.selected_entity {
+                                        let new_pos = Vec2::new(
+                                            self.char_click_pos.x - drag_delta.x,
+                                            self.char_click_pos.y - drag_delta.y,
+                                        );
+                                        entity.position.x = new_pos.x;
+                                        entity.position.z = new_pos.y;
+
+                                        self.drag_changed = self.char_click_pos.x != new_pos.x
+                                            || self.char_click_pos.y != new_pos.y;
+                                    }
+                                }
+
+                                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                                return true;
+                            }
+                        }
+
                         let undo_atom = self.get_current_tool().map_event(
                             MapEvent::MapDragged(*coord),
                             ui,
@@ -408,6 +518,21 @@ impl ToolList {
             TheEvent::RenderViewUp(id, coord) => {
                 if id.name == "PolyView" {
                     if let Some(map) = project.get_map_mut(server_ctx) {
+                        if self.char_click_selected && self.drag_changed {
+                            let undo_atom = RegionUndoAtom::MapEdit(
+                                Box::new(self.undo_map.clone()),
+                                Box::new(map.clone()),
+                            );
+                            UNDOMANAGER.lock().unwrap().add_region_undo(
+                                &server_ctx.curr_region,
+                                undo_atom,
+                                ctx,
+                            );
+
+                            self.char_click_selected = false;
+                            return true;
+                        }
+
                         let undo_atom = self.get_current_tool().map_event(
                             MapEvent::MapUp(*coord),
                             ui,

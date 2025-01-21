@@ -25,9 +25,11 @@ pub fn insert_characters_into_maps(project: &mut Project) {
         region.map.entities.clear();
 
         for instance in region.characters.values() {
-            let mut entity = Entity::default();
-            entity.creator_id = instance.character_id;
-            entity.position = instance.position;
+            let mut entity = Entity {
+                creator_id: instance.id,
+                position: instance.position,
+                ..Default::default()
+            };
             entity.set_attribute("name".to_string(), Value::Str(instance.name.clone()));
             entity.set_attribute("setup".to_string(), Value::Str(instance.source.clone()));
             if let Some(character) = project.characters.get(&instance.character_id) {

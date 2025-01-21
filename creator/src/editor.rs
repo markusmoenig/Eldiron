@@ -464,10 +464,19 @@ impl TheTrait for Editor {
             let texture = Texture::from_rgbabuffer(icon);
             self.build_values.set("light_on", Value::Texture(texture));
         }
-
         if let Some(icon) = ctx.ui.icon("light_off") {
             let texture = Texture::from_rgbabuffer(icon);
             self.build_values.set("light_off", Value::Texture(texture));
+        }
+        if let Some(icon) = ctx.ui.icon("character_on") {
+            let texture = Texture::from_rgbabuffer(icon);
+            self.build_values
+                .set("character_on", Value::Texture(texture));
+        }
+        if let Some(icon) = ctx.ui.icon("character_off") {
+            let texture = Texture::from_rgbabuffer(icon);
+            self.build_values
+                .set("character_off", Value::Texture(texture));
         }
 
         RUSTERIX.lock().unwrap().set_d2();
@@ -997,6 +1006,7 @@ impl TheTrait for Editor {
                                             .remove_character_instance(region.id, character_id);
                                         self.server_ctx.curr_character_instance = None;
                                         self.server_ctx.curr_character = None;
+                                        region.map.selected_entity = None;
                                         redraw = true;
 
                                         // Remove from the content list
@@ -1009,6 +1019,8 @@ impl TheTrait for Editor {
                                             ));
                                             ui.select_first_list_item("Region Content List", ctx);
                                         }
+                                        insert_characters_into_maps(&mut self.project);
+                                        RUSTERIX.lock().unwrap().set_dirty();
                                     }
                                 }
                             }
@@ -1179,7 +1191,10 @@ impl TheTrait for Editor {
                             if let Some(region) =
                                 self.project.get_region_mut(&self.server_ctx.curr_region)
                             {
+                                self.server_ctx.curr_character_instance = Some(instance.id);
                                 region.characters.insert(instance.id, instance.clone());
+                                insert_characters_into_maps(&mut self.project);
+                                RUSTERIX.lock().unwrap().set_dirty();
                             }
                         }
                     }
@@ -1433,6 +1448,7 @@ impl TheTrait for Editor {
 
                                     if let Ok(project) = serde_json::from_str(&contents) {
                                         self.project = project;
+                                        insert_characters_into_maps(&mut self.project);
 
                                         // Update geo_obj parameters if necessary
                                         // for r in &mut self.project.regions {

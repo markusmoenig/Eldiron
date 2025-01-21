@@ -201,6 +201,9 @@ impl Tool for SectorTool {
                     let prev = map.clone();
                     let mut changed = false;
 
+                    map.selected_entity = None;
+                    map.selected_light = None;
+
                     if ui.shift {
                         // Add
                         if let Some(s) = server_ctx.hover.2 {

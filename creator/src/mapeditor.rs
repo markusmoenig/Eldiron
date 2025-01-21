@@ -825,8 +825,26 @@ impl MapEditor {
                 }
                 // Region Content List Selection
                 if id.name == "Region Content List Item" {
-                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                        server_ctx.curr_region_content = Some(id.uuid);
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        let prev = region.map.clone();
+                        server_ctx.curr_character_instance = Some(id.uuid);
+                        if region.map.selected_entity != Some(id.uuid) {
+                            region.map.clear_selection();
+                            region.map.selected_entity = Some(id.uuid);
+                            let undo_atom = RegionUndoAtom::MapEdit(
+                                Box::new(prev),
+                                Box::new(region.map.clone()),
+                            );
+                            UNDOMANAGER.lock().unwrap().add_region_undo(
+                                &server_ctx.curr_region,
+                                undo_atom,
+                                ctx,
+                            );
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Map Selection Changed"),
+                                TheValue::Empty,
+                            ));
+                        }
                         if let Some(character) = region.characters.get(&id.uuid) {
                             if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
                                 ui.set_widget_value(
@@ -836,6 +854,7 @@ impl MapEditor {
                                 );
                             }
                         }
+                        RUSTERIX.lock().unwrap().set_dirty();
                     }
 
                     /*

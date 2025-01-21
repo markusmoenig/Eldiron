@@ -119,6 +119,9 @@ impl Tool for VertexTool {
                     let prev = map.clone();
                     let mut changed = false;
 
+                    map.selected_entity = None;
+                    map.selected_light = None;
+
                     if ui.shift {
                         // Add
                         if let Some(v) = server_ctx.hover.0 {
