@@ -17,6 +17,8 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
             .server
             .create_region_instance(region.name.clone(), region.map.clone(), &classes);
     }
+
+    rusterix.server.set_state(rusterix::ServerState::Running);
 }
 
 /// Convert the characters into Entities for the rusterix server

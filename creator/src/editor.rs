@@ -521,11 +521,12 @@ impl TheTrait for Editor {
             self.first_update = false;
         }
 
-        let (redraw_update, tick_update) = self.update_tracker.update(
+        let (redraw_update, _tick_update) = self.update_tracker.update(
             (1000 / self.project.target_fps) as u64,
             self.project.tick_ms as u64,
         );
 
+        /*
         if tick_update {
             // Update the widgets which have anims (if they are visible)
             if let Some(icon_view) = ui.get_widget("Global Icon Preview") {
@@ -546,6 +547,7 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
             }
+
             if self.server.state == ServerState::Running {
                 // Ticks
                 self.client
@@ -624,7 +626,7 @@ impl TheTrait for Editor {
                         .set_debug_module(TheDebugModule::default(), ui);
                 }
             }
-        }
+        }*/
 
         /*
         // Get prerendered results
@@ -699,11 +701,21 @@ impl TheTrait for Editor {
             }
         }*/
 
-        if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::GameEditor
-            && redraw_update
-            && !self.project.regions.is_empty()
-        {
+        if redraw_update && !self.project.regions.is_empty() {
             // let render_mode = *RENDERMODE.lock().unwrap();
+
+            {
+                let rusterix = &mut RUSTERIX.lock().unwrap();
+                if rusterix.server.state == rusterix::ServerState::Running {
+                    rusterix.server.update_entities();
+                    for r in &mut self.project.regions {
+                        if let Some(entities) = rusterix.server.get_entities(&r.map.id) {
+                            r.map.entities = entities.clone();
+                        }
+                    }
+                }
+                rusterix.set_dirty();
+            }
 
             // Draw Region
 
@@ -1686,11 +1698,14 @@ impl TheTrait for Editor {
                         }
                         // Server
                         else if id.name == "Play" {
-                            start_server(&mut RUSTERIX.lock().unwrap(), &mut self.project);
-                            ctx.ui.send(TheEvent::SetStatusText(
-                                TheId::empty(),
-                                "Server has been started.".to_string(),
-                            ));
+                            let state = RUSTERIX.lock().unwrap().server.state;
+                            if state == rusterix::ServerState::Off {
+                                start_server(&mut RUSTERIX.lock().unwrap(), &mut self.project);
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    "Server has been started.".to_string(),
+                                ));
+                            }
                             /*
                             self.server.start();
                             self.client.reset();
@@ -1704,6 +1719,7 @@ impl TheTrait for Editor {
                             */
                             update_server_icons = true;
                         } else if id.name == "Pause" {
+                            /*
                             if self.server.state == ServerState::Running {
                                 self.server.state = ServerState::Paused;
                                 ctx.ui.send(TheEvent::SetStatusText(
@@ -1721,10 +1737,13 @@ impl TheTrait for Editor {
                                 }
                                 let interactions = self.server.get_interactions();
                                 self.server_ctx.add_interactions(interactions);
-                            }
+                            }*/
                         } else if id.name == "Stop" {
+                            RUSTERIX.lock().unwrap().server.stop();
+                            /*
                             _ = self.server.set_project(self.project.clone());
-                            self.server.stop();
+                            self.server.stop();*/
+                            insert_characters_into_maps(&mut self.project);
                             update_server_icons = true;
                         } else if id.name == "Undo" || id.name == "Redo" {
                             if ui.focus_widget_supports_undo_redo(ctx) {
@@ -1965,7 +1984,8 @@ pub trait EldironEditor {
 
 impl EldironEditor for Editor {
     fn update_server_state_icons(&mut self, ui: &mut TheUI) {
-        if self.server.state == ServerState::Running {
+        let rusterix = RUSTERIX.lock().unwrap();
+        if rusterix.server.state == rusterix::ServerState::Running {
             if let Some(button) = ui.get_widget("Play") {
                 if let Some(button) = button.as_menubar_button() {
                     button.set_icon_name("play-fill".to_string());
@@ -1981,7 +2001,7 @@ impl EldironEditor for Editor {
                     button.set_icon_name("stop".to_string());
                 }
             }
-        } else if self.server.state == ServerState::Paused {
+        } else if rusterix.server.state == rusterix::ServerState::Paused {
             if let Some(button) = ui.get_widget("Play") {
                 if let Some(button) = button.as_menubar_button() {
                     button.set_icon_name("play".to_string());
@@ -1997,7 +2017,7 @@ impl EldironEditor for Editor {
                     button.set_icon_name("stop".to_string());
                 }
             }
-        } else if self.server.state == ServerState::Stopped {
+        } else if rusterix.server.state == rusterix::ServerState::Off {
             if let Some(button) = ui.get_widget("Play") {
                 if let Some(button) = button.as_menubar_button() {
                     button.set_icon_name("play".to_string());

@@ -829,6 +829,26 @@ impl MapEditor {
                         let prev = region.map.clone();
                         server_ctx.curr_character_instance = Some(id.uuid);
                         if region.map.selected_entity != Some(id.uuid) {
+                            if let Some(character) = region.characters.get(&id.uuid) {
+                                if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
+                                    ui.set_widget_value(
+                                        "CodeEdit",
+                                        ctx,
+                                        TheValue::Text(character.source.clone()),
+                                    );
+                                }
+
+                                if let Some(render_view) = ui.get_render_view("PolyView") {
+                                    let dim = *render_view.dim();
+
+                                    server_ctx.center_map_at_grid_pos(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        Vec2::new(character.position.x, character.position.z),
+                                        &mut region.map,
+                                    );
+                                }
+                            }
+
                             region.map.clear_selection();
                             region.map.selected_entity = Some(id.uuid);
                             let undo_atom = RegionUndoAtom::MapEdit(
@@ -844,15 +864,6 @@ impl MapEditor {
                                 TheId::named("Map Selection Changed"),
                                 TheValue::Empty,
                             ));
-                        }
-                        if let Some(character) = region.characters.get(&id.uuid) {
-                            if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
-                                ui.set_widget_value(
-                                    "CodeEdit",
-                                    ctx,
-                                    TheValue::Text(character.source.clone()),
-                                );
-                            }
                         }
                         RUSTERIX.lock().unwrap().set_dirty();
                     }

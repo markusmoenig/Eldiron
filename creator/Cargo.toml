@@ -45,7 +45,7 @@ indexmap = { version = "2", features = ["serde"], default-features = true }
 vek = { version = "0.17.1", default-features = true }
 regex = "1.11.1"
 # rusterix = { path = "../../rusterix" }
-rusterix = { version = "0.2.5", git = "https://github.com/markusmoenig/Rusterix" }
+rusterix = { version = "0.2.6", git = "https://github.com/markusmoenig/Rusterix" }
 
 [package.metadata.bundle]
 name = "Eldiron"

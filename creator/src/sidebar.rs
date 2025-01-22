@@ -1,6 +1,4 @@
-use crate::editor::{
-    CODEEDITOR, MAPRENDER, RUSTERIX, SIDEBARMODE, TEXTEDITOR, TILEMAPEDITOR, UNDOMANAGER,
-};
+use crate::editor::{CODEEDITOR, MAPRENDER, RUSTERIX, SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER};
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
 use rusterix::{D2MaterialBuilder, SceneBuilder, Texture};
