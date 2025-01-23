@@ -58,8 +58,7 @@ pub struct Editor {
 
     sidebar: Sidebar,
     mapeditor: MapEditor,
-    screeneditor: ScreenEditor,
-    // materialeditor: MaterialEditor,
+
     server: Server,
     client: Client,
     server_ctx: ServerContext,
@@ -94,8 +93,6 @@ impl TheTrait for Editor {
 
             sidebar: Sidebar::new(),
             mapeditor: MapEditor::new(),
-            // materialeditor: MaterialEditor::new(),
-            screeneditor: ScreenEditor::new(),
 
             server_ctx: ServerContext::default(),
             server,
@@ -704,13 +701,14 @@ impl TheTrait for Editor {
         if redraw_update && !self.project.regions.is_empty() {
             // let render_mode = *RENDERMODE.lock().unwrap();
 
+            // Update entities when the server is running
             {
                 let rusterix = &mut RUSTERIX.lock().unwrap();
                 if rusterix.server.state == rusterix::ServerState::Running {
                     rusterix.server.update_entities();
                     for r in &mut self.project.regions {
-                        if let Some(entities) = rusterix.server.get_entities(&r.map.id) {
-                            r.map.entities = entities.clone();
+                        if let Some(entities) = rusterix.server.get_entities(&r.map.id).cloned() {
+                            r.map.entities = entities;
                         }
                     }
                 }
@@ -727,6 +725,7 @@ impl TheTrait for Editor {
 
                 {
                     let rusterix = &mut RUSTERIX.lock().unwrap();
+                    let is_running = rusterix.server.state == rusterix::ServerState::Running;
                     let b = &mut rusterix.client.builder_d2;
 
                     // Draw the region map
@@ -758,28 +757,33 @@ impl TheTrait for Editor {
                                     region.editing_position_3d.z,
                                 );
                             } else if region.map.camera == MapCamera::ThreeDIso {
-                                let p = vek::Vec3::new(
-                                    region.editing_position_3d.x,
-                                    0.0,
-                                    region.editing_position_3d.z,
-                                );
+                                if !is_running || !self.server_ctx.game_mode {
+                                    let p = vek::Vec3::new(
+                                        region.editing_position_3d.x,
+                                        0.0,
+                                        region.editing_position_3d.z,
+                                    );
 
-                                rusterix.client.camera_d3.set_parameter_vec3("center", p);
-                                rusterix.client.camera_d3.set_parameter_vec3(
-                                    "position",
-                                    p + vek::Vec3::new(-10.0, 10.0, 10.0),
-                                );
+                                    rusterix.client.camera_d3.set_parameter_vec3("center", p);
+                                    rusterix.client.camera_d3.set_parameter_vec3(
+                                        "position",
+                                        p + vek::Vec3::new(-10.0, 10.0, 10.0),
+                                    );
+                                }
                             } else if region.map.camera == MapCamera::ThreeDFirstPerson {
-                                let p = vek::Vec3::new(
-                                    region.editing_position_3d.x,
-                                    1.5,
-                                    region.editing_position_3d.z,
-                                );
-                                rusterix.client.camera_d3.set_parameter_vec3("position", p);
-                                rusterix.client.camera_d3.set_parameter_vec3(
-                                    "center",
-                                    p + vek::Vec3::new(0.0, 0.0, -1.0),
-                                );
+                                #[allow(clippy::collapsible_if)]
+                                if !is_running || !self.server_ctx.game_mode {
+                                    let p = vek::Vec3::new(
+                                        region.editing_position_3d.x,
+                                        1.5,
+                                        region.editing_position_3d.z,
+                                    );
+                                    rusterix.client.camera_d3.set_parameter_vec3("position", p);
+                                    rusterix.client.camera_d3.set_parameter_vec3(
+                                        "center",
+                                        p + vek::Vec3::new(0.0, 0.0, -1.0),
+                                    );
+                                }
                             }
 
                             rusterix.build_scene(
@@ -787,6 +791,12 @@ impl TheTrait for Editor {
                                 &region.map,
                                 &self.build_values,
                             );
+
+                            if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                let assets = rusterix.assets.clone();
+                                rusterix.apply_entities(&map.entities, map, &assets);
+                            }
+
                             rusterix.draw_scene(
                                 render_view.render_buffer_mut().pixels_mut(),
                                 dim.width as usize,
@@ -794,7 +804,7 @@ impl TheTrait for Editor {
                             );
                         }
                     } else
-                    // Draw the material mapp
+                    // Draw the material map
                     if self.server_ctx.curr_map_context == MapContext::Material {
                         b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
                         if let Some(material) = self.project.get_map_mut(&self.server_ctx) {
@@ -831,15 +841,6 @@ impl TheTrait for Editor {
                 }
             }
 
-            redraw = true;
-        } else if *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::ScreenEditor && redraw_update {
-            self.screeneditor.redraw_screen(
-                ui,
-                &mut self.client,
-                ctx,
-                &self.server_ctx,
-                &self.project,
-            );
             redraw = true;
         }
 
@@ -1163,7 +1164,7 @@ impl TheTrait for Editor {
                         if drop.id.name.starts_with("Character") {
                             let mut instance = Character {
                                 character_id: drop.id.uuid,
-                                position: Vec3::new(grid_pos.x, 0.0, grid_pos.y),
+                                position: Vec3::new(grid_pos.x, 1.5, grid_pos.y),
                                 ..Default::default()
                             };
 

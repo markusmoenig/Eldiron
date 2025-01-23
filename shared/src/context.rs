@@ -121,6 +121,8 @@ pub struct ServerContext {
 
     pub editing_camera_position: Vec3<f32>,
     pub editing_preview_camera: MapCamera,
+
+    pub game_mode: bool,
 }
 
 impl Default for ServerContext {
@@ -180,6 +182,8 @@ impl ServerContext {
 
             editing_camera_position: Vec3::zero(),
             editing_preview_camera: MapCamera::TwoD,
+
+            game_mode: false,
         }
     }
 

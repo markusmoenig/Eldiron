@@ -1,5 +1,7 @@
 use crate::prelude::*;
+use rusterix::Value;
 //use ToolEvent::*;
+use theframework::prelude::*;
 
 pub struct GameTool {
     id: TheId,
@@ -37,19 +39,21 @@ impl Tool for GameTool {
         _project: &mut Project,
         _server: &mut Server,
         _client: &mut Client,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
             ToolEvent::Activate => {
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                     layout.set_mode(TheSharedVLayoutMode::Top);
                 }
+                server_ctx.game_mode = true;
                 true
             }
             ToolEvent::DeActivate => {
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                     layout.set_mode(TheSharedVLayoutMode::Shared);
                 }
+                server_ctx.game_mode = false;
                 true
             }
             _ => false,
@@ -62,17 +66,26 @@ impl Tool for GameTool {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         _project: &mut Project,
-        server: &mut Server,
-        client: &mut Client,
-        server_ctx: &mut ServerContext,
+        _server: &mut Server,
+        _client: &mut Client,
+        _server_ctx: &mut ServerContext,
     ) -> bool {
         #[allow(clippy::single_match)]
         match event {
-            TheEvent::KeyDown(key) => {
-                if server.state == ServerState::Running {
-                    if let Some(c) = key.to_char() {
-                        client.key_down(&server_ctx.curr_screen, c);
-                    }
+            TheEvent::KeyDown(TheValue::Char(char)) => {
+                let mut rusterix = crate::editor::RUSTERIX.lock().unwrap();
+                if rusterix.server.state == rusterix::ServerState::Running {
+                    rusterix
+                        .server
+                        .local_player_event("key_down".into(), Value::Str(char.to_string()));
+                }
+            }
+            TheEvent::KeyUp(TheValue::Char(char)) => {
+                let mut rusterix = crate::editor::RUSTERIX.lock().unwrap();
+                if rusterix.server.state == rusterix::ServerState::Running {
+                    rusterix
+                        .server
+                        .local_player_event("key_up".into(), Value::Str(char.to_string()));
                 }
             }
             _ => {}
