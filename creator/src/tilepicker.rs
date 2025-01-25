@@ -1,4 +1,3 @@
-use crate::editor::TILEDRAWER;
 use crate::prelude::*;
 
 pub struct TilePicker {
@@ -127,7 +126,7 @@ impl TilePicker {
         let mut copy = TheTraybarButton::new(TheId::named(&self.make_id(" Tile Copy")));
         copy.set_text("Copy ID to Clipboard".into());
         copy.set_status_text(
-            "Copies the ID of the tile to the clipboard for later use in the code editor.".into(),
+            "Copies the ID of the tile to the clipboard for later use in the code editor.",
         );
         copy.limiter_mut().set_max_width(130);
         copy.set_disabled(true);
@@ -256,7 +255,7 @@ impl TilePicker {
             TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
                 if id.name == self.make_id(" Tile Copy") {
                     if let Some(tile_id) = self.curr_tile {
-                        let txt = format!("\"{}\"", tile_id.to_string());
+                        let txt = format!("\"{}\"", tile_id);
                         ctx.ui.clipboard = Some(TheValue::Text(txt));
                     }
                 }

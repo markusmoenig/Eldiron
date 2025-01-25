@@ -216,14 +216,14 @@ impl Server {
         }
 
         // Add all characters
-        for bundle in project.characters.values() {
-            //self.insert_character(bundle.clone());
-        }
+        // for bundle in project.characters.values() {
+        //     //self.insert_character(bundle.clone());
+        // }
 
         // .. and items
-        for bundle in project.items.values() {
-            self.insert_item(bundle.clone());
-        }
+        // for bundle in project.items.values() {
+        //     //self.insert_item(bundle.clone());
+        // }
 
         // Second pass we just create the region character and item instances.
         for region in &project.regions {

@@ -215,8 +215,8 @@ impl Sidebar {
         let mut drop_down = TheDropdownMenu::new(TheId::named("Region Content Dropdown"));
         drop_down.add_option("All".to_string());
         drop_down.add_option("Character".to_string());
-        drop_down.add_option("Areas".to_string());
         drop_down.add_option("Item".to_string());
+        drop_down.add_option("Sector".to_string());
         toolbar_hlayout.add_widget(Box::new(drop_down));
 
         let mut toolbar_canvas = TheCanvas::default();
@@ -1069,6 +1069,14 @@ impl Sidebar {
                         self.stack_layout_id.clone(),
                         SidebarMode::Node as usize,
                     ));
+                } else if id.name == "Update Region Content List" {
+                    self.apply_region(
+                        ui,
+                        ctx,
+                        project.get_region(&server_ctx.curr_region),
+                        server,
+                        &project.palette,
+                    );
                 }
             }
             TheEvent::PaletteIndexChanged(id, index) => {
@@ -3470,6 +3478,31 @@ impl Sidebar {
                 }
 
                 if filter_role == 0 || filter_role == 3 {
+                    // Show Named Sectors
+                    for sector in &region.map.sectors {
+                        if !sector.name.is_empty()
+                            && (filter_text.is_empty()
+                                || sector.name.to_lowercase().contains(&filter_text))
+                        {
+                            let mut item = TheListItem::new(TheId::named_with_id(
+                                "Region Content List Item",
+                                Uuid::new_v4(),
+                            ));
+                            item.set_text(sector.name.clone());
+                            item.add_value_column(100, TheValue::Text("Sector".to_string()));
+                            // item.set_context_menu(Some(TheContextMenu {
+                            //     items: vec![TheContextMenuItem::new(
+                            //         "Delete Character...".to_string(),
+                            //         TheId::named("Sidebar Delete Character Instance"),
+                            //     )],
+                            //     ..Default::default()
+                            // }));
+                            list.add_item(item, ctx);
+                        }
+                    }
+                }
+
+                if filter_role == 0 || filter_role == 3 {
                     // Show Items
                     for (id, _) in region.items.iter() {
                         let mut name = "Item".to_string();
@@ -3489,29 +3522,6 @@ impl Sidebar {
                                 items: vec![TheContextMenuItem::new(
                                     "Delete Item...".to_string(),
                                     TheId::named("Sidebar Delete Item Instance"),
-                                )],
-                                ..Default::default()
-                            }));
-                            list.add_item(item, ctx);
-                        }
-                    }
-                }
-
-                if filter_role == 0 || filter_role == 2 {
-                    // Show Areas
-                    for (id, area) in region.areas.iter() {
-                        let name = area.name.clone();
-                        if filter_text.is_empty() || name.to_lowercase().contains(&filter_text) {
-                            let mut item = TheListItem::new(TheId::named_with_id(
-                                "Region Content List Item",
-                                *id,
-                            ));
-                            item.set_text(name);
-                            item.add_value_column(100, TheValue::Text("Area".to_string()));
-                            item.set_context_menu(Some(TheContextMenu {
-                                items: vec![TheContextMenuItem::new(
-                                    "Delete Area...".to_string(),
-                                    TheId::named("Sidebar Delete Area"),
                                 )],
                                 ..Default::default()
                             }));

@@ -3900,12 +3900,13 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.7"
-source = "git+https://github.com/markusmoenig/Rusterix#ea506ff9bbe7eeb69fffee661b32b2fc58c19a05"
+source = "git+https://github.com/markusmoenig/Rusterix#19c416610d3147d290ee79e724274109b08c8958"
 dependencies = [
  "bincode",
  "crossbeam-channel",
  "earcutr",
  "image",
+ "rand",
  "rayon",
  "rect_packer",
  "ref_thread_local",

@@ -71,7 +71,7 @@ impl Tool for CodeTool {
         &mut self,
         event: &TheEvent,
         ui: &mut TheUI,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
         project: &mut Project,
         _server: &mut shared::server::Server,
         _client: &mut shared::client::Client,
