@@ -2,7 +2,6 @@ use crate::prelude::*;
 use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
 use crate::Embedded;
-use lazy_static::lazy_static;
 use rusterix::{Rusterix, SceneBuilder, Texture, Value, ValueContainer};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -12,25 +11,33 @@ use std::sync::{
 };
 use std::thread;
 
-lazy_static! {
-    pub static ref TILEPICKER: Mutex<TilePicker> =
-        Mutex::new(TilePicker::new("Main Tile Picker".to_string()));
-    pub static ref MATERIALPICKER: Mutex<MaterialPicker> =
-        Mutex::new(MaterialPicker::new("Main Material Picker".to_string()));
-    pub static ref EFFECTPICKER: Mutex<EffectPicker> =
-        Mutex::new(EffectPicker::new("Main Effect Picker".to_string()));
-    pub static ref TILEMAPEDITOR: Mutex<TilemapEditor> = Mutex::new(TilemapEditor::new());
-    pub static ref SIDEBARMODE: Mutex<SidebarMode> = Mutex::new(SidebarMode::Region);
-    pub static ref RENDERMODE: Mutex<EditorDrawMode> = Mutex::new(EditorDrawMode::Draw2D);
-    pub static ref UNDOMANAGER: Mutex<UndoManager> = Mutex::new(UndoManager::default());
-    pub static ref TOOLLIST: Mutex<ToolList> = Mutex::new(ToolList::default());
-    pub static ref BRUSHLIST: Mutex<BrushList> = Mutex::new(BrushList::default());
-    pub static ref PANELS: Mutex<Panels> = Mutex::new(Panels::new());
-    pub static ref TEXTEDITOR: Mutex<TextEditor> = Mutex::new(TextEditor::new());
-    pub static ref TEXTURES: Mutex<FxHashMap<Uuid, TheRGBATile>> = Mutex::new(FxHashMap::default());
-    pub static ref PALETTE: Mutex<ThePalette> = Mutex::new(ThePalette::default());
-    pub static ref RUSTERIX: Mutex<Rusterix> = Mutex::new(Rusterix::default());
-}
+pub static TILEPICKER: LazyLock<RwLock<TilePicker>> =
+    LazyLock::new(|| RwLock::new(TilePicker::new("Main Tile Picker".to_string())));
+pub static MATERIALPICKER: LazyLock<RwLock<MaterialPicker>> =
+    LazyLock::new(|| RwLock::new(MaterialPicker::new("Main Material Picker".to_string())));
+pub static EFFECTPICKER: LazyLock<RwLock<EffectPicker>> =
+    LazyLock::new(|| RwLock::new(EffectPicker::new("Main Effect Picker".to_string())));
+pub static TILEMAPEDITOR: LazyLock<RwLock<TilemapEditor>> =
+    LazyLock::new(|| RwLock::new(TilemapEditor::new()));
+pub static SIDEBARMODE: LazyLock<RwLock<SidebarMode>> =
+    LazyLock::new(|| RwLock::new(SidebarMode::Region));
+pub static RENDERMODE: LazyLock<RwLock<EditorDrawMode>> =
+    LazyLock::new(|| RwLock::new(EditorDrawMode::Draw2D));
+pub static UNDOMANAGER: LazyLock<RwLock<UndoManager>> =
+    LazyLock::new(|| RwLock::new(UndoManager::default()));
+pub static TOOLLIST: LazyLock<RwLock<ToolList>> =
+    LazyLock::new(|| RwLock::new(ToolList::default()));
+pub static BRUSHLIST: LazyLock<RwLock<BrushList>> =
+    LazyLock::new(|| RwLock::new(BrushList::default()));
+pub static PANELS: LazyLock<RwLock<Panels>> = LazyLock::new(|| RwLock::new(Panels::new()));
+pub static TEXTEDITOR: LazyLock<RwLock<TextEditor>> =
+    LazyLock::new(|| RwLock::new(TextEditor::new()));
+pub static TEXTURES: LazyLock<RwLock<FxHashMap<Uuid, TheRGBATile>>> =
+    LazyLock::new(|| RwLock::new(FxHashMap::default()));
+pub static PALETTE: LazyLock<RwLock<ThePalette>> =
+    LazyLock::new(|| RwLock::new(ThePalette::default()));
+pub static RUSTERIX: LazyLock<RwLock<Rusterix>> =
+    LazyLock::new(|| RwLock::new(Rusterix::default()));
 
 pub struct Editor {
     project: Project,
@@ -331,7 +338,7 @@ impl TheTrait for Editor {
         // Panels
         let bottom_panels =
             PANELS
-                .lock()
+                .write()
                 .unwrap()
                 .init_ui(ui, ctx, &mut self.project, &mut self.server_ctx);
 
@@ -381,7 +388,7 @@ impl TheTrait for Editor {
         v_tool_list_layout.set_padding(1);
 
         TOOLLIST
-            .lock()
+            .write()
             .unwrap()
             .set_active_editor(&mut v_tool_list_layout, ctx);
 
@@ -437,7 +444,7 @@ impl TheTrait for Editor {
                 .set("character_off", Value::Texture(texture));
         }
 
-        RUSTERIX.lock().unwrap().set_d2();
+        RUSTERIX.write().unwrap().set_d2();
 
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
     }
@@ -461,7 +468,7 @@ impl TheTrait for Editor {
         let mut update_server_icons = false;
 
         if self.first_update {
-            let mut toollist = TOOLLIST.lock().unwrap();
+            let mut toollist = TOOLLIST.write().unwrap();
             let id = toollist.get_current_tool().id().uuid;
 
             toollist.set_tool(id, ui, ctx, &mut self.project, &mut self.server_ctx);
@@ -653,7 +660,7 @@ impl TheTrait for Editor {
 
             // Update entities when the server is running
             {
-                let rusterix = &mut RUSTERIX.lock().unwrap();
+                let rusterix = &mut RUSTERIX.write().unwrap();
                 if rusterix.server.state == rusterix::ServerState::Running {
                     rusterix.server.update_entities();
                     for r in &mut self.project.regions {
@@ -674,7 +681,7 @@ impl TheTrait for Editor {
                 buffer.resize(dim.width, dim.height);
 
                 {
-                    let rusterix = &mut RUSTERIX.lock().unwrap();
+                    let rusterix = &mut RUSTERIX.write().unwrap();
                     let is_running = rusterix.server.state == rusterix::ServerState::Running;
                     let b = &mut rusterix.client.builder_d2;
 
@@ -782,7 +789,7 @@ impl TheTrait for Editor {
                 }
 
                 if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
-                    TOOLLIST.lock().unwrap().draw_hud(
+                    TOOLLIST.write().unwrap().draw_hud(
                         render_view.render_buffer_mut(),
                         map,
                         ctx,
@@ -803,7 +810,7 @@ impl TheTrait for Editor {
                     &mut self.project,
                     &mut self.server_ctx,
                 );
-                if TOOLLIST.lock().unwrap().handle_event(
+                if TOOLLIST.write().unwrap().handle_event(
                     &event,
                     ui,
                     ctx,
@@ -812,7 +819,7 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
-                if PANELS.lock().unwrap().handle_event(
+                if PANELS.write().unwrap().handle_event(
                     &event,
                     ui,
                     ctx,
@@ -830,7 +837,7 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
-                if TILEMAPEDITOR.lock().unwrap().handle_event(
+                if TILEMAPEDITOR.write().unwrap().handle_event(
                     &event,
                     ui,
                     ctx,
@@ -864,7 +871,7 @@ impl TheTrait for Editor {
                                             ui.select_first_list_item("Region Content List", ctx);
                                         }
                                         insert_characters_into_maps(&mut self.project);
-                                        RUSTERIX.lock().unwrap().set_dirty();
+                                        RUSTERIX.write().unwrap().set_dirty();
                                     }
                                 }
                             }
@@ -990,7 +997,7 @@ impl TheTrait for Editor {
                                 self.server_ctx.curr_character_instance = Some(instance.id);
                                 region.characters.insert(instance.id, instance.clone());
                                 insert_characters_into_maps(&mut self.project);
-                                RUSTERIX.lock().unwrap().set_dirty();
+                                RUSTERIX.write().unwrap().set_dirty();
                             }
                         }
                     }
@@ -1221,7 +1228,7 @@ impl TheTrait for Editor {
 
                                 let undo =
                                     PaletteUndoAtom::Edit(prev, self.project.palette.clone());
-                                UNDOMANAGER.lock().unwrap().add_palette_undo(undo, ctx);
+                                UNDOMANAGER.write().unwrap().add_palette_undo(undo, ctx);
                             }
                         } else
                         // Open
@@ -1291,17 +1298,17 @@ impl TheTrait for Editor {
                                         {
                                             match self.project.map_mode {
                                                 MapMode::TwoD => {
-                                                    *RENDERMODE.lock().unwrap() =
+                                                    *RENDERMODE.write().unwrap() =
                                                         EditorDrawMode::Draw2D;
                                                     shared.set_mode(TheSharedHLayoutMode::Left);
                                                 }
                                                 MapMode::Mixed => {
-                                                    *RENDERMODE.lock().unwrap() =
+                                                    *RENDERMODE.write().unwrap() =
                                                         EditorDrawMode::DrawMixed;
                                                     shared.set_mode(TheSharedHLayoutMode::Shared);
                                                 }
                                                 MapMode::ThreeD => {
-                                                    *RENDERMODE.lock().unwrap() =
+                                                    *RENDERMODE.write().unwrap() =
                                                         EditorDrawMode::Draw3D;
                                                     shared.set_mode(TheSharedHLayoutMode::Right);
                                                 }
@@ -1320,8 +1327,8 @@ impl TheTrait for Editor {
                                         self.server_ctx.clear();
 
                                         // Set palette and textures
-                                        *PALETTE.lock().unwrap() = self.project.palette.clone();
-                                        *TEXTURES.lock().unwrap() = self.project.extract_tiles();
+                                        *PALETTE.write().unwrap() = self.project.palette.clone();
+                                        *TEXTURES.write().unwrap() = self.project.extract_tiles();
 
                                         ctx.ui.send(TheEvent::SetStatusText(
                                             TheId::empty(),
@@ -1476,9 +1483,9 @@ impl TheTrait for Editor {
                         }
                         // Server
                         else if id.name == "Play" {
-                            let state = RUSTERIX.lock().unwrap().server.state;
+                            let state = RUSTERIX.read().unwrap().server.state;
                             if state == rusterix::ServerState::Off {
-                                start_server(&mut RUSTERIX.lock().unwrap(), &mut self.project);
+                                start_server(&mut RUSTERIX.write().unwrap(), &mut self.project);
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
                                     "Server has been started.".to_string(),
@@ -1517,7 +1524,7 @@ impl TheTrait for Editor {
                                 self.server_ctx.add_interactions(interactions);
                             }*/
                         } else if id.name == "Stop" {
-                            RUSTERIX.lock().unwrap().server.stop();
+                            RUSTERIX.write().unwrap().server.stop();
                             /*
                             _ = self.server.set_project(self.project.clone());
                             self.server.stop();*/
@@ -1531,7 +1538,7 @@ impl TheTrait for Editor {
                                     ui.redo(ctx);
                                 }
                             } else {
-                                let mut manager = UNDOMANAGER.lock().unwrap();
+                                let mut manager = UNDOMANAGER.write().unwrap();
 
                                 if manager.context == UndoManagerContext::Region {
                                     if id.name == "Undo" {
@@ -1632,7 +1639,7 @@ impl TheTrait for Editor {
                         if id.name == "Server Time Slider" {
                             if let TheValue::Time(time) = value {
                                 self.project.time = time;
-                                TOOLLIST.lock().unwrap().server_time = time;
+                                TOOLLIST.write().unwrap().server_time = time;
                             }
                         }
                     }
@@ -1738,7 +1745,7 @@ pub trait EldironEditor {
 
 impl EldironEditor for Editor {
     fn update_server_state_icons(&mut self, ui: &mut TheUI) {
-        let rusterix = RUSTERIX.lock().unwrap();
+        let rusterix = RUSTERIX.read().unwrap();
         if rusterix.server.state == rusterix::ServerState::Running {
             if let Some(button) = ui.get_widget("Play") {
                 if let Some(button) = button.as_menubar_button() {

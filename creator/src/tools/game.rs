@@ -69,7 +69,7 @@ impl Tool for GameTool {
         #[allow(clippy::single_match)]
         match event {
             TheEvent::KeyDown(TheValue::Char(char)) => {
-                let mut rusterix = crate::editor::RUSTERIX.lock().unwrap();
+                let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
                 if rusterix.server.state == rusterix::ServerState::Running {
                     rusterix
                         .server
@@ -77,7 +77,7 @@ impl Tool for GameTool {
                 }
             }
             TheEvent::KeyUp(TheValue::Char(char)) => {
-                let mut rusterix = crate::editor::RUSTERIX.lock().unwrap();
+                let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
                 if rusterix.server.state == rusterix::ServerState::Running {
                     rusterix
                         .server

@@ -60,7 +60,7 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer) {
             );
         }
 
-        let rusterix = RUSTERIX.lock().unwrap();
+        let rusterix = RUSTERIX.write().unwrap();
 
         let mut scene = builder.build(
             &region.map,

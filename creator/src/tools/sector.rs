@@ -184,11 +184,11 @@ impl Tool for SectorTool {
                     '0' => map.subdivisions = 10.0,
                     _ => {}
                 }
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             MapClicked(coord) => {
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
-                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     return None;
                 }
                 self.click_selected = false;
@@ -243,7 +243,7 @@ impl Tool for SectorTool {
             }
             MapDragged(coord) => {
                 if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx) {
-                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     return None;
                 }
 
@@ -344,7 +344,7 @@ impl Tool for SectorTool {
                         map.selected_sectors = selection.2;
                     }
                 }
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             MapUp(_) => {
                 if self.click_selected {
@@ -395,7 +395,7 @@ impl Tool for SectorTool {
                     ));
                     server_ctx.hover_cursor = Some(cp);
 
-                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                 }
             }
             MapDelete => {
@@ -431,7 +431,7 @@ impl Tool for SectorTool {
                         TheValue::Empty,
                     ));
                 }
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
         }
         undo_atom
@@ -492,19 +492,19 @@ impl Tool for SectorTool {
                                     } else if self.hud.selected_icon_index == 1 {
                                         sector.properties.set("ceiling_source", source.clone());
                                     }
-                                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                                 }
                             }
 
                             let undo_atom =
                                 RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
 
-                            crate::editor::UNDOMANAGER.lock().unwrap().add_region_undo(
+                            crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
                                 &server_ctx.curr_region,
                                 undo_atom,
                                 ctx,
                             );
-                            crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
                         }
                     }
                 }

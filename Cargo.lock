@@ -844,7 +844,6 @@ dependencies = [
  "fontdue",
  "forgedtiles",
  "indexmap 2.7.1",
- "lazy_static",
  "open",
  "png",
  "rayon",
@@ -4606,9 +4605,7 @@ version = "0.8.14"
 dependencies = [
  "earcutr",
  "fontdue",
- "half 2.4.1",
  "indexmap 2.7.1",
- "lazy_static",
  "line_drawing",
  "noiselib",
  "num_cpus",

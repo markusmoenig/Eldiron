@@ -964,7 +964,7 @@ impl Sidebar {
                                     TheValue::Empty,
                                 ));
 
-                                RUSTERIX.lock().unwrap().set_dirty();
+                                RUSTERIX.write().unwrap().set_dirty();
                             }
 
                             /*
@@ -1041,7 +1041,7 @@ impl Sidebar {
                     self.deselect_sections_buttons(ui, "Model Section".to_string());
                     self.select_section_button(ui, "Model Section".to_string());
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Model;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Model;
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -1070,7 +1070,7 @@ impl Sidebar {
                         }
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Node;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Node;
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -1624,7 +1624,7 @@ impl Sidebar {
                 if id.name == "Material Item" {
                     let material_id = id.uuid;
                     server_ctx.curr_material = Some(material_id);
-                    RUSTERIX.lock().unwrap().set_dirty();
+                    RUSTERIX.write().unwrap().set_dirty();
                 } else if id.name == "Palette Clear" {
                     let prev = project.palette.clone();
                     project.palette.clear();
@@ -1646,7 +1646,7 @@ impl Sidebar {
                     redraw = true;
 
                     let undo = PaletteUndoAtom::Edit(prev, project.palette.clone());
-                    UNDOMANAGER.lock().unwrap().add_palette_undo(undo, ctx);
+                    UNDOMANAGER.write().unwrap().add_palette_undo(undo, ctx);
                 } else if id.name == "Palette Import" {
                     ctx.ui.open_file_requester(
                         TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
@@ -2015,7 +2015,7 @@ impl Sidebar {
                     if let Some(t) = project.get_tilemap(id.uuid) {
                         self.curr_tilemap_uuid = Some(t.id);
 
-                        TILEMAPEDITOR.lock().unwrap().set_tilemap(t, ui, ctx);
+                        TILEMAPEDITOR.write().unwrap().set_tilemap(t, ui, ctx);
                         self.apply_tilemap(ui, ctx, Some(t));
                         ctx.ui.relayout = true;
                     }
@@ -2306,10 +2306,10 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Regions".to_string()));
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Region;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Region;
                     server_ctx.curr_map_context = MapContext::Region;
-                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
-                    RUSTERIX.lock().unwrap().set_dirty();
+                    UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
+                    RUSTERIX.write().unwrap().set_dirty();
                     set_code(ui, ctx, project, server_ctx);
 
                     ctx.ui.send(TheEvent::SetStackIndex(
@@ -2334,10 +2334,10 @@ impl Sidebar {
                         }
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Character;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Character;
                     server_ctx.curr_map_context = MapContext::Region;
-                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
-                    RUSTERIX.lock().unwrap().set_dirty();
+                    UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
+                    RUSTERIX.write().unwrap().set_dirty();
                     set_code(ui, ctx, project, server_ctx);
 
                     ctx.ui.send(TheEvent::SetStackIndex(
@@ -2362,10 +2362,10 @@ impl Sidebar {
                         }
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Item;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Item;
                     server_ctx.curr_map_context = MapContext::Region;
-                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
-                    RUSTERIX.lock().unwrap().set_dirty();
+                    UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
+                    RUSTERIX.write().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2387,10 +2387,10 @@ impl Sidebar {
                         }
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Tilemap;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Tilemap;
                     server_ctx.curr_map_context = MapContext::Region;
-                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
-                    RUSTERIX.lock().unwrap().set_dirty();
+                    UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
+                    RUSTERIX.write().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2415,10 +2415,10 @@ impl Sidebar {
                         }
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Module;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Module;
                     server_ctx.curr_map_context = MapContext::Region;
-                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
-                    RUSTERIX.lock().unwrap().set_dirty();
+                    UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
+                    RUSTERIX.write().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2442,10 +2442,10 @@ impl Sidebar {
                         }
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Screen;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Screen;
                     server_ctx.curr_map_context = MapContext::Screen;
-                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
-                    RUSTERIX.lock().unwrap().set_dirty();
+                    UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
+                    RUSTERIX.write().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2469,10 +2469,10 @@ impl Sidebar {
                         }
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Asset;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Asset;
                     server_ctx.curr_map_context = MapContext::Region;
-                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
-                    RUSTERIX.lock().unwrap().set_dirty();
+                    UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
+                    RUSTERIX.write().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2489,7 +2489,7 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Models".to_string()));
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Model;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Model;
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2506,10 +2506,10 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Materials".to_string()));
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Material;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Material;
                     server_ctx.curr_map_context = MapContext::Material;
-                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Material;
-                    RUSTERIX.lock().unwrap().set_dirty();
+                    UNDOMANAGER.write().unwrap().context = UndoManagerContext::Material;
+                    RUSTERIX.write().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2526,7 +2526,7 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Node".to_string()));
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Node;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Node;
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2544,7 +2544,7 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Debug Output".to_string()));
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Debug;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Debug;
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -2561,7 +2561,7 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Palette".to_string()));
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Palette;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Palette;
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
@@ -3608,7 +3608,7 @@ impl Sidebar {
     pub fn update_tiles(&mut self, _ui: &mut TheUI, ctx: &mut TheContext, project: &mut Project) {
         let tiles = project.extract_tiles();
         RUSTERIX
-            .lock()
+            .write()
             .unwrap()
             .assets
             .set_rgba_tiles(tiles.clone());

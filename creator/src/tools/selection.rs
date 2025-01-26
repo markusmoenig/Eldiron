@@ -216,7 +216,7 @@ impl Tool for SelectionTool {
                     '0' => map.subdivisions = 10.0,
                     _ => {}
                 }
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             MapClicked(coord) => {
                 if !server_ctx.hover_is_empty() {
@@ -291,7 +291,7 @@ impl Tool for SelectionTool {
                         map.selected_sectors = selection.2;
                     }
                 }
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             MapUp(_) => {
                 if map.curr_rectangle.is_some() {

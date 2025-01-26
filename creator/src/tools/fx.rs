@@ -111,11 +111,11 @@ impl Tool for FXTool {
                     '0' => map.subdivisions = 10.0,
                     _ => {}
                 }
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             MapClicked(coord) => {
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
-                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     return None;
                 }
 
@@ -138,7 +138,7 @@ impl Tool for FXTool {
                         let d = lp.distance(grid_pos);
                         if d < 1.0 {
                             map.selected_light = Some(i as u32);
-                            crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
                             undo_atom = Some(RegionUndoAtom::MapEdit(
                                 Box::new(prev.clone()),
                                 Box::new(map.clone()),
@@ -157,7 +157,7 @@ impl Tool for FXTool {
                             if let Some(light) = effect.to_light(grid_pos) {
                                 map.selected_light = Some(map.lights.len() as u32);
                                 map.lights.push(light);
-                                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
                                 undo_atom = Some(RegionUndoAtom::MapEdit(
                                     Box::new(prev),
                                     Box::new(map.clone()),
@@ -204,7 +204,7 @@ impl Tool for FXTool {
                     ));
                     server_ctx.hover_cursor = Some(cp);
 
-                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                 }
             }
             MapDelete => {
@@ -212,7 +212,7 @@ impl Tool for FXTool {
                     let prev = map.clone();
                     _ = map.lights.remove(index as usize);
                     map.selected_light = None;
-                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     undo_atom = Some(RegionUndoAtom::MapEdit(
                         Box::new(prev),
                         Box::new(map.clone()),

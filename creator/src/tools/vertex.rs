@@ -101,11 +101,11 @@ impl Tool for VertexTool {
                     '0' => map.subdivisions = 10.0,
                     _ => {}
                 }
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             MapClicked(coord) => {
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
-                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     return None;
                 }
 
@@ -162,7 +162,7 @@ impl Tool for VertexTool {
             }
             MapDragged(coord) => {
                 if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx) {
-                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     return None;
                 }
 
@@ -250,7 +250,7 @@ impl Tool for VertexTool {
                         map.selected_vertices = selection.0;
                     }
                 }
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             MapUp(_) => {
                 if self.click_selected {
@@ -304,7 +304,7 @@ impl Tool for VertexTool {
                     ));
                     server_ctx.hover_cursor = Some(cp);
 
-                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                 }
             }
             MapDelete => {
@@ -343,7 +343,7 @@ impl Tool for VertexTool {
                         TheValue::Empty,
                     ));
                 }
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
         };
         undo_atom

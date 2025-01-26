@@ -81,7 +81,7 @@ impl Tool for CodeTool {
                 if id.name == "Compile" && *state == TheWidgetState::Clicked {
                     if let Some(value) = ui.get_widget_value("CodeEdit") {
                         if let Some(code) = value.to_string() {
-                            if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                            if *SIDEBARMODE.write().unwrap() == SidebarMode::Character {
                                 // Character mode
 
                                 if let Some(character_id) = server_ctx.curr_character {
@@ -125,7 +125,7 @@ impl Tool for CodeTool {
             TheEvent::ValueChanged(id, value) => {
                 if id.name == "CodeEdit" {
                     if let Some(code) = value.to_string() {
-                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
+                        if *SIDEBARMODE.read().unwrap() == SidebarMode::Region {
                             // Region mode, check the currently selected region content
                             if let Some(region_content_id) = server_ctx.curr_region_content {
                                 if let Some(region) =
@@ -138,7 +138,7 @@ impl Tool for CodeTool {
                                     }
                                 }
                             }
-                        } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                        } else if *SIDEBARMODE.read().unwrap() == SidebarMode::Character {
                             // Character mode, store the code in the current character
                             if let Some(character_id) = server_ctx.curr_character {
                                 if let Some(character) = project.characters.get_mut(&character_id) {

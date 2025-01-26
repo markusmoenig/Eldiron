@@ -47,7 +47,7 @@ pub enum ToolContext {
 }
 
 #[allow(unused)]
-pub trait Tool: Send {
+pub trait Tool: Send + Sync {
     fn new() -> Self
     where
         Self: Sized;

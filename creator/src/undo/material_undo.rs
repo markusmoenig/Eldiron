@@ -19,7 +19,7 @@ impl MaterialUndoAtom {
                     TheId::named("Update Materialpicker"),
                     TheValue::Empty,
                 ));
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
         }
     }
@@ -34,7 +34,7 @@ impl MaterialUndoAtom {
                     TheId::named("Update Materialpicker"),
                     TheValue::Empty,
                 ));
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
         }
     }

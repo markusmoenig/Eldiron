@@ -36,8 +36,8 @@ impl Panels {
         let mut main_canvas = TheCanvas::new();
         let mut main_stack = TheStackLayout::new(TheId::named("Main Stack"));
 
-        main_stack.add_canvas(TILEPICKER.lock().unwrap().build(false));
-        main_stack.add_canvas(TILEMAPEDITOR.lock().unwrap().build());
+        main_stack.add_canvas(TILEPICKER.write().unwrap().build(false));
+        main_stack.add_canvas(TILEMAPEDITOR.write().unwrap().build());
 
         // Color Picker
         let mut color_picker_canvas: TheCanvas = TheCanvas::default();
@@ -60,9 +60,9 @@ impl Panels {
 
         // --
 
-        main_stack.add_canvas(TEXTEDITOR.lock().unwrap().build());
-        main_stack.add_canvas(MATERIALPICKER.lock().unwrap().build(false));
-        main_stack.add_canvas(EFFECTPICKER.lock().unwrap().build(false));
+        main_stack.add_canvas(TEXTEDITOR.write().unwrap().build());
+        main_stack.add_canvas(MATERIALPICKER.write().unwrap().build(false));
+        main_stack.add_canvas(EFFECTPICKER.write().unwrap().build(false));
         main_stack.set_index(0);
 
         let tilemap_editor = TheRGBALayout::new(TheId::named("Tilemap Editor"));
@@ -153,21 +153,21 @@ impl Panels {
     ) -> bool {
         let mut redraw = false;
         if TILEPICKER
-            .lock()
+            .write()
             .unwrap()
             .handle_event(event, ui, ctx, project, server_ctx)
         {
             redraw = true;
         }
         if MATERIALPICKER
-            .lock()
+            .write()
             .unwrap()
             .handle_event(event, ui, ctx, project, server_ctx)
         {
             redraw = true;
         }
         if EFFECTPICKER
-            .lock()
+            .write()
             .unwrap()
             .handle_event(event, ui, ctx, project, server_ctx)
         {

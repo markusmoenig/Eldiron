@@ -439,7 +439,7 @@ impl Hud {
             let mut texture = Texture::new(pixels, preview_width as usize, preview_height as usize);
 
             let builder = D2MaterialBuilder::new();
-            builder.build_texture(map, &RUSTERIX.lock().unwrap().assets.tiles, &mut texture);
+            builder.build_texture(map, &RUSTERIX.read().unwrap().assets.tiles, &mut texture);
 
             ctx.draw.copy_slice(
                 buffer.pixels_mut(),
@@ -467,7 +467,7 @@ impl Hud {
 
             let mut text = "ISO".to_string();
             if server_ctx.editing_preview_camera != MapCamera::TwoD {
-                let mut rusterix = RUSTERIX.lock().unwrap();
+                let mut rusterix = RUSTERIX.write().unwrap();
 
                 if server_ctx.editing_preview_camera == MapCamera::ThreeDIso {
                     let p = Vec3::new(
@@ -630,10 +630,10 @@ impl Hud {
                 map.camera = MapCamera::TwoD;
             } else if self.d3iso_rect.contains(Vec2::new(x, y)) {
                 map.camera = MapCamera::ThreeDIso;
-                RUSTERIX.lock().unwrap().client.camera_d3 = Box::new(D3IsoCamera::new())
+                RUSTERIX.write().unwrap().client.camera_d3 = Box::new(D3IsoCamera::new())
             } else if self.d3firstp_rect.contains(Vec2::new(x, y)) {
                 map.camera = MapCamera::ThreeDFirstPerson;
-                RUSTERIX.lock().unwrap().client.camera_d3 = Box::new(D3FirstPCamera::new())
+                RUSTERIX.write().unwrap().client.camera_d3 = Box::new(D3FirstPCamera::new())
             }
             true
         } else {
@@ -706,7 +706,7 @@ impl Hud {
                     if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row1_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            &RUSTERIX.read().unwrap().assets.tiles,
                             icon_size,
                             &linedef.properties,
                         ) {
@@ -717,7 +717,7 @@ impl Hud {
                     if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row2_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            &RUSTERIX.write().unwrap().assets.tiles,
                             icon_size,
                             &linedef.properties,
                         ) {
@@ -728,7 +728,7 @@ impl Hud {
                     if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row3_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            &RUSTERIX.read().unwrap().assets.tiles,
                             icon_size,
                             &linedef.properties,
                         ) {
@@ -739,7 +739,7 @@ impl Hud {
                     if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row4_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            &RUSTERIX.read().unwrap().assets.tiles,
                             icon_size,
                             &linedef.properties,
                         ) {
@@ -754,7 +754,7 @@ impl Hud {
                     if let Some(Value::Source(pixelsource)) = &sector.properties.get("floor_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            &RUSTERIX.read().unwrap().assets.tiles,
                             icon_size,
                             &sector.properties,
                         ) {
@@ -766,7 +766,7 @@ impl Hud {
                         &sector.properties.get("ceiling_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.lock().unwrap().assets.tiles,
+                            &RUSTERIX.read().unwrap().assets.tiles,
                             icon_size,
                             &sector.properties,
                         ) {

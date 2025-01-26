@@ -50,7 +50,7 @@ pub fn set_code(
     server_ctx: &ServerContext,
 ) {
     let mut success = false;
-    let sidebarmode = SIDEBARMODE.lock().unwrap();
+    let sidebarmode = SIDEBARMODE.read().unwrap();
     if *sidebarmode == SidebarMode::Region {
         if let Some(region_content_id) = server_ctx.curr_region_content {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {

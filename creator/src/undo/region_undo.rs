@@ -73,7 +73,7 @@ impl RegionUndoAtom {
                     TheValue::Empty,
                 ));
 
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             // RegionUndoAtom::RegionTileEdit(pos, prev, _) => {
             //     if let Some(prev) = prev {
@@ -148,7 +148,7 @@ impl RegionUndoAtom {
                     TheValue::Empty,
                 ));
 
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             // RegionUndoAtom::RegionTileEdit(pos, _, next) => {
             //     if let Some(next) = next {

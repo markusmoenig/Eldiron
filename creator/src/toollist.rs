@@ -84,21 +84,21 @@ impl ToolList {
     ) {
         if server_ctx.curr_map_context == MapContext::Region {
             if let Some(undo_atom) = undo_atom {
-                UNDOMANAGER.lock().unwrap().add_region_undo(
+                UNDOMANAGER.write().unwrap().add_region_undo(
                     &server_ctx.curr_region,
                     undo_atom,
                     ctx,
                 );
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
         } else if server_ctx.curr_map_context == MapContext::Material {
             if let Some(undo_atom) = undo_atom {
                 if let Some(material_undo_atom) = undo_atom.to_material_atom() {
                     UNDOMANAGER
-                        .lock()
+                        .write()
                         .unwrap()
                         .add_material_undo(material_undo_atom, ctx);
-                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Update Materialpicker"),
                         TheValue::Empty,
@@ -271,7 +271,7 @@ impl ToolList {
                                             Box::new(prev),
                                             Box::new(map.clone()),
                                         );
-                                        UNDOMANAGER.lock().unwrap().add_region_undo(
+                                        UNDOMANAGER.write().unwrap().add_region_undo(
                                             &server_ctx.curr_region,
                                             undo_atom,
                                             ctx,
@@ -285,7 +285,7 @@ impl ToolList {
                                             TheId::named("Map Selection Changed"),
                                             TheValue::Empty,
                                         ));
-                                        crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
                                     }
                                     return true;
                                 }
@@ -335,7 +335,7 @@ impl ToolList {
                                     }
                                 }
 
-                                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
                                 return true;
                             }
                         }
@@ -360,7 +360,7 @@ impl ToolList {
                                 Box::new(self.undo_map.clone()),
                                 Box::new(map.clone()),
                             );
-                            UNDOMANAGER.lock().unwrap().add_region_undo(
+                            UNDOMANAGER.write().unwrap().add_region_undo(
                                 &server_ctx.curr_region,
                                 undo_atom,
                                 ctx,
@@ -650,7 +650,7 @@ impl ToolList {
             server_ctx,
         );
 
-        crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+        crate::editor::RUSTERIX.write().unwrap().set_dirty();
 
         /*
         if let Some(layout) = ui.get_hlayout(layout_name) {

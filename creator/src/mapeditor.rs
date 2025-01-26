@@ -197,7 +197,7 @@ impl MapEditor {
 
     pub fn load_from_project(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
         RUSTERIX
-            .lock()
+            .write()
             .unwrap()
             .assets
             .set_rgba_tiles(project.extract_tiles());
@@ -260,7 +260,7 @@ impl MapEditor {
                         layout.relayout(ctx);
                     }
                 }
-                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             TheEvent::RenderViewScrollBy(id, coord) => {
                 if id.name == "PolyView" {
@@ -271,7 +271,7 @@ impl MapEditor {
                         } else {
                             map.offset += Vec2::new(-coord.x as f32, coord.y as f32);
                         }
-                        crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     }
 
                     if server_ctx.curr_map_context == MapContext::Region {
@@ -284,7 +284,7 @@ impl MapEditor {
                                 TheId::named("Update Minimap"),
                                 TheValue::Empty,
                             ));
-                            crate::editor::RUSTERIX.lock().unwrap().set_dirty();
+                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
                         }
                     }
                 }
@@ -610,14 +610,14 @@ impl MapEditor {
                     || id.name == "PolyView"
                 {
                     if server_ctx.curr_map_context == MapContext::Material {
-                        UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Material;
+                        UNDOMANAGER.write().unwrap().context = UndoManagerContext::Material;
                     } else {
-                        UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
+                        UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
                     }
                 } else if id.name == "ModelFX RGBA Layout View" {
-                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Material;
+                    UNDOMANAGER.write().unwrap().context = UndoManagerContext::Material;
                 } else if id.name == "Palette Picker" {
-                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Palette;
+                    UNDOMANAGER.write().unwrap().context = UndoManagerContext::Palette;
                 }
             }
             TheEvent::ValueChanged(id, value) => {
@@ -712,7 +712,7 @@ impl MapEditor {
                                         Box::new(prev),
                                         Box::new(region.map.clone()),
                                     );
-                                    UNDOMANAGER.lock().unwrap().add_region_undo(
+                                    UNDOMANAGER.write().unwrap().add_region_undo(
                                         &server_ctx.curr_region,
                                         undo_atom,
                                         ctx,
@@ -733,7 +733,7 @@ impl MapEditor {
                                             Box::new(prev),
                                             Box::new(region.map.clone()),
                                         );
-                                        UNDOMANAGER.lock().unwrap().add_region_undo(
+                                        UNDOMANAGER.write().unwrap().add_region_undo(
                                             &server_ctx.curr_region,
                                             undo_atom,
                                             ctx,
@@ -795,7 +795,7 @@ impl MapEditor {
 
                                 let undo_atom =
                                     RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-                                UNDOMANAGER.lock().unwrap().add_region_undo(
+                                UNDOMANAGER.write().unwrap().add_region_undo(
                                     &server_ctx.curr_region,
                                     undo_atom,
                                     ctx,
@@ -828,7 +828,7 @@ impl MapEditor {
                         if region.map.selected_entity != Some(id.uuid) {
                             if let Some(character) = region.characters.get(&id.uuid) {
                                 found = true;
-                                if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
+                                if *SIDEBARMODE.write().unwrap() == SidebarMode::Region {
                                     ui.set_widget_value(
                                         "CodeEdit",
                                         ctx,
@@ -853,7 +853,7 @@ impl MapEditor {
                                 Box::new(prev),
                                 Box::new(region.map.clone()),
                             );
-                            UNDOMANAGER.lock().unwrap().add_region_undo(
+                            UNDOMANAGER.write().unwrap().add_region_undo(
                                 &server_ctx.curr_region,
                                 undo_atom,
                                 ctx,
@@ -882,7 +882,7 @@ impl MapEditor {
                                 }
                             }
                         }
-                        RUSTERIX.lock().unwrap().set_dirty();
+                        RUSTERIX.write().unwrap().set_dirty();
                     }
 
                     /*
@@ -1185,17 +1185,17 @@ impl MapEditor {
         if server_ctx.curr_map_context == MapContext::Region {
             let undo_atom = RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
             UNDOMANAGER
-                .lock()
+                .write()
                 .unwrap()
                 .add_region_undo(&server_ctx.curr_region, undo_atom, ctx);
         } else if server_ctx.curr_map_context == MapContext::Material {
             let undo_atom = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
             UNDOMANAGER
-                .lock()
+                .write()
                 .unwrap()
                 .add_material_undo(undo_atom, ctx);
         }
-        RUSTERIX.lock().unwrap().set_dirty();
+        RUSTERIX.write().unwrap().set_dirty();
     }
 
     fn create_light_settings(
