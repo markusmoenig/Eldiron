@@ -23,15 +23,15 @@ class NewCharacter(Entity):
         # print("Player User Event", event, value)
         if event == 'key_down':
             if value == 'w':
-                action(self.id, EntityAction.NORTH.to_int())
+                action(self.id, "forward")
             if value == 'a':
-                action(self.id, EntityAction.WEST.to_int())
+                action(self.id, "left")
             if value == 'd':
-                action(self.id, EntityAction.EAST.to_int())
+                action(self.id, "right")
             if value == 's':
-                action(self.id, EntityAction.SOUTH.to_int())
+                action(self.id, "backward")
         if event == 'key_up':
-                action(self.id, EntityAction.NONE.to_int())
+                action(self.id, "none")
 
         # match event:
         #    case "a":

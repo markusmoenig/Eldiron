@@ -37,8 +37,6 @@ impl Tool for GameTool {
         ui: &mut TheUI,
         _ctx: &mut TheContext,
         _project: &mut Project,
-        _server: &mut Server,
-        _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
@@ -66,8 +64,6 @@ impl Tool for GameTool {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         _project: &mut Project,
-        _server: &mut Server,
-        _client: &mut Client,
         _server_ctx: &mut ServerContext,
     ) -> bool {
         #[allow(clippy::single_match)]

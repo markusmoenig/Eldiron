@@ -246,7 +246,6 @@ impl TilePicker {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut Server,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;

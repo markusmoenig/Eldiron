@@ -13,43 +13,23 @@ use std::sync::{
 use std::thread;
 
 lazy_static! {
-    pub static ref ACTIVEEDITOR: Mutex<ActiveEditor> = Mutex::new(ActiveEditor::GameEditor);
-    pub static ref CODEEDITOR: Mutex<TheCodeEditor> = Mutex::new(TheCodeEditor::new());
     pub static ref TILEPICKER: Mutex<TilePicker> =
         Mutex::new(TilePicker::new("Main Tile Picker".to_string()));
     pub static ref MATERIALPICKER: Mutex<MaterialPicker> =
-            Mutex::new(MaterialPicker::new("Main Material Picker".to_string()));
+        Mutex::new(MaterialPicker::new("Main Material Picker".to_string()));
     pub static ref EFFECTPICKER: Mutex<EffectPicker> =
-                    Mutex::new(EffectPicker::new("Main Effect Picker".to_string()));
+        Mutex::new(EffectPicker::new("Main Effect Picker".to_string()));
     pub static ref TILEMAPEDITOR: Mutex<TilemapEditor> = Mutex::new(TilemapEditor::new());
     pub static ref SIDEBARMODE: Mutex<SidebarMode> = Mutex::new(SidebarMode::Region);
-    pub static ref TILEDRAWER: Mutex<TileDrawer> = Mutex::new(TileDrawer::new());
-    // pub static ref RENDERER: Mutex<Renderer> = Mutex::new(Renderer::new());
-    pub static ref MAPRENDER: Mutex<MapRender> = Mutex::new(MapRender::new());
     pub static ref RENDERMODE: Mutex<EditorDrawMode> = Mutex::new(EditorDrawMode::Draw2D);
-    pub static ref TILEFXEDITOR: Mutex<TileFXEditor> = Mutex::new(TileFXEditor::new());
-    // pub static ref MODELFXEDITOR: Mutex<ModelFXEditor> = Mutex::new(ModelFXEditor::new());
-    pub static ref REGIONFXEDITOR: Mutex<RegionFXEditor> = Mutex::new(RegionFXEditor::new());
-    // pub static ref PRERENDERTHREAD: Mutex<PreRenderThread> = Mutex::new(PreRenderThread::default());
     pub static ref UNDOMANAGER: Mutex<UndoManager> = Mutex::new(UndoManager::default());
     pub static ref TOOLLIST: Mutex<ToolList> = Mutex::new(ToolList::default());
     pub static ref BRUSHLIST: Mutex<BrushList> = Mutex::new(BrushList::default());
     pub static ref PANELS: Mutex<Panels> = Mutex::new(Panels::new());
-    // pub static ref MODELEDITOR: Mutex<ModelEditor> = Mutex::new(ModelEditor::new());
-    // pub static ref MATERIALEDITOR: Mutex<MaterialEditor> = Mutex::new(MaterialEditor::new());
     pub static ref TEXTEDITOR: Mutex<TextEditor> = Mutex::new(TextEditor::new());
     pub static ref TEXTURES: Mutex<FxHashMap<Uuid, TheRGBATile>> = Mutex::new(FxHashMap::default());
     pub static ref PALETTE: Mutex<ThePalette> = Mutex::new(ThePalette::default());
-
     pub static ref RUSTERIX: Mutex<Rusterix> = Mutex::new(Rusterix::default());
-}
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-pub enum ActiveEditor {
-    GameEditor,
-    ModelEditor,
-    MaterialEditor,
-    ScreenEditor,
 }
 
 pub struct Editor {
@@ -59,8 +39,6 @@ pub struct Editor {
     sidebar: Sidebar,
     mapeditor: MapEditor,
 
-    server: Server,
-    client: Client,
     server_ctx: ServerContext,
 
     update_tracker: UpdateTracker,
@@ -80,11 +58,6 @@ impl TheTrait for Editor {
     where
         Self: Sized,
     {
-        let mut server = Server::new();
-        server.debug_mode = true;
-
-        let client = Client::new();
-
         let (self_update_tx, self_update_rx) = channel();
 
         Self {
@@ -95,8 +68,6 @@ impl TheTrait for Editor {
             mapeditor: MapEditor::new(),
 
             server_ctx: ServerContext::default(),
-            server,
-            client,
 
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
@@ -157,8 +128,6 @@ impl TheTrait for Editor {
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-        set_server_externals();
-
         // Embedded Icons
         for file in Embedded::iter() {
             let name = file.as_ref();
@@ -260,12 +229,6 @@ impl TheTrait for Editor {
 
         menu.add_context_menu(file_menu);
         menu.add_context_menu(edit_menu);
-
-        let code_menu = create_code_menu(ctx);
-
-        menu.add_context_menu(code_menu);
-        menu.add_context_menu(view_menu);
-        menu.add_context_menu(tools_menu);
         menu_canvas.set_widget(menu);
 
         // Menubar
@@ -363,8 +326,7 @@ impl TheTrait for Editor {
         ));
 
         // Sidebar
-        self.sidebar
-            .init_ui(ui, ctx, &mut self.project, &mut self.server);
+        self.sidebar.init_ui(ui, ctx, &mut self.project);
 
         // Panels
         let bottom_panels =
@@ -418,11 +380,10 @@ impl TheTrait for Editor {
         v_tool_list_layout.set_margin(Vec4::new(2, 2, 2, 2));
         v_tool_list_layout.set_padding(1);
 
-        TOOLLIST.lock().unwrap().set_active_editor(
-            ActiveEditor::GameEditor,
-            &mut v_tool_list_layout,
-            ctx,
-        );
+        TOOLLIST
+            .lock()
+            .unwrap()
+            .set_active_editor(&mut v_tool_list_layout, ctx);
 
         tool_list_canvas.set_layout(v_tool_list_layout);
 
@@ -479,9 +440,6 @@ impl TheTrait for Editor {
         RUSTERIX.lock().unwrap().set_d2();
 
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
-
-        // Startup the prerender thread.
-        // PRERENDERTHREAD.lock().unwrap().startup();
     }
 
     /// Set the command line arguments
@@ -506,15 +464,7 @@ impl TheTrait for Editor {
             let mut toollist = TOOLLIST.lock().unwrap();
             let id = toollist.get_current_tool().id().uuid;
 
-            toollist.set_tool(
-                id,
-                ui,
-                ctx,
-                &mut self.project,
-                &mut self.server,
-                &mut self.client,
-                &mut self.server_ctx,
-            );
+            toollist.set_tool(id, ui, ctx, &mut self.project, &mut self.server_ctx);
             self.first_update = false;
         }
 
@@ -851,8 +801,6 @@ impl TheTrait for Editor {
                     ui,
                     ctx,
                     &mut self.project,
-                    &mut self.server,
-                    &mut self.client,
                     &mut self.server_ctx,
                 );
                 if TOOLLIST.lock().unwrap().handle_event(
@@ -860,8 +808,6 @@ impl TheTrait for Editor {
                     ui,
                     ctx,
                     &mut self.project,
-                    &mut self.server,
-                    &mut self.client,
                     &mut self.server_ctx,
                 ) {
                     redraw = true;
@@ -871,7 +817,6 @@ impl TheTrait for Editor {
                     ui,
                     ctx,
                     &mut self.project,
-                    &mut self.server,
                     &mut self.server_ctx,
                 ) {
                     redraw = true;
@@ -881,142 +826,28 @@ impl TheTrait for Editor {
                     ui,
                     ctx,
                     &mut self.project,
-                    &mut self.server,
                     &mut self.server_ctx,
                 ) {
                     redraw = true;
                 }
-                // if self.screeneditor.handle_event(
-                //     &event,
-                //     ui,
-                //     ctx,
-                //     &mut self.project,
-                //     &mut self.client,
-                //     &mut self.server_ctx,
-                // ) {
-                //     redraw = true;
-                // }
-                // if self.materialeditor.handle_event(
-                //     &event,
-                //     ui,
-                //     ctx,
-                //     &mut self.project,
-                //     &mut self.server,
-                //     &mut self.client,
-                //     &mut self.server_ctx,
-                // ) {
-                //     redraw = true;
-                // }
-                // if MODELEDITOR.lock().unwrap().handle_event(
-                //     &event,
-                //     ui,
-                //     ctx,
-                //     &mut self.project,
-                //     &mut self.server,
-                //     &mut self.server_ctx,
-                // ) {
-                //     redraw = true;
-                // }
                 if TILEMAPEDITOR.lock().unwrap().handle_event(
                     &event,
                     ui,
                     ctx,
                     &mut self.project,
-                    &mut self.server,
-                    &mut self.server_ctx,
-                ) {
-                    redraw = true;
-                }
-                if TILEFXEDITOR.lock().unwrap().handle_event(
-                    &event,
-                    ui,
-                    ctx,
-                    &mut self.project,
-                    &mut self.server,
-                    &mut self.server_ctx,
-                ) {
-                    redraw = true;
-                }
-                if REGIONFXEDITOR.lock().unwrap().handle_event(
-                    &event,
-                    ui,
-                    ctx,
-                    &mut self.project,
-                    &mut self.server,
                     &mut self.server_ctx,
                 ) {
                     redraw = true;
                 }
                 match event {
-                    TheEvent::Custom(id, _) => {
-                        if id.name == "Update Code Menu" {
-                            let codemenu = create_code_menu(ctx);
-                            if let Some(menu) = ui.get_menu("Menu") {
-                                menu.replace_context_menu(codemenu);
-                            }
-                        }
-                    }
-                    TheEvent::ContextMenuSelected(_, action) => {
-                        if action.name.starts_with("Code") {
-                            CODEEDITOR
-                                .lock()
-                                .unwrap()
-                                .insert_context_menu_id(action, ui, ctx);
-                        }
-                    }
-                    /*
-                    TheEvent::IndexChanged(id, index) => {
-                        if id.name == "Editor Tab Tabbar" {
-                            if index == 0 {
-                                *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::GameEditor;
-                            } else if index == 1 {
-                                *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::MaterialEditor;
-                            } else if index == 2 {
-                                *ACTIVEEDITOR.lock().unwrap() = ActiveEditor::ScreenEditor;
-                            }
-
-                            TOOLLIST.lock().unwrap().deactivte_tool(
-                                ui,
-                                ctx,
-                                &mut self.project,
-                                &mut self.server,
-                                &mut self.client,
-                                &mut self.server_ctx,
-                            );
-
-                            if let Some(list) = ui.get_vlayout("Tool List Layout") {
-                                TOOLLIST.lock().unwrap().set_active_editor(
-                                    *ACTIVEEDITOR.lock().unwrap(),
-                                    list,
-                                    ctx,
-                                );
-                            }
-
-                            let tool_id = TOOLLIST.lock().unwrap().get_current_tool().id().uuid;
-                            TOOLLIST.lock().unwrap().set_tool(
-                                tool_id,
-                                ui,
-                                ctx,
-                                &mut self.project,
-                                &mut self.server,
-                                &mut self.client,
-                                &mut self.server_ctx,
-                            );
-                            redraw = true;
-                        }
-                    }*/
                     TheEvent::DialogValueOnClose(role, name, uuid, _value) => {
-                        //println!("Dialog Value On Close: {} -> {:?}", name, value);
-
                         if name == "Delete Character Instance ?" {
                             if role == TheDialogButtonRole::Delete {
                                 if let Some(region) =
                                     self.project.get_region_mut(&self.server_ctx.curr_region)
                                 {
                                     let character_id = uuid;
-                                    if region.characters.remove(&character_id).is_some() {
-                                        self.server
-                                            .remove_character_instance(region.id, character_id);
+                                    if region.characters.shift_remove(&character_id).is_some() {
                                         self.server_ctx.curr_character_instance = None;
                                         self.server_ctx.curr_character = None;
                                         region.map.selected_entity = None;
@@ -1043,8 +874,7 @@ impl TheTrait for Editor {
                                     self.project.get_region_mut(&self.server_ctx.curr_region)
                                 {
                                     let item_id = uuid;
-                                    if region.items.remove(&item_id).is_some() {
-                                        self.server.remove_item_instance(region.id, item_id);
+                                    if region.items.shift_remove(&item_id).is_some() {
                                         self.server_ctx.curr_item_instance = None;
                                         self.server_ctx.curr_item = None;
                                         redraw = true;
@@ -1060,53 +890,6 @@ impl TheTrait for Editor {
                                             ui.select_first_list_item("Region Content List", ctx);
                                         }
                                     }
-                                }
-                            }
-                        } else if name == "Delete Area ?" {
-                            if role == TheDialogButtonRole::Delete {
-                                let area_id = uuid;
-
-                                if let Some(region) =
-                                    self.project.get_region_mut(&self.server_ctx.curr_region)
-                                {
-                                    if region.areas.remove(&area_id).is_some() {
-                                        self.server.remove_area(region.id, area_id);
-                                        self.server_ctx.curr_area = None;
-                                        redraw = true;
-
-                                        // Remove from the content list
-                                        if let Some(list) =
-                                            ui.get_list_layout("Region Content List")
-                                        {
-                                            list.remove(TheId::named_with_id(
-                                                "Region Content List Item",
-                                                area_id,
-                                            ));
-                                            ui.select_first_list_item("Region Content List", ctx);
-                                        }
-                                    }
-                                }
-                            }
-                        } else if name == "Delete Widget ?" {
-                            if role == TheDialogButtonRole::Delete {
-                                let widget_id = uuid;
-
-                                if let Some(screen) =
-                                    self.project.screens.get_mut(&self.server_ctx.curr_screen)
-                                {
-                                    screen.remove_widget(&widget_id);
-
-                                    // Remove from the content list
-                                    if let Some(list) = ui.get_list_layout("Screen Content List") {
-                                        list.remove(TheId::named_with_id(
-                                            "Screen Content List Item",
-                                            widget_id,
-                                        ));
-                                        ui.select_first_list_item("Screen Content List", ctx);
-                                    }
-
-                                    self.client.update_screen(screen);
-                                    self.sidebar.apply_screen(ui, ctx, Some(screen));
                                 }
                             }
                         } else if name == "Update Eldiron" && role == TheDialogButtonRole::Accept {
@@ -1434,7 +1217,6 @@ impl TheTrait for Editor {
                                         }
                                     }
                                 }
-                                self.server.set_palette(&self.project.palette);
                                 redraw = true;
 
                                 let undo =
@@ -1496,10 +1278,10 @@ impl TheTrait for Editor {
 
                                         if let Some(widget) = ui.get_widget("Server Time Slider") {
                                             widget.set_value(TheValue::Time(self.project.time));
-                                            TOOLLIST.lock().unwrap().server_time =
-                                                self.server.world.time;
+                                            // TOOLLIST.lock().unwrap().server_time =
+                                            //     self.server.world.time;
                                         }
-                                        self.server.set_time(self.project.time);
+                                        // self.server.set_time(self.project.time);
 
                                         if let Some(widget) = ui.get_group_button("2D3D Group") {
                                             widget.set_index(self.project.map_mode as i32);
@@ -1533,11 +1315,6 @@ impl TheTrait for Editor {
                                             &self.project,
                                         );
                                         self.mapeditor.load_from_project(ui, ctx, &self.project);
-                                        let packages =
-                                            self.server.set_project(self.project.clone());
-                                        self.client.set_project(self.project.clone());
-                                        CODEEDITOR.lock().unwrap().set_packages(packages);
-                                        self.server.state = ServerState::Stopped;
                                         update_server_icons = true;
                                         redraw = true;
                                         self.server_ctx.clear();
@@ -1774,16 +1551,13 @@ impl TheTrait for Editor {
                                             ctx,
                                         );
                                     }
-                                    if let Some(region) =
-                                        self.project.get_region(&self.server_ctx.curr_region)
-                                    {
-                                        self.server.update_region(region);
-                                    }
                                     ctx.ui.send(TheEvent::Custom(
                                         TheId::named("Update Minimap"),
                                         TheValue::Empty,
                                     ));
-                                } else if manager.context == UndoManagerContext::Material {
+                                } else if manager.context == UndoManagerContext::Material
+                                    || manager.context == UndoManagerContext::Palette
+                                {
                                     if id.name == "Undo" {
                                         manager.undo(
                                             Uuid::nil(),
@@ -1801,25 +1575,6 @@ impl TheTrait for Editor {
                                             ctx,
                                         );
                                     }
-                                } else if manager.context == UndoManagerContext::Palette {
-                                    if id.name == "Undo" {
-                                        manager.undo(
-                                            Uuid::nil(),
-                                            &mut self.server_ctx,
-                                            &mut self.project,
-                                            ui,
-                                            ctx,
-                                        );
-                                    } else {
-                                        manager.redo(
-                                            Uuid::nil(),
-                                            &mut self.server_ctx,
-                                            &mut self.project,
-                                            ui,
-                                            ctx,
-                                        );
-                                    }
-                                    self.server.set_palette(&self.project.palette);
                                 }
                             }
                         } else if id.name == "Cut" {
@@ -1863,7 +1618,6 @@ impl TheTrait for Editor {
                             };
 
                             self.project.add_asset(asset);
-                            self.client.set_assets(&self.project);
                         } else if id.name == "Tilemap Add" {
                             // Add a new tilemap to the project
                             let mut tilemap = Tilemap::new();
@@ -1877,7 +1631,6 @@ impl TheTrait for Editor {
                     TheEvent::ValueChanged(id, value) => {
                         if id.name == "Server Time Slider" {
                             if let TheValue::Time(time) = value {
-                                self.server.set_time(time);
                                 self.project.time = time;
                                 TOOLLIST.lock().unwrap().server_time = time;
                             }

@@ -62,9 +62,6 @@ pub struct ServerContext {
     /// The currently selected codegrid in the code editor.
     pub curr_grid_id: Option<Uuid>,
 
-    /// If the user selects a tile area.
-    pub tile_selection: Option<TileSelection>,
-
     /// The currently selected screen.
     pub curr_screen: Uuid,
 
@@ -147,8 +144,6 @@ impl ServerContext {
 
             curr_grid_id: None,
 
-            tile_selection: None,
-
             curr_screen: Uuid::nil(),
             curr_widget: None,
 
@@ -196,7 +191,6 @@ impl ServerContext {
         self.curr_item_instance = None;
         self.curr_area = None;
         self.curr_grid_id = None;
-        self.tile_selection = None;
         self.curr_screen = Uuid::nil();
         self.interactions.clear();
     }

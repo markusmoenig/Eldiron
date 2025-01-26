@@ -53,8 +53,6 @@ impl Tool for LinedefTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut shared::server::Server,
-        _client: &mut shared::client::Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
@@ -77,7 +75,6 @@ impl Tool for LinedefTool {
                 if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                     region.map.selected_vertices.clear();
                     region.map.selected_sectors.clear();
-                    server.update_region(region);
                 }
 
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
@@ -149,7 +146,6 @@ impl Tool for LinedefTool {
                 server_ctx.hover_cursor = None;
                 if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                     region.map.clear_temp();
-                    server.update_region(region);
                 }
                 return true;
             }
@@ -243,8 +239,6 @@ impl Tool for LinedefTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        _server: &mut shared::server::Server,
-        _client: &mut shared::client::Client,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         let mut undo_atom: Option<RegionUndoAtom> = None;
@@ -598,8 +592,6 @@ impl Tool for LinedefTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut shared::server::Server,
-        _client: &mut shared::client::Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;

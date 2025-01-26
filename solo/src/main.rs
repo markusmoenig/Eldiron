@@ -15,7 +15,6 @@ pub struct Embedded;
 pub mod prelude {
     pub use crate::misc::*;
     pub use ::serde::{Deserialize, Serialize};
-    pub use shared::prelude::*;
     pub use theframework::prelude::*;
 }
 

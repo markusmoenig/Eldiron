@@ -7,18 +7,17 @@ pub mod fx;
 pub mod game;
 pub mod linedef;
 // pub mod mapobjects;
-pub mod material;
+// pub mod material;
 // pub mod model;
 // pub mod picker;
-pub mod render;
 // pub mod resize;
-pub mod screen;
+// pub mod screen;
 pub mod sector;
 pub mod selection;
 //pub mod terrain;
 pub mod tilemap;
 pub mod vertex;
-pub mod zoom;
+// pub mod zoom;
 
 #[derive(PartialEq, Clone, Debug, Copy)]
 pub enum ToolEvent {
@@ -69,36 +68,28 @@ pub trait Tool: Send {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut Server,
-        client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         false
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn map_event(
         &mut self,
         map_event: MapEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        server: &mut Server,
-        client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         None
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn handle_event(
         &mut self,
         event: &TheEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut Server,
-        client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         false

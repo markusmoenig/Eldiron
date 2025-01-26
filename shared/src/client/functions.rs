@@ -23,6 +23,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
                 mode = v;
             }
 
+            /*
             if let Some(region) = REGIONS.read().unwrap().get(&update.id) {
                 let mut settings = DRAWSETTINGS.write().unwrap();
                 let character_id = CHARACTER.read().unwrap();
@@ -99,7 +100,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
                         // );
                     }
                 }
-            }
+            }*/
 
             TheCodeNodeCallResult::Continue
         },

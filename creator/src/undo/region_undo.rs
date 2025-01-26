@@ -12,9 +12,8 @@ pub enum RegionUndoAtom {
     // HeightmapEdit(Box<Heightmap>, Box<Heightmap>),
     MapEdit(Box<Map>, Box<Map>),
     // RegionTileEdit(Vec2i, Option<RegionTile>, Option<RegionTile>),
-    RegionFXEdit(RegionFXObject, RegionFXObject),
+    // RegionFXEdit(RegionFXObject, RegionFXObject),
     RegionEdit(Box<Region>, Box<Region>),
-    RegionResize(Box<Region>, Box<Region>),
 }
 
 impl RegionUndoAtom {
@@ -25,7 +24,7 @@ impl RegionUndoAtom {
         }
     }
 
-    pub fn undo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
+    pub fn undo(&self, region: &mut Region, _ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             // RegionUndoAtom::GeoFXObjectsDeletion(objects) => {
             //     for object in objects {
@@ -83,35 +82,23 @@ impl RegionUndoAtom {
             //         region.tiles.remove(&(pos.x, pos.y));
             //     }
             // }
-            RegionUndoAtom::RegionFXEdit(prev, _) => {
-                region.regionfx = prev.clone();
+            // RegionUndoAtom::RegionFXEdit(prev, _) => {
+            //     region.regionfx = prev.clone();
 
-                let node_canvas = region.regionfx.to_canvas();
-                ui.set_node_canvas("RegionFX NodeCanvas", node_canvas);
+            //     let node_canvas = region.regionfx.to_canvas();
+            //     ui.set_node_canvas("RegionFX NodeCanvas", node_canvas);
 
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Show RegionFX Node"),
-                    TheValue::Empty,
-                ));
-            }
+            //     ctx.ui.send(TheEvent::Custom(
+            //         TheId::named("Show RegionFX Node"),
+            //         TheValue::Empty,
+            //     ));
+            // }
             RegionUndoAtom::RegionEdit(prev, _) => {
                 *region = *prev.clone();
             }
-            RegionUndoAtom::RegionResize(prev, _) => {
-                *region = *prev.clone();
-                if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
-                    if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                        let width = region.width * region.grid_size;
-                        let height = region.height * region.grid_size;
-                        let buffer = TheRGBABuffer::new(TheDim::new(0, 0, width, height));
-                        rgba.set_buffer(buffer);
-                        ctx.ui.relayout = true;
-                    }
-                }
-            }
         }
     }
-    pub fn redo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
+    pub fn redo(&self, region: &mut Region, _ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             // RegionUndoAtom::GeoFXObjectsDeletion(objects) => {
             //     for object in objects {
@@ -170,31 +157,19 @@ impl RegionUndoAtom {
             //         region.tiles.remove(&(pos.x, pos.y));
             //     }
             // }
-            RegionUndoAtom::RegionFXEdit(_, next) => {
-                region.regionfx = next.clone();
+            // RegionUndoAtom::RegionFXEdit(_, next) => {
+            //     region.regionfx = next.clone();
 
-                let node_canvas = region.regionfx.to_canvas();
-                ui.set_node_canvas("RegionFX NodeCanvas", node_canvas);
+            //     let node_canvas = region.regionfx.to_canvas();
+            //     ui.set_node_canvas("RegionFX NodeCanvas", node_canvas);
 
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Show RegionFX Node"),
-                    TheValue::Empty,
-                ));
-            }
+            //     ctx.ui.send(TheEvent::Custom(
+            //         TheId::named("Show RegionFX Node"),
+            //         TheValue::Empty,
+            //     ));
+            // }
             RegionUndoAtom::RegionEdit(_, next) => {
                 *region = *next.clone();
-            }
-            RegionUndoAtom::RegionResize(_, next) => {
-                *region = *next.clone();
-                if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
-                    if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                        let width = region.width * region.grid_size;
-                        let height = region.height * region.grid_size;
-                        let buffer = TheRGBABuffer::new(TheDim::new(0, 0, width, height));
-                        rgba.set_buffer(buffer);
-                        ctx.ui.relayout = true;
-                    }
-                }
             }
         }
     }

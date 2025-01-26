@@ -10,13 +10,11 @@ name = "eldiron"
 path = "src/main.rs"
 
 [dependencies]
-theframework = { version = "0.1.39", git = "https://github.com/markusmoenig/TheFramework", features = [
+theframework = { version = "0.1.40", git = "https://github.com/markusmoenig/TheFramework", features = [
     "ui",
-    "code",
 ], default-features = true }
 # theframework = { path = "../../TheFramework", features = [
 #     "ui",
-#     "code",
 #     # "winit_app",
 # ], default-features = true }
 # theframework = { version = "0.1.20", features = [
@@ -45,7 +43,7 @@ indexmap = { version = "2", features = ["serde"], default-features = true }
 vek = { version = "0.17.1", default-features = true }
 regex = "1.11.1"
 # rusterix = { path = "../../rusterix" }
-rusterix = { version = "0.2.7", git = "https://github.com/markusmoenig/Rusterix" }
+rusterix = { version = "0.2.8", git = "https://github.com/markusmoenig/Rusterix" }
 
 [package.metadata.bundle]
 name = "Eldiron"

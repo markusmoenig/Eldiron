@@ -46,8 +46,6 @@ impl Tool for SelectionTool {
         ui: &mut TheUI,
         _ctx: &mut TheContext,
         _project: &mut Project,
-        _server: &mut Server,
-        _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
@@ -207,8 +205,6 @@ impl Tool for SelectionTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        _server: &mut Server,
-        _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         let mut undo_atom: Option<RegionUndoAtom> = None;
@@ -395,8 +391,6 @@ impl Tool for SelectionTool {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         _project: &mut Project,
-        _server: &mut Server,
-        _client: &mut Client,
         _server_ctx: &mut ServerContext,
     ) -> bool {
         false

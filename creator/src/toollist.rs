@@ -1,25 +1,13 @@
 use crate::prelude::*;
 
 use crate::editor::UNDOMANAGER;
-pub use ActiveEditor::*;
 
 pub struct ToolList {
     pub server_time: TheTime,
     pub render_button_text: String,
 
-    pub active_editor: ActiveEditor,
-
     pub game_tools: Vec<Box<dyn Tool>>,
     pub curr_game_tool: usize,
-
-    pub screen_tools: Vec<Box<dyn Tool>>,
-    pub curr_screen_tool: usize,
-
-    pub material_tools: Vec<Box<dyn Tool>>,
-    pub curr_material_tool: usize,
-
-    pub model_tools: Vec<Box<dyn Tool>>,
-    pub curr_model_tool: usize,
 
     pub char_click_selected: bool,
     pub char_click_pos: Vec2<f32>,
@@ -48,37 +36,16 @@ impl ToolList {
             Box::new(CodeTool::new()),
             // Box::new(EraserTool::new()),
             Box::new(TilemapTool::new()),
-            Box::new(RenderTool::new()),
-            Box::new(ZoomTool::new()),
+            // Box::new(ZoomTool::new()),
             //Box::new(ResizeTool::new()),
             Box::new(GameTool::new()),
         ];
-        let screen_tools: Vec<Box<dyn Tool>> = vec![
-            Box::new(ScreenTileDrawerTool::new()),
-            Box::new(CodeTool::new()),
-            Box::new(ScreenPickerTool::new()),
-            Box::new(ScreenEraserTool::new()),
-            Box::new(ScreenGameTool::new()),
-        ];
-        let material_tools: Vec<Box<dyn Tool>> = vec![Box::new(MaterialNodeEditTool::new())];
-        let model_tools: Vec<Box<dyn Tool>> = vec![/*Box::new(ModelNodeEditTool::new())*/];
         Self {
             server_time: TheTime::default(),
             render_button_text: "Finished".to_string(),
 
-            active_editor: ActiveEditor::GameEditor,
-
             game_tools,
             curr_game_tool: 2,
-
-            screen_tools,
-            curr_screen_tool: 0,
-
-            material_tools,
-            curr_material_tool: 0,
-
-            model_tools,
-            curr_model_tool: 0,
 
             char_click_selected: false,
             char_click_pos: Vec2::zero(),
@@ -89,65 +56,19 @@ impl ToolList {
     }
 
     /// Build the UI
-    pub fn set_active_editor(
-        &mut self,
-        active_editor: ActiveEditor,
-        list: &mut dyn TheVLayoutTrait,
-        ctx: &mut TheContext,
-    ) {
-        self.active_editor = active_editor;
+    pub fn set_active_editor(&mut self, list: &mut dyn TheVLayoutTrait, ctx: &mut TheContext) {
         list.clear();
         ctx.ui.relayout = true;
 
-        match active_editor {
-            GameEditor => {
-                for (index, tool) in self.game_tools.iter().enumerate() {
-                    let mut b = TheToolListButton::new(tool.id());
+        for (index, tool) in self.game_tools.iter().enumerate() {
+            let mut b = TheToolListButton::new(tool.id());
 
-                    b.set_icon_name(tool.icon_name());
-                    b.set_status_text(&tool.info());
-                    if index == self.curr_game_tool {
-                        b.set_state(TheWidgetState::Selected);
-                    }
-                    list.add_widget(Box::new(b));
-                }
+            b.set_icon_name(tool.icon_name());
+            b.set_status_text(&tool.info());
+            if index == self.curr_game_tool {
+                b.set_state(TheWidgetState::Selected);
             }
-            ScreenEditor => {
-                for (index, tool) in self.screen_tools.iter().enumerate() {
-                    let mut b = TheToolListButton::new(tool.id());
-
-                    b.set_icon_name(tool.icon_name());
-                    b.set_status_text(&tool.info());
-                    if index == self.curr_screen_tool {
-                        b.set_state(TheWidgetState::Selected);
-                    }
-                    list.add_widget(Box::new(b));
-                }
-            }
-            MaterialEditor => {
-                for (index, tool) in self.material_tools.iter().enumerate() {
-                    let mut b = TheToolListButton::new(tool.id());
-
-                    b.set_icon_name(tool.icon_name());
-                    b.set_status_text(&tool.info());
-                    if index == self.curr_material_tool {
-                        b.set_state(TheWidgetState::Selected);
-                    }
-                    list.add_widget(Box::new(b));
-                }
-            }
-            ModelEditor => {
-                for (index, tool) in self.model_tools.iter().enumerate() {
-                    let mut b = TheToolListButton::new(tool.id());
-
-                    b.set_icon_name(tool.icon_name());
-                    b.set_status_text(&tool.info());
-                    if index == self.curr_model_tool {
-                        b.set_state(TheWidgetState::Selected);
-                    }
-                    list.add_widget(Box::new(b));
-                }
-            }
+            list.add_widget(Box::new(b));
         }
     }
 
@@ -157,23 +78,18 @@ impl ToolList {
         &mut self,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &mut Project,
-        server: &mut Server,
-        _client: &mut Client,
+        _project: &mut Project,
         server_ctx: &mut ServerContext,
         undo_atom: Option<RegionUndoAtom>,
     ) {
         if server_ctx.curr_map_context == MapContext::Region {
-            if let Some(region) = project.get_region_ctx(server_ctx) {
-                if let Some(undo_atom) = undo_atom {
-                    UNDOMANAGER.lock().unwrap().add_region_undo(
-                        &server_ctx.curr_region,
-                        undo_atom,
-                        ctx,
-                    );
-                    crate::editor::RUSTERIX.lock().unwrap().set_dirty();
-                }
-                server.update_region(region);
+            if let Some(undo_atom) = undo_atom {
+                UNDOMANAGER.lock().unwrap().add_region_undo(
+                    &server_ctx.curr_region,
+                    undo_atom,
+                    ctx,
+                );
+                crate::editor::RUSTERIX.lock().unwrap().set_dirty();
             }
         } else if server_ctx.curr_map_context == MapContext::Material {
             if let Some(undo_atom) = undo_atom {
@@ -209,8 +125,6 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut Server,
-        client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
@@ -224,122 +138,61 @@ impl ToolList {
                                 ui,
                                 ctx,
                                 map,
-                                server,
-                                client,
                                 server_ctx,
                             );
-                            self.update_map_context(
-                                ui, ctx, project, server, client, server_ctx, undo_atom,
-                            );
+                            self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                         }
                     }
                 }
 
-                let mut acc = !ui.focus_widget_supports_text_input(ctx);
+                // let mut acc = !ui.focus_widget_supports_text_input(ctx);
 
-                if self.get_current_tool().id().name == "Game Tool" {
-                    acc = false;
-                }
+                // if self.get_current_tool().id().name == "Game Tool" {
+                //     acc = false;
+                // }
 
+                /*
                 if acc {
-                    match self.active_editor {
-                        GameEditor => {
-                            if (*c == '-' || *c == '=' || *c == '+') && (ui.ctrl || ui.logo) {
-                                // Global Zoom In / Zoom Out
-                                if let Some(region) =
-                                    project.get_region_mut(&server_ctx.curr_region)
-                                {
-                                    if *c == '=' || *c == '+' {
-                                        region.zoom += 0.2;
-                                    } else {
-                                        region.zoom -= 0.2;
-                                    }
-                                    region.zoom = region.zoom.clamp(1.0, 5.0);
-                                    server.set_zoom(region.id, region.zoom);
-                                    if let Some(layout) = ui.get_rgba_layout("Region Editor") {
-                                        layout.set_zoom(region.zoom);
-                                        layout.relayout(ctx);
-                                    }
-                                    if let Some(edit) = ui.get_text_line_edit("Editor Zoom") {
-                                        edit.set_value(TheValue::Float(region.zoom));
-                                    }
-                                    return true;
-                                }
+                    if (*c == '-' || *c == '=' || *c == '+') && (ui.ctrl || ui.logo) {
+                        // Global Zoom In / Zoom Out
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            if *c == '=' || *c == '+' {
+                                region.zoom += 0.2;
+                            } else {
+                                region.zoom -= 0.2;
                             }
-
-                            let mut tool_uuid = None;
-                            for tool in self.game_tools.iter() {
-                                if tool.accel() == Some(*c) {
-                                    tool_uuid = Some(tool.id().uuid);
-                                    ctx.ui.set_widget_state(
-                                        self.game_tools[self.curr_game_tool].id().name,
-                                        TheWidgetState::None,
-                                    );
-                                    ctx.ui
-                                        .set_widget_state(tool.id().name, TheWidgetState::Selected);
-                                }
+                            region.zoom = region.zoom.clamp(1.0, 5.0);
+                            if let Some(layout) = ui.get_rgba_layout("Region Editor") {
+                                layout.set_zoom(region.zoom);
+                                layout.relayout(ctx);
                             }
-                            if let Some(uuid) = tool_uuid {
-                                self.set_tool(uuid, ui, ctx, project, server, client, server_ctx);
+                            if let Some(edit) = ui.get_text_line_edit("Editor Zoom") {
+                                edit.set_value(TheValue::Float(region.zoom));
                             }
-                        }
-                        ScreenEditor => {
-                            let mut tool_uuid = None;
-                            for tool in self.screen_tools.iter() {
-                                if tool.accel() == Some(*c) {
-                                    tool_uuid = Some(tool.id().uuid);
-                                    ctx.ui.set_widget_state(
-                                        self.screen_tools[self.curr_screen_tool].id().name,
-                                        TheWidgetState::None,
-                                    );
-                                    ctx.ui
-                                        .set_widget_state(tool.id().name, TheWidgetState::Selected);
-                                }
-                            }
-                            if let Some(uuid) = tool_uuid {
-                                self.set_tool(uuid, ui, ctx, project, server, client, server_ctx);
-                            }
-                        }
-                        MaterialEditor => {
-                            let mut tool_uuid = None;
-                            for tool in self.material_tools.iter() {
-                                if tool.accel() == Some(*c) {
-                                    tool_uuid = Some(tool.id().uuid);
-                                    ctx.ui.set_widget_state(
-                                        self.material_tools[self.curr_material_tool].id().name,
-                                        TheWidgetState::None,
-                                    );
-                                    ctx.ui
-                                        .set_widget_state(tool.id().name, TheWidgetState::Selected);
-                                }
-                            }
-                            if let Some(uuid) = tool_uuid {
-                                self.set_tool(uuid, ui, ctx, project, server, client, server_ctx);
-                            }
-                        }
-                        ModelEditor => {
-                            let mut tool_uuid = None;
-                            for tool in self.model_tools.iter() {
-                                if tool.accel() == Some(*c) {
-                                    tool_uuid = Some(tool.id().uuid);
-                                    ctx.ui.set_widget_state(
-                                        self.model_tools[self.curr_model_tool].id().name,
-                                        TheWidgetState::None,
-                                    );
-                                    ctx.ui
-                                        .set_widget_state(tool.id().name, TheWidgetState::Selected);
-                                }
-                            }
-                            if let Some(uuid) = tool_uuid {
-                                self.set_tool(uuid, ui, ctx, project, server, client, server_ctx);
-                            }
+                            return true;
                         }
                     }
-                }
+
+                    let mut tool_uuid = None;
+                    for tool in self.game_tools.iter() {
+                        if tool.accel() == Some(*c) {
+                            tool_uuid = Some(tool.id().uuid);
+                            ctx.ui.set_widget_state(
+                                self.game_tools[self.curr_game_tool].id().name,
+                                TheWidgetState::None,
+                            );
+                            ctx.ui
+                                .set_widget_state(tool.id().name, TheWidgetState::Selected);
+                        }
+                    }
+                    if let Some(uuid) = tool_uuid {
+                        self.set_tool(uuid, ui, ctx, project, server_ctx);
+                    }
+                }*/
             }
             TheEvent::StateChanged(id, state) => {
                 if id.name.contains("Tool") && *state == TheWidgetState::Selected {
-                    redraw = self.set_tool(id.uuid, ui, ctx, project, server, client, server_ctx);
+                    redraw = self.set_tool(id.uuid, ui, ctx, project, server_ctx);
                 }
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
@@ -352,13 +205,9 @@ impl ToolList {
                                     ui,
                                     ctx,
                                     map,
-                                    server,
-                                    client,
                                     server_ctx,
                                 );
-                                self.update_map_context(
-                                    ui, ctx, project, server, client, server_ctx, undo_atom,
-                                );
+                                self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                             }
                         } else if *code == TheKeyCode::Delete {
                             if let Some(map) = project.get_map_mut(server_ctx) {
@@ -377,13 +226,9 @@ impl ToolList {
                                     ui,
                                     ctx,
                                     map,
-                                    server,
-                                    client,
                                     server_ctx,
                                 );
-                                self.update_map_context(
-                                    ui, ctx, project, server, client, server_ctx, undo_atom,
-                                );
+                                self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                             }
                         }
                     }
@@ -452,13 +297,9 @@ impl ToolList {
                             ui,
                             ctx,
                             map,
-                            server,
-                            client,
                             server_ctx,
                         );
-                        self.update_map_context(
-                            ui, ctx, project, server, client, server_ctx, undo_atom,
-                        );
+                        self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                     }
                     redraw = true;
                 }
@@ -504,13 +345,9 @@ impl ToolList {
                             ui,
                             ctx,
                             map,
-                            server,
-                            client,
                             server_ctx,
                         );
-                        self.update_map_context(
-                            ui, ctx, project, server, client, server_ctx, undo_atom,
-                        );
+                        self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                     }
                     redraw = true;
                 }
@@ -538,13 +375,9 @@ impl ToolList {
                             ui,
                             ctx,
                             map,
-                            server,
-                            client,
                             server_ctx,
                         );
-                        self.update_map_context(
-                            ui, ctx, project, server, client, server_ctx, undo_atom,
-                        );
+                        self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                     }
                     redraw = true;
                 }
@@ -557,13 +390,9 @@ impl ToolList {
                             ui,
                             ctx,
                             map,
-                            server,
-                            client,
                             server_ctx,
                         );
-                        self.update_map_context(
-                            ui, ctx, project, server, client, server_ctx, undo_atom,
-                        );
+                        self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                     }
                     redraw = true;
                 }
@@ -728,7 +557,7 @@ impl ToolList {
                 if id.name == "Set Game Tool" {
                     if let TheValue::Text(name) = value {
                         if let Some(tool_id) = self.get_game_tool_uuid_of_name(name) {
-                            self.set_tool(tool_id, ui, ctx, project, server, client, server_ctx);
+                            self.set_tool(tool_id, ui, ctx, project, server_ctx);
                         }
                     }
                 }
@@ -739,7 +568,7 @@ impl ToolList {
         if !redraw {
             redraw = self
                 .get_current_tool()
-                .handle_event(event, ui, ctx, project, server, client, server_ctx);
+                .handle_event(event, ui, ctx, project, server_ctx);
         }
 
         redraw
@@ -747,12 +576,7 @@ impl ToolList {
 
     /// Returns the curently active tool.
     pub fn get_current_tool(&mut self) -> &mut Box<dyn Tool> {
-        match &self.active_editor {
-            GameEditor => &mut self.game_tools[self.curr_game_tool],
-            ScreenEditor => &mut self.screen_tools[self.curr_screen_tool],
-            MaterialEditor => &mut self.material_tools[self.curr_material_tool],
-            ModelEditor => &mut self.model_tools[self.curr_model_tool],
-        }
+        &mut self.game_tools[self.curr_game_tool]
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -761,60 +585,16 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut Server,
-        client: &mut Client,
         server_ctx: &mut ServerContext,
     ) {
-        match self.active_editor {
-            GameEditor => {
-                self.game_tools[self.curr_game_tool].tool_event(
-                    ToolEvent::DeActivate,
-                    ToolContext::TwoD,
-                    ui,
-                    ctx,
-                    project,
-                    server,
-                    client,
-                    server_ctx,
-                );
-            }
-            ScreenEditor => {
-                self.screen_tools[self.curr_screen_tool].tool_event(
-                    ToolEvent::DeActivate,
-                    ToolContext::TwoD,
-                    ui,
-                    ctx,
-                    project,
-                    server,
-                    client,
-                    server_ctx,
-                );
-            }
-            MaterialEditor => {
-                self.material_tools[self.curr_material_tool].tool_event(
-                    ToolEvent::DeActivate,
-                    ToolContext::TwoD,
-                    ui,
-                    ctx,
-                    project,
-                    server,
-                    client,
-                    server_ctx,
-                );
-            }
-            ModelEditor => {
-                self.model_tools[self.curr_model_tool].tool_event(
-                    ToolEvent::DeActivate,
-                    ToolContext::TwoD,
-                    ui,
-                    ctx,
-                    project,
-                    server,
-                    client,
-                    server_ctx,
-                );
-            }
-        }
+        self.game_tools[self.curr_game_tool].tool_event(
+            ToolEvent::DeActivate,
+            ToolContext::TwoD,
+            ui,
+            ctx,
+            project,
+            server_ctx,
+        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -824,135 +604,35 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut Server,
-        client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
         let mut switched_tool = false;
-        let layout_name;
-
-        match self.active_editor {
-            GameEditor => {
-                layout_name = "Game Tool Params";
-                let mut old_tool_index = 0;
-                for (index, tool) in self.game_tools.iter().enumerate() {
-                    if tool.id().uuid == tool_id && index != self.curr_game_tool {
-                        switched_tool = true;
-                        old_tool_index = self.curr_game_tool;
-                        self.curr_game_tool = index;
-                        redraw = true;
-                    }
-                }
-                if switched_tool {
-                    for tool in self.game_tools.iter() {
-                        if tool.id().uuid != tool_id {
-                            ctx.ui
-                                .set_widget_state(tool.id().name.clone(), TheWidgetState::None);
-                        }
-                    }
-                    self.game_tools[old_tool_index].tool_event(
-                        ToolEvent::DeActivate,
-                        ToolContext::TwoD,
-                        ui,
-                        ctx,
-                        project,
-                        server,
-                        client,
-                        server_ctx,
-                    );
+        let layout_name = "Game Tool Params";
+        let mut old_tool_index = 0;
+        for (index, tool) in self.game_tools.iter().enumerate() {
+            if tool.id().uuid == tool_id && index != self.curr_game_tool {
+                switched_tool = true;
+                old_tool_index = self.curr_game_tool;
+                self.curr_game_tool = index;
+                redraw = true;
+            }
+        }
+        if switched_tool {
+            for tool in self.game_tools.iter() {
+                if tool.id().uuid != tool_id {
+                    ctx.ui
+                        .set_widget_state(tool.id().name.clone(), TheWidgetState::None);
                 }
             }
-            ScreenEditor => {
-                layout_name = "Screen Tool Params";
-                let mut old_tool_index = 0;
-                for (index, tool) in self.screen_tools.iter().enumerate() {
-                    if tool.id().uuid == tool_id && index != self.curr_screen_tool {
-                        switched_tool = true;
-                        old_tool_index = self.curr_screen_tool;
-                        self.curr_screen_tool = index;
-                        redraw = true;
-                    }
-                }
-                if switched_tool {
-                    for tool in self.screen_tools.iter() {
-                        if tool.id().uuid != tool_id {
-                            ctx.ui
-                                .set_widget_state(tool.id().name.clone(), TheWidgetState::None);
-                        }
-                    }
-                    self.screen_tools[old_tool_index].tool_event(
-                        ToolEvent::DeActivate,
-                        ToolContext::TwoD,
-                        ui,
-                        ctx,
-                        project,
-                        server,
-                        client,
-                        server_ctx,
-                    );
-                }
-            }
-            MaterialEditor => {
-                layout_name = "Material Tool Params";
-                let mut old_tool_index = 0;
-                for (index, tool) in self.material_tools.iter().enumerate() {
-                    if tool.id().uuid == tool_id && index != self.curr_material_tool {
-                        switched_tool = true;
-                        old_tool_index = self.curr_material_tool;
-                        self.curr_material_tool = index;
-                        redraw = true;
-                    }
-                }
-                if switched_tool {
-                    for tool in self.material_tools.iter() {
-                        if tool.id().uuid != tool_id {
-                            ctx.ui
-                                .set_widget_state(tool.id().name.clone(), TheWidgetState::None);
-                        }
-                    }
-                    self.material_tools[old_tool_index].tool_event(
-                        ToolEvent::DeActivate,
-                        ToolContext::TwoD,
-                        ui,
-                        ctx,
-                        project,
-                        server,
-                        client,
-                        server_ctx,
-                    );
-                }
-            }
-            ModelEditor => {
-                layout_name = "Model Tool Params";
-                let mut old_tool_index = 0;
-                for (index, tool) in self.model_tools.iter().enumerate() {
-                    if tool.id().uuid == tool_id && index != self.curr_model_tool {
-                        switched_tool = true;
-                        old_tool_index = self.curr_model_tool;
-                        self.curr_model_tool = index;
-                        redraw = true;
-                    }
-                }
-                if switched_tool {
-                    for tool in self.model_tools.iter() {
-                        if tool.id().uuid != tool_id {
-                            ctx.ui
-                                .set_widget_state(tool.id().name.clone(), TheWidgetState::None);
-                        }
-                    }
-                    self.model_tools[old_tool_index].tool_event(
-                        ToolEvent::DeActivate,
-                        ToolContext::TwoD,
-                        ui,
-                        ctx,
-                        project,
-                        server,
-                        client,
-                        server_ctx,
-                    );
-                }
-            }
+            self.game_tools[old_tool_index].tool_event(
+                ToolEvent::DeActivate,
+                ToolContext::TwoD,
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
         }
 
         if let Some(layout) = ui.get_hlayout(layout_name) {
@@ -967,8 +647,6 @@ impl ToolList {
             ui,
             ctx,
             project,
-            server,
-            client,
             server_ctx,
         );
 

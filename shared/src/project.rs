@@ -35,9 +35,7 @@ pub struct Project {
     #[serde(default)]
     pub characters: IndexMap<Uuid, Character>,
     #[serde(default)]
-    pub items: FxHashMap<Uuid, TheCodeBundle>,
-    #[serde(default)]
-    pub codes: FxHashMap<Uuid, TheCodeBundle>,
+    pub items: IndexMap<Uuid, Item>,
 
     #[serde(default)]
     pub screens: FxHashMap<Uuid, Screen>,
@@ -86,8 +84,7 @@ impl Project {
             map_mode: MapMode::default(),
 
             characters: IndexMap::default(),
-            items: FxHashMap::default(),
-            codes: FxHashMap::default(),
+            items: IndexMap::default(),
 
             screens: FxHashMap::default(),
             assets: FxHashMap::default(),
@@ -136,13 +133,13 @@ impl Project {
     }
 
     /// Add Item
-    pub fn add_item(&mut self, item: TheCodeBundle) {
+    pub fn add_item(&mut self, item: Item) {
         self.items.insert(item.id, item);
     }
 
     /// Removes the given item from the project.
     pub fn remove_item(&mut self, id: &Uuid) {
-        self.items.remove(id);
+        self.items.shift_remove(id);
     }
 
     /// Add a tilemap
@@ -221,28 +218,6 @@ impl Project {
             }
         }
         None
-    }
-
-    /// Add Code
-    pub fn add_code(&mut self, code: TheCodeBundle) {
-        self.codes.insert(code.id, code);
-    }
-
-    /// Removes the given code from the project.
-    pub fn remove_code(&mut self, id: &Uuid) {
-        self.codes.remove(id);
-    }
-
-    /// Returns a list of all codes sorted by name.
-    pub fn sorted_code_list(&self) -> Vec<(Uuid, String)> {
-        let mut entries: Vec<(Uuid, String)> = self
-            .codes
-            .iter()
-            .map(|(uuid, data)| (*uuid, data.name.clone()))
-            .collect();
-
-        entries.sort_by(|a, b| a.1.cmp(&b.1));
-        entries
     }
 
     /// Add Screen
@@ -330,8 +305,6 @@ impl Project {
                 rgba_tile.name.clone_from(&tile.name);
                 rgba_tile.buffer = tilemap.buffer.extract_sequence(&tile.sequence);
                 rgba_tile.role = tile.role as u8;
-                rgba_tile.blocking = tile.blocking;
-                rgba_tile.billboard = tile.billboard;
                 tiles.insert(tile.id, rgba_tile);
             }
         }
@@ -348,8 +321,6 @@ impl Project {
                 rgba_tile.name.clone_from(&tile.name);
                 rgba_tile.buffer = tilemap.buffer.extract_sequence(&tile.sequence);
                 rgba_tile.role = tile.role as u8;
-                rgba_tile.blocking = tile.blocking;
-                rgba_tile.billboard = tile.billboard;
                 tiles.push(rgba_tile);
             }
         }
@@ -366,8 +337,6 @@ impl Project {
                     rgba_tile.name.clone_from(&tile.name);
                     rgba_tile.buffer = tilemap.buffer.extract_sequence(&tile.sequence);
                     rgba_tile.role = tile.role as u8;
-                    rgba_tile.blocking = tile.blocking;
-                    rgba_tile.billboard = tile.billboard;
                     return Some(rgba_tile);
                 }
             }

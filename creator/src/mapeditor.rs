@@ -1,6 +1,6 @@
 //use shared::server::prelude::MapToolType;
 
-use crate::editor::{RUSTERIX, SIDEBARMODE, TILEDRAWER, UNDOMANAGER};
+use crate::editor::{RUSTERIX, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::Value;
 use vek::Vec2;
@@ -196,10 +196,6 @@ impl MapEditor {
     }
 
     pub fn load_from_project(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
-        TILEDRAWER
-            .lock()
-            .unwrap()
-            .set_tiles(project.extract_tiles());
         RUSTERIX
             .lock()
             .unwrap()
@@ -214,7 +210,6 @@ impl MapEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut Server,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
@@ -283,7 +278,6 @@ impl MapEditor {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.editing_position_3d.x += coord.x as f32 / region.map.grid_size;
                             region.editing_position_3d.z += coord.y as f32 / region.map.grid_size;
-                            server.update_region(region);
                             redraw = true;
 
                             ctx.ui.send(TheEvent::Custom(
@@ -432,7 +426,6 @@ impl MapEditor {
                         } else if *index == 2 {
                             region.map.camera = MapCamera::ThreeDFirstPerson;
                         }
-                        server.update_region(region);
                     }
                 } /*else if id.name == "2D3D Group" {
                       if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
@@ -632,7 +625,6 @@ impl MapEditor {
                     if let Some(value) = value.to_i32() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.map.subdivisions = value as f32;
-                            server.update_region(region);
                         }
                     }
                 } else if id.name == "lightColor" {
@@ -831,7 +823,7 @@ impl MapEditor {
                 if id.name == "Region Content List Item" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         let prev = region.map.clone();
-                        server_ctx.curr_character_instance = Some(id.uuid);
+                        server_ctx.curr_region_content = Some(id.uuid);
                         let mut found = false;
                         if region.map.selected_entity != Some(id.uuid) {
                             if let Some(character) = region.characters.get(&id.uuid) {
@@ -873,26 +865,18 @@ impl MapEditor {
                         }
 
                         if !found {
-                            if let Some(item) = ui.get_widget_id(id.uuid) {
-                                if let Some(name) = item.value().to_string() {
-                                    for sector in &region.map.sectors.clone() {
-                                        if sector.name == name {
-                                            if let Some(center) = sector.center(&region.map) {
-                                                if let Some(render_view) =
-                                                    ui.get_render_view("PolyView")
-                                                {
-                                                    let dim = *render_view.dim();
+                            // Test sectors
+                            for sector in &region.map.sectors.clone() {
+                                if sector.creator_id == id.uuid {
+                                    if let Some(center) = sector.center(&region.map) {
+                                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                                            let dim = *render_view.dim();
 
-                                                    server_ctx.center_map_at_grid_pos(
-                                                        Vec2::new(
-                                                            dim.width as f32,
-                                                            dim.height as f32,
-                                                        ),
-                                                        center,
-                                                        &mut region.map,
-                                                    );
-                                                }
-                                            }
+                                            server_ctx.center_map_at_grid_pos(
+                                                Vec2::new(dim.width as f32, dim.height as f32),
+                                                center,
+                                                &mut region.map,
+                                            );
                                         }
                                     }
                                 }
@@ -1033,28 +1017,7 @@ impl MapEditor {
                 else if id.name == "Region Item" {
                     for r in &project.regions {
                         if r.id == id.uuid {
-                            if let Some(rgba_layout) =
-                                ui.canvas.get_layout(Some(&"Region Editor".into()), None)
-                            {
-                                if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
-                                    if let Some(rgba_view) =
-                                        rgba_layout.rgba_view_mut().as_rgba_view()
-                                    {
-                                        rgba_view.set_mode(TheRGBAViewMode::TileEditor);
-                                        let width = r.width * r.grid_size;
-                                        let height = r.height * r.grid_size;
-                                        let buffer =
-                                            TheRGBABuffer::new(TheDim::new(0, 0, width, height));
-                                        rgba_view.set_buffer(buffer);
-                                        rgba_view.set_grid(Some(r.grid_size));
-                                        ctx.ui.relayout = true;
-                                    }
-                                    rgba_layout.scroll_to(r.scroll_offset);
-                                }
-                            }
-
                             server_ctx.curr_region = r.id;
-                            //self.redraw_region(ui, server, ctx, server_ctx);
                             redraw = true;
                         }
                     }
@@ -1063,11 +1026,11 @@ impl MapEditor {
                 else if id.name == "Tilemap Tile" {
                     self.curr_tile_uuid = Some(id.uuid);
 
-                    if let Some(t) = TILEDRAWER.lock().unwrap().tiles.get(&id.uuid) {
-                        if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
-                            icon_view.set_rgba_tile(t.clone());
-                        }
-                    }
+                    // if let Some(t) = TILEDRAWER.lock().unwrap().tiles.get(&id.uuid) {
+                    //     if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
+                    //         icon_view.set_rgba_tile(t.clone());
+                    //     }
+                    // }
 
                     /*
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -1125,8 +1088,8 @@ impl MapEditor {
                 } else if id.name == "Tilemap Editor Add Anim"
                     || id.name == "Tilemap Editor Add Multi"
                 {
-                    TILEDRAWER.lock().unwrap().tiles = project.extract_tiles();
-                    server.update_tiles(project.extract_tiles());
+                    // TILEDRAWER.lock().unwrap().tiles = project.extract_tiles();
+                    // server.update_tiles(project.extract_tiles());
                 } else if id.name == "Ground Icon" {
                     self.curr_layer_role = Layer2DRole::Ground;
                     server_ctx.curr_texture_mode = MapTextureMode::Floor;
@@ -1669,827 +1632,4 @@ impl MapEditor {
             });
         }
     }
-
-    /// Redraw the map of the current region on tick.
-    pub fn redraw_region(
-        &mut self,
-        project: &Project,
-        ui: &mut TheUI,
-        server: &mut Server,
-        ctx: &mut TheContext,
-        server_ctx: &ServerContext,
-        compute_delta: bool,
-    ) {
-        // Redraw complete region
-        // if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
-        //     if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
-        //         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-        //             server.draw_region(
-        //                 &server_ctx.curr_region,
-        //                 rgba_view.buffer_mut(),
-        //                 &TILEDRAWER.lock().unwrap(),
-        //                 server_ctx,
-        //                 compute_delta,
-        //                 vec2i(0, 0),
-        //             );
-        //             rgba_view.set_needs_redraw(true);
-        //         }
-        //     }
-        // }
-
-        // Redraw partial region
-        // if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
-        //     if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
-        //         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-        //             let rect = rgba_view.visible_rect();
-        //             let dest_dim = rgba_view.buffer().dim();
-
-        //             if rect.x + rect.width < dest_dim.width
-        //                 && rect.y + rect.height < dest_dim.height
-        //             {
-        //                 let mut b = TheRGBABuffer::new(rect);
-
-        //                 server.draw_region(
-        //                     &server_ctx.curr_region,
-        //                     &mut b,
-        //                     &TILEDRAWER.lock().unwrap(),
-        //                     server_ctx,
-        //                     compute_delta,
-        //                     vec2i(rect.x, dest_dim.height - (rect.y + rect.height)),
-        //                 );
-        //                 rgba_view.buffer_mut().copy_into(rect.x, rect.y, &b);
-        //                 server.draw_region_selections(
-        //                     &server_ctx.curr_region,
-        //                     rgba_view.buffer_mut(),
-        //                     &TILEDRAWER.lock().unwrap(),
-        //                     ctx,
-        //                     server_ctx,
-        //                 );
-        //                 rgba_view.set_needs_redraw(true);
-        //             }
-        //         }
-        //     }
-        // }
-        if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
-            if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
-                if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                    let mut rect = rgba_view.visible_rect();
-                    let dest_dim = rgba_view.buffer().dim();
-
-                    let mut tile_size = 24;
-
-                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                        tile_size = region.grid_size;
-                    }
-
-                    // Adjust the rect boundaries to ensure tiles at the edges are included
-                    rect.width = (rect.width + tile_size - 1) / tile_size * tile_size;
-                    rect.height = (rect.height + tile_size - 1) / tile_size * tile_size;
-
-                    // Make sure rect dimensions do not exceed the destination buffer size
-                    rect.width = rect.width.min(dest_dim.width - rect.x);
-                    rect.height = rect.height.min(dest_dim.height - rect.y);
-
-                    // Check if we're still within the bounds
-                    if rect.x + rect.width <= dest_dim.width
-                        && rect.y + rect.height <= dest_dim.height
-                    {
-                        let mut b = TheRGBABuffer::new(rect);
-
-                        server.draw_region(
-                            &server_ctx.curr_region,
-                            &mut b,
-                            &TILEDRAWER.lock().unwrap(),
-                            server_ctx,
-                            compute_delta,
-                            Vec2::new(rect.x, dest_dim.height - (rect.y + rect.height)),
-                        );
-
-                        rgba_view.buffer_mut().copy_into(rect.x, rect.y, &b);
-
-                        // Draw selections
-                        server.draw_region_selections(
-                            &server_ctx.curr_region,
-                            rgba_view.buffer_mut(),
-                            &TILEDRAWER.lock().unwrap(),
-                            ctx,
-                            server_ctx,
-                        );
-
-                        rgba_view.set_needs_redraw(true);
-                    }
-                }
-            }
-        }
-    }
-
-    /*
-    /// Draw the current region.
-    pub fn draw_region(
-        &mut self,
-        ui: &mut TheUI,
-        _ctx: &mut TheContext,
-        project: &Project,
-        server_ctx: &ServerContext,
-        rusterix: &mut Rusterix,
-    ) {
-        if let Some(render_view) = ui.get_render_view("PolyView") {
-            let dim = *render_view.dim();
-
-            let b = render_view.render_buffer_mut();
-            b.resize(dim.width, dim.height);
-
-            let b = &mut rusterix.client.builder_d2;
-            if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                b.set_map_tool_type(server_ctx.curr_map_tool_type);
-                if let Some(hover_cursor) = server_ctx.hover_cursor {
-                    b.set_map_hover_info(
-                        server_ctx.hover,
-                        Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
-                    );
-                } else {
-                    b.set_map_hover_info(server_ctx.hover, None);
-                }
-
-                if let Some(camera_pos) = region.map.camera_xz {
-                    b.set_camera_info(
-                        Some(vek::Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
-                        vek::Vec3::zero(),
-                    );
-                }
-
-                rusterix.client_build(Vec2::new(dim.width as f32, dim.height as f32), &region.map);
-                rusterix.client_draw(
-                    render_view.render_buffer_mut().pixels_mut(),
-                    dim.width as usize,
-                    dim.height as usize,
-                );
-                //rusterix.render_region(&region, b, &TILEDRAWER.lock().unwrap(), ctx, server_ctx);
-            }
-
-            // server.render_region(
-            //     &server_ctx.curr_region,
-            //     render_view.render_buffer_mut(),
-            //     &mut MAPRENDER.lock().unwrap(),
-            //     ctx,
-            //     server_ctx,
-            //     compute_delta,
-            // );
-
-            /*
-
-            if upscale != 1.0 {
-                let width = (dim.width as f32 / upscale) as i32;
-                let height = (dim.height as f32 / upscale) as i32;
-
-                let b = render_view.render_buffer_mut();
-                b.resize(width, height);
-
-                server.render_region(
-                    &server_ctx.curr_region,
-                    b,
-                    &mut RENDERER.lock().unwrap(),
-                    ctx,
-                    server_ctx,
-                    compute_delta,
-                );
-            }
-            */
-            /*
-            let width = (dim.width as f32 / upscale) as i32;
-            let height = (dim.height as f32 / upscale) as i32;
-
-            let b = render_view.render_buffer_mut();
-            b.resize(width, height);
-
-            server.render_region(
-                &server_ctx.curr_region,
-                b,
-                &mut RENDERER.lock().unwrap(),
-                ctx,
-                server_ctx,
-                compute_delta,
-                );*/
-        }
-    }*/
-
-    /*
-    /// Perform the given action at the given coordinate.
-    #[allow(clippy::too_many_arguments)]
-    pub fn action_at(
-        &mut self,
-        coord: Vec2i,
-        ui: &mut TheUI,
-        ctx: &mut TheContext,
-        project: &mut Project,
-        server: &mut Server,
-        server_ctx: &mut ServerContext,
-        three_d: bool,
-    ) -> bool {
-        let mut redraw = false;
-
-        if self.editor_mode == EditorMode::Pick {
-            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                region.editing_position_3d = vec3i(coord.x, 0, coord.y).into();
-                server.set_editing_position_3d(region.editing_position_3d);
-            }
-        }
-
-        if self.editor_mode == EditorMode::Model {
-            let mut region_to_render: Option<Region> = None;
-            let mut tiles_to_render: Vec<Vec2i> = vec![];
-
-            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                let editing_mode = MODELFXEDITOR.lock().unwrap().editing_mode;
-                if editing_mode == EditingMode::Geometry {
-                    if !self.processed_coords.contains(&coord) {
-                        // Add Geometry
-                        let geo = MODELFXEDITOR.lock().unwrap().get_geo_node(ui);
-                        if let Some(mut geo) = geo {
-                            if geo.get_layer_role() == Layer2DRole::Ground {
-                                let prev = region.heightmap.clone();
-                                // Heightmap editing
-                                geo.heightmap_edit(&coord, &mut region.heightmap);
-                                self.processed_coords.insert(coord);
-                                tiles_to_render.push(coord);
-                                region_to_render = Some(region.clone());
-
-                                let undo = RegionUndoAtom::HeightmapEdit(
-                                    prev,
-                                    region.heightmap.clone(),
-                                    tiles_to_render.clone(),
-                                );
-                                UNDOMANAGER
-                                    .lock()
-                                    .unwrap()
-                                    .add_region_undo(&region.id, undo, ctx);
-                            } else {
-                                let new_id = Uuid::new_v4();
-                                geo.id = new_id;
-                                geo.set_default_position(coord);
-                                let obj_id = region.add_geo_node(geo);
-                                if let Some((geo_obj, _)) = region.find_geo_node(new_id) {
-                                    tiles_to_render.clone_from(&geo_obj.area);
-                                }
-                                server_ctx.curr_geo_object = Some(obj_id);
-                                server_ctx.curr_geo_node = Some(new_id);
-                                region_to_render = Some(region.clone());
-
-                                server.update_region(region);
-
-                                if let Some(obj) = region.geometry.get(&obj_id) {
-                                    let undo = RegionUndoAtom::GeoFXObjectEdit(
-                                        obj_id,
-                                        None,
-                                        Some(obj.clone()),
-                                        tiles_to_render.clone(),
-                                    );
-                                    UNDOMANAGER
-                                        .lock()
-                                        .unwrap()
-                                        .add_region_undo(&region.id, undo, ctx);
-                                }
-
-                                MODELFXEDITOR
-                                    .lock()
-                                    .unwrap()
-                                    .set_geo_node_ui(server_ctx, project, ui, ctx);
-
-                                self.processed_coords.insert(coord);
-                            }
-                            redraw = true;
-                        }
-                    }
-                } else {
-                    // Apply material
-
-                    let mut region_to_render: Option<Region> = None;
-                    let mut tiles_to_render: Vec<Vec2i> = vec![];
-
-                    if let Some(material_id) = server_ctx.curr_material_object {
-                        // Set the material to the current geometry node.
-                        if !three_d {
-                            if let Some(editor) = ui.get_rgba_layout("Region Editor") {
-                                if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
-                                    let p = rgba_view.float_pos();
-                                    if let Some((obj, node_index)) =
-                                        region.get_closest_geometry(p, self.curr_layer_role)
-                                    {
-                                        if let Some(geo_obj) = region.geometry.get_mut(&obj) {
-                                            server_ctx.curr_geo_object = Some(geo_obj.id);
-                                            server_ctx.curr_geo_node =
-                                                Some(geo_obj.nodes[node_index].id);
-
-                                            let prev = geo_obj.clone();
-
-                                            geo_obj.material_id = material_id;
-                                            geo_obj.update_area();
-
-                                            tiles_to_render.clone_from(&geo_obj.area);
-
-                                            let undo = RegionUndoAtom::GeoFXObjectEdit(
-                                                geo_obj.id,
-                                                Some(prev),
-                                                Some(geo_obj.clone()),
-                                                tiles_to_render.clone(),
-                                            );
-                                            UNDOMANAGER
-                                                .lock()
-                                                .unwrap()
-                                                .add_region_undo(&region.id, undo, ctx);
-
-                                            server.update_region(region);
-                                            region_to_render = Some(region.clone());
-                                        }
-                                    }
-                                }
-                            }
-                        } else if let Some((obj, node_index)) =
-                            region.get_closest_geometry(Vec2f::from(coord), self.curr_layer_role)
-                        {
-                            if let Some(geo_obj) = region.geometry.get_mut(&obj) {
-                                server_ctx.curr_geo_object = Some(geo_obj.id);
-                                server_ctx.curr_geo_node = Some(geo_obj.nodes[node_index].id);
-
-                                let prev = geo_obj.clone();
-
-                                geo_obj.material_id = material_id;
-                                geo_obj.update_area();
-
-                                tiles_to_render.clone_from(&geo_obj.area);
-
-                                let undo = RegionUndoAtom::GeoFXObjectEdit(
-                                    geo_obj.id,
-                                    Some(prev),
-                                    Some(geo_obj.clone()),
-                                    tiles_to_render.clone(),
-                                );
-                                UNDOMANAGER
-                                    .lock()
-                                    .unwrap()
-                                    .add_region_undo(&region.id, undo, ctx);
-
-                                server.update_region(region);
-                                region_to_render = Some(region.clone());
-                            }
-                        }
-
-                        // Render the region area covered by the object with the new material.
-                        if let Some(region) = region_to_render {
-                            PRERENDERTHREAD
-                                .lock()
-                                .unwrap()
-                                .render_region(region, Some(tiles_to_render));
-                        }
-                    }
-                }
-
-                /*
-                model.create_voxels(
-                    region.grid_size as u8,
-                    &vec3f(coord.x as f32, 0.0, coord.y as f32),
-                    &palette,
-                );
-
-                let undo;
-                if let Some(modelstore) = region.models.get_mut(&(coord.x, 0, coord.y)) {
-                    let prev = Some(modelstore.clone());
-                    if self.curr_layer_role == Layer2DRole::Ground {
-                        modelstore.floor = model;
-                    } else if self.curr_layer_role == Layer2DRole::Wall {
-                        modelstore.wall = model;
-                    } else if self.curr_layer_role == Layer2DRole::Ceiling {
-                        modelstore.ceiling = model;
-                    }
-                    undo = RegionUndoAtom::ModelFXEdit(
-                        vec3i(coord.x, 0, coord.y),
-                        prev,
-                        Some(modelstore.clone()),
-                    );
-                } else {
-                    let mut modelstore = ModelFXStore::default();
-                    if self.curr_layer_role == Layer2DRole::Ground {
-                        modelstore.floor = model;
-                    } else if self.curr_layer_role == Layer2DRole::Wall {
-                        modelstore.wall = model;
-                    } else if self.curr_layer_role == Layer2DRole::Ceiling {
-                        modelstore.ceiling = model;
-                    }
-                    undo = RegionUndoAtom::ModelFXEdit(
-                        vec3i(coord.x, 0, coord.y),
-                        None,
-                        Some(modelstore.clone()),
-                    );
-                    region.models.insert((coord.x, 0, coord.y), modelstore);
-                }
-                UNDOMANAGER
-                    .lock()
-                    .unwrap()
-                    .add_region_undo(&region.id, undo, ctx);
-                server.update_region(region);
-                RENDERER.lock().unwrap().set_region(region);
-                */
-            }
-
-            if let Some(region) = region_to_render {
-                PRERENDERTHREAD
-                    .lock()
-                    .unwrap()
-                    .render_region(region, Some(tiles_to_render));
-            }
-        } else if self.editor_mode == EditorMode::Select {
-            let p = (coord.x, coord.y);
-
-            if let Some(tilearea) = &mut server_ctx.tile_selection {
-                if !tilearea.ongoing {
-                    tilearea.start = p;
-                    tilearea.end = p;
-                    tilearea.ongoing = true;
-                } else {
-                    tilearea.grow_by(p);
-                }
-            } else {
-                let tilearea = TileArea {
-                    start: p,
-                    end: p,
-                    ..Default::default()
-                };
-                server_ctx.tile_selection = Some(tilearea);
-            }
-        } else if self.editor_mode == EditorMode::Erase {
-            let palette = project.palette.clone();
-            // If there is a character instance at the position we delete the instance.
-
-            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                // We only check to delete models and tiles.
-                // Characters, items and areas need to be erased by the Sidebar Region Content List.
-
-                /*
-                if let Some(c) =
-                    server.get_character_at(server_ctx.curr_region, vec2i(coord.x, coord.y))
-                {
-                    // Delete the character at the given position.
-
-                    if let Some((value, _)) =
-                        server.get_character_property(region.id, c.0, "name".to_string())
-                    {
-                        open_delete_confirmation_dialog(
-                            "Delete Character Instance ?",
-                            format!("Permanently delete '{}' ?", value.describe()).as_str(),
-                            c.0,
-                            ui,
-                            ctx,
-                        );
-                    }
-                } else if let Some(c) =
-                    server.get_item_at(server_ctx.curr_region, vec2i(coord.x, coord.y))
-                {
-                    // Delete the item at the given position.
-
-                    if let Some((value, _)) =
-                        server.get_character_property(region.id, c.0, "name".to_string())
-                    {
-                        open_delete_confirmation_dialog(
-                            "Delete Item Instance ?",
-                            format!("Permanently delete '{}' ?", value.describe()).as_str(),
-                            c.0,
-                            ui,
-                            ctx,
-                        );
-                    }
-                } else {
-                */
-                //let area_id: Option<Uuid> = None;
-
-                /*
-                // Check for area at the given position.
-                for area in region.areas.values() {
-                    if area.area.contains(&(coord.x, coord.y)) {
-                        // Ask to delete it.
-                        open_delete_confirmation_dialog(
-                            "Delete Area ?",
-                            format!("Permanently delete area '{}' ?", area.name).as_str(),
-                            area.id,
-                            ui,
-                            ctx,
-                        );
-                        area_id = Some(area.id);
-                        break;
-                    }
-                    }*/
-
-                let mut region_to_render: Option<Region> = None;
-                let mut tiles_to_render: Vec<Vec2i> = vec![];
-
-                // Delete the tile at the given position.
-
-                if self.curr_layer_role == Layer2DRole::FX {
-                    if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
-                        tile.tilefx = None;
-                    }
-                }
-
-                let mut changed = false;
-
-                // Check for geometry to delete
-                if let Some(geo_obj_ids) =
-                    region.geometry_areas.get_mut(&vec3i(coord.x, 0, coord.y))
-                {
-                    let mut objects = vec![];
-                    for obj_id in geo_obj_ids {
-                        let mut remove_it = false;
-
-                        if let Some(geo_obj) = region.geometry.get(obj_id) {
-                            remove_it = Some(self.curr_layer_role) == geo_obj.get_layer_role();
-                        }
-
-                        if remove_it {
-                            if let Some(geo_obj) = region.geometry.remove(obj_id) {
-                                for a in &geo_obj.area {
-                                    tiles_to_render.push(*a);
-                                }
-                                objects.push(geo_obj.clone());
-                            }
-                        }
-                    }
-
-                    if !objects.is_empty() {
-                        changed = true;
-                        region_to_render = Some(region.clone());
-
-                        region.update_geometry_areas();
-                        let undo =
-                            RegionUndoAtom::GeoFXObjectsDeletion(objects, tiles_to_render.clone());
-                        UNDOMANAGER
-                            .lock()
-                            .unwrap()
-                            .add_region_undo(&region.id, undo, ctx);
-                    }
-                }
-
-                // Check for tiles to delete
-                if !changed {
-                    if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
-                        let prev = Some(tile.clone());
-                        if self.curr_layer_role == Layer2DRole::Ground && tile.layers[0].is_some() {
-                            tile.layers[0] = None;
-                            changed = true;
-                        } else if self.curr_layer_role == Layer2DRole::Wall
-                            && tile.layers[1].is_some()
-                        {
-                            tile.layers[1] = None;
-                            changed = true;
-                        } else if self.curr_layer_role == Layer2DRole::Ceiling
-                            && tile.layers[2].is_some()
-                        {
-                            tile.layers[2] = None;
-                            changed = true;
-                        }
-                        if changed {
-                            tiles_to_render.push(coord);
-                            let undo = RegionUndoAtom::RegionTileEdit(
-                                vec2i(coord.x, coord.y),
-                                prev,
-                                Some(tile.clone()),
-                            );
-                            UNDOMANAGER
-                                .lock()
-                                .unwrap()
-                                .add_region_undo(&region.id, undo, ctx);
-                        }
-                    }
-
-                    if changed {
-                        region_to_render = Some(region.clone());
-                    }
-                }
-
-                if changed {
-                    server.update_region(region);
-                    RENDERER.lock().unwrap().set_region(region);
-                    self.set_icon_previews(region, &palette, coord, ui);
-                    redraw = true;
-                }
-
-                if let Some(region) = region_to_render {
-                    PRERENDERTHREAD
-                        .lock()
-                        .unwrap()
-                        .render_region(region, Some(tiles_to_render));
-                }
-            }
-        } else if self.editor_mode == EditorMode::Pick {
-            let mut clicked_tile = false;
-            let mut found_geo = false;
-
-            // Check for character at the given position.
-            if let Some(c) = server.get_character_at(server_ctx.curr_region, coord) {
-                server_ctx.curr_character_instance = Some(c.0);
-                server_ctx.curr_character = Some(c.1);
-                server_ctx.curr_area = None;
-                server_ctx.curr_item_instance = None;
-                server_ctx.curr_item = None;
-
-                // Set 3D editing position to Zero.
-                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                    region.editing_position_3d = Vec3f::zero();
-                    server.set_editing_position_3d(region.editing_position_3d);
-                }
-
-                if let Some(layout) = ui.get_list_layout("Region Content List") {
-                    layout.select_item(c.0, ctx, false);
-                }
-
-                if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
-                    || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
-                {
-                    // In Region mode, we need to set the character bundle of the current character instance.
-                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                        if let Some(character) = region.characters.get(&c.0) {
-                            for grid in character.instance.grids.values() {
-                                if grid.name == "init" {
-                                    CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
-                                    CODEEDITOR.lock().unwrap().code_id = str!("Character Instance");
-                                    ctx.ui.send(TheEvent::Custom(
-                                        TheId::named("Set CodeGrid Panel"),
-                                        TheValue::Empty,
-                                    ));
-                                    self.set_editor_group_index(EditorMode::Code, ui, ctx);
-                                }
-                            }
-                        }
-                    }
-                }
-                //else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
-                // In Character mode, we need to set the character bundle of the current character.
-                //}
-            }
-            // Check for an item at the given position.
-            else if let Some(c) = server.get_item_at(server_ctx.curr_region, coord) {
-                server_ctx.curr_character_instance = None;
-                server_ctx.curr_character = None;
-                server_ctx.curr_item_instance = Some(c.0);
-                server_ctx.curr_item = Some(c.1);
-                server_ctx.curr_area = None;
-
-                if let Some(layout) = ui.get_list_layout("Region Content List") {
-                    layout.select_item(c.0, ctx, false);
-                }
-
-                if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
-                    || *SIDEBARMODE.lock().unwrap() == SidebarMode::Item
-                {
-                    // In Region mode, we need to set the character bundle of the current character instance.
-                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                        if let Some(item) = region.items.get(&c.0) {
-                            for grid in item.instance.grids.values() {
-                                if grid.name == "init" {
-                                    CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
-                                    CODEEDITOR.lock().unwrap().code_id = str!("Item Instance");
-                                    ctx.ui.send(TheEvent::Custom(
-                                        TheId::named("Set CodeGrid Panel"),
-                                        TheValue::Empty,
-                                    ));
-                                    self.set_editor_group_index(EditorMode::Code, ui, ctx);
-                                }
-                            }
-                        }
-                    }
-                }
-                //else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
-                // In Character mode, we need to set the character bundle of the current character.
-                //}
-            } else if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                let found_area = false;
-
-                // Check for area at the given position.
-                // for area in region.areas.values() {
-                //     if area.area.contains(&(coord.x, coord.y)) {
-                //         for grid in area.bundle.grids.values() {
-                //             if grid.name == "main" {
-                //                 if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
-                //                     || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
-                //                 {
-                //                     CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
-                //                     ctx.ui.send(TheEvent::Custom(
-                //                         TheId::named("Set CodeGrid Panel"),
-                //                         TheValue::Empty,
-                //                     ));
-                //                 }
-                //                 found_area = true;
-                //                 server_ctx.curr_character_instance = None;
-                //                 server_ctx.curr_character = None;
-                //                 server_ctx.curr_area = Some(area.id);
-                //                 if let Some(layout) = ui.get_list_layout("Region Content List") {
-                //                     layout.select_item(area.id, ctx, false);
-                //                 }
-                //                 break;
-                //             }
-                //         }
-                //     }
-                // }
-
-                if !found_area {
-                    // No area, set the tile.
-
-                    server_ctx.curr_character_instance = None;
-                    if !three_d {
-                        // Test against object SDFs float position in 2d
-                        if let Some(editor) = ui.get_rgba_layout("Region Editor") {
-                            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
-                                let p = rgba_view.float_pos();
-                                if let Some((obj, node_index)) =
-                                    region.get_closest_geometry(p, self.curr_layer_role)
-                                {
-                                    if let Some(geo) = region.geometry.get(&obj) {
-                                        server_ctx.curr_geo_object = Some(geo.id);
-                                        server_ctx.curr_geo_node = Some(geo.nodes[node_index].id);
-
-                                        ctx.ui.send(TheEvent::Custom(
-                                            TheId::named("Set Region Modeler"),
-                                            TheValue::Empty,
-                                        ));
-                                        found_geo = true;
-                                    }
-                                }
-                            }
-                        }
-                    } else if let Some((obj, node_index)) =
-                        region.get_closest_geometry(Vec2f::from(coord), self.curr_layer_role)
-                    {
-                        if let Some(geo) = region.geometry.get(&obj) {
-                            server_ctx.curr_geo_object = Some(geo.id);
-                            server_ctx.curr_geo_node = Some(geo.nodes[node_index].id);
-
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Set Region Modeler"),
-                                TheValue::Empty,
-                            ));
-                            found_geo = true;
-                        }
-                    }
-
-                    if !found_geo {
-                        if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
-                            if self.curr_layer_role == Layer2DRole::FX {
-                                // Set the tile preview.
-                                if let Some(widget) = ui.get_widget("TileFX RGBA") {
-                                    if let Some(tile_rgba) = widget.as_rgba_view() {
-                                        if let Some(tile) = project.extract_region_tile(
-                                            server_ctx.curr_region,
-                                            (coord.x, coord.y),
-                                        ) {
-                                            let preview_size =
-                                                TILEFXEDITOR.lock().unwrap().preview_size;
-                                            tile_rgba.set_grid(Some(
-                                                preview_size / tile.buffer[0].dim().width,
-                                            ));
-                                            tile_rgba.set_buffer(
-                                                tile.buffer[0].scaled(preview_size, preview_size),
-                                            );
-                                        }
-                                    }
-                                }
-                                if let Some(timeline) = &tile.tilefx {
-                                    TILEFXEDITOR
-                                        .lock()
-                                        .unwrap()
-                                        .set_timeline(timeline.clone(), ui);
-                                }
-                            } else {
-                                for uuid in tile.layers.iter().flatten() {
-                                    if TILEDRAWER.lock().unwrap().tiles.contains_key(uuid) {
-                                        ctx.ui.send(TheEvent::StateChanged(
-                                            TheId::named_with_id("Tilemap Tile", *uuid),
-                                            TheWidgetState::Selected,
-                                        ));
-                                        clicked_tile = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            MODELFXEDITOR
-                .lock()
-                .unwrap()
-                .set_geo_node_ui(server_ctx, project, ui, ctx);
-            if clicked_tile {
-                self.set_editor_group_index(EditorMode::Draw, ui, ctx);
-            }
-        } else if self.editor_mode == EditorMode::Draw {
-        }
-        redraw
-        }*/
-
-    // Sets the index of the editor group.
-    // fn set_editor_group_index(&mut self, mode: EditorMode, ui: &mut TheUI, ctx: &mut TheContext) {
-    //     if let Some(widget) = ui.get_group_button("Editor Group") {
-    //         widget.set_index(mode as i32);
-    //         ctx.ui
-    //             .send(TheEvent::IndexChanged(widget.id().clone(), mode as usize));
-    //     }
-    // }
 }

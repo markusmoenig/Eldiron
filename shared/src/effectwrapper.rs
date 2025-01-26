@@ -24,6 +24,7 @@ impl EffectWrapper {
     pub fn create_light_ui(light: &Light) -> TheNodeUI {
         let mut nodeui = TheNodeUI::default();
 
+        #[allow(clippy::single_match)]
         match light {
             rusterix::Light::PointLight {
                 color,
@@ -88,16 +89,14 @@ impl EffectWrapper {
 
     pub fn to_light(&self, position: Vec2<f32>) -> Option<Light> {
         match self {
-            PointLight(properties) => {
-                return Some(Light::PointLight {
-                    position: Vec3::new(position.x, 0.0, position.y),
-                    color: [1.0, 1.0, 1.0],
-                    intensity: properties.get_float_default("intensity", 1.0),
-                    start_distance: 3.0,
-                    end_distance: 5.0,
-                    flicker: None,
-                })
-            }
+            PointLight(properties) => Some(Light::PointLight {
+                position: Vec3::new(position.x, 0.0, position.y),
+                color: [1.0, 1.0, 1.0],
+                intensity: properties.get_float_default("intensity", 1.0),
+                start_distance: 3.0,
+                end_distance: 5.0,
+                flicker: None,
+            }),
         }
     }
 }

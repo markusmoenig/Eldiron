@@ -39,8 +39,6 @@ impl Tool for ZoomTool {
         ui: &mut TheUI,
         _ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut Server,
-        _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         if let Activate = tool_event {
@@ -85,8 +83,6 @@ impl Tool for ZoomTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut Server,
-        _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         #[allow(clippy::single_match)]
@@ -95,7 +91,6 @@ impl Tool for ZoomTool {
                 if id.name == "Editor Zoom" {
                     if let Some(v) = value.to_f32() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            server.set_zoom(region.id, v);
                             region.zoom = v;
                         }
                         if let Some(layout) = ui.get_rgba_layout("Region Editor") {

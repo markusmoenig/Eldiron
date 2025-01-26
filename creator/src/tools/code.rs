@@ -37,8 +37,6 @@ impl Tool for CodeTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         _project: &mut Project,
-        _server: &mut Server,
-        _client: &mut Client,
         _server_ctx: &mut ServerContext,
     ) -> bool {
         if let Activate = tool_event {
@@ -73,8 +71,6 @@ impl Tool for CodeTool {
         ui: &mut TheUI,
         _ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut shared::server::Server,
-        _client: &mut shared::client::Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;

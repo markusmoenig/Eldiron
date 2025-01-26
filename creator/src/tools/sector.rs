@@ -51,8 +51,6 @@ impl Tool for SectorTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut Server,
-        _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
@@ -74,7 +72,6 @@ impl Tool for SectorTool {
                 if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                     region.map.selected_vertices.clear();
                     region.map.selected_linedefs.clear();
-                    server.update_region(region);
                 }
 
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
@@ -176,8 +173,6 @@ impl Tool for SectorTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        _server: &mut Server,
-        _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         let mut undo_atom: Option<RegionUndoAtom> = None;
@@ -463,8 +458,6 @@ impl Tool for SectorTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut Server,
-        _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;

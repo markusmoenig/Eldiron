@@ -49,8 +49,6 @@ impl Tool for VertexTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut Server,
-        _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
@@ -72,7 +70,6 @@ impl Tool for VertexTool {
                 if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                     region.map.selected_linedefs.clear();
                     region.map.selected_sectors.clear();
-                    server.update_region(region);
                 }
 
                 return true;
@@ -93,8 +90,6 @@ impl Tool for VertexTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        _server: &mut Server,
-        _client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         let mut undo_atom: Option<RegionUndoAtom> = None;

@@ -1,7 +1,7 @@
-use crate::prelude::*;
+use rusterix::Map;
 use theframework::prelude::*;
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Screen {
     pub id: Uuid,
     pub name: String,
@@ -10,25 +10,8 @@ pub struct Screen {
 
     pub width: i32,
     pub height: i32,
-    pub grid_size: i32,
-    pub scroll_offset: Vec2<i32>,
-    pub zoom: f32,
 
-    /// The tiles which get drawn in the background, i.e. before widgets are drawn.
-    #[serde(with = "vectorize")]
-    #[serde(default)]
-    pub tiles: FxHashMap<(i32, i32), Vec<Uuid>>,
-
-    /// The tiles which get drawn in the foreground, i.e. after widgets are drawn.
-    #[serde(with = "vectorize")]
-    #[serde(default)]
-    pub foreground_tiles: FxHashMap<(i32, i32), Vec<Uuid>>,
-
-    #[serde(default)]
-    pub widget_list: Vec<Widget>,
-
-    #[serde(default)]
-    pub bundle: TheCodeBundle,
+    pub map: Map,
 }
 
 impl Default for Screen {
@@ -47,73 +30,9 @@ impl Screen {
 
             width: 1280,
             height: 720,
-            grid_size: 16,
-            scroll_offset: Vec2::zero(),
-            zoom: 1.0,
 
-            tiles: FxHashMap::default(),
-            foreground_tiles: FxHashMap::default(),
-
-            widget_list: vec![],
-
-            bundle: TheCodeBundle::default(),
+            map: Map::default(),
         }
-    }
-
-    /// Get the given widget.
-    pub fn get_widget(&self, id: &Uuid) -> Option<&Widget> {
-        self.widget_list.iter().find(|w| w.id == *id)
-    }
-
-    /// Get the given widget mutable.
-    pub fn get_widget_mut(&mut self, id: &Uuid) -> Option<&mut Widget> {
-        self.widget_list.iter_mut().find(|w| w.id == *id)
-    }
-
-    /// Remove the given widget.
-    pub fn remove_widget(&mut self, id: &Uuid) {
-        self.widget_list.retain(|w| w.id != *id);
-    }
-
-    /// Returns the widgets sorted by size (width * height), smallest first.
-    pub fn sorted_widgets_by_size(&self) -> Vec<Widget> {
-        let mut widgets = self.widget_list.clone();
-        widgets.sort_by(|a, b| {
-            let size_a = a.width * a.height;
-            let size_b = b.width * b.height;
-            size_b
-                .partial_cmp(&size_a)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-        widgets
-    }
-
-    /// Add a background tile to the screen.
-    pub fn add_background_tile(&mut self, pos: (i32, i32), tile: Uuid) {
-        if let Some(tiles) = self.tiles.get_mut(&pos) {
-            tiles.push(tile);
-        } else {
-            self.tiles.insert(pos, vec![tile]);
-        }
-    }
-
-    /// Add a foreground tile to the screen.
-    pub fn add_foreground_tile(&mut self, pos: (i32, i32), tile: Uuid) {
-        if let Some(tiles) = self.foreground_tiles.get_mut(&pos) {
-            tiles.push(tile);
-        } else {
-            self.foreground_tiles.insert(pos, vec![tile]);
-        }
-    }
-
-    /// Erase a background tile from the widget.
-    pub fn erase_background_tile(&mut self, pos: (i32, i32)) {
-        self.tiles.remove(&pos);
-    }
-
-    /// Erase a foreground tile from the widget.
-    pub fn erase_foreground_tile(&mut self, pos: (i32, i32)) {
-        self.foreground_tiles.remove(&pos);
     }
 
     /// Create a region from json.

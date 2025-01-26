@@ -2,13 +2,10 @@ use crate::prelude::*;
 use crate::Embedded;
 use std::sync::mpsc::Receiver;
 //use std::sync::Mutex;
+use shared::project::Project;
 
 pub struct Solo {
     project: Project,
-
-    server: Server,
-    client: Client,
-
     curr_screen: Uuid,
 
     update_tracker: UpdateTracker,
@@ -20,17 +17,8 @@ impl TheTrait for Solo {
     where
         Self: Sized,
     {
-        let mut server = Server::new();
-        server.debug_mode = false;
-
-        let client = Client::new();
-
         Self {
             project: Project::new(),
-
-            server,
-            client,
-
             curr_screen: Uuid::nil(),
 
             update_tracker: UpdateTracker::new(),
@@ -76,14 +64,9 @@ impl TheTrait for Solo {
                         let json = str_slice.to_string();
                         let project: Option<Project> = serde_json::from_str(&json).ok();
                         if let Some(project) = project {
-                            self.client.reset();
-
-                            self.server.set_project(project.clone());
-                            self.client.set_project(project.clone());
-
                             self.project = project;
 
-                            self.server.start();
+                            // Init server / client
 
                             println!("Project loaded successfully ({}).", name);
                         } else {
@@ -119,43 +102,22 @@ impl TheTrait for Solo {
     }
 
     /// Handle UI events and UI state
-    fn update_ui(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) -> bool {
+    fn update_ui(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext) -> bool {
         let mut redraw = false;
 
-        let (redraw_update, tick_update) = self.update_tracker.update(
+        let (redraw_update, _tick_update) = self.update_tracker.update(
             (1000 / self.project.target_fps) as u64,
             self.project.tick_ms as u64,
         );
 
-        if tick_update && self.server.state == ServerState::Running {
-            self.client.tick(false);
-            let _debug = self.server.tick();
-            //let interactions = self.server.get_interactions();
-            // self.server_ctx.add_interactions(interactions);
-
-            // Get the messages for the client from the server.
-            let client_messages = self.server.get_client_messages();
-            for cmd in client_messages {
-                self.client.process_server_message(&cmd);
-            }
-
-            // Get the messages for the server from the client.
-            let server_messages = self.client.get_server_messages();
-            for cmd in server_messages {
-                self.server.execute_client_cmd(self.client.id, cmd);
-            }
-
-            if let Some(update) = self.server.get_region_update_json(self.client.curr_region) {
-                self.client.set_region_update(update);
-            }
-        }
+        // if tick_update
 
         if redraw_update {
             redraw = true;
 
             // Todo: Get the Screen ID from the Game settings
             // Right now we just take the first screen
-            let mut screen_id = Uuid::new_v4();
+            let screen_id;
             if let Some(screen) = self.project.screens.keys().next() {
                 screen_id = *screen;
                 self.curr_screen = screen_id;
@@ -169,15 +131,15 @@ impl TheTrait for Solo {
                 //println!("Event received {:?}", event);
                 match event {
                     TheEvent::Resize => {}
-                    TheEvent::MouseDown(coord) => {
-                        self.client.touch_down(&self.curr_screen, coord);
+                    TheEvent::MouseDown(_coord) => {
+                        // self.client.touch_down(&self.curr_screen, coord);
                     }
                     TheEvent::MouseUp(_coord) => {
-                        self.client.touch_up(&self.curr_screen);
+                        // self.client.touch_up(&self.curr_screen);
                     }
                     TheEvent::KeyDown(v) => {
-                        if let Some(c) = v.to_char() {
-                            self.client.key_down(&self.curr_screen, c);
+                        if let Some(_c) = v.to_char() {
+                            // self.client.key_down(&self.curr_screen, c);
                         }
                     }
                     _ => {}

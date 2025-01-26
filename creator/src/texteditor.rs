@@ -32,8 +32,6 @@ impl TextEditor {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         _project: &mut Project,
-        _server: &mut Server,
-        _client: &mut Client,
         _server_ctx: &mut ServerContext,
     ) -> bool {
         // let redraw = false;

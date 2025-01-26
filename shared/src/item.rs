@@ -1,15 +1,24 @@
+use num_traits::zero;
+use rusterix::Map;
 use theframework::prelude::*;
 
 /// An item instance.
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Item {
     pub id: Uuid,
+    pub name: String,
 
-    /// The id of the item bundle.
+    /// The item map model.
+    pub map: Map,
+
+    /// The instance initialization code.
+    pub source: String,
+
+    /// The initial position.
+    pub position: Vec3<f32>,
+
+    /// The id of the character template.
     pub item_id: Uuid,
-
-    /// The custom bundle to override the default behavior.
-    pub instance: TheCodeBundle,
 }
 
 impl Default for Item {
@@ -22,9 +31,13 @@ impl Item {
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
-            item_id: Uuid::new_v4(),
+            name: "NewCharacter".to_string(),
 
-            instance: TheCodeBundle::new(),
+            map: Map::default(),
+            source: String::new(),
+            position: zero(),
+
+            item_id: Uuid::new_v4(),
         }
     }
 }

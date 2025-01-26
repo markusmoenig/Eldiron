@@ -1,4 +1,3 @@
-use crate::editor::TILEDRAWER;
 use crate::prelude::*;
 use rusterix::ValueContainer;
 use theframework::prelude::*;
@@ -101,68 +100,7 @@ impl EffectPicker {
             rgba_view.set_selection_color(c);
         }
 
-        /*
-        // Details
-        let mut details_canvas = TheCanvas::new();
-
-        let mut vlayout = TheVLayout::new(TheId::named(" Tile Details Layout"));
-        vlayout.set_margin(Vec4::new(5, 10, 5, 10));
-        vlayout.set_alignment(TheHorizontalAlign::Left);
-        vlayout.limiter_mut().set_max_width(150);
-
-        let mut drop_down = TheDropdownMenu::new(TheId::named(&self.make_id(" Tile Role")));
-        for dir in TileRole::iterator() {
-            drop_down.add_option(dir.to_string().to_string());
-        }
-        drop_down.set_disabled(true);
-
-        let mut blocking = TheDropdownMenu::new(TheId::named(&self.make_id(" Tile Blocking")));
-        blocking.add_option("No".to_string());
-        blocking.add_option("Yes".to_string());
-        blocking.set_disabled(true);
-
-        let mut tags = TheTextLineEdit::new(TheId::named(&self.make_id(" Tile Tags")));
-        tags.limiter_mut().set_max_width(130);
-        tags.set_disabled(true);
-
-        let mut text = TheText::new(TheId::empty());
-        text.set_text_size(12.0);
-        text.set_text("Role".to_string());
-        vlayout.add_widget(Box::new(text));
-        vlayout.add_widget(Box::new(drop_down));
-
-        let mut text = TheText::new(TheId::empty());
-        text.set_text_size(12.0);
-        text.set_text("Tags".to_string());
-        vlayout.add_widget(Box::new(text));
-        vlayout.add_widget(Box::new(tags));
-
-        let mut text = TheText::new(TheId::empty());
-        text.set_text_size(12.0);
-        text.set_text("Blocking".to_string());
-        vlayout.add_widget(Box::new(text));
-        vlayout.add_widget(Box::new(blocking));
-
-        let mut billboard_text = TheText::new(TheId::empty());
-        billboard_text.set_text_size(12.0);
-        billboard_text.set_text("Render in 3D".to_string());
-        vlayout.add_widget(Box::new(billboard_text));
-
-        let mut render_drop_down =
-            TheDropdownMenu::new(TheId::named(&self.make_id(" Tile Billboard")));
-        render_drop_down.add_option("As Cube".to_string());
-        render_drop_down.add_option("As Billboard".to_string());
-        vlayout.add_widget(Box::new(render_drop_down));
-
-        details_canvas.set_layout(vlayout);
-
-        //
-
-        canvas.set_top(toolbar_canvas);
-        */
         canvas.set_layout(rgba_layout);
-        // canvas.set_right(details_canvas);
-
         canvas
     }
 
@@ -229,7 +167,6 @@ impl EffectPicker {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut Server,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
@@ -293,26 +230,6 @@ impl EffectPicker {
                         if let Some(tile) = project.get_tile_mut(&tile_id) {
                             if let TheValue::Text(tags) = value {
                                 tile.name.clone_from(tags);
-                            }
-                        }
-                    }
-                } else if id.name == self.make_id(" Tile Blocking") {
-                    if let Some(tile_id) = self.curr_material {
-                        if let Some(tile) = project.get_tile_mut(&tile_id) {
-                            if let TheValue::Int(role) = value {
-                                tile.blocking = *role == 1;
-                            }
-                        }
-                    }
-                } else if id.name == self.make_id(" Tile Billboard") {
-                    if let Some(tile_id) = self.curr_material {
-                        if let Some(tile) = project.get_tile_mut(&tile_id) {
-                            if let TheValue::Int(billboard) = value {
-                                tile.billboard = *billboard == 1;
-
-                                let tiles = project.extract_tiles();
-                                TILEDRAWER.lock().unwrap().set_tiles(tiles.clone());
-                                server.update_tiles(tiles);
                             }
                         }
                     }

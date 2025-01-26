@@ -35,8 +35,6 @@ impl Tool for TilemapTool {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         _project: &mut Project,
-        _server: &mut Server,
-        _client: &mut Client,
         _server_ctx: &mut ServerContext,
     ) -> bool {
         if let Activate = tool_event {
