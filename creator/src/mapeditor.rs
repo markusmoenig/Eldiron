@@ -15,8 +15,6 @@ pub enum EditorDrawMode {
 pub struct MapEditor {
     curr_tile_uuid: Option<Uuid>,
 
-    curr_layer_role: Layer2DRole,
-
     icon_normal_border_color: RGBA,
     icon_selected_border_color: RGBA,
 }
@@ -26,8 +24,6 @@ impl MapEditor {
     pub fn new() -> Self {
         Self {
             curr_tile_uuid: None,
-
-            curr_layer_role: Layer2DRole::Ground,
 
             icon_normal_border_color: [100, 100, 100, 255],
             icon_selected_border_color: [255, 255, 255, 255],
@@ -836,6 +832,7 @@ impl MapEditor {
                                     );
                                 }
 
+                                server_ctx.curr_character_instance = Some(id.uuid);
                                 if let Some(render_view) = ui.get_render_view("PolyView") {
                                     let dim = *render_view.dim();
 
@@ -868,6 +865,12 @@ impl MapEditor {
                             // Test sectors
                             for sector in &region.map.sectors.clone() {
                                 if sector.creator_id == id.uuid {
+                                    ui.set_widget_value(
+                                        "CodeEdit",
+                                        ctx,
+                                        TheValue::Text(String::new()),
+                                    );
+
                                     if let Some(center) = sector.center(&region.map) {
                                         if let Some(render_view) = ui.get_render_view("PolyView") {
                                             let dim = *render_view.dim();
@@ -1090,7 +1093,9 @@ impl MapEditor {
                 {
                     // TILEDRAWER.lock().unwrap().tiles = project.extract_tiles();
                     // server.update_tiles(project.extract_tiles());
-                } else if id.name == "Ground Icon" {
+                }
+                /*
+                else if id.name == "Ground Icon" {
                     self.curr_layer_role = Layer2DRole::Ground;
                     server_ctx.curr_texture_mode = MapTextureMode::Floor;
                     server_ctx.curr_layer_role = Layer2DRole::Ground;
@@ -1143,7 +1148,7 @@ impl MapEditor {
                     //     ctx.ui
                     //         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
                     // }
-                }
+                }*/
             }
             _ => {}
         }
@@ -1608,28 +1613,4 @@ impl MapEditor {
             }
         }
     }*/
-
-    fn set_icon_border_colors(&mut self, ui: &mut TheUI) {
-        if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
-            icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Ground {
-                Some(self.icon_selected_border_color)
-            } else {
-                Some(self.icon_normal_border_color)
-            });
-        }
-        if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
-            icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Wall {
-                Some(self.icon_selected_border_color)
-            } else {
-                Some(self.icon_normal_border_color)
-            });
-        }
-        if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
-            icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Ceiling {
-                Some(self.icon_selected_border_color)
-            } else {
-                Some(self.icon_normal_border_color)
-            });
-        }
-    }
 }

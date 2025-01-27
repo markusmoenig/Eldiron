@@ -102,9 +102,9 @@ impl Sidebar {
         node_sectionbar_button.set_status_text("The UI of the currently selected node.");
 
         let mut debug_sectionbar_button = TheSectionbarButton::new(TheId::named("Debug Section"));
-        debug_sectionbar_button.set_text("Debug".to_string());
+        debug_sectionbar_button.set_text("Log".to_string());
         debug_sectionbar_button.set_status_text(
-            "See debug messages and warnings and errors produced by the game code.",
+            "See the server log including debug and errors messages produced by the game code.",
         );
 
         let mut palette_sectionbar_button =
@@ -831,13 +831,15 @@ impl Sidebar {
 
         let mut debug_canvas = TheCanvas::default();
 
-        let mut debug_layout = TheListLayout::new(TheId::named("Debug List"));
+        let mut logwidget = TheTextAreaEdit::new(TheId::named("LogEdit"));
+        logwidget.display_line_number(false);
+        logwidget.readonly(true);
+        logwidget.set_code_type("Text");
+        logwidget.set_code_theme("base16-eighties.dark");
+        logwidget.use_global_statusbar(true);
+        logwidget.set_font_size(12.0);
 
-        let mut item: TheListItem = TheListItem::new(TheId::named("Debug Item"));
-        item.set_text("Eldiron Creater Startup".to_string());
-        debug_layout.add_item(item, ctx);
-
-        debug_canvas.set_layout(debug_layout);
+        debug_canvas.set_widget(logwidget);
         stack_layout.add_canvas(debug_canvas);
 
         // Palette
@@ -2541,7 +2543,7 @@ impl Sidebar {
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
                     {
-                        widget.set_value(TheValue::Text("Debug Output".to_string()));
+                        widget.set_value(TheValue::Text("Log Output".to_string()));
                     }
 
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Debug;

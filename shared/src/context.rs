@@ -77,9 +77,6 @@ pub struct ServerContext {
     /// The currently selected tile
     pub curr_tile_id: Option<Uuid>,
 
-    /// The currently selected layer role
-    pub curr_layer_role: Layer2DRole,
-
     /// The currently selected Material
     pub curr_material_id: Option<Uuid>,
 
@@ -152,7 +149,6 @@ impl ServerContext {
             interactions: FxHashMap::default(),
 
             curr_tile_id: None,
-            curr_layer_role: Layer2DRole::Ground,
 
             curr_material_id: None,
             curr_effect: None,

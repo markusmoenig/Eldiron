@@ -16,7 +16,6 @@ theframework = { git = "https://github.com/markusmoenig/TheFramework", features 
 #     "code",
 # ], default-features = true }
 shared = { path = "../shared" }
-lazy_static = "1.4.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 vectorize = "0.2.0"

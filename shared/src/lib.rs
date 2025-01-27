@@ -67,7 +67,7 @@ pub mod prelude {
     // pub use crate::prerendered::*;
     // pub use crate::prerenderthread::*;
     pub use crate::project::{MapMode, Project};
-    pub use crate::region::{Layer2DRole, Region, RegionTile};
+    pub use crate::region::Region;
     // pub use crate::regionfxnode::*;
     // pub use crate::regionfxobject::*;
     // pub use crate::renderer::Renderer;

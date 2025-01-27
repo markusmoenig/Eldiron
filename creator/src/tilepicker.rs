@@ -118,10 +118,10 @@ impl TilePicker {
         }
         drop_down.set_disabled(true);
 
-        // let mut blocking = TheDropdownMenu::new(TheId::named(&self.make_id(" Tile Blocking")));
-        // blocking.add_option("No".to_string());
-        // blocking.add_option("Yes".to_string());
-        // blocking.set_disabled(true);
+        let mut blocking = TheDropdownMenu::new(TheId::named(&self.make_id(" Tile Blocking")));
+        blocking.add_option("No".to_string());
+        blocking.add_option("Yes".to_string());
+        blocking.set_disabled(true);
 
         let mut copy = TheTraybarButton::new(TheId::named(&self.make_id(" Tile Copy")));
         copy.set_text("Copy ID to Clipboard".into());
@@ -156,11 +156,11 @@ impl TilePicker {
 
         vlayout.add_widget(Box::new(copy));
 
-        // let mut text = TheText::new(TheId::empty());
-        // text.set_text_size(12.0);
-        // text.set_text("Blocking".to_string());
-        // vlayout.add_widget(Box::new(text));
-        // vlayout.add_widget(Box::new(blocking));
+        let mut text = TheText::new(TheId::empty());
+        text.set_text_size(12.0);
+        text.set_text("Blocking".to_string());
+        vlayout.add_widget(Box::new(text));
+        vlayout.add_widget(Box::new(blocking));
 
         // let mut billboard_text = TheText::new(TheId::empty());
         // billboard_text.set_text_size(12.0);
@@ -340,26 +340,14 @@ impl TilePicker {
                             }
                         }
                     }
-                // } else if id.name == self.make_id(" Tile Blocking") {
-                //     if let Some(tile_id) = self.curr_tile {
-                //         if let Some(tile) = project.get_tile_mut(&tile_id) {
-                //             if let TheValue::Int(role) = value {
-                //                 tile.blocking = *role == 1;
-                //             }
-                //         }
-                //     }
-                // } else if id.name == self.make_id(" Tile Billboard") {
-                //     if let Some(tile_id) = self.curr_tile {
-                //         if let Some(tile) = project.get_tile_mut(&tile_id) {
-                //             if let TheValue::Int(billboard) = value {
-                //                 tile.billboard = *billboard == 1;
-
-                //                 let tiles = project.extract_tiles();
-                //                 TILEDRAWER.lock().unwrap().set_tiles(tiles.clone());
-                //                 server.update_tiles(tiles);
-                //             }
-                //         }
-                //     }
+                } else if id.name == self.make_id(" Tile Blocking") {
+                    if let Some(tile_id) = self.curr_tile {
+                        if let Some(tile) = project.get_tile_mut(&tile_id) {
+                            if let TheValue::Int(role) = value {
+                                tile.blocking = *role == 1;
+                            }
+                        }
+                    }
                 } else if id.name == self.make_id(" Filter Edit") {
                     if let TheValue::Text(filter) = value {
                         self.filter = filter.to_lowercase();

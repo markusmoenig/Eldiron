@@ -343,22 +343,4 @@ impl Project {
         }
         None
     }
-
-    /// Get the tile in the region at the given position.
-    pub fn extract_region_tile(&self, region_id: Uuid, pos: (i32, i32)) -> Option<TheRGBATile> {
-        if let Some(region) = self.get_region(&region_id) {
-            if let Some(tile) = region.tiles.get(&pos) {
-                if let Some(id) = tile.layers[Layer2DRole::Wall as usize] {
-                    if let Some(t) = self.get_tile(&id) {
-                        return self.extract_tile(&t.id);
-                    }
-                } else if let Some(id) = tile.layers[Layer2DRole::Ground as usize] {
-                    if let Some(t) = self.get_tile(&id) {
-                        return self.extract_tile(&t.id);
-                    }
-                }
-            }
-        }
-        None
-    }
 }

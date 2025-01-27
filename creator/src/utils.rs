@@ -4,6 +4,9 @@ use rusterix::{Entity, Rusterix, Value};
 
 /// Start the server
 pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
+    rusterix.server.clear_log();
+    rusterix.server.log_changed = true;
+
     insert_characters_into_maps(project);
 
     let mut classes: FxHashMap<String, String> = FxHashMap::default();
@@ -54,6 +57,7 @@ pub fn set_code(
     if *sidebarmode == SidebarMode::Region {
         if let Some(region_content_id) = server_ctx.curr_region_content {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                // Check for Character Instance
                 if let Some(character_instance) = region.characters.get_mut(&region_content_id) {
                     ui.set_widget_value(
                         "CodeEdit",
@@ -61,6 +65,13 @@ pub fn set_code(
                         TheValue::Text(character_instance.source.clone()),
                     );
                     success = true;
+                } else {
+                    // Check for Sector
+                    for s in &region.map.sectors {
+                        if s.creator_id == region_content_id {
+                            ui.set_widget_value("CodeEdit", ctx, TheValue::Text(String::new()));
+                        }
+                    }
                 }
             }
         }

@@ -1,6 +1,4 @@
-// use crate::editor::{MAPRENDER, TEXTURES, UNDOMANAGER};
 use crate::prelude::*;
-use shared::prelude::*;
 
 pub struct TextEditor {}
 
@@ -25,7 +23,7 @@ impl TextEditor {
         center
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /*
     pub fn handle_event(
         &mut self,
         _event: &TheEvent,
@@ -42,5 +40,5 @@ impl TextEditor {
 
         // redraw
         false
-    }
+    }*/
 }

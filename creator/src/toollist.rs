@@ -145,14 +145,14 @@ impl ToolList {
                     }
                 }
 
-                // let mut acc = !ui.focus_widget_supports_text_input(ctx);
+                let mut acc = !ui.focus_widget_supports_text_input(ctx);
 
-                // if self.get_current_tool().id().name == "Game Tool" {
-                //     acc = false;
-                // }
+                if self.get_current_tool().id().name == "Game Tool" {
+                    acc = false;
+                }
 
-                /*
                 if acc {
+                    /*
                     if (*c == '-' || *c == '=' || *c == '+') && (ui.ctrl || ui.logo) {
                         // Global Zoom In / Zoom Out
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -171,7 +171,7 @@ impl ToolList {
                             }
                             return true;
                         }
-                    }
+                    }*/
 
                     let mut tool_uuid = None;
                     for tool in self.game_tools.iter() {
@@ -188,7 +188,7 @@ impl ToolList {
                     if let Some(uuid) = tool_uuid {
                         self.set_tool(uuid, ui, ctx, project, server_ctx);
                     }
-                }*/
+                }
             }
             TheEvent::StateChanged(id, state) => {
                 if id.name.contains("Tool") && *state == TheWidgetState::Selected {

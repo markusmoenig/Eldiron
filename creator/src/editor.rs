@@ -21,8 +21,6 @@ pub static TILEMAPEDITOR: LazyLock<RwLock<TilemapEditor>> =
     LazyLock::new(|| RwLock::new(TilemapEditor::new()));
 pub static SIDEBARMODE: LazyLock<RwLock<SidebarMode>> =
     LazyLock::new(|| RwLock::new(SidebarMode::Region));
-pub static RENDERMODE: LazyLock<RwLock<EditorDrawMode>> =
-    LazyLock::new(|| RwLock::new(EditorDrawMode::Draw2D));
 pub static UNDOMANAGER: LazyLock<RwLock<UndoManager>> =
     LazyLock::new(|| RwLock::new(UndoManager::default()));
 pub static TOOLLIST: LazyLock<RwLock<ToolList>> =
@@ -32,8 +30,6 @@ pub static BRUSHLIST: LazyLock<RwLock<BrushList>> =
 pub static PANELS: LazyLock<RwLock<Panels>> = LazyLock::new(|| RwLock::new(Panels::new()));
 pub static TEXTEDITOR: LazyLock<RwLock<TextEditor>> =
     LazyLock::new(|| RwLock::new(TextEditor::new()));
-pub static TEXTURES: LazyLock<RwLock<FxHashMap<Uuid, TheRGBATile>>> =
-    LazyLock::new(|| RwLock::new(FxHashMap::default()));
 pub static PALETTE: LazyLock<RwLock<ThePalette>> =
     LazyLock::new(|| RwLock::new(ThePalette::default()));
 pub static RUSTERIX: LazyLock<RwLock<Rusterix>> =
@@ -207,32 +203,32 @@ impl TheTrait for Editor {
             TheId::named("Paste"),
             TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'v'),
         ));
-        let mut view_menu = TheContextMenu::named(str!("View"));
-        view_menu.add(TheContextMenuItem::new_with_accel(
-            str!("2D Map"),
-            TheId::named("2DMap"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '2'),
-        ));
-        view_menu.add(TheContextMenuItem::new_with_accel(
-            str!("3D Map"),
-            TheId::named("3DMap"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '3'),
-        ));
-        view_menu.add(TheContextMenuItem::new_with_accel(
-            str!("Shared Map"),
-            TheId::named("2D3DMap"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '0'),
-        ));
-        let mut tools_menu = TheContextMenu::named(str!("Tools"));
-        tools_menu.add(TheContextMenuItem::new_with_accel(
-            str!("Rerender 3D Map"),
-            TheId::named("Rerender"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'r'),
-        ));
+        // let mut view_menu = TheContextMenu::named(str!("View"));
+        // view_menu.add(TheContextMenuItem::new_with_accel(
+        //     str!("2D Map"),
+        //     TheId::named("2DMap"),
+        //     TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '2'),
+        // ));
+        // view_menu.add(TheContextMenuItem::new_with_accel(
+        //     str!("3D Map"),
+        //     TheId::named("3DMap"),
+        //     TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '3'),
+        // ));
+        // view_menu.add(TheContextMenuItem::new_with_accel(
+        //     str!("Shared Map"),
+        //     TheId::named("2D3DMap"),
+        //     TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '0'),
+        // ));
+        // let mut tools_menu = TheContextMenu::named(str!("Tools"));
+        // tools_menu.add(TheContextMenuItem::new_with_accel(
+        //     str!("Rerender 3D Map"),
+        //     TheId::named("Rerender"),
+        //     TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'r'),
+        // ));
 
         edit_menu.register_accel(ctx);
-        view_menu.register_accel(ctx);
-        tools_menu.register_accel(ctx);
+        // view_menu.register_accel(ctx);
+        // tools_menu.register_accel(ctx);
 
         menu.add_context_menu(file_menu);
         menu.add_context_menu(edit_menu);
@@ -662,7 +658,14 @@ impl TheTrait for Editor {
             {
                 let rusterix = &mut RUSTERIX.write().unwrap();
                 if rusterix.server.state == rusterix::ServerState::Running {
-                    rusterix.server.update_entities();
+                    rusterix.server.update();
+                    if rusterix.server.log_changed {
+                        ui.set_widget_value(
+                            "LogEdit",
+                            ctx,
+                            TheValue::Text(rusterix.server.get_log()),
+                        );
+                    }
                     for r in &mut self.project.regions {
                         if let Some(entities) = rusterix.server.get_entities(&r.map.id).cloned() {
                             r.map.entities = entities;
@@ -1290,31 +1293,6 @@ impl TheTrait for Editor {
                                         }
                                         // self.server.set_time(self.project.time);
 
-                                        if let Some(widget) = ui.get_group_button("2D3D Group") {
-                                            widget.set_index(self.project.map_mode as i32);
-                                        }
-
-                                        if let Some(shared) = ui.get_sharedhlayout("Editor Shared")
-                                        {
-                                            match self.project.map_mode {
-                                                MapMode::TwoD => {
-                                                    *RENDERMODE.write().unwrap() =
-                                                        EditorDrawMode::Draw2D;
-                                                    shared.set_mode(TheSharedHLayoutMode::Left);
-                                                }
-                                                MapMode::Mixed => {
-                                                    *RENDERMODE.write().unwrap() =
-                                                        EditorDrawMode::DrawMixed;
-                                                    shared.set_mode(TheSharedHLayoutMode::Shared);
-                                                }
-                                                MapMode::ThreeD => {
-                                                    *RENDERMODE.write().unwrap() =
-                                                        EditorDrawMode::Draw3D;
-                                                    shared.set_mode(TheSharedHLayoutMode::Right);
-                                                }
-                                            }
-                                        }
-
                                         self.sidebar.load_from_project(
                                             ui,
                                             ctx,
@@ -1328,7 +1306,6 @@ impl TheTrait for Editor {
 
                                         // Set palette and textures
                                         *PALETTE.write().unwrap() = self.project.palette.clone();
-                                        *TEXTURES.write().unwrap() = self.project.extract_tiles();
 
                                         ctx.ui.send(TheEvent::SetStatusText(
                                             TheId::empty(),

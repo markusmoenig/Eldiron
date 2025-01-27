@@ -3,16 +3,11 @@ from array import array
 class NewCharacter(Entity):
     def __init__(self):
         """Initializes the Player."""
-        super().__init__()
 
         self.type = EntityType.PLAYER
 
     def init(self):
         """Init the entity."""
-        pass
-
-    def update(self):
-        """Update"""
         pass
 
     def event(self, event, value):
@@ -23,15 +18,15 @@ class NewCharacter(Entity):
         # print("Player User Event", event, value)
         if event == 'key_down':
             if value == 'w':
-                action(self.id, "forward")
+                action("forward")
             if value == 'a':
-                action(self.id, "left")
+                action("left")
             if value == 'd':
-                action(self.id, "right")
+                action("right")
             if value == 's':
-                action(self.id, "backward")
+                action("backward")
         if event == 'key_up':
-                action(self.id, "none")
+                action("none")
 
         # match event:
         #    case "a":
