@@ -1145,7 +1145,9 @@ impl Sidebar {
             }
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
                 if item_id.name == "Sidebar Delete Character Instance" {
-                    if let Some(char_inst) = server_ctx.curr_character_instance {
+                    if let ContentContext::CharacterInstance(char_inst) =
+                        server_ctx.curr_region_content
+                    {
                         // if let Some((value, _)) = server.get_character_property(
                         //     server_ctx.curr_region,
                         //     char_inst,
@@ -1853,7 +1855,6 @@ impl Sidebar {
                             .send_widget_state_changed(&id, TheWidgetState::Selected);
 
                         self.apply_character(ui, ctx, Some(&character));
-
                         project.add_character(character);
                     }
                 } else if id.name == "Character Remove" {
@@ -1866,7 +1867,7 @@ impl Sidebar {
                     }
                 } else if id.name == "Character Item" {
                     if let Some(c) = project.characters.get(&id.uuid) {
-                        server_ctx.curr_character = Some(id.uuid);
+                        server_ctx.curr_character = ContentContext::CharacterTemplate(id.uuid);
                         self.apply_character(ui, ctx, Some(c));
                         redraw = true;
                     }
@@ -1876,53 +1877,19 @@ impl Sidebar {
                         self.apply_item(ui, ctx, Some(c));
                         redraw = true;
                     }
-                } else
-                /*
-                if id.name == "Item Add" {
+                } else if id.name == "Item Add" {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
-                        let mut bundle = TheCodeBundle::new();
+                        let mut item_template = Item::default();
 
-                        let mut init = TheCodeGrid {
-                            name: "init".into(),
-                            ..Default::default()
-                        };
-                        init.insert_atom(
-                            (0, 0),
-                            TheCodeAtom::Set("@self.name".to_string(), TheValueAssignment::Assign),
-                        );
-                        init.insert_atom(
-                            (1, 0),
-                            TheCodeAtom::Assignment(TheValueAssignment::Assign),
-                        );
-                        init.insert_atom(
-                            (2, 0),
-                            TheCodeAtom::Value(TheValue::Text("Unnamed".to_string())),
-                        );
-
-                        init.insert_atom(
-                            (0, 2),
-                            TheCodeAtom::Set("@self.tile".to_string(), TheValueAssignment::Assign),
-                        );
-                        init.insert_atom(
-                            (1, 2),
-                            TheCodeAtom::Assignment(TheValueAssignment::Assign),
-                        );
-                        init.insert_atom(
-                            (2, 2),
-                            TheCodeAtom::Value(TheValue::Tile("Name".to_string(), Uuid::nil())),
-                        );
-
-                        bundle.insert_grid(init);
-
-                        let main = TheCodeGrid {
-                            name: "main".into(),
-                            ..Default::default()
-                        };
-                        bundle.insert_grid(main);
+                        if let Some(bytes) = crate::Embedded::get("python/baseitem.py") {
+                            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                                item_template.source = source.to_string();
+                            }
+                        }
 
                         let mut item =
-                            TheListItem::new(TheId::named_with_id("Item Item", bundle.id));
-                        item.set_text(bundle.name.clone());
+                            TheListItem::new(TheId::named_with_id("Item Item", item_template.id));
+                        item.set_text(item_template.name.clone());
                         item.set_state(TheWidgetState::Selected);
                         list_layout.deselect_all();
                         let id = item.id().clone();
@@ -1930,9 +1897,8 @@ impl Sidebar {
                         ctx.ui
                             .send_widget_state_changed(&id, TheWidgetState::Selected);
 
-                        self.apply_item(ui, ctx, Some(&bundle));
-                        server.insert_item(bundle.clone());
-                        project.add_item(bundle);
+                        self.apply_item(ui, ctx, Some(&item_template));
+                        project.add_item(item_template);
                     }
                 } else if id.name == "Item Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
@@ -1942,8 +1908,7 @@ impl Sidebar {
                             self.apply_item(ui, ctx, None);
                         }
                     }
-                    */
-                if id.name == "Material Add" {
+                } else if id.name == "Material Add" {
                     let map = Map {
                         name: "Unnamed Material".to_string(),
                         ..Default::default()
@@ -2312,6 +2277,8 @@ impl Sidebar {
                     server_ctx.curr_map_context = MapContext::Region;
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.write().unwrap().set_dirty();
+
+                    server_ctx.cc = server_ctx.curr_region_content;
                     set_code(ui, ctx, project, server_ctx);
 
                     ctx.ui.send(TheEvent::SetStackIndex(
@@ -2340,6 +2307,8 @@ impl Sidebar {
                     server_ctx.curr_map_context = MapContext::Region;
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.write().unwrap().set_dirty();
+
+                    server_ctx.cc = server_ctx.curr_character;
                     set_code(ui, ctx, project, server_ctx);
 
                     ctx.ui.send(TheEvent::SetStackIndex(
@@ -2807,6 +2776,10 @@ impl Sidebar {
             //         canvas.set_bottom(item_list_canvas);
             //     }
             // }
+            //
+            if let Some(item) = item {
+                ui.set_widget_value("CodeEdit", ctx, TheValue::Text(item.source.clone()));
+            }
         } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
             if let Some(canvas) = stack_layout.canvas_at_mut(2) {
                 let mut empty = TheCanvas::new();

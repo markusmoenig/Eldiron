@@ -67,7 +67,6 @@ impl Tool for LinedefTool {
                     ctx.ui.relayout = true;
                 }
 
-                server_ctx.curr_character_instance = None;
                 server_ctx.curr_item_instance = None;
                 server_ctx.curr_area = None;
                 server_ctx.curr_map_tool_type = MapToolType::Linedef;

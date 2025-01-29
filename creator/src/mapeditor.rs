@@ -819,47 +819,68 @@ impl MapEditor {
                 if id.name == "Region Content List Item" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         let prev = region.map.clone();
-                        server_ctx.curr_region_content = Some(id.uuid);
                         let mut found = false;
-                        if region.map.selected_entity != Some(id.uuid) {
-                            if let Some(character) = region.characters.get(&id.uuid) {
-                                found = true;
-                                if *SIDEBARMODE.write().unwrap() == SidebarMode::Region {
-                                    ui.set_widget_value(
-                                        "CodeEdit",
-                                        ctx,
-                                        TheValue::Text(character.source.clone()),
-                                    );
-                                }
-
-                                server_ctx.curr_character_instance = Some(id.uuid);
-                                if let Some(render_view) = ui.get_render_view("PolyView") {
-                                    let dim = *render_view.dim();
-
-                                    server_ctx.center_map_at_grid_pos(
-                                        Vec2::new(dim.width as f32, dim.height as f32),
-                                        Vec2::new(character.position.x, character.position.z),
-                                        &mut region.map,
-                                    );
-                                }
+                        //if region.map.selected_entity != Some(id.uuid) {
+                        if let Some(character) = region.characters.get(&id.uuid) {
+                            found = true;
+                            if *SIDEBARMODE.write().unwrap() == SidebarMode::Region {
+                                ui.set_widget_value(
+                                    "CodeEdit",
+                                    ctx,
+                                    TheValue::Text(character.source.clone()),
+                                );
                             }
 
-                            region.map.clear_selection();
                             region.map.selected_entity = Some(id.uuid);
-                            let undo_atom = RegionUndoAtom::MapEdit(
-                                Box::new(prev),
-                                Box::new(region.map.clone()),
-                            );
-                            UNDOMANAGER.write().unwrap().add_region_undo(
-                                &server_ctx.curr_region,
-                                undo_atom,
-                                ctx,
-                            );
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Map Selection Changed"),
-                                TheValue::Empty,
-                            ));
+                            server_ctx.curr_region_content =
+                                ContentContext::CharacterInstance(id.uuid);
+                            server_ctx.cc = ContentContext::CharacterInstance(id.uuid);
+                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                                let dim = *render_view.dim();
+
+                                server_ctx.center_map_at_grid_pos(
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    Vec2::new(character.position.x, character.position.z),
+                                    &mut region.map,
+                                );
+                            }
+                        } else if let Some(item) = region.items.get(&id.uuid) {
+                            found = true;
+                            if *SIDEBARMODE.write().unwrap() == SidebarMode::Region {
+                                ui.set_widget_value(
+                                    "CodeEdit",
+                                    ctx,
+                                    TheValue::Text(item.source.clone()),
+                                );
+                            }
+
+                            server_ctx.curr_region_content = ContentContext::ItemInstance(id.uuid);
+                            server_ctx.cc = ContentContext::ItemInstance(id.uuid);
+                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                                let dim = *render_view.dim();
+
+                                server_ctx.center_map_at_grid_pos(
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    Vec2::new(item.position.x, item.position.z),
+                                    &mut region.map,
+                                );
+                            }
                         }
+
+                        region.map.clear_selection();
+                        region.map.selected_entity = Some(id.uuid);
+                        let undo_atom =
+                            RegionUndoAtom::MapEdit(Box::new(prev), Box::new(region.map.clone()));
+                        UNDOMANAGER.write().unwrap().add_region_undo(
+                            &server_ctx.curr_region,
+                            undo_atom,
+                            ctx,
+                        );
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
+                        //}
 
                         if !found {
                             // Test sectors
@@ -871,6 +892,9 @@ impl MapEditor {
                                         TheValue::Text(String::new()),
                                     );
 
+                                    server_ctx.curr_region_content =
+                                        ContentContext::Sector(id.uuid);
+                                    server_ctx.cc = ContentContext::Sector(id.uuid);
                                     if let Some(center) = sector.center(&region.map) {
                                         if let Some(render_view) = ui.get_render_view("PolyView") {
                                             let dim = *render_view.dim();

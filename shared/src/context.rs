@@ -1,6 +1,16 @@
 use crate::prelude::*;
 use theframework::prelude::*;
 
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum ContentContext {
+    Unknown,
+    CharacterInstance(Uuid),
+    ItemInstance(Uuid),
+    Sector(Uuid),
+    CharacterTemplate(Uuid),
+    ItemTemplate(Uuid),
+}
+
 #[derive(PartialEq, Clone, Copy)]
 pub enum MapContext {
     Region,
@@ -41,14 +51,14 @@ pub struct ServerContext {
     /// The currently selected region in the editor.
     pub curr_region: Uuid,
 
-    /// The currently selected region content.
-    pub curr_region_content: Option<Uuid>,
+    /// The current region content.
+    pub curr_region_content: ContentContext,
 
     /// The currently selected character in the editor.
-    pub curr_character: Option<Uuid>,
+    pub curr_character: ContentContext,
 
-    /// The currently selected character instance in the editor.
-    pub curr_character_instance: Option<Uuid>,
+    /// The current content context.
+    pub cc: ContentContext,
 
     /// The currently selected item in the editor.
     pub curr_item: Option<Uuid>,
@@ -129,10 +139,10 @@ impl ServerContext {
     pub fn new() -> Self {
         Self {
             curr_region: Uuid::nil(),
-            curr_region_content: None,
 
-            curr_character: None,
-            curr_character_instance: None,
+            curr_region_content: ContentContext::Unknown,
+            curr_character: ContentContext::Unknown,
+            cc: ContentContext::Unknown,
 
             curr_item: None,
             curr_item_instance: None,
@@ -180,9 +190,11 @@ impl ServerContext {
 
     /// Clears all state data.
     pub fn clear(&mut self) {
+        self.curr_region_content = ContentContext::Unknown;
+        self.curr_character = ContentContext::Unknown;
+        self.cc = ContentContext::Unknown;
+
         self.curr_region = Uuid::nil();
-        self.curr_character = None;
-        self.curr_character_instance = None;
         self.curr_item = None;
         self.curr_item_instance = None;
         self.curr_area = None;

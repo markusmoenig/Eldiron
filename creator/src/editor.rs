@@ -858,8 +858,8 @@ impl TheTrait for Editor {
                                 {
                                     let character_id = uuid;
                                     if region.characters.shift_remove(&character_id).is_some() {
-                                        self.server_ctx.curr_character_instance = None;
-                                        self.server_ctx.curr_character = None;
+                                        self.server_ctx.curr_region_content =
+                                            ContentContext::Unknown;
                                         region.map.selected_entity = None;
                                         redraw = true;
 
@@ -997,7 +997,8 @@ impl TheTrait for Editor {
                             if let Some(region) =
                                 self.project.get_region_mut(&self.server_ctx.curr_region)
                             {
-                                self.server_ctx.curr_character_instance = Some(instance.id);
+                                self.server_ctx.curr_region_content =
+                                    ContentContext::CharacterInstance(instance.id);
                                 region.characters.insert(instance.id, instance.clone());
                                 insert_characters_into_maps(&mut self.project);
                                 RUSTERIX.write().unwrap().set_dirty();

@@ -1,4 +1,4 @@
-def setup(entity):
+def setup():
     """Initialize the entity instance"""
 
-    debug("Setting up", entity.id)
+    debug("Setting up")
