@@ -147,29 +147,28 @@ impl Tool for CodeTool {
                                     character.source = code;
                                 }
                             }
+                            ContentContext::ItemTemplate(uuid) => {
+                                if let Some(item) = project.items.get_mut(&uuid) {
+                                    let class_pattern = r"class\s+(\w+)\s*:";
+                                    if let Ok(re) = regex::Regex::new(class_pattern) {
+                                        if let Some(captures) = re.captures(&code) {
+                                            let name = captures[1].to_string();
+                                            if item.name != name {
+                                                item.name = name.clone();
+                                                if let Some(layout) =
+                                                    ui.get_list_layout("Item List")
+                                                {
+                                                    layout.set_item_text(item.id, name);
+                                                    redraw = true;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    item.source = code;
+                                }
+                            }
                             _ => {}
                         }
-                        // if *SIDEBARMODE.read().unwrap() == SidebarMode::Region {
-                        //     // Region mode, check the currently selected region content
-                        //     if let Some(region_content_id) = server_ctx.curr_region_content {
-                        //         if let Some(region) =
-                        //             project.get_region_mut(&server_ctx.curr_region)
-                        //         {
-                        //             if let Some(character_instance) =
-                        //                 region.characters.get_mut(&region_content_id)
-                        //             {
-                        //                 character_instance.source = code;
-                        //             }
-                        //         }
-                        //     }
-                        // } else if *SIDEBARMODE.read().unwrap() == SidebarMode::Character {
-                        //     // Character mode, store the code in the current character
-                        //     if let Some(character_id) = server_ctx.curr_character {
-                        //         if let Some(character) = project.characters.get_mut(&character_id) {
-                        //             character.source = code;
-                        //         }
-                        //     }
-                        // }
                     }
                 }
             }

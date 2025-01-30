@@ -213,12 +213,26 @@ impl ToolList {
                             if let Some(map) = project.get_map_mut(server_ctx) {
                                 if server_ctx.curr_map_context == MapContext::Region
                                     && server_ctx.curr_map_tool_type != MapToolType::Effects
-                                    && map.selected_entity.is_some()
+                                    && map.selected_entity_item.is_some()
                                 {
-                                    ctx.ui.send(TheEvent::ContextMenuSelected(
-                                        TheId::empty(),
-                                        TheId::named("Sidebar Delete Character Instance"),
-                                    ));
+                                    for e in &map.entities {
+                                        if Some(e.creator_id) == map.selected_entity_item {
+                                            ctx.ui.send(TheEvent::ContextMenuSelected(
+                                                TheId::empty(),
+                                                TheId::named("Sidebar Delete Character Instance"),
+                                            ));
+                                            break;
+                                        }
+                                    }
+                                    for i in &map.items {
+                                        if Some(i.creator_id) == map.selected_entity_item {
+                                            ctx.ui.send(TheEvent::ContextMenuSelected(
+                                                TheId::empty(),
+                                                TheId::named("Sidebar Delete Item Instance"),
+                                            ));
+                                            break;
+                                        }
+                                    }
                                     return false;
                                 }
                                 let undo_atom = self.get_current_tool().map_event(
@@ -264,9 +278,9 @@ impl ToolList {
                                     self.undo_map = map.clone();
                                     self.char_click_selected = true;
                                     self.drag_changed = false;
-                                    if map.selected_entity != Some(entity.creator_id) {
+                                    if map.selected_entity_item != Some(entity.creator_id) {
                                         map.clear_selection();
-                                        map.selected_entity = Some(entity.creator_id);
+                                        map.selected_entity_item = Some(entity.creator_id);
                                         let undo_atom = RegionUndoAtom::MapEdit(
                                             Box::new(prev),
                                             Box::new(map.clone()),
@@ -280,6 +294,42 @@ impl ToolList {
                                             ui.get_list_layout("Region Content List")
                                         {
                                             layout.select_item(entity.creator_id, ctx, true);
+                                        }
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Map Selection Changed"),
+                                            TheValue::Empty,
+                                        ));
+                                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                    }
+                                    return true;
+                                }
+                            }
+
+                            for item in map.items.iter().cloned() {
+                                let ep = item.position;
+                                let ep = Vec2::new(ep.x, ep.z);
+                                let d = ep.distance(grid_pos);
+                                if d < 1.0 {
+                                    let prev = map.clone();
+                                    self.undo_map = map.clone();
+                                    self.char_click_selected = true;
+                                    self.drag_changed = false;
+                                    if map.selected_entity_item != Some(item.creator_id) {
+                                        map.clear_selection();
+                                        map.selected_entity_item = Some(item.creator_id);
+                                        let undo_atom = RegionUndoAtom::MapEdit(
+                                            Box::new(prev),
+                                            Box::new(map.clone()),
+                                        );
+                                        UNDOMANAGER.write().unwrap().add_region_undo(
+                                            &server_ctx.curr_region,
+                                            undo_atom,
+                                            ctx,
+                                        );
+                                        if let Some(layout) =
+                                            ui.get_list_layout("Region Content List")
+                                        {
+                                            layout.select_item(item.creator_id, ctx, true);
                                         }
                                         ctx.ui.send(TheEvent::Custom(
                                             TheId::named("Map Selection Changed"),
@@ -322,7 +372,7 @@ impl ToolList {
                                 let drag_delta = self.char_click_pos - drag_pos;
 
                                 for entity in map.entities.iter_mut() {
-                                    if Some(entity.creator_id) == map.selected_entity {
+                                    if Some(entity.creator_id) == map.selected_entity_item {
                                         let new_pos = Vec2::new(
                                             self.char_click_pos.x - drag_delta.x,
                                             self.char_click_pos.y - drag_delta.y,

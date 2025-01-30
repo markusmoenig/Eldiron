@@ -31,7 +31,7 @@ impl Item {
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
-            name: "NewCharacter".to_string(),
+            name: "NewItem".to_string(),
 
             map: Map::default(),
             source: String::new(),

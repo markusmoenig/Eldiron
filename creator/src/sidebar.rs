@@ -1163,7 +1163,8 @@ impl Sidebar {
                         // }
                     }
                 } else if item_id.name == "Sidebar Delete Item Instance" {
-                    if let Some(item_inst) = server_ctx.curr_item_instance {
+                    if let ContentContext::ItemInstance(item_inst) = server_ctx.curr_region_content
+                    {
                         let name = str!("Unknown");
                         open_delete_confirmation_dialog(
                             "Delete Item Instance ?",
@@ -1868,12 +1869,14 @@ impl Sidebar {
                 } else if id.name == "Character Item" {
                     if let Some(c) = project.characters.get(&id.uuid) {
                         server_ctx.curr_character = ContentContext::CharacterTemplate(id.uuid);
+                        server_ctx.cc = ContentContext::CharacterTemplate(id.uuid);
                         self.apply_character(ui, ctx, Some(c));
                         redraw = true;
                     }
                 } else if id.name == "Item Item" {
                     if let Some(c) = project.items.get(&id.uuid) {
-                        server_ctx.curr_item = Some(id.uuid);
+                        server_ctx.curr_item = ContentContext::ItemTemplate(id.uuid);
+                        server_ctx.cc = ContentContext::ItemTemplate(id.uuid);
                         self.apply_item(ui, ctx, Some(c));
                         redraw = true;
                     }
@@ -2338,6 +2341,9 @@ impl Sidebar {
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.write().unwrap().set_dirty();
 
+                    server_ctx.cc = server_ctx.curr_item;
+                    set_code(ui, ctx, project, server_ctx);
+
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
                         SidebarMode::Item as usize,
@@ -2762,24 +2768,14 @@ impl Sidebar {
     pub fn apply_item(&mut self, ui: &mut TheUI, ctx: &mut TheContext, item: Option<&Item>) {
         ui.set_widget_disabled_state("Item Remove", ctx, item.is_none());
 
-        // Set the Item bundle.
-        if let Some(_item) = item {
-            // let item_list_canvas: TheCanvas =
-            //     CODEEDITOR
-            //         .lock()
-            //         .unwrap()
-            //         .set_bundle(item.clone(), ctx, self.width, None);
-            // CODEEDITOR.lock().unwrap().code_id = str!("Item");
-
+        if let Some(item) = item {
             // if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
             //     if let Some(canvas) = stack_layout.canvas_at_mut(2) {
             //         canvas.set_bottom(item_list_canvas);
             //     }
             // }
             //
-            if let Some(item) = item {
-                ui.set_widget_value("CodeEdit", ctx, TheValue::Text(item.source.clone()));
-            }
+            ui.set_widget_value("CodeEdit", ctx, TheValue::Text(item.source.clone()));
         } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
             if let Some(canvas) = stack_layout.canvas_at_mut(2) {
                 let mut empty = TheCanvas::new();

@@ -6,7 +6,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
     rusterix.server.clear_log();
     rusterix.server.log_changed = true;
 
-    insert_characters_into_maps(project);
+    insert_content_into_maps(project);
 
     // Characters
     rusterix.assets.entities = FxHashMap::default();
@@ -37,11 +37,10 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
     rusterix.server.set_state(rusterix::ServerState::Running);
 }
 
-/// Convert the characters into Entities for the rusterix server
-pub fn insert_characters_into_maps(project: &mut Project) {
+/// Convert the characters and items into Entities / Items for the rusterix server
+pub fn insert_content_into_maps(project: &mut Project) {
     for region in &mut project.regions {
         region.map.entities.clear();
-
         for instance in region.characters.values() {
             let mut entity = Entity {
                 creator_id: instance.id,
@@ -54,6 +53,21 @@ pub fn insert_characters_into_maps(project: &mut Project) {
                 entity.set_attribute("class_name", Value::Str(character.name.clone()));
             }
             region.map.entities.push(entity);
+        }
+
+        region.map.items.clear();
+        for instance in region.items.values() {
+            let mut entity = rusterix::Item {
+                creator_id: instance.id,
+                position: instance.position,
+                ..Default::default()
+            };
+            entity.set_attribute("name", Value::Str(instance.name.clone()));
+            entity.set_attribute("setup", Value::Str(instance.source.clone()));
+            if let Some(character) = project.items.get(&instance.item_id) {
+                entity.set_attribute("class_name", Value::Str(character.name.clone()));
+            }
+            region.map.items.push(entity);
         }
     }
 }

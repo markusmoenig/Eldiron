@@ -439,6 +439,16 @@ impl TheTrait for Editor {
             self.build_values
                 .set("character_off", Value::Texture(texture));
         }
+        if let Some(icon) = ctx.ui.icon("treasure_on") {
+            let texture = Texture::from_rgbabuffer(icon);
+            self.build_values
+                .set("treasure_on", Value::Texture(texture));
+        }
+        if let Some(icon) = ctx.ui.icon("treasure_off") {
+            let texture = Texture::from_rgbabuffer(icon);
+            self.build_values
+                .set("treasure_off", Value::Texture(texture));
+        }
 
         RUSTERIX.write().unwrap().set_d2();
 
@@ -471,10 +481,22 @@ impl TheTrait for Editor {
             self.first_update = false;
         }
 
-        let (redraw_update, _tick_update) = self.update_tracker.update(
+        let (redraw_update, tick_update) = self.update_tracker.update(
             (1000 / self.project.target_fps) as u64,
             self.project.tick_ms as u64,
         );
+
+        if tick_update {
+            RUSTERIX.write().unwrap().client.inc_animation_frame();
+
+            // Update the widgets which have animations
+            if let Some(icon_view) = ui.get_widget("Tilemap Selection Preview") {
+                if let Some(icon_view) = icon_view.as_icon_view() {
+                    icon_view.step();
+                    redraw = true;
+                }
+            }
+        }
 
         /*
         if tick_update {
@@ -667,8 +689,12 @@ impl TheTrait for Editor {
                         );
                     }
                     for r in &mut self.project.regions {
-                        if let Some(entities) = rusterix.server.get_entities(&r.map.id).cloned() {
-                            r.map.entities = entities;
+                        let (entities, items) = rusterix.server.get_entities_items(&r.map.id);
+                        if let Some(entities) = entities {
+                            r.map.entities = entities.clone();
+                        }
+                        if let Some(items) = items {
+                            r.map.items = items.clone();
                         }
                     }
                 }
@@ -754,7 +780,12 @@ impl TheTrait for Editor {
 
                             if let Some(map) = self.project.get_map(&self.server_ctx) {
                                 let assets = rusterix.assets.clone();
-                                rusterix.apply_entities(&map.entities, map, &assets);
+                                rusterix.apply_entities_items(
+                                    &map.entities,
+                                    &map.items,
+                                    map,
+                                    &assets,
+                                );
                             }
 
                             rusterix.draw_scene(
@@ -860,7 +891,7 @@ impl TheTrait for Editor {
                                     if region.characters.shift_remove(&character_id).is_some() {
                                         self.server_ctx.curr_region_content =
                                             ContentContext::Unknown;
-                                        region.map.selected_entity = None;
+                                        region.map.selected_entity_item = None;
                                         redraw = true;
 
                                         // Remove from the content list
@@ -873,7 +904,7 @@ impl TheTrait for Editor {
                                             ));
                                             ui.select_first_list_item("Region Content List", ctx);
                                         }
-                                        insert_characters_into_maps(&mut self.project);
+                                        insert_content_into_maps(&mut self.project);
                                         RUSTERIX.write().unwrap().set_dirty();
                                     }
                                 }
@@ -885,8 +916,8 @@ impl TheTrait for Editor {
                                 {
                                     let item_id = uuid;
                                     if region.items.shift_remove(&item_id).is_some() {
-                                        self.server_ctx.curr_item_instance = None;
-                                        self.server_ctx.curr_item = None;
+                                        self.server_ctx.curr_region_content =
+                                            ContentContext::Unknown;
                                         redraw = true;
 
                                         // Remove from the content list
@@ -1000,7 +1031,56 @@ impl TheTrait for Editor {
                                 self.server_ctx.curr_region_content =
                                     ContentContext::CharacterInstance(instance.id);
                                 region.characters.insert(instance.id, instance.clone());
-                                insert_characters_into_maps(&mut self.project);
+                                insert_content_into_maps(&mut self.project);
+                                RUSTERIX.write().unwrap().set_dirty();
+                            }
+                        } else if drop.id.name.starts_with("Item") {
+                            let mut instance = Item {
+                                item_id: drop.id.uuid,
+                                position: Vec3::new(grid_pos.x, 1.5, grid_pos.y),
+                                ..Default::default()
+                            };
+
+                            if let Some(bytes) = crate::Embedded::get("python/institem.py") {
+                                if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                                    instance.source = source.to_string();
+                                }
+                            }
+
+                            let mut name = "Item".to_string();
+                            if let Some(character) = self.project.characters.get(&drop.id.uuid) {
+                                name.clone_from(&character.name);
+                            }
+
+                            if let Some(list) = ui.get_list_layout("Region Content List") {
+                                let mut item = TheListItem::new(TheId::named_with_id(
+                                    "Region Content List Item",
+                                    instance.id,
+                                ));
+                                item.set_text(name);
+                                item.set_state(TheWidgetState::Selected);
+                                item.add_value_column(100, TheValue::Text("Item".to_string()));
+
+                                list.deselect_all();
+                                item.set_context_menu(Some(TheContextMenu {
+                                    items: vec![TheContextMenuItem::new(
+                                        "Delete Item...".to_string(),
+                                        TheId::named("Sidebar Delete Item Instance"),
+                                    )],
+                                    ..Default::default()
+                                }));
+                                list.add_item(item, ctx);
+                                list.select_item(instance.id, ctx, true);
+                            }
+
+                            // Add the character instance to the project
+                            if let Some(region) =
+                                self.project.get_region_mut(&self.server_ctx.curr_region)
+                            {
+                                self.server_ctx.curr_region_content =
+                                    ContentContext::ItemInstance(instance.id);
+                                region.items.insert(instance.id, instance.clone());
+                                insert_content_into_maps(&mut self.project);
                                 RUSTERIX.write().unwrap().set_dirty();
                             }
                         }
@@ -1254,7 +1334,7 @@ impl TheTrait for Editor {
 
                                     if let Ok(project) = serde_json::from_str(&contents) {
                                         self.project = project;
-                                        insert_characters_into_maps(&mut self.project);
+                                        insert_content_into_maps(&mut self.project);
 
                                         // Update geo_obj parameters if necessary
                                         // for r in &mut self.project.regions {
@@ -1506,7 +1586,7 @@ impl TheTrait for Editor {
                             /*
                             _ = self.server.set_project(self.project.clone());
                             self.server.stop();*/
-                            insert_characters_into_maps(&mut self.project);
+                            insert_content_into_maps(&mut self.project);
                             update_server_icons = true;
                         } else if id.name == "Undo" || id.name == "Redo" {
                             if ui.focus_widget_supports_undo_redo(ctx) {

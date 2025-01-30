@@ -57,17 +57,11 @@ pub struct ServerContext {
     /// The currently selected character in the editor.
     pub curr_character: ContentContext,
 
+    /// The currently selected item in the editor.
+    pub curr_item: ContentContext,
+
     /// The current content context.
     pub cc: ContentContext,
-
-    /// The currently selected item in the editor.
-    pub curr_item: Option<Uuid>,
-
-    /// The currently selected item instance in the editor.
-    pub curr_item_instance: Option<Uuid>,
-
-    /// The currently selected area in the editor.
-    pub curr_area: Option<Uuid>,
 
     /// The currently selected codegrid in the code editor.
     pub curr_grid_id: Option<Uuid>,
@@ -142,12 +136,8 @@ impl ServerContext {
 
             curr_region_content: ContentContext::Unknown,
             curr_character: ContentContext::Unknown,
+            curr_item: ContentContext::Unknown,
             cc: ContentContext::Unknown,
-
-            curr_item: None,
-            curr_item_instance: None,
-
-            curr_area: None,
 
             curr_grid_id: None,
 
@@ -192,12 +182,10 @@ impl ServerContext {
     pub fn clear(&mut self) {
         self.curr_region_content = ContentContext::Unknown;
         self.curr_character = ContentContext::Unknown;
+        self.curr_item = ContentContext::Unknown;
         self.cc = ContentContext::Unknown;
 
         self.curr_region = Uuid::nil();
-        self.curr_item = None;
-        self.curr_item_instance = None;
-        self.curr_area = None;
         self.curr_grid_id = None;
         self.curr_screen = Uuid::nil();
         self.interactions.clear();

@@ -819,8 +819,8 @@ impl MapEditor {
                 if id.name == "Region Content List Item" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         let prev = region.map.clone();
+                        region.map.clear_selection();
                         let mut found = false;
-                        //if region.map.selected_entity != Some(id.uuid) {
                         if let Some(character) = region.characters.get(&id.uuid) {
                             found = true;
                             if *SIDEBARMODE.write().unwrap() == SidebarMode::Region {
@@ -831,7 +831,7 @@ impl MapEditor {
                                 );
                             }
 
-                            region.map.selected_entity = Some(id.uuid);
+                            region.map.selected_entity_item = Some(id.uuid);
                             server_ctx.curr_region_content =
                                 ContentContext::CharacterInstance(id.uuid);
                             server_ctx.cc = ContentContext::CharacterInstance(id.uuid);
@@ -854,6 +854,7 @@ impl MapEditor {
                                 );
                             }
 
+                            region.map.selected_entity_item = Some(id.uuid);
                             server_ctx.curr_region_content = ContentContext::ItemInstance(id.uuid);
                             server_ctx.cc = ContentContext::ItemInstance(id.uuid);
                             if let Some(render_view) = ui.get_render_view("PolyView") {
@@ -867,8 +868,6 @@ impl MapEditor {
                             }
                         }
 
-                        region.map.clear_selection();
-                        region.map.selected_entity = Some(id.uuid);
                         let undo_atom =
                             RegionUndoAtom::MapEdit(Box::new(prev), Box::new(region.map.clone()));
                         UNDOMANAGER.write().unwrap().add_region_undo(
@@ -880,7 +879,6 @@ impl MapEditor {
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,
                         ));
-                        //}
 
                         if !found {
                             // Test sectors

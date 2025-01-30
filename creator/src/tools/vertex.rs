@@ -62,8 +62,6 @@ impl Tool for VertexTool {
                     ctx.ui.relayout = true;
                 }
 
-                server_ctx.curr_item_instance = None;
-                server_ctx.curr_area = None;
                 server_ctx.curr_map_tool_type = MapToolType::Vertex;
 
                 if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -113,7 +111,7 @@ impl Tool for VertexTool {
                     let prev = map.clone();
                     let mut changed = false;
 
-                    map.selected_entity = None;
+                    map.selected_entity_item = None;
                     map.selected_light = None;
 
                     if ui.shift {
