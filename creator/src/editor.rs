@@ -696,6 +696,15 @@ impl TheTrait for Editor {
                         if let Some(items) = items {
                             r.map.items = items.clone();
                         }
+
+                        if r.id == self.server_ctx.curr_region {
+                            if let Some(time) = rusterix.server.get_time(&r.map.id) {
+                                rusterix.client.server_time = time;
+                                if let Some(widget) = ui.get_widget("Server Time Slider") {
+                                    widget.set_value(TheValue::Time(rusterix.client.server_time));
+                                }
+                            }
+                        }
                     }
                 }
                 rusterix.set_dirty();
@@ -1369,8 +1378,6 @@ impl TheTrait for Editor {
 
                                         if let Some(widget) = ui.get_widget("Server Time Slider") {
                                             widget.set_value(TheValue::Time(self.project.time));
-                                            // TOOLLIST.lock().unwrap().server_time =
-                                            //     self.server.world.time;
                                         }
                                         // self.server.set_time(self.project.time);
 
@@ -1697,7 +1704,13 @@ impl TheTrait for Editor {
                         if id.name == "Server Time Slider" {
                             if let TheValue::Time(time) = value {
                                 self.project.time = time;
-                                TOOLLIST.write().unwrap().server_time = time;
+                                let mut rusterix = RUSTERIX.write().unwrap();
+                                rusterix.client.server_time = time;
+                                if rusterix.server.state == rusterix::ServerState::Running {
+                                    if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                        rusterix.server.set_time(&map.id, time);
+                                    }
+                                }
                             }
                         }
                     }
