@@ -1,36 +1,35 @@
 use crate::prelude::*;
-use rusterix::ValueContainer;
 use theframework::prelude::*;
 
-pub struct EffectPicker {
+pub struct SettingsPicker {
     pub id: String,
 
-    pub effects_map: FxHashMap<(i32, i32), EffectWrapper>,
-    pub effects_text: FxHashMap<(i32, i32), String>,
+    pub settings_map: FxHashMap<(i32, i32), String>,
+    pub settings_text: FxHashMap<(i32, i32), String>,
 
     pub filter: String,
     pub filter_role: u8,
     pub zoom: f32,
 
-    pub effects: Vec<EffectWrapper>,
+    pub settings: Vec<String>,
 
     pub curr_material: Option<Uuid>,
 }
 
 #[allow(clippy::new_without_default)]
-impl EffectPicker {
+impl SettingsPicker {
     pub fn new(id: String) -> Self {
-        let effects = vec![EffectWrapper::PointLight(ValueContainer::default())];
+        let settings = vec!["Project".into(), "Render".into()];
 
         Self {
             id,
-            effects_map: FxHashMap::default(),
-            effects_text: FxHashMap::default(),
+            settings_map: FxHashMap::default(),
+            settings_text: FxHashMap::default(),
             filter: "".to_string(),
             filter_role: 0,
             zoom: 1.0,
 
-            effects,
+            settings,
 
             curr_material: None,
         }
@@ -107,8 +106,8 @@ impl EffectPicker {
 
     /// Set the tiles for the picker.
     pub fn update_tiles(&mut self, _project: &Project, ui: &mut TheUI, ctx: &mut TheContext) {
-        self.effects_map.clear();
-        self.effects_text.clear();
+        self.settings_map.clear();
+        self.settings_text.clear();
         if let Some(editor) = ui.get_rgba_layout(&self.make_id(" RGBA Layout")) {
             let width = editor.dim().width - 16;
             let height = editor.dim().height - 16;
@@ -123,11 +122,11 @@ impl EffectPicker {
 
                 let mut filtered_tiles = vec![];
 
-                for effect in &self.effects {
-                    if effect.name().to_lowercase().contains(&self.filter)
+                for settings in &self.settings {
+                    if settings.to_lowercase().contains(&self.filter)
                     //&& (self.filter_role == 0 || map.role == self.filter_role - 1)
                     {
-                        filtered_tiles.push(effect.clone());
+                        filtered_tiles.push(settings.clone());
                     }
                 }
 
@@ -147,11 +146,19 @@ impl EffectPicker {
                         grid as u32,
                     );
 
-                    if let Some(icon) = ctx.ui.icon(&fx.icon()) {
-                        rgba.copy_into(0, 0, icon);
+                    if fx == "Project" {
+                        if let Some(icon) = ctx.ui.icon("project") {
+                            rgba.copy_into(0, 0, icon);
+                        }
+                        self.settings_map.insert((x, y), fx.clone());
+                        self.settings_text.insert((x, y), "Project Settings".into());
+                    } else if fx == "Render" {
+                        if let Some(icon) = ctx.ui.icon("render") {
+                            rgba.copy_into(0, 0, icon);
+                        }
+                        self.settings_map.insert((x, y), fx.clone());
+                        self.settings_text.insert((x, y), "Render Settings".into());
                     }
-                    self.effects_map.insert((x, y), fx.clone());
-                    self.effects_text.insert((x, y), fx.name().clone());
 
                     buffer.copy_into(x * grid, y * grid, &rgba);
                 }
@@ -168,7 +175,7 @@ impl EffectPicker {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        _server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
 
@@ -178,8 +185,34 @@ impl EffectPicker {
             }
             TheEvent::TilePicked(id, pos) => {
                 if id.name == self.make_id(" RGBA Layout View") {
-                    if let Some(tile_id) = self.effects_map.get(&(pos.x, pos.y)) {
-                        server_ctx.curr_effect = Some(tile_id.clone());
+                    if let Some(tile_id) = self.settings_map.get(&(pos.x, pos.y)) {
+                        if tile_id == "Project" {
+                            if let Some(layout) = ui.get_text_layout("Node Settings") {
+                                project.settings.apply_to_text_layout(
+                                    shared::settingscontainer::SettingsType::Project,
+                                    layout,
+                                );
+                                ctx.ui.relayout = true;
+
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Show Node Settings"),
+                                    TheValue::Text("Project Settings".to_string()),
+                                ));
+                            }
+                        } else if tile_id == "Render" {
+                            if let Some(layout) = ui.get_text_layout("Node Settings") {
+                                project.settings.apply_to_text_layout(
+                                    shared::settingscontainer::SettingsType::Render,
+                                    layout,
+                                );
+                                ctx.ui.relayout = true;
+
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Show Node Settings"),
+                                    TheValue::Text("Render Settings".to_string()),
+                                ));
+                            }
+                        }
                         redraw = true;
                     }
                 }
@@ -188,7 +221,7 @@ impl EffectPicker {
                 if id.name == self.make_id(" RGBA Layout View") {
                     ctx.ui.send(TheEvent::SetStatusText(
                         id.clone(),
-                        self.effects_text
+                        self.settings_text
                             .get(&(pos.x, pos.y))
                             .unwrap_or(&"".to_string())
                             .to_string(),

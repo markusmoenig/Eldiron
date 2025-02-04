@@ -1,4 +1,5 @@
 use crate::prelude::*;
+pub use rusterix::map::*;
 use theframework::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -69,12 +70,6 @@ pub struct ServerContext {
     /// The currently selected screen.
     pub curr_screen: Uuid,
 
-    /// The currently selected widget.
-    pub curr_widget: Option<Uuid>,
-
-    /// Show the fx marker on the tiles
-    pub show_fx_marker: bool,
-
     /// The logged interactions of the characters.
     pub interactions: FxHashMap<Uuid, Vec<Interaction>>,
 
@@ -142,9 +137,6 @@ impl ServerContext {
             curr_grid_id: None,
 
             curr_screen: Uuid::nil(),
-            curr_widget: None,
-
-            show_fx_marker: false,
 
             interactions: FxHashMap::default(),
 
@@ -216,6 +208,19 @@ impl ServerContext {
         } else {
             rounded
         }
+    }
+
+    /// Snap to a grid cell
+    pub fn local_to_map_cell(
+        &self,
+        screen_size: Vec2<f32>,
+        coord: Vec2<f32>,
+        map: &Map,
+        subdivisions: f32,
+    ) -> Vec2<f32> {
+        let grid_space_pos = coord - screen_size / 2.0 - Vec2::new(map.offset.x, -map.offset.y);
+        let cell_size = map.grid_size / subdivisions;
+        (grid_space_pos / cell_size).map(|x| x.floor())
     }
 
     /// Convert a map grid position to a local screen position

@@ -25,8 +25,6 @@ pub static UNDOMANAGER: LazyLock<RwLock<UndoManager>> =
     LazyLock::new(|| RwLock::new(UndoManager::default()));
 pub static TOOLLIST: LazyLock<RwLock<ToolList>> =
     LazyLock::new(|| RwLock::new(ToolList::default()));
-pub static BRUSHLIST: LazyLock<RwLock<BrushList>> =
-    LazyLock::new(|| RwLock::new(BrushList::default()));
 pub static PANELS: LazyLock<RwLock<Panels>> = LazyLock::new(|| RwLock::new(Panels::new()));
 pub static TEXTEDITOR: LazyLock<RwLock<TextEditor>> =
     LazyLock::new(|| RwLock::new(TextEditor::new()));
@@ -34,6 +32,8 @@ pub static PALETTE: LazyLock<RwLock<ThePalette>> =
     LazyLock::new(|| RwLock::new(ThePalette::default()));
 pub static RUSTERIX: LazyLock<RwLock<Rusterix>> =
     LazyLock::new(|| RwLock::new(Rusterix::default()));
+pub static SETTINGSPICKER: LazyLock<RwLock<SettingsPicker>> =
+    LazyLock::new(|| RwLock::new(SettingsPicker::new("Main Settings Picker".to_string())));
 
 pub struct Editor {
     project: Project,
@@ -482,8 +482,8 @@ impl TheTrait for Editor {
         }
 
         let (redraw_update, tick_update) = self.update_tracker.update(
-            (1000 / self.project.target_fps) as u64,
-            self.project.tick_ms as u64,
+            (1000 / self.project.settings.get_i32_value("renderFPS", 30)) as u64,
+            self.project.settings.get_i32_value("projectTickMs", 250) as u64,
         );
 
         if tick_update {
@@ -676,6 +676,23 @@ impl TheTrait for Editor {
         if redraw_update && !self.project.regions.is_empty() {
             // let render_mode = *RENDERMODE.lock().unwrap();
 
+            let sample_mode = self.project.settings.get_i32_value("renderSampleMode", 0);
+            match sample_mode {
+                0 => {
+                    self.build_values.set(
+                        "sample_mode",
+                        Value::SampleMode(rusterix::SampleMode::Nearest),
+                    );
+                }
+                1 => {
+                    self.build_values.set(
+                        "sample_mode",
+                        Value::SampleMode(rusterix::SampleMode::Linear),
+                    );
+                }
+                _ => {}
+            }
+
             // Update entities when the server is running
             {
                 let rusterix = &mut RUSTERIX.write().unwrap();
@@ -794,6 +811,7 @@ impl TheTrait for Editor {
                                     &map.items,
                                     map,
                                     &assets,
+                                    &self.build_values,
                                 );
                             }
 

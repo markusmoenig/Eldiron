@@ -1,4 +1,4 @@
-use crate::editor::{RUSTERIX, SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER};
+use crate::editor::{PALETTE, RUSTERIX, SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER};
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
 use rusterix::{D2MaterialBuilder, SceneBuilder, Texture};
@@ -1340,6 +1340,7 @@ impl Sidebar {
                             palette_picker.set_palette(project.palette.clone());
                         }
                     }
+                    *PALETTE.write().unwrap() = project.palette.clone();
                 } else if id.name == "Palette Color Picker" {
                     if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
                         if let Some(color) = value.to_color() {
@@ -1356,6 +1357,7 @@ impl Sidebar {
                     if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker") {
                         palette_picker.set_palette(project.palette.clone());
                     }
+                    *PALETTE.write().unwrap() = project.palette.clone();
                 } else if id.name == "Screen Aspect Ratio Dropdown" {
                     if let Some(index) = value.to_i32() {
                         if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {

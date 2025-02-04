@@ -3,44 +3,41 @@ use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
 
-pub struct FXTool {
+pub struct SettingsTool {
     id: TheId,
 
-    edit_mode_index: i32,
     hud: Hud,
 }
 
-impl Tool for FXTool {
+impl Tool for SettingsTool {
     fn new() -> Self
     where
         Self: Sized,
     {
         Self {
-            id: TheId::named("Effects Tool"),
+            id: TheId::named("Settings Tool"),
 
-            edit_mode_index: 0,
             hud: Hud::new(HudMode::Effects),
         }
     }
-
     fn id(&self) -> TheId {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Effects Tool (X). Apply lighting and effects to the map.")
+        str!("Settings Tool.")
     }
     fn icon_name(&self) -> String {
-        str!("magicwand")
+        str!("faders")
     }
     fn accel(&self) -> Option<char> {
-        Some('x')
+        None //Some('x')
     }
 
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,
         _tool_context: ToolContext,
-        ui: &mut TheUI,
+        _ui: &mut TheUI,
         ctx: &mut TheContext,
         _project: &mut Project,
         server_ctx: &mut ServerContext,
@@ -49,28 +46,10 @@ impl Tool for FXTool {
             Activate => {
                 ctx.ui.send(TheEvent::SetStackIndex(
                     TheId::named("Main Stack"),
-                    PanelIndices::EffectPicker as usize,
+                    PanelIndices::SettingsPicker as usize,
                 ));
 
-                server_ctx.curr_map_tool_type = MapToolType::Effects;
-
-                if let Some(layout) = ui.get_hlayout("Game Tool Params") {
-                    layout.clear();
-
-                    // Material Group
-                    let mut gb = TheGroupButton::new(TheId::named("Effects Mode Group"));
-                    gb.add_text_status(str!("Add"), str!("Add the current effects to new tiles."));
-                    gb.add_text_status(str!("Edit"), str!("Edit the effects of existing tiles."));
-                    gb.add_text_status(
-                        str!("Delete"),
-                        str!("Delete the effects on existing tiles."),
-                    );
-                    gb.set_item_width(85);
-
-                    gb.set_index(self.edit_mode_index);
-
-                    layout.add_widget(Box::new(gb));
-                }
+                server_ctx.curr_map_tool_type = MapToolType::General;
 
                 true
             }
@@ -228,18 +207,9 @@ impl Tool for FXTool {
         event: &TheEvent,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         _server_ctx: &mut ServerContext,
     ) -> bool {
-        #[allow(clippy::single_match)]
-        match &event {
-            TheEvent::IndexChanged(id, index) => {
-                if id.name == "Effects Mode Group" {
-                    self.edit_mode_index = *index as i32;
-                }
-            }
-            _ => {}
-        }
-        false
+        project.settings.handle_event(event.clone())
     }
 }

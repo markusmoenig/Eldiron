@@ -5,20 +5,6 @@ use vek::Vec2;
 use crate::editor::RUSTERIX;
 
 pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer) {
-    // let background = *ui
-    //     .style
-    //     .theme()
-    //     .color(TheThemeColors::DefaultWidgetDarkBackground);
-
-    // pub fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
-    //     [
-    //         (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
-    //         (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] as f32 / 255.0 * v) * 255.0) as u8,
-    //         (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v) * 255.0) as u8,
-    //         255,
-    //     ]
-    // }
-
     let dim = buffer.dim();
 
     let width = dim.width as f32;
@@ -62,8 +48,13 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer) {
 
         let rusterix = RUSTERIX.write().unwrap();
 
+        let mut map = region.map.clone();
+        map.clear_temp();
+        map.entities.clear();
+        map.items.clear();
+
         let mut scene = builder.build(
-            &region.map,
+            &map,
             &rusterix.assets.tiles,
             rusterix.assets.atlas.clone(),
             Vec2::new(width, height),

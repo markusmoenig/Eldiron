@@ -1,5 +1,7 @@
 use crate::prelude::*;
+use crate::settingscontainer::SettingsContainer;
 use indexmap::IndexMap;
+pub use rusterix::map::*;
 use theframework::prelude::*;
 
 /// The default target fps for the game.
@@ -57,6 +59,9 @@ pub struct Project {
 
     #[serde(default = "default_tick_ms")]
     pub tick_ms: u32,
+
+    #[serde(default)]
+    pub settings: SettingsContainer,
 }
 
 impl Default for Project {
@@ -95,6 +100,8 @@ impl Project {
 
             target_fps: default_target_fps(),
             tick_ms: default_tick_ms(),
+
+            settings: SettingsContainer::default(),
         }
     }
 

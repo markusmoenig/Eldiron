@@ -1,23 +1,15 @@
 pub use crate::prelude::*;
 
 pub mod code;
-// pub mod draw;
-// pub mod eraser;
 pub mod fx;
 pub mod game;
 pub mod linedef;
-// pub mod mapobjects;
-// pub mod material;
-// pub mod model;
-// pub mod picker;
-// pub mod resize;
-// pub mod screen;
+pub mod rect;
 pub mod sector;
 pub mod selection;
-//pub mod terrain;
+pub mod settings;
 pub mod tilemap;
 pub mod vertex;
-// pub mod zoom;
 
 #[derive(PartialEq, Clone, Debug, Copy)]
 pub enum ToolEvent {
@@ -101,19 +93,6 @@ pub trait Tool: Send + Sync {
         map: &mut Map,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-    ) {
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn fill_mask(
-        &self,
-        material_offset: usize,
-        buffer: &mut TheRGBBuffer,
-        p: Vec2<f32>,
-        coord: Vec2<f32>,
-        material_index: u8,
-        brush: &dyn Brush,
-        settings: &BrushSettings,
     ) {
     }
 }

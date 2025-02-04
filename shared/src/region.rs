@@ -1,4 +1,5 @@
 use crate::prelude::*;
+pub use rusterix::map::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

@@ -1,6 +1,6 @@
-use crate::prelude::*;
-
 use crate::editor::UNDOMANAGER;
+use crate::prelude::*;
+pub use crate::tools::{rect::RectTool, settings::SettingsTool};
 
 pub struct ToolList {
     pub server_time: TheTime,
@@ -11,6 +11,7 @@ pub struct ToolList {
 
     pub char_click_selected: bool,
     pub char_click_pos: Vec2<f32>,
+    pub item_click_selected: bool,
 
     drag_changed: bool,
     undo_map: Map,
@@ -26,18 +27,14 @@ impl ToolList {
     pub fn new() -> Self {
         let game_tools: Vec<Box<dyn Tool>> = vec![
             Box::new(SelectionTool::new()),
-            //Box::new(PickerTool::new()),
             Box::new(VertexTool::new()),
             Box::new(LinedefTool::new()),
             Box::new(SectorTool::new()),
-            // Box::new(DrawTool::new()),
-            // Box::new(MapObjectsTool::new()),
+            Box::new(RectTool::new()),
             Box::new(FXTool::new()),
             Box::new(CodeTool::new()),
-            // Box::new(EraserTool::new()),
             Box::new(TilemapTool::new()),
-            // Box::new(ZoomTool::new()),
-            //Box::new(ResizeTool::new()),
+            Box::new(SettingsTool::new()),
             Box::new(GameTool::new()),
         ];
         Self {
@@ -49,6 +46,7 @@ impl ToolList {
 
             char_click_selected: false,
             char_click_pos: Vec2::zero(),
+            item_click_selected: false,
 
             drag_changed: false,
             undo_map: Map::default(),
@@ -250,6 +248,7 @@ impl ToolList {
             }
             TheEvent::RenderViewClicked(id, coord) => {
                 self.char_click_selected = false;
+                self.item_click_selected = false;
 
                 if let Some(map) = project.get_map_mut(server_ctx) {
                     // Test for character click
@@ -312,7 +311,7 @@ impl ToolList {
                                 if d < 1.0 {
                                     let prev = map.clone();
                                     self.undo_map = map.clone();
-                                    self.char_click_selected = true;
+                                    self.item_click_selected = true;
                                     self.drag_changed = false;
                                     if map.selected_entity_item != Some(item.creator_id) {
                                         map.clear_selection();
@@ -358,7 +357,7 @@ impl ToolList {
                 if id.name == "PolyView" {
                     if let Some(map) = project.get_map_mut(server_ctx) {
                         if self.char_click_selected {
-                            // Dragging selected lines
+                            // Dragging selected character
                             if let Some(render_view) = ui.get_render_view("PolyView") {
                                 let dim = *render_view.dim();
 
@@ -390,6 +389,39 @@ impl ToolList {
                             }
                         }
 
+                        if self.item_click_selected {
+                            // Dragging selected item
+                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                                let dim = *render_view.dim();
+
+                                let drag_pos = server_ctx.local_to_map_grid(
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    Vec2::new(coord.x as f32, coord.y as f32),
+                                    map,
+                                    map.subdivisions,
+                                );
+
+                                let drag_delta = self.char_click_pos - drag_pos;
+
+                                for item in map.items.iter_mut() {
+                                    if Some(item.creator_id) == map.selected_entity_item {
+                                        let new_pos = Vec2::new(
+                                            self.char_click_pos.x - drag_delta.x,
+                                            self.char_click_pos.y - drag_delta.y,
+                                        );
+                                        item.position.x = new_pos.x;
+                                        item.position.z = new_pos.y;
+
+                                        self.drag_changed = self.char_click_pos.x != new_pos.x
+                                            || self.char_click_pos.y != new_pos.y;
+                                    }
+                                }
+
+                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                return true;
+                            }
+                        }
+
                         let undo_atom = self.get_current_tool().map_event(
                             MapEvent::MapDragged(*coord),
                             ui,
@@ -405,7 +437,9 @@ impl ToolList {
             TheEvent::RenderViewUp(id, coord) => {
                 if id.name == "PolyView" {
                     if let Some(map) = project.get_map_mut(server_ctx) {
-                        if self.char_click_selected && self.drag_changed {
+                        if (self.item_click_selected || self.char_click_selected)
+                            && self.drag_changed
+                        {
                             let undo_atom = RegionUndoAtom::MapEdit(
                                 Box::new(self.undo_map.clone()),
                                 Box::new(map.clone()),
@@ -417,6 +451,7 @@ impl ToolList {
                             );
 
                             self.char_click_selected = false;
+                            self.item_click_selected = false;
                             return true;
                         }
 
