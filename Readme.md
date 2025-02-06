@@ -1,4 +1,4 @@
-![screenshot](images/eldiron_header.png)
+![Eldiron Header](images/eldiron_header.png)
 
 Classic RPG Creation
 
@@ -11,8 +11,6 @@ Classic RPG Creation
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/) [![version](https://img.shields.io/badge/version-0.8.12-yellow.svg)](https://shields.io/) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/MarkusMoenig)
 
 # Eldiron: A Next-Generation Classical RPG Creator
-
-![Eldiron Header](images/eldiron_header.png)
 
 Eldiron is a cross-platform creator for classic, retro role-playing-games (RPGs). It’s main aim is to create games similar to the RPGs of the 80’s and 90’s but with modern features as well as support for single and multi-player experiences, procedural content and much more.
 
