@@ -9,6 +9,7 @@ pub struct RectTool {
     id: TheId,
 
     hovered_vertices: Option<[Vec2<f32>; 4]>,
+    mode: i32,
     hud: Hud,
 }
 
@@ -21,6 +22,7 @@ impl Tool for RectTool {
             id: TheId::named("Rect Tool"),
 
             hovered_vertices: None,
+            mode: 0,
             hud: Hud::new(HudMode::Linedef),
         }
     }
@@ -112,20 +114,21 @@ impl Tool for RectTool {
                         ));
                     };
 
-                    let mut set_source_button =
-                        TheTraybarButton::new(TheId::named("Apply Map Properties"));
-                    set_source_button.set_status_text("Apply the source to the selected geometry.");
-                    set_source_button.set_text("Apply Source".to_string());
-                    layout.add_widget(Box::new(set_source_button));
+                    let mut mode_switch = TheGroupButton::new(TheId::named("Rect Mode Switch"));
+                    mode_switch.add_text_status(
+                        "Overwrite".to_string(),
+                        "Overwrite existing rects.".to_string(),
+                    );
+                    mode_switch.add_text_status(
+                        "Layer".to_string(),
+                        "Layer rects on top of each other.".to_string(),
+                    );
 
-                    let mut rem_source_button =
-                        TheTraybarButton::new(TheId::named("Remove Map Properties"));
-                    rem_source_button
-                        .set_status_text("Remove the source from the selected geometry.");
-                    rem_source_button.set_text("Remove".to_string());
-                    layout.add_widget(Box::new(rem_source_button));
+                    mode_switch.set_item_width(100);
+                    mode_switch.set_index(self.mode);
+                    layout.add_widget(Box::new(mode_switch));
 
-                    layout.set_reverse_index(Some(2));
+                    layout.set_reverse_index(Some(1));
                 }
 
                 return true;
@@ -161,6 +164,7 @@ impl Tool for RectTool {
             map: &mut Map,
             server_ctx: &mut ServerContext,
             hovered_vertices: Option<[Vec2<f32>; 4]>,
+            mode: i32,
         ) -> Option<RegionUndoAtom> {
             let mut undo_atom: Option<RegionUndoAtom> = None;
 
@@ -179,12 +183,18 @@ impl Tool for RectTool {
                                         map.find_sectors_with_vertex_indices(&[ev0, ev1, ev2, ev3]);
 
                                     for sector_id in sectors {
-                                        if let Some(sector) = map.find_sector(sector_id) {
+                                        if let Some(sector) = map.find_sector_mut(sector_id) {
                                             if let Some(sector_floor_source) =
                                                 sector.properties.get("floor_source")
                                             {
                                                 if source == *sector_floor_source {
                                                     // A tile with the same floor_source exists, do not add.
+                                                    add_it = false;
+                                                } else if mode == 0 {
+                                                    // In overlay mode we just overwrite the source
+                                                    sector
+                                                        .properties
+                                                        .set("floor_source", source.clone());
                                                     add_it = false;
                                                 }
                                             }
@@ -285,7 +295,7 @@ impl Tool for RectTool {
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     return None;
                 }
-                undo_atom = add_tile(ui, ctx, map, server_ctx, self.hovered_vertices);
+                undo_atom = add_tile(ui, ctx, map, server_ctx, self.hovered_vertices, self.mode);
                 if undo_atom.is_some() {
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Update Minimap"),
@@ -299,7 +309,7 @@ impl Tool for RectTool {
                     return None;
                 }
                 self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
-                undo_atom = add_tile(ui, ctx, map, server_ctx, self.hovered_vertices);
+                undo_atom = add_tile(ui, ctx, map, server_ctx, self.hovered_vertices, self.mode);
                 if undo_atom.is_some() {
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Update Minimap"),
@@ -458,6 +468,8 @@ impl Tool for RectTool {
                         ));
                     };
                     redraw = true;
+                } else if id.name == "Rect Mode Switch" {
+                    self.mode = *index as i32;
                 }
             }
             _ => {}

@@ -19,7 +19,7 @@ pub struct SettingsPicker {
 #[allow(clippy::new_without_default)]
 impl SettingsPicker {
     pub fn new(id: String) -> Self {
-        let settings = vec!["Project".into(), "Render".into()];
+        let settings = vec!["Project".into(), "Render".into(), "Game".into()];
 
         Self {
             id,
@@ -158,6 +158,12 @@ impl SettingsPicker {
                         }
                         self.settings_map.insert((x, y), fx.clone());
                         self.settings_text.insert((x, y), "Render Settings".into());
+                    } else if fx == "Game" {
+                        if let Some(icon) = ctx.ui.icon("game_settings") {
+                            rgba.copy_into(0, 0, icon);
+                        }
+                        self.settings_map.insert((x, y), fx.clone());
+                        self.settings_text.insert((x, y), "Game Settings".into());
                     }
 
                     buffer.copy_into(x * grid, y * grid, &rgba);
@@ -210,6 +216,19 @@ impl SettingsPicker {
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Show Node Settings"),
                                     TheValue::Text("Render Settings".to_string()),
+                                ));
+                            }
+                        } else if tile_id == "Game" {
+                            if let Some(layout) = ui.get_text_layout("Node Settings") {
+                                project.settings.apply_to_text_layout(
+                                    shared::settingscontainer::SettingsType::Game,
+                                    layout,
+                                );
+                                ctx.ui.relayout = true;
+
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Show Node Settings"),
+                                    TheValue::Text("Game Settings".to_string()),
                                 ));
                             }
                         }

@@ -6,6 +6,7 @@ pub enum SettingsType {
     Project,
     Render,
     Region(Uuid),
+    Game,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -23,6 +24,8 @@ impl SettingsContainer {
     pub fn new() -> Self {
         let mut settings: IndexMap<SettingsType, TheNodeUI> = IndexMap::default();
 
+        //--- Project
+
         let mut project = TheNodeUI::default();
         let item = TheNodeUIItem::IntEditSlider(
             "projectTickMs".into(),
@@ -34,6 +37,8 @@ impl SettingsContainer {
         );
         project.add_item(item);
         settings.insert(SettingsType::Project, project);
+
+        //--- Render
 
         let mut render = TheNodeUI::default();
         let item = TheNodeUIItem::IntEditSlider(
@@ -55,6 +60,30 @@ impl SettingsContainer {
         render.add_item(item);
 
         settings.insert(SettingsType::Render, render);
+
+        //--- Game
+
+        let mut game = TheNodeUI::default();
+        let item = TheNodeUIItem::IntEditSlider(
+            "gameScreenWidth".into(),
+            "Screen Width".into(),
+            "Set the global game screeen width.".into(),
+            1280,
+            400..=4000,
+            false,
+        );
+        game.add_item(item);
+        let item = TheNodeUIItem::IntEditSlider(
+            "gameScreenHeight".into(),
+            "Screen Height".into(),
+            "Set the global game screen height.".into(),
+            720,
+            400..=4000,
+            false,
+        );
+        game.add_item(item);
+
+        settings.insert(SettingsType::Game, game);
 
         Self { settings }
     }

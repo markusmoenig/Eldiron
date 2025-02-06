@@ -9,6 +9,7 @@ pub enum HudMode {
     Linedef,
     Sector,
     Effects,
+    Rect,
 }
 
 pub struct Hud {
@@ -325,7 +326,7 @@ impl Hud {
             icons = 1;
         }
 
-        if self.mode == HudMode::Effects {
+        if self.mode == HudMode::Effects || self.mode == HudMode::Rect {
             icons = 0;
         }
 

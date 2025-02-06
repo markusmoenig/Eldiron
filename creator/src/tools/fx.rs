@@ -19,7 +19,7 @@ impl Tool for FXTool {
             id: TheId::named("Effects Tool"),
 
             edit_mode_index: 0,
-            hud: Hud::new(HudMode::Effects),
+            hud: Hud::new(HudMode::Rect),
         }
     }
 
@@ -175,32 +175,33 @@ impl Tool for FXTool {
             }
             MapUp(_) => {}
             MapHover(coord) => {
-                if let Some(render_view) = ui.get_render_view("PolyView") {
-                    let dim = *render_view.dim();
-                    map.curr_mouse_pos = Some(Vec2::new(coord.x as f32, coord.y as f32));
-                    let mut hover = server_ctx.geometry_at(
-                        Vec2::new(dim.width as f32, dim.height as f32),
-                        Vec2::new(coord.x as f32, coord.y as f32),
-                        map,
-                    );
-                    hover.0 = None;
-                    hover.2 = None;
+                // if let Some(render_view) = ui.get_render_view("PolyView") {
+                // let dim = *render_view.dim();
+                map.curr_mouse_pos = Some(Vec2::new(coord.x as f32, coord.y as f32));
+                // let mut hover = server_ctx.geometry_at(
+                //     Vec2::new(dim.width as f32, dim.height as f32),
+                //     Vec2::new(coord.x as f32, coord.y as f32),
+                //     map,
+                // );
+                // hover.0 = None;
+                // hover.1 = None;
+                // hover.2 = None;
 
-                    server_ctx.hover = hover;
-                    let cp = server_ctx.local_to_map_grid(
-                        Vec2::new(dim.width as f32, dim.height as f32),
-                        Vec2::new(coord.x as f32, coord.y as f32),
-                        map,
-                        map.subdivisions,
-                    );
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Cursor Pos Changed"),
-                        TheValue::Float2(cp),
-                    ));
-                    server_ctx.hover_cursor = Some(cp);
+                server_ctx.hover = (None, None, None);
+                // let cp = server_ctx.local_to_map_grid(
+                //     Vec2::new(dim.width as f32, dim.height as f32),
+                //     Vec2::new(coord.x as f32, coord.y as f32),
+                //     map,
+                //     map.subdivisions,
+                // );
+                // ctx.ui.send(TheEvent::Custom(
+                //     TheId::named("Cursor Pos Changed"),
+                //     TheValue::Float2(cp),
+                // ));
+                server_ctx.hover_cursor = None; //Some(cp);
 
-                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                }
+                // crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                // }
             }
             MapDelete => {
                 if let Some(index) = map.selected_light {

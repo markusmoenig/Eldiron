@@ -2,7 +2,7 @@ use crate::prelude::*;
 use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
 use crate::Embedded;
-use rusterix::{Rusterix, SceneBuilder, Texture, Value, ValueContainer};
+use rusterix::{PlayerCamera, Rusterix, SceneBuilder, Texture, Value, ValueContainer};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{
@@ -802,6 +802,7 @@ impl TheTrait for Editor {
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 &region.map,
                                 &self.build_values,
+                                self.server_ctx.game_mode,
                             );
 
                             if let Some(map) = self.project.get_map(&self.server_ctx) {
@@ -839,6 +840,7 @@ impl TheTrait for Editor {
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 material,
                                 &self.build_values,
+                                self.server_ctx.game_mode,
                             );
                             rusterix.draw_scene(
                                 render_view.render_buffer_mut().pixels_mut(),
@@ -930,6 +932,7 @@ impl TheTrait for Editor {
                                                 character_id,
                                             ));
                                             ui.select_first_list_item("Region Content List", ctx);
+                                            ctx.ui.relayout = true;
                                         }
                                         insert_content_into_maps(&mut self.project);
                                         RUSTERIX.write().unwrap().set_dirty();
@@ -956,6 +959,7 @@ impl TheTrait for Editor {
                                                 item_id,
                                             ));
                                             ui.select_first_list_item("Region Content List", ctx);
+                                            ctx.ui.relayout = true;
                                         }
                                     }
                                 }
@@ -1363,36 +1367,8 @@ impl TheTrait for Editor {
                                         self.project = project;
                                         insert_content_into_maps(&mut self.project);
 
-                                        // Update geo_obj parameters if necessary
-                                        // for r in &mut self.project.regions {
-                                        //     for geo_obj in r.geometry.values_mut() {
-                                        //         geo_obj.update_parameters();
-
-                                        //         r.regionfx.update_parameters();
-                                        //     }
-                                        //     // r.heightmap.material_mask.clear();
-                                        //     //
-                                        //     r.update_geometry_areas();
-                                        // }
-
-                                        // Update mat_obj parameters if necessary
-                                        // for mat_obj in &mut self.project.materials.values_mut() {
-                                        //     mat_obj.update_parameters();
-                                        // }
-                                        //
-
-                                        // self.project.materials.clear();
-                                        // if self.project.materials.len() == 0 {
-                                        //     let mut materials = IndexMap::default();
-                                        //     for _ in 0..=255 {
-                                        //         let map = Map {
-                                        //             name: "Unnamed Material".to_string(),
-                                        //             ..Default::default()
-                                        //         };
-                                        //         materials.insert(map.id, map);
-                                        //     }
-                                        //     self.project.materials = materials;
-                                        // }
+                                        self.project.settings =
+                                            shared::settingscontainer::SettingsContainer::default();
 
                                         if let Some(widget) = ui.get_widget("Server Time Slider") {
                                             widget.set_value(TheValue::Time(self.project.time));
@@ -1573,6 +1549,7 @@ impl TheTrait for Editor {
                                     TheId::empty(),
                                     "Server has been started.".to_string(),
                                 ));
+                                RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
                             }
                             /*
                             self.server.start();
@@ -1608,6 +1585,8 @@ impl TheTrait for Editor {
                             }*/
                         } else if id.name == "Stop" {
                             RUSTERIX.write().unwrap().server.stop();
+                            RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
+
                             /*
                             _ = self.server.set_project(self.project.clone());
                             self.server.stop();*/
