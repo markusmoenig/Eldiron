@@ -4,7 +4,7 @@ use rusterix::{Entity, PixelSource, Rusterix, Value};
 
 /// Start the server
 pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
-    rusterix.server.clear_log();
+    rusterix.server.clear();
     rusterix.server.log_changed = true;
 
     insert_content_into_maps(project);

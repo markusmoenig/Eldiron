@@ -44,6 +44,7 @@ impl Tool for GameTool {
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                     layout.set_mode(TheSharedVLayoutMode::Top);
                 }
+                server_ctx.curr_map_tool_type = MapToolType::Game;
                 server_ctx.game_mode = true;
                 true
             }

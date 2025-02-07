@@ -655,6 +655,7 @@ impl MapEditor {
                         }
                     }
                 } else if id.name == "linedefWallHeight"
+                    || id.name == "linedefWallWidth"
                     || id.name == "linedefMaterialWidth"
                     || id.name == "linedefNoiseIntensity"
                 {
@@ -1268,9 +1269,19 @@ impl MapEditor {
                 nodeui.add_item(item);
 
                 let item = TheNodeUIItem::FloatEditSlider(
+                    "linedefWallWidth".into(),
+                    "Wall Width".into(),
+                    "Set the width of the wall.".into(),
+                    linedef.properties.get_float_default("wall_width", 0.0),
+                    0.0..=2.0,
+                    false,
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::FloatEditSlider(
                     "linedefWallHeight".into(),
                     "Wall Height".into(),
-                    "Set the height for the wall.".into(),
+                    "Set the height of the wall.".into(),
                     linedef.properties.get_float_default("wall_height", 0.0),
                     0.0..=4.0,
                     false,
