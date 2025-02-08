@@ -34,6 +34,8 @@ pub static RUSTERIX: LazyLock<RwLock<Rusterix>> =
     LazyLock::new(|| RwLock::new(Rusterix::default()));
 pub static SETTINGSPICKER: LazyLock<RwLock<SettingsPicker>> =
     LazyLock::new(|| RwLock::new(SettingsPicker::new("Main Settings Picker".to_string())));
+pub static PREVIEWVIEW: LazyLock<RwLock<PreviewView>> =
+    LazyLock::new(|| RwLock::new(PreviewView::new()));
 
 pub struct Editor {
     project: Project,
@@ -759,15 +761,9 @@ impl TheTrait for Editor {
                                 if let Some(camera_pos) = region.map.camera_xz {
                                     b.set_camera_info(
                                         Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
-                                        vek::Vec3::zero(),
+                                        None,
                                     );
                                 }
-
-                                self.server_ctx.editing_camera_position = vek::Vec3::new(
-                                    region.editing_position_3d.x,
-                                    0.0,
-                                    region.editing_position_3d.z,
-                                );
                             } else if region.map.camera == MapCamera::ThreeDIso {
                                 if !is_running || !self.server_ctx.game_mode {
                                     let p = vek::Vec3::new(
@@ -857,6 +853,19 @@ impl TheTrait for Editor {
                         map,
                         ctx,
                         &mut self.server_ctx,
+                    );
+                }
+            }
+
+            // Draw the 3D Preview if active.
+            if self.server_ctx.curr_map_tool_helper == MapToolHelper::D3Preview {
+                if let Some(region) = self.project.get_region_ctx(&self.server_ctx) {
+                    PREVIEWVIEW.write().unwrap().draw(
+                        region,
+                        ui,
+                        ctx,
+                        &mut self.server_ctx,
+                        &self.project.settings,
                     );
                 }
             }
@@ -1400,7 +1409,8 @@ impl TheTrait for Editor {
                             for p in paths {
                                 let json = serde_json::to_string(&self.project);
                                 if let Ok(json) = json {
-                                    if std::fs::write(p, json).is_ok() {
+                                    if std::fs::write(p.clone(), json).is_ok() {
+                                        self.project_path = Some(p);
                                         ctx.ui.send(TheEvent::SetStatusText(
                                             TheId::empty(),
                                             "Project saved successfully.".to_string(),
@@ -1525,6 +1535,13 @@ impl TheTrait for Editor {
                                         "Unable to save project!".to_string(),
                                     ))
                                 }
+                            } else {
+                                ctx.ui.send(TheEvent::StateChanged(
+                                    TheId::named("Save As"),
+                                    TheWidgetState::Clicked,
+                                ));
+                                ctx.ui
+                                    .set_widget_state("Save".to_string(), TheWidgetState::None);
                             }
                         } else if id.name == "Save As" {
                             ctx.ui.save_file_requester(
@@ -1675,26 +1692,6 @@ impl TheTrait for Editor {
                                     ));
                                 }
                             }
-                        }
-                    }
-                    TheEvent::ImageDecodeResult(id, name, buffer) => {
-                        if id.name == "Add Image" {
-                            // Add a new tilemap to the project
-                            let asset = Asset {
-                                name,
-                                id: id.uuid,
-                                buffer: AssetBuffer::Image(buffer),
-                            };
-
-                            self.project.add_asset(asset);
-                        } else if id.name == "Tilemap Add" {
-                            // Add a new tilemap to the project
-                            let mut tilemap = Tilemap::new();
-                            tilemap.name = name;
-                            tilemap.id = id.uuid;
-                            tilemap.buffer = buffer;
-
-                            self.project.add_tilemap(tilemap);
                         }
                     }
                     TheEvent::ValueChanged(id, value) => {

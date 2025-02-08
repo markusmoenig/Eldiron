@@ -37,12 +37,21 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer) {
             region.editing_position_3d.z,
         ));
 
+        region.map.look_at_xz = Some(Vec2::new(
+            region.editing_look_at_3d.x,
+            region.editing_look_at_3d.z,
+        ));
+
         let mut builder = D2PreviewBuilder::new();
         builder.set_map_tool_type(MapToolType::Linedef);
         if let Some(camera_pos) = region.map.camera_xz {
             builder.set_camera_info(
                 Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
-                Vec3::zero(),
+                Some(Vec3::new(
+                    region.editing_look_at_3d.x,
+                    0.0,
+                    region.editing_look_at_3d.z,
+                )),
             );
         }
 

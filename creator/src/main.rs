@@ -10,6 +10,7 @@ pub mod materialpicker;
 pub mod minimap;
 pub mod misc;
 pub mod panels;
+pub mod previewview;
 pub mod self_update;
 pub mod settingspicker;
 pub mod sidebar;
@@ -43,6 +44,7 @@ pub mod prelude {
     pub use crate::materialpicker::*;
     pub use crate::misc::*;
     pub use crate::panels::*;
+    pub use crate::previewview::*;
     pub use crate::sidebar::*;
     pub use crate::texteditor::*;
     pub use crate::tilemapeditor::*;

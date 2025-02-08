@@ -94,13 +94,17 @@ impl Tool for LinedefTool {
                         "Apply a color.".to_string(),
                         // "square".to_string(),
                     );
-                    // material_switch.add_text_status_icon(
-                    //     "Properties".to_string(),
-                    //     "Set sector properties.".to_string(),
-                    //     "code".to_string(),
-                    // );
+                    material_switch.add_text_status(
+                        "Preview".to_string(),
+                        "Preview the map.".to_string(),
+                        // "square".to_string(),
+                    );
                     material_switch.set_item_width(100);
-                    material_switch.set_index(server_ctx.curr_map_tool_helper as i32);
+                    let mut index = server_ctx.curr_map_tool_helper as i32;
+                    if index == 4 {
+                        index = 3;
+                    }
+                    material_switch.set_index(index);
                     layout.add_widget(Box::new(material_switch));
 
                     if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
@@ -118,7 +122,12 @@ impl Tool for LinedefTool {
                             TheId::named("Main Stack"),
                             PanelIndices::ColorPicker as usize,
                         ));
-                    };
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::D3Preview {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::PreviewView as usize,
+                        ));
+                    }
 
                     let mut set_source_button =
                         TheTraybarButton::new(TheId::named("Apply Map Properties"));
@@ -726,6 +735,9 @@ impl Tool for LinedefTool {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Map Helper Switch" {
                     server_ctx.curr_map_tool_helper.set_from_index(*index);
+                    if server_ctx.curr_map_tool_helper == MapToolHelper::CodeEditor {
+                        server_ctx.curr_map_tool_helper = MapToolHelper::D3Preview;
+                    }
                     if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
@@ -741,10 +753,10 @@ impl Tool for LinedefTool {
                             TheId::named("Main Stack"),
                             PanelIndices::ColorPicker as usize,
                         ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Properties {
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::D3Preview {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
-                            PanelIndices::TextEditor as usize,
+                            PanelIndices::PreviewView as usize,
                         ));
                     };
                     redraw = true;

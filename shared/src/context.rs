@@ -20,12 +20,13 @@ pub enum MapContext {
     Material,
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum MapToolHelper {
     TilePicker,
     MaterialPicker,
     ColorPicker,
-    Properties,
+    CodeEditor,
+    D3Preview,
 }
 
 impl MapToolHelper {
@@ -33,7 +34,8 @@ impl MapToolHelper {
         match index {
             1 => *self = MapToolHelper::MaterialPicker,
             2 => *self = MapToolHelper::ColorPicker,
-            3 => *self = MapToolHelper::Properties,
+            3 => *self = MapToolHelper::CodeEditor,
+            4 => *self = MapToolHelper::D3Preview,
             _ => *self = MapToolHelper::TilePicker,
         }
     }
@@ -112,9 +114,6 @@ pub struct ServerContext {
     /// Map texture mode
     pub curr_texture_mode: MapTextureMode,
 
-    pub editing_camera_position: Vec3<f32>,
-    pub editing_preview_camera: MapCamera,
-
     pub game_mode: bool,
 }
 
@@ -162,9 +161,6 @@ impl ServerContext {
             curr_map_context: MapContext::Region,
             curr_map_tool_helper: MapToolHelper::TilePicker,
             curr_texture_mode: MapTextureMode::Floor,
-
-            editing_camera_position: Vec3::zero(),
-            editing_preview_camera: MapCamera::TwoD,
 
             game_mode: false,
         }

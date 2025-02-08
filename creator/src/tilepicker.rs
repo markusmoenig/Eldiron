@@ -154,13 +154,13 @@ impl TilePicker {
 
         vlayout.set_reverse_index(Some(1));
 
-        vlayout.add_widget(Box::new(copy));
-
         let mut text = TheText::new(TheId::empty());
         text.set_text_size(12.0);
         text.set_text("Blocking".to_string());
         vlayout.add_widget(Box::new(text));
         vlayout.add_widget(Box::new(blocking));
+
+        vlayout.add_widget(Box::new(copy));
 
         // let mut billboard_text = TheText::new(TheId::empty());
         // billboard_text.set_text_size(12.0);

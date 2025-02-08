@@ -15,16 +15,9 @@ pub enum HudMode {
 pub struct Hud {
     mode: HudMode,
 
-    d2_rect: TheDim,
-    d3iso_rect: TheDim,
-    d3firstp_rect: TheDim,
-
     icon_rects: Vec<TheDim>,
 
     pub selected_icon_index: i32,
-
-    preview_rect: TheDim,
-    preview_rect_text: TheDim,
 
     subdiv_rects: Vec<TheDim>,
 
@@ -41,15 +34,9 @@ impl Hud {
     pub fn new(mode: HudMode) -> Self {
         Self {
             mode,
-            d2_rect: TheDim::rect(100, 1, 75, 19),
-            d3iso_rect: TheDim::rect(175, 1, 50, 19),
-            d3firstp_rect: TheDim::rect(225, 1, 75, 19),
 
             icon_rects: vec![],
             selected_icon_index: 0,
-
-            preview_rect: TheDim::rect(0, 0, 0, 0),
-            preview_rect_text: TheDim::rect(0, 0, 0, 0),
 
             subdiv_rects: vec![],
 
@@ -102,59 +89,6 @@ impl Hud {
                     &format!("{:.2}, {:.2}", v.x, v.y),
                     &text_color,
                     &bg_color,
-                );
-            }
-
-            if server_ctx.curr_map_context == MapContext::Region {
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
-                    &self.d2_rect.to_buffer_utuple(),
-                    stride,
-                    font,
-                    13.0,
-                    "EDIT 2D",
-                    if map.camera == MapCamera::TwoD {
-                        &sel_text_color
-                    } else {
-                        &text_color
-                    },
-                    &bg_color,
-                    TheHorizontalAlign::Center,
-                    TheVerticalAlign::Center,
-                );
-
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
-                    &self.d3iso_rect.to_buffer_utuple(),
-                    stride,
-                    font,
-                    13.0,
-                    "ISO",
-                    if map.camera == MapCamera::ThreeDIso {
-                        &sel_text_color
-                    } else {
-                        &text_color
-                    },
-                    &bg_color,
-                    TheHorizontalAlign::Center,
-                    TheVerticalAlign::Center,
-                );
-
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
-                    &self.d3firstp_rect.to_buffer_utuple(),
-                    stride,
-                    font,
-                    13.0,
-                    "FIRSTP",
-                    if map.camera == MapCamera::ThreeDFirstPerson {
-                        &sel_text_color
-                    } else {
-                        &text_color
-                    },
-                    &bg_color,
-                    TheHorizontalAlign::Center,
-                    TheVerticalAlign::Center,
                 );
             }
         }
@@ -390,7 +324,7 @@ impl Hud {
 
         // Show Subdivs
         if map.camera == MapCamera::TwoD || server_ctx.curr_map_context == MapContext::Material {
-            let mut x = 330;
+            let mut x = 250;
             if server_ctx.curr_map_context == MapContext::Material {
                 x = 100;
             }
@@ -433,8 +367,6 @@ impl Hud {
                 preview_height,
             );
 
-            self.preview_rect_text = TheDim::rect(width as i32 - 50 - 1, height as i32 - 1, 50, 20);
-
             let mut pixels = vec![0; (preview_width * preview_height * 4) as usize];
             pixels.fill(255);
             let mut texture = Texture::new(pixels, preview_width as usize, preview_height as usize);
@@ -448,95 +380,6 @@ impl Hud {
                 &preview_rect.to_buffer_utuple(),
                 stride,
             );
-
-            self.preview_rect = preview_rect;
-        } else
-        // 3D Previews in Region mode
-        if server_ctx.curr_map_context == MapContext::Region && map.camera == MapCamera::TwoD
-        {
-            let preview_width = (width / 3) as i32;
-            let preview_height = (height / 2) as i32;
-            let preview_rect = TheDim::rect(
-                width as i32 - preview_width - 1,
-                height as i32 - preview_height - 1,
-                preview_width,
-                preview_height,
-            );
-
-            self.preview_rect_text =
-                TheDim::rect(width as i32 - 50 - 1, height as i32 - 20 - 1, 50, 20);
-
-            let mut text = "ISO".to_string();
-            if server_ctx.editing_preview_camera != MapCamera::TwoD {
-                let mut rusterix = RUSTERIX.write().unwrap();
-
-                if server_ctx.editing_preview_camera == MapCamera::ThreeDIso {
-                    let p = Vec3::new(
-                        server_ctx.editing_camera_position.x,
-                        0.0,
-                        server_ctx.editing_camera_position.z,
-                    );
-                    rusterix.client.camera_d3.set_parameter_vec3("center", p);
-                    rusterix
-                        .client
-                        .camera_d3
-                        .set_parameter_vec3("position", p + vek::Vec3::new(-10.0, 10.0, 10.0));
-                } else if server_ctx.editing_preview_camera == MapCamera::ThreeDFirstPerson {
-                    text = "FIRSTP".to_string();
-
-                    let p = Vec3::new(
-                        server_ctx.editing_camera_position.x,
-                        1.5,
-                        server_ctx.editing_camera_position.z,
-                    );
-                    rusterix.client.camera_d3.set_parameter_vec3("position", p);
-                    rusterix
-                        .client
-                        .camera_d3
-                        .set_parameter_vec3("center", p + vek::Vec3::new(0.0, 0.0, -1.0));
-                }
-
-                let mut pixels = vec![0; (preview_width * preview_height * 4) as usize];
-                rusterix.build_scene_d3(map);
-                rusterix.client.draw_d3(
-                    &mut pixels[..],
-                    preview_width as usize,
-                    preview_height as usize,
-                );
-
-                ctx.draw.copy_slice(
-                    buffer.pixels_mut(),
-                    &pixels,
-                    &preview_rect.to_buffer_utuple(),
-                    stride,
-                );
-            } else {
-                text = "OFF".to_string();
-            }
-
-            ctx.draw.rect(
-                buffer.pixels_mut(),
-                &self.preview_rect_text.to_buffer_utuple(),
-                stride,
-                &bg_color,
-            );
-
-            if let Some(font) = &ctx.ui.font {
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
-                    &self.preview_rect_text.to_buffer_utuple(),
-                    stride,
-                    font,
-                    10.0,
-                    &text,
-                    &text_color,
-                    &bg_color,
-                    TheHorizontalAlign::Center,
-                    TheVerticalAlign::Center,
-                );
-            }
-
-            self.preview_rect = preview_rect;
         }
     }
 
@@ -566,16 +409,6 @@ impl Hud {
                 map.subdivisions = (i + 1) as f32;
                 return true;
             }
-        }
-        if self.preview_rect_text.contains(Vec2::new(x, y)) {
-            if server_ctx.editing_preview_camera == MapCamera::ThreeDIso {
-                server_ctx.editing_preview_camera = MapCamera::ThreeDFirstPerson;
-            } else if server_ctx.editing_preview_camera == MapCamera::ThreeDFirstPerson {
-                server_ctx.editing_preview_camera = MapCamera::TwoD;
-            } else {
-                server_ctx.editing_preview_camera = MapCamera::ThreeDIso;
-            }
-            return true;
         }
         // Parse States
         for (i, rect) in self.state_rects.iter().enumerate() {
@@ -626,20 +459,7 @@ impl Hud {
             println!("{:?}", map.animation);
             return true;
         }
-        if y < 20 {
-            if self.d2_rect.contains(Vec2::new(x, y)) {
-                map.camera = MapCamera::TwoD;
-            } else if self.d3iso_rect.contains(Vec2::new(x, y)) {
-                map.camera = MapCamera::ThreeDIso;
-                RUSTERIX.write().unwrap().client.camera_d3 = Box::new(D3IsoCamera::new())
-            } else if self.d3firstp_rect.contains(Vec2::new(x, y)) {
-                map.camera = MapCamera::ThreeDFirstPerson;
-                RUSTERIX.write().unwrap().client.camera_d3 = Box::new(D3FirstPCamera::new())
-            }
-            true
-        } else {
-            false
-        }
+        false
     }
 
     pub fn dragged(

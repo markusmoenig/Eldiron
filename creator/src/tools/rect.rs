@@ -461,7 +461,7 @@ impl Tool for RectTool {
                             TheId::named("Main Stack"),
                             PanelIndices::ColorPicker as usize,
                         ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Properties {
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::CodeEditor {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::TextEditor as usize,

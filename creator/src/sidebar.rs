@@ -954,13 +954,29 @@ impl Sidebar {
                                 let grid_x = (coord.x as f32 - width / 2.0 - offset_x) / grid_size;
                                 let grid_y = (coord.y as f32 - height / 2.0 + offset_y) / grid_size;
 
-                                server_ctx.center_map_at_grid_pos(
-                                    Vec2::new(width, height),
-                                    Vec2::new(grid_x, grid_y),
-                                    &mut region.map,
+                                let grid = Vec2::new(grid_x, grid_y);
+                                let look_at = Vec2::new(
+                                    region.editing_look_at_3d.x,
+                                    region.editing_look_at_3d.z,
                                 );
-                                region.editing_position_3d = Vec3::new(grid_x, 0.0, grid_y);
+                                let dist = grid.distance(look_at);
 
+                                // We move the look_at position
+                                if dist < 1.5 {
+                                    region.editing_look_at_3d = Vec3::new(grid_x, 0.0, grid_y);
+                                } else {
+                                    // We move the camera position
+                                    server_ctx.center_map_at_grid_pos(
+                                        Vec2::new(width, height),
+                                        Vec2::new(grid_x, grid_y),
+                                        &mut region.map,
+                                    );
+
+                                    let old_editing_pos = region.editing_position_3d;
+                                    region.editing_position_3d = Vec3::new(grid_x, 0.0, grid_y);
+                                    region.editing_look_at_3d +=
+                                        region.editing_position_3d - old_editing_pos;
+                                }
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Update Minimap"),
                                     TheValue::Empty,
@@ -1572,14 +1588,20 @@ impl Sidebar {
                     }
                 }
             }
-            TheEvent::ImageDecodeResult(id, name, _buffer) => {
+            TheEvent::ImageDecodeResult(id, name, buffer) => {
                 if id.name == "Add Image" {
+                    let asset = Asset {
+                        name: name.clone(),
+                        id: Uuid::new_v4(),
+                        buffer: AssetBuffer::Image(buffer.clone()),
+                    };
+
                     if let Some(layout) =
                         ui.canvas.get_layout(Some(&"Asset List".to_string()), None)
                     {
                         if let Some(list_layout) = layout.as_list_layout() {
                             let mut item =
-                                TheListItem::new(TheId::named_with_id("Asset Item", id.uuid));
+                                TheListItem::new(TheId::named_with_id("Asset Item", asset.id));
                             item.set_text(name.clone());
                             item.set_state(TheWidgetState::Selected);
                             item.set_context_menu(Some(TheContextMenu {
@@ -1599,14 +1621,20 @@ impl Sidebar {
                             redraw = true;
                         }
                     }
+                    project.add_asset(asset);
                 } else if id.name == "Tilemap Add" {
+                    let mut tilemap = Tilemap::new();
+                    tilemap.name = name.clone();
+                    tilemap.id = Uuid::new_v4();
+                    tilemap.buffer = buffer.clone();
+
                     if let Some(layout) = ui
                         .canvas
                         .get_layout(Some(&"Tilemap List".to_string()), None)
                     {
                         if let Some(list_layout) = layout.as_list_layout() {
                             let mut item =
-                                TheListItem::new(TheId::named_with_id("Tilemap Item", id.uuid));
+                                TheListItem::new(TheId::named_with_id("Tilemap Item", tilemap.id));
                             item.set_text(name.clone());
                             item.set_state(TheWidgetState::Selected);
                             item.set_context_menu(Some(TheContextMenu {
@@ -1625,6 +1653,7 @@ impl Sidebar {
                             redraw = true;
                         }
                     }
+                    project.add_tilemap(tilemap);
                 }
             }
             TheEvent::StateChanged(id, state) => {

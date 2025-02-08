@@ -2,6 +2,10 @@ use crate::prelude::*;
 pub use rusterix::map::*;
 use theframework::prelude::*;
 
+fn default_editing_look_at_3d() -> Vec3<f32> {
+    Vec3::new(2.0, 0.0, 0.0)
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Region {
     pub id: Uuid,
@@ -13,6 +17,8 @@ pub struct Region {
     pub items: IndexMap<Uuid, Item>,
 
     pub editing_position_3d: Vec3<f32>,
+    #[serde(default = "default_editing_look_at_3d")]
+    pub editing_look_at_3d: Vec3<f32>,
 }
 
 impl Default for Region {
@@ -39,6 +45,7 @@ impl Region {
             items: IndexMap::default(),
 
             editing_position_3d: Vec3::zero(),
+            editing_look_at_3d: Vec3::zero(),
         }
     }
 

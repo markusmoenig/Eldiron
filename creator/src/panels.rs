@@ -1,5 +1,6 @@
 use crate::editor::{
-    EFFECTPICKER, MATERIALPICKER, SETTINGSPICKER, TEXTEDITOR, TILEMAPEDITOR, TILEPICKER,
+    EFFECTPICKER, MATERIALPICKER, PREVIEWVIEW, SETTINGSPICKER, TEXTEDITOR, TILEMAPEDITOR,
+    TILEPICKER,
 };
 use crate::prelude::*;
 
@@ -11,6 +12,7 @@ pub enum PanelIndices {
     MaterialPicker,
     EffectPicker,
     SettingsPicker,
+    PreviewView,
 }
 
 pub struct Panels {}
@@ -67,6 +69,7 @@ impl Panels {
         main_stack.add_canvas(MATERIALPICKER.write().unwrap().build(false));
         main_stack.add_canvas(EFFECTPICKER.write().unwrap().build(false));
         main_stack.add_canvas(SETTINGSPICKER.write().unwrap().build(false));
+        main_stack.add_canvas(PREVIEWVIEW.write().unwrap().build());
         main_stack.set_index(0);
 
         let tilemap_editor = TheRGBALayout::new(TheId::named("Tilemap Editor"));
@@ -186,6 +189,15 @@ impl Panels {
         }
 
         match event {
+            TheEvent::RenderViewClicked(id, coord) => {
+                if id.name == "PreviewView" && coord.x < 75 && coord.y < 20 {
+                    if PREVIEWVIEW.read().unwrap().camera == MapCamera::ThreeDIso {
+                        PREVIEWVIEW.write().unwrap().camera = MapCamera::ThreeDFirstPerson;
+                    } else {
+                        PREVIEWVIEW.write().unwrap().camera = MapCamera::ThreeDIso;
+                    }
+                }
+            }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Details Stack Group" {
                     if let Some(stack) = ui.get_stack_layout("Details Stack") {

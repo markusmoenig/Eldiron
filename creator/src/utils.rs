@@ -1,6 +1,7 @@
 use crate::editor::PALETTE;
 use crate::prelude::*;
-use rusterix::{Entity, PixelSource, Rusterix, Value};
+use rusterix::{Entity, PixelSource, Rusterix, Value, ValueContainer};
+use shared::settingscontainer::SettingsContainer;
 
 /// Start the server
 pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
@@ -175,4 +176,26 @@ pub fn get_source(ui: &mut TheUI, server_ctx: &ServerContext) -> Option<Value> {
     }
 
     source
+}
+
+pub fn extract_build_values_from_settings(
+    values: &mut ValueContainer,
+    settings: &SettingsContainer,
+) {
+    let sample_mode = settings.get_i32_value("renderSampleMode", 0);
+    match sample_mode {
+        0 => {
+            values.set(
+                "sample_mode",
+                Value::SampleMode(rusterix::SampleMode::Nearest),
+            );
+        }
+        1 => {
+            values.set(
+                "sample_mode",
+                Value::SampleMode(rusterix::SampleMode::Linear),
+            );
+        }
+        _ => {}
+    }
 }
