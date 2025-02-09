@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use rusterix::ValueContainer;
+use rusterix::{Light, LightType};
 use theframework::prelude::*;
 
 pub struct EffectPicker {
@@ -20,7 +20,7 @@ pub struct EffectPicker {
 #[allow(clippy::new_without_default)]
 impl EffectPicker {
     pub fn new(id: String) -> Self {
-        let effects = vec![EffectWrapper::PointLight(ValueContainer::default())];
+        let effects = vec![EffectWrapper::RusterixLight(Light::new(LightType::Point))];
 
         Self {
             id,

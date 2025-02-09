@@ -858,7 +858,7 @@ impl TheTrait for Editor {
             }
 
             // Draw the 3D Preview if active.
-            if self.server_ctx.curr_map_tool_helper == MapToolHelper::D3Preview {
+            if self.server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
                 if let Some(region) = self.project.get_region_ctx(&self.server_ctx) {
                     PREVIEWVIEW.write().unwrap().draw(
                         region,

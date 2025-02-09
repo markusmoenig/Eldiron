@@ -1,9 +1,9 @@
-use rusterix::{Light, ValueContainer};
+use rusterix::{Light, LightType};
 use theframework::prelude::*;
 
 #[derive(Clone)]
 pub enum EffectWrapper {
-    PointLight(ValueContainer),
+    RusterixLight(Light),
 }
 
 use EffectWrapper::*;
@@ -11,12 +11,12 @@ use EffectWrapper::*;
 impl EffectWrapper {
     pub fn name(&self) -> String {
         match self {
-            PointLight(_) => "PointLight".into(),
+            RusterixLight(_) => "PointLight".into(),
         }
     }
     pub fn icon(&self) -> String {
         match self {
-            PointLight(_) => "light_on".into(),
+            RusterixLight(_) => "light_on".into(),
         }
     }
 
@@ -25,19 +25,13 @@ impl EffectWrapper {
         let mut nodeui = TheNodeUI::default();
 
         #[allow(clippy::single_match)]
-        match light {
-            rusterix::Light::PointLight {
-                color,
-                intensity,
-                start_distance,
-                end_distance,
-                ..
-            } => {
+        match light.light_type {
+            LightType::Point => {
                 let item = TheNodeUIItem::ColorPicker(
                     "lightColor".into(),
                     "".into(),
                     "Set the color of the light".into(),
-                    TheColor::from(*color),
+                    TheColor::from(light.get_color()),
                     false,
                 );
                 nodeui.add_item(item);
@@ -46,7 +40,7 @@ impl EffectWrapper {
                     "lightIntensity".into(),
                     "Intensity".into(),
                     "Set the intensity of the light.".into(),
-                    *intensity,
+                    light.get_intensity(),
                     0.0..=4.0,
                     false,
                 );
@@ -55,9 +49,9 @@ impl EffectWrapper {
                 let item = TheNodeUIItem::FloatEditSlider(
                     "lightStartDistance".into(),
                     "Fade Start".into(),
-                    "Set the intensity of the light.".into(),
-                    *start_distance,
-                    0.0..=10.0,
+                    "Set the distance the light starts to fade.".into(),
+                    light.get_start_distance(),
+                    0.0..=100.0,
                     false,
                 );
                 nodeui.add_item(item);
@@ -65,9 +59,9 @@ impl EffectWrapper {
                 let item = TheNodeUIItem::FloatEditSlider(
                     "lightEndDistance".into(),
                     "Fade End".into(),
-                    "Set the intensity of the light.".into(),
-                    *end_distance,
-                    0.0..=10.0,
+                    "Set the distance the light fade ends.".into(),
+                    light.get_end_distance(),
+                    0.0..=100.0,
                     false,
                 );
                 nodeui.add_item(item);
@@ -89,14 +83,11 @@ impl EffectWrapper {
 
     pub fn to_light(&self, position: Vec2<f32>) -> Option<Light> {
         match self {
-            PointLight(properties) => Some(Light::PointLight {
-                position: Vec3::new(position.x, 0.0, position.y),
-                color: [1.0, 1.0, 1.0],
-                intensity: properties.get_float_default("intensity", 1.0),
-                start_distance: 3.0,
-                end_distance: 5.0,
-                flicker: None,
-            }),
+            RusterixLight(light) => {
+                let mut l = light.clone();
+                l.set_position(Vec3::new(position.x, 0.0, position.y));
+                Some(l)
+            }
         }
     }
 }

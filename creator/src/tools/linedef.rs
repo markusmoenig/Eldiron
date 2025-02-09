@@ -122,7 +122,7 @@ impl Tool for LinedefTool {
                             TheId::named("Main Stack"),
                             PanelIndices::ColorPicker as usize,
                         ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::D3Preview {
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::PreviewView as usize,
@@ -736,7 +736,7 @@ impl Tool for LinedefTool {
                 if id.name == "Map Helper Switch" {
                     server_ctx.curr_map_tool_helper.set_from_index(*index);
                     if server_ctx.curr_map_tool_helper == MapToolHelper::CodeEditor {
-                        server_ctx.curr_map_tool_helper = MapToolHelper::D3Preview;
+                        server_ctx.curr_map_tool_helper = MapToolHelper::Preview;
                     }
                     if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
@@ -753,12 +753,12 @@ impl Tool for LinedefTool {
                             TheId::named("Main Stack"),
                             PanelIndices::ColorPicker as usize,
                         ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::D3Preview {
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::PreviewView as usize,
                         ));
-                    };
+                    }
                     redraw = true;
                 }
             }

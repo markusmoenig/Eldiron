@@ -44,7 +44,7 @@ impl Tool for SelectionTool {
         tool_event: ToolEvent,
         _tool_context: ToolContext,
         ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         _project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
@@ -55,6 +55,13 @@ impl Tool for SelectionTool {
 
                     server_ctx.curr_map_tool_type = MapToolType::Selection;
                 }
+
+                // Display the preview panel.
+                ctx.ui.send(TheEvent::SetStackIndex(
+                    TheId::named("Main Stack"),
+                    PanelIndices::PreviewView as usize,
+                ));
+                server_ctx.curr_map_tool_helper = MapToolHelper::Preview;
 
                 // ui.set_widget_context_menu(
                 //     "Region Editor View",

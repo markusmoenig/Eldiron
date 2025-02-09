@@ -53,9 +53,12 @@ impl Tool for VertexTool {
     ) -> bool {
         match tool_event {
             Activate => {
-                // Display the tile edit panel.
-                ctx.ui
-                    .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
+                // Display the preview panel.
+                ctx.ui.send(TheEvent::SetStackIndex(
+                    TheId::named("Main Stack"),
+                    PanelIndices::PreviewView as usize,
+                ));
+                server_ctx.curr_map_tool_helper = MapToolHelper::Preview;
 
                 if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
                     layout.set_mode(TheSharedHLayoutMode::Right);

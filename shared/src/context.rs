@@ -26,7 +26,7 @@ pub enum MapToolHelper {
     MaterialPicker,
     ColorPicker,
     CodeEditor,
-    D3Preview,
+    Preview,
 }
 
 impl MapToolHelper {
@@ -35,7 +35,7 @@ impl MapToolHelper {
             1 => *self = MapToolHelper::MaterialPicker,
             2 => *self = MapToolHelper::ColorPicker,
             3 => *self = MapToolHelper::CodeEditor,
-            4 => *self = MapToolHelper::D3Preview,
+            4 => *self = MapToolHelper::Preview,
             _ => *self = MapToolHelper::TilePicker,
         }
     }

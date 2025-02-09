@@ -96,6 +96,11 @@ impl Tool for SectorTool {
                         "Sector Script.".to_string(),
                         // "code".to_string(),
                     );
+                    material_switch.add_text_status(
+                        "Preview".to_string(),
+                        "Preview the map.".to_string(),
+                        // "square".to_string(),
+                    );
                     material_switch.set_item_width(100);
                     material_switch.set_index(server_ctx.curr_map_tool_helper as i32);
                     layout.add_widget(Box::new(material_switch));
@@ -124,7 +129,12 @@ impl Tool for SectorTool {
                             TheId::named("Update Material Previews"),
                             TheValue::Empty,
                         ));
-                    };
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::PreviewView as usize,
+                        ));
+                    }
 
                     let mut run_properties_button =
                         TheTraybarButton::new(TheId::named("Apply Map Properties"));
@@ -567,7 +577,12 @@ impl Tool for SectorTool {
                             TheId::named("Main Stack"),
                             PanelIndices::TextEditor as usize,
                         ));
-                    };
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::PreviewView as usize,
+                        ));
+                    }
                     redraw = true;
                 }
             }
