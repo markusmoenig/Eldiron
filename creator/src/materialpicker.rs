@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use rusterix::{D2MaterialBuilder, SceneBuilder, Texture};
+use rusterix::{D2MaterialBuilder, Texture};
 
 pub struct MaterialPicker {
     pub id: String,

@@ -85,11 +85,7 @@ pub struct ServerContext {
     /// Only relevent in Model view. 0 is full conceptual display. 1 is full detail.
     pub conceptual_display: Option<f32>,
 
-    pub curr_geo_object: Option<Uuid>,
-    pub curr_geo_node: Option<Uuid>,
-
     pub curr_material: Option<Uuid>,
-    pub curr_brush: Uuid,
 
     pub curr_effect: Option<EffectWrapper>,
 
@@ -146,11 +142,7 @@ impl ServerContext {
 
             conceptual_display: None,
 
-            curr_geo_object: None,
-            curr_geo_node: None,
-
             curr_material: None,
-            curr_brush: Uuid::nil(),
 
             screen_editor_mode_foreground: false,
 

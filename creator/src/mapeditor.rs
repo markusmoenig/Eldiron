@@ -767,6 +767,7 @@ impl MapEditor {
                 } else if id.name == "sectorPixelization"
                     || id.name == "sectorNoiseTarget"
                     || id.name == "sectorCeilingInIso"
+                    || id.name == "sectorRectRendering"
                 {
                     if let Some(value) = value.to_i32() {
                         if let Some(map) = project.get_map_mut(server_ctx) {
@@ -1201,7 +1202,8 @@ impl MapEditor {
             {
                 self.create_linedef_settings(map, map.selected_linedefs[0], ui, ctx, server_ctx);
             } else if server_ctx.curr_map_tool_type == MapToolType::Sector
-                && !map.selected_sectors.is_empty()
+                || server_ctx.curr_map_tool_type == MapToolType::Rect
+                    && !map.selected_sectors.is_empty()
             {
                 self.create_sector_settings(map, map.selected_sectors[0], ui, ctx, server_ctx);
             }
@@ -1416,6 +1418,8 @@ impl MapEditor {
                 nodeui.add_item(item);
             }
 
+            nodeui.add_item(TheNodeUIItem::Separator("Color Properties".into()));
+
             let item = TheNodeUIItem::IntEditSlider(
                 "sectorPixelization".into(),
                 "Pixelization".into(),
@@ -1448,6 +1452,23 @@ impl MapEditor {
                 0,
             );
             nodeui.add_item(item);
+
+            if sector.layer.is_some() {
+                nodeui.add_item(TheNodeUIItem::Separator("Rect Tool".into()));
+
+                let item = TheNodeUIItem::Selector(
+                    "sectorRectRendering".into(),
+                    "3D Render".into(),
+                    "Set the 3D render mode of the Rect.".into(),
+                    vec![
+                        "Billboard".to_string(),
+                        "Box".to_string(),
+                        "Floor".to_string(),
+                    ],
+                    sector.properties.get_int_default("rect_rendering", 0),
+                );
+                nodeui.add_item(item);
+            }
         }
 
         if let Some(layout) = ui.get_text_layout("Node Settings") {

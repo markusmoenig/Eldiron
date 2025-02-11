@@ -106,12 +106,15 @@ impl PreviewView {
             }
 
             rusterix.build_scene_d3(&region.map, &build_values);
+            let assets = rusterix.assets.clone();
+            rusterix
+                .client
+                .apply_entities_items_d3(&[], &[], &assets, &ValueContainer::default());
             rusterix
                 .client
                 .draw_d3(buffer.pixels_mut(), dim.width as usize, dim.height as usize);
 
             // Hud
-
             let bg_color = [50, 50, 50, 255];
             let text_color = [150, 150, 150, 255];
             let stride = buffer.stride();

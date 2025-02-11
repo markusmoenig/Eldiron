@@ -1,7 +1,7 @@
 use crate::editor::{PALETTE, RUSTERIX, SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER};
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
-use rusterix::{D2MaterialBuilder, SceneBuilder, Texture};
+use rusterix::{D2MaterialBuilder, Texture};
 
 #[derive(PartialEq, Debug)]
 pub enum SidebarMode {

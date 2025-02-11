@@ -136,33 +136,20 @@ impl Tool for SectorTool {
                         ));
                     }
 
-                    let mut run_properties_button =
+                    let mut set_source_button =
                         TheTraybarButton::new(TheId::named("Apply Map Properties"));
-                    run_properties_button.set_status_text("Apply to the selected sectors.");
-                    run_properties_button.set_text("Apply Source".to_string());
-                    layout.add_widget(Box::new(run_properties_button));
-                    layout.set_reverse_index(Some(1));
+                    set_source_button.set_status_text("Apply the source to the selected geometry.");
+                    set_source_button.set_text("Apply Source".to_string());
+                    layout.add_widget(Box::new(set_source_button));
 
-                    /*
-                    let mut wall_width = TheTextLineEdit::new(TheId::named("Wall Width"));
-                    wall_width.set_value(TheValue::Float(self.wall_width));
-                    // opacity.set_default_value(TheValue::Float(1.0));
-                    wall_width.set_info_text(Some("Wall Width".to_string()));
-                    wall_width.set_range(TheValue::RangeF32(0.0..=4.0));
-                    wall_width.set_continuous(true);
-                    wall_width.limiter_mut().set_max_width(150);
-                    wall_width.set_status_text("The wall width of the enclosing linedefs.");
-                    layout.add_widget(Box::new(wall_width));
+                    let mut rem_source_button =
+                        TheTraybarButton::new(TheId::named("Remove Map Properties"));
+                    rem_source_button
+                        .set_status_text("Remove the source from the selected geometry.");
+                    rem_source_button.set_text("Remove".to_string());
+                    layout.add_widget(Box::new(rem_source_button));
 
-                    let mut wall_height = TheTextLineEdit::new(TheId::named("Wall Height"));
-                    wall_height.set_value(TheValue::Float(self.wall_height));
-                    // opacity.set_default_value(TheValue::Float(1.0));
-                    wall_height.set_info_text(Some("Wall Height".to_string()));
-                    wall_height.set_range(TheValue::RangeF32(0.0..=4.0));
-                    wall_height.set_continuous(true);
-                    wall_height.limiter_mut().set_max_width(150);
-                    wall_height.set_status_text("The wall height of the enclosing linedefs.");
-                    layout.add_widget(Box::new(wall_height));*/
+                    layout.set_reverse_index(Some(2));
                 }
 
                 return true;
@@ -422,6 +409,7 @@ impl Tool for SectorTool {
                         TheId::named("Map Selection Changed"),
                         TheValue::Empty,
                     ));
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                 }
             }
             MapEscape => {
@@ -499,7 +487,6 @@ impl Tool for SectorTool {
                                     } else if self.hud.selected_icon_index == 1 {
                                         sector.properties.set("ceiling_source", source.clone());
                                     }
-                                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                                 }
                             }
 
@@ -513,6 +500,34 @@ impl Tool for SectorTool {
                             );
                             crate::editor::RUSTERIX.write().unwrap().set_dirty();
                         }
+                    }
+                } else if id.name == "Remove Map Properties" && *state == TheWidgetState::Clicked {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        let prev = map.clone();
+
+                        for sector_id in map.selected_sectors.clone() {
+                            if let Some(sector) = map.find_sector_mut(sector_id) {
+                                if self.hud.selected_icon_index == 0 {
+                                    sector
+                                        .properties
+                                        .set("floor_source", Value::Source(PixelSource::Off));
+                                } else if self.hud.selected_icon_index == 1 {
+                                    sector
+                                        .properties
+                                        .set("ceiling_source", Value::Source(PixelSource::Off));
+                                }
+                            }
+                        }
+
+                        let undo_atom =
+                            RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+
+                        crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
+                            &server_ctx.curr_region,
+                            undo_atom,
+                            ctx,
+                        );
+                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     }
                 }
             }

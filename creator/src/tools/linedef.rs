@@ -636,7 +636,6 @@ impl Tool for LinedefTool {
                                     } else if self.hud.selected_icon_index == 3 {
                                         linedef.properties.set("row4_source", source.clone());
                                     }
-                                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                                 }
                             }
 
@@ -674,7 +673,6 @@ impl Tool for LinedefTool {
                                         .properties
                                         .set("row4_source", Value::Source(PixelSource::Off));
                                 }
-                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
                             }
                         }
 

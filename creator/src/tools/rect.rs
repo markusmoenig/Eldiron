@@ -76,25 +76,21 @@ impl Tool for RectTool {
                     material_switch.add_text_status(
                         "Tile Picker".to_string(),
                         "Show tile picker.".to_string(),
-                        // "bricks".to_string(),
                     );
                     material_switch.add_text_status(
                         "Materials".to_string(),
                         "Apply procedural materials.".to_string(),
-                        // "faders".to_string(),
                     );
-                    material_switch.add_text_status(
-                        "Colors".to_string(),
-                        "Apply a color.".to_string(),
-                        // "square".to_string(),
-                    );
-                    // material_switch.add_text_status_icon(
-                    //     "Properties".to_string(),
-                    //     "Set sector properties.".to_string(),
-                    //     "code".to_string(),
-                    // );
+                    material_switch
+                        .add_text_status("Colors".to_string(), "Apply a color.".to_string());
+                    material_switch
+                        .add_text_status("Preview".to_string(), "Preview the map.".to_string());
                     material_switch.set_item_width(100);
-                    material_switch.set_index(server_ctx.curr_map_tool_helper as i32);
+                    let mut index = server_ctx.curr_map_tool_helper as i32;
+                    if index == 4 {
+                        index = 3;
+                    }
+                    material_switch.set_index(index);
                     layout.add_widget(Box::new(material_switch));
 
                     if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
@@ -111,6 +107,11 @@ impl Tool for RectTool {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::ColorPicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::PreviewView as usize,
                         ));
                     };
 
@@ -167,11 +168,13 @@ impl Tool for RectTool {
             mode: i32,
         ) -> Option<RegionUndoAtom> {
             let mut undo_atom: Option<RegionUndoAtom> = None;
+            let size = 1.0 / map.subdivisions;
 
             if let Some(source) = get_source(ui, server_ctx) {
                 let prev = map.clone();
                 if let Some(vertices) = hovered_vertices {
                     let mut add_it = true;
+                    let mut layer: u8 = 0;
 
                     // Check if tile already exists with same source
                     if let Some(ev0) = map.find_vertex_at(vertices[0].x, vertices[0].y) {
@@ -187,6 +190,13 @@ impl Tool for RectTool {
                                             if let Some(sector_floor_source) =
                                                 sector.properties.get("floor_source")
                                             {
+                                                // Assign id to the higher current layer id (+1).
+                                                if let Some(l) = &sector.layer {
+                                                    if *l > layer {
+                                                        layer = *l;
+                                                    }
+                                                }
+
                                                 if source == *sector_floor_source {
                                                     // A tile with the same floor_source exists, do not add.
                                                     add_it = false;
@@ -211,19 +221,43 @@ impl Tool for RectTool {
                         let v2 = map.add_vertex_at(vertices[2].x, vertices[2].y);
                         let v3 = map.add_vertex_at(vertices[3].x, vertices[3].y);
 
-                        let _ = map.create_linedef(v0, v1);
-                        let _ = map.create_linedef(v1, v2);
-                        let _ = map.create_linedef(v2, v3);
+                        let l0 = map.create_linedef(v0, v1);
+                        let l1 = map.create_linedef(v1, v2);
+                        let l2 = map.create_linedef(v2, v3);
                         let id = map.create_linedef(v3, v0);
+
+                        // Add the info for correct box rendering
+                        if let Some(l) = map.find_linedef_mut(l0.0) {
+                            l.properties.set("row1_source", source.clone());
+                            l.properties.set("wall_height", Value::Float(size));
+                        }
+                        if let Some(l) = map.find_linedef_mut(l1.0) {
+                            l.properties.set("row1_source", source.clone());
+                            l.properties.set("wall_height", Value::Float(size));
+                        }
+                        if let Some(l) = map.find_linedef_mut(l2.0) {
+                            l.properties.set("row1_source", source.clone());
+                            l.properties.set("wall_height", Value::Float(size));
+                        }
+                        if let Some(l) = map.find_linedef_mut(id.0) {
+                            l.properties.set("row1_source", source.clone());
+                            l.properties.set("wall_height", Value::Float(size));
+                        }
 
                         if let Some(sector_id) = id.1 {
                             if let Some(sector) = map.find_sector_mut(sector_id) {
                                 sector.properties.set("floor_source", source);
+                                sector.properties.set("ceiling_height", Value::Float(size));
+                                sector.layer = Some(layer + 1);
 
                                 undo_atom = Some(RegionUndoAtom::MapEdit(
                                     Box::new(prev),
                                     Box::new(map.clone()),
                                 ));
+
+                                map.selected_vertices.clear();
+                                map.selected_linedefs.clear();
+                                map.selected_sectors = vec![sector_id];
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Map Selection Changed"),
                                     TheValue::Empty,
@@ -446,6 +480,9 @@ impl Tool for RectTool {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Map Helper Switch" {
                     server_ctx.curr_map_tool_helper.set_from_index(*index);
+                    if server_ctx.curr_map_tool_helper == MapToolHelper::CodeEditor {
+                        server_ctx.curr_map_tool_helper = MapToolHelper::Preview;
+                    }
                     if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
@@ -461,10 +498,10 @@ impl Tool for RectTool {
                             TheId::named("Main Stack"),
                             PanelIndices::ColorPicker as usize,
                         ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::CodeEditor {
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
-                            PanelIndices::TextEditor as usize,
+                            PanelIndices::PreviewView as usize,
                         ));
                     };
                     redraw = true;
