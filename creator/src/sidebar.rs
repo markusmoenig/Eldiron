@@ -64,8 +64,8 @@ impl Sidebar {
         item_sectionbar_button.set_status_text("Edit and manage the items available in the game.");
 
         let mut tilemap_sectionbar_button =
-            TheSectionbarButton::new(TheId::named("Tilemap Section"));
-        tilemap_sectionbar_button.set_text("Tilemap".to_string());
+            TheSectionbarButton::new(TheId::named("Tileset Section"));
+        tilemap_sectionbar_button.set_text("Tileset".to_string());
         tilemap_sectionbar_button.set_status_text(
             "Edit and manage your tilemaps. A tilemap is an image containing square tile elements.",
         );
@@ -1075,6 +1075,7 @@ impl Sidebar {
                         }
                     }
                 } else if id.name == "Update Tiles" {
+                    self.update_tiles(ui, ctx, project);
                 } else if id.name == "Show Node Settings" {
                     self.deselect_sections_buttons(ui, "Node Section".to_string());
                     self.select_section_button(ui, "Node Section".to_string());
@@ -2021,158 +2022,6 @@ impl Sidebar {
                         ctx.ui.relayout = true;
                     }
                     redraw = true;
-                } else if id.name == "Tilemap Editor Add Anim"
-                    || id.name == "Tilemap Editor Add Multi"
-                {
-                    let mut clear_selection = false;
-
-                    if let Some(editor) = ui
-                        .canvas
-                        .get_layout(Some(&"Tilemap Editor".to_string()), None)
-                    {
-                        if let Some(editor) = editor.as_rgba_layout() {
-                            let mut tile = Tile::new();
-
-                            if id.name == "Tilemap Editor Add Anim" {
-                                let sequence = editor
-                                    .rgba_view_mut()
-                                    .as_rgba_view()
-                                    .unwrap()
-                                    .selection_as_sequence();
-                                tile.sequence = sequence;
-                            } else {
-                                let dim = editor
-                                    .rgba_view_mut()
-                                    .as_rgba_view()
-                                    .unwrap()
-                                    .selection_as_dim();
-
-                                let mut grid_size = 16;
-
-                                if let Some(curr_tilemap_uuid) = self.curr_tilemap_uuid {
-                                    if let Some(t) = project.get_tilemap(curr_tilemap_uuid) {
-                                        grid_size = t.grid_size;
-                                    }
-                                }
-
-                                let region = TheRGBARegion::new(
-                                    dim.x as usize * grid_size as usize,
-                                    dim.y as usize * grid_size as usize,
-                                    dim.width as usize * grid_size as usize,
-                                    dim.height as usize * grid_size as usize,
-                                );
-
-                                tile.sequence = TheRGBARegionSequence::new();
-                                tile.sequence.regions.push(region);
-                            }
-
-                            if let Some(text_line_edit) =
-                                ui.get_text_line_edit("Tilemap Editor Name Edit")
-                            {
-                                tile.name = text_line_edit.text();
-                            }
-
-                            if let Some(block_widget) = ui
-                                .canvas
-                                .get_widget(Some(&"Tilemap Editor Block".to_string()), None)
-                            {
-                                tile.blocking = block_widget.state() == TheWidgetState::Selected;
-                            }
-
-                            if let Some(role_widget) = ui.get_drop_down_menu("Tilemap Editor Role")
-                            {
-                                let index = role_widget.selected_index();
-                                tile.role = TileRole::from_index(index as u8).unwrap();
-                            }
-
-                            // Only add if non-empty
-                            if !tile.name.is_empty() && !tile.sequence.regions.is_empty() {
-                                if let Some(layout) = ui
-                                    .canvas
-                                    .get_layout(Some(&"Tilemap Tile List".to_string()), None)
-                                {
-                                    let list_layout_id = layout.id().clone();
-                                    if let Some(list_layout) = layout.as_list_layout() {
-                                        let mut item = TheListItem::new(TheId::named_with_id(
-                                            "Tilemap Tile",
-                                            tile.id,
-                                        ));
-                                        item.set_text(tile.name.clone());
-                                        let mut sub_text = if tile.blocking {
-                                            "Blocking".to_string()
-                                        } else {
-                                            "Non-Blocking".to_string()
-                                        };
-                                        sub_text +=
-                                            ("  ".to_string() + tile.role.to_string()).as_str();
-                                        item.set_sub_text(sub_text);
-                                        item.set_state(TheWidgetState::Selected);
-                                        item.set_size(42);
-                                        item.set_associated_layout(list_layout_id);
-                                        if let Some(curr_tilemap_uuid) = self.curr_tilemap_uuid {
-                                            if let Some(t) = project.get_tilemap(curr_tilemap_uuid)
-                                            {
-                                                item.set_icon(
-                                                    tile.sequence.regions[0]
-                                                        .scale(&t.buffer, 36, 36),
-                                                );
-                                            }
-                                        }
-                                        list_layout.deselect_all();
-                                        let id = item.id().clone();
-                                        list_layout.add_item(item, ctx);
-                                        ctx.ui.send_widget_state_changed(
-                                            &id,
-                                            TheWidgetState::Selected,
-                                        );
-
-                                        clear_selection = true;
-                                        redraw = true;
-                                    }
-                                }
-
-                                if let Some(curr_tilemap_uuid) = self.curr_tilemap_uuid {
-                                    if let Some(tilemap) = project.get_tilemap(curr_tilemap_uuid) {
-                                        tilemap.tiles.push(tile);
-                                    }
-                                }
-
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Update Tilepicker"),
-                                    TheValue::Empty,
-                                ));
-
-                                self.update_tiles(ui, ctx, project);
-                            } else if tile.name.is_empty() {
-                                open_info_dialog(
-                                    "Tilemap Editor",
-                                    "Tile does not have any tags.",
-                                    ui,
-                                    ctx,
-                                );
-                            }
-                        }
-                    }
-
-                    // Clear the selection if successful
-                    if clear_selection {
-                        if let Some(editor) = ui
-                            .canvas
-                            .get_layout(Some(&"Tilemap Editor".to_string()), None)
-                        {
-                            if let Some(editor) = editor.as_rgba_layout() {
-                                editor
-                                    .rgba_view_mut()
-                                    .as_rgba_view()
-                                    .unwrap()
-                                    .set_selection(FxHashSet::default());
-                            }
-                            ctx.ui.send(TheEvent::StateChanged(
-                                TheId::named("Tilemap Editor Clear"),
-                                TheWidgetState::Clicked,
-                            ))
-                        }
-                    }
                 }
                 /* *
                 else if id.name == "Screen Item" {
@@ -2380,7 +2229,7 @@ impl Sidebar {
                         SidebarMode::Item as usize,
                     ));
                     redraw = true;
-                } else if id.name == "Tilemap Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Tileset Section" && *state == TheWidgetState::Selected {
                     if let Some(widget) = ui
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)

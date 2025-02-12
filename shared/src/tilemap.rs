@@ -126,9 +126,8 @@ pub struct Tile {
 
     pub sequence: TheRGBARegionSequence,
     pub blocking: bool,
-
     #[serde(default)]
-    pub billboard: bool,
+    pub render_mode: u8,
 }
 
 impl Default for Tile {
@@ -146,7 +145,7 @@ impl Tile {
 
             sequence: TheRGBARegionSequence::new(),
             blocking: false,
-            billboard: false,
+            render_mode: 0,
         }
     }
 }

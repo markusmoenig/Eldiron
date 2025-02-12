@@ -2,6 +2,7 @@
 
 use theframework::*;
 
+pub mod codeeditor;
 pub mod editor;
 pub mod effectpicker;
 pub mod hud;
@@ -14,7 +15,6 @@ pub mod previewview;
 pub mod self_update;
 pub mod settingspicker;
 pub mod sidebar;
-pub mod texteditor;
 pub mod tilemapeditor;
 pub mod tilepicker;
 pub mod toollist;
@@ -39,6 +39,7 @@ pub mod prelude {
     pub use std::sync::{LazyLock, RwLock};
     pub use theframework::prelude::*;
 
+    pub use crate::codeeditor::*;
     pub use crate::effectpicker::*;
     pub use crate::mapeditor::*;
     pub use crate::materialpicker::*;
@@ -46,7 +47,6 @@ pub mod prelude {
     pub use crate::panels::*;
     pub use crate::previewview::*;
     pub use crate::sidebar::*;
-    pub use crate::texteditor::*;
     pub use crate::tilemapeditor::*;
     pub use crate::tilepicker::*;
     pub use crate::toollist::*;
@@ -62,7 +62,7 @@ pub mod prelude {
     pub use crate::tools::linedef::LinedefTool;
     pub use crate::tools::sector::SectorTool;
     pub use crate::tools::selection::SelectionTool;
-    pub use crate::tools::tilemap::TilemapTool;
+    pub use crate::tools::tileset::TilesetTool;
     pub use crate::tools::vertex::VertexTool;
 
     pub use crate::tools::*;

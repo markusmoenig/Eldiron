@@ -1,3 +1,4 @@
+use crate::editor::RUSTERIX;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use rusterix::prelude::*;
@@ -246,6 +247,17 @@ impl Tool for RectTool {
 
                         if let Some(sector_id) = id.1 {
                             if let Some(sector) = map.find_sector_mut(sector_id) {
+                                if let Value::Source(PixelSource::TileId(id)) = source {
+                                    if let Some(tile) =
+                                        RUSTERIX.read().unwrap().assets.tiles.get(&id)
+                                    {
+                                        sector.properties.set(
+                                            "rect_rendering",
+                                            Value::Int(tile.render_mode as i32),
+                                        );
+                                    }
+                                }
+
                                 sector.properties.set("floor_source", source);
                                 sector.properties.set("ceiling_height", Value::Float(size));
                                 sector.layer = Some(layer + 1);

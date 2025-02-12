@@ -314,7 +314,8 @@ impl MaterialPicker {
                             }
                         }
                     }
-                } else if id.name == self.make_id(" Tile Billboard") {
+                } else
+                /*  if id.name == self.make_id(" Tile Billboard") {
                     if let Some(tile_id) = self.curr_material {
                         if let Some(tile) = project.get_tile_mut(&tile_id) {
                             if let TheValue::Int(billboard) = value {
@@ -322,7 +323,8 @@ impl MaterialPicker {
                             }
                         }
                     }
-                } else if id.name == self.make_id(" Filter Edit") {
+                } else*/
+                if id.name == self.make_id(" Filter Edit") {
                     if let TheValue::Text(filter) = value {
                         self.filter = filter.to_lowercase();
                         self.update_materials(project, ui, ctx);
@@ -378,9 +380,9 @@ impl MaterialPicker {
             }
         }
 
-        if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Billboard")) {
+        if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Rendermode")) {
             if let Some(tile) = tile {
-                widget.set_selected_index(if tile.billboard { 1 } else { 0 });
+                widget.set_selected_index(tile.render_mode as i32);
                 widget.set_disabled(false);
             } else {
                 widget.set_disabled(true);

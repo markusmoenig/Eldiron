@@ -77,6 +77,20 @@ impl TilePicker {
         }
         toolbar_hlayout.add_widget(Box::new(drop_down));
 
+        let mut hdivider = TheHDivider::new(TheId::empty());
+        hdivider.limiter_mut().set_max_width(15);
+        toolbar_hlayout.add_widget(Box::new(hdivider));
+
+        let mut tags = TheTextLineEdit::new(TheId::named(&self.make_id(" Tile Tags")));
+        tags.limiter_mut().set_max_width(130);
+        tags.set_disabled(true);
+
+        let mut text = TheText::new(TheId::empty());
+        text.set_text_size(12.0);
+        text.set_text("Tags".to_string());
+        toolbar_hlayout.add_widget(Box::new(text));
+        toolbar_hlayout.add_widget(Box::new(tags));
+
         if !minimal {
             let mut zoom = TheSlider::new(TheId::named(&self.make_id(" Zoom")));
             zoom.set_value(TheValue::Float(self.zoom));
@@ -97,6 +111,7 @@ impl TilePicker {
         // Canvas
         let mut rgba_layout = TheRGBALayout::new(TheId::named(&self.make_id(" RGBA Layout")));
         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+            rgba_view.set_background([116, 116, 116, 255]);
             rgba_view.set_grid(Some(24));
             rgba_view.set_mode(TheRGBAViewMode::TilePicker);
             let mut c = WHITE;
@@ -131,10 +146,6 @@ impl TilePicker {
         copy.limiter_mut().set_max_width(130);
         copy.set_disabled(true);
 
-        let mut tags = TheTextLineEdit::new(TheId::named(&self.make_id(" Tile Tags")));
-        tags.limiter_mut().set_max_width(130);
-        tags.set_disabled(true);
-
         // let mut text = TheText::new(TheId::empty());
         // text.set_text_size(12.0);
         // text.set_text("Copy ID to Clipboard".to_string());
@@ -146,12 +157,6 @@ impl TilePicker {
         vlayout.add_widget(Box::new(text));
         vlayout.add_widget(Box::new(drop_down));
 
-        let mut text = TheText::new(TheId::empty());
-        text.set_text_size(12.0);
-        text.set_text("Tags".to_string());
-        vlayout.add_widget(Box::new(text));
-        vlayout.add_widget(Box::new(tags));
-
         vlayout.set_reverse_index(Some(1));
 
         let mut text = TheText::new(TheId::empty());
@@ -160,18 +165,20 @@ impl TilePicker {
         vlayout.add_widget(Box::new(text));
         vlayout.add_widget(Box::new(blocking));
 
+        let mut billboard_text = TheText::new(TheId::empty());
+        billboard_text.set_text_size(12.0);
+        billboard_text.set_text("Rect Rendermode".to_string());
+        vlayout.add_widget(Box::new(billboard_text));
+
+        let mut render_drop_down =
+            TheDropdownMenu::new(TheId::named(&self.make_id(" Tile Rendermode")));
+        render_drop_down.set_status_text("Default 3D drawing mode for the Rect tool.");
+        render_drop_down.add_option("Billboard".to_string());
+        render_drop_down.add_option("Box".to_string());
+        render_drop_down.add_option("Floor".to_string());
+        vlayout.add_widget(Box::new(render_drop_down));
+
         vlayout.add_widget(Box::new(copy));
-
-        // let mut billboard_text = TheText::new(TheId::empty());
-        // billboard_text.set_text_size(12.0);
-        // billboard_text.set_text("Render in 3D".to_string());
-        // vlayout.add_widget(Box::new(billboard_text));
-
-        // let mut render_drop_down =
-        //     TheDropdownMenu::new(TheId::named(&self.make_id(" Tile Billboard")));
-        // render_drop_down.add_option("As Cube".to_string());
-        // render_drop_down.add_option("As Billboard".to_string());
-        // vlayout.add_widget(Box::new(render_drop_down));
 
         details_canvas.set_layout(vlayout);
 
@@ -306,6 +313,20 @@ impl TilePicker {
                     self.set_tiles(project.extract_tiles_vec(), ui, ctx);
                 }
             }
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == self.make_id(" Tile Rendermode") {
+                    if let Some(tile_id) = self.curr_tile {
+                        if let Some(tile) = project.get_tile_mut(&tile_id) {
+                            tile.render_mode = *index as u8;
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Update Tiles"),
+                                TheValue::Empty,
+                            ));
+                        }
+                    }
+                }
+            }
+
             // TheEvent::StateChanged(id, state) => {
             //     if id.name == self.make_id(" Tile Details") && *state == TheWidgetState::Clicked {
             //         if let Some(layout) = ui.get_layout(" Tile Details Layout") {
@@ -345,6 +366,10 @@ impl TilePicker {
                         if let Some(tile) = project.get_tile_mut(&tile_id) {
                             if let TheValue::Int(role) = value {
                                 tile.blocking = *role == 1;
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Update Tiles"),
+                                    TheValue::Empty,
+                                ));
                             }
                         }
                     }
@@ -395,14 +420,14 @@ impl TilePicker {
             }
         }
 
-        // if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Blocking")) {
-        //     if let Some(tile) = tile {
-        //         widget.set_selected_index(if tile.blocking { 1 } else { 0 });
-        //         widget.set_disabled(false);
-        //     } else {
-        //         widget.set_disabled(true);
-        //     }
-        // }
+        if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Blocking")) {
+            if let Some(tile) = tile {
+                widget.set_selected_index(if tile.blocking { 1 } else { 0 });
+                widget.set_disabled(false);
+            } else {
+                widget.set_disabled(true);
+            }
+        }
 
         if let Some(widget) = ui.get_widget(&self.make_id(" Tile Copy")) {
             if tile.is_some() {
@@ -420,6 +445,14 @@ impl TilePicker {
         //         widget.set_disabled(true);
         //     }
         // }
+        if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Rendermode")) {
+            if let Some(tile) = tile {
+                widget.set_selected_index(tile.render_mode as i32);
+                widget.set_disabled(false);
+            } else {
+                widget.set_disabled(true);
+            }
+        }
     }
 
     ///  Create an id.

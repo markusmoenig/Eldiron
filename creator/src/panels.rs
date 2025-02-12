@@ -1,5 +1,5 @@
 use crate::editor::{
-    EFFECTPICKER, MATERIALPICKER, PREVIEWVIEW, SETTINGSPICKER, TEXTEDITOR, TILEMAPEDITOR,
+    CODEEDITOR, EFFECTPICKER, MATERIALPICKER, PREVIEWVIEW, SETTINGSPICKER, TILEMAPEDITOR,
     TILEPICKER,
 };
 use crate::prelude::*;
@@ -8,7 +8,8 @@ pub enum PanelIndices {
     TilePicker,
     TileMapEditor,
     ColorPicker,
-    TextEditor,
+    CodeEditor,
+    DataEditor,
     MaterialPicker,
     EffectPicker,
     SettingsPicker,
@@ -65,7 +66,8 @@ impl Panels {
 
         // --
 
-        main_stack.add_canvas(TEXTEDITOR.write().unwrap().build());
+        main_stack.add_canvas(CODEEDITOR.write().unwrap().build());
+        main_stack.add_canvas(CODEEDITOR.write().unwrap().build_data());
         main_stack.add_canvas(MATERIALPICKER.write().unwrap().build(false));
         main_stack.add_canvas(EFFECTPICKER.write().unwrap().build(false));
         main_stack.add_canvas(SETTINGSPICKER.write().unwrap().build(false));

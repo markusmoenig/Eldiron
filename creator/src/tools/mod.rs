@@ -1,6 +1,7 @@
 pub use crate::prelude::*;
 
 pub mod code;
+pub mod data;
 pub mod fx;
 pub mod game;
 pub mod linedef;
@@ -8,7 +9,7 @@ pub mod rect;
 pub mod sector;
 pub mod selection;
 pub mod settings;
-pub mod tilemap;
+pub mod tileset;
 pub mod vertex;
 
 #[derive(PartialEq, Clone, Debug, Copy)]

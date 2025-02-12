@@ -26,8 +26,8 @@ pub static UNDOMANAGER: LazyLock<RwLock<UndoManager>> =
 pub static TOOLLIST: LazyLock<RwLock<ToolList>> =
     LazyLock::new(|| RwLock::new(ToolList::default()));
 pub static PANELS: LazyLock<RwLock<Panels>> = LazyLock::new(|| RwLock::new(Panels::new()));
-pub static TEXTEDITOR: LazyLock<RwLock<TextEditor>> =
-    LazyLock::new(|| RwLock::new(TextEditor::new()));
+pub static CODEEDITOR: LazyLock<RwLock<CodeEditor>> =
+    LazyLock::new(|| RwLock::new(CodeEditor::new()));
 pub static PALETTE: LazyLock<RwLock<ThePalette>> =
     LazyLock::new(|| RwLock::new(ThePalette::default()));
 pub static RUSTERIX: LazyLock<RwLock<Rusterix>> =

@@ -123,7 +123,7 @@ impl Tool for SectorTool {
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::CodeEditor {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
-                            PanelIndices::TextEditor as usize,
+                            PanelIndices::CodeEditor as usize,
                         ));
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Update Material Previews"),
@@ -590,7 +590,7 @@ impl Tool for SectorTool {
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::CodeEditor {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
-                            PanelIndices::TextEditor as usize,
+                            PanelIndices::CodeEditor as usize,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
                         ctx.ui.send(TheEvent::SetStackIndex(

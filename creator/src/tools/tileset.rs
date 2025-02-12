@@ -1,17 +1,17 @@
 use crate::prelude::*;
 use ToolEvent::*;
 
-pub struct TilemapTool {
+pub struct TilesetTool {
     id: TheId,
 }
 
-impl Tool for TilemapTool {
+impl Tool for TilesetTool {
     fn new() -> Self
     where
         Self: Sized,
     {
         Self {
-            id: TheId::named("Tilemap Tool"),
+            id: TheId::named("Tileset Tool"),
         }
     }
 
@@ -19,7 +19,7 @@ impl Tool for TilemapTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Tilemap Tool (T). Create new tiles from your tilemaps.")
+        str!("Tileset Tool (T). Manage the tiles in your tilesets.")
     }
     fn icon_name(&self) -> String {
         str!("bricks")
@@ -32,20 +32,26 @@ impl Tool for TilemapTool {
         &mut self,
         tool_event: ToolEvent,
         _tool_context: ToolContext,
-        _ui: &mut TheUI,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
         _project: &mut Project,
         _server_ctx: &mut ServerContext,
     ) -> bool {
         if let Activate = tool_event {
+            if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                layout.set_mode(TheSharedVLayoutMode::Bottom);
+            }
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Set Tilemap Panel"),
                 TheValue::Empty,
             ));
 
             return true;
-        };
-
+        } else if let DeActivate = tool_event {
+            if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                layout.set_mode(TheSharedVLayoutMode::Shared);
+            }
+        }
         false
     }
 }

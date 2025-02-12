@@ -1,17 +1,17 @@
 use crate::prelude::*;
 use ToolEvent::*;
 
-pub struct CodeTool {
+pub struct DataTool {
     id: TheId,
 }
 
-impl Tool for CodeTool {
+impl Tool for DataTool {
     fn new() -> Self
     where
         Self: Sized,
     {
         Self {
-            id: TheId::named("Code Tool"),
+            id: TheId::named("Data Tool"),
         }
     }
 
@@ -19,13 +19,13 @@ impl Tool for CodeTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Code Tool (C).")
+        str!("Data Tool (a).")
     }
     fn icon_name(&self) -> String {
-        str!("code")
+        str!("database")
     }
     fn accel(&self) -> Option<char> {
-        Some('c')
+        Some('a')
     }
 
     fn tool_event(
@@ -45,7 +45,7 @@ impl Tool for CodeTool {
 
             ctx.ui.send(TheEvent::SetStackIndex(
                 TheId::named("Main Stack"),
-                PanelIndices::CodeEditor as usize,
+                PanelIndices::DataEditor as usize,
             ));
 
             if let Some(layout) = ui.get_hlayout("Game Tool Params") {
