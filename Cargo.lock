@@ -3953,7 +3953,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#e9cf6c4dcb2952efed0e5280ba104ae8b645adec"
+source = "git+https://github.com/markusmoenig/Rusterix#44d86d065e2d9fc4a7f79a6e6755becdc6d97030"
 dependencies = [
  "bincode",
  "crossbeam-channel",
@@ -3972,6 +3972,7 @@ dependencies = [
  "serde",
  "serde_json",
  "theframework",
+ "toml",
  "uuid",
  "vek",
  "walkdir",

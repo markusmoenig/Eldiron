@@ -19,7 +19,7 @@ impl Tool for DataTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Data Tool (a).")
+        str!("Data Tool (A).")
     }
     fn icon_name(&self) -> String {
         str!("database")
@@ -79,13 +79,13 @@ impl Tool for DataTool {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let mut redraw = false;
+        let redraw = false;
         #[allow(clippy::single_match)]
         match event {
             TheEvent::StateChanged(id, state) => {
                 #[allow(clippy::collapsible_if)]
                 if id.name == "Build" && *state == TheWidgetState::Clicked {
-                    if let Some(value) = ui.get_widget_value("CodeEdit") {
+                    if let Some(value) = ui.get_widget_value("DataEdit") {
                         if let Some(code) = value.to_string() {
                             // Compile the code to test for errors.
                             let ri = rusterix::RegionInstance::default();
@@ -113,58 +113,17 @@ impl Tool for DataTool {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "CodeEdit" {
+                if id.name == "DataEdit" {
                     if let Some(code) = value.to_string() {
-                        match server_ctx.cc {
-                            ContentContext::CharacterInstance(uuid) => {
-                                if let Some(region) =
-                                    project.get_region_mut(&server_ctx.curr_region)
-                                {
-                                    if let Some(character_instance) =
-                                        region.characters.get_mut(&uuid)
-                                    {
-                                        character_instance.source = code;
-                                    }
-                                }
-                            }
+                        match server_ctx.curr_character {
                             ContentContext::CharacterTemplate(uuid) => {
                                 if let Some(character) = project.characters.get_mut(&uuid) {
-                                    let class_pattern = r"class\s+(\w+)\s*:";
-                                    if let Ok(re) = regex::Regex::new(class_pattern) {
-                                        if let Some(captures) = re.captures(&code) {
-                                            let name = captures[1].to_string();
-                                            if character.name != name {
-                                                character.name = name.clone();
-                                                if let Some(layout) =
-                                                    ui.get_list_layout("Character List")
-                                                {
-                                                    layout.set_item_text(character.id, name);
-                                                    redraw = true;
-                                                }
-                                            }
-                                        }
-                                    }
-                                    character.source = code;
+                                    character.data = code;
                                 }
                             }
                             ContentContext::ItemTemplate(uuid) => {
                                 if let Some(item) = project.items.get_mut(&uuid) {
-                                    let class_pattern = r"class\s+(\w+)\s*:";
-                                    if let Ok(re) = regex::Regex::new(class_pattern) {
-                                        if let Some(captures) = re.captures(&code) {
-                                            let name = captures[1].to_string();
-                                            if item.name != name {
-                                                item.name = name.clone();
-                                                if let Some(layout) =
-                                                    ui.get_list_layout("Item List")
-                                                {
-                                                    layout.set_item_text(item.id, name);
-                                                    redraw = true;
-                                                }
-                                            }
-                                        }
-                                    }
-                                    item.source = code;
+                                    item.data = code;
                                 }
                             }
                             _ => {}

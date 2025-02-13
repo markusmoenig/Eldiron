@@ -14,6 +14,10 @@ pub struct Item {
     /// The instance initialization code.
     pub source: String,
 
+    /// The attributes toml data.
+    #[serde(default)]
+    pub data: String,
+
     /// The initial position.
     pub position: Vec3<f32>,
 
@@ -35,6 +39,7 @@ impl Item {
 
             map: Map::default(),
             source: String::new(),
+            data: String::new(),
             position: zero(),
 
             item_id: Uuid::new_v4(),

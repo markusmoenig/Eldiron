@@ -1877,6 +1877,12 @@ impl Sidebar {
                             }
                         }
 
+                        if let Some(bytes) = crate::Embedded::get("toml/character.toml") {
+                            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                                character.data = source.to_string();
+                            }
+                        }
+
                         let mut item =
                             TheListItem::new(TheId::named_with_id("Character Item", character.id));
                         item.set_text(character.name.clone());
@@ -1919,6 +1925,12 @@ impl Sidebar {
                         if let Some(bytes) = crate::Embedded::get("python/baseitem.py") {
                             if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
                                 item_template.source = source.to_string();
+                            }
+                        }
+
+                        if let Some(bytes) = crate::Embedded::get("toml/item.toml") {
+                            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                                item_template.data = source.to_string();
                             }
                         }
 
@@ -2617,6 +2629,7 @@ impl Sidebar {
 
         if let Some(character) = character {
             ui.set_widget_value("CodeEdit", ctx, TheValue::Text(character.source.clone()));
+            ui.set_widget_value("DataEdit", ctx, TheValue::Text(character.data.clone()));
         }
         /*
         // Set the character bundle.
@@ -2656,6 +2669,7 @@ impl Sidebar {
             // }
             //
             ui.set_widget_value("CodeEdit", ctx, TheValue::Text(item.source.clone()));
+            ui.set_widget_value("DataEdit", ctx, TheValue::Text(item.data.clone()));
         } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
             if let Some(canvas) = stack_layout.canvas_at_mut(2) {
                 let mut empty = TheCanvas::new();
