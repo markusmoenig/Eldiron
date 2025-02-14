@@ -110,7 +110,6 @@ pub fn set_code(
         ContentContext::CharacterTemplate(uuid) => {
             if let Some(character) = project.characters.get_mut(&uuid) {
                 ui.set_widget_value("CodeEdit", ctx, TheValue::Text(character.source.clone()));
-                println!("tt {}", character.data);
                 ui.set_widget_value("DataEdit", ctx, TheValue::Text(character.data.clone()));
                 success = true;
             }

@@ -115,7 +115,7 @@ impl Tool for DataTool {
             TheEvent::ValueChanged(id, value) => {
                 if id.name == "DataEdit" {
                     if let Some(code) = value.to_string() {
-                        match server_ctx.curr_character {
+                        match server_ctx.cc {
                             ContentContext::CharacterTemplate(uuid) => {
                                 if let Some(character) = project.characters.get_mut(&uuid) {
                                     character.data = code;
