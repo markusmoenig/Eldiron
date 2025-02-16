@@ -107,9 +107,12 @@ impl PreviewView {
 
             rusterix.build_scene_d3(&region.map, &build_values);
             let assets = rusterix.assets.clone();
-            rusterix
-                .client
-                .apply_entities_items_d3(&[], &[], &assets, &ValueContainer::default());
+            rusterix.client.apply_entities_items_d3(
+                &region.map.entities,
+                &region.map.items,
+                &assets,
+                &ValueContainer::default(),
+            );
             rusterix
                 .client
                 .draw_d3(buffer.pixels_mut(), dim.width as usize, dim.height as usize);

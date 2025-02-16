@@ -27,9 +27,14 @@ impl CodeEditor {
         let mut center = TheCanvas::new();
 
         let mut textedit = TheTextAreaEdit::new(TheId::named("DataEdit"));
+        if let Some(bytes) = crate::Embedded::get("parser/TOML.sublime-syntax") {
+            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                textedit.add_syntax_from_string(source);
+                textedit.set_code_type("TOML");
+            }
+        }
         textedit.set_continuous(true);
         textedit.display_line_number(true);
-        textedit.set_code_type("toml");
         textedit.set_code_theme("base16-eighties.dark");
         textedit.use_global_statusbar(true);
         textedit.set_font_size(14.0);
