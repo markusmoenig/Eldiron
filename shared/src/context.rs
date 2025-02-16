@@ -207,8 +207,17 @@ impl ServerContext {
         subdivisions: f32,
     ) -> Vec2<f32> {
         let grid_space_pos = coord - screen_size / 2.0 - Vec2::new(map.offset.x, -map.offset.y);
-        let cell_size = map.grid_size / subdivisions;
-        (grid_space_pos / cell_size).map(|x| x.floor())
+        let grid_cell = (grid_space_pos / map.grid_size).map(|x| x.floor());
+
+        if subdivisions > 1.0 {
+            let sub_cell_size = map.grid_size / subdivisions;
+            let sub_index = grid_space_pos
+                .map(|x| x.rem_euclid(map.grid_size) / sub_cell_size)
+                .map(|x| x.floor());
+            grid_cell + sub_index / subdivisions
+        } else {
+            grid_cell
+        }
     }
 
     /// Convert a map grid position to a local screen position
