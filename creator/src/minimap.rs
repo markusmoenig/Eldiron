@@ -43,7 +43,7 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer) {
         ));
 
         let mut builder = D2PreviewBuilder::new();
-        builder.set_map_tool_type(MapToolType::Linedef);
+        builder.set_map_tool_type(MapToolType::MiniMap);
         if let Some(camera_pos) = region.map.camera_xz {
             builder.set_camera_info(
                 Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),

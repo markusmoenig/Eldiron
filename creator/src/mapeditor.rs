@@ -1201,9 +1201,9 @@ impl MapEditor {
                 && !map.selected_linedefs.is_empty()
             {
                 self.create_linedef_settings(map, map.selected_linedefs[0], ui, ctx, server_ctx);
-            } else if server_ctx.curr_map_tool_type == MapToolType::Sector
-                || server_ctx.curr_map_tool_type == MapToolType::Rect
-                    && !map.selected_sectors.is_empty()
+            } else if (server_ctx.curr_map_tool_type == MapToolType::Sector
+                || server_ctx.curr_map_tool_type == MapToolType::Rect)
+                && !map.selected_sectors.is_empty()
             {
                 self.create_sector_settings(map, map.selected_sectors[0], ui, ctx, server_ctx);
             }

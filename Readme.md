@@ -20,6 +20,8 @@ Eldiron is open source and licensed under the MIT.
 
 **Eldiron is currently undergoing a pre-v1 rewrite. A new version with a Doom style editor system will be released soon (February / March 2025).**
 
+![Eldiron Screenshot](images/screenshot.png)
+
 ---
 
 ## Building Eldiron Locally

@@ -2246,7 +2246,7 @@ impl Sidebar {
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
                     {
-                        widget.set_value(TheValue::Text("Tilemaps".to_string()));
+                        widget.set_value(TheValue::Text("Tilesets".to_string()));
                     }
 
                     if let Some(list_layout) = ui.get_list_layout("Tilemap List") {
