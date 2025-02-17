@@ -77,35 +77,39 @@ impl Tool for LinedefTool {
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();
 
-                    let mut material_switch =
-                        TheGroupButton::new(TheId::named("Map Helper Switch"));
-                    material_switch.add_text_status(
+                    let mut source_switch = TheGroupButton::new(TheId::named("Map Helper Switch"));
+                    source_switch.add_text_status(
                         "Tile Picker".to_string(),
                         "Show tile picker.".to_string(),
                         // "bricks".to_string(),
                     );
-                    material_switch.add_text_status(
+                    source_switch.add_text_status(
                         "Materials".to_string(),
                         "Apply procedural materials.".to_string(),
                         // "faders".to_string(),
                     );
-                    material_switch.add_text_status(
+                    source_switch.add_text_status(
                         "Colors".to_string(),
                         "Apply a color.".to_string(),
                         // "square".to_string(),
                     );
-                    material_switch.add_text_status(
+                    source_switch.add_text_status(
+                        "Effects".to_string(),
+                        "Apply an effect.".to_string(),
+                        // "square".to_string(),
+                    );
+                    source_switch.add_text_status(
                         "Preview".to_string(),
                         "Preview the map.".to_string(),
                         // "square".to_string(),
                     );
-                    material_switch.set_item_width(100);
+                    source_switch.set_item_width(80);
                     let mut index = server_ctx.curr_map_tool_helper as i32;
                     if index == 4 {
                         index = 3;
                     }
-                    material_switch.set_index(index);
-                    layout.add_widget(Box::new(material_switch));
+                    source_switch.set_index(index);
+                    layout.add_widget(Box::new(source_switch));
 
                     if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
@@ -121,6 +125,11 @@ impl Tool for LinedefTool {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::ColorPicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::EffectPicker as usize,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
                         ctx.ui.send(TheEvent::SetStackIndex(
@@ -733,6 +742,7 @@ impl Tool for LinedefTool {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Map Helper Switch" {
                     server_ctx.curr_map_tool_helper.set_from_index(*index);
+                    println!("{:?}", server_ctx.curr_map_tool_helper);
                     if server_ctx.curr_map_tool_helper == MapToolHelper::CodeEditor {
                         server_ctx.curr_map_tool_helper = MapToolHelper::Preview;
                     }
@@ -750,6 +760,11 @@ impl Tool for LinedefTool {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::ColorPicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::EffectPicker as usize,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
                         ctx.ui.send(TheEvent::SetStackIndex(

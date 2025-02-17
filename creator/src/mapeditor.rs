@@ -682,6 +682,7 @@ impl MapEditor {
                 } else if id.name == "linedefPixelization"
                     || id.name == "linedefNoiseTarget"
                     || id.name == "linedefSourceRepeat"
+                    || id.name == "linedefCastsShadows"
                 {
                     if let Some(value) = value.to_i32() {
                         if let Some(map) = project.get_map_mut(server_ctx) {
@@ -1287,6 +1288,15 @@ impl MapEditor {
                     linedef.properties.get_float_default("wall_height", 0.0),
                     0.0..=4.0,
                     false,
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::Selector(
+                    "linedefCastsShadows".into(),
+                    "Casts Shadows".into(),
+                    "Defines if the linedef casts shadows.".into(),
+                    vec!["Yes".to_string(), "No".to_string()],
+                    linedef.properties.get_int_default("casts_shadows", 0),
                 );
                 nodeui.add_item(item);
 
