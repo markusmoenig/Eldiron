@@ -74,36 +74,40 @@ impl Tool for SectorTool {
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();
 
-                    let mut material_switch =
-                        TheGroupButton::new(TheId::named("Map Helper Switch"));
-                    material_switch.add_text_status(
+                    let mut source_switch = TheGroupButton::new(TheId::named("Map Helper Switch"));
+                    source_switch.add_text_status(
                         "Tile Picker".to_string(),
                         "Show tile picker.".to_string(),
                         // "bricks".to_string(),
                     );
-                    material_switch.add_text_status(
+                    source_switch.add_text_status(
                         "Materials".to_string(),
                         "Apply materials.".to_string(),
                         // "faders".to_string(),
                     );
-                    material_switch.add_text_status(
+                    source_switch.add_text_status(
                         "Colors".to_string(),
                         "Apply a color.".to_string(),
                         // "square".to_string(),
                     );
-                    material_switch.add_text_status(
+                    source_switch.add_text_status(
+                        "Effects".to_string(),
+                        "Apply an effect.".to_string(),
+                        // "square".to_string(),
+                    );
+                    source_switch.add_text_status(
                         "Script".to_string(),
                         "Sector Script.".to_string(),
                         // "code".to_string(),
                     );
-                    material_switch.add_text_status(
+                    source_switch.add_text_status(
                         "Preview".to_string(),
                         "Preview the map.".to_string(),
                         // "square".to_string(),
                     );
-                    material_switch.set_item_width(100);
-                    material_switch.set_index(server_ctx.curr_map_tool_helper as i32);
-                    layout.add_widget(Box::new(material_switch));
+                    source_switch.set_item_width(80);
+                    source_switch.set_index(server_ctx.curr_map_tool_helper as i32);
+                    layout.add_widget(Box::new(source_switch));
 
                     if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
@@ -119,6 +123,11 @@ impl Tool for SectorTool {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::ColorPicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::EffectPicker as usize,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::CodeEditor {
                         ctx.ui.send(TheEvent::SetStackIndex(
@@ -139,7 +148,7 @@ impl Tool for SectorTool {
                     let mut set_source_button =
                         TheTraybarButton::new(TheId::named("Apply Map Properties"));
                     set_source_button.set_status_text("Apply the source to the selected geometry.");
-                    set_source_button.set_text("Apply Source".to_string());
+                    set_source_button.set_text("Apply".to_string());
                     layout.add_widget(Box::new(set_source_button));
 
                     let mut rem_source_button =
@@ -461,44 +470,89 @@ impl Tool for SectorTool {
             TheEvent::StateChanged(id, state) => {
                 #[allow(clippy::collapsible_if)]
                 if id.name == "Apply Map Properties" && *state == TheWidgetState::Clicked {
-                    let mut source: Option<Value> = None;
-
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-                        if let Some(id) = server_ctx.curr_tile_id {
-                            source = Some(Value::Source(PixelSource::TileId(id)));
-                        }
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-                        if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker")
-                        {
-                            if let Some(color) = &project.palette.colors[palette_picker.index()] {
-                                source = Some(Value::Source(PixelSource::Color(color.clone())));
-                            }
-                        }
-                    }
-
-                    if let Some(source) = source {
+                    if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
                         if let Some(map) = project.get_map_mut(server_ctx) {
-                            let prev = map.clone();
+                            if let Some(effect) = &server_ctx.curr_effect {
+                                if let Some(light) = effect.to_light(Vec2::zero()) {
+                                    let prev = map.clone();
 
-                            for sector_id in &map.selected_sectors.clone() {
-                                if let Some(sector) = map.find_sector_mut(*sector_id) {
-                                    if self.hud.selected_icon_index == 0 {
-                                        sector.properties.set("floor_source", source.clone());
-                                    } else if self.hud.selected_icon_index == 1 {
-                                        sector.properties.set("ceiling_source", source.clone());
+                                    for sector_id in &map.selected_sectors.clone() {
+                                        if let Some(sector) = map.find_sector_mut(*sector_id) {
+                                            if self.hud.selected_icon_index == 0 {
+                                                sector.properties.set(
+                                                    "floor_light",
+                                                    Value::Light(light.clone()),
+                                                );
+                                            } else if self.hud.selected_icon_index == 1 {
+                                                sector.properties.set(
+                                                    "ceiling_light",
+                                                    Value::Light(light.clone()),
+                                                )
+                                            }
+                                        }
                                     }
+
+                                    let undo_atom = RegionUndoAtom::MapEdit(
+                                        Box::new(prev),
+                                        Box::new(map.clone()),
+                                    );
+
+                                    crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
+                                        &server_ctx.curr_region,
+                                        undo_atom,
+                                        ctx,
+                                    );
+                                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Map Selection Changed"),
+                                        TheValue::Empty,
+                                    ));
                                 }
                             }
+                        }
+                    } else {
+                        let mut source: Option<Value> = None;
 
-                            let undo_atom =
-                                RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+                        if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
+                            if let Some(id) = server_ctx.curr_tile_id {
+                                source = Some(Value::Source(PixelSource::TileId(id)));
+                            }
+                        } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
+                            if let Some(palette_picker) =
+                                ui.get_palette_picker("Panel Palette Picker")
+                            {
+                                if let Some(color) = &project.palette.colors[palette_picker.index()]
+                                {
+                                    source = Some(Value::Source(PixelSource::Color(color.clone())));
+                                }
+                            }
+                        }
 
-                            crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
-                                &server_ctx.curr_region,
-                                undo_atom,
-                                ctx,
-                            );
-                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                        if let Some(source) = source {
+                            if let Some(map) = project.get_map_mut(server_ctx) {
+                                let prev = map.clone();
+
+                                for sector_id in &map.selected_sectors.clone() {
+                                    if let Some(sector) = map.find_sector_mut(*sector_id) {
+                                        if self.hud.selected_icon_index == 0 {
+                                            sector.properties.set("floor_source", source.clone());
+                                        } else if self.hud.selected_icon_index == 1 {
+                                            sector.properties.set("ceiling_source", source.clone());
+                                        }
+                                    }
+                                }
+
+                                let undo_atom =
+                                    RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+
+                                crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
+                                    &server_ctx.curr_region,
+                                    undo_atom,
+                                    ctx,
+                                );
+                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            }
                         }
                     }
                 } else if id.name == "Remove Map Properties" && *state == TheWidgetState::Clicked {
@@ -508,13 +562,21 @@ impl Tool for SectorTool {
                         for sector_id in map.selected_sectors.clone() {
                             if let Some(sector) = map.find_sector_mut(sector_id) {
                                 if self.hud.selected_icon_index == 0 {
-                                    sector
-                                        .properties
-                                        .set("floor_source", Value::Source(PixelSource::Off));
+                                    if sector.properties.contains("floor_light") {
+                                        sector.properties.remove("floor_light");
+                                    } else {
+                                        sector
+                                            .properties
+                                            .set("floor_source", Value::Source(PixelSource::Off));
+                                    }
                                 } else if self.hud.selected_icon_index == 1 {
-                                    sector
-                                        .properties
-                                        .set("ceiling_source", Value::Source(PixelSource::Off));
+                                    if sector.properties.contains("ceiling_light") {
+                                        sector.properties.remove("ceiling_light");
+                                    } else {
+                                        sector
+                                            .properties
+                                            .set("ceiling_source", Value::Source(PixelSource::Off));
+                                    }
                                 }
                             }
                         }
@@ -586,6 +648,11 @@ impl Tool for SectorTool {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::ColorPicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::EffectPicker as usize,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::CodeEditor {
                         ctx.ui.send(TheEvent::SetStackIndex(

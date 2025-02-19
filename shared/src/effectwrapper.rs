@@ -11,7 +11,11 @@ use EffectWrapper::*;
 impl EffectWrapper {
     pub fn name(&self) -> String {
         match self {
-            RusterixLight(_) => "PointLight".into(),
+            RusterixLight(light) => match light.light_type {
+                LightType::Area => "Area Light".into(),
+                LightType::Daylight => "Daylight".into(),
+                _ => "Point Light".into(),
+            },
         }
     }
     pub fn icon(&self) -> String {

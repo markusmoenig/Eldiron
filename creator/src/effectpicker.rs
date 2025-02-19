@@ -20,7 +20,11 @@ pub struct EffectPicker {
 #[allow(clippy::new_without_default)]
 impl EffectPicker {
     pub fn new(id: String) -> Self {
-        let effects = vec![EffectWrapper::RusterixLight(Light::new(LightType::Point))];
+        let effects = vec![
+            EffectWrapper::RusterixLight(Light::new(LightType::Point)),
+            EffectWrapper::RusterixLight(Light::new(LightType::Area)),
+            EffectWrapper::RusterixLight(Light::new(LightType::Daylight)),
+        ];
 
         Self {
             id,

@@ -626,9 +626,38 @@ impl MapEditor {
                 } else if id.name == "lightColor" {
                     if let Some(value) = value.to_color() {
                         if let Some(map) = project.get_map_mut(server_ctx) {
-                            if let Some(light_index) = &map.selected_light.clone() {
-                                let prev = map.clone();
-                                map.lights[*light_index as usize].set_color(value.to_array_3());
+                            let prev = map.clone();
+                            let mut changed = false;
+                            for linedef_id in map.selected_linedefs.clone() {
+                                if let Some(linedef) = map.find_linedef_mut(linedef_id) {
+                                    for i in 1..=4 {
+                                        let light_name = format!("row{}_light", i);
+                                        if let Some(Value::Light(light)) =
+                                            linedef.properties.get_mut(&light_name)
+                                        {
+                                            light.set_color(value.to_array_3());
+                                            changed = true;
+                                        }
+                                    }
+                                }
+                            }
+                            for sector_id in map.selected_sectors.clone() {
+                                if let Some(sector) = map.find_sector_mut(sector_id) {
+                                    if let Some(Value::Light(light)) =
+                                        sector.properties.get_mut("floor_light")
+                                    {
+                                        light.set_color(value.to_array_3());
+                                        changed = true;
+                                    }
+                                    if let Some(Value::Light(light)) =
+                                        sector.properties.get_mut("ceiling_light")
+                                    {
+                                        light.set_color(value.to_array_3());
+                                        changed = true;
+                                    }
+                                }
+                            }
+                            if changed {
                                 self.add_map_undo(map, prev, ctx, server_ctx);
                             }
                         }
@@ -639,17 +668,62 @@ impl MapEditor {
                 {
                     if let Some(value) = value.to_f32() {
                         if let Some(map) = project.get_map_mut(server_ctx) {
-                            if let Some(light_index) = &map.selected_light.clone() {
-                                let prev = map.clone();
-
-                                if id.name == "lightIntensity" {
-                                    map.lights[*light_index as usize].set_intensity(value);
+                            let prev = map.clone();
+                            let mut changed = false;
+                            for linedef_id in map.selected_linedefs.clone() {
+                                if let Some(linedef) = map.find_linedef_mut(linedef_id) {
+                                    for i in 1..=4 {
+                                        let light_name = format!("row{}_light", i);
+                                        if let Some(Value::Light(light)) =
+                                            linedef.properties.get_mut(&light_name)
+                                        {
+                                            if id.name == "lightIntensity" {
+                                                light.set_intensity(value);
+                                                changed = true;
+                                            } else if id.name == "lightStartDistance" {
+                                                light.set_start_distance(value);
+                                                changed = true;
+                                            } else if id.name == "lightEndDistance" {
+                                                light.set_end_distance(value);
+                                                changed = true;
+                                            }
+                                        }
+                                    }
                                 }
-                                if id.name == "lightStartDistance" {
-                                    map.lights[*light_index as usize].set_start_distance(value);
-                                } else if id.name == "lightEndDistance" {
-                                    map.lights[*light_index as usize].set_end_distance(value);
+                            }
+                            for sector_id in map.selected_sectors.clone() {
+                                if let Some(sector) = map.find_sector_mut(sector_id) {
+                                    if let Some(Value::Light(light)) =
+                                        sector.properties.get_mut("floor_light")
+                                    {
+                                        if id.name == "lightIntensity" {
+                                            light.set_intensity(value);
+                                            changed = true;
+                                        } else if id.name == "lightStartDistance" {
+                                            light.set_start_distance(value);
+                                            changed = true;
+                                        } else if id.name == "lightEndDistance" {
+                                            light.set_end_distance(value);
+                                            changed = true;
+                                        }
+                                    }
+                                    if let Some(Value::Light(light)) =
+                                        sector.properties.get_mut("ceiling_light")
+                                    {
+                                        if id.name == "lightIntensity" {
+                                            light.set_intensity(value);
+                                            changed = true;
+                                        } else if id.name == "lightStartDistance" {
+                                            light.set_start_distance(value);
+                                            changed = true;
+                                        } else if id.name == "lightEndDistance" {
+                                            light.set_end_distance(value);
+                                            changed = true;
+                                        }
+                                    }
                                 }
+                            }
+                            if changed {
                                 self.add_map_undo(map, prev, ctx, server_ctx);
                             }
                         }
@@ -1362,6 +1436,21 @@ impl MapEditor {
                 );
                 nodeui.add_item(item);
             }
+
+            // Show the settings of the first light
+            for i in 1..=4 {
+                let light_name = format!("row{}_light", i);
+                if let Some(Value::Light(light)) = linedef.properties.get(&light_name) {
+                    let light_ui = EffectWrapper::create_light_ui(light);
+                    let item =
+                        TheNodeUIItem::Separator(format!("{} Light", light.light_type.name()));
+                    nodeui.add_item(item);
+                    for (_, item) in light_ui.list_items() {
+                        nodeui.add_item(item.clone());
+                    }
+                    break;
+                }
+            }
         }
 
         if let Some(layout) = ui.get_text_layout("Node Settings") {
@@ -1478,6 +1567,25 @@ impl MapEditor {
                     sector.properties.get_int_default("rect_rendering", 0),
                 );
                 nodeui.add_item(item);
+            }
+
+            // Show the floor light
+            if let Some(Value::Light(light)) = sector.properties.get("floor_light") {
+                let light_ui = EffectWrapper::create_light_ui(light);
+                let item = TheNodeUIItem::Separator("Floor Light".to_string());
+                nodeui.add_item(item);
+                for (_, item) in light_ui.list_items() {
+                    nodeui.add_item(item.clone());
+                }
+            }
+            // Show the ceiling light
+            if let Some(Value::Light(light)) = sector.properties.get("ceiling_light") {
+                let light_ui = EffectWrapper::create_light_ui(light);
+                let item = TheNodeUIItem::Separator("Ceiling Light".to_string());
+                nodeui.add_item(item);
+                for (_, item) in light_ui.list_items() {
+                    nodeui.add_item(item.clone());
+                }
             }
         }
 

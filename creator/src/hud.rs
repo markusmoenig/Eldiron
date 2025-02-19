@@ -28,6 +28,7 @@ pub struct Hud {
     timeline_rect: TheDim,
 
     is_playing: bool,
+    light_icon: Option<TheRGBABuffer>,
 }
 
 impl Hud {
@@ -47,6 +48,8 @@ impl Hud {
             timeline_rect: TheDim::rect(0, 0, 0, 0),
 
             is_playing: false,
+
+            light_icon: None,
         }
     }
 
@@ -58,6 +61,14 @@ impl Hud {
         server_ctx: &mut ServerContext,
         id: Option<u32>,
     ) {
+        if (self.mode == HudMode::Linedef || self.mode == HudMode::Sector)
+            && self.light_icon.is_none()
+        {
+            if let Some(li) = ctx.ui.icon("light_small") {
+                self.light_icon = Some(li.clone());
+            }
+        }
+
         let width = buffer.dim().width as usize;
         let height = buffer.dim().height as usize;
         let stride = buffer.stride();
@@ -299,7 +310,8 @@ impl Hud {
             );
 
             if let Some(id) = id {
-                if let Some(tile) = self.get_icon(i, map, id, icon_size as usize) {
+                let (tile, has_light) = self.get_icon(i, map, id, icon_size as usize);
+                if let Some(tile) = tile {
                     let texture = tile.textures[0].resized(icon_size as usize, icon_size as usize);
                     ctx.draw.copy_slice(
                         buffer.pixels_mut(),
@@ -307,6 +319,21 @@ impl Hud {
                         &rect.to_buffer_utuple(),
                         stride,
                     );
+                }
+                if has_light {
+                    if let Some(light_icon) = &self.light_icon {
+                        ctx.draw.blend_slice(
+                            buffer.pixels_mut(),
+                            light_icon.pixels(),
+                            &(
+                                rect.x as usize + 1,
+                                rect.y as usize + 1,
+                                light_icon.dim().width as usize,
+                                light_icon.dim().height as usize,
+                            ),
+                            stride,
+                        );
+                    }
                 }
             }
 
@@ -520,10 +547,11 @@ impl Hud {
         map: &Map,
         id: u32,
         icon_size: usize,
-    ) -> Option<rusterix::Tile> {
+    ) -> (Option<rusterix::Tile>, bool) {
         if self.mode == HudMode::Linedef {
             if let Some(linedef) = map.find_linedef(id) {
                 if index == 0 {
+                    let has_light = linedef.properties.get("row1_light").is_some();
                     if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row1_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
@@ -531,10 +559,12 @@ impl Hud {
                             icon_size,
                             &linedef.properties,
                         ) {
-                            return Some(tile);
+                            return (Some(tile), has_light);
                         }
                     }
+                    return (None, has_light);
                 } else if index == 1 {
+                    let has_light = linedef.properties.get("row2_light").is_some();
                     if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row2_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
@@ -542,10 +572,12 @@ impl Hud {
                             icon_size,
                             &linedef.properties,
                         ) {
-                            return Some(tile);
+                            return (Some(tile), has_light);
                         }
                     }
+                    return (None, has_light);
                 } else if index == 2 {
+                    let has_light = linedef.properties.get("row3_light").is_some();
                     if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row3_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
@@ -553,10 +585,12 @@ impl Hud {
                             icon_size,
                             &linedef.properties,
                         ) {
-                            return Some(tile);
+                            return (Some(tile), has_light);
                         }
                     }
+                    return (None, has_light);
                 } else if index == 3 {
+                    let has_light = linedef.properties.get("row4_light").is_some();
                     if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row4_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
@@ -564,14 +598,16 @@ impl Hud {
                             icon_size,
                             &linedef.properties,
                         ) {
-                            return Some(tile);
+                            return (Some(tile), has_light);
                         }
                     }
+                    return (None, has_light);
                 }
             }
         } else if self.mode == HudMode::Sector {
             if let Some(sector) = map.find_sector(id) {
                 if index == 0 {
+                    let has_light = sector.properties.get("floor_light").is_some();
                     if let Some(Value::Source(pixelsource)) = &sector.properties.get("floor_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
@@ -579,10 +615,12 @@ impl Hud {
                             icon_size,
                             &sector.properties,
                         ) {
-                            return Some(tile);
+                            return (Some(tile), has_light);
                         }
                     }
+                    return (None, has_light);
                 } else if index == 1 {
+                    let has_light = sector.properties.get("ceiling_light").is_some();
                     if let Some(Value::Source(pixelsource)) =
                         &sector.properties.get("ceiling_source")
                     {
@@ -591,13 +629,14 @@ impl Hud {
                             icon_size,
                             &sector.properties,
                         ) {
-                            return Some(tile);
+                            return (Some(tile), has_light);
                         }
                     }
+                    return (None, has_light);
                 }
             }
         }
 
-        None
+        (None, false)
     }
 }
