@@ -83,13 +83,24 @@ impl TilePicker {
 
         let mut tags = TheTextLineEdit::new(TheId::named(&self.make_id(" Tile Tags")));
         tags.limiter_mut().set_max_width(130);
+        tags.set_info_text(Some("Tags".to_string()));
         tags.set_disabled(true);
+        tags.set_status_text("Tags separated by commas for easy filtering.");
 
-        let mut text = TheText::new(TheId::empty());
-        text.set_text_size(12.0);
-        text.set_text("Tags".to_string());
-        toolbar_hlayout.add_widget(Box::new(text));
+        // let mut text = TheText::new(TheId::empty());
+        // text.set_text_size(12.0);
+        // text.set_text("Tags".to_string());
+        // toolbar_hlayout.add_widget(Box::new(text));
         toolbar_hlayout.add_widget(Box::new(tags));
+        let mut scale = TheTextLineEdit::new(TheId::named(&self.make_id(" Tile Scale")));
+        scale.set_value(TheValue::Float(1.0));
+        scale.set_range(TheValue::RangeF32(0.1..=5.0));
+        scale.set_continuous(false);
+        scale.limiter_mut().set_max_width(120);
+        scale.set_info_text(Some("Scale".to_string()));
+        scale.set_status_text("Defines the tile scale (for billboards).");
+        scale.set_disabled(true);
+        toolbar_hlayout.add_widget(Box::new(scale));
 
         if !minimal {
             let mut zoom = TheSlider::new(TheId::named(&self.make_id(" Zoom")));
@@ -361,6 +372,18 @@ impl TilePicker {
                             }
                         }
                     }
+                } else if id.name == self.make_id(" Tile Scale") {
+                    if let Some(tile_id) = self.curr_tile {
+                        if let Some(tile) = project.get_tile_mut(&tile_id) {
+                            if let Some(value) = value.to_f32() {
+                                tile.scale = value;
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Update Tiles"),
+                                    TheValue::Empty,
+                                ));
+                            }
+                        }
+                    }
                 } else if id.name == self.make_id(" Tile Blocking") {
                     if let Some(tile_id) = self.curr_tile {
                         if let Some(tile) = project.get_tile_mut(&tile_id) {
@@ -405,6 +428,15 @@ impl TilePicker {
         if let Some(widget) = ui.get_text_line_edit(&self.make_id(" Tile Tags")) {
             if let Some(tile) = tile {
                 widget.set_text(tile.name.clone());
+                widget.set_disabled(false);
+            } else {
+                widget.set_disabled(true);
+            }
+        }
+
+        if let Some(widget) = ui.get_text_line_edit(&self.make_id(" Tile Scale")) {
+            if let Some(tile) = tile {
+                widget.set_value(TheValue::Float(tile.scale));
                 widget.set_disabled(false);
             } else {
                 widget.set_disabled(true);

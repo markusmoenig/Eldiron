@@ -312,6 +312,7 @@ impl Project {
                 rgba_tile.name.clone_from(&tile.name);
                 rgba_tile.buffer = tilemap.buffer.extract_sequence(&tile.sequence);
                 rgba_tile.role = tile.role as u8;
+                rgba_tile.scale = tile.scale;
                 rgba_tile.render_mode = tile.render_mode;
                 tiles.insert(tile.id, rgba_tile);
             }

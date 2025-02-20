@@ -823,6 +823,7 @@ impl MapEditor {
                 } else if id.name == "sectorNoiseIntensity"
                     || id.name == "sectorFloorHeight"
                     || id.name == "sectorCeilingHeight"
+                    || id.name == "sectorOcclusion"
                 {
                     if let Some(value) = value.to_f32() {
                         if let Some(map) = project.get_map_mut(server_ctx) {
@@ -1513,6 +1514,16 @@ impl MapEditor {
                     "Set if the ceiling should be displayed in an ISO camera.".into(),
                     vec!["Yes".to_string(), "No".to_string()],
                     sector.properties.get_int_default("ceiling_in_iso", 0),
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::FloatEditSlider(
+                    "sectorOcclusion".into(),
+                    "Occlusion".into(),
+                    "Specifies the occlusion of daylight for the sector. A value of 1.0 means full daylight, 0.0 means no daylight.".into(),
+                    sector.properties.get_float_default("occlusion", 1.0),
+                    0.0..=1.0,
+                    false,
                 );
                 nodeui.add_item(item);
             }

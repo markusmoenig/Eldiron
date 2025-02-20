@@ -118,11 +118,17 @@ impl TileRole {
     }
 }
 
+fn default_tile_scale() -> f32 {
+    1.0
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct Tile {
     pub id: Uuid,
     pub name: String,
     pub role: TileRole,
+    #[serde(default = "default_tile_scale")]
+    pub scale: f32,
 
     pub sequence: TheRGBARegionSequence,
     pub blocking: bool,
@@ -142,6 +148,7 @@ impl Tile {
             id: Uuid::new_v4(),
             name: String::new(),
             role: TileRole::Nature,
+            scale: 1.0,
 
             sequence: TheRGBARegionSequence::new(),
             blocking: false,
