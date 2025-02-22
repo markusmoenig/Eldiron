@@ -469,14 +469,15 @@ impl TilePicker {
             }
         }
 
-        // if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Billboard")) {
-        //     if let Some(tile) = tile {
-        //         widget.set_selected_index(if tile.billboard { 1 } else { 0 });
-        //         widget.set_disabled(false);
-        //     } else {
-        //         widget.set_disabled(true);
-        //     }
-        // }
+        if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Billboard")) {
+            if let Some(tile) = tile {
+                widget.set_selected_index(tile.render_mode as i32);
+                widget.set_disabled(false);
+            } else {
+                widget.set_disabled(true);
+            }
+        }
+
         if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Rendermode")) {
             if let Some(tile) = tile {
                 widget.set_selected_index(tile.render_mode as i32);

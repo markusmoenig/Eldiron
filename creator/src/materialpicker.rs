@@ -200,7 +200,11 @@ impl MaterialPicker {
                         grid as usize,
                         grid as usize,
                     );
-                    b.build_texture(map, &FxHashMap::default(), &mut texture);
+                    b.build_texture(
+                        map,
+                        &crate::editor::RUSTERIX.read().unwrap().assets,
+                        &mut texture,
+                    );
 
                     self.tile_ids.insert((x, y), map.id);
                     self.tile_text.insert((x, y), map.name.clone());

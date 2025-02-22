@@ -839,7 +839,7 @@ dependencies = [
 
 [[package]]
 name = "creator"
-version = "0.8.14"
+version = "0.8.20"
 dependencies = [
  "fontdue",
  "indexmap 2.7.1",
@@ -3953,7 +3953,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#370ec88f48252ac0447ddb19666e37066f4919fb"
+source = "git+https://github.com/markusmoenig/Rusterix#99dd54fbab25a718b16daf4250378b7d1224abcb"
 dependencies = [
  "bincode",
  "crossbeam-channel",
@@ -4612,7 +4612,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.8.14"
+version = "0.8.20"
 dependencies = [
  "earcutr",
  "fontdue",

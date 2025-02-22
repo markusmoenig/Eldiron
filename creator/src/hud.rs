@@ -399,7 +399,7 @@ impl Hud {
             let mut texture = Texture::new(pixels, preview_width as usize, preview_height as usize);
 
             let builder = D2MaterialBuilder::new();
-            builder.build_texture(map, &RUSTERIX.read().unwrap().assets.tiles, &mut texture);
+            builder.build_texture(map, &RUSTERIX.read().unwrap().assets, &mut texture);
 
             ctx.draw.copy_slice(
                 buffer.pixels_mut(),
@@ -555,7 +555,7 @@ impl Hud {
                     if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row1_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.read().unwrap().assets.tiles,
+                            &RUSTERIX.read().unwrap().assets,
                             icon_size,
                             &linedef.properties,
                         ) {
@@ -568,7 +568,7 @@ impl Hud {
                     if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row2_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.write().unwrap().assets.tiles,
+                            &RUSTERIX.write().unwrap().assets,
                             icon_size,
                             &linedef.properties,
                         ) {
@@ -581,7 +581,7 @@ impl Hud {
                     if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row3_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.read().unwrap().assets.tiles,
+                            &RUSTERIX.read().unwrap().assets,
                             icon_size,
                             &linedef.properties,
                         ) {
@@ -594,7 +594,7 @@ impl Hud {
                     if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row4_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.read().unwrap().assets.tiles,
+                            &RUSTERIX.read().unwrap().assets,
                             icon_size,
                             &linedef.properties,
                         ) {
@@ -611,7 +611,7 @@ impl Hud {
                     if let Some(Value::Source(pixelsource)) = &sector.properties.get("floor_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.read().unwrap().assets.tiles,
+                            &RUSTERIX.read().unwrap().assets,
                             icon_size,
                             &sector.properties,
                         ) {
@@ -625,7 +625,7 @@ impl Hud {
                         &sector.properties.get("ceiling_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.read().unwrap().assets.tiles,
+                            &RUSTERIX.read().unwrap().assets,
                             icon_size,
                             &sector.properties,
                         ) {

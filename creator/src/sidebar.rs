@@ -1053,6 +1053,15 @@ impl Sidebar {
             TheEvent::Custom(id, value) => {
                 if id.name == "Update Materialpicker" {
                     self.show_filtered_materials(ui, ctx, project, server_ctx);
+                    // Set the materials in the RUSTERIX assets
+                    RUSTERIX.write().unwrap().assets.set_materials(
+                        project
+                            .materials
+                            .iter()
+                            .map(|(k, v)| (*k, v.clone()))
+                            .collect(),
+                        60,
+                    );
                 } else if id.name == "Update Model List" {
                     self.show_filtered_models(ui, ctx, project, server_ctx);
 
@@ -3344,7 +3353,7 @@ impl Sidebar {
                         }
 
                         let mut texture = Texture::new(vec![0_u8; 36 * 36 * 4], 36, 36);
-                        b.build_texture(material, &FxHashMap::default(), &mut texture);
+                        b.build_texture(material, &RUSTERIX.read().unwrap().assets, &mut texture);
                         let rgba = TheRGBABuffer::from(
                             texture.data,
                             texture.width as u32,

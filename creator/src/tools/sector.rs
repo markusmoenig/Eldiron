@@ -497,17 +497,35 @@ impl Tool for SectorTool {
                                         Box::new(map.clone()),
                                     );
 
-                                    crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
-                                        &server_ctx.curr_region,
-                                        undo_atom,
-                                        ctx,
-                                    );
                                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
-
                                     ctx.ui.send(TheEvent::Custom(
                                         TheId::named("Map Selection Changed"),
                                         TheValue::Empty,
                                     ));
+
+                                    if server_ctx.curr_map_context == MapContext::Region {
+                                        crate::editor::UNDOMANAGER
+                                            .write()
+                                            .unwrap()
+                                            .add_region_undo(
+                                                &server_ctx.curr_region,
+                                                undo_atom,
+                                                ctx,
+                                            );
+                                    } else if server_ctx.curr_map_context == MapContext::Material {
+                                        if let Some(material_undo_atom) =
+                                            undo_atom.to_material_atom()
+                                        {
+                                            crate::editor::UNDOMANAGER
+                                                .write()
+                                                .unwrap()
+                                                .add_material_undo(material_undo_atom, ctx);
+                                            ctx.ui.send(TheEvent::Custom(
+                                                TheId::named("Update Materialpicker"),
+                                                TheValue::Empty,
+                                            ));
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -517,6 +535,11 @@ impl Tool for SectorTool {
                         if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
                             if let Some(id) = server_ctx.curr_tile_id {
                                 source = Some(Value::Source(PixelSource::TileId(id)));
+                            }
+                        } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+                            if let Some(id) = server_ctx.curr_material {
+                                println!("Material ID: {}", id);
+                                source = Some(Value::Source(PixelSource::MaterialId(id)));
                             }
                         } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
                             if let Some(palette_picker) =
@@ -546,11 +569,24 @@ impl Tool for SectorTool {
                                 let undo_atom =
                                     RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
 
-                                crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
-                                    &server_ctx.curr_region,
-                                    undo_atom,
-                                    ctx,
-                                );
+                                if server_ctx.curr_map_context == MapContext::Region {
+                                    crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
+                                        &server_ctx.curr_region,
+                                        undo_atom,
+                                        ctx,
+                                    );
+                                } else if server_ctx.curr_map_context == MapContext::Material {
+                                    if let Some(material_undo_atom) = undo_atom.to_material_atom() {
+                                        crate::editor::UNDOMANAGER
+                                            .write()
+                                            .unwrap()
+                                            .add_material_undo(material_undo_atom, ctx);
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Update Materialpicker"),
+                                            TheValue::Empty,
+                                        ));
+                                    }
+                                }
                                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
                             }
                         }
@@ -584,11 +620,24 @@ impl Tool for SectorTool {
                         let undo_atom =
                             RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
 
-                        crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
-                            &server_ctx.curr_region,
-                            undo_atom,
-                            ctx,
-                        );
+                        if server_ctx.curr_map_context == MapContext::Region {
+                            crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
+                                &server_ctx.curr_region,
+                                undo_atom,
+                                ctx,
+                            );
+                        } else if server_ctx.curr_map_context == MapContext::Material {
+                            if let Some(material_undo_atom) = undo_atom.to_material_atom() {
+                                crate::editor::UNDOMANAGER
+                                    .write()
+                                    .unwrap()
+                                    .add_material_undo(material_undo_atom, ctx);
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Update Materialpicker"),
+                                    TheValue::Empty,
+                                ));
+                            }
+                        }
                         crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     }
                 }

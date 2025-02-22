@@ -8,7 +8,7 @@ Classic RPG Creation
 
 [![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/channel/UCCmrO356zLQv_m8dPEqBUfA)
 
-[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/) [![version](https://img.shields.io/badge/version-0.8.12-yellow.svg)](https://shields.io/) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/MarkusMoenig)
+[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/) [![version](https://img.shields.io/badge/version-0.8.20-yellow.svg)](https://shields.io/) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/MarkusMoenig)
 
 # Eldiron: A Next-Generation Classical RPG Creator
 
@@ -17,8 +17,6 @@ Eldiron is a cross-platform creator for classic, retro role-playing-games (RPGs)
 Eldiron supports 2D games (like Ultima 4/5), isometric games and first-person games out of the box.
 
 Eldiron is open source and licensed under the MIT.
-
-**Eldiron is currently undergoing a pre-v1 rewrite. A new version with a Doom style editor system will be released soon (February / March 2025).**
 
 ![Eldiron Screenshot](images/screenshot.png)
 

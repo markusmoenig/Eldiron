@@ -64,8 +64,7 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer) {
 
         let mut scene = builder.build(
             &map,
-            &rusterix.assets.tiles,
-            rusterix.assets.atlas.clone(),
+            &rusterix.assets,
             Vec2::new(width, height),
             "preview",
             &ValueContainer::default(),

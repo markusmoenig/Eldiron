@@ -1528,7 +1528,7 @@ impl MapEditor {
                 nodeui.add_item(item);
             }
 
-            nodeui.add_item(TheNodeUIItem::Separator("Color Properties".into()));
+            nodeui.add_item(TheNodeUIItem::Separator("Color".into()));
 
             let item = TheNodeUIItem::IntEditSlider(
                 "sectorPixelization".into(),
@@ -1542,7 +1542,7 @@ impl MapEditor {
 
             let item = TheNodeUIItem::FloatEditSlider(
                 "sectorNoiseIntensity".into(),
-                "Noise Intensity".into(),
+                "Noise".into(),
                 "Set the noise intensity.".into(),
                 0.0,
                 0.0..=1.0,

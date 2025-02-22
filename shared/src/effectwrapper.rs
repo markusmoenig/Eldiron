@@ -79,6 +79,55 @@ impl EffectWrapper {
                 );
                 nodeui.add_item(item);*/
             }
+            LightType::Area => {
+                let item = TheNodeUIItem::ColorPicker(
+                    "lightColor".into(),
+                    "".into(),
+                    "Set the color of the light".into(),
+                    TheColor::from(light.get_color()),
+                    false,
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::FloatEditSlider(
+                    "lightIntensity".into(),
+                    "Intensity".into(),
+                    "Set the intensity of the light.".into(),
+                    light.get_intensity(),
+                    0.0..=4.0,
+                    false,
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::FloatEditSlider(
+                    "lightStartDistance".into(),
+                    "Fade Start".into(),
+                    "Set the distance the light starts to fade.".into(),
+                    light.get_start_distance(),
+                    0.0..=100.0,
+                    false,
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::FloatEditSlider(
+                    "lightEndDistance".into(),
+                    "Fade End".into(),
+                    "Set the distance the light fade ends.".into(),
+                    light.get_end_distance(),
+                    0.0..=100.0,
+                    false,
+                );
+                nodeui.add_item(item);
+                /*
+                let item = TheNodeUIItem::Selector(
+                    "lightType".into(),
+                    "Type".into(),
+                    "Select the type of light.".into(),
+                    vec!["Yes".to_string(), "No".to_string()],
+                    properties.get_int_default("light_type", 0),
+                );
+                nodeui.add_item(item);*/
+            }
             _ => {}
         }
 
