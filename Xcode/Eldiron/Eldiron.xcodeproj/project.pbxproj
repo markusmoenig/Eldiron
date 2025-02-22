@@ -59,6 +59,7 @@
 		DD86627C2978DE20003878C0 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD86627A2978DE20003878C0 /* CoreAudio.framework */; };
 		DD8FB2B52BD396C7008D2A3C /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD8FB2B42BD396C7008D2A3C /* SystemConfiguration.framework */; };
 		DDB240202CF5A8E600425D2F /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DDB2401F2CF5A8E600425D2F /* Carbon.framework */; };
+		DDFD01872D69925400CEFB70 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = DDFD01852D6990B700CEFB70 /* libz.tbd */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -109,6 +110,8 @@
 		DDAB9559290F6AC900B79AB8 /* librustapiios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapiios.a; path = rustapi/libs_ios/librustapiios.a; sourceTree = "<group>"; };
 		DDAB955B290F6B6D00B79AB8 /* librustapiios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapiios.a; path = rustapi/libs/librustapiios.a; sourceTree = "<group>"; };
 		DDB2401F2CF5A8E600425D2F /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = System/Library/Frameworks/Carbon.framework; sourceTree = SDKROOT; };
+		DDFD01852D6990B700CEFB70 /* libz.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.tbd; path = usr/lib/libz.tbd; sourceTree = SDKROOT; };
+		DDFD01862D6990CA00CEFB70 /* libz.1.2.8.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.1.2.8.tbd; path = usr/lib/libz.1.2.8.tbd; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -134,6 +137,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DD219B8729752B1100E978F5 /* CoreAudio.framework in Frameworks */,
+				DDFD01872D69925400CEFB70 /* libz.tbd in Frameworks */,
 				DD219B832975298400E978F5 /* librustapi.a in Frameworks */,
 				DD8FB2B52BD396C7008D2A3C /* SystemConfiguration.framework in Frameworks */,
 				DDB240202CF5A8E600425D2F /* Carbon.framework in Frameworks */,
@@ -222,6 +226,8 @@
 		DD976A98290E62C2007131BA /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				DDFD01862D6990CA00CEFB70 /* libz.1.2.8.tbd */,
+				DDFD01852D6990B700CEFB70 /* libz.tbd */,
 				DDB2401F2CF5A8E600425D2F /* Carbon.framework */,
 				DD8FB2B42BD396C7008D2A3C /* SystemConfiguration.framework */,
 				DD8662792978DE20003878C0 /* AudioToolbox.framework */,
@@ -765,7 +771,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
-				MARKETING_VERSION = 0.8.12;
+				MARKETING_VERSION = 0.8.20;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.moenig.eldiron;
 				PRODUCT_NAME = Eldiron;
@@ -807,7 +813,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
-				MARKETING_VERSION = 0.8.12;
+				MARKETING_VERSION = 0.8.20;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.moenig.eldiron;
 				PRODUCT_NAME = Eldiron;
