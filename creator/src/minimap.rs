@@ -44,6 +44,7 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
 
         let mut builder = D2PreviewBuilder::new();
         builder.set_map_tool_type(MapToolType::MiniMap);
+        builder.draw_grid = false;
         if let Some(camera_pos) = region.map.camera_xz {
             builder.set_camera_info(
                 Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
@@ -74,12 +75,20 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
             &ValueContainer::default(),
         );
 
-        Rasterizer::setup(None, Mat4::identity(), Mat4::identity()).rasterize(
-            &mut scene,
-            buffer.pixels_mut(),
-            width as usize,
-            height as usize,
-            64,
-        );
+        let mut light = Light::new(LightType::Ambient);
+        light.set_color([1.0, 1.0, 1.0]);
+        light.set_intensity(1.0);
+
+        scene.dynamic_lights.push(light);
+
+        Rasterizer::setup(None, Mat4::identity(), Mat4::identity())
+            .background([42, 42, 42, 255])
+            .rasterize(
+                &mut scene,
+                buffer.pixels_mut(),
+                width as usize,
+                height as usize,
+                64,
+            );
     }
 }

@@ -267,6 +267,7 @@ impl MapEditor {
                         } else {
                             map.offset += Vec2::new(-coord.x as f32, coord.y as f32);
                         }
+                        map.curr_rectangle = None;
                         crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     }
 
