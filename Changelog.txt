@@ -1,5 +1,9 @@
+v 0.8.21
+--------
+ - Various Rect tool related fixes
+ - Properly set the project time to the client / server on project load
+
 v 0.8.20
 --------
-
  - First release with a Doom style editor. Basically a complete rewrite
- - Python for scripting.
+ - Python for scripting

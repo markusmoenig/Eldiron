@@ -12,14 +12,15 @@ Classic RPG Creation
 
 # Eldiron: A Next-Generation Classical RPG Creator
 
-Eldiron is a cross-platform creator for classic, retro role-playing-games (RPGs). It’s main aim is to create games similar to the RPGs of the 80’s and 90’s but with modern features as well as support for single and multi-player experiences, procedural content and much more.
+**Eldiron** is a cross-platform creator for classic retro role-playing games (RPGs). Its primary goal is to enable the creation of RPGs reminiscent of the 1980s and 1990s while incorporating modern features such as multiplayer support, procedural content generation, and more.
 
-Eldiron supports 2D games (like Ultima 4/5), isometric games and first-person games out of the box.
+Eldiron natively supports **2D** (like Ultima 4/5), **isometric**, and **first-person** RPGs, allowing developers to craft a variety of experiences effortlessly.
 
-Eldiron is open source and licensed under the MIT.
+Eldiron is open-source and licensed under the **MIT License**.
 
-![Eldiron Screenshot](images/screenshot.png)
-
+2D Example           | 3D First Person Example
+:-------------------------:|:-------------------------:
+![Eldiron Screenshot](images/screenshot_harbor_2d.png)  |  ![Eldiron Screenshot](images/screenshot.png)
 ---
 
 ## Building Eldiron Locally

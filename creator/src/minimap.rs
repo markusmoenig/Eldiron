@@ -4,7 +4,7 @@ use vek::Vec2;
 
 use crate::editor::RUSTERIX;
 
-pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer) {
+pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx: &ServerContext) {
     let dim = buffer.dim();
 
     let width = dim.width as f32;
@@ -47,11 +47,15 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer) {
         if let Some(camera_pos) = region.map.camera_xz {
             builder.set_camera_info(
                 Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
-                Some(Vec3::new(
-                    region.editing_look_at_3d.x,
-                    0.0,
-                    region.editing_look_at_3d.z,
-                )),
+                if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
+                    Some(Vec3::new(
+                        region.editing_look_at_3d.x,
+                        0.0,
+                        region.editing_look_at_3d.z,
+                    ))
+                } else {
+                    None
+                },
             );
         }
 

@@ -1379,10 +1379,27 @@ impl TheTrait for Editor {
                                         self.project.settings =
                                             shared::settingscontainer::SettingsContainer::default();
 
+                                        // Set the project time to the server time slider widget
                                         if let Some(widget) = ui.get_widget("Server Time Slider") {
                                             widget.set_value(TheValue::Time(self.project.time));
                                         }
-                                        // self.server.set_time(self.project.time);
+
+                                        // Set the server time to the client (and if running to the server)
+                                        {
+                                            let mut rusterix = RUSTERIX.write().unwrap();
+                                            rusterix.client.server_time = self.project.time;
+                                            if rusterix.server.state
+                                                == rusterix::ServerState::Running
+                                            {
+                                                if let Some(map) =
+                                                    self.project.get_map(&self.server_ctx)
+                                                {
+                                                    rusterix
+                                                        .server
+                                                        .set_time(&map.id, self.project.time);
+                                                }
+                                            }
+                                        }
 
                                         self.sidebar.load_from_project(
                                             ui,

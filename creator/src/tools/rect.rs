@@ -32,7 +32,7 @@ impl Tool for RectTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Rect Tool (R). Create square sectors with tiles and materials.")
+        str!("Rect Tool (R). Click to draw current source in the grid. Shift-click to delete.")
     }
     fn icon_name(&self) -> String {
         str!("square")
@@ -162,7 +162,7 @@ impl Tool for RectTool {
         /// Add a tile at the current hover position
         fn add_tile(
             ui: &mut TheUI,
-            ctx: &mut TheContext,
+            _ctx: &mut TheContext,
             map: &mut Map,
             server_ctx: &mut ServerContext,
             hovered_vertices: Option<[Vec2<f32>; 4]>,
@@ -171,12 +171,34 @@ impl Tool for RectTool {
             let mut undo_atom: Option<RegionUndoAtom> = None;
             let size = 1.0 / map.subdivisions;
 
-            if let Some(source) = get_source(ui, server_ctx) {
-                let prev = map.clone();
-                if let Some(vertices) = hovered_vertices {
-                    let mut add_it = true;
-                    let mut layer: u8 = 0;
+            let prev = map.clone();
+            if let Some(vertices) = hovered_vertices {
+                let mut add_it = true;
+                let mut layer: u8 = 0;
 
+                if ui.shift {
+                    // Delete the top tile at the given position if shift is pressed
+                    if let Some(ev0) = map.find_vertex_at(vertices[0].x, vertices[0].y) {
+                        if let Some(ev1) = map.find_vertex_at(vertices[1].x, vertices[1].y) {
+                            if let Some(ev2) = map.find_vertex_at(vertices[2].x, vertices[2].y) {
+                                if let Some(ev3) = map.find_vertex_at(vertices[3].x, vertices[3].y)
+                                {
+                                    let sectors =
+                                        map.find_sectors_with_vertex_indices(&[ev0, ev1, ev2, ev3]);
+
+                                    if let Some(sector) = sectors.last() {
+                                        map.delete_elements(&[], &[], &[*sector]);
+                                        undo_atom = Some(RegionUndoAtom::MapEdit(
+                                            Box::new(prev),
+                                            Box::new(map.clone()),
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if let Some(source) = get_source(ui, server_ctx) {
+                    // Add mode
                     // Check if tile already exists with same source
                     if let Some(ev0) = map.find_vertex_at(vertices[0].x, vertices[0].y) {
                         if let Some(ev1) = map.find_vertex_at(vertices[1].x, vertices[1].y) {
@@ -222,6 +244,7 @@ impl Tool for RectTool {
                         let v2 = map.add_vertex_at(vertices[2].x, vertices[2].y);
                         let v3 = map.add_vertex_at(vertices[3].x, vertices[3].y);
 
+                        map.possible_polygon = vec![];
                         let l0 = map.create_linedef(v0, v1);
                         let l1 = map.create_linedef(v1, v2);
                         let l2 = map.create_linedef(v2, v3);
@@ -270,10 +293,10 @@ impl Tool for RectTool {
                                 map.selected_vertices.clear();
                                 map.selected_linedefs.clear();
                                 map.selected_sectors = vec![sector_id];
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Map Selection Changed"),
-                                    TheValue::Empty,
-                                ));
+                                // ctx.ui.send(TheEvent::Custom(
+                                //     TheId::named("Map Selection Changed"),
+                                //     TheValue::Empty,
+                                // ));
                             }
                         }
                     }
@@ -318,9 +341,7 @@ impl Tool for RectTool {
                     cp + Vec2::new(step, step),
                     cp + Vec2::new(step, 0.0),
                 ]);
-
-                server_ctx.hover_cursor = None; //Some(cp);
-
+                server_ctx.hover_cursor = Some(cp);
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
 
