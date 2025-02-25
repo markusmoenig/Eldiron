@@ -78,33 +78,15 @@ impl Tool for SectorTool {
                     source_switch.add_text_status(
                         "Tile Picker".to_string(),
                         "Show tile picker.".to_string(),
-                        // "bricks".to_string(),
                     );
-                    source_switch.add_text_status(
-                        "Materials".to_string(),
-                        "Apply materials.".to_string(),
-                        // "faders".to_string(),
-                    );
-                    source_switch.add_text_status(
-                        "Colors".to_string(),
-                        "Apply a color.".to_string(),
-                        // "square".to_string(),
-                    );
-                    source_switch.add_text_status(
-                        "Effects".to_string(),
-                        "Apply an effect.".to_string(),
-                        // "square".to_string(),
-                    );
-                    source_switch.add_text_status(
-                        "Script".to_string(),
-                        "Sector Script.".to_string(),
-                        // "code".to_string(),
-                    );
-                    source_switch.add_text_status(
-                        "Preview".to_string(),
-                        "Preview the map.".to_string(),
-                        // "square".to_string(),
-                    );
+                    source_switch
+                        .add_text_status("Materials".to_string(), "Apply materials.".to_string());
+                    source_switch
+                        .add_text_status("Colors".to_string(), "Apply a color.".to_string());
+                    source_switch
+                        .add_text_status("Effects".to_string(), "Apply an effect.".to_string());
+                    source_switch
+                        .add_text_status("Preview".to_string(), "Preview the map.".to_string());
                     source_switch.set_item_width(80);
                     source_switch.set_index(server_ctx.curr_map_tool_helper as i32);
                     layout.add_widget(Box::new(source_switch));
@@ -128,15 +110,6 @@ impl Tool for SectorTool {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::EffectPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::CodeEditor {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::CodeEditor as usize,
-                        ));
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Material Previews"),
-                            TheValue::Empty,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
                         ctx.ui.send(TheEvent::SetStackIndex(
@@ -702,11 +675,6 @@ impl Tool for SectorTool {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::EffectPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::CodeEditor {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::CodeEditor as usize,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
                         ctx.ui.send(TheEvent::SetStackIndex(

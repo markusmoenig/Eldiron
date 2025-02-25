@@ -2979,8 +2979,8 @@ impl Sidebar {
 
                 if filter_role == 0 || filter_role == 3 {
                     // Show Items
-                    for (id, _) in region.items.iter() {
-                        let name = "Item".to_string();
+                    for (id, item) in region.items.iter() {
+                        let name = item.name.clone();
                         if filter_text.is_empty() || name.to_lowercase().contains(&filter_text) {
                             let mut item = TheListItem::new(TheId::named_with_id(
                                 "Region Content List Item",

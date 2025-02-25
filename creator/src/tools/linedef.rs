@@ -81,34 +81,19 @@ impl Tool for LinedefTool {
                     source_switch.add_text_status(
                         "Tile Picker".to_string(),
                         "Show tile picker.".to_string(),
-                        // "bricks".to_string(),
                     );
                     source_switch.add_text_status(
                         "Materials".to_string(),
                         "Apply procedural materials.".to_string(),
-                        // "faders".to_string(),
                     );
-                    source_switch.add_text_status(
-                        "Colors".to_string(),
-                        "Apply a color.".to_string(),
-                        // "square".to_string(),
-                    );
-                    source_switch.add_text_status(
-                        "Effects".to_string(),
-                        "Apply an effect.".to_string(),
-                        // "square".to_string(),
-                    );
-                    source_switch.add_text_status(
-                        "Preview".to_string(),
-                        "Preview the map.".to_string(),
-                        // "square".to_string(),
-                    );
+                    source_switch
+                        .add_text_status("Colors".to_string(), "Apply a color.".to_string());
+                    source_switch
+                        .add_text_status("Effects".to_string(), "Apply an effect.".to_string());
+                    source_switch
+                        .add_text_status("Preview".to_string(), "Preview the map.".to_string());
                     source_switch.set_item_width(80);
-                    let mut index = server_ctx.curr_map_tool_helper as i32;
-                    if index == 4 {
-                        index = 3;
-                    }
-                    source_switch.set_index(index);
+                    source_switch.set_index(server_ctx.curr_map_tool_helper as i32);
                     layout.add_widget(Box::new(source_switch));
 
                     if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
@@ -771,54 +756,9 @@ impl Tool for LinedefTool {
                     }
                 }
             }
-            // TheEvent::Custom(id, TheValue::Id(uuid)) => {
-            //     if id.name == "Tile Picked" {}
-            //     redraw = true;
-            // }
-            // TheEvent::ValueChanged(id, value) => {
-            //     if id.name == "CodeEdit" {
-            //         if let Some(code) = value.to_string() {
-            //             self.properties_code = code;
-            //         }
-            //     }
-            // }
-            /*
-            TheEvent::StateChanged(id, state) => {
-                if id.name == "Apply Linedef Properties" && *state == TheWidgetState::Clicked {
-                    if let Some(value) = ui.get_widget_value("CodeEdit") {
-                        if let Some(code) = value.to_string() {
-                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                                for linedef_id in &region.map.selected_linedefs.clone() {
-                                    let mut mapscript = MapScript::new();
-                                    let result = mapscript.compile(
-                                        code.clone(),
-                                        Some(region.map.clone()),
-                                        Some(*linedef_id),
-                                        None,
-                                    );
-                                    match &result {
-                                        Ok(meta) => region.map = meta.map.clone(),
-                                        Err(err) => {
-                                            if let Some(first) = err.first() {
-                                                ctx.ui.send(TheEvent::SetStatusText(
-                                                    TheId::empty(),
-                                                    first.to_string(),
-                                                ));
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }*/
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Map Helper Switch" {
                     server_ctx.curr_map_tool_helper.set_from_index(*index);
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::CodeEditor {
-                        server_ctx.curr_map_tool_helper = MapToolHelper::Preview;
-                    }
                     if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),

@@ -917,11 +917,13 @@ impl MapEditor {
                             if let Some(render_view) = ui.get_render_view("PolyView") {
                                 let dim = *render_view.dim();
 
-                                server_ctx.center_map_at_grid_pos(
-                                    Vec2::new(dim.width as f32, dim.height as f32),
-                                    Vec2::new(character.position.x, character.position.z),
-                                    &mut region.map,
-                                );
+                                if !server_ctx.content_click_from_map {
+                                    server_ctx.center_map_at_grid_pos(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        Vec2::new(character.position.x, character.position.z),
+                                        &mut region.map,
+                                    );
+                                }
                             }
                         } else if let Some(item) = region.items.get(&id.uuid) {
                             found = true;
@@ -939,11 +941,13 @@ impl MapEditor {
                             if let Some(render_view) = ui.get_render_view("PolyView") {
                                 let dim = *render_view.dim();
 
-                                server_ctx.center_map_at_grid_pos(
-                                    Vec2::new(dim.width as f32, dim.height as f32),
-                                    Vec2::new(item.position.x, item.position.z),
-                                    &mut region.map,
-                                );
+                                if !server_ctx.content_click_from_map {
+                                    server_ctx.center_map_at_grid_pos(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        Vec2::new(item.position.x, item.position.z),
+                                        &mut region.map,
+                                    );
+                                }
                             }
                         }
 
@@ -986,6 +990,7 @@ impl MapEditor {
                                 }
                             }
                         }
+                        server_ctx.content_click_from_map = false;
                         RUSTERIX.write().unwrap().set_dirty();
                     }
 
@@ -1340,12 +1345,22 @@ impl MapEditor {
                 let item = TheNodeUIItem::Text(
                     "linedefName".into(),
                     "Name".into(),
-                    "Set the name of the wall".into(),
+                    "Set the name of the linedef".into(),
                     linedef.name.clone(),
                     None,
                     false,
                 );
                 nodeui.add_item(item);
+
+                // let item = TheNodeUIItem::Text(
+                //     "linedefInstanceOf".into(),
+                //     "Name".into(),
+                //     "Set the item instance of the linedef".into(),
+                //     linedef.name.clone(),
+                //     None,
+                //     false,
+                // );
+                // nodeui.add_item(item);
 
                 let item = TheNodeUIItem::FloatEditSlider(
                     "linedefWallWidth".into(),
@@ -1529,40 +1544,42 @@ impl MapEditor {
                 nodeui.add_item(item);
             }
 
-            nodeui.add_item(TheNodeUIItem::Separator("Color".into()));
+            if server_ctx.curr_map_context == MapContext::Material {
+                nodeui.add_item(TheNodeUIItem::Separator("Color".into()));
 
-            let item = TheNodeUIItem::IntEditSlider(
-                "sectorPixelization".into(),
-                "Pixelization".into(),
-                "Set the amount of pixelization.".into(),
-                1,
-                1..=20,
-                false,
-            );
-            nodeui.add_item(item);
+                let item = TheNodeUIItem::IntEditSlider(
+                    "sectorPixelization".into(),
+                    "Pixelization".into(),
+                    "Set the amount of pixelization.".into(),
+                    1,
+                    1..=20,
+                    false,
+                );
+                nodeui.add_item(item);
 
-            let item = TheNodeUIItem::FloatEditSlider(
-                "sectorNoiseIntensity".into(),
-                "Noise".into(),
-                "Set the noise intensity.".into(),
-                0.0,
-                0.0..=1.0,
-                false,
-            );
-            nodeui.add_item(item);
+                let item = TheNodeUIItem::FloatEditSlider(
+                    "sectorNoiseIntensity".into(),
+                    "Noise".into(),
+                    "Set the noise intensity.".into(),
+                    0.0,
+                    0.0..=1.0,
+                    false,
+                );
+                nodeui.add_item(item);
 
-            let item = TheNodeUIItem::Selector(
-                "sectorNoiseTarget".into(),
-                "Noise Target".into(),
-                "Set the target property for the noise.".into(),
-                vec![
-                    "RGB".to_string(),
-                    "Hue".to_string(),
-                    "Luminance".to_string(),
-                ],
-                0,
-            );
-            nodeui.add_item(item);
+                let item = TheNodeUIItem::Selector(
+                    "sectorNoiseTarget".into(),
+                    "Noise Target".into(),
+                    "Set the target property for the noise.".into(),
+                    vec![
+                        "RGB".to_string(),
+                        "Hue".to_string(),
+                        "Luminance".to_string(),
+                    ],
+                    0,
+                );
+                nodeui.add_item(item);
+            }
 
             if sector.layer.is_some() {
                 nodeui.add_item(TheNodeUIItem::Separator("Rect Tool".into()));

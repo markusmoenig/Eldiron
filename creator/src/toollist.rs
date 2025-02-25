@@ -31,7 +31,7 @@ impl ToolList {
             Box::new(LinedefTool::new()),
             Box::new(SectorTool::new()),
             Box::new(RectTool::new()),
-            Box::new(FXTool::new()),
+            // Box::new(FXTool::new()),
             Box::new(CodeTool::new()),
             Box::new(DataTool::new()),
             Box::new(TilesetTool::new()),
@@ -293,6 +293,7 @@ impl ToolList {
                                             if let Some(layout) =
                                                 ui.get_list_layout("Region Content List")
                                             {
+                                                server_ctx.content_click_from_map = true;
                                                 layout.select_item(entity.creator_id, ctx, true);
                                             }
                                             ctx.ui.send(TheEvent::Custom(
@@ -329,6 +330,7 @@ impl ToolList {
                                             if let Some(layout) =
                                                 ui.get_list_layout("Region Content List")
                                             {
+                                                server_ctx.content_click_from_map = true;
                                                 layout.select_item(item.creator_id, ctx, true);
                                             }
                                             ctx.ui.send(TheEvent::Custom(
@@ -363,12 +365,13 @@ impl ToolList {
                             if let Some(render_view) = ui.get_render_view("PolyView") {
                                 let dim = *render_view.dim();
 
-                                let drag_pos = server_ctx.local_to_map_grid(
+                                let mut drag_pos = server_ctx.local_to_map_cell(
                                     Vec2::new(dim.width as f32, dim.height as f32),
                                     Vec2::new(coord.x as f32, coord.y as f32),
                                     map,
                                     map.subdivisions,
                                 );
+                                drag_pos += map.subdivisions * 0.5;
 
                                 let drag_delta = self.char_click_pos - drag_pos;
 
@@ -396,12 +399,13 @@ impl ToolList {
                             if let Some(render_view) = ui.get_render_view("PolyView") {
                                 let dim = *render_view.dim();
 
-                                let drag_pos = server_ctx.local_to_map_grid(
+                                let mut drag_pos = server_ctx.local_to_map_cell(
                                     Vec2::new(dim.width as f32, dim.height as f32),
                                     Vec2::new(coord.x as f32, coord.y as f32),
                                     map,
                                     map.subdivisions,
                                 );
+                                drag_pos += map.subdivisions * 0.5;
 
                                 let drag_delta = self.char_click_pos - drag_pos;
 

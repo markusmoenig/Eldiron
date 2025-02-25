@@ -1016,12 +1016,13 @@ impl TheTrait for Editor {
                         if let Some(map) = self.project.get_map(&self.server_ctx) {
                             if let Some(render_view) = ui.get_render_view("PolyView") {
                                 let dim = *render_view.dim();
-                                grid_pos = self.server_ctx.local_to_map_grid(
+                                grid_pos = self.server_ctx.local_to_map_cell(
                                     Vec2::new(dim.width as f32, dim.height as f32),
                                     Vec2::new(location.x as f32, location.y as f32),
                                     map,
                                     map.subdivisions,
                                 );
+                                grid_pos += map.subdivisions * 0.5;
                             }
                         }
 
@@ -1042,7 +1043,6 @@ impl TheTrait for Editor {
                             if let Some(character) = self.project.characters.get(&drop.id.uuid) {
                                 name.clone_from(&character.name);
                             }
-
                             if let Some(list) = ui.get_list_layout("Region Content List") {
                                 let mut item = TheListItem::new(TheId::named_with_id(
                                     "Region Content List Item",
@@ -1061,6 +1061,7 @@ impl TheTrait for Editor {
                                     ..Default::default()
                                 }));
                                 list.add_item(item, ctx);
+                                self.server_ctx.content_click_from_map = true;
                                 list.select_item(instance.id, ctx, true);
                             }
 
@@ -1088,8 +1089,8 @@ impl TheTrait for Editor {
                             }
 
                             let mut name = "Item".to_string();
-                            if let Some(character) = self.project.characters.get(&drop.id.uuid) {
-                                name.clone_from(&character.name);
+                            if let Some(item) = self.project.items.get(&drop.id.uuid) {
+                                name.clone_from(&item.name);
                             }
 
                             if let Some(list) = ui.get_list_layout("Region Content List") {
@@ -1110,6 +1111,7 @@ impl TheTrait for Editor {
                                     ..Default::default()
                                 }));
                                 list.add_item(item, ctx);
+                                self.server_ctx.content_click_from_map = true;
                                 list.select_item(instance.id, ctx, true);
                             }
 

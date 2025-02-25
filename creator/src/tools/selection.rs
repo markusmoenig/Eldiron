@@ -53,33 +53,58 @@ impl Tool for SelectionTool {
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();
 
+                    let mut source_switch = TheGroupButton::new(TheId::named("Map Helper Switch"));
+                    source_switch.add_text_status(
+                        "Tile Picker".to_string(),
+                        "Show tile picker.".to_string(),
+                    );
+                    source_switch.add_text_status(
+                        "Materials".to_string(),
+                        "Apply procedural materials.".to_string(),
+                    );
+                    source_switch
+                        .add_text_status("Colors".to_string(), "Apply a color.".to_string());
+                    source_switch
+                        .add_text_status("Effects".to_string(), "Apply an effect.".to_string());
+                    source_switch
+                        .add_text_status("Preview".to_string(), "Preview the map.".to_string());
+                    source_switch.set_item_width(80);
+                    source_switch.set_index(server_ctx.curr_map_tool_helper as i32);
+                    layout.add_widget(Box::new(source_switch));
+
+                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::TilePicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::MaterialPicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::ColorPicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::EffectPicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::PreviewView as usize,
+                        ));
+                    }
+
                     server_ctx.curr_map_tool_type = MapToolType::Selection;
                 }
-
-                // Display the preview panel.
-                ctx.ui.send(TheEvent::SetStackIndex(
-                    TheId::named("Main Stack"),
-                    PanelIndices::PreviewView as usize,
-                ));
-                server_ctx.curr_map_tool_helper = MapToolHelper::Preview;
-
-                // ui.set_widget_context_menu(
-                //     "Region Editor View",
-                //     Some(TheContextMenu {
-                //         items: vec![TheContextMenuItem::new(
-                //             "Create Area...".to_string(),
-                //             TheId::named("Create Area"),
-                //         )],
-                //         ..Default::default()
-                //     }),
-                // );
-
-                // server_ctx.tile_selection = Some(self.tile_selection.clone());
 
                 return true;
             }
             DeActivate => {
-                //ui.set_widget_context_menu("Region Editor View", None);
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();
                     layout.set_reverse_index(None);
@@ -89,120 +114,6 @@ impl Tool for SelectionTool {
             }
             _ => {}
         };
-        /*
-                if let Some(copied) = &self.copied_region {
-                    // Handle copied region
-
-                    if let TileDown(coord, _) = tool_event {
-                        // Copy the copied region into the selection.
-
-                        // The tiles in the transformed coord space.
-                        let mut tiles = FxHashSet::default();
-                        for t in &self.copied_area {
-                            tiles.insert((coord.x + t.0, coord.y + t.1));
-                        }
-
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            let prev = region.clone();
-
-                            // Copy geometry
-                            for geo_obj in copied.geometry.values() {
-                                let p = geo_obj.get_position();
-
-                                let toffset = Vec2f::from(p) + vec2f(coord.x as f32, coord.y as f32);
-                                let mut c = geo_obj.clone();
-                                c.id = Uuid::new_v4();
-                                c.set_position(toffset);
-                                c.update_area();
-
-                                // Insert into new region
-                                region.geometry.insert(c.id, c);
-                            }
-
-                            // Copy the tiles
-                            for (tile_pos, tile) in &copied.tiles {
-                                let p = vec2i(tile_pos.0, tile_pos.1);
-                                let pos = p + coord;
-                                region.tiles.insert((pos.x, pos.y), tile.clone());
-                            }
-
-                            // Copy the heightmap content
-                            for (tile_pos, tile) in &copied.heightmap.material_mask {
-                                let p = vec2i(tile_pos.0, tile_pos.1);
-                                let pos = p + coord;
-                                region
-                                    .heightmap
-                                    .material_mask
-                                    .insert((pos.x, pos.y), tile.clone());
-                            }
-
-                            region.update_geometry_areas();
-                            server.update_region(region);
-
-                            let tiles_vector: Vec<Vec2i> =
-                                tiles.into_iter().map(|(x, y)| Vec2i::new(x, y)).collect();
-
-                            // Undo
-                            let undo = RegionUndoAtom::RegionEdit(
-                                Box::new(prev),
-                                Box::new(region.clone()),
-                                tiles_vector.clone(),
-                            );
-                            UNDOMANAGER
-                                .lock()
-                                .unwrap()
-                                .add_region_undo(&region.id, undo, ctx);
-
-                            // Render
-                            PRERENDERTHREAD
-                                .lock()
-                                .unwrap()
-                                .render_region(region.clone(), Some(tiles_vector));
-                        }
-                    }
-                } else {
-                    // Handle general selection
-
-                    if let TileDown(coord, _) = tool_event {
-                        let p = (coord.x, coord.y);
-
-                        let mut mode = TileSelectionMode::Additive;
-                        let mut tiles: FxHashSet<(i32, i32)> = FxHashSet::default();
-
-                        if ui.shift {
-                            tiles = self.tile_selection.tiles.clone();
-                        } else if ui.alt {
-                            tiles = self.tile_selection.tiles.clone();
-                            mode = TileSelectionMode::Subtractive;
-                        }
-
-                        let tile_area = TileSelection {
-                            mode,
-                            rect_start: p,
-                            rect_end: p,
-                            tiles,
-                        };
-                        server_ctx.tile_selection = Some(tile_area);
-                    }
-                    if let TileDrag(coord, _) = tool_event {
-                        let p = (coord.x, coord.y);
-                        if let Some(tile_selection) = &mut server_ctx.tile_selection {
-                            tile_selection.grow_rect_by(p);
-                        }
-                    }
-                    if let TileUp = tool_event {
-                        if let Some(tile_selection) = &mut server_ctx.tile_selection {
-                            self.tile_selection.tiles = tile_selection.merged();
-                        }
-
-                        ui.set_widget_disabled_state(
-                            "Editor Create Area",
-                            ctx,
-                            self.tile_selection.tiles.is_empty(),
-                        );
-                    }
-                }
-        */
         false
     }
 
@@ -394,12 +305,49 @@ impl Tool for SelectionTool {
 
     fn handle_event(
         &mut self,
-        _event: &TheEvent,
+        event: &TheEvent,
         _ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         _project: &mut Project,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) -> bool {
-        false
+        let mut redraw = false;
+        #[allow(clippy::single_match)]
+        match event {
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == "Map Helper Switch" {
+                    server_ctx.curr_map_tool_helper.set_from_index(*index);
+                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::TilePicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::MaterialPicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::ColorPicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::EffectPicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::PreviewView as usize,
+                        ));
+                    }
+                    redraw = true;
+                }
+            }
+            _ => {}
+        }
+        redraw
     }
 }

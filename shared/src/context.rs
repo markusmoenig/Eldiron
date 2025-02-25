@@ -26,7 +26,6 @@ pub enum MapToolHelper {
     MaterialPicker,
     ColorPicker,
     EffectsPicker,
-    CodeEditor,
     Preview,
 }
 
@@ -36,8 +35,7 @@ impl MapToolHelper {
             1 => *self = MapToolHelper::MaterialPicker,
             2 => *self = MapToolHelper::ColorPicker,
             3 => *self = MapToolHelper::EffectsPicker,
-            4 => *self = MapToolHelper::CodeEditor,
-            5 => *self = MapToolHelper::Preview,
+            4 => *self = MapToolHelper::Preview,
             _ => *self = MapToolHelper::TilePicker,
         }
     }
@@ -112,6 +110,9 @@ pub struct ServerContext {
     /// Map texture mode
     pub curr_texture_mode: MapTextureMode,
 
+    /// A click on map content originated from the map
+    pub content_click_from_map: bool,
+
     pub game_mode: bool,
 }
 
@@ -155,6 +156,8 @@ impl ServerContext {
             curr_map_context: MapContext::Region,
             curr_map_tool_helper: MapToolHelper::TilePicker,
             curr_texture_mode: MapTextureMode::Floor,
+
+            content_click_from_map: false,
 
             game_mode: false,
         }
