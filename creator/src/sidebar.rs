@@ -2931,8 +2931,8 @@ impl Sidebar {
             if let Some(region) = region {
                 if filter_role < 2 {
                     // Show Characters
-                    for (id, _) in region.characters.iter() {
-                        let name = "Character".to_string();
+                    for (id, character) in region.characters.iter() {
+                        let name = character.name.clone();
                         if filter_text.is_empty() || name.to_lowercase().contains(&filter_text) {
                             let mut item = TheListItem::new(TheId::named_with_id(
                                 "Region Content List Item",

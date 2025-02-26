@@ -3965,7 +3965,6 @@ dependencies = [
  "rect_packer",
  "ref_thread_local",
  "rust-embed",
- "rustc-hash 2.1.1",
  "rustpython",
  "rustpython-vm",
  "serde",

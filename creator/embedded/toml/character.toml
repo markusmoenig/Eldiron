@@ -1,2 +1,7 @@
 [attributes]
 # STR = 10
+
+# The entity is visible on the map
+visible = true
+# Tthe radius of the entities collision circle
+radius = 0.5

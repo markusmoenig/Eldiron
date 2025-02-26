@@ -1,3 +1,14 @@
 [attributes]
+# Set the tile ID for the item's sprite
+#tile_id = ""
+
+# The item is visible on the map
+visible = true
+# Static items cannot be moved (doors, fireplaces, etc.)
+static = false
+# Set to true if the item blocks character movement
+blocking = false
+# If blocking is true, this is the radius of the item's collision circle
+radius = 0.5
 
 #[light]
