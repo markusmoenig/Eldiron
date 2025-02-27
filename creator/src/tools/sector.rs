@@ -350,6 +350,11 @@ impl Tool for SectorTool {
                 self.click_selected = false;
             }
             MapHover(coord) => {
+                if self.hud.hovered(coord.x, coord.y, map, ui, ctx, server_ctx) {
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    return None;
+                }
+
                 if let Some(render_view) = ui.get_render_view("PolyView") {
                     let dim = *render_view.dim();
                     let h = server_ctx.geometry_at(

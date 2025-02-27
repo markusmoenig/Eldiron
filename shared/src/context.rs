@@ -113,6 +113,9 @@ pub struct ServerContext {
     /// A click on map content originated from the map
     pub content_click_from_map: bool,
 
+    /// Dont show rect based geometry on map
+    pub no_rect_geo_on_map: bool,
+
     pub game_mode: bool,
 }
 
@@ -158,6 +161,7 @@ impl ServerContext {
             curr_texture_mode: MapTextureMode::Floor,
 
             content_click_from_map: false,
+            no_rect_geo_on_map: true,
 
             game_mode: false,
         }
@@ -255,6 +259,9 @@ impl ServerContext {
 
         // Check the vertices
         for vertex in &map.vertices {
+            if self.no_rect_geo_on_map && map.is_vertex_in_rect(vertex.id) {
+                continue;
+            }
             if let Some(vertex_pos) = map.get_vertex(vertex.id) {
                 let vertex_pos = Self::map_grid_to_local(screen_size, vertex_pos, map);
                 if (screen_pos - vertex_pos).magnitude() <= hover_threshold {
@@ -267,6 +274,10 @@ impl ServerContext {
 
         // Check the lines
         for linedef in &map.linedefs {
+            if self.no_rect_geo_on_map && map.is_linedef_in_rect(linedef.id) {
+                continue;
+            }
+
             let start_vertex = map.get_vertex(linedef.start_vertex);
             let end_vertex = map.get_vertex(linedef.end_vertex);
 
@@ -317,6 +328,9 @@ impl ServerContext {
         // Reverse on sorted sectors by area (to allow to pick small sectors first)
         let ordered = map.sorted_sectors_by_area();
         for sector in ordered.iter().rev() {
+            if self.no_rect_geo_on_map && sector.properties.contains("rect_rendering") {
+                continue;
+            }
             let mut vertices = Vec::new();
             for &linedef_id in &sector.linedefs {
                 if let Some(linedef) = map.linedefs.get(linedef_id as usize) {

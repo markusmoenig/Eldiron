@@ -678,6 +678,11 @@ impl TheTrait for Editor {
         if redraw_update && !self.project.regions.is_empty() {
             // let render_mode = *RENDERMODE.lock().unwrap();
 
+            self.build_values.set(
+                "no_rect_geo",
+                Value::Bool(self.server_ctx.no_rect_geo_on_map),
+            );
+
             let sample_mode = self.project.settings.get_i32_value("renderSampleMode", 0);
             match sample_mode {
                 0 => {

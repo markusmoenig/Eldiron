@@ -28,12 +28,20 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
             .insert(item.name.clone(), (item.source.clone(), item.data.clone()));
     }
 
+    // Create the regions
     for region in &mut project.regions {
         rusterix.server.create_region_instance(
             region.name.clone(),
             region.map.clone(),
             &rusterix.assets,
         );
+    }
+
+    // Wait for the region to be created
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    // Set the time for each region to the project time
+    for region in &mut project.regions {
+        rusterix.server.set_time(&region.map.id, project.time);
     }
 
     rusterix.server.set_state(rusterix::ServerState::Running);

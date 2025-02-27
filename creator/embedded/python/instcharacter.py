@@ -1,3 +1,3 @@
 def setup():
-    """Initialize the entity instance"""
+    """Initialize the character instance"""
     pass

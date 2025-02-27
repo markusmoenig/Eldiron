@@ -27,6 +27,10 @@ pub struct Hud {
     play_button_rect: TheDim,
     timeline_rect: TheDim,
 
+    rect_geo_rect: TheDim,
+
+    mouse_pos: Vec2<i32>,
+
     is_playing: bool,
     light_icon: Option<TheRGBABuffer>,
 }
@@ -47,8 +51,11 @@ impl Hud {
             play_button_rect: TheDim::rect(0, 0, 0, 0),
             timeline_rect: TheDim::rect(0, 0, 0, 0),
 
-            is_playing: false,
+            rect_geo_rect: TheDim::zero(),
 
+            mouse_pos: Vec2::zero(),
+
+            is_playing: false,
             light_icon: None,
         }
     }
@@ -351,10 +358,8 @@ impl Hud {
 
         // Show Subdivs
         if map.camera == MapCamera::TwoD || server_ctx.curr_map_context == MapContext::Material {
-            let mut x = 250;
-            if server_ctx.curr_map_context == MapContext::Material {
-                x = 100;
-            }
+            let x = 150;
+
             let size = 20;
             for i in 0..10 {
                 let rect = TheDim::rect(x + (i * size), 0, size, size);
@@ -368,7 +373,7 @@ impl Hud {
                         font,
                         13.0,
                         &(i + 1).to_string(),
-                        &if (i + 1) as f32 == map.subdivisions {
+                        &if (i + 1) as f32 == map.subdivisions || rect.contains(self.mouse_pos) {
                             sel_text_color
                         } else {
                             text_color
@@ -379,6 +384,36 @@ impl Hud {
                     );
                 }
                 self.subdiv_rects.push(rect);
+            }
+        }
+
+        if map.camera == MapCamera::TwoD {
+            let x = 400;
+            let size = 20;
+            self.rect_geo_rect = TheDim::rect(x, 0, 100, size);
+
+            if let Some(font) = &ctx.ui.font {
+                let r = self.rect_geo_rect.to_buffer_utuple();
+                ctx.draw.text_rect(
+                    buffer.pixels_mut(),
+                    &(r.0, 1, r.2, 19),
+                    stride,
+                    font,
+                    13.0,
+                    if server_ctx.no_rect_geo_on_map {
+                        "SHOW RECTS"
+                    } else {
+                        "HIDE RECTS"
+                    },
+                    &if self.rect_geo_rect.contains(self.mouse_pos) {
+                        sel_text_color
+                    } else {
+                        text_color
+                    },
+                    &bg_color,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
             }
         }
 
@@ -486,6 +521,16 @@ impl Hud {
             println!("{:?}", map.animation);
             return true;
         }
+
+        if self.rect_geo_rect.contains(Vec2::new(x, y)) {
+            server_ctx.no_rect_geo_on_map = !server_ctx.no_rect_geo_on_map;
+            return true;
+        }
+
+        if map.camera == MapCamera::TwoD && y < 20 {
+            return true;
+        }
+
         false
     }
 
@@ -505,6 +550,19 @@ impl Hud {
             return true;
         }
 
+        false
+    }
+
+    pub fn hovered(
+        &mut self,
+        x: i32,
+        y: i32,
+        _map: &mut Map,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _server_ctx: &mut ServerContext,
+    ) -> bool {
+        self.mouse_pos = Vec2::new(x, y);
         false
     }
 
