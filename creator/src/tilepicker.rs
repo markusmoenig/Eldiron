@@ -273,7 +273,9 @@ impl TilePicker {
                 if id.name == self.make_id(" Tile Copy") {
                     if let Some(tile_id) = self.curr_tile {
                         let txt = format!("\"{}\"", tile_id);
-                        ctx.ui.clipboard = Some(TheValue::Text(txt));
+                        ctx.ui.clipboard = Some(TheValue::Text(txt.clone()));
+                        let mut clipboard = arboard::Clipboard::new().unwrap();
+                        clipboard.set_text(txt.clone()).unwrap();
                     }
                 }
             }
