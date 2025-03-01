@@ -876,7 +876,7 @@ dependencies = [
  "rayon",
  "regex",
  "rust-embed",
- "rusterix",
+ "rusterix 0.2.8 (git+https://github.com/markusmoenig/Rusterix)",
  "self_update",
  "serde",
  "serde_json",
@@ -4100,6 +4100,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "rusterix"
+version = "0.2.8"
+source = "git+https://github.com/markusmoenig/Rusterix#1c0515aeb6bb4b15433a44077224c28b3da852fc"
+dependencies = [
+ "bincode",
+ "crossbeam-channel",
+ "earcutr",
+ "image",
+ "indexmap 2.7.1",
+ "ordered-float",
+ "pathfinding",
+ "rand 0.8.5",
+ "rayon",
+ "rect_packer",
+ "ref_thread_local",
+ "rust-embed",
+ "rustpython",
+ "rustpython-vm",
+ "serde",
+ "serde_json",
+ "theframework",
+ "toml",
+ "uuid",
+ "vek",
+ "walkdir",
+]
+
+[[package]]
 name = "rustix"
 version = "0.38.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4745,7 +4773,7 @@ dependencies = [
  "rayon",
  "rect_packer",
  "regex",
- "rusterix",
+ "rusterix 0.2.8",
  "serde",
  "serde_json",
  "theframework",

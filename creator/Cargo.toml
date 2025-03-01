@@ -39,8 +39,10 @@ self_update = { version = "0.39.0", features = [
 indexmap = { version = "2", features = ["serde"], default-features = true }
 vek = { version = "0.17.1", default-features = true }
 regex = "1.11.1"
+arboard = "3.4.1"
 # rusterix = { path = "../../rusterix" }
 rusterix = { version = "0.2.8", git = "https://github.com/markusmoenig/Rusterix" }
+
 [package.metadata.bundle.bin.eldiron]
 name = "Eldiron"
 identifier = "com.moenig.eldiron"
