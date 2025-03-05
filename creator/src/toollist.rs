@@ -1,6 +1,6 @@
 use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
-pub use crate::tools::{data::DataTool, rect::RectTool, settings::SettingsTool};
+pub use crate::tools::{config::ConfigTool, data::DataTool, rect::RectTool};
 
 pub struct ToolList {
     pub server_time: TheTime,
@@ -35,7 +35,7 @@ impl ToolList {
             Box::new(CodeTool::new()),
             Box::new(DataTool::new()),
             Box::new(TilesetTool::new()),
-            Box::new(SettingsTool::new()),
+            Box::new(ConfigTool::new()),
             Box::new(GameTool::new()),
         ];
         Self {

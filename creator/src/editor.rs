@@ -32,8 +32,10 @@ pub static PALETTE: LazyLock<RwLock<ThePalette>> =
     LazyLock::new(|| RwLock::new(ThePalette::default()));
 pub static RUSTERIX: LazyLock<RwLock<Rusterix>> =
     LazyLock::new(|| RwLock::new(Rusterix::default()));
-pub static SETTINGSPICKER: LazyLock<RwLock<SettingsPicker>> =
-    LazyLock::new(|| RwLock::new(SettingsPicker::new("Main Settings Picker".to_string())));
+pub static CONFIGEDITOR: LazyLock<RwLock<ConfigEditor>> =
+    LazyLock::new(|| RwLock::new(ConfigEditor::new()));
+pub static CONFIG: LazyLock<RwLock<toml::Table>> =
+    LazyLock::new(|| RwLock::new(toml::Table::default()));
 pub static PREVIEWVIEW: LazyLock<RwLock<PreviewView>> =
     LazyLock::new(|| RwLock::new(PreviewView::new()));
 
@@ -65,8 +67,15 @@ impl TheTrait for Editor {
     {
         let (self_update_tx, self_update_rx) = channel();
 
+        let mut project = Project::new();
+        if let Some(bytes) = crate::Embedded::get("toml/config.toml") {
+            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                project.config = source.to_string();
+            }
+        }
+
         Self {
-            project: Project::new(),
+            project,
             project_path: None,
 
             sidebar: Sidebar::new(),
@@ -484,8 +493,8 @@ impl TheTrait for Editor {
         }
 
         let (redraw_update, tick_update) = self.update_tracker.update(
-            (1000 / self.project.settings.get_i32_value("renderFPS", 30)) as u64,
-            self.project.settings.get_i32_value("projectTickMs", 250) as u64,
+            (1000 / CONFIGEDITOR.read().unwrap().target_fps) as u64,
+            CONFIGEDITOR.read().unwrap().game_tick_ms as u64,
         );
 
         if tick_update {
@@ -683,22 +692,7 @@ impl TheTrait for Editor {
                 Value::Bool(self.server_ctx.no_rect_geo_on_map),
             );
 
-            let sample_mode = self.project.settings.get_i32_value("renderSampleMode", 0);
-            match sample_mode {
-                0 => {
-                    self.build_values.set(
-                        "sample_mode",
-                        Value::SampleMode(rusterix::SampleMode::Nearest),
-                    );
-                }
-                1 => {
-                    self.build_values.set(
-                        "sample_mode",
-                        Value::SampleMode(rusterix::SampleMode::Linear),
-                    );
-                }
-                _ => {}
-            }
+            extract_build_values_from_config(&mut self.build_values);
 
             // Update entities when the server is running
             {
@@ -865,13 +859,10 @@ impl TheTrait for Editor {
             // Draw the 3D Preview if active.
             if self.server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
                 if let Some(region) = self.project.get_region_ctx(&self.server_ctx) {
-                    PREVIEWVIEW.write().unwrap().draw(
-                        region,
-                        ui,
-                        ctx,
-                        &mut self.server_ctx,
-                        &self.project.settings,
-                    );
+                    PREVIEWVIEW
+                        .write()
+                        .unwrap()
+                        .draw(region, ui, ctx, &mut self.server_ctx);
                 }
             }
 
@@ -1382,9 +1373,6 @@ impl TheTrait for Editor {
                                     if let Ok(project) = serde_json::from_str(&contents) {
                                         self.project = project;
                                         insert_content_into_maps(&mut self.project);
-
-                                        self.project.settings =
-                                            shared::settingscontainer::SettingsContainer::default();
 
                                         // Set the project time to the server time slider widget
                                         if let Some(widget) = ui.get_widget("Server Time Slider") {

@@ -3,6 +3,7 @@
 use theframework::*;
 
 pub mod codeeditor;
+pub mod configeditor;
 pub mod editor;
 pub mod effectpicker;
 pub mod hud;
@@ -13,7 +14,6 @@ pub mod misc;
 pub mod panels;
 pub mod previewview;
 pub mod self_update;
-pub mod settingspicker;
 pub mod sidebar;
 pub mod tilemapeditor;
 pub mod tilepicker;
@@ -67,7 +67,8 @@ pub mod prelude {
 
     pub use crate::tools::*;
 
-    pub use crate::settingspicker::SettingsPicker;
+    pub use crate::configeditor::ConfigEditor;
+    pub use toml::Table;
 }
 
 use crate::editor::Editor;

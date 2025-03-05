@@ -1,7 +1,7 @@
+use crate::editor::CONFIGEDITOR;
 use crate::editor::PALETTE;
 use crate::prelude::*;
 use rusterix::{Entity, PixelSource, Rusterix, Value, ValueContainer};
-use shared::settingscontainer::SettingsContainer;
 
 /// Start the server
 pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
@@ -34,6 +34,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
             region.name.clone(),
             region.map.clone(),
             &rusterix.assets,
+            project.config.clone(),
         );
     }
 
@@ -188,24 +189,18 @@ pub fn get_source(ui: &mut TheUI, server_ctx: &ServerContext) -> Option<Value> {
     source
 }
 
-pub fn extract_build_values_from_settings(
-    values: &mut ValueContainer,
-    settings: &SettingsContainer,
-) {
-    let sample_mode = settings.get_i32_value("renderSampleMode", 0);
-    match sample_mode {
-        0 => {
-            values.set(
-                "sample_mode",
-                Value::SampleMode(rusterix::SampleMode::Nearest),
-            );
-        }
-        1 => {
-            values.set(
-                "sample_mode",
-                Value::SampleMode(rusterix::SampleMode::Linear),
-            );
-        }
-        _ => {}
+pub fn extract_build_values_from_config(values: &mut ValueContainer) {
+    let config = CONFIGEDITOR.read().unwrap();
+    let sample_mode = config.get_string_default("render", "sample_mode", "nearest");
+    if sample_mode == "linear" {
+        values.set(
+            "sample_mode",
+            Value::SampleMode(rusterix::SampleMode::Linear),
+        );
+    } else {
+        values.set(
+            "sample_mode",
+            Value::SampleMode(rusterix::SampleMode::Nearest),
+        );
     }
 }

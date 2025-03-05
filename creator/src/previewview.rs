@@ -1,5 +1,3 @@
-use shared::settingscontainer::SettingsContainer;
-
 use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use rusterix::ValueContainer;
@@ -31,10 +29,9 @@ impl PreviewView {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         _server_ctx: &mut ServerContext,
-        settings: &SettingsContainer,
     ) {
         let mut build_values = ValueContainer::default();
-        extract_build_values_from_settings(&mut build_values, settings);
+        extract_build_values_from_config(&mut build_values);
 
         if let Some(render_view) = ui.get_render_view("PreviewView") {
             let dim = *render_view.dim();

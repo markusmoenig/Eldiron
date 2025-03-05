@@ -1,0 +1,6 @@
+[game]
+target_fps = 30    # The target frames per second for the game.
+game_tick_ms = 250 # The milliseconds per game tick.
+
+[render]
+sample_mode = "nearest" # "nearest" or "linear"

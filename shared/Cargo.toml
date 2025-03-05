@@ -26,6 +26,7 @@ indexmap = { version = "2", features = ["serde"], default-features = true }
 noiselib = "0.2.3"
 regex = "1"
 num_cpus = "1.16.0"
+
 # rusterix = "0.1.0"
 # rusterix = { path = "../../rusterix" }
 rusterix = { version = "0.2.8", git = "https://github.com/markusmoenig/Rusterix" }

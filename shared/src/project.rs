@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use crate::settingscontainer::SettingsContainer;
 use indexmap::IndexMap;
 pub use rusterix::map::*;
 use theframework::prelude::*;
@@ -61,7 +60,7 @@ pub struct Project {
     pub tick_ms: u32,
 
     #[serde(default)]
-    pub settings: SettingsContainer,
+    pub config: String,
 }
 
 impl Default for Project {
@@ -101,7 +100,7 @@ impl Project {
             target_fps: default_target_fps(),
             tick_ms: default_tick_ms(),
 
-            settings: SettingsContainer::default(),
+            config: String::new(),
         }
     }
 

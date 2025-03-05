@@ -1,4 +1,6 @@
-use crate::editor::{PALETTE, RUSTERIX, SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER};
+use crate::editor::{
+    CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER,
+};
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
 use rusterix::{D2MaterialBuilder, Texture};
@@ -2601,6 +2603,12 @@ impl Sidebar {
         ui.select_first_list_item("Module List", ctx);
         ui.select_first_list_item("Screen List", ctx);
         ui.select_first_list_item("Asset List", ctx);
+
+        ui.set_widget_value("ConfigEdit", ctx, TheValue::Text(project.config.clone()));
+        if let Ok(toml) = project.config.parse::<Table>() {
+            *CONFIG.write().unwrap() = toml;
+        }
+        CONFIGEDITOR.write().unwrap().read_defaults();
 
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Tilepicker"),

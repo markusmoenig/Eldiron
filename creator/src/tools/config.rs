@@ -3,19 +3,21 @@ use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
 
-pub struct SettingsTool {
+use crate::editor::{CONFIG, CONFIGEDITOR};
+
+pub struct ConfigTool {
     id: TheId,
 
     hud: Hud,
 }
 
-impl Tool for SettingsTool {
+impl Tool for ConfigTool {
     fn new() -> Self
     where
         Self: Sized,
     {
         Self {
-            id: TheId::named("Settings Tool"),
+            id: TheId::named("Config Tool"),
 
             hud: Hud::new(HudMode::Effects),
         }
@@ -24,10 +26,10 @@ impl Tool for SettingsTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Settings Tool.")
+        str!("Config Tool.")
     }
     fn icon_name(&self) -> String {
-        str!("faders")
+        str!("gear")
     }
     fn accel(&self) -> Option<char> {
         None //Some('x')
@@ -37,18 +39,19 @@ impl Tool for SettingsTool {
         &mut self,
         tool_event: ToolEvent,
         _tool_context: ToolContext,
-        _ui: &mut TheUI,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
             Activate => {
                 ctx.ui.send(TheEvent::SetStackIndex(
                     TheId::named("Main Stack"),
-                    PanelIndices::SettingsPicker as usize,
+                    PanelIndices::ConfigEditor as usize,
                 ));
 
+                ui.set_widget_value("ConfigEdit", ctx, TheValue::Text(project.config.clone()));
                 server_ctx.curr_map_tool_type = MapToolType::General;
 
                 true
@@ -210,6 +213,22 @@ impl Tool for SettingsTool {
         project: &mut Project,
         _server_ctx: &mut ServerContext,
     ) -> bool {
-        project.settings.handle_event(event.clone())
+        let redraw = false;
+        #[allow(clippy::single_match)]
+        match event {
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == "ConfigEdit" {
+                    if let Some(config_string) = value.to_string() {
+                        project.config = config_string;
+                        if let Ok(toml) = project.config.parse::<Table>() {
+                            *CONFIG.write().unwrap() = toml;
+                        }
+                        CONFIGEDITOR.write().unwrap().read_defaults();
+                    }
+                }
+            }
+            _ => {}
+        }
+        redraw
     }
 }
