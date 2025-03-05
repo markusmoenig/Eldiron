@@ -909,7 +909,7 @@ impl Sidebar {
 
         ui.canvas.set_right(canvas);
 
-        self.apply_region(ui, ctx, None);
+        self.apply_region(ui, ctx, None, &Project::default());
         self.apply_character(ui, ctx, None);
         self.apply_item(ui, ctx, None);
         self.apply_tilemap(ui, ctx, None);
@@ -1107,7 +1107,7 @@ impl Sidebar {
                         SidebarMode::Node as usize,
                     ));
                 } else if id.name == "Update Region Content List" {
-                    self.apply_region(ui, ctx, project.get_region(&server_ctx.curr_region));
+                    self.apply_region(ui, ctx, Some(server_ctx.curr_region), project);
                 }
             }
             TheEvent::PaletteIndexChanged(id, index) => {
@@ -1466,7 +1466,7 @@ impl Sidebar {
                 } else if id.name == "Region Content Filter Edit"
                     || id.name == "Region Content Dropdown"
                 {
-                    self.apply_region(ui, ctx, project.get_region(&server_ctx.curr_region));
+                    self.apply_region(ui, ctx, Some(server_ctx.curr_region), project);
                 }
             }
             // Tiles Add
@@ -1770,16 +1770,12 @@ impl Sidebar {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
                             project.remove_region(&selected.uuid);
-                            self.apply_region(ui, ctx, None);
+                            self.apply_region(ui, ctx, None, project);
                         }
                     }
                 } else if id.name == "Region Item" {
-                    for r in &project.regions {
-                        if r.id == id.uuid {
-                            self.apply_region(ui, ctx, Some(r));
-                            redraw = true;
-                        }
-                    }
+                    self.apply_region(ui, ctx, Some(id.uuid), project);
+                    redraw = true;
                 }
                 // Regions Add
                 else if id.name == "Model Add" {
@@ -2867,13 +2863,17 @@ impl Sidebar {
     }
 
     /// Apply the given item to the UI
-    pub fn apply_region(&mut self, ui: &mut TheUI, ctx: &mut TheContext, region: Option<&Region>) {
-        ui.set_widget_disabled_state("Region Remove", ctx, region.is_none());
-        ui.set_widget_disabled_state("Region Settings", ctx, region.is_none());
+    pub fn apply_region(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        region_id: Option<Uuid>,
+        project: &Project,
+    ) {
+        ui.set_widget_disabled_state("Region Remove", ctx, region_id.is_none());
+        ui.set_widget_disabled_state("Region Settings", ctx, region_id.is_none());
 
-        //
-
-        if region.is_none() {
+        if region_id.is_none() {
             if let Some(zoom) = ui.get_widget("Region Editor Zoom") {
                 zoom.set_value(TheValue::Float(1.0));
             }
@@ -2936,74 +2936,90 @@ impl Sidebar {
 
         if let Some(list) = ui.get_list_layout("Region Content List") {
             list.clear();
-            if let Some(region) = region {
-                if filter_role < 2 {
-                    // Show Characters
-                    for (id, character) in region.characters.iter() {
-                        let name = character.name.clone();
-                        if filter_text.is_empty() || name.to_lowercase().contains(&filter_text) {
-                            let mut item = TheListItem::new(TheId::named_with_id(
-                                "Region Content List Item",
-                                *id,
-                            ));
-                            item.set_text(name);
-                            item.add_value_column(100, TheValue::Text("Character".to_string()));
-                            item.set_context_menu(Some(TheContextMenu {
-                                items: vec![TheContextMenuItem::new(
-                                    "Delete Character...".to_string(),
-                                    TheId::named("Sidebar Delete Character Instance"),
-                                )],
-                                ..Default::default()
-                            }));
-                            list.add_item(item, ctx);
+            if let Some(region_id) = region_id {
+                if let Some(region) = project.get_region(&region_id) {
+                    if filter_role < 2 {
+                        // Show Characters
+                        for (id, character) in region.characters.iter() {
+                            let mut name = character.name.clone();
+
+                            if let Some(character_template) =
+                                project.characters.get(&character.character_id)
+                            {
+                                name = character_template.name.clone();
+                            }
+
+                            if filter_text.is_empty() || name.to_lowercase().contains(&filter_text)
+                            {
+                                let mut item = TheListItem::new(TheId::named_with_id(
+                                    "Region Content List Item",
+                                    *id,
+                                ));
+                                item.set_text(name);
+                                item.add_value_column(100, TheValue::Text("Character".to_string()));
+                                item.set_context_menu(Some(TheContextMenu {
+                                    items: vec![TheContextMenuItem::new(
+                                        "Delete Character...".to_string(),
+                                        TheId::named("Sidebar Delete Character Instance"),
+                                    )],
+                                    ..Default::default()
+                                }));
+                                list.add_item(item, ctx);
+                            }
                         }
                     }
-                }
 
-                if filter_role == 0 || filter_role == 3 {
-                    // Show Named Sectors
-                    for sector in &region.map.sectors {
-                        if !sector.name.is_empty()
-                            && (filter_text.is_empty()
-                                || sector.name.to_lowercase().contains(&filter_text))
-                        {
-                            let mut item = TheListItem::new(TheId::named_with_id(
-                                "Region Content List Item",
-                                sector.creator_id,
-                            ));
-                            item.set_text(sector.name.clone());
-                            item.add_value_column(100, TheValue::Text("Sector".to_string()));
-                            // item.set_context_menu(Some(TheContextMenu {
-                            //     items: vec![TheContextMenuItem::new(
-                            //         "Delete Character...".to_string(),
-                            //         TheId::named("Sidebar Delete Character Instance"),
-                            //     )],
-                            //     ..Default::default()
-                            // }));
-                            list.add_item(item, ctx);
+                    if filter_role == 0 || filter_role == 3 {
+                        // Show Named Sectors
+                        for sector in &region.map.sectors {
+                            if !sector.name.is_empty()
+                                && (filter_text.is_empty()
+                                    || sector.name.to_lowercase().contains(&filter_text))
+                            {
+                                let mut item = TheListItem::new(TheId::named_with_id(
+                                    "Region Content List Item",
+                                    sector.creator_id,
+                                ));
+                                item.set_text(sector.name.clone());
+                                item.add_value_column(100, TheValue::Text("Sector".to_string()));
+                                // item.set_context_menu(Some(TheContextMenu {
+                                //     items: vec![TheContextMenuItem::new(
+                                //         "Delete Character...".to_string(),
+                                //         TheId::named("Sidebar Delete Character Instance"),
+                                //     )],
+                                //     ..Default::default()
+                                // }));
+                                list.add_item(item, ctx);
+                            }
                         }
                     }
-                }
 
-                if filter_role == 0 || filter_role == 3 {
-                    // Show Items
-                    for (id, item) in region.items.iter() {
-                        let name = item.name.clone();
-                        if filter_text.is_empty() || name.to_lowercase().contains(&filter_text) {
-                            let mut item = TheListItem::new(TheId::named_with_id(
-                                "Region Content List Item",
-                                *id,
-                            ));
-                            item.set_text(name);
-                            item.add_value_column(100, TheValue::Text("Item".to_string()));
-                            item.set_context_menu(Some(TheContextMenu {
-                                items: vec![TheContextMenuItem::new(
-                                    "Delete Item...".to_string(),
-                                    TheId::named("Sidebar Delete Item Instance"),
-                                )],
-                                ..Default::default()
-                            }));
-                            list.add_item(item, ctx);
+                    if filter_role == 0 || filter_role == 3 {
+                        // Show Items
+                        for (id, item) in region.items.iter() {
+                            let mut name = item.name.clone();
+
+                            if let Some(item_template) = project.items.get(&item.item_id) {
+                                name = item_template.name.clone();
+                            }
+
+                            if filter_text.is_empty() || name.to_lowercase().contains(&filter_text)
+                            {
+                                let mut item = TheListItem::new(TheId::named_with_id(
+                                    "Region Content List Item",
+                                    *id,
+                                ));
+                                item.set_text(name);
+                                item.add_value_column(100, TheValue::Text("Item".to_string()));
+                                item.set_context_menu(Some(TheContextMenu {
+                                    items: vec![TheContextMenuItem::new(
+                                        "Delete Item...".to_string(),
+                                        TheId::named("Sidebar Delete Item Instance"),
+                                    )],
+                                    ..Default::default()
+                                }));
+                                list.add_item(item, ctx);
+                            }
                         }
                     }
                 }
