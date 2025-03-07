@@ -20,7 +20,7 @@ serde_json = "1.0"
 vectorize = "0.2.0"
 rayon = "1"
 rand = "0.8.5"
-fontdue = "0.8.0"
+fontdue = "0.9.3"
 line_drawing = "1.0.0"
 indexmap = { version = "2", features = ["serde"], default-features = true }
 noiselib = "0.2.3"

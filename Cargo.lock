@@ -869,7 +869,7 @@ name = "creator"
 version = "0.8.20"
 dependencies = [
  "arboard",
- "fontdue",
+ "fontdue 0.9.3",
  "indexmap 2.7.1",
  "open",
  "png",
@@ -881,7 +881,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
- "theframework",
+ "theframework 0.1.40 (git+https://github.com/markusmoenig/TheFramework)",
  "toml",
  "vectorize",
  "vek",
@@ -1378,6 +1378,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fontdue"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e57e16b3fe8ff4364c0661fdaac543fb38b29ea9bc9c2f45612d90adf931d2b"
+dependencies = [
+ "hashbrown 0.15.2",
+ "ttf-parser 0.21.1",
+]
+
+[[package]]
 name = "foreign-types"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1852,6 +1862,8 @@ version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf151400ff0baff5465007dd2f3e717f3fe502074ca563069ce3a6629d07b289"
 dependencies = [
+ "allocator-api2",
+ "equivalent",
  "foldhash",
 ]
 
@@ -4075,11 +4087,11 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#bce78b25cfb04b1c689e9241c780b09f43fbba05"
 dependencies = [
  "bincode",
  "crossbeam-channel",
  "earcutr",
+ "fontdue 0.9.3",
  "image",
  "indexmap 2.7.1",
  "ordered-float",
@@ -4093,7 +4105,7 @@ dependencies = [
  "rustpython-vm",
  "serde",
  "serde_json",
- "theframework",
+ "theframework 0.1.40",
  "toml",
  "uuid",
  "vek",
@@ -4737,7 +4749,7 @@ name = "shared"
 version = "0.8.20"
 dependencies = [
  "earcutr",
- "fontdue",
+ "fontdue 0.9.3",
  "indexmap 2.7.1",
  "line_drawing",
  "noiselib",
@@ -4749,7 +4761,7 @@ dependencies = [
  "rusterix",
  "serde",
  "serde_json",
- "theframework",
+ "theframework 0.1.40 (git+https://github.com/markusmoenig/TheFramework)",
  "vectorize",
  "vek",
 ]
@@ -4869,14 +4881,14 @@ dependencies = [
 name = "solo"
 version = "0.8.14"
 dependencies = [
- "fontdue",
+ "fontdue 0.8.0",
  "open",
  "png",
  "rust-embed",
  "serde",
  "serde_json",
  "shared",
- "theframework",
+ "theframework 0.1.40 (git+https://github.com/markusmoenig/TheFramework)",
  "vectorize",
 ]
 
@@ -5120,6 +5132,46 @@ checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
 [[package]]
 name = "theframework"
 version = "0.1.40"
+dependencies = [
+ "aict",
+ "arboard",
+ "bytemuck",
+ "console_error_panic_hook",
+ "console_log",
+ "env_logger 0.11.6",
+ "flags",
+ "flate2",
+ "fontdue 0.9.3",
+ "futures",
+ "half 2.4.1",
+ "indexmap 2.7.1",
+ "itertools 0.13.0",
+ "lazy_static",
+ "log",
+ "maths-rs",
+ "png",
+ "rand 0.8.5",
+ "rust-embed",
+ "rustc-hash 1.1.0",
+ "serde",
+ "serde_json",
+ "syntect",
+ "unicode-segmentation",
+ "uuid",
+ "vectorize",
+ "vek",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time 1.1.0",
+ "wgpu",
+ "winit",
+ "winit_input_helper",
+]
+
+[[package]]
+name = "theframework"
+version = "0.1.40"
 source = "git+https://github.com/markusmoenig/TheFramework#f31edb3c672640f2b9f8075e8d0b39f4eb721922"
 dependencies = [
  "aict",
@@ -5130,7 +5182,7 @@ dependencies = [
  "env_logger 0.11.6",
  "flags",
  "flate2",
- "fontdue",
+ "fontdue 0.8.0",
  "futures",
  "half 2.4.1",
  "indexmap 2.7.1",
@@ -5426,6 +5478,12 @@ name = "ttf-parser"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "17f77d76d837a7830fe1d4f12b7b4ba4192c1888001c7164257e4bc6d21d96b4"
+
+[[package]]
+name = "ttf-parser"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c591d83f69777866b9126b24c6dd9a18351f177e49d625920d19f989fd31cf8"
 
 [[package]]
 name = "ttf-parser"

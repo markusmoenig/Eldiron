@@ -142,6 +142,8 @@ impl TheTrait for Editor {
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        RUSTERIX.write().unwrap().client.messages_font = ctx.ui.font.clone();
+
         // Embedded Icons
         for file in Embedded::iter() {
             let name = file.as_ref();
@@ -694,6 +696,8 @@ impl TheTrait for Editor {
 
             extract_build_values_from_config(&mut self.build_values);
 
+            let mut messages = Vec::new();
+
             // Update entities when the server is running
             {
                 let rusterix = &mut RUSTERIX.write().unwrap();
@@ -722,6 +726,8 @@ impl TheTrait for Editor {
                                     widget.set_value(TheValue::Time(rusterix.client.server_time));
                                 }
                             }
+
+                            messages = rusterix.server.get_messages(&r.map.id);
                         }
                     }
                 }
@@ -811,7 +817,11 @@ impl TheTrait for Editor {
                                 );
                             }
 
+                            // Prepare the messages for the region for drawing
+                            rusterix.process_messages(&region.map, messages);
+
                             rusterix.draw_scene(
+                                &region.map,
                                 render_view.render_buffer_mut().pixels_mut(),
                                 dim.width as usize,
                                 dim.height as usize,
@@ -838,6 +848,7 @@ impl TheTrait for Editor {
                                 self.server_ctx.game_mode,
                             );
                             rusterix.draw_scene(
+                                material,
                                 render_view.render_buffer_mut().pixels_mut(),
                                 dim.width as usize,
                                 dim.height as usize,
