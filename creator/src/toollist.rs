@@ -132,6 +132,14 @@ impl ToolList {
                 if let Some(id) = &ctx.ui.focus {
                     if id.name == "PolyView" {
                         if let Some(map) = project.get_map_mut(server_ctx) {
+                            if *c == ',' {
+                                map.grid_size -= 2.0;
+                                return false;
+                            } else if *c == '.' {
+                                map.grid_size += 2.0;
+                                return false;
+                            }
+
                             let undo_atom = self.get_current_tool().map_event(
                                 MapEvent::MapKey(*c),
                                 ui,
@@ -197,6 +205,30 @@ impl ToolList {
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
                 if let Some(id) = &ctx.ui.focus {
                     if id.name == "PolyView" {
+                        if *code == TheKeyCode::Up {
+                            if let Some(map) = project.get_map_mut(server_ctx) {
+                                map.offset.y += 50.0;
+                            }
+                            return false;
+                        }
+                        if *code == TheKeyCode::Down {
+                            if let Some(map) = project.get_map_mut(server_ctx) {
+                                map.offset.y -= 50.0;
+                            }
+                            return false;
+                        }
+                        if *code == TheKeyCode::Left {
+                            if let Some(map) = project.get_map_mut(server_ctx) {
+                                map.offset.x -= 50.0;
+                            }
+                            return false;
+                        }
+                        if *code == TheKeyCode::Right {
+                            if let Some(map) = project.get_map_mut(server_ctx) {
+                                map.offset.x += 50.0;
+                            }
+                            return false;
+                        }
                         if *code == TheKeyCode::Escape {
                             if let Some(map) = project.get_map_mut(server_ctx) {
                                 let undo_atom = self.get_current_tool().map_event(
