@@ -244,19 +244,20 @@ impl MapEditor {
                     }
                 } else if id.name == "Map Selection Changed" {
                     self.apply_map_settings(ui, ctx, project, server_ctx);
-                } else if id.name == "Cursor Pos Changed" {
-                    if let Some(text) = ui.get_text("Cursor Position") {
-                        if let Some(v) = value.to_vec2f() {
-                            text.set_text(format!("{}, {}", v.x, v.y));
-                        }
-                        redraw = true;
-                    }
-
-                    if let Some(layout) = ui.get_layout("Editor Icon Layout") {
-                        layout.relayout(ctx);
-                    }
                 }
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                // else if id.name == "Cursor Pos Changed" {
+                //     if let Some(text) = ui.get_text("Cursor Position") {
+                //         if let Some(v) = value.to_vec2f() {
+                //             text.set_text(format!("{}, {}", v.x, v.y));
+                //         }
+                //         redraw = true;
+                //     }
+
+                //     if let Some(layout) = ui.get_layout("Editor Icon Layout") {
+                //         layout.relayout(ctx);
+                //     }
+                // }
+                //crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             TheEvent::RenderViewScrollBy(id, coord) => {
                 if id.name == "PolyView" {
@@ -268,7 +269,7 @@ impl MapEditor {
                             map.offset += Vec2::new(-coord.x as f32, coord.y as f32);
                         }
                         map.curr_rectangle = None;
-                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                        //crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     }
 
                     if server_ctx.curr_map_context == MapContext::Region {
@@ -281,7 +282,7 @@ impl MapEditor {
                                 TheId::named("Update Minimap"),
                                 TheValue::Empty,
                             ));
-                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            //crate::editor::RUSTERIX.write().unwrap().set_dirty();
                         }
                     }
                 }

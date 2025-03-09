@@ -711,13 +711,7 @@ impl TheTrait for Editor {
                         );
                     }
                     for r in &mut self.project.regions {
-                        let (entities, items) = rusterix.server.get_entities_items(&r.map.id);
-                        if let Some(entities) = entities {
-                            r.map.entities = entities.clone();
-                        }
-                        if let Some(items) = items {
-                            r.map.items = items.clone();
-                        }
+                        rusterix.server.apply_entities_items(&mut r.map);
 
                         if r.id == self.server_ctx.curr_region {
                             if let Some(time) = rusterix.server.get_time(&r.map.id) {
@@ -731,7 +725,6 @@ impl TheTrait for Editor {
                         }
                     }
                 }
-                rusterix.set_dirty();
             }
 
             // Draw Region
@@ -799,6 +792,8 @@ impl TheTrait for Editor {
                                 }
                             }
 
+                            let start_time = ctx.get_time();
+
                             rusterix.build_scene(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 &region.map,
@@ -809,11 +804,9 @@ impl TheTrait for Editor {
                             if let Some(map) = self.project.get_map(&self.server_ctx) {
                                 let assets = rusterix.assets.clone();
                                 rusterix.apply_entities_items(
-                                    &map.entities,
-                                    &map.items,
+                                    Vec2::new(dim.width as f32, dim.height as f32),
                                     map,
                                     &assets,
-                                    &self.build_values,
                                 );
                             }
 
@@ -826,6 +819,9 @@ impl TheTrait for Editor {
                                 dim.width as usize,
                                 dim.height as usize,
                             );
+
+                            let stop_time = ctx.get_time();
+                            println!("{} ms", stop_time - start_time);
                         }
                     } else
                     // Draw the material map

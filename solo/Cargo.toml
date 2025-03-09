@@ -24,7 +24,7 @@ rust-embed = { version = "8", default-features = true, features = [
 ] }
 png = "0.17"
 open = "5.0.1"
-fontdue = "0.8.0"
+fontdue = "0.9.3"
 
 # [lib]
 # name = "rustapi"

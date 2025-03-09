@@ -39,10 +39,10 @@ pub struct Project {
     pub items: IndexMap<Uuid, Item>,
 
     #[serde(default)]
-    pub screens: FxHashMap<Uuid, Screen>,
+    pub screens: IndexMap<Uuid, Screen>,
 
     #[serde(default)]
-    pub assets: FxHashMap<Uuid, Asset>,
+    pub assets: IndexMap<Uuid, Asset>,
 
     #[serde(default)]
     pub palette: ThePalette,
@@ -90,8 +90,8 @@ impl Project {
             characters: IndexMap::default(),
             items: IndexMap::default(),
 
-            screens: FxHashMap::default(),
-            assets: FxHashMap::default(),
+            screens: IndexMap::default(),
+            assets: IndexMap::default(),
 
             palette: ThePalette::default(),
             materials,
@@ -233,7 +233,7 @@ impl Project {
 
     /// Removes the given code from the project.
     pub fn remove_screen(&mut self, id: &Uuid) {
-        self.screens.remove(id);
+        self.screens.shift_remove(id);
     }
 
     /// Returns a list of all screens sorted by name.
@@ -255,7 +255,7 @@ impl Project {
 
     /// Removes the given code from the project.
     pub fn remove_asset(&mut self, id: &Uuid) {
-        self.assets.remove(id);
+        self.assets.shift_remove(id);
     }
 
     /// Returns a list of all assets sorted by name.

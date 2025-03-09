@@ -375,8 +375,6 @@ impl Tool for SectorTool {
                         TheValue::Float2(cp),
                     ));
                     server_ctx.hover_cursor = Some(cp);
-
-                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                 }
             }
             MapDelete => {

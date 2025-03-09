@@ -231,6 +231,10 @@ impl Tool for RectTool {
                                                         .properties
                                                         .set("floor_source", source.clone());
                                                     add_it = false;
+                                                    crate::editor::RUSTERIX
+                                                        .write()
+                                                        .unwrap()
+                                                        .set_dirty();
                                                 }
                                             }
                                         }
@@ -299,6 +303,7 @@ impl Tool for RectTool {
                                 //     TheId::named("Map Selection Changed"),
                                 //     TheValue::Empty,
                                 // ));
+                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
                             }
                         }
                     }
@@ -325,18 +330,8 @@ impl Tool for RectTool {
                     map,
                     map.subdivisions,
                 );
-                let start = ServerContext::map_grid_to_local(
-                    Vec2::new(dim.width as f32, dim.height as f32),
-                    cp,
-                    map,
-                );
                 let step = 1.0 / map.subdivisions;
-                let end = ServerContext::map_grid_to_local(
-                    Vec2::new(dim.width as f32, dim.height as f32),
-                    cp + step,
-                    map,
-                );
-                map.curr_rectangle = Some((start, end));
+                map.curr_rectangle = Some((cp, cp + step));
                 hovered_vertices = Some([
                     cp,
                     cp + Vec2::new(0.0, step),
@@ -344,7 +339,6 @@ impl Tool for RectTool {
                     cp + Vec2::new(step, 0.0),
                 ]);
                 server_ctx.hover_cursor = Some(cp);
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
 
             hovered_vertices

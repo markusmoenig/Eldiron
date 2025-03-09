@@ -71,9 +71,10 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
             &map,
             &rusterix.assets,
             Vec2::new(width, height),
-            "preview",
             &ValueContainer::default(),
         );
+
+        builder.build_entities_items(&map, &rusterix.assets, &mut scene, Vec2::new(width, height));
 
         let mut light = Light::new(LightType::Ambient);
         light.set_color([1.0, 1.0, 1.0]);
@@ -81,7 +82,24 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
 
         scene.dynamic_lights.push(light);
 
-        Rasterizer::setup(None, Mat4::identity(), Mat4::identity())
+        let translation_matrix = Mat3::<f32>::translation_2d(Vec2::new(
+            map.offset.x + width / 2.0,
+            -map.offset.y + height / 2.0,
+        ));
+        let scale_matrix = Mat3::new(
+            map.grid_size,
+            0.0,
+            0.0,
+            0.0,
+            map.grid_size,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+        );
+        let transform = translation_matrix * scale_matrix;
+
+        Rasterizer::setup(Some(transform), Mat4::identity(), Mat4::identity())
             .background([42, 42, 42, 255])
             .rasterize(
                 &mut scene,

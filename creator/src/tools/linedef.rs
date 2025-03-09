@@ -508,7 +508,13 @@ impl Tool for LinedefTool {
                 if let Some(render_view) = ui.get_render_view("PolyView") {
                     let dim = *render_view.dim();
                     if !self.rectangle_mode {
-                        map.curr_mouse_pos = Some(Vec2::new(coord.x as f32, coord.y as f32));
+                        //map.curr_mouse_pos = Some(Vec2::new(coord.x as f32, coord.y as f32));
+                        map.curr_mouse_pos = Some(server_ctx.local_to_map_grid(
+                            Vec2::new(dim.width as f32, dim.height as f32),
+                            Vec2::new(coord.x as f32, coord.y as f32),
+                            map,
+                            map.subdivisions,
+                        ));
                     }
                     let mut hover = server_ctx.geometry_at(
                         Vec2::new(dim.width as f32, dim.height as f32),
@@ -531,7 +537,7 @@ impl Tool for LinedefTool {
                     ));
                     server_ctx.hover_cursor = Some(cp);
 
-                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    //crate::editor::RUSTERIX.write().unwrap().set_dirty();
                 }
             }
             MapDelete => {
