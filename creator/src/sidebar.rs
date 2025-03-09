@@ -3030,6 +3030,9 @@ impl Sidebar {
             TheId::named("Update Minimap"),
             TheValue::Empty,
         ));
+
+        RUSTERIX.write().unwrap().set_dirty();
+
         /*
         if let Some(widget) = ui
             .canvas

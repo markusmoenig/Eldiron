@@ -792,7 +792,7 @@ impl TheTrait for Editor {
                                 }
                             }
 
-                            let start_time = ctx.get_time();
+                            // let start_time = ctx.get_time();
 
                             rusterix.build_scene(
                                 Vec2::new(dim.width as f32, dim.height as f32),
@@ -820,8 +820,8 @@ impl TheTrait for Editor {
                                 dim.height as usize,
                             );
 
-                            let stop_time = ctx.get_time();
-                            println!("{} ms", stop_time - start_time);
+                            // let stop_time = ctx.get_time();
+                            //println!("{} ms", stop_time - start_time);
                         }
                     } else
                     // Draw the material map

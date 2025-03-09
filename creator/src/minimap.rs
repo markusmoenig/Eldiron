@@ -4,11 +4,24 @@ use vek::Vec2;
 
 use crate::editor::RUSTERIX;
 
+// static MINIMAP: LazyLock<RwLock<Map>> = LazyLock::new(|| RwLock::new(Map::default()));
+// static BUILDER: LazyLock<RwLock<D2PreviewBuilder>> =
+//     LazyLock::new(|| RwLock::new(D2PreviewBuilder::default()));
+
+// pub fn update_minimap(
+//     orig_region: &Region,
+//     buffer: &mut TheRGBABuffer,
+//     server_ctx: &ServerContext,
+// ) {
+//     println!("update_minimap");
+// }
+
 pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx: &ServerContext) {
     let dim = buffer.dim();
 
     let width = dim.width as f32;
     let height = dim.height as f32;
+    let background = [42, 42, 42, 255];
 
     let mut region = orig_region.clone();
     if let Some(mut bbox) = region.map.bounding_box() {
@@ -100,7 +113,7 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
         let transform = translation_matrix * scale_matrix;
 
         Rasterizer::setup(Some(transform), Mat4::identity(), Mat4::identity())
-            .background([42, 42, 42, 255])
+            .background(background)
             .rasterize(
                 &mut scene,
                 buffer.pixels_mut(),
@@ -108,5 +121,10 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
                 height as usize,
                 64,
             );
+
+        // *MINIMAP.write().unwrap() = map;
+        // *BUILDER.write().unwrap() = builder;
+    } else {
+        buffer.fill(background);
     }
 }
