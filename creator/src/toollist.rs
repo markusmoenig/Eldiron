@@ -288,7 +288,7 @@ impl ToolList {
                         if let Some(render_view) = ui.get_render_view("PolyView") {
                             let dim = *render_view.dim();
 
-                            let grid_pos = server_ctx.local_to_map_grid(
+                            let grid_pos = server_ctx.local_to_map_cell(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 Vec2::new(coord.x as f32, coord.y as f32),
                                 map,
@@ -302,10 +302,8 @@ impl ToolList {
                                 self.char_click_pos = grid_pos;
 
                                 for entity in map.entities.iter().cloned() {
-                                    let ep = entity.position;
-                                    let ep = Vec2::new(ep.x, ep.z);
-                                    let d = ep.distance(grid_pos);
-                                    if d < 1.0 {
+                                    let ep = entity.get_pos_xz();
+                                    if ep.floor() == grid_pos {
                                         let prev = map.clone();
                                         self.undo_map = map.clone();
                                         self.char_click_selected = true;
@@ -339,10 +337,8 @@ impl ToolList {
                                 }
 
                                 for item in map.items.iter().cloned() {
-                                    let ep = item.position;
-                                    let ep = Vec2::new(ep.x, ep.z);
-                                    let d = ep.distance(grid_pos);
-                                    if d < 1.0 {
+                                    let ep = item.get_pos_xz();
+                                    if ep.floor() == grid_pos {
                                         let prev = map.clone();
                                         self.undo_map = map.clone();
                                         self.item_click_selected = true;
