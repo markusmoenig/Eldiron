@@ -450,10 +450,7 @@ impl Tool for LinedefTool {
 
                             *map = self.rectangle_undo_map.clone();
                             map.curr_grid_pos = None;
-                            map.curr_rectangle = Some((
-                                Vec2::new(self.click_pos.x, self.click_pos.y),
-                                Vec2::new(coord.x as f32, coord.y as f32),
-                            ));
+                            map.curr_rectangle = Some((click_pos, drag_pos));
 
                             if ui.shift {
                                 // Add

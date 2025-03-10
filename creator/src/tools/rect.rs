@@ -188,8 +188,12 @@ impl Tool for RectTool {
                                     let sectors =
                                         map.find_sectors_with_vertex_indices(&[ev0, ev1, ev2, ev3]);
 
-                                    if let Some(sector) = sectors.last() {
-                                        map.delete_elements(&[], &[], &[*sector]);
+                                    if let Some(sector_id) = sectors.last() {
+                                        let mut lines = vec![];
+                                        if let Some(s) = map.find_sector(*sector_id) {
+                                            lines = s.linedefs.clone();
+                                        }
+                                        map.delete_elements(&[], &lines, &[*sector_id]);
                                         undo_atom = Some(RegionUndoAtom::MapEdit(
                                             Box::new(prev),
                                             Box::new(map.clone()),

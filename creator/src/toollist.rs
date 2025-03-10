@@ -391,8 +391,11 @@ impl ToolList {
             }
             TheEvent::RenderViewDragged(id, coord) => {
                 if id.name == "PolyView" {
-                    if let Some(map) = project.get_map_mut(server_ctx) {
-                        if self.char_click_selected {
+                    let mut changed_entities: FxHashMap<Uuid, Vec3<f32>> = FxHashMap::default();
+                    let mut changed_items: FxHashMap<Uuid, Vec3<f32>> = FxHashMap::default();
+
+                    if self.char_click_selected {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
                             // Dragging selected character
                             if let Some(render_view) = ui.get_render_view("PolyView") {
                                 let dim = *render_view.dim();
@@ -416,17 +419,27 @@ impl ToolList {
                                         entity.position.x = new_pos.x;
                                         entity.position.z = new_pos.y;
 
+                                        changed_entities.insert(entity.creator_id, entity.position);
+
                                         self.drag_changed = self.char_click_pos.x != new_pos.x
                                             || self.char_click_pos.y != new_pos.y;
                                     }
                                 }
-
-                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                                return true;
                             }
                         }
 
-                        if self.item_click_selected {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            for (id, position) in changed_entities {
+                                if let Some(instance) = region.characters.get_mut(&id) {
+                                    instance.position = position;
+                                }
+                            }
+                        }
+                        return true;
+                    }
+
+                    if self.item_click_selected {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
                             // Dragging selected item
                             if let Some(render_view) = ui.get_render_view("PolyView") {
                                 let dim = *render_view.dim();
@@ -450,16 +463,28 @@ impl ToolList {
                                         item.position.x = new_pos.x;
                                         item.position.z = new_pos.y;
 
+                                        changed_items.insert(item.creator_id, item.position);
+
                                         self.drag_changed = self.char_click_pos.x != new_pos.x
                                             || self.char_click_pos.y != new_pos.y;
                                     }
                                 }
-
-                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                                return true;
                             }
                         }
 
+                        // Update character / item positions
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            for (id, position) in changed_items {
+                                if let Some(instance) = region.items.get_mut(&id) {
+                                    instance.position = position;
+                                }
+                            }
+                        }
+
+                        return true;
+                    }
+
+                    if let Some(map) = project.get_map_mut(server_ctx) {
                         let undo_atom = self.get_current_tool().map_event(
                             MapEvent::MapDragged(*coord),
                             ui,
@@ -469,6 +494,7 @@ impl ToolList {
                         );
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                     }
+
                     redraw = true;
                 }
             }

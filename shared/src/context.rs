@@ -333,8 +333,8 @@ impl ServerContext {
             }
             let mut vertices = Vec::new();
             for &linedef_id in &sector.linedefs {
-                if let Some(linedef) = map.linedefs.get(linedef_id as usize) {
-                    if let Some(start_vertex) = map.vertices.get(linedef.start_vertex as usize) {
+                if let Some(linedef) = map.find_linedef(linedef_id) {
+                    if let Some(start_vertex) = map.find_vertex(linedef.start_vertex) {
                         let vertex =
                             Self::map_grid_to_local(screen_size, start_vertex.as_vec2(), map);
 
@@ -483,8 +483,8 @@ impl ServerContext {
         for sector in &map.sectors {
             let mut vertices = Vec::new();
             for &linedef_id in &sector.linedefs {
-                if let Some(linedef) = map.linedefs.get(linedef_id as usize) {
-                    if let Some(start_vertex) = map.vertices.get(linedef.start_vertex as usize) {
+                if let Some(linedef) = map.find_linedef(linedef_id) {
+                    if let Some(start_vertex) = map.find_vertex(linedef.start_vertex) {
                         let vertex = start_vertex.as_vec2();
 
                         // Add the vertex to the list if it isn't already there

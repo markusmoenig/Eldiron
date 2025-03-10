@@ -305,10 +305,8 @@ impl Tool for SectorTool {
                     selection.1 = vec![];
 
                     *map = self.rectangle_undo_map.clone();
-                    map.curr_rectangle = Some((
-                        Vec2::new(self.click_pos.x, self.click_pos.y),
-                        Vec2::new(coord.x as f32, coord.y as f32),
-                    ));
+                    map.curr_rectangle = Some((click_pos, drag_pos));
+
                     if ui.shift {
                         // Add
                         map.add_to_selection(selection.0, selection.1, selection.2);
