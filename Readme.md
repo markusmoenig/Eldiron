@@ -26,7 +26,7 @@ Eldiron is open-source and licensed under the **MIT License**.
 ## Building Eldiron Locally
 
 If you have [Rust installed](https://www.rust-lang.org/tools/install), you can build Eldiron Creator simply via
-`cargo build --release --package eldiron`
+`cargo build --release --package creator`
 
 Linux:
 

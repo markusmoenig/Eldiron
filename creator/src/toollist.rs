@@ -292,7 +292,7 @@ impl ToolList {
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 Vec2::new(coord.x as f32, coord.y as f32),
                                 map,
-                                map.subdivisions,
+                                1.0,
                             );
 
                             if server_ctx.curr_map_context == MapContext::Region
