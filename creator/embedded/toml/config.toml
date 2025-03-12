@@ -1,6 +1,9 @@
 [game]
-target_fps = 30    # The target frames per second for the game.
-game_tick_ms = 250 # The milliseconds per game tick.
+target_fps = 30      # The target frames per second for the game.
+game_tick_ms = 250   # The milliseconds per game tick.
+ticks_per_minute = 4 # The amount of ticks per in-game minute.
+
+entity_block_mode = "always" # The block mode, "always" or "never"
 
 [render]
 sample_mode = "nearest" # "nearest" or "linear"
