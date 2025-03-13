@@ -917,11 +917,21 @@ impl MapEditor {
                             server_ctx.cc = ContentContext::CharacterInstance(id.uuid);
                             if let Some(render_view) = ui.get_render_view("PolyView") {
                                 let dim = *render_view.dim();
+                                let mut position =
+                                    Vec2::new(character.position.x, character.position.z);
+
+                                // If server is running, get the instance position
+                                for entity in region.map.entities.iter() {
+                                    if entity.creator_id == character.id {
+                                        position = entity.get_pos_xz();
+                                        break;
+                                    }
+                                }
 
                                 if !server_ctx.content_click_from_map {
                                     server_ctx.center_map_at_grid_pos(
                                         Vec2::new(dim.width as f32, dim.height as f32),
-                                        Vec2::new(character.position.x, character.position.z),
+                                        position,
                                         &mut region.map,
                                     );
                                 }

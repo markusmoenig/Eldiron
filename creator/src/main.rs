@@ -7,6 +7,7 @@ pub mod configeditor;
 pub mod editor;
 pub mod effectpicker;
 pub mod hud;
+pub mod infoviewer;
 pub mod mapeditor;
 pub mod materialpicker;
 pub mod minimap;
@@ -68,6 +69,7 @@ pub mod prelude {
     pub use crate::tools::*;
 
     pub use crate::configeditor::ConfigEditor;
+    pub use crate::infoviewer::InfoViewer;
     pub use toml::Table;
 }
 

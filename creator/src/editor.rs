@@ -34,6 +34,8 @@ pub static RUSTERIX: LazyLock<RwLock<Rusterix>> =
     LazyLock::new(|| RwLock::new(Rusterix::default()));
 pub static CONFIGEDITOR: LazyLock<RwLock<ConfigEditor>> =
     LazyLock::new(|| RwLock::new(ConfigEditor::new()));
+pub static INFOVIEWER: LazyLock<RwLock<InfoViewer>> =
+    LazyLock::new(|| RwLock::new(InfoViewer::new()));
 pub static CONFIG: LazyLock<RwLock<toml::Table>> =
     LazyLock::new(|| RwLock::new(toml::Table::default()));
 pub static PREVIEWVIEW: LazyLock<RwLock<PreviewView>> =
@@ -508,6 +510,13 @@ impl TheTrait for Editor {
                     icon_view.step();
                     redraw = true;
                 }
+            }
+
+            if RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running {
+                INFOVIEWER
+                    .write()
+                    .unwrap()
+                    .update(&self.project, ui, ctx, &self.server_ctx);
             }
         }
 
@@ -1623,6 +1632,7 @@ impl TheTrait for Editor {
                             RUSTERIX.write().unwrap().server.stop();
                             RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
 
+                            ui.set_widget_value("InfoView", ctx, TheValue::Text("".into()));
                             /*
                             _ = self.server.set_project(self.project.clone());
                             self.server.stop();*/

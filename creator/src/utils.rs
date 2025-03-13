@@ -59,6 +59,9 @@ pub fn insert_content_into_maps(project: &mut Project) {
                 ..Default::default()
             };
             entity.set_attribute("name", Value::Str(instance.name.clone()));
+            if let Some(character_template) = project.characters.get(&instance.character_id) {
+                entity.set_attribute("name", Value::Str(character_template.name.clone()));
+            }
             entity.set_attribute("setup", Value::Str(instance.source.clone()));
             if let Some(character) = project.characters.get(&instance.character_id) {
                 entity.set_attribute("class_name", Value::Str(character.name.clone()));
@@ -68,17 +71,20 @@ pub fn insert_content_into_maps(project: &mut Project) {
 
         region.map.items.clear();
         for instance in region.items.values() {
-            let mut entity = rusterix::Item {
+            let mut item = rusterix::Item {
                 creator_id: instance.id,
                 position: instance.position,
                 ..Default::default()
             };
-            entity.set_attribute("name", Value::Str(instance.name.clone()));
-            entity.set_attribute("setup", Value::Str(instance.source.clone()));
-            if let Some(character) = project.items.get(&instance.item_id) {
-                entity.set_attribute("class_name", Value::Str(character.name.clone()));
+            item.set_attribute("name", Value::Str(instance.name.clone()));
+            if let Some(item_template) = project.items.get(&instance.item_id) {
+                item.set_attribute("name", Value::Str(item_template.name.clone()));
             }
-            region.map.items.push(entity);
+            item.set_attribute("setup", Value::Str(instance.source.clone()));
+            if let Some(character) = project.items.get(&instance.item_id) {
+                item.set_attribute("class_name", Value::Str(character.name.clone()));
+            }
+            region.map.items.push(item);
         }
     }
 }
