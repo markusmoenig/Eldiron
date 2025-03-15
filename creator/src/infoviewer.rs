@@ -57,8 +57,12 @@ impl InfoViewer {
                     for entity in map.entities.iter() {
                         if entity.creator_id == uuid {
                             if self.info_mode == 0 {
+                                if let Some(name) = entity.attributes.get_str("name") {
+                                    output.push(format!("# {}, ({})", name, entity.id));
+                                }
+                                // Attributes
                                 for key in entity.attributes.keys_sorted() {
-                                    if key != "source" && key != "setup" {
+                                    if key != "source" && key != "setup" && key != "name" {
                                         if let Some(value) = entity.attributes.get(key) {
                                             match value {
                                                 Value::Str(text) => {
@@ -79,6 +83,38 @@ impl InfoViewer {
                                     }
                                 }
                             } else if self.info_mode == 1 {
+                                // Inventory
+                                for item in entity.iter_inventory() {
+                                    if let Some(name) = item.attributes.get_str("name") {
+                                        output.push(format!("# {}, ({})", name, item.id));
+                                    }
+
+                                    // Attributes
+                                    for key in item.attributes.keys_sorted() {
+                                        if key != "source" && key != "setup" && key != "name" {
+                                            if let Some(value) = item.attributes.get(key) {
+                                                match value {
+                                                    Value::Str(text) => {
+                                                        output.push(format!(
+                                                            "{} = \"{}\"",
+                                                            key, text
+                                                        ));
+                                                    }
+                                                    Value::Bool(value) => {
+                                                        output.push(format!("{} = {}", key, value));
+                                                    }
+                                                    Value::Float(value) => {
+                                                        output.push(format!("{} = {}", key, value));
+                                                    }
+                                                    Value::Int(value) => {
+                                                        output.push(format!("{} = {}", key, value));
+                                                    }
+                                                    _ => {}
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             break;
@@ -91,7 +127,10 @@ impl InfoViewer {
                     for item in map.items.iter() {
                         if item.creator_id == uuid {
                             for key in item.attributes.keys_sorted() {
-                                if key != "source" && key != "setup" {
+                                if let Some(name) = item.attributes.get_str("name") {
+                                    output.push(format!("# {}, ({})", name, item.id));
+                                }
+                                if key != "source" && key != "setup" && key != "name" {
                                     if let Some(value) = item.attributes.get(key) {
                                         match value {
                                             Value::Str(text) => {
