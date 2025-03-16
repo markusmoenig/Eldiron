@@ -191,10 +191,7 @@ impl Tool for SelectionTool {
                     let selection = server_ctx.geometry_in_rectangle(top_left, bottom_right, map);
 
                     *map = self.rectangle_undo_map.clone();
-                    map.curr_rectangle = Some((
-                        vek::Vec2::new(self.click_pos.x, self.click_pos.y),
-                        vek::Vec2::new(coord.x as f32, coord.y as f32),
-                    ));
+                    map.curr_rectangle = Some((click_pos, drag_pos));
 
                     if ui.shift {
                         // Add
