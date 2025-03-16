@@ -957,14 +957,19 @@ impl Sidebar {
                                 let grid_y = (coord.y as f32 - height / 2.0 + offset_y) / grid_size;
 
                                 let grid = Vec2::new(grid_x, grid_y);
+                                let editing_pos = Vec2::new(
+                                    region.editing_position_3d.x,
+                                    region.editing_position_3d.z,
+                                );
                                 let look_at = Vec2::new(
                                     region.editing_look_at_3d.x,
                                     region.editing_look_at_3d.z,
                                 );
-                                let dist = grid.distance(look_at);
+                                let dist_editing_pos = grid.distance(editing_pos);
+                                let dist_look_at = grid.distance(look_at);
 
                                 // We move the look_at position
-                                if dist < 1.5 {
+                                if dist_look_at < dist_editing_pos {
                                     region.editing_look_at_3d = Vec3::new(grid_x, 0.0, grid_y);
                                 } else {
                                     // We move the camera position
