@@ -1,6 +1,6 @@
 use crate::editor::RUSTERIX;
 use crate::prelude::*;
-use rusterix::ValueContainer;
+use rusterix::{D3Camera, D3FirstPCamera, D3IsoCamera, ValueContainer};
 
 pub struct PreviewView {
     pub camera: MapCamera,
@@ -68,6 +68,8 @@ impl PreviewView {
                 let rotated_direction = (rotation * base_offset).xyz();
                 let final_camera_pos = look_at + rotated_direction;
 
+                rusterix.client.camera_d3 = Box::new(D3IsoCamera::new());
+
                 rusterix
                     .client
                     .camera_d3
@@ -95,6 +97,8 @@ impl PreviewView {
                     1.5,
                     region.editing_look_at_3d.z,
                 );
+
+                rusterix.client.camera_d3 = Box::new(D3FirstPCamera::new());
                 rusterix.client.camera_d3.set_parameter_vec3("position", p);
                 rusterix
                     .client
