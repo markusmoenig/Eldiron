@@ -1,10 +1,12 @@
 class NewCharacter:
 
     def event(self, event, value):
-        print("Player Event", event, value)
+        """System Event"""
+        pass
 
     def user_event(self, event, value):
-        print("Player User Event", event, value)
+        """User Event"""
+
         if event == 'key_down':
             if value == 'w':
                 action("forward")
