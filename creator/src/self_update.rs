@@ -117,7 +117,7 @@ impl SelfUpdater {
         self.locked = true;
 
         let result = self
-            .build_update(&release.name)
+            .build_update(&format!("v{}", release.version))
             .and_then(|release_update| release_update.update());
 
         if result.is_ok() {
