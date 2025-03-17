@@ -3,9 +3,11 @@
 // use theframework::*;
 
 pub mod codeeditor;
+pub mod configeditor;
 pub mod editor;
 pub mod effectpicker;
 pub mod hud;
+pub mod infoviewer;
 pub mod mapeditor;
 pub mod materialpicker;
 pub mod minimap;
@@ -13,7 +15,6 @@ pub mod misc;
 pub mod panels;
 pub mod previewview;
 pub mod self_update;
-pub mod settingspicker;
 pub mod sidebar;
 pub mod tilemapeditor;
 pub mod tilepicker;
@@ -56,6 +57,8 @@ pub mod prelude {
     pub use crate::undo::*;
     pub use crate::utils::*;
 
+    pub use crate::tools::*;
+
     pub use crate::tools::code::CodeTool;
     pub use crate::tools::fx::FXTool;
     pub use crate::tools::game::GameTool;
@@ -65,9 +68,11 @@ pub mod prelude {
     pub use crate::tools::tileset::TilesetTool;
     pub use crate::tools::vertex::VertexTool;
 
-    pub use crate::tools::*;
+    //pub use crate::tools::*;
 
-    pub use crate::settingspicker::SettingsPicker;
+    pub use crate::configeditor::ConfigEditor;
+    pub use crate::infoviewer::InfoViewer;
+    pub use toml::Table;
 
     pub const KEY_ESCAPE: u32 = 0;
     pub const KEY_RETURN: u32 = 1;
@@ -178,6 +183,21 @@ pub unsafe extern "C" fn rust_key_down(p: *const c_char) -> bool {
                 .lock()
                 .unwrap()
                 .key_down(Some(ch), None, &mut CTX.lock().unwrap());
+        }
+    }
+    false
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn rust_key_up(p: *const c_char) -> bool {
+    let c_str = unsafe { CStr::from_ptr(p) };
+    if let Ok(key) = c_str.to_str() {
+        if let Some(ch) = key.chars().next() {
+            return UI
+                .lock()
+                .unwrap()
+                .key_up(Some(ch), None, &mut CTX.lock().unwrap());
         }
     }
     false

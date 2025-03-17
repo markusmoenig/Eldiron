@@ -120,6 +120,11 @@ public class RMTKView       : MTKView
     
     override public func keyUp(with event: NSEvent)
     {
+        if let c = event.characters {
+            if rust_key_up(c) {
+                renderer.needsUpdate()
+            }
+        }
         keysDown.removeAll{$0 == Float(event.keyCode)}
     }
         
