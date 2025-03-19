@@ -4103,7 +4103,6 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#1192deb62590b13ee5396f8baf7c77e5ecc5fc42"
 dependencies = [
  "bincode",
  "crossbeam-channel",

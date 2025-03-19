@@ -116,6 +116,10 @@ pub struct ServerContext {
     /// Dont show rect based geometry on map
     pub no_rect_geo_on_map: bool,
 
+    /// Selected wall row, set by the linedef Hud
+    pub selected_wall_row: Option<i32>,
+
+    /// Game server is running
     pub game_mode: bool,
 }
 
@@ -162,6 +166,8 @@ impl ServerContext {
 
             content_click_from_map: false,
             no_rect_geo_on_map: true,
+
+            selected_wall_row: Some(0),
 
             game_mode: false,
         }

@@ -632,7 +632,8 @@ impl MapEditor {
                             let mut changed = false;
                             for linedef_id in map.selected_linedefs.clone() {
                                 if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                                    for i in 1..=4 {
+                                    if let Some(row) = server_ctx.selected_wall_row {
+                                        let i = row + 1;
                                         let light_name = format!("row{}_light", i);
                                         if let Some(Value::Light(light)) =
                                             linedef.properties.get_mut(&light_name)
@@ -664,6 +665,24 @@ impl MapEditor {
                             }
                         }
                     }
+                } else if id.name == "linedefRowItemInstance" {
+                    if let Some(value) = value.to_string() {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            let prev = map.clone();
+                            for linedef_id in map.selected_linedefs.clone() {
+                                if let Some(linedef) = map.find_linedef_mut(linedef_id) {
+                                    if let Some(row) = server_ctx.selected_wall_row {
+                                        let i = row + 1;
+                                        let property_name = format!("row{}_item_instance", i);
+                                        linedef
+                                            .properties
+                                            .set(&property_name, Value::Str(value.clone()));
+                                    }
+                                }
+                            }
+                            self.add_map_undo(map, prev, ctx, server_ctx);
+                        }
+                    }
                 } else if id.name == "lightIntensity"
                     || id.name == "lightStartDistance"
                     || id.name == "lightEndDistance"
@@ -674,7 +693,8 @@ impl MapEditor {
                             let mut changed = false;
                             for linedef_id in map.selected_linedefs.clone() {
                                 if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                                    for i in 1..=4 {
+                                    if let Some(row) = server_ctx.selected_wall_row {
+                                        let i = row + 1;
                                         let light_name = format!("row{}_light", i);
                                         if let Some(Value::Light(light)) =
                                             linedef.properties.get_mut(&light_name)
@@ -1465,9 +1485,27 @@ impl MapEditor {
                 nodeui.add_item(item);
             }
 
-            // Show the settings of the first light
-            for i in 1..=4 {
+            // Show the settings for the selected linedef row
+            if let Some(row) = server_ctx.selected_wall_row {
+                let i = row + 1;
                 let light_name = format!("row{}_light", i);
+
+                // Add a separator for the selected linedef row
+                let item = TheNodeUIItem::Separator(format!("Row {}", i));
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::Text(
+                    "linedefRowItemInstance".into(),
+                    "Item Instance".into(),
+                    "Row is an item instance".into(),
+                    linedef
+                        .properties
+                        .get_str_default(&format!("row{}_item_instance", i), "".to_string()),
+                    None,
+                    false,
+                );
+                nodeui.add_item(item);
+
                 if let Some(Value::Light(light)) = linedef.properties.get(&light_name) {
                     let light_ui = EffectWrapper::create_light_ui(light);
                     let item =
@@ -1476,7 +1514,6 @@ impl MapEditor {
                     for (_, item) in light_ui.list_items() {
                         nodeui.add_item(item.clone());
                     }
-                    break;
                 }
             }
         }

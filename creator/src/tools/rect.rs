@@ -24,7 +24,7 @@ impl Tool for RectTool {
 
             hovered_vertices: None,
             mode: 0,
-            hud: Hud::new(HudMode::Linedef),
+            hud: Hud::new(HudMode::Rect),
         }
     }
 
