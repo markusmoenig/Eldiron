@@ -183,6 +183,16 @@ impl Project {
         self.regions.iter_mut().find(|t| t.id == ctx.curr_region)
     }
 
+    /// Get the screen of the given uuid.
+    pub fn get_screen_ctx(&self, ctx: &ServerContext) -> Option<&Screen> {
+        self.screens.get(&ctx.curr_screen)
+    }
+
+    /// Get the mut screen of the given uuid.
+    pub fn get_screen_ctx_mut(&mut self, ctx: &ServerContext) -> Option<&mut Screen> {
+        self.screens.get_mut(&ctx.curr_screen)
+    }
+
     /// Remove a region
     pub fn remove_region(&mut self, id: &Uuid) {
         self.regions.retain(|item| item.id != *id);

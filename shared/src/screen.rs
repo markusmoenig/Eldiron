@@ -31,7 +31,7 @@ impl Screen {
 
             width: 1280,
             height: 720,
-            grid_size: 16,
+            grid_size: 32,
 
             map: Map::default(),
         }

@@ -817,15 +817,15 @@ impl MapEditor {
                     }
                 } else if id.name == "sectorName" {
                     if let Some(value) = value.to_string() {
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            for sector_id in &region.map.selected_sectors.clone() {
-                                let prev = region.map.clone();
-                                if let Some(sector) = region.map.find_sector_mut(*sector_id) {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            for sector_id in &map.selected_sectors.clone() {
+                                let prev = map.clone();
+                                if let Some(sector) = map.find_sector_mut(*sector_id) {
                                     if sector.name != value.clone() {
                                         sector.name = value.clone();
                                         let undo_atom = RegionUndoAtom::MapEdit(
                                             Box::new(prev),
-                                            Box::new(region.map.clone()),
+                                            Box::new(map.clone()),
                                         );
                                         UNDOMANAGER.write().unwrap().add_region_undo(
                                             &server_ctx.curr_region,
@@ -833,7 +833,7 @@ impl MapEditor {
                                             ctx,
                                         );
                                         ctx.ui.send(TheEvent::Custom(
-                                            TheId::named("Update Region Content List"),
+                                            TheId::named("Update Content List"),
                                             TheValue::Empty,
                                         ));
                                     }
@@ -1438,6 +1438,38 @@ impl MapEditor {
                     "Split Line".into(),
                 );
                 nodeui.add_item(item);
+
+                // Show the settings for the selected linedef row
+                if let Some(row) = server_ctx.selected_wall_row {
+                    let i = row + 1;
+                    let light_name = format!("row{}_light", i);
+
+                    // Add a separator for the selected linedef row
+                    let item = TheNodeUIItem::Separator(format!("Row {}", i));
+                    nodeui.add_item(item);
+
+                    let item = TheNodeUIItem::Text(
+                        "linedefRowItemInstance".into(),
+                        "Item Instance".into(),
+                        "Row is an item instance".into(),
+                        linedef
+                            .properties
+                            .get_str_default(&format!("row{}_item_instance", i), "".to_string()),
+                        None,
+                        false,
+                    );
+                    nodeui.add_item(item);
+
+                    if let Some(Value::Light(light)) = linedef.properties.get(&light_name) {
+                        let light_ui = EffectWrapper::create_light_ui(light);
+                        let item =
+                            TheNodeUIItem::Separator(format!("{} Light", light.light_type.name()));
+                        nodeui.add_item(item);
+                        for (_, item) in light_ui.list_items() {
+                            nodeui.add_item(item.clone());
+                        }
+                    }
+                }
             }
 
             if server_ctx.curr_map_context == MapContext::Material {
@@ -1483,38 +1515,6 @@ impl MapEditor {
                     0,
                 );
                 nodeui.add_item(item);
-            }
-
-            // Show the settings for the selected linedef row
-            if let Some(row) = server_ctx.selected_wall_row {
-                let i = row + 1;
-                let light_name = format!("row{}_light", i);
-
-                // Add a separator for the selected linedef row
-                let item = TheNodeUIItem::Separator(format!("Row {}", i));
-                nodeui.add_item(item);
-
-                let item = TheNodeUIItem::Text(
-                    "linedefRowItemInstance".into(),
-                    "Item Instance".into(),
-                    "Row is an item instance".into(),
-                    linedef
-                        .properties
-                        .get_str_default(&format!("row{}_item_instance", i), "".to_string()),
-                    None,
-                    false,
-                );
-                nodeui.add_item(item);
-
-                if let Some(Value::Light(light)) = linedef.properties.get(&light_name) {
-                    let light_ui = EffectWrapper::create_light_ui(light);
-                    let item =
-                        TheNodeUIItem::Separator(format!("{} Light", light.light_type.name()));
-                    nodeui.add_item(item);
-                    for (_, item) in light_ui.list_items() {
-                        nodeui.add_item(item.clone());
-                    }
-                }
             }
         }
 
@@ -1663,6 +1663,19 @@ impl MapEditor {
                 for (_, item) in light_ui.list_items() {
                     nodeui.add_item(item.clone());
                 }
+            }
+
+            // Screen
+            if server_ctx.curr_map_context == MapContext::Screen {
+                let item = TheNodeUIItem::Text(
+                    "sectorName".into(),
+                    "Name".into(),
+                    "Set the name of the sector".into(),
+                    sector.name.clone(),
+                    None,
+                    false,
+                );
+                nodeui.add_item(item);
             }
         }
 

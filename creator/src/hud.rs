@@ -357,7 +357,10 @@ impl Hud {
         }
 
         // Show Subdivs
-        if map.camera == MapCamera::TwoD || server_ctx.curr_map_context == MapContext::Material {
+        if map.camera == MapCamera::TwoD
+            || server_ctx.curr_map_context == MapContext::Material
+            || server_ctx.curr_map_context == MapContext::Screen
+        {
             let x = 150;
 
             let size = 20;
@@ -456,6 +459,7 @@ impl Hud {
     ) -> bool {
         if server_ctx.curr_map_context != MapContext::Region
             && server_ctx.curr_map_context != MapContext::Material
+            && server_ctx.curr_map_context != MapContext::Screen
         {
             return false;
         }

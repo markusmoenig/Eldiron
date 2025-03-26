@@ -566,47 +566,47 @@ impl Sidebar {
 
         let mut drop_down = TheDropdownMenu::new(TheId::named("Screen Content Dropdown"));
         drop_down.add_option("All".to_string());
-        drop_down.add_option("Widgets".to_string());
+        drop_down.add_option("Sectors".to_string());
         toolbar_hlayout.add_widget(Box::new(drop_down));
 
-        let mut widget_add_button = TheTraybarButton::new(TheId::named("Widget Add"));
-        widget_add_button.set_icon_name("icon_role_add".to_string());
-        widget_add_button.set_status_text("Add a new widget to the screen.");
+        // let mut widget_add_button = TheTraybarButton::new(TheId::named("Widget Add"));
+        // widget_add_button.set_icon_name("icon_role_add".to_string());
+        // widget_add_button.set_status_text("Add a new widget to the screen.");
 
-        let mut widget_remove_button = TheTraybarButton::new(TheId::named("Widget Remove"));
-        widget_remove_button.set_icon_name("icon_role_remove".to_string());
-        widget_remove_button.set_status_text("Remove the current widget.");
-        widget_remove_button.set_disabled(true);
+        // let mut widget_remove_button = TheTraybarButton::new(TheId::named("Widget Remove"));
+        // widget_remove_button.set_icon_name("icon_role_remove".to_string());
+        // widget_remove_button.set_status_text("Remove the current widget.");
+        // widget_remove_button.set_disabled(true);
 
-        let mut move_up_button: TheTraybarButton =
-            TheTraybarButton::new(TheId::named("Widget Move Up"));
-        move_up_button.set_icon_name("caret-up".to_string());
-        move_up_button.set_status_text("Move the widget up.");
+        // let mut move_up_button: TheTraybarButton =
+        //     TheTraybarButton::new(TheId::named("Widget Move Up"));
+        // move_up_button.set_icon_name("caret-up".to_string());
+        // move_up_button.set_status_text("Move the widget up.");
 
-        let mut move_down_button: TheTraybarButton =
-            TheTraybarButton::new(TheId::named("Widget Move Down"));
-        move_down_button.set_icon_name("caret-down".to_string());
-        move_down_button.set_status_text("Move the widget down.");
+        // let mut move_down_button: TheTraybarButton =
+        //     TheTraybarButton::new(TheId::named("Widget Move Down"));
+        // move_down_button.set_icon_name("caret-down".to_string());
+        // move_down_button.set_status_text("Move the widget down.");
 
-        let mut widget_bottom_toolbar_hlayout = TheHLayout::new(TheId::empty());
-        widget_bottom_toolbar_hlayout.set_background_color(None);
-        widget_bottom_toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
-        widget_bottom_toolbar_hlayout.add_widget(Box::new(widget_add_button));
-        widget_bottom_toolbar_hlayout.add_widget(Box::new(widget_remove_button));
-        widget_bottom_toolbar_hlayout.add_widget(Box::new(move_up_button));
-        widget_bottom_toolbar_hlayout.add_widget(Box::new(move_down_button));
-        //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
-        widget_bottom_toolbar_hlayout.set_reverse_index(Some(2));
+        // let mut widget_bottom_toolbar_hlayout = TheHLayout::new(TheId::empty());
+        // widget_bottom_toolbar_hlayout.set_background_color(None);
+        // widget_bottom_toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
+        // widget_bottom_toolbar_hlayout.add_widget(Box::new(widget_add_button));
+        // widget_bottom_toolbar_hlayout.add_widget(Box::new(widget_remove_button));
+        // widget_bottom_toolbar_hlayout.add_widget(Box::new(move_up_button));
+        // widget_bottom_toolbar_hlayout.add_widget(Box::new(move_down_button));
+        // //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+        // widget_bottom_toolbar_hlayout.set_reverse_index(Some(2));
 
-        let mut widget_bottom_toolbar_canvas = TheCanvas::default();
-        widget_bottom_toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
-        widget_bottom_toolbar_canvas.set_layout(widget_bottom_toolbar_hlayout);
+        //let mut widget_bottom_toolbar_canvas = TheCanvas::default();
+        //widget_bottom_toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        //widget_bottom_toolbar_canvas.set_layout(widget_bottom_toolbar_hlayout);
 
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
         toolbar_canvas.set_layout(toolbar_hlayout);
         content_canvas.set_top(toolbar_canvas);
-        content_canvas.set_bottom(widget_bottom_toolbar_canvas);
+        //content_canvas.set_bottom(widget_bottom_toolbar_canvas);
 
         screen_tab.add_canvas("Content".to_string(), content_canvas);
 
@@ -645,13 +645,13 @@ impl Sidebar {
         //regions_canvas.set_layout(text_layout);
         screens_canvas.set_center(screen_canvas);
 
-        let mut empty = TheCanvas::new();
-        let mut layout = TheListLayout::new(TheId::empty());
-        layout.limiter_mut().set_max_width(self.width);
-        layout.limiter_mut().set_max_height(200);
-        empty.set_layout(layout);
+        // let mut empty = TheCanvas::new();
+        // let mut layout = TheListLayout::new(TheId::empty());
+        // layout.limiter_mut().set_max_width(self.width);
+        // layout.limiter_mut().set_max_height(200);
+        // empty.set_layout(layout);
 
-        screens_canvas.set_bottom(empty);
+        // screens_canvas.set_bottom(empty);
 
         stack_layout.add_canvas(screens_canvas);
 
@@ -1111,8 +1111,12 @@ impl Sidebar {
                         self.stack_layout_id.clone(),
                         SidebarMode::Node as usize,
                     ));
-                } else if id.name == "Update Region Content List" {
-                    self.apply_region(ui, ctx, Some(server_ctx.curr_region), project);
+                } else if id.name == "Update Content List" {
+                    if server_ctx.curr_map_context == MapContext::Region {
+                        self.apply_region(ui, ctx, Some(server_ctx.curr_region), project);
+                    } else if server_ctx.curr_map_context == MapContext::Screen {
+                        self.apply_screen(ui, ctx, project.get_screen_ctx(server_ctx));
+                    }
                 }
             }
             TheEvent::PaletteIndexChanged(id, index) => {
@@ -2805,37 +2809,57 @@ impl Sidebar {
 
         // Show the filter region content.
 
-        /*
-                let mut filter_text = if let Some(widget) = ui
-                    .canvas
-                    .get_widget(Some(&"Screen Content Filter Edit".to_string()), None)
-                {
-                    widget.value().to_string().unwrap_or_default()
-                } else {
-                    "".to_string()
-                };
+        let mut filter_text = if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Screen Content Filter Edit".to_string()), None)
+        {
+            widget.value().to_string().unwrap_or_default()
+        } else {
+            "".to_string()
+        };
 
-                let filter_role = if let Some(widget) = ui
-                    .canvas
-                    .get_widget(Some(&"Screen Content Dropdown".to_string()), None)
-                {
-                    if let Some(drop_down_menu) = widget.as_drop_down_menu() {
-                        drop_down_menu.selected_index()
-                    } else {
-                        0
-                    }
-                } else {
-                    0
-                };
-        */
-        /*
+        let filter_role = if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Screen Content Dropdown".to_string()), None)
+        {
+            if let Some(drop_down_menu) = widget.as_drop_down_menu() {
+                drop_down_menu.selected_index()
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+
         filter_text = filter_text.to_lowercase();
 
         if let Some(list) = ui.get_list_layout("Screen Content List") {
             list.clear();
             if let Some(screen) = screen {
                 if filter_role < 2 {
-                    // Show Widgets
+                    // Show Named Sectors
+                    for sector in &screen.map.sectors {
+                        if !sector.name.is_empty()
+                            && (filter_text.is_empty()
+                                || sector.name.to_lowercase().contains(&filter_text))
+                        {
+                            let mut item = TheListItem::new(TheId::named_with_id(
+                                "Screen Content List Item",
+                                sector.creator_id,
+                            ));
+                            item.set_text(sector.name.clone());
+                            item.add_value_column(100, TheValue::Text("Sector".to_string()));
+                            // item.set_context_menu(Some(TheContextMenu {
+                            //     items: vec![TheContextMenuItem::new(
+                            //         "Delete Character...".to_string(),
+                            //         TheId::named("Sidebar Delete Character Instance"),
+                            //     )],
+                            //     ..Default::default()
+                            // }));
+                            list.add_item(item, ctx);
+                        }
+                    }
+
                     /*
                     for widget in screen.widget_list.iter() {
                         let name: String = widget.name.clone();
@@ -2868,7 +2892,7 @@ impl Sidebar {
             // } else {
             //     list.select_first_item(ctx);
             // }
-        }*/
+        }
 
         ctx.ui.relayout = true;
     }

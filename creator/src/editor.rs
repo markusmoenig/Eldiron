@@ -754,7 +754,7 @@ impl TheTrait for Editor {
                         if let Some(region) = self.project.get_region(&self.server_ctx.curr_region)
                         {
                             if region.map.camera == MapCamera::TwoD {
-                                b.set_material_mode(false);
+                                b.set_clip_rect(None);
                                 b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
                                 if let Some(hover_cursor) = self.server_ctx.hover_cursor {
                                     b.set_map_hover_info(
@@ -845,7 +845,12 @@ impl TheTrait for Editor {
                             } else {
                                 b.set_map_hover_info(self.server_ctx.hover, None);
                             }
-                            b.set_material_mode(true);
+                            b.set_clip_rect(Some(rusterix::Rect {
+                                x: -5.0,
+                                y: -5.0,
+                                width: 10.0,
+                                height: 10.0,
+                            }));
                             rusterix.build_scene(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 material,
@@ -869,7 +874,7 @@ impl TheTrait for Editor {
                     // Draw the screen map
                     if self.server_ctx.curr_map_context == MapContext::Screen {
                         b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
-                        if let Some(screen) = self.project.get_map_mut(&self.server_ctx) {
+                        if let Some(screen) = self.project.get_screen_ctx_mut(&self.server_ctx) {
                             if let Some(hover_cursor) = self.server_ctx.hover_cursor {
                                 b.set_map_hover_info(
                                     self.server_ctx.hover,
@@ -878,15 +883,31 @@ impl TheTrait for Editor {
                             } else {
                                 b.set_map_hover_info(self.server_ctx.hover, None);
                             }
-                            b.set_material_mode(false);
+                            let grid_x = screen.width as f32 / screen.grid_size as f32;
+                            let grid_y = screen.height as f32 / screen.grid_size as f32;
+
+                            // Compute centered position
+                            let mut x = -grid_x / 2.0;
+                            let mut y = -grid_y / 2.0;
+
+                            // Snap x and y to nearest *lower* even number
+                            x = (x.floor() / 2.0).floor() * 2.0;
+                            y = (y.floor() / 2.0).floor() * 2.0;
+
+                            b.set_clip_rect(Some(rusterix::Rect {
+                                x,
+                                y,
+                                width: grid_x,
+                                height: grid_y,
+                            }));
                             rusterix.build_scene(
                                 Vec2::new(dim.width as f32, dim.height as f32),
-                                screen,
+                                &screen.map,
                                 &self.build_values,
                                 self.server_ctx.game_mode,
                             );
                             rusterix.draw_scene(
-                                screen,
+                                &screen.map,
                                 render_view.render_buffer_mut().pixels_mut(),
                                 dim.width as usize,
                                 dim.height as usize,
@@ -894,7 +915,7 @@ impl TheTrait for Editor {
                             let assets = rusterix.assets.clone();
                             rusterix.apply_entities_items(
                                 Vec2::new(dim.width as f32, dim.height as f32),
-                                screen,
+                                &screen.map,
                                 &assets,
                             );
                         }
