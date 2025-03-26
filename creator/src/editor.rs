@@ -858,6 +858,45 @@ impl TheTrait for Editor {
                                 dim.width as usize,
                                 dim.height as usize,
                             );
+                            let assets = rusterix.assets.clone();
+                            rusterix.apply_entities_items(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                material,
+                                &assets,
+                            );
+                        }
+                    } else
+                    // Draw the screen map
+                    if self.server_ctx.curr_map_context == MapContext::Screen {
+                        b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                        if let Some(screen) = self.project.get_map_mut(&self.server_ctx) {
+                            if let Some(hover_cursor) = self.server_ctx.hover_cursor {
+                                b.set_map_hover_info(
+                                    self.server_ctx.hover,
+                                    Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
+                                );
+                            } else {
+                                b.set_map_hover_info(self.server_ctx.hover, None);
+                            }
+                            b.set_material_mode(false);
+                            rusterix.build_scene(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                screen,
+                                &self.build_values,
+                                self.server_ctx.game_mode,
+                            );
+                            rusterix.draw_scene(
+                                screen,
+                                render_view.render_buffer_mut().pixels_mut(),
+                                dim.width as usize,
+                                dim.height as usize,
+                            );
+                            let assets = rusterix.assets.clone();
+                            rusterix.apply_entities_items(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                screen,
+                                &assets,
+                            );
                         }
                     }
                 }

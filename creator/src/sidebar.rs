@@ -1444,6 +1444,13 @@ impl Sidebar {
 
                         redraw = true;
                     }
+                } else if id.name == "Screen Grid Edit" {
+                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                        if let Some(v) = value.to_i32() {
+                            screen.grid_size = v;
+                        }
+                        redraw = true;
+                    }
                 }
                 // Change the size of the tilemap grid
                 else if id.name == "Tilemap Grid Edit" {
@@ -2046,13 +2053,12 @@ impl Sidebar {
                         ctx.ui.relayout = true;
                     }
                     redraw = true;
-                }
-                /* *
-                else if id.name == "Screen Item" {
+                } else if id.name == "Screen Item" {
                     if let Some(s) = project.screens.get(&id.uuid) {
                         self.apply_screen(ui, ctx, Some(s));
                         server_ctx.curr_screen = id.uuid;
                         redraw = true;
+                        RUSTERIX.write().unwrap().set_dirty();
                     }
                 } else if id.name == "Screen Add" {
                     if let Some(list_layout) = ui.get_list_layout("Screen List") {
@@ -2086,7 +2092,8 @@ impl Sidebar {
                             self.apply_screen(ui, ctx, None);
                         }
                     }
-                } else if id.name == "Widget Add" {
+                }
+                /*else if id.name == "Widget Add" {
                     let mut widget = Widget {
                         x: 0.0,
                         y: 0.0,
@@ -2765,7 +2772,6 @@ impl Sidebar {
             }
         }
 
-        /*
         if let Some(widget) = ui
             .canvas
             .get_widget(Some(&"Screen Grid Edit".to_string()), None)
@@ -2777,7 +2783,7 @@ impl Sidebar {
                 widget.set_value(TheValue::Empty);
                 widget.set_disabled(true);
             }
-        }*/
+        }
 
         // if let Some(screen) = screen {
         // ui.set_widget_disabled_state("Widget Add", ctx, false);

@@ -12,7 +12,7 @@ pub enum ContentContext {
     ItemTemplate(Uuid),
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum MapContext {
     Region,
     Model,

@@ -10,6 +10,7 @@ pub struct Screen {
 
     pub width: i32,
     pub height: i32,
+    pub grid_size: i32,
 
     pub map: Map,
 }
@@ -30,6 +31,7 @@ impl Screen {
 
             width: 1280,
             height: 720,
+            grid_size: 16,
 
             map: Map::default(),
         }

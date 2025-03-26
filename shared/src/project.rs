@@ -206,6 +206,10 @@ impl Project {
                     return Some(material);
                 }
             }
+        } else if ctx.curr_map_context == MapContext::Screen {
+            if let Some(screen) = self.screens.get(&ctx.curr_screen) {
+                return Some(&screen.map);
+            }
         }
         None
     }
@@ -221,6 +225,10 @@ impl Project {
                 if let Some(material) = self.materials.get_mut(&material_id) {
                     return Some(material);
                 }
+            }
+        } else if ctx.curr_map_context == MapContext::Screen {
+            if let Some(screen) = self.screens.get_mut(&ctx.curr_screen) {
+                return Some(&mut screen.map);
             }
         }
         None
