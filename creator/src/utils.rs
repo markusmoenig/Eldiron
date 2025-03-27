@@ -1,7 +1,7 @@
 use crate::editor::CONFIGEDITOR;
 use crate::editor::PALETTE;
 use crate::prelude::*;
-use rusterix::{Entity, PixelSource, Rusterix, Value, ValueContainer};
+use rusterix::{Command, Entity, PixelSource, Rusterix, Value, ValueContainer};
 
 /// Start the server
 pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
@@ -46,6 +46,19 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
     }
 
     rusterix.server.set_state(rusterix::ServerState::Running);
+}
+
+/// Setup the client
+pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Command> {
+    rusterix.assets.config = project.config.clone();
+    rusterix.assets.maps.clear();
+    for region in &project.regions {
+        rusterix
+            .assets
+            .maps
+            .insert(region.map.name.clone(), region.map.clone());
+    }
+    rusterix.client.setup(&rusterix.assets)
 }
 
 /// Convert the characters and items into Entities / Items for the rusterix server

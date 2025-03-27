@@ -811,11 +811,9 @@ impl TheTrait for Editor {
                             );
 
                             if let Some(map) = self.project.get_map(&self.server_ctx) {
-                                let assets = rusterix.assets.clone();
                                 rusterix.apply_entities_items(
                                     Vec2::new(dim.width as f32, dim.height as f32),
                                     map,
-                                    &assets,
                                 );
                             }
 
@@ -863,11 +861,9 @@ impl TheTrait for Editor {
                                 dim.width as usize,
                                 dim.height as usize,
                             );
-                            let assets = rusterix.assets.clone();
                             rusterix.apply_entities_items(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 material,
-                                &assets,
                             );
                         }
                     } else
@@ -912,11 +908,9 @@ impl TheTrait for Editor {
                                 dim.width as usize,
                                 dim.height as usize,
                             );
-                            let assets = rusterix.assets.clone();
                             rusterix.apply_entities_items(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 &screen.map,
-                                &assets,
                             );
                         }
                     }
@@ -1650,6 +1644,13 @@ impl TheTrait for Editor {
                             let state = RUSTERIX.read().unwrap().server.state;
                             if state == rusterix::ServerState::Off {
                                 start_server(&mut RUSTERIX.write().unwrap(), &mut self.project);
+                                let commands =
+                                    setup_client(&mut RUSTERIX.write().unwrap(), &mut self.project);
+                                RUSTERIX
+                                    .write()
+                                    .unwrap()
+                                    .server
+                                    .process_client_commands(commands);
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
                                     "Server has been started.".to_string(),

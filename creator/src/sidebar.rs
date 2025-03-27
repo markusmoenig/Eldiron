@@ -1138,6 +1138,7 @@ impl Sidebar {
                 if name == "Rename Region" && *role == TheDialogButtonRole::Accept {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         region.name = value.describe();
+                        region.map.name = value.describe();
                         ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
                     }
                 }
@@ -1758,7 +1759,8 @@ impl Sidebar {
                 // Regions Add
                 else if id.name == "Region Add" {
                     if let Some(list_layout) = ui.get_list_layout("Region List") {
-                        let region = Region::new();
+                        let mut region = Region::new();
+                        region.map.name = region.name.clone();
 
                         let mut item =
                             TheListItem::new(TheId::named_with_id("Region Item", region.id));

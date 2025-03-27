@@ -4,6 +4,8 @@ game_tick_ms = 250   # The milliseconds per game tick.
 ticks_per_minute = 4 # The amount of ticks per in-game minute.
 
 entity_block_mode = "always" # The block mode, "always" or "never"
+auto_create_player = true    # Whether to automatically create a player entity.
+start_region = ""            # The name of the region to start the game in.
 
 [render]
 sample_mode = "nearest" # "nearest" or "linear"
