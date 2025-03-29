@@ -58,7 +58,13 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
             .maps
             .insert(region.map.name.clone(), region.map.clone());
     }
-    rusterix.client.setup(&rusterix.assets)
+    rusterix.assets.screens.clear();
+    for (_, screen) in &project.screens {
+        let mut scr = screen.map.clone();
+        scr.grid_size = screen.grid_size as f32;
+        rusterix.assets.screens.insert(screen.map.name.clone(), scr);
+    }
+    rusterix.setup_client()
 }
 
 /// Convert the characters and items into Entities / Items for the rusterix server
@@ -125,11 +131,17 @@ pub fn set_code(
             }
         }
         ContentContext::Sector(uuid) => {
-            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                for s in &region.map.sectors {
+            if let Some(map) = project.get_map_mut(server_ctx) {
+                for s in &map.sectors {
                     if s.creator_id == uuid {
-                        ui.set_widget_value("CodeEdit", ctx, TheValue::Text(String::new()));
-                        success = true;
+                        if let Some(Value::Str(source)) = s.properties.get("source") {
+                            ui.set_widget_value("CodeEdit", ctx, TheValue::Text(source.clone()));
+                            success = true;
+                        }
+                        if let Some(Value::Str(data)) = s.properties.get("data") {
+                            ui.set_widget_value("DataEdit", ctx, TheValue::Text(data.clone()));
+                            success = true;
+                        }
                         break;
                     }
                 }

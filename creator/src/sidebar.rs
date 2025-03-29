@@ -1151,6 +1151,7 @@ impl Sidebar {
                 else if name == "Rename Screen" && *role == TheDialogButtonRole::Accept {
                     if let Some(screen) = project.screens.get_mut(uuid) {
                         screen.name = value.describe();
+                        screen.map.name = value.describe();
                         ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
                     }
                 }

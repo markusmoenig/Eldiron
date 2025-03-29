@@ -126,6 +126,18 @@ impl Tool for DataTool {
                                     item.data = code;
                                 }
                             }
+                            ContentContext::Sector(uuid) => {
+                                if let Some(map) = project.get_map_mut(server_ctx) {
+                                    for sector in map.sectors.iter_mut() {
+                                        if sector.creator_id == uuid {
+                                            sector
+                                                .properties
+                                                .set("data", rusterix::Value::Str(code.clone()));
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
                             _ => {}
                         }
                     }

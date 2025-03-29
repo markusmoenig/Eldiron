@@ -261,28 +261,37 @@ impl MapEditor {
             }
             TheEvent::RenderViewScrollBy(id, coord) => {
                 if id.name == "PolyView" {
-                    if let Some(map) = project.get_map_mut(server_ctx) {
-                        if ui.ctrl || ui.logo {
-                            map.grid_size += coord.y as f32;
-                            map.grid_size = map.grid_size.clamp(5.0, 100.0);
-                        } else {
-                            map.offset += Vec2::new(-coord.x as f32, coord.y as f32);
-                        }
-                        map.curr_rectangle = None;
-                        //crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                    }
-
-                    if server_ctx.curr_map_context == MapContext::Region {
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            region.editing_position_3d.x += coord.x as f32 / region.map.grid_size;
-                            region.editing_position_3d.z += coord.y as f32 / region.map.grid_size;
-                            redraw = true;
-
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Update Minimap"),
-                                TheValue::Empty,
-                            ));
+                    let is_running = crate::editor::RUSTERIX.read().unwrap().server.state
+                        == rusterix::ServerState::Running;
+                    if is_running && server_ctx.game_mode {
+                        let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                        rusterix.client.target_offset -= *coord;
+                    } else {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            if ui.ctrl || ui.logo {
+                                map.grid_size += coord.y as f32;
+                                map.grid_size = map.grid_size.clamp(5.0, 100.0);
+                            } else {
+                                map.offset += Vec2::new(-coord.x as f32, coord.y as f32);
+                            }
+                            map.curr_rectangle = None;
                             //crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                        }
+
+                        if server_ctx.curr_map_context == MapContext::Region {
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                region.editing_position_3d.x +=
+                                    coord.x as f32 / region.map.grid_size;
+                                region.editing_position_3d.z +=
+                                    coord.y as f32 / region.map.grid_size;
+                                redraw = true;
+
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Update Minimap"),
+                                    TheValue::Empty,
+                                ));
+                                //crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            }
                         }
                     }
                 }
@@ -916,6 +925,39 @@ impl MapEditor {
                     }
                 }
                 // Region Content List Selection
+                if id.name == "Screen Content List Item" {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        for sector in map.sectors.iter_mut() {
+                            if sector.creator_id == id.uuid {
+                                server_ctx.cc = ContentContext::Sector(id.uuid);
+                                if !sector.properties.contains("source") {
+                                    // Create default code item
+                                    if let Some(bytes) = crate::Embedded::get("python/widget.py") {
+                                        if let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+                                        {
+                                            sector
+                                                .properties
+                                                .set("source", Value::Str(source.into()));
+                                        }
+                                    }
+                                }
+                                if !sector.properties.contains("data") {
+                                    // Create default data item
+                                    if let Some(bytes) = crate::Embedded::get("toml/widget.toml") {
+                                        if let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+                                        {
+                                            sector
+                                                .properties
+                                                .set("data", Value::Str(source.into()));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        set_code(ui, ctx, project, server_ctx);
+                    }
+                } else
+                // Region Content List Selection
                 if id.name == "Region Content List Item" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         let prev = region.map.clone();
@@ -1305,7 +1347,7 @@ impl MapEditor {
             layout.clear();
         }
 
-        if let Some(map) = project.get_map(server_ctx) {
+        if let Some(map) = project.get_map_mut(server_ctx) {
             if server_ctx.curr_map_tool_type == MapToolType::Effects {
                 if let Some(index) = map.selected_light {
                     self.create_light_settings(map, index, ui, ctx, server_ctx);
@@ -1319,6 +1361,15 @@ impl MapEditor {
                 && !map.selected_sectors.is_empty()
             {
                 self.create_sector_settings(map, map.selected_sectors[0], ui, ctx, server_ctx);
+
+                if server_ctx.curr_map_context == MapContext::Screen {
+                    // In Screen Context make sure we create the default code and data items
+                    if let Some(layout) = ui.get_list_layout("Screen Content List") {
+                        if let Some(sector) = map.find_sector_mut(map.selected_sectors[0]) {
+                            layout.select_item(sector.creator_id, ctx, true);
+                        }
+                    }
+                }
             }
         }
     }

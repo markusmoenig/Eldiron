@@ -167,6 +167,18 @@ impl Tool for CodeTool {
                                     item.source = code;
                                 }
                             }
+                            ContentContext::Sector(uuid) => {
+                                if let Some(map) = project.get_map_mut(server_ctx) {
+                                    for sector in map.sectors.iter_mut() {
+                                        if sector.creator_id == uuid {
+                                            sector
+                                                .properties
+                                                .set("source", rusterix::Value::Str(code.clone()));
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
                             _ => {}
                         }
                     }
