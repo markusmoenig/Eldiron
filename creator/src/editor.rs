@@ -750,7 +750,12 @@ impl TheTrait for Editor {
                     let b = &mut rusterix.client.builder_d2;
 
                     if is_running && self.server_ctx.game_mode {
-                        rusterix.draw_game();
+                        for r in &mut self.project.regions {
+                            if r.map.name == rusterix.client.current_map {
+                                rusterix.draw_game(&r.map);
+                            }
+                        }
+
                         rusterix
                             .client
                             .insert_game_buffer(render_view.render_buffer_mut());
