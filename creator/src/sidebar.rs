@@ -537,7 +537,6 @@ impl Sidebar {
         list_canvas.set_bottom(toolbar_canvas);
 
         let mut screen_canvas: TheCanvas = TheCanvas::new();
-        let mut screen_tab = TheTabLayout::new(TheId::named("Screen Tab Layout"));
 
         // Screen Content
 
@@ -608,10 +607,9 @@ impl Sidebar {
         content_canvas.set_top(toolbar_canvas);
         //content_canvas.set_bottom(widget_bottom_toolbar_canvas);
 
-        screen_tab.add_canvas("Content".to_string(), content_canvas);
-
         // Screen Settings
 
+        /*
         let mut settings_canvas = TheCanvas::default();
 
         let mut text_layout: TheTextLayout = TheTextLayout::new(TheId::empty());
@@ -636,11 +634,10 @@ impl Sidebar {
         grid_edit.set_range(TheValue::RangeI32(1..=1000));
         grid_edit.set_status_text("The size of the screen grid in pixels.");
         text_layout.add_pair("Grid Size".to_string(), Box::new(grid_edit));
-
         settings_canvas.set_layout(text_layout);
-        screen_tab.add_canvas("Settings".to_string(), settings_canvas);
+        */
 
-        screen_canvas.set_layout(screen_tab);
+        screen_canvas.set_center(content_canvas);
         screens_canvas.set_top(list_canvas);
         //regions_canvas.set_layout(text_layout);
         screens_canvas.set_center(screen_canvas);
@@ -1397,66 +1394,6 @@ impl Sidebar {
                         palette_picker.set_palette(project.palette.clone());
                     }
                     *PALETTE.write().unwrap() = project.palette.clone();
-                } else if id.name == "Screen Aspect Ratio Dropdown" {
-                    if let Some(index) = value.to_i32() {
-                        if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
-                            if let Some(aspect) =
-                                ScreenAspectRatio::from_index((index as usize).try_into().unwrap())
-                            {
-                                screen.aspect_ratio = aspect;
-
-                                let new_width = screen.aspect_ratio.width(screen.height);
-
-                                screen.width = new_width;
-                                ui.set_widget_value(
-                                    "Screen Width Edit",
-                                    ctx,
-                                    TheValue::Text(new_width.to_string()),
-                                );
-
-                                redraw = true;
-                            }
-                        }
-                    }
-                } else if id.name == "Screen Width Edit" {
-                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
-                        if let Some(v) = value.to_i32() {
-                            screen.width = v;
-                        }
-                        let new_height = screen.aspect_ratio.height(screen.width);
-
-                        screen.height = new_height;
-                        ui.set_widget_value(
-                            "Screen Height Edit",
-                            ctx,
-                            TheValue::Text(new_height.to_string()),
-                        );
-
-                        redraw = true;
-                    }
-                } else if id.name == "Screen Height Edit" {
-                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
-                        if let Some(v) = value.to_i32() {
-                            screen.height = v;
-                        }
-                        let new_width = screen.aspect_ratio.width(screen.height);
-
-                        screen.width = new_width;
-                        ui.set_widget_value(
-                            "Screen Width Edit",
-                            ctx,
-                            TheValue::Text(new_width.to_string()),
-                        );
-
-                        redraw = true;
-                    }
-                } else if id.name == "Screen Grid Edit" {
-                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
-                        if let Some(v) = value.to_i32() {
-                            screen.grid_size = v;
-                        }
-                        redraw = true;
-                    }
                 }
                 // Change the size of the tilemap grid
                 else if id.name == "Tilemap Grid Edit" {
@@ -2739,56 +2676,6 @@ impl Sidebar {
                     }
                     rgba_layout.scroll_to(Vec2::new(0, 0));
                 }
-            }
-        }
-
-        if let Some(widget) = ui
-            .canvas
-            .get_widget(Some(&"Screen Aspect Ratio Dropdown".to_string()), None)
-        {
-            if let Some(screen) = screen {
-                widget.set_value(TheValue::Text(screen.aspect_ratio.to_string().to_string()));
-                widget.set_disabled(false);
-            } else {
-                widget.set_value(TheValue::Empty);
-                widget.set_disabled(true);
-            }
-        }
-        if let Some(widget) = ui
-            .canvas
-            .get_widget(Some(&"Screen Width Edit".to_string()), None)
-        {
-            if let Some(screen) = screen {
-                widget.set_value(TheValue::Text(screen.width.clone().to_string()));
-                widget.set_disabled(false);
-            } else {
-                widget.set_value(TheValue::Empty);
-                widget.set_disabled(true);
-            }
-        }
-        if let Some(widget) = ui
-            .canvas
-            .get_widget(Some(&"Screen Height Edit".to_string()), None)
-        {
-            if let Some(screen) = screen {
-                widget.set_value(TheValue::Text(screen.height.clone().to_string()));
-                widget.set_disabled(false);
-            } else {
-                widget.set_value(TheValue::Empty);
-                widget.set_disabled(true);
-            }
-        }
-
-        if let Some(widget) = ui
-            .canvas
-            .get_widget(Some(&"Screen Grid Edit".to_string()), None)
-        {
-            if let Some(screen) = screen {
-                widget.set_value(TheValue::Text(screen.grid_size.clone().to_string()));
-                widget.set_disabled(false);
-            } else {
-                widget.set_value(TheValue::Empty);
-                widget.set_disabled(true);
             }
         }
 

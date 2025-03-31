@@ -892,22 +892,37 @@ impl TheTrait for Editor {
                                 } else {
                                     b.set_map_hover_info(self.server_ctx.hover, None);
                                 }
-                                let grid_x = screen.width as f32 / screen.grid_size as f32;
-                                let grid_y = screen.height as f32 / screen.grid_size as f32;
 
-                                // Compute centered position
-                                let mut x = -grid_x / 2.0;
-                                let mut y = -grid_y / 2.0;
+                                let screen_width = CONFIGEDITOR
+                                    .read()
+                                    .unwrap()
+                                    .get_i32_default("viewport", "width", 1280);
 
-                                // Snap x and y to nearest *lower* even number
-                                x = (x.floor() / 2.0).floor() * 2.0;
-                                y = (y.floor() / 2.0).floor() * 2.0;
+                                let screen_height = CONFIGEDITOR
+                                    .read()
+                                    .unwrap()
+                                    .get_i32_default("viewport", "height", 720);
+
+                                let grid_size = CONFIGEDITOR.read().unwrap().get_i32_default(
+                                    "viewport",
+                                    "grid_size",
+                                    32,
+                                );
+
+                                let grid_width = screen_width as f32 / grid_size as f32;
+                                let grid_height = screen_height as f32 / grid_size as f32;
+
+                                let (x, y) = rusterix::utils::align_screen_to_grid(
+                                    screen_width as f32,
+                                    screen_height as f32,
+                                    grid_size as f32,
+                                );
 
                                 b.set_clip_rect(Some(rusterix::Rect {
                                     x,
                                     y,
-                                    width: grid_x,
-                                    height: grid_y,
+                                    width: grid_width,
+                                    height: grid_height,
                                 }));
                                 rusterix.build_scene(
                                     Vec2::new(dim.width as f32, dim.height as f32),

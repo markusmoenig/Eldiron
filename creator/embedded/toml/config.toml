@@ -4,9 +4,13 @@ game_tick_ms = 250   # The milliseconds per game tick.
 ticks_per_minute = 4 # The amount of ticks per in-game minute.
 
 entity_block_mode = "always" # The block mode, "always" or "never"
-auto_create_player = true    # Whether to automatically create a player entity.
-start_region = ""            # The name of the region to start the game in.
-start_screen = ""            # The name of the start scren. If empty, shows the start region.
+auto_create_player = true    # Whether to auto create a player entity.
+
+# The name of the region to start the game in.
+start_region = ""
+
+# The name of the start scren. If empty, shows the start region
+start_screen = ""
 
 [render]
 sample_mode = "nearest" # "nearest" or "linear"
@@ -14,3 +18,4 @@ sample_mode = "nearest" # "nearest" or "linear"
 [viewport]
 width = 1280
 height = 720
+grid_size = 32

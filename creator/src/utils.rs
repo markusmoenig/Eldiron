@@ -60,8 +60,7 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
     }
     rusterix.assets.screens.clear();
     for (_, screen) in &project.screens {
-        let mut scr = screen.map.clone();
-        scr.grid_size = screen.grid_size as f32;
+        let scr = screen.map.clone();
         rusterix.assets.screens.insert(screen.map.name.clone(), scr);
     }
     rusterix.setup_client()

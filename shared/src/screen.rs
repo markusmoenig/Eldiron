@@ -6,12 +6,6 @@ pub struct Screen {
     pub id: Uuid,
     pub name: String,
 
-    pub aspect_ratio: ScreenAspectRatio,
-
-    pub width: i32,
-    pub height: i32,
-    pub grid_size: i32,
-
     pub map: Map,
 }
 
@@ -26,12 +20,6 @@ impl Screen {
         Self {
             id: Uuid::new_v4(),
             name: "New Screen".to_string(),
-
-            aspect_ratio: ScreenAspectRatio::_16_9,
-
-            width: 1280,
-            height: 720,
-            grid_size: 32,
 
             map: Map::default(),
         }
