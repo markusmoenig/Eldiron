@@ -568,87 +568,16 @@ impl Sidebar {
         drop_down.add_option("Sectors".to_string());
         toolbar_hlayout.add_widget(Box::new(drop_down));
 
-        // let mut widget_add_button = TheTraybarButton::new(TheId::named("Widget Add"));
-        // widget_add_button.set_icon_name("icon_role_add".to_string());
-        // widget_add_button.set_status_text("Add a new widget to the screen.");
-
-        // let mut widget_remove_button = TheTraybarButton::new(TheId::named("Widget Remove"));
-        // widget_remove_button.set_icon_name("icon_role_remove".to_string());
-        // widget_remove_button.set_status_text("Remove the current widget.");
-        // widget_remove_button.set_disabled(true);
-
-        // let mut move_up_button: TheTraybarButton =
-        //     TheTraybarButton::new(TheId::named("Widget Move Up"));
-        // move_up_button.set_icon_name("caret-up".to_string());
-        // move_up_button.set_status_text("Move the widget up.");
-
-        // let mut move_down_button: TheTraybarButton =
-        //     TheTraybarButton::new(TheId::named("Widget Move Down"));
-        // move_down_button.set_icon_name("caret-down".to_string());
-        // move_down_button.set_status_text("Move the widget down.");
-
-        // let mut widget_bottom_toolbar_hlayout = TheHLayout::new(TheId::empty());
-        // widget_bottom_toolbar_hlayout.set_background_color(None);
-        // widget_bottom_toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
-        // widget_bottom_toolbar_hlayout.add_widget(Box::new(widget_add_button));
-        // widget_bottom_toolbar_hlayout.add_widget(Box::new(widget_remove_button));
-        // widget_bottom_toolbar_hlayout.add_widget(Box::new(move_up_button));
-        // widget_bottom_toolbar_hlayout.add_widget(Box::new(move_down_button));
-        // //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
-        // widget_bottom_toolbar_hlayout.set_reverse_index(Some(2));
-
-        //let mut widget_bottom_toolbar_canvas = TheCanvas::default();
-        //widget_bottom_toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
-        //widget_bottom_toolbar_canvas.set_layout(widget_bottom_toolbar_hlayout);
-
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
         toolbar_canvas.set_layout(toolbar_hlayout);
         content_canvas.set_top(toolbar_canvas);
         //content_canvas.set_bottom(widget_bottom_toolbar_canvas);
 
-        // Screen Settings
-
-        /*
-        let mut settings_canvas = TheCanvas::default();
-
-        let mut text_layout: TheTextLayout = TheTextLayout::new(TheId::empty());
-        text_layout
-            .limiter_mut()
-            .set_max_size(Vec2::new(self.width, 250));
-        let mut drop_down = TheDropdownMenu::new(TheId::named("Screen Aspect Ratio Dropdown"));
-        for aspect in ScreenAspectRatio::iterator() {
-            drop_down.add_option(aspect.to_string().to_string());
-        }
-        drop_down.set_status_text("The aspect ratio of the screen.");
-        text_layout.add_pair("Aspect Ratio".to_string(), Box::new(drop_down));
-        let mut width_edit = TheTextLineEdit::new(TheId::named("Screen Width Edit"));
-        width_edit.set_range(TheValue::RangeI32(1..=100000));
-        width_edit.set_status_text("The width of the region in pixel.");
-        text_layout.add_pair("Width".to_string(), Box::new(width_edit));
-        let mut height_edit = TheTextLineEdit::new(TheId::named("Screen Height Edit"));
-        height_edit.set_range(TheValue::RangeI32(1..=100000));
-        height_edit.set_status_text("The height of the region in pixels.");
-        text_layout.add_pair("Height".to_string(), Box::new(height_edit));
-        let mut grid_edit = TheTextLineEdit::new(TheId::named("Screen Grid Edit"));
-        grid_edit.set_range(TheValue::RangeI32(1..=1000));
-        grid_edit.set_status_text("The size of the screen grid in pixels.");
-        text_layout.add_pair("Grid Size".to_string(), Box::new(grid_edit));
-        settings_canvas.set_layout(text_layout);
-        */
-
         screen_canvas.set_center(content_canvas);
         screens_canvas.set_top(list_canvas);
         //regions_canvas.set_layout(text_layout);
         screens_canvas.set_center(screen_canvas);
-
-        // let mut empty = TheCanvas::new();
-        // let mut layout = TheListLayout::new(TheId::empty());
-        // layout.limiter_mut().set_max_width(self.width);
-        // layout.limiter_mut().set_max_height(200);
-        // empty.set_layout(layout);
-
-        // screens_canvas.set_bottom(empty);
 
         stack_layout.add_canvas(screens_canvas);
 

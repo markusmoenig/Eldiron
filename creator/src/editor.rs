@@ -867,15 +867,15 @@ impl TheTrait for Editor {
                                     &self.build_values,
                                     self.server_ctx.game_mode,
                                 );
+                                rusterix.apply_entities_items(
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    material,
+                                );
                                 rusterix.draw_scene(
                                     material,
                                     render_view.render_buffer_mut().pixels_mut(),
                                     dim.width as usize,
                                     dim.height as usize,
-                                );
-                                rusterix.apply_entities_items(
-                                    Vec2::new(dim.width as f32, dim.height as f32),
-                                    material,
                                 );
                             }
                         } else
@@ -930,15 +930,15 @@ impl TheTrait for Editor {
                                     &self.build_values,
                                     self.server_ctx.game_mode,
                                 );
+                                rusterix.apply_entities_items(
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    &screen.map,
+                                );
                                 rusterix.draw_scene(
                                     &screen.map,
                                     render_view.render_buffer_mut().pixels_mut(),
                                     dim.width as usize,
                                     dim.height as usize,
-                                );
-                                rusterix.apply_entities_items(
-                                    Vec2::new(dim.width as f32, dim.height as f32),
-                                    &screen.map,
                                 );
                             }
                         }
