@@ -895,7 +895,9 @@ impl Sidebar {
                                 let dist_look_at = grid.distance(look_at);
 
                                 // We move the look_at position
-                                if dist_look_at < dist_editing_pos {
+                                if dist_look_at < dist_editing_pos
+                                    && server_ctx.curr_map_tool_helper == MapToolHelper::Preview
+                                {
                                     region.editing_look_at_3d = Vec3::new(grid_x, 0.0, grid_y);
                                 } else {
                                     // We move the camera position

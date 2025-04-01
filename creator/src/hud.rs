@@ -276,6 +276,8 @@ impl Hud {
             };
         } else if server_ctx.curr_map_context == MapContext::Material {
             icons = 1;
+        } else if server_ctx.curr_map_context == MapContext::Screen {
+            icons = if self.mode == HudMode::Sector { 2 } else { 0 };
         }
 
         if self.mode == HudMode::Effects || self.mode == HudMode::Rect {
@@ -604,6 +606,12 @@ impl Hud {
                 text = "IN 1".into();
             } else if index == 1 {
                 text = "IN 2".into();
+            }
+        } else if server_ctx.curr_map_context == MapContext::Screen {
+            if index == 0 {
+                text = "NORM".into();
+            } else if index == 1 {
+                text = "ACTIVE".into();
             }
         }
 

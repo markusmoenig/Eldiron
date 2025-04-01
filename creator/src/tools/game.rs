@@ -1,6 +1,7 @@
-use crate::prelude::*;
-use rusterix::Value;
+use crate::{editor::RUSTERIX, prelude::*};
+use rusterix::{EntityAction, Value};
 use theframework::prelude::*;
+use MapEvent::*;
 
 pub struct GameTool {
     id: TheId,
@@ -56,6 +57,40 @@ impl Tool for GameTool {
             }
             _ => false,
         }
+    }
+
+    fn map_event(
+        &mut self,
+        map_event: MapEvent,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _map: &mut Map,
+        _server_ctx: &mut ServerContext,
+    ) -> Option<RegionUndoAtom> {
+        match map_event {
+            MapClicked(coord) => {
+                let mut rusterix = RUSTERIX.write().unwrap();
+                let is_running = rusterix.server.state == rusterix::ServerState::Running;
+
+                if is_running {
+                    if let Some(action) = rusterix.client.touch_down(coord) {
+                        rusterix.server.local_player_action(action);
+                    }
+                }
+            }
+            MapUp(coord) => {
+                let mut rusterix = RUSTERIX.write().unwrap();
+                let is_running = rusterix.server.state == rusterix::ServerState::Running;
+
+                if is_running {
+                    rusterix.client.touch_up(coord);
+                    rusterix.server.local_player_action(EntityAction::Off);
+                }
+            }
+            _ => {}
+        }
+
+        None
     }
 
     fn handle_event(
