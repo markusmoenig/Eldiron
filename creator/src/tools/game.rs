@@ -106,17 +106,20 @@ impl Tool for GameTool {
             TheEvent::KeyDown(TheValue::Char(char)) => {
                 let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
                 if rusterix.server.state == rusterix::ServerState::Running {
-                    rusterix
-                        .server
-                        .local_player_event("key_down".into(), Value::Str(char.to_string()));
+                    let action = rusterix
+                        .client
+                        .user_event("key_down".into(), Value::Str(char.to_string()));
+
+                    rusterix.server.local_player_action(action);
                 }
             }
             TheEvent::KeyUp(TheValue::Char(char)) => {
                 let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
                 if rusterix.server.state == rusterix::ServerState::Running {
-                    rusterix
-                        .server
-                        .local_player_event("key_up".into(), Value::Str(char.to_string()));
+                    let action = rusterix
+                        .client
+                        .user_event("key_up".into(), Value::Str(char.to_string()));
+                    rusterix.server.local_player_action(action);
                 }
             }
             _ => {}
