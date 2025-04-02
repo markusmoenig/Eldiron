@@ -260,25 +260,25 @@ impl Tool for RectTool {
                         let l2 = map.create_linedef(v2, v3);
                         let id = map.create_linedef(v3, v0);
 
-                        // Add the info for correct box rendering
-                        if let Some(l) = map.find_linedef_mut(l0.0) {
-                            l.properties.set("row1_source", source.clone());
-                            l.properties.set("wall_height", Value::Float(size));
-                        }
-                        if let Some(l) = map.find_linedef_mut(l1.0) {
-                            l.properties.set("row1_source", source.clone());
-                            l.properties.set("wall_height", Value::Float(size));
-                        }
-                        if let Some(l) = map.find_linedef_mut(l2.0) {
-                            l.properties.set("row1_source", source.clone());
-                            l.properties.set("wall_height", Value::Float(size));
-                        }
-                        if let Some(l) = map.find_linedef_mut(id.0) {
-                            l.properties.set("row1_source", source.clone());
-                            l.properties.set("wall_height", Value::Float(size));
-                        }
-
                         if let Some(sector_id) = id.1 {
+                            // Add the info for correct box rendering
+                            if let Some(l) = map.find_linedef_mut(l0.0) {
+                                l.properties.set("row1_source", source.clone());
+                                l.properties.set("wall_height", Value::Float(size));
+                            }
+                            if let Some(l) = map.find_linedef_mut(l1.0) {
+                                l.properties.set("row1_source", source.clone());
+                                l.properties.set("wall_height", Value::Float(size));
+                            }
+                            if let Some(l) = map.find_linedef_mut(l2.0) {
+                                l.properties.set("row1_source", source.clone());
+                                l.properties.set("wall_height", Value::Float(size));
+                            }
+                            if let Some(l) = map.find_linedef_mut(id.0) {
+                                l.properties.set("row1_source", source.clone());
+                                l.properties.set("wall_height", Value::Float(size));
+                            }
+
                             if let Some(sector) = map.find_sector_mut(sector_id) {
                                 if let Value::Source(PixelSource::TileId(id)) = source {
                                     if let Some(tile) =
@@ -309,6 +309,8 @@ impl Tool for RectTool {
                                 // ));
                                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
                             }
+                        } else {
+                            println!("rect polygon not created");
                         }
                     }
                 }

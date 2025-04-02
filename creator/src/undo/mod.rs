@@ -1,15 +1,18 @@
 pub mod material_undo;
 pub mod palette_undo;
 pub mod region_undo;
+pub mod screen_undo;
 
 use crate::prelude::*;
 use material_undo::*;
+use screen_undo::*;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum UndoManagerContext {
     None,
     Region,
     Material,
+    Screen,
     CodeGridFX,
     Palette,
 }
@@ -20,6 +23,7 @@ pub struct UndoManager {
 
     regions: FxHashMap<Uuid, RegionUndo>,
     material: MaterialUndo,
+    screen: ScreenUndo,
     palette: PaletteUndo,
 }
 
@@ -36,6 +40,7 @@ impl UndoManager {
 
             regions: FxHashMap::default(),
             material: MaterialUndo::default(),
+            screen: ScreenUndo::default(),
             palette: PaletteUndo::default(),
         }
     }
@@ -65,6 +70,13 @@ impl UndoManager {
     pub fn add_material_undo(&mut self, atom: MaterialUndoAtom, ctx: &mut TheContext) {
         self.context = UndoManagerContext::Material;
         self.material.add(atom);
+        ctx.ui.set_enabled("Undo");
+        self.can_save(ctx);
+    }
+
+    pub fn add_screen_undo(&mut self, atom: ScreenUndoAtom, ctx: &mut TheContext) {
+        self.context = UndoManagerContext::Screen;
+        self.screen.add(atom);
         ctx.ui.set_enabled("Undo");
         self.can_save(ctx);
     }
@@ -117,6 +129,21 @@ impl UndoManager {
                 }
 
                 if !self.material.has_redo() {
+                    ctx.ui.set_disabled("Redo");
+                } else {
+                    ctx.ui.set_enabled("Redo");
+                }
+            }
+            UndoManagerContext::Screen => {
+                self.screen.undo(project, ui, ctx);
+
+                if !self.screen.has_undo() {
+                    ctx.ui.set_disabled("Undo");
+                } else {
+                    ctx.ui.set_enabled("Undo");
+                }
+
+                if !self.screen.has_redo() {
                     ctx.ui.set_disabled("Redo");
                 } else {
                     ctx.ui.set_enabled("Redo");
@@ -198,6 +225,21 @@ impl UndoManager {
                 }
 
                 if !self.material.has_redo() {
+                    ctx.ui.set_disabled("Redo");
+                } else {
+                    ctx.ui.set_enabled("Redo");
+                }
+            }
+            UndoManagerContext::Screen => {
+                self.screen.redo(project, ui, ctx);
+
+                if !self.screen.has_undo() {
+                    ctx.ui.set_disabled("Undo");
+                } else {
+                    ctx.ui.set_enabled("Undo");
+                }
+
+                if !self.screen.has_redo() {
                     ctx.ui.set_disabled("Redo");
                 } else {
                     ctx.ui.set_enabled("Redo");

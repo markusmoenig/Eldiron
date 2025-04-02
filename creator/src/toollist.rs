@@ -105,6 +105,20 @@ impl ToolList {
                     ));
                 }
             }
+        } else if server_ctx.curr_map_context == MapContext::Screen {
+            if let Some(undo_atom) = undo_atom {
+                if let Some(screen_undo_atom) = undo_atom.to_screen_atom() {
+                    UNDOMANAGER
+                        .write()
+                        .unwrap()
+                        .add_screen_undo(screen_undo_atom, ctx);
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Materialpicker"),
+                        TheValue::Empty,
+                    ));
+                }
+            }
         }
     }
 

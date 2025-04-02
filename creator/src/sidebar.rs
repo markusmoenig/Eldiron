@@ -2207,7 +2207,7 @@ impl Sidebar {
 
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Screen;
                     server_ctx.curr_map_context = MapContext::Screen;
-                    UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
+                    UNDOMANAGER.write().unwrap().context = UndoManagerContext::Screen;
                     RUSTERIX.write().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(

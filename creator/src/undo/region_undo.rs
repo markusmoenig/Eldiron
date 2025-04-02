@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use crate::undo::material_undo::MaterialUndoAtom;
+use crate::undo::screen_undo::ScreenUndoAtom;
 use theframework::prelude::*;
 
 #[allow(clippy::large_enum_variant)]
@@ -20,6 +21,12 @@ impl RegionUndoAtom {
     pub fn to_material_atom(self) -> Option<MaterialUndoAtom> {
         match self {
             RegionUndoAtom::MapEdit(map1, map2) => Some(MaterialUndoAtom::MapEdit(map1, map2)),
+            _ => None, // Return None for unsupported variants
+        }
+    }
+    pub fn to_screen_atom(self) -> Option<ScreenUndoAtom> {
+        match self {
+            RegionUndoAtom::MapEdit(map1, map2) => Some(ScreenUndoAtom::MapEdit(map1, map2)),
             _ => None, // Return None for unsupported variants
         }
     }

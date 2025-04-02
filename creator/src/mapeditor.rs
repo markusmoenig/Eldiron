@@ -618,6 +618,8 @@ impl MapEditor {
                 {
                     if server_ctx.curr_map_context == MapContext::Material {
                         UNDOMANAGER.write().unwrap().context = UndoManagerContext::Material;
+                    } else if server_ctx.curr_map_context == MapContext::Screen {
+                        UNDOMANAGER.write().unwrap().context = UndoManagerContext::Screen;
                     } else {
                         UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
                     }
@@ -875,6 +877,7 @@ impl MapEditor {
                     || id.name == "sectorNoiseTarget"
                     || id.name == "sectorCeilingInIso"
                     || id.name == "sectorRectRendering"
+                    || id.name == "sectorTileMode"
                 {
                     if let Some(value) = value.to_i32() {
                         if let Some(map) = project.get_map_mut(server_ctx) {
@@ -1725,6 +1728,15 @@ impl MapEditor {
                     sector.name.clone(),
                     None,
                     false,
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::Selector(
+                    "sectorTileMode".into(),
+                    "Tile Mode".into(),
+                    "Set the tile mode of the sector.".into(),
+                    vec!["Scale".to_string(), "Repeat".to_string()],
+                    sector.properties.get_int_default("tile_mode", 1),
                 );
                 nodeui.add_item(item);
             }
