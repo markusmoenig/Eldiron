@@ -12,6 +12,7 @@ pub struct LinedefTool {
     drag_changed: bool,
     rectangle_undo_map: Map,
     rectangle_mode: bool,
+    was_clicked: bool,
 
     hud: Hud,
 }
@@ -28,6 +29,7 @@ impl Tool for LinedefTool {
             drag_changed: false,
             rectangle_undo_map: Map::default(),
             rectangle_mode: false,
+            was_clicked: false,
 
             hud: Hud::new(HudMode::Linedef),
         }
@@ -254,9 +256,12 @@ impl Tool for LinedefTool {
             }
             MapClicked(coord) => {
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
+                    self.was_clicked = false;
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     return None;
                 }
+
+                self.was_clicked = true;
 
                 // ---
 
@@ -411,7 +416,7 @@ impl Tool for LinedefTool {
                         }
                     }
                 } else {
-                    if !self.rectangle_mode {
+                    if !self.rectangle_mode && self.was_clicked {
                         let dist = self
                             .click_pos
                             .distance(Vec2::new(coord.x as f32, coord.y as f32));

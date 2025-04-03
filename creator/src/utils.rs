@@ -63,6 +63,16 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
         let scr = screen.map.clone();
         rusterix.assets.screens.insert(screen.map.name.clone(), scr);
     }
+    rusterix.assets.fonts.clear();
+    for (_, asset) in project.assets.iter() {
+        if let AssetBuffer::Font(bytes) = &asset.buffer {
+            if let Ok(font) =
+                fontdue::Font::from_bytes(bytes.clone(), fontdue::FontSettings::default())
+            {
+                rusterix.assets.fonts.insert(asset.name.clone(), font);
+            }
+        }
+    }
     rusterix.setup_client()
 }
 

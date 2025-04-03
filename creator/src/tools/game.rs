@@ -64,7 +64,7 @@ impl Tool for GameTool {
         map_event: MapEvent,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _map: &mut Map,
+        map: &mut Map,
         _server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         match map_event {
@@ -73,7 +73,7 @@ impl Tool for GameTool {
                 let is_running = rusterix.server.state == rusterix::ServerState::Running;
 
                 if is_running {
-                    if let Some(action) = rusterix.client.touch_down(coord) {
+                    if let Some(action) = rusterix.client.touch_down(coord, map) {
                         rusterix.server.local_player_action(action);
                     }
                 }
@@ -83,7 +83,7 @@ impl Tool for GameTool {
                 let is_running = rusterix.server.state == rusterix::ServerState::Running;
 
                 if is_running {
-                    rusterix.client.touch_up(coord);
+                    rusterix.client.touch_up(coord, map);
                     rusterix.server.local_player_action(EntityAction::Off);
                 }
             }

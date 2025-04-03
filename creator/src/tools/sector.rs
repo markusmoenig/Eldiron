@@ -11,6 +11,7 @@ pub struct SectorTool {
     rectangle_undo_map: Map,
     click_selected: bool,
     drag_changed: bool,
+    was_clicked: bool,
 
     hud: Hud,
 }
@@ -26,6 +27,7 @@ impl Tool for SectorTool {
             click_selected: false,
             drag_changed: false,
             rectangle_undo_map: Map::default(),
+            was_clicked: false,
 
             hud: Hud::new(HudMode::Sector),
         }
@@ -164,9 +166,12 @@ impl Tool for SectorTool {
             }
             MapClicked(coord) => {
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
+                    self.was_clicked = false;
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     return None;
                 }
+                self.was_clicked = true;
+
                 self.click_selected = false;
                 if server_ctx.hover.2.is_some() {
                     let prev = map.clone();
@@ -279,6 +284,10 @@ impl Tool for SectorTool {
                         }
                     }
                 } else if let Some(render_view) = ui.get_render_view("PolyView") {
+                    if !self.was_clicked {
+                        return None;
+                    }
+
                     let dim = *render_view.dim();
                     let click_pos = server_ctx.local_to_map_grid(
                         Vec2::new(dim.width as f32, dim.height as f32),

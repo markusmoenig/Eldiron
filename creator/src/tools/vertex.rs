@@ -9,6 +9,7 @@ pub struct VertexTool {
     click_selected: bool,
     drag_changed: bool,
     rectangle_undo_map: Map,
+    was_clicked: bool,
 
     hud: Hud,
 }
@@ -24,6 +25,7 @@ impl Tool for VertexTool {
             click_selected: false,
             drag_changed: false,
             rectangle_undo_map: Map::default(),
+            was_clicked: false,
 
             hud: Hud::new(HudMode::Vertex),
         }
@@ -143,9 +145,11 @@ impl Tool for VertexTool {
             }
             MapClicked(coord) => {
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
+                    self.was_clicked = false;
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     return None;
                 }
+                self.was_clicked = true;
 
                 self.click_selected = false;
                 if server_ctx.hover.0.is_some() {
@@ -245,6 +249,10 @@ impl Tool for VertexTool {
                         }
                     }
                 } else if let Some(render_view) = ui.get_render_view("PolyView") {
+                    if !self.was_clicked {
+                        return None;
+                    }
+
                     // Otherwise we treat it as rectangle selection
                     let dim = *render_view.dim();
                     let click_pos = server_ctx.local_to_map_grid(

@@ -752,7 +752,8 @@ impl TheTrait for Editor {
                     if is_running && self.server_ctx.game_mode {
                         for r in &mut self.project.regions {
                             if r.map.name == rusterix.client.current_map {
-                                rusterix.draw_game(&r.map);
+                                rusterix.draw_game(&r.map, messages);
+                                break;
                             }
                         }
 
