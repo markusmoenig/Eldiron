@@ -340,7 +340,8 @@ impl Tool for RectTool {
                     map,
                     map.subdivisions,
                 );
-                let step = 1.0 / map.subdivisions;
+                // The size of the rect is always 1
+                let step = 1.0; // / map.subdivisions;
                 map.curr_rectangle = Some((cp, cp + step));
                 hovered_vertices = Some([
                     cp,

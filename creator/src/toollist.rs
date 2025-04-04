@@ -1,3 +1,4 @@
+use crate::editor::RUSTERIX;
 use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
 pub use crate::tools::{config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool};
@@ -302,105 +303,130 @@ impl ToolList {
                 if id.name == "PolyView" {
                     self.char_click_selected = false;
                     self.item_click_selected = false;
-                    if let Some(map) = project.get_map_mut(server_ctx) {
-                        // Test for character click
-                        if let Some(render_view) = ui.get_render_view("PolyView") {
-                            let dim = *render_view.dim();
+                    if !server_ctx.game_mode {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            // Test for character click
+                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                                let dim = *render_view.dim();
 
-                            let grid_pos = server_ctx.local_to_map_cell(
-                                Vec2::new(dim.width as f32, dim.height as f32),
-                                Vec2::new(coord.x as f32, coord.y as f32),
-                                map,
-                                1.0,
-                            );
+                                let grid_pos = server_ctx.local_to_map_cell(
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    Vec2::new(coord.x as f32, coord.y as f32),
+                                    map,
+                                    1.0,
+                                );
 
-                            if server_ctx.curr_map_context == MapContext::Region
-                                && server_ctx.curr_map_tool_type != MapToolType::Effects
-                                && id.name == "PolyView"
-                            {
-                                self.char_click_pos = grid_pos;
+                                if server_ctx.curr_map_context == MapContext::Region
+                                    && server_ctx.curr_map_tool_type != MapToolType::Effects
+                                    && id.name == "PolyView"
+                                {
+                                    self.char_click_pos = grid_pos;
 
-                                for entity in map.entities.iter().cloned() {
-                                    let ep = entity.get_pos_xz();
-                                    if ep.floor() == grid_pos {
-                                        let prev = map.clone();
-                                        self.undo_map = map.clone();
-                                        self.char_click_selected = true;
-                                        self.drag_changed = false;
-                                        if map.selected_entity_item != Some(entity.creator_id) {
-                                            map.clear_selection();
-                                            map.selected_entity_item = Some(entity.creator_id);
-                                            let undo_atom = RegionUndoAtom::MapEdit(
-                                                Box::new(prev),
-                                                Box::new(map.clone()),
-                                            );
-                                            UNDOMANAGER.write().unwrap().add_region_undo(
-                                                &server_ctx.curr_region,
-                                                undo_atom,
-                                                ctx,
-                                            );
-                                            if let Some(layout) =
-                                                ui.get_list_layout("Region Content List")
-                                            {
-                                                server_ctx.content_click_from_map = true;
-                                                layout.select_item(entity.creator_id, ctx, true);
+                                    for entity in map.entities.iter().cloned() {
+                                        let ep = entity.get_pos_xz();
+                                        if ep.floor() == grid_pos {
+                                            let prev = map.clone();
+                                            self.undo_map = map.clone();
+                                            self.char_click_selected = true;
+                                            self.drag_changed = false;
+                                            if map.selected_entity_item != Some(entity.creator_id) {
+                                                map.clear_selection();
+                                                map.selected_entity_item = Some(entity.creator_id);
+                                                let undo_atom = RegionUndoAtom::MapEdit(
+                                                    Box::new(prev),
+                                                    Box::new(map.clone()),
+                                                );
+                                                UNDOMANAGER.write().unwrap().add_region_undo(
+                                                    &server_ctx.curr_region,
+                                                    undo_atom,
+                                                    ctx,
+                                                );
+                                                if let Some(layout) =
+                                                    ui.get_list_layout("Region Content List")
+                                                {
+                                                    server_ctx.content_click_from_map = true;
+                                                    layout.select_item(
+                                                        entity.creator_id,
+                                                        ctx,
+                                                        true,
+                                                    );
+                                                }
+                                                ctx.ui.send(TheEvent::Custom(
+                                                    TheId::named("Map Selection Changed"),
+                                                    TheValue::Empty,
+                                                ));
+                                                crate::editor::RUSTERIX
+                                                    .write()
+                                                    .unwrap()
+                                                    .set_dirty();
                                             }
-                                            ctx.ui.send(TheEvent::Custom(
-                                                TheId::named("Map Selection Changed"),
-                                                TheValue::Empty,
-                                            ));
-                                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                            return true;
                                         }
-                                        return true;
+                                    }
+
+                                    for item in map.items.iter().cloned() {
+                                        let ep = item.get_pos_xz();
+                                        if ep.floor() == grid_pos {
+                                            let prev = map.clone();
+                                            self.undo_map = map.clone();
+                                            self.item_click_selected = true;
+                                            self.drag_changed = false;
+                                            if map.selected_entity_item != Some(item.creator_id) {
+                                                map.clear_selection();
+                                                map.selected_entity_item = Some(item.creator_id);
+                                                let undo_atom = RegionUndoAtom::MapEdit(
+                                                    Box::new(prev),
+                                                    Box::new(map.clone()),
+                                                );
+                                                UNDOMANAGER.write().unwrap().add_region_undo(
+                                                    &server_ctx.curr_region,
+                                                    undo_atom,
+                                                    ctx,
+                                                );
+                                                if let Some(layout) =
+                                                    ui.get_list_layout("Region Content List")
+                                                {
+                                                    server_ctx.content_click_from_map = true;
+                                                    layout.select_item(item.creator_id, ctx, true);
+                                                }
+                                                ctx.ui.send(TheEvent::Custom(
+                                                    TheId::named("Map Selection Changed"),
+                                                    TheValue::Empty,
+                                                ));
+                                                crate::editor::RUSTERIX
+                                                    .write()
+                                                    .unwrap()
+                                                    .set_dirty();
+                                            }
+                                            return true;
+                                        }
                                     }
                                 }
 
-                                for item in map.items.iter().cloned() {
-                                    let ep = item.get_pos_xz();
-                                    if ep.floor() == grid_pos {
-                                        let prev = map.clone();
-                                        self.undo_map = map.clone();
-                                        self.item_click_selected = true;
-                                        self.drag_changed = false;
-                                        if map.selected_entity_item != Some(item.creator_id) {
-                                            map.clear_selection();
-                                            map.selected_entity_item = Some(item.creator_id);
-                                            let undo_atom = RegionUndoAtom::MapEdit(
-                                                Box::new(prev),
-                                                Box::new(map.clone()),
-                                            );
-                                            UNDOMANAGER.write().unwrap().add_region_undo(
-                                                &server_ctx.curr_region,
-                                                undo_atom,
-                                                ctx,
-                                            );
-                                            if let Some(layout) =
-                                                ui.get_list_layout("Region Content List")
-                                            {
-                                                server_ctx.content_click_from_map = true;
-                                                layout.select_item(item.creator_id, ctx, true);
-                                            }
-                                            ctx.ui.send(TheEvent::Custom(
-                                                TheId::named("Map Selection Changed"),
-                                                TheValue::Empty,
-                                            ));
-                                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                                        }
-                                        return true;
-                                    }
-                                }
+                                let undo_atom = self.get_current_tool().map_event(
+                                    MapEvent::MapClicked(*coord),
+                                    ui,
+                                    ctx,
+                                    map,
+                                    server_ctx,
+                                );
+                                self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                             }
-
-                            let undo_atom = self.get_current_tool().map_event(
-                                MapEvent::MapClicked(*coord),
-                                ui,
-                                ctx,
-                                map,
-                                server_ctx,
-                            );
-                            self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
+                            redraw = true;
                         }
-                        redraw = true;
+                    } else {
+                        let current_map = RUSTERIX.read().unwrap().client.current_map.clone();
+                        for r in &mut project.regions {
+                            if r.map.name == current_map {
+                                self.get_current_tool().map_event(
+                                    MapEvent::MapClicked(*coord),
+                                    ui,
+                                    ctx,
+                                    &mut r.map,
+                                    server_ctx,
+                                );
+                            }
+                        }
                     }
                 }
             }
