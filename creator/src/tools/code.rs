@@ -115,6 +115,7 @@ impl Tool for CodeTool {
             TheEvent::ValueChanged(id, value) => {
                 if id.name == "CodeEdit" {
                     if let Some(code) = value.to_string() {
+                        println!("cc {:?}", server_ctx.cc);
                         match server_ctx.cc {
                             ContentContext::CharacterInstance(uuid) => {
                                 if let Some(region) =

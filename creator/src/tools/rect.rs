@@ -235,13 +235,17 @@ impl Tool for RectTool {
                                                         .properties
                                                         .set("floor_source", source.clone());
                                                     add_it = false;
-                                                    crate::editor::RUSTERIX
-                                                        .write()
-                                                        .unwrap()
-                                                        .set_dirty();
                                                 }
                                             }
                                         }
+                                    }
+
+                                    if !add_it {
+                                        undo_atom = Some(RegionUndoAtom::MapEdit(
+                                            Box::new(prev.clone()),
+                                            Box::new(map.clone()),
+                                        ));
+                                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
                                     }
                                 }
                             }

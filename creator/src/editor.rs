@@ -186,10 +186,15 @@ impl TheTrait for Editor {
             str!("Open..."),
             TheId::named("Open"),
         ));
-        file_menu.add(TheContextMenuItem::new(str!("Save"), TheId::named("Save")));
-        file_menu.add(TheContextMenuItem::new(
+        file_menu.add(TheContextMenuItem::new_with_accel(
+            str!("Save"),
+            TheId::named("Save"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 's'),
+        ));
+        file_menu.add(TheContextMenuItem::new_with_accel(
             str!("Save As ..."),
             TheId::named("Save As"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'a'),
         ));
         let mut edit_menu = TheContextMenu::named(str!("Edit"));
         edit_menu.add(TheContextMenuItem::new_with_accel(
@@ -241,6 +246,7 @@ impl TheTrait for Editor {
         //     TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'r'),
         // ));
 
+        file_menu.register_accel(ctx);
         edit_menu.register_accel(ctx);
         // view_menu.register_accel(ctx);
         // tools_menu.register_accel(ctx);

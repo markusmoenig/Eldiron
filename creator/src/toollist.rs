@@ -169,7 +169,11 @@ impl ToolList {
 
                 let mut acc = !ui.focus_widget_supports_text_input(ctx);
 
-                if self.get_current_tool().id().name == "Game Tool" {
+                if self.get_current_tool().id().name == "Game Tool"
+                    || self.get_current_tool().id().name == "Info Tool"
+                    || ui.ctrl
+                    || ui.logo
+                {
                     acc = false;
                 }
 
