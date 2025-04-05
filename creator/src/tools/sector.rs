@@ -186,8 +186,8 @@ impl Tool for SectorTool {
                             if !map.selected_sectors.contains(&s) {
                                 map.selected_sectors.push(s);
                                 changed = true;
-                                self.click_selected = true;
                             }
+                            self.click_selected = true;
                         }
                     } else if ui.alt {
                         // Subtract
@@ -229,7 +229,7 @@ impl Tool for SectorTool {
                 }
 
                 if self.click_selected {
-                    // Dragging selected lines
+                    // Dragging selected sectors
                     if let Some(render_view) = ui.get_render_view("PolyView") {
                         let dim = *render_view.dim();
                         let click_pos = server_ctx.local_to_map_grid(
