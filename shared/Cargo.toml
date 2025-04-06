@@ -4,20 +4,9 @@ version = "0.8.21"
 edition = "2021"
 
 [dependencies]
-# theframework = { path = "../../TheFramework", features = ["ui", "code"] }
-# theframework = { path = "../../TheFramework", features = [
-#     "ui",
-# ], default-features = true }
-theframework = { version = "0.1.40", git = "https://github.com/markusmoenig/TheFramework", features = [
-    "ui",
-], default-features = true }
-# theframework = { path = "../../TheFramework", features = [
-#     "cpu_render",
-# ], default-features = false }
-# theframework = { version = "0.1.20", features = [
-#     "ui",
-#     "code",
-# ], default-features = true }
+theframework.workspace = true
+rusterix.workspace = true
+
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 vectorize = "0.2.0"
@@ -29,10 +18,6 @@ indexmap = { version = "2", features = ["serde"], default-features = true }
 noiselib = "0.2.3"
 regex = "1"
 num_cpus = "1.16.0"
-
-# rusterix = "0.1.0"
-# rusterix = { path = "../../rusterix" }
-rusterix = { version = "0.2.8", git = "https://github.com/markusmoenig/Rusterix" }
 
 vek = { version = "0.17", default-features = false, features = ["rgba"] }
 earcutr = "0.4"
