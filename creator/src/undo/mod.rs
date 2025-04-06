@@ -295,10 +295,19 @@ impl UndoManager {
     pub fn has_undo(&self) -> bool {
         for region_undo in self.regions.values() {
             if region_undo.has_undo() {
-                return false;
+                return true;
             }
         }
-        true
+        if self.material.has_undo() {
+            return false;
+        }
+        if self.screen.has_undo() {
+            return false;
+        }
+        if self.palette.has_undo() {
+            return false;
+        }
+        false
     }
 
     // Clears the ModelFX undo.

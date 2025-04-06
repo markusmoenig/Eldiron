@@ -57,7 +57,7 @@ pub struct Editor {
     self_update_tx: Sender<SelfUpdateEvent>,
     self_updater: Arc<Mutex<SelfUpdater>>,
 
-    first_update: bool,
+    update_counter: usize,
 
     build_values: ValueContainer,
 }
@@ -96,7 +96,7 @@ impl TheTrait for Editor {
                 "eldiron",
             ))),
 
-            first_update: true,
+            update_counter: 0,
 
             build_values: ValueContainer::default(),
         }
@@ -182,9 +182,12 @@ impl TheTrait for Editor {
         let mut menu = TheMenu::new(TheId::named("Menu"));
 
         let mut file_menu = TheContextMenu::named(str!("File"));
-        file_menu.add(TheContextMenuItem::new(
+        file_menu.add(TheContextMenuItem::new(str!("New"), TheId::named("New")));
+        file_menu.add_separator();
+        file_menu.add(TheContextMenuItem::new_with_accel(
             str!("Open..."),
             TheId::named("Open"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'o'),
         ));
         file_menu.add(TheContextMenuItem::new_with_accel(
             str!("Save"),
@@ -344,11 +347,6 @@ impl TheTrait for Editor {
         top_canvas.set_top(menu_canvas);
         ui.canvas.set_top(top_canvas);
 
-        ctx.ui.send(TheEvent::Custom(
-            TheId::named("Set Game Tool"),
-            TheValue::Text(str!("Tile Drawer Tool")),
-        ));
-
         // Sidebar
         self.sidebar.init_ui(ui, ctx, &mut self.project);
 
@@ -435,8 +433,8 @@ impl TheTrait for Editor {
 
         // -
 
-        // ctx.ui.set_disabled("Save");
-        // ctx.ui.set_disabled("Save As");
+        ctx.ui.set_disabled("Save");
+        ctx.ui.set_disabled("Save As");
         ctx.ui.set_disabled("Undo");
         ctx.ui.set_disabled("Redo");
 
@@ -494,12 +492,11 @@ impl TheTrait for Editor {
         let mut redraw = false;
         let mut update_server_icons = false;
 
-        if self.first_update {
+        if self.update_counter == 0 {
             let mut toollist = TOOLLIST.write().unwrap();
             let id = toollist.get_current_tool().id().uuid;
 
             toollist.set_tool(id, ui, ctx, &mut self.project, &mut self.server_ctx);
-            self.first_update = false;
         }
 
         let (redraw_update, tick_update) = self.update_tracker.update(
@@ -1467,6 +1464,15 @@ impl TheTrait for Editor {
                         if id.name == "Open" {
                             for p in paths {
                                 self.project_path = Some(p.clone());
+                                self.update_counter = 0;
+                                self.sidebar.startup = true;
+
+                                ctx.ui.set_disabled("Save");
+                                ctx.ui.set_disabled("Save As");
+                                ctx.ui.set_disabled("Undo");
+                                ctx.ui.set_disabled("Redo");
+                                *UNDOMANAGER.write().unwrap() = UndoManager::default();
+
                                 // let contents =
                                 //     std::fs::read_to_string(p.clone()).unwrap_or("".to_string());
                                 // if let Ok(contents) = std::fs::read(p) {
@@ -1566,7 +1572,56 @@ impl TheTrait for Editor {
                         //         redraw = true;
                         //     }
                         // } else
-                        if id.name == "Logo" {
+                        if id.name == "New" {
+                            self.project_path = None;
+                            self.update_counter = 0;
+                            self.sidebar.startup = true;
+                            self.project = Project::default();
+                            self.project.regions.push(Region::default());
+
+                            ctx.ui.set_disabled("Save");
+                            ctx.ui.set_disabled("Save As");
+                            ctx.ui.set_disabled("Undo");
+                            ctx.ui.set_disabled("Redo");
+                            *UNDOMANAGER.write().unwrap() = UndoManager::default();
+
+                            insert_content_into_maps(&mut self.project);
+
+                            // Set the project time to the server time slider widget
+                            if let Some(widget) = ui.get_widget("Server Time Slider") {
+                                widget.set_value(TheValue::Time(self.project.time));
+                            }
+
+                            // Set the server time to the client (and if running to the server)
+                            {
+                                let mut rusterix = RUSTERIX.write().unwrap();
+                                rusterix.client.server_time = self.project.time;
+                                if rusterix.server.state == rusterix::ServerState::Running {
+                                    if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                        rusterix.server.set_time(&map.id, self.project.time);
+                                    }
+                                }
+                            }
+
+                            self.sidebar.load_from_project(
+                                ui,
+                                ctx,
+                                &mut self.server_ctx,
+                                &self.project,
+                            );
+                            self.mapeditor.load_from_project(ui, ctx, &self.project);
+                            update_server_icons = true;
+                            redraw = true;
+                            self.server_ctx.clear();
+
+                            // Set palette and textures
+                            *PALETTE.write().unwrap() = self.project.palette.clone();
+
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                "New project successfully initialized.".to_string(),
+                            ));
+                        } else if id.name == "Logo" {
                             _ = open::that("https://eldiron.com");
                             ctx.ui
                                 .set_widget_state("Logo".to_string(), TheWidgetState::None);
@@ -1930,6 +1985,10 @@ impl TheTrait for Editor {
         if update_server_icons {
             self.update_server_state_icons(ui);
             redraw = true;
+        }
+        self.update_counter += 1;
+        if self.update_counter > 2 {
+            self.sidebar.startup = false;
         }
         redraw
     }

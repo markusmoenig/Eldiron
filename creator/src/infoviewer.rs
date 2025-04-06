@@ -126,10 +126,10 @@ impl InfoViewer {
                 if let Some(map) = project.get_map(server_ctx) {
                     for item in map.items.iter() {
                         if item.creator_id == uuid {
+                            if let Some(name) = item.attributes.get_str("name") {
+                                output.push(format!("# {}, ({})", name, item.id));
+                            }
                             for key in item.attributes.keys_sorted() {
-                                if let Some(name) = item.attributes.get_str("name") {
-                                    output.push(format!("# {}, ({})", name, item.id));
-                                }
                                 if key != "source" && key != "setup" && key != "name" {
                                     if let Some(value) = item.attributes.get(key) {
                                         match value {

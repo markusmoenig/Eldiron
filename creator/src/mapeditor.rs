@@ -929,6 +929,11 @@ impl MapEditor {
                 }
                 // Region Content List Selection
                 if id.name == "Screen Content List Item" {
+                    /*
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Set Tool"),
+                        TheValue::Text(str!("Data Tool")),
+                    ));*/
                     if let Some(map) = project.get_map_mut(server_ctx) {
                         for sector in map.sectors.iter_mut() {
                             if sector.creator_id == id.uuid {

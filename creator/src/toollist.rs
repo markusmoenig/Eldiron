@@ -744,10 +744,12 @@ impl ToolList {
             //     }
             // }
             TheEvent::Custom(id, value) => {
-                if id.name == "Set Game Tool" {
+                if id.name == "Set Tool" {
                     if let TheValue::Text(name) = value {
                         if let Some(tool_id) = self.get_game_tool_uuid_of_name(name) {
                             self.set_tool(tool_id, ui, ctx, project, server_ctx);
+                            ctx.ui
+                                .set_widget_state(name.into(), TheWidgetState::Selected);
                         }
                     }
                 }

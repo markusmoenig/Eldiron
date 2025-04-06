@@ -27,6 +27,8 @@ pub struct Sidebar {
     stack_layout_id: TheId,
 
     curr_tilemap_uuid: Option<Uuid>,
+
+    pub startup: bool,
 }
 
 #[allow(clippy::new_without_default)]
@@ -37,6 +39,7 @@ impl Sidebar {
 
             stack_layout_id: TheId::empty(),
             curr_tilemap_uuid: None,
+            startup: true,
         }
     }
 
@@ -1926,6 +1929,13 @@ impl Sidebar {
                         TILEMAPEDITOR.write().unwrap().set_tilemap(t, ui, ctx);
                         self.apply_tilemap(ui, ctx, Some(t));
                         ctx.ui.relayout = true;
+
+                        if !self.startup {
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Set Tool"),
+                                TheValue::Text(str!("Tileset Tool")),
+                            ));
+                        }
                     }
                     redraw = true;
                 } else if id.name == "Screen Item" {
@@ -2669,7 +2679,7 @@ impl Sidebar {
                                 sector.creator_id,
                             ));
                             item.set_text(sector.name.clone());
-                            item.add_value_column(100, TheValue::Text("Sector".to_string()));
+                            item.add_value_column(100, TheValue::Text("Widget".to_string()));
                             // item.set_context_menu(Some(TheContextMenu {
                             //     items: vec![TheContextMenuItem::new(
                             //         "Delete Character...".to_string(),

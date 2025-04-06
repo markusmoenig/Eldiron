@@ -1,6 +1,6 @@
 [ui]
-# The role of the widget, currently "game" or "button"
-role = "button"
+# The role of the widget, "none", "game", "button", "text"
+role = "none"
 # The action to send to the server when clicked
 # See https://eldiron.com/scripting_data/index.html#available-actions
 action = "none"
