@@ -2,14 +2,16 @@ use crate::prelude::*;
 use crate::Embedded;
 use std::sync::mpsc::Receiver;
 //use std::sync::Mutex;
-use shared::project::Project;
+use rusterix::{EntityAction, Rusterix, Value};
+use shared::{project::Project, rusterix_utils::*};
 
 pub struct Solo {
     project: Project,
-    curr_screen: Uuid,
 
     update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
+
+    rusterix: Rusterix,
 }
 
 impl TheTrait for Solo {
@@ -19,15 +21,16 @@ impl TheTrait for Solo {
     {
         Self {
             project: Project::new(),
-            curr_screen: Uuid::nil(),
 
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
+
+            rusterix: Rusterix::default(),
         }
     }
 
     fn default_window_size(&self) -> (usize, usize) {
-        (1280, 720)
+        (800, 600)
     }
 
     fn window_title(&self) -> String {
@@ -66,7 +69,14 @@ impl TheTrait for Solo {
                         if let Some(project) = project {
                             self.project = project;
 
+                            let tiles = self.project.extract_tiles();
+                            self.rusterix.assets.set_rgba_tiles(tiles.clone());
+
                             // Init server / client
+
+                            start_server(&mut self.rusterix, &mut self.project);
+                            let commands = setup_client(&mut self.rusterix, &mut self.project);
+                            self.rusterix.server.process_client_commands(commands);
 
                             println!("Project loaded successfully ({}).", name);
                         } else {
@@ -102,28 +112,39 @@ impl TheTrait for Solo {
     }
 
     /// Handle UI events and UI state
-    fn update_ui(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext) -> bool {
+    fn update_ui(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) -> bool {
         let mut redraw = false;
 
-        let (redraw_update, _tick_update) = self.update_tracker.update(
-            (1000 / self.project.target_fps) as u64,
-            self.project.tick_ms as u64,
+        let (redraw_update, tick_update) = self.update_tracker.update(
+            (1000 / self.rusterix.client.target_fps) as u64,
+            self.rusterix.client.game_tick_ms as u64,
         );
 
-        // if tick_update
+        if tick_update {
+            self.rusterix.client.inc_animation_frame();
+        }
 
         if redraw_update {
             redraw = true;
 
-            // Todo: Get the Screen ID from the Game settings
-            // Right now we just take the first screen
-            let screen_id;
-            if let Some(screen) = self.project.screens.keys().next() {
-                screen_id = *screen;
-                self.curr_screen = screen_id;
-            }
+            for r in &mut self.project.regions {
+                self.rusterix.server.apply_entities_items(&mut r.map);
 
-            //self.client.draw_screen(&screen_id, &mut ui.canvas.buffer);
+                if r.map.name == self.rusterix.client.current_map {
+                    self.rusterix.server.update();
+
+                    if let Some(time) = self.rusterix.server.get_time(&r.map.id) {
+                        self.rusterix.client.server_time = time;
+                    }
+
+                    let messages = self.rusterix.server.get_messages(&r.map.id);
+                    self.rusterix.draw_game(&r.map, messages);
+                    self.rusterix
+                        .client
+                        .insert_game_buffer(&mut ui.canvas.buffer);
+                    break;
+                }
+            }
         }
 
         if let Some(receiver) = &mut self.event_receiver {
@@ -131,15 +152,46 @@ impl TheTrait for Solo {
                 //println!("Event received {:?}", event);
                 match event {
                     TheEvent::Resize => {}
-                    TheEvent::MouseDown(_coord) => {
-                        // self.client.touch_down(&self.curr_screen, coord);
+                    TheEvent::MouseDown(coord) => {
+                        for r in &mut self.project.regions {
+                            self.rusterix.server.apply_entities_items(&mut r.map);
+
+                            if r.map.name == self.rusterix.client.current_map {
+                                if let Some(action) = self.rusterix.client.touch_down(coord, &r.map)
+                                {
+                                    self.rusterix.server.local_player_action(action);
+                                }
+                            }
+                        }
                     }
-                    TheEvent::MouseUp(_coord) => {
-                        // self.client.touch_up(&self.curr_screen);
+                    TheEvent::MouseUp(coord) => {
+                        for r in &mut self.project.regions {
+                            self.rusterix.server.apply_entities_items(&mut r.map);
+
+                            if r.map.name == self.rusterix.client.current_map {
+                                self.rusterix.client.touch_up(coord, &r.map);
+                                self.rusterix.server.local_player_action(EntityAction::Off);
+                            }
+                        }
                     }
                     TheEvent::KeyDown(v) => {
-                        if let Some(_c) = v.to_char() {
-                            // self.client.key_down(&self.curr_screen, c);
+                        if let Some(char) = v.to_char() {
+                            let action = self
+                                .rusterix
+                                .client
+                                .user_event("key_down".into(), Value::Str(char.to_string()));
+
+                            self.rusterix.server.local_player_action(action);
+                        }
+                    }
+                    TheEvent::KeyUp(v) => {
+                        if let Some(char) = v.to_char() {
+                            let action = self
+                                .rusterix
+                                .client
+                                .user_event("key_up".into(), Value::Str(char.to_string()));
+
+                            self.rusterix.server.local_player_action(action);
                         }
                     }
                     _ => {}
@@ -151,8 +203,8 @@ impl TheTrait for Solo {
     }
 }
 
-pub trait EldironEditor {
-    //fn update_server_state_icons(&mut self, ui: &mut TheUI);
-}
+// pub trait SoloTrait {
+//fn update_server_state_icons(&mut self, ui: &mut TheUI);
+// }
 
-//impl EldironEditor for Solo {}
+//impl SoloTrait for Solo {}

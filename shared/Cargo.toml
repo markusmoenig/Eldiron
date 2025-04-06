@@ -11,6 +11,9 @@ edition = "2021"
 theframework = { version = "0.1.40", git = "https://github.com/markusmoenig/TheFramework", features = [
     "ui",
 ], default-features = true }
+# theframework = { path = "../../TheFramework", features = [
+#     "cpu_render",
+# ], default-features = false }
 # theframework = { version = "0.1.20", features = [
 #     "ui",
 #     "code",
@@ -34,3 +37,7 @@ rusterix = { version = "0.2.8", git = "https://github.com/markusmoenig/Rusterix"
 vek = { version = "0.17", default-features = false, features = ["rgba"] }
 earcutr = "0.4"
 rect_packer = "0.2.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ['Window'] }

@@ -1,5 +1,5 @@
 [workspace]
 
-members = ["creator", "run-wasm", "shared", "solo"]
+members = ["creator", "run-wasm", "shared", "clients/solo"]
 #edition = "2021"
 resolver = "2"

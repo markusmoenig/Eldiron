@@ -3,6 +3,7 @@ use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
 use crate::Embedded;
 use rusterix::{PlayerCamera, Rusterix, Texture, Value, ValueContainer};
+use shared::rusterix_utils::*;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{

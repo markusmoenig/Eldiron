@@ -1338,7 +1338,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ced92e76e966ca2fd84c8f7aa01a4aea65b0eb6648d72f7c8f3e2764a67fece"
 dependencies = [
  "crc32fast",
- "libz-sys",
  "miniz_oxide",
 ]
 
@@ -2240,6 +2239,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "instant"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
+dependencies = [
+ "cfg-if",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "integer-sqrt"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2545,17 +2556,6 @@ name = "libsqlite3-sys"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c10584274047cb335c23d3e61bcef8e323adae7c5c8c760540f73610177fc3f"
-dependencies = [
- "cc",
- "pkg-config",
- "vcpkg",
-]
-
-[[package]]
-name = "libz-sys"
-version = "1.1.22"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b70e7a7df205e92a1a4cd9aaae7898dac0aa555503cc0a649494d0d60e7651d"
 dependencies = [
  "cc",
  "pkg-config",
@@ -4082,6 +4082,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
+source = "git+https://github.com/markusmoenig/Rusterix#c2a454d33ab84eedb97a0c8c64bc3c99b6a32c71"
 dependencies = [
  "bincode",
  "crossbeam-channel",
@@ -4407,7 +4408,6 @@ dependencies = [
  "junction",
  "libc",
  "libsqlite3-sys",
- "libz-sys",
  "mac_address",
  "malachite-bigint",
  "md-5",
@@ -4773,6 +4773,8 @@ dependencies = [
  "theframework",
  "vectorize",
  "vek",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -4890,15 +4892,19 @@ dependencies = [
 name = "solo"
 version = "0.8.14"
 dependencies = [
+ "console_error_panic_hook",
  "fontdue",
- "open",
+ "instant",
  "png",
  "rust-embed",
+ "rusterix",
  "serde",
  "serde_json",
  "shared",
  "theframework",
  "vectorize",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

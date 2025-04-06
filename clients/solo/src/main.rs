@@ -20,8 +20,18 @@ pub mod prelude {
 
 use crate::solo::Solo;
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(start)]
+pub fn start() {
+    console_error_panic_hook::set_once(); // shows panic messages in browser console
+    main();
+}
+
 fn main() {
-    std::env::set_var("RUST_BACKTRACE", "1");
+    // std::env::set_var("RUST_BACKTRACE", "1");
 
     let solo = Solo::new();
     let mut app = TheApp::new();

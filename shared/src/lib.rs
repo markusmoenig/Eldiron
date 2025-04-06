@@ -8,6 +8,7 @@ pub mod item;
 pub mod project;
 pub mod region;
 pub mod renderer_utils;
+pub mod rusterix_utils;
 pub mod screen;
 pub mod settingscontainer;
 pub mod tilemap;
