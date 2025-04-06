@@ -1,17 +1,23 @@
 [workspace]
 
 members = ["creator", "run-wasm", "shared", "clients/solo"]
-#edition = "2021"
 resolver = "2"
 
 [workspace.dependencies]
 theframework = { version = "0.1.40", git = "https://github.com/markusmoenig/TheFramework", features = [
     "ui",
 ], default-features = true }
-# theframework = { path = "../../TheFramework", features = [
+# theframework = { path = "../TheFramework", features = [
 #     "ui",
 #     # "winit_app",
 # ], default-features = true }
 
 rusterix = { version = "0.2.8", git = "https://github.com/markusmoenig/Rusterix" }
-# rusterix = { path = "../../rusterix" }
+# rusterix = { path = "../rusterix" }
+
+[workspace.package]
+edition = "2024"
+version = "0.8.21"
+license = "MIT"
+authors = ["Markus Moenig"]
+description = "A game creator for classical RPGs."

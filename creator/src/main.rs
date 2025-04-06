@@ -78,7 +78,9 @@ use crate::editor::Editor;
 fn main() {
     let args: Vec<_> = std::env::args().collect();
 
-    std::env::set_var("RUST_BACKTRACE", "1");
+    // unsafe {
+    //     std::env::set_var("RUST_BACKTRACE", "1");
+    // }
 
     let editor = Editor::new();
     let mut app = TheApp::new();
