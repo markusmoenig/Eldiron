@@ -1351,6 +1351,11 @@ impl Sidebar {
                             layout.set_zoom(v);
                             layout.relayout(ctx);
                         }
+                        if let Some(curr_tilemap_uuid) = self.curr_tilemap_uuid {
+                            if let Some(tilemap) = project.get_tilemap(curr_tilemap_uuid) {
+                                tilemap.zoom = v;
+                            }
+                        }
                     }
                 } else if id.name == "Region Content Filter Edit"
                     || id.name == "Region Content Dropdown"

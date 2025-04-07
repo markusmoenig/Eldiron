@@ -108,8 +108,8 @@ impl TilemapEditor {
         // toolbar_hlayout.add_widget(Box::new(hdivider));
 
         let mut zoom = TheSlider::new(TheId::named("Tilemap Editor Zoom"));
-        zoom.set_value(TheValue::Float(1.0));
-        zoom.set_range(TheValue::RangeF32(0.5..=3.0));
+        zoom.set_value(TheValue::Float(2.0));
+        zoom.set_range(TheValue::RangeF32(0.5..=5.0));
         zoom.set_continuous(true);
         zoom.limiter_mut().set_max_width(120);
         toolbar_hlayout.add_widget(Box::new(zoom));
@@ -147,8 +147,16 @@ impl TilemapEditor {
     }
 
     /// Set the current tilemap
-    pub fn set_tilemap(&mut self, tilemap: &tilemap::Tilemap, ui: &mut TheUI, _: &mut TheContext) {
+    pub fn set_tilemap(
+        &mut self,
+        tilemap: &tilemap::Tilemap,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
         self.curr_tilemap_id = tilemap.id;
+
+        ui.set_widget_value("Tilemap Editor Zoom", ctx, TheValue::Float(tilemap.zoom));
+
         if let Some(rgba_layout) = ui.get_rgba_layout("Tilemap Editor") {
             rgba_layout.set_buffer(tilemap.buffer.clone());
             rgba_layout.set_scroll_offset(tilemap.scroll_offset);
@@ -161,6 +169,20 @@ impl TilemapEditor {
                 rgba_view.set_hover_color(Some(c));
                 rgba_view.set_rectangular_selection(true);
                 rgba_view.set_dont_show_grid(true);
+                rgba_view.set_zoom(tilemap.zoom);
+
+                let mut used = FxHashSet::default();
+
+                // Compute used
+                for tile in &tilemap.tiles {
+                    for region in &tile.sequence.regions {
+                        used.insert((
+                            region.x as i32 / tilemap.grid_size,
+                            region.y as i32 / tilemap.grid_size,
+                        ));
+                    }
+                }
+                rgba_view.set_used(used);
             }
         }
     }
@@ -406,6 +428,7 @@ impl TilemapEditor {
                                     if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id)
                                     {
                                         tilemap.tiles.push(tile);
+                                        self.set_tilemap(tilemap, ui, ctx);
                                     }
 
                                     let tiles = project.extract_tiles();

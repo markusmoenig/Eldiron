@@ -4082,7 +4082,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#c2a454d33ab84eedb97a0c8c64bc3c99b6a32c71"
+source = "git+https://github.com/markusmoenig/Rusterix#dc0dd10d522403800c05224efa415b26c038b25b"
 dependencies = [
  "bincode",
  "crossbeam-channel",
@@ -4090,9 +4090,10 @@ dependencies = [
  "fontdue",
  "image",
  "indexmap 2.9.0",
+ "instant",
  "ordered-float",
  "pathfinding",
- "rand 0.8.5",
+ "rand 0.9.0",
  "rayon",
  "rect_packer",
  "ref_thread_local",
@@ -5146,7 +5147,7 @@ checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
 [[package]]
 name = "theframework"
 version = "0.1.40"
-source = "git+https://github.com/markusmoenig/TheFramework#972f5988ce6150362d9bcfb8e3c7d41508cb6d0a"
+source = "git+https://github.com/markusmoenig/TheFramework#6320b3e1dbf516fe133a5b32b705ad4263efd5c3"
 dependencies = [
  "aict",
  "arboard",

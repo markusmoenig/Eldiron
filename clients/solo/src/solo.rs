@@ -1,11 +1,12 @@
-use crate::prelude::*;
 use crate::Embedded;
+use crate::prelude::*;
 use std::sync::mpsc::Receiver;
 //use std::sync::Mutex;
 use rusterix::{EntityAction, Rusterix, Value};
 use shared::{project::Project, rusterix_utils::*};
 
 pub struct Solo {
+    name: String,
     project: Project,
 
     update_tracker: UpdateTracker,
@@ -19,22 +20,64 @@ impl TheTrait for Solo {
     where
         Self: Sized,
     {
+        let mut game_name = "Eldiron Solo Adventure";
+        let mut project = Project::default();
+        let mut rusterix = Rusterix::default();
+        let mut cloned;
+
+        for file in Embedded::iter() {
+            let name = file.as_ref().to_string();
+            cloned = name.clone();
+
+            // Get the embedded project
+            if name.ends_with(".eldiron") {
+                game_name = cloned.split(".").next().unwrap_or_default();
+                if let Some(file) = Embedded::get(&name) {
+                    if let Ok(str_slice) = std::str::from_utf8(&file.data) {
+                        let json = str_slice.to_string();
+                        let emd_project: Option<Project> = serde_json::from_str(&json).ok();
+                        if let Some(emd_project) = emd_project {
+                            project = emd_project;
+
+                            let tiles = project.extract_tiles();
+                            rusterix.assets.set_rgba_tiles(tiles.clone());
+
+                            // Init server / client
+
+                            start_server(&mut rusterix, &mut project);
+                            let commands = setup_client(&mut rusterix, &mut project);
+                            rusterix.server.process_client_commands(commands);
+
+                            println!("Project loaded successfully ({}).", name);
+                        } else {
+                            println!("Failed to load project ({}).", name);
+                        }
+                    }
+                }
+                break;
+            }
+        }
+
         Self {
-            project: Project::new(),
+            name: game_name.into(),
+            project,
 
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
 
-            rusterix: Rusterix::default(),
+            rusterix,
         }
     }
 
     fn default_window_size(&self) -> (usize, usize) {
-        (800, 600)
+        (
+            self.rusterix.client.viewport.x as usize,
+            self.rusterix.client.viewport.y as usize,
+        )
     }
 
     fn window_title(&self) -> String {
-        "Eldiron Solo Adventure".to_string()
+        self.name.clone()
     }
 
     fn window_icon(&self) -> Option<(Vec<u8>, u32, u32)> {
@@ -59,32 +102,7 @@ impl TheTrait for Solo {
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         for file in Embedded::iter() {
             let name = file.as_ref();
-
-            // Get the embedded project
-            if name.ends_with(".eldiron") {
-                if let Some(file) = Embedded::get(name) {
-                    if let Ok(str_slice) = std::str::from_utf8(&file.data) {
-                        let json = str_slice.to_string();
-                        let project: Option<Project> = serde_json::from_str(&json).ok();
-                        if let Some(project) = project {
-                            self.project = project;
-
-                            let tiles = self.project.extract_tiles();
-                            self.rusterix.assets.set_rgba_tiles(tiles.clone());
-
-                            // Init server / client
-
-                            start_server(&mut self.rusterix, &mut self.project);
-                            let commands = setup_client(&mut self.rusterix, &mut self.project);
-                            self.rusterix.server.process_client_commands(commands);
-
-                            println!("Project loaded successfully ({}).", name);
-                        } else {
-                            println!("Failed to load project ({}).", name);
-                        }
-                    }
-                }
-            } else if name.ends_with(".png") {
+            if name.ends_with(".png") {
                 if let Some(file) = Embedded::get(name) {
                     let data = std::io::Cursor::new(file.data);
 
@@ -106,8 +124,7 @@ impl TheTrait for Solo {
             }
         }
 
-        // ---
-
+        // -
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
     }
 
@@ -200,6 +217,11 @@ impl TheTrait for Solo {
         }
 
         redraw
+    }
+
+    // Query if the widget needs a redraw
+    fn update(&mut self, _ctx: &mut TheContext) -> bool {
+        true
     }
 }
 

@@ -1,14 +1,14 @@
+use crate::Embedded;
 use crate::prelude::*;
 use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
-use crate::Embedded;
 use rusterix::{PlayerCamera, Rusterix, Texture, Value, ValueContainer};
 use shared::rusterix_utils::*;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{
-    mpsc::{channel, Receiver, Sender},
     Arc, Mutex,
+    mpsc::{Receiver, Sender, channel},
 };
 use std::thread;
 
@@ -434,8 +434,8 @@ impl TheTrait for Editor {
 
         // -
 
-        ctx.ui.set_disabled("Save");
-        ctx.ui.set_disabled("Save As");
+        // ctx.ui.set_disabled("Save");
+        // ctx.ui.set_disabled("Save As");
         ctx.ui.set_disabled("Undo");
         ctx.ui.set_disabled("Redo");
 
@@ -1468,8 +1468,8 @@ impl TheTrait for Editor {
                                 self.update_counter = 0;
                                 self.sidebar.startup = true;
 
-                                ctx.ui.set_disabled("Save");
-                                ctx.ui.set_disabled("Save As");
+                                // ctx.ui.set_disabled("Save");
+                                // ctx.ui.set_disabled("Save As");
                                 ctx.ui.set_disabled("Undo");
                                 ctx.ui.set_disabled("Redo");
                                 *UNDOMANAGER.write().unwrap() = UndoManager::default();
@@ -1580,8 +1580,8 @@ impl TheTrait for Editor {
                             self.project = Project::default();
                             self.project.regions.push(Region::default());
 
-                            ctx.ui.set_disabled("Save");
-                            ctx.ui.set_disabled("Save As");
+                            // ctx.ui.set_disabled("Save");
+                            // ctx.ui.set_disabled("Save As");
                             ctx.ui.set_disabled("Undo");
                             ctx.ui.set_disabled("Redo");
                             *UNDOMANAGER.write().unwrap() = UndoManager::default();

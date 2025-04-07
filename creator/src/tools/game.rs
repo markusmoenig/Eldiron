@@ -1,10 +1,14 @@
 use crate::{editor::RUSTERIX, prelude::*};
-use rusterix::{EntityAction, Value};
-use theframework::prelude::*;
 use MapEvent::*;
+use rusterix::{EntityAction, Value};
+use std::sync::Mutex;
+use theframework::prelude::*;
 
 pub struct GameTool {
     id: TheId,
+
+    right: Option<Mutex<Box<TheCanvas>>>,
+    toolbar: Option<Mutex<Box<TheCanvas>>>,
 }
 
 impl Tool for GameTool {
@@ -14,6 +18,9 @@ impl Tool for GameTool {
     {
         Self {
             id: TheId::named("Game Tool"),
+
+            right: None,
+            toolbar: None,
         }
     }
 
@@ -35,23 +42,54 @@ impl Tool for GameTool {
         tool_event: ToolEvent,
         _tool_context: ToolContext,
         ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         _project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
             ToolEvent::Activate => {
+                self.toolbar = None;
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                     layout.set_mode(TheSharedVLayoutMode::Top);
+                    if let Some(canvas) = layout.get_canvas_mut(0) {
+                        if let Some(tool) = canvas.bottom.take() {
+                            self.toolbar = Some(Mutex::new(tool));
+                        }
+                    }
                 }
                 server_ctx.curr_map_tool_type = MapToolType::Game;
                 server_ctx.game_mode = true;
+
+                if let Some(right) = ui.canvas.right.take() {
+                    self.right = Some(Mutex::new(right));
+                }
+                ctx.ui.redraw_all = true;
+                ctx.ui.relayout = true;
+
                 true
             }
             ToolEvent::DeActivate => {
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                     layout.set_mode(TheSharedVLayoutMode::Shared);
+                    if let Some(canvas) = layout.get_canvas_mut(0) {
+                        if let Some(tool) = &mut self.toolbar {
+                            let lock = tool.get_mut().unwrap();
+                            let boxed_canvas: Box<TheCanvas> =
+                                std::mem::replace(&mut *lock, Box::new(TheCanvas::default()));
+                            canvas.bottom = Some(boxed_canvas);
+                        }
+                    }
                 }
+
+                if let Some(right) = &mut self.right {
+                    let lock = right.get_mut().unwrap();
+                    let boxed_canvas: Box<TheCanvas> =
+                        std::mem::replace(&mut *lock, Box::new(TheCanvas::default()));
+                    ui.canvas.right = Some(boxed_canvas);
+                    ctx.ui.redraw_all = true;
+                    ctx.ui.relayout = true;
+                }
+
                 server_ctx.game_mode = false;
                 true
             }

@@ -1,9 +1,9 @@
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
-use rusterix::prelude::*;
-use vek::Vec2;
 use MapEvent::*;
 use ToolEvent::*;
+use rusterix::prelude::*;
+use vek::Vec2;
 
 pub struct LinedefTool {
     id: TheId,
@@ -280,8 +280,8 @@ impl Tool for LinedefTool {
                             if !map.selected_linedefs.contains(&l) {
                                 map.selected_linedefs.push(l);
                                 changed = true;
-                                self.click_selected = true;
                             }
+                            self.click_selected = true;
                         }
                     } else if ui.alt {
                         // Subtract
