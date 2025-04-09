@@ -1,10 +1,15 @@
 [package]
 name = "creator"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-authors.workspace = true
-description.workspace = true
+# version.workspace = true
+# edition.workspace = true
+# license.workspace = true
+# authors.workspace = true
+# description.workspace = true
+edition = "2024"
+version = "0.8.22"
+license = "MIT"
+authors = ["Markus Moenig"]
+description = "A game creator for classical RPGs."
 
 [[bin]]
 name = "eldiron"
