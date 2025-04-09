@@ -12,10 +12,16 @@ start_region = ""
 # The name of the start scren. If empty, shows the start region
 start_screen = ""
 
+# The name of the base currency
+base_currency_name = "Gold"
+
+# The symbol of the base currency
+base_currency_symbol = "G"
+
 [render]
 sample_mode = "nearest" # "nearest" or "linear"
 
 [viewport]
-width = 1280
-height = 720
+width = 960
+height = 540
 grid_size = 32

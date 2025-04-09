@@ -10,5 +10,9 @@ static = false
 blocking = false
 # If blocking is true, this is the radius of the item's collision circle
 radius = 0.5
+# The worth of the item in the base currency
+worth = 0.0
+# This item represents money
+monetary = false
 
 #[light]

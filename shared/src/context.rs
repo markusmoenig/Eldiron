@@ -265,7 +265,8 @@ impl ServerContext {
 
         // Check the vertices
         for vertex in &map.vertices {
-            if self.no_rect_geo_on_map && map.is_vertex_in_rect(vertex.id) {
+            if self.no_rect_geo_on_map {
+                //&& map.is_vertex_in_rect(vertex.id) {
                 continue;
             }
             if let Some(vertex_pos) = map.get_vertex(vertex.id) {

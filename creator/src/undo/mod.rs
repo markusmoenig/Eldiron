@@ -20,6 +20,7 @@ pub enum UndoManagerContext {
 #[derive(Clone, Debug)]
 pub struct UndoManager {
     pub context: UndoManagerContext,
+    pub max_undo: usize,
 
     regions: FxHashMap<Uuid, RegionUndo>,
     material: MaterialUndo,
@@ -37,6 +38,7 @@ impl UndoManager {
     pub fn new() -> Self {
         Self {
             context: UndoManagerContext::None,
+            max_undo: 30,
 
             regions: FxHashMap::default(),
             material: MaterialUndo::default(),
@@ -47,15 +49,13 @@ impl UndoManager {
 
     pub fn set_context(mut self, context: UndoManagerContext, _ctx: &mut TheContext) {
         self.context = context;
-        // match &self.context {
-        //     UndoManagerContext::Region => {}
-        // }
     }
 
     pub fn add_region_undo(&mut self, region: &Uuid, atom: RegionUndoAtom, ctx: &mut TheContext) {
         self.context = UndoManagerContext::Region;
         let region_undo = self.regions.entry(*region).or_default();
         region_undo.add(atom);
+        region_undo.truncate_to_limit(self.max_undo);
         ctx.ui.set_enabled("Undo");
         self.can_save(ctx);
     }
@@ -70,6 +70,7 @@ impl UndoManager {
     pub fn add_material_undo(&mut self, atom: MaterialUndoAtom, ctx: &mut TheContext) {
         self.context = UndoManagerContext::Material;
         self.material.add(atom);
+        self.material.truncate_to_limit(self.max_undo);
         ctx.ui.set_enabled("Undo");
         self.can_save(ctx);
     }
@@ -77,6 +78,7 @@ impl UndoManager {
     pub fn add_screen_undo(&mut self, atom: ScreenUndoAtom, ctx: &mut TheContext) {
         self.context = UndoManagerContext::Screen;
         self.screen.add(atom);
+        self.screen.truncate_to_limit(self.max_undo);
         ctx.ui.set_enabled("Undo");
         self.can_save(ctx);
     }
@@ -84,6 +86,7 @@ impl UndoManager {
     pub fn add_palette_undo(&mut self, atom: PaletteUndoAtom, ctx: &mut TheContext) {
         self.context = UndoManagerContext::Palette;
         self.palette.add(atom);
+        self.palette.truncate_to_limit(self.max_undo);
         ctx.ui.set_enabled("Undo");
         self.can_save(ctx);
     }
@@ -309,9 +312,4 @@ impl UndoManager {
         }
         false
     }
-
-    // Clears the ModelFX undo.
-    // pub fn clear_materialfx(&mut self) {
-    //     self.materialfx.clear();
-    // }
 }

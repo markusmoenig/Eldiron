@@ -1018,7 +1018,9 @@ impl Sidebar {
                             let dim = *render_view.dim();
                             let buffer = render_view.render_buffer_mut();
                             buffer.resize(dim.width, dim.height);
+                            //let time = ctx.get_time();
                             draw_minimap(region, buffer, server_ctx);
+                            //println!("{}", ctx.get_time() - time);
                         }
                     }
                 } else if id.name == "Update Tiles" {

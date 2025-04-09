@@ -102,4 +102,21 @@ impl MaterialUndo {
             self.stack[self.index as usize].redo(project, ui, ctx);
         }
     }
+
+    pub fn truncate_to_limit(&mut self, limit: usize) {
+        if self.stack.len() > limit {
+            let excess = self.stack.len() - limit;
+
+            // Remove the oldest `excess` entries from the front
+            self.stack.drain(0..excess);
+
+            // Adjust the index accordingly
+            self.index -= excess as isize;
+
+            // Clamp to -1 minimum in case we truncated everything
+            if self.index < -1 {
+                self.index = -1;
+            }
+        }
+    }
 }
