@@ -853,7 +853,7 @@ dependencies = [
 
 [[package]]
 name = "creator"
-version = "0.8.21"
+version = "0.8.22"
 dependencies = [
  "arboard",
  "fontdue",
@@ -4082,7 +4082,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#e45c8b48c256a46271da817e0eb00ccff29ed798"
+source = "git+https://github.com/markusmoenig/Rusterix#f1d5eba171862a1f2fe81d42a91abf57ff551dca"
 dependencies = [
  "bincode",
  "crossbeam-channel",
@@ -4756,7 +4756,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.8.21"
+version = "0.8.22"
 dependencies = [
  "earcutr",
  "fontdue",
@@ -4891,7 +4891,7 @@ dependencies = [
 
 [[package]]
 name = "solo"
-version = "0.8.21"
+version = "0.8.22"
 dependencies = [
  "console_error_panic_hook",
  "fontdue",
