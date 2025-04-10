@@ -18,6 +18,8 @@ pub static MATERIALPICKER: LazyLock<RwLock<MaterialPicker>> =
     LazyLock::new(|| RwLock::new(MaterialPicker::new("Main Material Picker".to_string())));
 pub static EFFECTPICKER: LazyLock<RwLock<EffectPicker>> =
     LazyLock::new(|| RwLock::new(EffectPicker::new("Main Effect Picker".to_string())));
+pub static SHAPEPICKER: LazyLock<RwLock<ShapePicker>> =
+    LazyLock::new(|| RwLock::new(ShapePicker::new("Main Shape Picker".to_string())));
 pub static TILEMAPEDITOR: LazyLock<RwLock<TilemapEditor>> =
     LazyLock::new(|| RwLock::new(TilemapEditor::new()));
 pub static SIDEBARMODE: LazyLock<RwLock<SidebarMode>> =

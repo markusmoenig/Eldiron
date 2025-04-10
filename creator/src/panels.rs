@@ -1,6 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, CONFIGEDITOR, EFFECTPICKER, INFOVIEWER, MATERIALPICKER, PREVIEWVIEW, TILEMAPEDITOR,
-    TILEPICKER,
+    CODEEDITOR, CONFIGEDITOR, EFFECTPICKER, INFOVIEWER, MATERIALPICKER, PREVIEWVIEW, SHAPEPICKER,
+    TILEMAPEDITOR, TILEPICKER,
 };
 use crate::prelude::*;
 
@@ -12,6 +12,7 @@ pub enum PanelIndices {
     DataEditor,
     MaterialPicker,
     EffectPicker,
+    ShapePicker,
     ConfigEditor,
     InfoViewer,
     PreviewView,
@@ -71,6 +72,7 @@ impl Panels {
         main_stack.add_canvas(CODEEDITOR.write().unwrap().build_data());
         main_stack.add_canvas(MATERIALPICKER.write().unwrap().build(false));
         main_stack.add_canvas(EFFECTPICKER.write().unwrap().build(false));
+        main_stack.add_canvas(SHAPEPICKER.write().unwrap().build(false));
         main_stack.add_canvas(CONFIGEDITOR.write().unwrap().build());
         main_stack.add_canvas(INFOVIEWER.write().unwrap().build());
         main_stack.add_canvas(PREVIEWVIEW.write().unwrap().build());
@@ -178,6 +180,13 @@ impl Panels {
             redraw = true;
         }
         if EFFECTPICKER
+            .write()
+            .unwrap()
+            .handle_event(event, ui, ctx, project, server_ctx)
+        {
+            redraw = true;
+        }
+        if SHAPEPICKER
             .write()
             .unwrap()
             .handle_event(event, ui, ctx, project, server_ctx)

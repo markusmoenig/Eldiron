@@ -3,13 +3,13 @@ pub use crate::prelude::*;
 pub mod code;
 pub mod config;
 pub mod data;
-pub mod fx;
 pub mod game;
 pub mod info;
 pub mod linedef;
 pub mod rect;
 pub mod sector;
 pub mod selection;
+pub mod shape;
 pub mod tileset;
 pub mod vertex;
 

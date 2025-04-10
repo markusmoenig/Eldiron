@@ -15,6 +15,7 @@ pub mod misc;
 pub mod panels;
 pub mod previewview;
 pub mod self_update;
+pub mod shapepicker;
 pub mod sidebar;
 pub mod tilemapeditor;
 pub mod tilepicker;
@@ -47,6 +48,7 @@ pub mod prelude {
     pub use crate::misc::*;
     pub use crate::panels::*;
     pub use crate::previewview::*;
+    pub use crate::shapepicker::*;
     pub use crate::sidebar::*;
     pub use crate::tilemapeditor::*;
     pub use crate::tilepicker::*;
@@ -58,7 +60,6 @@ pub mod prelude {
     pub use crate::utils::*;
 
     pub use crate::tools::code::CodeTool;
-    pub use crate::tools::fx::FXTool;
     pub use crate::tools::game::GameTool;
     pub use crate::tools::linedef::LinedefTool;
     pub use crate::tools::sector::SectorTool;
