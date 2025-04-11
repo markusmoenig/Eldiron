@@ -1,5 +1,6 @@
 use crate::editor::RUSTERIX;
 use crate::prelude::*;
+use rusterix::ShapeStack;
 use rusterix::prelude::*;
 use theframework::prelude::*;
 
@@ -434,16 +435,21 @@ impl Hud {
                 preview_height,
             );
 
-            let mut pixels = vec![0; (preview_width * preview_height * 4) as usize];
-            pixels.fill(255);
-            let mut texture = Texture::new(pixels, preview_width as usize, preview_height as usize);
+            // let mut pixels = vec![0; (preview_width * preview_height * 4) as usize];
+            // pixels.fill(255);
+            // let mut texture = Texture::new(pixels, preview_width as usize, preview_height as usize);
 
-            let builder = D2MaterialBuilder::new();
-            builder.build_texture(map, &RUSTERIX.read().unwrap().assets, &mut texture);
+            // let builder = D2MaterialBuilder::new();
+            // builder.build_texture(map, &RUSTERIX.read().unwrap().assets, &mut texture);
+
+            let mut target = TheRGBABuffer::new(TheDim::sized(preview_width, preview_height));
+
+            let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
+            stack.render(&mut target, map);
 
             ctx.draw.copy_slice(
                 buffer.pixels_mut(),
-                &texture.data,
+                target.pixels(),
                 &preview_rect.to_buffer_utuple(),
                 stride,
             );
