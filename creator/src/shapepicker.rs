@@ -15,6 +15,8 @@ pub struct ShapePicker {
     pub effects: Vec<EffectWrapper>,
 
     pub curr_shape_type: Option<ShapeType>,
+
+    pub shapes: FxHashMap<ShapeType, Shape>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -26,6 +28,11 @@ impl ShapePicker {
             EffectWrapper::RusterixLight(Light::new(LightType::Daylight)),
         ];
 
+        let mut shapes: FxHashMap<ShapeType, Shape> = FxHashMap::default();
+        shapes.insert(ShapeType::Circle, Shape::new_with_type(ShapeType::Circle));
+        shapes.insert(ShapeType::Star, Shape::new_with_type(ShapeType::Star));
+        shapes.insert(ShapeType::Bricks, Shape::new_with_type(ShapeType::Bricks));
+
         Self {
             id,
             shape_map: FxHashMap::default(),
@@ -35,6 +42,7 @@ impl ShapePicker {
             zoom: 1.0,
 
             effects,
+            shapes,
 
             curr_shape_type: None,
         }
@@ -151,9 +159,6 @@ impl ShapePicker {
                         grid as u32,
                     );
 
-                    // if let Some(icon) = ctx.ui.icon(&fx.icon()) {
-                    //     rgba.copy_into(0, 0, icon);
-                    // }
                     let shape_type = ShapeType::from(i as i32);
                     let mut shape = Shape::new_with_type(shape_type);
                     shape.preview(&mut rgba);
@@ -175,7 +180,7 @@ impl ShapePicker {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
 
@@ -187,6 +192,7 @@ impl ShapePicker {
                 if id.name == self.make_id(" RGBA Layout View") {
                     if let Some(shape_type) = self.shape_map.get(&(pos.x, pos.y)) {
                         self.curr_shape_type = Some(*shape_type);
+                        self.apply_shape_settings(ui, ctx, project, server_ctx);
                         redraw = true;
                     }
                 }
@@ -224,7 +230,14 @@ impl ShapePicker {
             //     }
             //}
             TheEvent::ValueChanged(id, value) => {
-                if id.name == self.make_id(" Filter Edit") {
+                if id.name == "shapeSize" {
+                    if let Some(shape_type) = self.curr_shape_type {
+                        if let Some(shape) = self.shapes.get_mut(&shape_type) {
+                            shape.size.x = value.to_f32().unwrap();
+                            shape.size.y = shape.size.x;
+                        }
+                    }
+                } else if id.name == self.make_id(" Filter Edit") {
                     if let TheValue::Text(filter) = value {
                         self.filter = filter.to_lowercase();
                         self.update_tiles(project, ui, ctx);
@@ -244,6 +257,47 @@ impl ShapePicker {
             _ => {}
         }
         redraw
+    }
+
+    /// Sets the node settings for the map selection.
+    fn apply_shape_settings(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        // Create Node Settings if necessary
+        if let Some(layout) = ui.get_text_layout("Node Settings") {
+            layout.clear();
+        }
+
+        let mut nodeui = TheNodeUI::default();
+
+        if let Some(shape_type) = self.curr_shape_type {
+            if let Some(shape) = self.shapes.get(&shape_type) {
+                let item = TheNodeUIItem::FloatEditSlider(
+                    "shapeSize".into(),
+                    "Size".into(),
+                    "Set the size of the shape.".into(),
+                    shape.size.x,
+                    0.0..=4.0,
+                    false,
+                );
+                nodeui.add_item(item);
+            }
+        }
+
+        if let Some(layout) = ui.get_text_layout("Node Settings") {
+            nodeui.apply_to_text_layout(layout);
+            // layout.relayout(ctx);
+            ctx.ui.relayout = true;
+
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Show Node Settings"),
+                TheValue::Text("Shape Settings".to_string()),
+            ));
+        }
     }
 
     ///  Create an id.

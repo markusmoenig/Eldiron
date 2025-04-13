@@ -110,27 +110,29 @@ impl Tool for ShapeTool {
                     );
 
                     if let Some(shape_type) = SHAPEPICKER.read().unwrap().curr_shape_type {
-                        let old_subdiv = map.subdivisions;
-                        map.subdivisions = 10.0;
-                        let mut shape = Shape::new_with_type(shape_type);
-                        shape.center = grid_pos;
+                        if let Some(sh) = SHAPEPICKER.read().unwrap().shapes.get(&shape_type) {
+                            let mut shape = sh.clone();
+                            let old_subdiv = map.subdivisions;
+                            map.subdivisions = 10.0;
+                            shape.center = grid_pos;
 
-                        let ids = shape.create(map);
+                            let ids = shape.create(map);
 
-                        map.subdivisions = old_subdiv;
-                        map.selected_vertices = vec![];
-                        map.selected_linedefs = vec![];
-                        map.selected_sectors = ids;
+                            map.subdivisions = old_subdiv;
+                            map.selected_vertices = vec![];
+                            map.selected_linedefs = vec![];
+                            map.selected_sectors = ids;
 
-                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                        undo_atom = Some(RegionUndoAtom::MapEdit(
-                            Box::new(prev),
-                            Box::new(map.clone()),
-                        ));
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Map Selection Changed"),
-                            TheValue::Empty,
-                        ));
+                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            undo_atom = Some(RegionUndoAtom::MapEdit(
+                                Box::new(prev),
+                                Box::new(map.clone()),
+                            ));
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Map Selection Changed"),
+                                TheValue::Empty,
+                            ));
+                        }
                     }
                 }
             }

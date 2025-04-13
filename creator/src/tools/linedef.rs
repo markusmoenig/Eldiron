@@ -89,7 +89,7 @@ impl Tool for LinedefTool {
                         "Apply procedural materials.".to_string(),
                     );
                     source_switch
-                        .add_text_status("Colors".to_string(), "Apply a color.".to_string());
+                        .add_text_status("Nodes".to_string(), "Apply a color.".to_string());
                     source_switch
                         .add_text_status("Effects".to_string(), "Apply an effect.".to_string());
                     source_switch
