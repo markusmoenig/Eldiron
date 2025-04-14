@@ -609,9 +609,7 @@ impl Hud {
             }
         } else if server_ctx.curr_map_context == MapContext::Material {
             if index == 0 {
-                text = "IN 1".into();
-            } else if index == 1 {
-                text = "IN 2".into();
+                text = "GRAPH".into();
             }
         } else if server_ctx.curr_map_context == MapContext::Screen {
             if index == 0 {

@@ -1,9 +1,10 @@
+use crate::editor::NODEEDITOR;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
-use rusterix::{PixelSource, Value};
-use vek::Vec2;
 use MapEvent::*;
 use ToolEvent::*;
+use rusterix::{PixelSource, Value};
+use vek::Vec2;
 
 pub struct SectorTool {
     id: TheId,
@@ -453,7 +454,22 @@ impl Tool for SectorTool {
             TheEvent::StateChanged(id, state) => {
                 #[allow(clippy::collapsible_if)]
                 if id.name == "Apply Map Properties" && *state == TheWidgetState::Clicked {
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
+                    if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            for sector_id in &map.selected_sectors.clone() {
+                                if let Some(sector) = map.find_sector_mut(*sector_id) {
+                                    let node_editor = NODEEDITOR.read().unwrap();
+                                    if !node_editor.graph.effects.is_empty() {
+                                        // source = Some(Value::Source(PixelSource::ShapeFXGraphId(
+                                        //     node_editor.graph.id,
+                                        // )));
+                                        sector.effect_graph = Some(node_editor.graph.id);
+                                        println!("applied");
+                                    }
+                                }
+                            }
+                        }
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             if let Some(effect) = &server_ctx.curr_effect {
                                 if let Some(light) = effect.to_light(Vec2::zero()) {
@@ -679,7 +695,7 @@ impl Tool for SectorTool {
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
-                            PanelIndices::ColorPicker as usize,
+                            PanelIndices::NodeEditor as usize,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
                         ctx.ui.send(TheEvent::SetStackIndex(

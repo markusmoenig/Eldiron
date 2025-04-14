@@ -2,7 +2,6 @@ use crate::editor::SHAPEPICKER;
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
-use rusterix::Shape;
 
 pub struct ShapeTool {
     id: TheId,

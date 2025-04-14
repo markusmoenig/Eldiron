@@ -12,6 +12,7 @@ pub mod mapeditor;
 pub mod materialpicker;
 pub mod minimap;
 pub mod misc;
+pub mod nodeeditor;
 pub mod panels;
 pub mod previewview;
 pub mod self_update;
@@ -71,6 +72,7 @@ pub mod prelude {
 
     pub use crate::configeditor::ConfigEditor;
     pub use crate::infoviewer::InfoViewer;
+    pub use crate::nodeeditor::NodeEditor;
     pub use toml::Table;
 }
 

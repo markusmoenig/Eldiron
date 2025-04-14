@@ -1,6 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, CONFIGEDITOR, EFFECTPICKER, INFOVIEWER, MATERIALPICKER, PREVIEWVIEW, SHAPEPICKER,
-    TILEMAPEDITOR, TILEPICKER,
+    CODEEDITOR, CONFIGEDITOR, EFFECTPICKER, INFOVIEWER, MATERIALPICKER, NODEEDITOR, PREVIEWVIEW,
+    SHAPEPICKER, TILEMAPEDITOR, TILEPICKER,
 };
 use crate::prelude::*;
 
@@ -16,6 +16,7 @@ pub enum PanelIndices {
     ConfigEditor,
     InfoViewer,
     PreviewView,
+    NodeEditor,
 }
 
 pub struct Panels {}
@@ -76,6 +77,7 @@ impl Panels {
         main_stack.add_canvas(CONFIGEDITOR.write().unwrap().build());
         main_stack.add_canvas(INFOVIEWER.write().unwrap().build());
         main_stack.add_canvas(PREVIEWVIEW.write().unwrap().build());
+        main_stack.add_canvas(NODEEDITOR.write().unwrap().build());
         main_stack.set_index(0);
 
         let tilemap_editor = TheRGBALayout::new(TheId::named("Tilemap Editor"));
@@ -187,6 +189,13 @@ impl Panels {
             redraw = true;
         }
         if SHAPEPICKER
+            .write()
+            .unwrap()
+            .handle_event(event, ui, ctx, project, server_ctx)
+        {
+            redraw = true;
+        }
+        if NODEEDITOR
             .write()
             .unwrap()
             .handle_event(event, ui, ctx, project, server_ctx)

@@ -264,8 +264,8 @@ impl ShapePicker {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &mut Project,
-        server_ctx: &mut ServerContext,
+        _project: &mut Project,
+        _server_ctx: &mut ServerContext,
     ) {
         // Create Node Settings if necessary
         if let Some(layout) = ui.get_text_layout("Node Settings") {

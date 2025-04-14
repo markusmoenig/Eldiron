@@ -43,6 +43,8 @@ pub static CONFIG: LazyLock<RwLock<toml::Table>> =
     LazyLock::new(|| RwLock::new(toml::Table::default()));
 pub static PREVIEWVIEW: LazyLock<RwLock<PreviewView>> =
     LazyLock::new(|| RwLock::new(PreviewView::new()));
+pub static NODEEDITOR: LazyLock<RwLock<NodeEditor>> =
+    LazyLock::new(|| RwLock::new(NodeEditor::new()));
 
 pub struct Editor {
     project: Project,
