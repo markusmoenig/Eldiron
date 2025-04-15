@@ -4,9 +4,9 @@ use shared::prelude::*;
 
 use rusterix::{ShapeFX, ShapeFXGraph, ShapeFXRole};
 
-pub struct NodeEditor {
-    material_start_index: i32,
+use ShapeFXRole::*;
 
+pub struct NodeEditor {
     pub graph: ShapeFXGraph,
 }
 
@@ -14,8 +14,6 @@ pub struct NodeEditor {
 impl NodeEditor {
     pub fn new() -> Self {
         Self {
-            material_start_index: 0,
-
             graph: ShapeFXGraph::default(),
         }
     }
@@ -174,6 +172,7 @@ impl NodeEditor {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             map.effect_graphs.insert(self.graph.id, self.graph.clone());
                         }
+                        self.set_selected_node_ui(server_ctx, project, ui, ctx, true);
                     }
                 }
             }
@@ -271,7 +270,7 @@ impl NodeEditor {
             TheEvent::NodeSelectedIndexChanged(id, index) => {
                 if id.name == "ShapeFX NodeCanvas" {
                     self.graph.selected_node = *index;
-                    self.set_selected_material_node_ui(server_ctx, project, ui, ctx, true);
+                    self.set_selected_node_ui(server_ctx, project, ui, ctx, true);
                     if let Some(map) = project.get_map_mut(server_ctx) {
                         map.effect_graphs.insert(self.graph.id, self.graph.clone());
                     }
@@ -362,7 +361,24 @@ impl NodeEditor {
                 //     }
                 // }
             }
-            // TheEvent::ValueChanged(id, value) => {
+            TheEvent::ValueChanged(id, value) => {
+                if id.name.starts_with("shapefx") {
+                    let snake_case = self.transform_to_snake_case(&id.name, "shapefx");
+                    if let Some(index) = self.graph.selected_node {
+                        if let Some(node) = self.graph.effects.get_mut(index) {
+                            match value {
+                                TheValue::FloatRange(v, _) => {
+                                    node.values.set(&snake_case, rusterix::Value::Float(*v))
+                                }
+                                TheValue::IntRange(v, _) => {
+                                    node.values.set(&snake_case, rusterix::Value::Int(*v))
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
             /*
             if id.name.starts_with(":MATERIALFX:") {
                 if let Some(name) = id.name.strip_prefix(":MATERIALFX: ") {
@@ -448,46 +464,68 @@ impl NodeEditor {
         redraw
     }
 
-    pub fn set_material_selection(
-        &self,
-        ui: &mut TheUI,
-        _ctx: &mut TheContext,
-        _project: &mut Project,
+    pub fn set_selected_node_ui(
+        &mut self,
         _server_ctx: &mut ServerContext,
-        index: Option<u8>,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        switch_to_nodes: bool,
     ) {
-        for i in 0..20 {
-            if let Some(icon_view) = ui.get_icon_view(&format!("Material Icon #{}", i)) {
-                let icon_index = (self.material_start_index + i) as u8;
+        let mut nodeui = TheNodeUI::default();
 
-                if Some(icon_index) == index {
-                    icon_view.set_border_color(Some(WHITE));
-                } else {
-                    icon_view.set_border_color(Some(BLACK));
+        if let Some(index) = self.graph.selected_node {
+            if let Some(node) = self.graph.effects.get(index) {
+                match node.role {
+                    Gradient => {
+                        let item = TheNodeUIItem::FloatEditSlider(
+                            "shapefxDirection".into(),
+                            "Direction".into(),
+                            "The gradient direction.".into(),
+                            node.values.get_float_default("direction", 0.0),
+                            0.0..=360.0,
+                            false,
+                        );
+                        nodeui.add_item(item);
+
+                        let item = TheNodeUIItem::PaletteSlider(
+                            "shapefxFrom".into(),
+                            "From".into(),
+                            "Set the start color".into(),
+                            node.values.get_int_default("from", 0),
+                            project.palette.clone(),
+                            false,
+                        );
+                        nodeui.add_item(item);
+
+                        let item = TheNodeUIItem::PaletteSlider(
+                            "shapefxTo".into(),
+                            "To".into(),
+                            "Set the end color".into(),
+                            node.values.get_int_default("to", 1),
+                            project.palette.clone(),
+                            false,
+                        );
+                        nodeui.add_item(item);
+                    }
+                    _ => {}
                 }
             }
         }
-        // if let Some(index) = index {
-        //     if let Some((id, material)) = project.materials.get_index_mut(index as usize) {
-        //         let node_canvas = material.to_canvas(&project.palette);
-        //         ui.set_node_canvas("Map NodeCanvas", node_canvas);
-        //         server_ctx.curr_material = Some(*id);
-        //     }
-        // } else {
-        //     let mut material = MaterialFXObject::default();
-        //     let node_canvas = material.to_canvas(&project.palette);
-        //     ui.set_node_canvas("Map NodeCanvas", node_canvas);
-        // }
-    }
 
-    pub fn set_selected_material_node_ui(
-        &mut self,
-        _server_ctx: &mut ServerContext,
-        _project: &mut Project,
-        _ui: &mut TheUI,
-        _ctx: &mut TheContext,
-        _switch_to_nodes: bool,
-    ) {
+        if let Some(layout) = ui.get_text_layout("Node Settings") {
+            nodeui.apply_to_text_layout(layout);
+            // layout.relayout(ctx);
+            ctx.ui.relayout = true;
+
+            if switch_to_nodes {
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Show Node Settings"),
+                    TheValue::Text("Linedef Settings".to_string()),
+                ));
+            }
+        }
+
         /*
         if let Some(material_id) = server_ctx.curr_material {
             if let Some(material) = project.materials.get_mut(&material_id) {
@@ -564,5 +602,30 @@ impl NodeEditor {
         } else if let Some(text_layout) = ui.get_text_layout("Node Settings") {
             text_layout.clear();
         }*/
+    }
+
+    fn transform_to_snake_case(&self, input: &str, strip_prefix: &str) -> String {
+        // Strip the prefix if it exists
+        let stripped = if let Some(remainder) = input.strip_prefix(strip_prefix) {
+            remainder
+        } else {
+            input
+        };
+
+        // Convert to snake_case
+        let mut snake_case = String::new();
+        for (i, c) in stripped.chars().enumerate() {
+            if c.is_uppercase() {
+                // Add an underscore before uppercase letters (except for the first character)
+                if i > 0 {
+                    snake_case.push('_');
+                }
+                snake_case.push(c.to_ascii_lowercase());
+            } else {
+                snake_case.push(c);
+            }
+        }
+
+        snake_case
     }
 }

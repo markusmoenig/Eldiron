@@ -1,7 +1,7 @@
-use shared::tilemap;
-
 use crate::editor::RUSTERIX;
+use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
+use shared::tilemap;
 
 #[derive(PartialEq)]
 enum AddMode {
@@ -272,7 +272,7 @@ impl TilemapEditor {
                 }
             }
             TheEvent::DialogValueOnClose(role, name, uuid, value) => {
-                if name == "Rename Tilemap" && *role == TheDialogButtonRole::Accept {
+                if name == "Rename Tileset" && *role == TheDialogButtonRole::Accept {
                     if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
                         tilemap.name = value.describe();
                         ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
@@ -280,17 +280,52 @@ impl TilemapEditor {
                 }
             }
             TheEvent::ContextMenuSelected(_widget_id, item_id) => {
-                if item_id.name == "Rename Tilemap" {
+                if item_id.name == "Rename Tileset" {
                     if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
                         open_text_dialog(
-                            "Rename Tilemap",
-                            "Tilemap Name",
+                            "Rename Tileset",
+                            "Tilset Name",
                             tilemap.name.as_str(),
                             self.curr_tilemap_id,
                             ui,
                             ctx,
                         );
                     }
+                } else if item_id.name == "Add Tileset Colors" {
+                    let prev = project.palette.clone();
+                    if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id).cloned() {
+                        let width = tilemap.buffer.dim().width;
+                        let height = tilemap.buffer.dim().height;
+                        for y in 0..height {
+                            for x in 0..width {
+                                if let Some(c) = tilemap.buffer.get_pixel(x, y) {
+                                    let color = TheColor::from(c);
+                                    if color.a == 1.0 {
+                                        project.palette.add_unique_color(color);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
+                        let index = palette_picker.index();
+
+                        palette_picker.set_palette(project.palette.clone());
+                        if let Some(widget) = ui.get_widget("Palette Color Picker") {
+                            if let Some(color) = &project.palette[index] {
+                                widget.set_value(TheValue::ColorObject(color.clone()));
+                            }
+                        }
+                        if let Some(widget) = ui.get_widget("Palette Hex Edit") {
+                            if let Some(color) = &project.palette[index] {
+                                widget.set_value(TheValue::Text(color.to_hex()));
+                            }
+                        }
+                    }
+                    redraw = true;
+
+                    let undo = PaletteUndoAtom::Edit(prev, project.palette.clone());
+                    UNDOMANAGER.write().unwrap().add_palette_undo(undo, ctx);
                 }
             }
             TheEvent::TileSelectionChanged(id) => {

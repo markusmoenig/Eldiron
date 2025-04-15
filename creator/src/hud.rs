@@ -68,6 +68,7 @@ impl Hud {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
         id: Option<u32>,
+        palette: &ThePalette,
     ) {
         if (self.mode == HudMode::Linedef || self.mode == HudMode::Sector)
             && self.light_icon.is_none()
@@ -445,7 +446,7 @@ impl Hud {
             let mut target = TheRGBABuffer::new(TheDim::sized(preview_width, preview_height));
 
             let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
-            stack.render(&mut target, map);
+            stack.render(&mut target, map, palette);
 
             ctx.draw.copy_slice(
                 buffer.pixels_mut(),

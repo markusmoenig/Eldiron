@@ -1,10 +1,10 @@
 use crate::editor::RUSTERIX;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
-use rusterix::prelude::*;
-use vek::Vec2;
 use MapEvent::*;
 use ToolEvent::*;
+use rusterix::prelude::*;
+use vek::Vec2;
 
 pub struct RectTool {
     id: TheId,
@@ -410,13 +410,14 @@ impl Tool for RectTool {
         map: &mut Map,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
+        palette: &ThePalette,
     ) {
         let id = if !map.selected_linedefs.is_empty() {
             Some(map.selected_linedefs[0])
         } else {
             None
         };
-        self.hud.draw(buffer, map, ctx, server_ctx, id);
+        self.hud.draw(buffer, map, ctx, server_ctx, id, palette);
     }
 
     fn handle_event(

@@ -431,19 +431,20 @@ impl Tool for SectorTool {
         map: &mut Map,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
+        palette: &ThePalette,
     ) {
         let id = if !map.selected_sectors.is_empty() {
             Some(map.selected_sectors[0])
         } else {
             None
         };
-        self.hud.draw(buffer, map, ctx, server_ctx, id);
+        self.hud.draw(buffer, map, ctx, server_ctx, id, palette);
     }
 
     fn handle_event(
         &mut self,
         event: &TheEvent,
-        ui: &mut TheUI,
+        _ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
@@ -454,22 +455,7 @@ impl Tool for SectorTool {
             TheEvent::StateChanged(id, state) => {
                 #[allow(clippy::collapsible_if)]
                 if id.name == "Apply Map Properties" && *state == TheWidgetState::Clicked {
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-                        if let Some(map) = project.get_map_mut(server_ctx) {
-                            for sector_id in &map.selected_sectors.clone() {
-                                if let Some(sector) = map.find_sector_mut(*sector_id) {
-                                    let node_editor = NODEEDITOR.read().unwrap();
-                                    if !node_editor.graph.effects.is_empty() {
-                                        // source = Some(Value::Source(PixelSource::ShapeFXGraphId(
-                                        //     node_editor.graph.id,
-                                        // )));
-                                        sector.effect_graph = Some(node_editor.graph.id);
-                                        println!("applied");
-                                    }
-                                }
-                            }
-                        }
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
+                    if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             if let Some(effect) = &server_ctx.curr_effect {
                                 if let Some(light) = effect.to_light(Vec2::zero()) {
@@ -541,13 +527,20 @@ impl Tool for SectorTool {
                                 source = Some(Value::Source(PixelSource::MaterialId(id)));
                             }
                         } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-                            if let Some(palette_picker) =
-                                ui.get_palette_picker("Panel Palette Picker")
-                            {
-                                if let Some(color) = &project.palette.colors[palette_picker.index()]
-                                {
-                                    source = Some(Value::Source(PixelSource::Color(color.clone())));
-                                }
+                            // if let Some(palette_picker) =
+                            //     ui.get_palette_picker("Panel Palette Picker")
+                            // {
+                            //     if let Some(color) = &project.palette.colors[palette_picker.index()]
+                            //     {
+                            //         source = Some(Value::Source(PixelSource::Color(color.clone())));
+                            //     }
+                            // }
+                            let node_editor = NODEEDITOR.read().unwrap();
+                            if !node_editor.graph.effects.is_empty() {
+                                source = Some(Value::Source(PixelSource::ShapeFXGraphId(
+                                    node_editor.graph.id,
+                                )));
+                                println!("applied");
                             }
                         }
 

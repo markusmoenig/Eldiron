@@ -1445,10 +1445,16 @@ impl Sidebar {
                                     item.set_text(tilemap.name.clone());
                                     item.set_state(TheWidgetState::Selected);
                                     item.set_context_menu(Some(TheContextMenu {
-                                        items: vec![TheContextMenuItem::new(
-                                            "Rename Tilemap...".to_string(),
-                                            TheId::named("Rename Tilemap"),
-                                        )],
+                                        items: vec![
+                                            TheContextMenuItem::new(
+                                                "Rename Tileset...".to_string(),
+                                                TheId::named("Rename Tileset"),
+                                            ),
+                                            TheContextMenuItem::new(
+                                                "Add Colors to Palette".to_string(),
+                                                TheId::named("Add Tileset Colors"),
+                                            ),
+                                        ],
                                         ..Default::default()
                                     }));
                                     list_layout.deselect_all();
@@ -1546,10 +1552,16 @@ impl Sidebar {
                             item.set_text(name.clone());
                             item.set_state(TheWidgetState::Selected);
                             item.set_context_menu(Some(TheContextMenu {
-                                items: vec![TheContextMenuItem::new(
-                                    "Rename Tilemap...".to_string(),
-                                    TheId::named("Rename Tilemap"),
-                                )],
+                                items: vec![
+                                    TheContextMenuItem::new(
+                                        "Rename Tileset...".to_string(),
+                                        TheId::named("Rename Tileset"),
+                                    ),
+                                    TheContextMenuItem::new(
+                                        "Add Colors to Palette".to_string(),
+                                        TheId::named("Add Tileset Colors"),
+                                    ),
+                                ],
                                 ..Default::default()
                             }));
                             list_layout.deselect_all();
@@ -2411,10 +2423,16 @@ impl Sidebar {
                 let mut item = TheListItem::new(TheId::named_with_id("Tilemap Item", tilemap.id));
                 item.set_text(tilemap.name.clone());
                 item.set_context_menu(Some(TheContextMenu {
-                    items: vec![TheContextMenuItem::new(
-                        "Rename Tilemap...".to_string(),
-                        TheId::named("Rename Tilemap"),
-                    )],
+                    items: vec![
+                        TheContextMenuItem::new(
+                            "Rename Tileset...".to_string(),
+                            TheId::named("Rename Tileset"),
+                        ),
+                        TheContextMenuItem::new(
+                            "Add Colors to Palette".to_string(),
+                            TheId::named("Add Tileset Colors"),
+                        ),
+                    ],
                     ..Default::default()
                 }));
                 list_layout.add_item(item, ctx);

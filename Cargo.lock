@@ -2510,9 +2510,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.171"
+version = "0.2.172"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c19937216e9d3aa9956d9bb8dfc0b0c8beb6058fc4f7a4dc4d850edf86a237d6"
+checksum = "d750af042f7ef4f724306de029d18836c26c1765a54a6a3f094cbd23a7267ffa"
 
 [[package]]
 name = "libfuzzer-sys"
@@ -3792,9 +3792,9 @@ dependencies = [
 
 [[package]]
 name = "ravif"
-version = "0.11.11"
+version = "0.11.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2413fd96bd0ea5cdeeb37eaf446a22e6ed7b981d792828721e74ded1980a45c6"
+checksum = "d6a5f31fcf7500f9401fea858ea4ab5525c99f2322cfcee732c0e6c74208c0c6"
 dependencies = [
  "avif-serialize",
  "imgref",
@@ -4082,7 +4082,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#7d4c6d1e2e4fc3087ff8763dfac33542a8627aff"
+source = "git+https://github.com/markusmoenig/Rusterix#3d35f1151f754342decb95dca571f9b5d7a1e285"
 dependencies = [
  "bincode",
  "crossbeam-channel",
@@ -5147,7 +5147,7 @@ checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
 [[package]]
 name = "theframework"
 version = "0.1.40"
-source = "git+https://github.com/markusmoenig/TheFramework#05943856ea06719170e0ad7f2d8fd79665c8fe3a"
+source = "git+https://github.com/markusmoenig/TheFramework#3e799a92c058dbd7342b764c89af40c3b9e902a2"
 dependencies = [
  "aict",
  "arboard",

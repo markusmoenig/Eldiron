@@ -95,6 +95,7 @@ pub trait Tool: Send + Sync {
         map: &mut Map,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
+        palette: &ThePalette,
     ) {
     }
 }

@@ -131,8 +131,9 @@ impl ToolList {
         map: &mut Map,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
+        palette: &ThePalette,
     ) {
-        self.game_tools[self.curr_game_tool].draw_hud(buffer, map, ctx, server_ctx);
+        self.game_tools[self.curr_game_tool].draw_hud(buffer, map, ctx, server_ctx, palette);
     }
 
     #[allow(clippy::too_many_arguments)]
