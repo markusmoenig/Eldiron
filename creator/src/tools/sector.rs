@@ -74,68 +74,7 @@ impl Tool for SectorTool {
                     region.map.selected_linedefs.clear();
                 }
 
-                if let Some(layout) = ui.get_hlayout("Game Tool Params") {
-                    layout.clear();
-
-                    let mut source_switch = TheGroupButton::new(TheId::named("Map Helper Switch"));
-                    source_switch.add_text_status(
-                        "Tile Picker".to_string(),
-                        "Show tile picker.".to_string(),
-                    );
-                    source_switch
-                        .add_text_status("Materials".to_string(), "Apply materials.".to_string());
-                    source_switch
-                        .add_text_status("Colors".to_string(), "Apply a color.".to_string());
-                    source_switch
-                        .add_text_status("Effects".to_string(), "Apply an effect.".to_string());
-                    source_switch
-                        .add_text_status("Preview".to_string(), "Preview the map.".to_string());
-                    source_switch.set_item_width(80);
-                    source_switch.set_index(server_ctx.curr_map_tool_helper as i32);
-                    layout.add_widget(Box::new(source_switch));
-
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::TilePicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::MaterialPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::ColorPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::EffectPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::PreviewView as usize,
-                        ));
-                    }
-
-                    let mut set_source_button =
-                        TheTraybarButton::new(TheId::named("Apply Map Properties"));
-                    set_source_button.set_status_text("Apply the source to the selected geometry.");
-                    set_source_button.set_text("Apply".to_string());
-                    layout.add_widget(Box::new(set_source_button));
-
-                    let mut rem_source_button =
-                        TheTraybarButton::new(TheId::named("Remove Map Properties"));
-                    rem_source_button
-                        .set_status_text("Remove the source from the selected geometry.");
-                    rem_source_button.set_text("Remove".to_string());
-                    layout.add_widget(Box::new(rem_source_button));
-
-                    layout.set_reverse_index(Some(2));
-                }
+                self.activate_map_tool_helper(ui, ctx, project, server_ctx);
 
                 return true;
             }
@@ -540,7 +479,6 @@ impl Tool for SectorTool {
                                 source = Some(Value::Source(PixelSource::ShapeFXGraphId(
                                     node_editor.graph.id,
                                 )));
-                                println!("applied");
                             }
                         }
 

@@ -3584,9 +3584,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.94"
+version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a31971752e70b8b2686d7e46ec17fb38dad4051d94024c88df49b667caea9c84"
+checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
 dependencies = [
  "unicode-ident",
 ]
@@ -4082,7 +4082,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#3d35f1151f754342decb95dca571f9b5d7a1e285"
+source = "git+https://github.com/markusmoenig/Rusterix#a9957679a70336f72142b3235652615c7fb45b5a"
 dependencies = [
  "bincode",
  "crossbeam-channel",
@@ -5147,7 +5147,7 @@ checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
 [[package]]
 name = "theframework"
 version = "0.1.40"
-source = "git+https://github.com/markusmoenig/TheFramework#3e799a92c058dbd7342b764c89af40c3b9e902a2"
+source = "git+https://github.com/markusmoenig/TheFramework#3d8a4c538d3ad129b0e946c8ae89d6b166923c99"
 dependencies = [
  "aict",
  "arboard",

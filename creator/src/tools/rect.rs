@@ -69,71 +69,7 @@ impl Tool for RectTool {
                     region.map.selected_sectors.clear();
                 }
 
-                if let Some(layout) = ui.get_hlayout("Game Tool Params") {
-                    layout.clear();
-
-                    let mut source_switch = TheGroupButton::new(TheId::named("Map Helper Switch"));
-                    source_switch.add_text_status(
-                        "Tile Picker".to_string(),
-                        "Show tile picker.".to_string(),
-                    );
-                    source_switch.add_text_status(
-                        "Materials".to_string(),
-                        "Apply procedural materials.".to_string(),
-                    );
-                    source_switch
-                        .add_text_status("Colors".to_string(), "Apply a color.".to_string());
-                    source_switch
-                        .add_text_status("Effects".to_string(), "Apply an effect.".to_string());
-                    source_switch
-                        .add_text_status("Preview".to_string(), "Preview the map.".to_string());
-                    source_switch.set_item_width(80);
-                    source_switch.set_index(server_ctx.curr_map_tool_helper as i32);
-                    layout.add_widget(Box::new(source_switch));
-
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::TilePicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::MaterialPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::ColorPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::EffectPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::PreviewView as usize,
-                        ));
-                    }
-
-                    let mut mode_switch = TheGroupButton::new(TheId::named("Rect Mode Switch"));
-                    mode_switch.add_text_status(
-                        "Overwrite".to_string(),
-                        "Overwrite existing rects.".to_string(),
-                    );
-                    mode_switch.add_text_status(
-                        "Layer".to_string(),
-                        "Layer rects on top of each other.".to_string(),
-                    );
-
-                    mode_switch.set_item_width(100);
-                    mode_switch.set_index(self.mode);
-                    layout.add_widget(Box::new(mode_switch));
-
-                    layout.set_reverse_index(Some(1));
-                }
+                self.activate_map_tool_helper(ui, ctx, project, server_ctx);
 
                 return true;
             }

@@ -443,14 +443,16 @@ impl Hud {
             // let builder = D2MaterialBuilder::new();
             // builder.build_texture(map, &RUSTERIX.read().unwrap().assets, &mut texture);
 
-            let mut target = TheRGBABuffer::new(TheDim::sized(preview_width, preview_height));
+            // let mut target = TheRGBABuffer::new(TheDim::sized(preview_width, preview_height));
+            let pixels = vec![0; (preview_width * preview_height * 4) as usize];
+            let mut texture = Texture::new(pixels, preview_width as usize, preview_height as usize);
 
             let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
-            stack.render(&mut target, map, palette);
+            stack.render(&mut texture, map, palette);
 
             ctx.draw.copy_slice(
                 buffer.pixels_mut(),
-                target.pixels(),
+                &texture.data,
                 &preview_rect.to_buffer_utuple(),
                 stride,
             );
@@ -641,6 +643,7 @@ impl Hud {
                             &RUSTERIX.read().unwrap().assets,
                             icon_size,
                             &linedef.properties,
+                            map,
                         ) {
                             return (Some(tile), has_light);
                         }
@@ -654,6 +657,7 @@ impl Hud {
                             &RUSTERIX.write().unwrap().assets,
                             icon_size,
                             &linedef.properties,
+                            map,
                         ) {
                             return (Some(tile), has_light);
                         }
@@ -667,6 +671,7 @@ impl Hud {
                             &RUSTERIX.read().unwrap().assets,
                             icon_size,
                             &linedef.properties,
+                            map,
                         ) {
                             return (Some(tile), has_light);
                         }
@@ -680,6 +685,7 @@ impl Hud {
                             &RUSTERIX.read().unwrap().assets,
                             icon_size,
                             &linedef.properties,
+                            map,
                         ) {
                             return (Some(tile), has_light);
                         }
@@ -697,6 +703,7 @@ impl Hud {
                             &RUSTERIX.read().unwrap().assets,
                             icon_size,
                             &sector.properties,
+                            map,
                         ) {
                             return (Some(tile), has_light);
                         }
@@ -711,6 +718,7 @@ impl Hud {
                             &RUSTERIX.read().unwrap().assets,
                             icon_size,
                             &sector.properties,
+                            map,
                         ) {
                             return (Some(tile), has_light);
                         }
