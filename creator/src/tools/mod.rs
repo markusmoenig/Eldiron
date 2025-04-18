@@ -133,10 +133,10 @@ pub trait Tool: Send + Sync {
                     TheId::named("Main Stack"),
                     PanelIndices::MaterialPicker as usize,
                 ));
-            } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
+            } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
                 ctx.ui.send(TheEvent::SetStackIndex(
                     TheId::named("Main Stack"),
-                    PanelIndices::ColorPicker as usize,
+                    PanelIndices::NodeEditor as usize,
                 ));
             } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
                 ctx.ui.send(TheEvent::SetStackIndex(

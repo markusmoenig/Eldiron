@@ -362,6 +362,7 @@ impl Tool for VertexTool {
         self.hud.draw(buffer, map, ctx, server_ctx, id, palette);
     }
 
+    /*
     fn handle_event(
         &mut self,
         event: &TheEvent,
@@ -370,43 +371,11 @@ impl Tool for VertexTool {
         _project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let mut redraw = false;
+        let redraw = false;
         #[allow(clippy::single_match)]
         match event {
-            TheEvent::IndexChanged(id, index) => {
-                if id.name == "Map Helper Switch" {
-                    server_ctx.curr_map_tool_helper.set_from_index(*index);
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::TilePicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::MaterialPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::ColorPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::EffectPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::PreviewView as usize,
-                        ));
-                    }
-                    redraw = true;
-                }
-            }
             _ => {}
         }
         redraw
-    }
+    }*/
 }

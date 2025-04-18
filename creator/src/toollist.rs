@@ -147,6 +147,38 @@ impl ToolList {
     ) -> bool {
         let mut redraw = false;
         match event {
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == "Map Helper Switch" {
+                    server_ctx.curr_map_tool_helper.set_from_index(*index);
+                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::TilePicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::MaterialPicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::NodeEditor as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::EffectPicker as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::PreviewView as usize,
+                        ));
+                    }
+                    redraw = true;
+                }
+            }
             TheEvent::KeyDown(TheValue::Char(c)) => {
                 if let Some(id) = &ctx.ui.focus {
                     if id.name == "PolyView" {

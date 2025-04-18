@@ -1313,6 +1313,7 @@ impl Sidebar {
                         }
                     }
                     *PALETTE.write().unwrap() = project.palette.clone();
+                    RUSTERIX.write().unwrap().assets.palette = project.palette.clone();
                 } else if id.name == "Palette Color Picker" {
                     if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
                         if let Some(color) = value.to_color() {
@@ -1330,6 +1331,7 @@ impl Sidebar {
                         palette_picker.set_palette(project.palette.clone());
                     }
                     *PALETTE.write().unwrap() = project.palette.clone();
+                    RUSTERIX.write().unwrap().assets.palette = project.palette.clone();
                 }
                 // Change the size of the tilemap grid
                 else if id.name == "Tilemap Grid Edit" {
@@ -2527,6 +2529,7 @@ impl Sidebar {
             *CONFIG.write().unwrap() = toml;
         }
         CONFIGEDITOR.write().unwrap().read_defaults();
+        RUSTERIX.write().unwrap().assets.palette = project.palette.clone();
 
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Tilepicker"),

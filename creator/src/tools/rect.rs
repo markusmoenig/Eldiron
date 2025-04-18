@@ -359,12 +359,12 @@ impl Tool for RectTool {
     fn handle_event(
         &mut self,
         event: &TheEvent,
-        ui: &mut TheUI,
+        _ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let mut redraw = false;
+        let redraw = false;
         #[allow(clippy::single_match)]
         match event {
             TheEvent::StateChanged(id, state) => {
@@ -376,14 +376,14 @@ impl Tool for RectTool {
                         if let Some(id) = server_ctx.curr_tile_id {
                             source = Some(Value::Source(PixelSource::TileId(id)));
                         }
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-                        if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker")
-                        {
-                            if let Some(color) = &project.palette.colors[palette_picker.index()] {
-                                source = Some(Value::Source(PixelSource::Color(color.clone())));
-                            }
-                        }
+                    } /*else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
+                    if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker")
+                    {
+                    if let Some(color) = &project.palette.colors[palette_picker.index()] {
+                    source = Some(Value::Source(PixelSource::Color(color.clone())));
                     }
+                    }
+                    }*/
 
                     if let Some(source) = source {
                         if let Some(map) = project.get_map_mut(server_ctx) {
@@ -452,40 +452,6 @@ impl Tool for RectTool {
                         );
                         crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     }
-                }
-            }
-            TheEvent::IndexChanged(id, index) => {
-                if id.name == "Map Helper Switch" {
-                    server_ctx.curr_map_tool_helper.set_from_index(*index);
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::TilePicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::MaterialPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::ColorPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::EffectPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::PreviewView as usize,
-                        ));
-                    };
-                    redraw = true;
-                } else if id.name == "Rect Mode Switch" {
-                    self.mode = *index as i32;
                 }
             }
             _ => {}

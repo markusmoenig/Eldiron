@@ -388,7 +388,7 @@ impl Tool for SectorTool {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let mut redraw = false;
+        let redraw = false;
         #[allow(clippy::single_match)]
         match event {
             TheEvent::StateChanged(id, state) => {
@@ -465,7 +465,7 @@ impl Tool for SectorTool {
                                 println!("Material ID: {}", id);
                                 source = Some(Value::Source(PixelSource::MaterialId(id)));
                             }
-                        } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
+                        } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
                             // if let Some(palette_picker) =
                             //     ui.get_palette_picker("Panel Palette Picker")
                             // {
@@ -475,7 +475,7 @@ impl Tool for SectorTool {
                             //     }
                             // }
                             let node_editor = NODEEDITOR.read().unwrap();
-                            if !node_editor.graph.effects.is_empty() {
+                            if !node_editor.graph.nodes.is_empty() {
                                 source = Some(Value::Source(PixelSource::ShapeFXGraphId(
                                     node_editor.graph.id,
                                 )));
@@ -610,38 +610,6 @@ impl Tool for SectorTool {
                     }
                 }
             }*/
-            TheEvent::IndexChanged(id, index) => {
-                if id.name == "Map Helper Switch" {
-                    server_ctx.curr_map_tool_helper.set_from_index(*index);
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::TilePicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::MaterialPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::NodeEditor as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::EffectPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::PreviewView as usize,
-                        ));
-                    }
-                    redraw = true;
-                }
-            }
             /*
             TheEvent::ValueChanged(id, value) => {
                 if id.name == "Wall Width" {

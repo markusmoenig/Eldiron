@@ -2,9 +2,9 @@
 use crate::prelude::*;
 use shared::prelude::*;
 
-use rusterix::{ShapeFX, ShapeFXGraph, ShapeFXRole};
+use rusterix::{ShapeFX, ShapeFXGraph, ShapeFXParam, ShapeFXRole};
 
-use ShapeFXRole::*;
+use ShapeFXParam::*;
 
 pub struct NodeEditor {
     pub graph: ShapeFXGraph,
@@ -87,7 +87,7 @@ impl NodeEditor {
             ..Default::default()
         };
 
-        for (index, node) in self.graph.effects.iter().enumerate() {
+        for (index, node) in self.graph.nodes.iter().enumerate() {
             let n = TheNode {
                 name: node.name(),
                 position: node.position,
@@ -155,7 +155,7 @@ impl NodeEditor {
             }*/
             TheEvent::ContextMenuSelected(id, item) => {
                 #[allow(clippy::collapsible_if)]
-                if id.name == "ShapeFX Nodes" && !self.graph.effects.is_empty() {
+                if id.name == "ShapeFX Nodes" && !self.graph.nodes.is_empty() {
                     if let Ok(role) = item.name.parse::<ShapeFXRole>() {
                         let mut effect = ShapeFX::new(role);
 
@@ -163,14 +163,14 @@ impl NodeEditor {
                             self.graph.scroll_offset.x + 220,
                             self.graph.scroll_offset.y + 10,
                         );
-                        self.graph.effects.push(effect);
-                        self.graph.selected_node = Some(self.graph.effects.len() - 1);
+                        self.graph.nodes.push(effect);
+                        self.graph.selected_node = Some(self.graph.nodes.len() - 1);
 
                         let canvas = self.to_canvas();
                         ui.set_node_canvas("ShapeFX NodeCanvas", canvas);
 
                         if let Some(map) = project.get_map_mut(server_ctx) {
-                            map.effect_graphs.insert(self.graph.id, self.graph.clone());
+                            map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                         }
                         self.set_selected_node_ui(server_ctx, project, ui, ctx, true);
                     }
@@ -179,7 +179,7 @@ impl NodeEditor {
             TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
                 if id.name == "Create Graph Button" {
                     self.graph = ShapeFXGraph {
-                        effects: vec![ShapeFX::new(ShapeFXRole::Geometry)],
+                        nodes: vec![ShapeFX::new(ShapeFXRole::Geometry)],
                         ..Default::default()
                     };
 
@@ -187,7 +187,7 @@ impl NodeEditor {
                     ui.set_node_canvas("ShapeFX NodeCanvas", canvas);
 
                     if let Some(map) = project.get_map_mut(server_ctx) {
-                        map.effect_graphs.insert(self.graph.id, self.graph.clone());
+                        map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                     }
                 }
             }
@@ -272,15 +272,15 @@ impl NodeEditor {
                     self.graph.selected_node = *index;
                     self.set_selected_node_ui(server_ctx, project, ui, ctx, true);
                     if let Some(map) = project.get_map_mut(server_ctx) {
-                        map.effect_graphs.insert(self.graph.id, self.graph.clone());
+                        map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                     }
                 }
             }
             TheEvent::NodeDragged(id, index, position) => {
                 if id.name == "ShapeFX NodeCanvas" {
-                    self.graph.effects[*index].position = *position;
+                    self.graph.nodes[*index].position = *position;
                     if let Some(map) = project.get_map_mut(server_ctx) {
-                        map.effect_graphs.insert(self.graph.id, self.graph.clone());
+                        map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                     }
                 }
             }
@@ -289,7 +289,7 @@ impl NodeEditor {
                 if id.name == "ShapeFX NodeCanvas" {
                     self.graph.connections.clone_from(connections);
                     if let Some(map) = project.get_map_mut(server_ctx) {
-                        map.effect_graphs.insert(self.graph.id, self.graph.clone());
+                        map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                     }
                 }
                 //     if let Some(material_id) = server_ctx.curr_material {
@@ -309,7 +309,7 @@ impl NodeEditor {
             }
             TheEvent::NodeDeleted(id, deleted_node_index, connections) => {
                 if id.name == "ShapeFX NodeCanvas" {
-                    self.graph.effects.remove(*deleted_node_index);
+                    self.graph.nodes.remove(*deleted_node_index);
                     self.graph.connections.clone_from(connections);
                 }
                 // if id.name == "Map NodeCanvas" {
@@ -365,7 +365,7 @@ impl NodeEditor {
                 if id.name.starts_with("shapefx") {
                     let snake_case = self.transform_to_snake_case(&id.name, "shapefx");
                     if let Some(index) = self.graph.selected_node {
-                        if let Some(node) = self.graph.effects.get_mut(index) {
+                        if let Some(node) = self.graph.nodes.get_mut(index) {
                             match value {
                                 TheValue::FloatRange(v, _) => {
                                     node.values.set(&snake_case, rusterix::Value::Float(*v))
@@ -373,8 +373,14 @@ impl NodeEditor {
                                 TheValue::IntRange(v, _) => {
                                     node.values.set(&snake_case, rusterix::Value::Int(*v))
                                 }
+                                TheValue::Int(v) => {
+                                    node.values.set(&snake_case, rusterix::Value::Int(*v))
+                                }
                                 _ => {}
                             }
+                        }
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                         }
                     }
                 }
@@ -464,6 +470,7 @@ impl NodeEditor {
         redraw
     }
 
+    /// Create the UI for the selected node.
     pub fn set_selected_node_ui(
         &mut self,
         _server_ctx: &mut ServerContext,
@@ -475,7 +482,71 @@ impl NodeEditor {
         let mut nodeui = TheNodeUI::default();
 
         if let Some(index) = self.graph.selected_node {
-            if let Some(node) = self.graph.effects.get(index) {
+            if let Some(node) = self.graph.nodes.get(index) {
+                for param in node.params() {
+                    match param {
+                        Float(id, name, status, value, range) => {
+                            let item = TheNodeUIItem::FloatEditSlider(
+                                format!(
+                                    "shapefx{}",
+                                    id.get(0..1).unwrap_or("").to_uppercase()
+                                        + id.get(1..).unwrap_or("")
+                                ),
+                                name.clone(),
+                                status.clone(),
+                                value,
+                                range,
+                                false,
+                            );
+                            nodeui.add_item(item);
+                        }
+                        Int(id, name, status, value, range) => {
+                            let item = TheNodeUIItem::IntEditSlider(
+                                format!(
+                                    "shapefx{}",
+                                    id.get(0..1).unwrap_or("").to_uppercase()
+                                        + id.get(1..).unwrap_or("")
+                                ),
+                                name.clone(),
+                                status.clone(),
+                                value,
+                                range,
+                                false,
+                            );
+                            nodeui.add_item(item);
+                        }
+                        PaletteIndex(id, name, status, value) => {
+                            let item = TheNodeUIItem::PaletteSlider(
+                                format!(
+                                    "shapefx{}",
+                                    id.get(0..1).unwrap_or("").to_uppercase()
+                                        + id.get(1..).unwrap_or("")
+                                ),
+                                name.clone(),
+                                status.clone(),
+                                value,
+                                project.palette.clone(),
+                                false,
+                            );
+                            nodeui.add_item(item);
+                        }
+                        Selector(id, name, status, options, value) => {
+                            let item = TheNodeUIItem::Selector(
+                                format!(
+                                    "shapefx{}",
+                                    id.get(0..1).unwrap_or("").to_uppercase()
+                                        + id.get(1..).unwrap_or("")
+                                ),
+                                name.clone(),
+                                status.clone(),
+                                options.clone(),
+                                value,
+                            );
+                            nodeui.add_item(item);
+                        }
+                    }
+                }
+                /*
                 match node.role {
                     Gradient => {
                         let item = TheNodeUIItem::FloatEditSlider(
@@ -509,7 +580,7 @@ impl NodeEditor {
                         nodeui.add_item(item);
                     }
                     _ => {}
-                }
+                }*/
             }
         }
 
@@ -602,6 +673,12 @@ impl NodeEditor {
         } else if let Some(text_layout) = ui.get_text_layout("Node Settings") {
             text_layout.clear();
         }*/
+    }
+
+    pub fn apply_graph(&mut self, graph: &ShapeFXGraph, ui: &mut TheUI) {
+        self.graph = graph.clone();
+        let canvas = self.to_canvas();
+        ui.set_node_canvas("ShapeFX NodeCanvas", canvas);
     }
 
     fn transform_to_snake_case(&self, input: &str, strip_prefix: &str) -> String {

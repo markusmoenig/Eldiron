@@ -3702,13 +3702,12 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3779b94aeb87e8bd4e834cee3650289ee9e0d5677f976ecdb6d219e5f4f6cd94"
+checksum = "9fbfd9d094a40bf3ae768db9361049ace4c0e04a4fd6b359518bd7b73a73dd97"
 dependencies = [
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
- "zerocopy 0.8.24",
 ]
 
 [[package]]
@@ -4082,7 +4081,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#a9957679a70336f72142b3235652615c7fb45b5a"
+source = "git+https://github.com/markusmoenig/Rusterix#6be459a51c99e1bb67e5515fbc64de89d20795b8"
 dependencies = [
  "bincode",
  "crossbeam-channel",
@@ -4093,7 +4092,7 @@ dependencies = [
  "instant",
  "ordered-float",
  "pathfinding",
- "rand 0.9.0",
+ "rand 0.9.1",
  "rayon",
  "rect_packer",
  "ref_thread_local",
@@ -5718,7 +5717,7 @@ dependencies = [
  "atomic",
  "getrandom 0.3.2",
  "js-sys",
- "rand 0.9.0",
+ "rand 0.9.1",
  "serde",
  "uuid-macro-internal",
  "wasm-bindgen",

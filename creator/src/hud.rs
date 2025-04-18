@@ -654,7 +654,7 @@ impl Hud {
                     if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row2_source")
                     {
                         if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.write().unwrap().assets,
+                            &RUSTERIX.read().unwrap().assets,
                             icon_size,
                             &linedef.properties,
                             map,

@@ -29,7 +29,9 @@ impl Tool for SelectionTool {
                 "Selection Tool (S). Hold 'Shift' to add. 'Option' to subtract. Click and drag for multi-selection."
             )
         } else {
-            str!("Selection Tool (S). Hold 'Shift' to add. 'Alt' to subtract. Click and drag for multi-selection.")
+            str!(
+                "Selection Tool (S). Hold 'Shift' to add. 'Alt' to subtract. Click and drag for multi-selection."
+            )
         }
     }
     fn icon_name(&self) -> String {
@@ -45,62 +47,13 @@ impl Tool for SelectionTool {
         _tool_context: ToolContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
             Activate => {
-                if let Some(layout) = ui.get_hlayout("Game Tool Params") {
-                    layout.clear();
-
-                    let mut source_switch = TheGroupButton::new(TheId::named("Map Helper Switch"));
-                    source_switch.add_text_status(
-                        "Tile Picker".to_string(),
-                        "Show tile picker.".to_string(),
-                    );
-                    source_switch.add_text_status(
-                        "Materials".to_string(),
-                        "Apply procedural materials.".to_string(),
-                    );
-                    source_switch
-                        .add_text_status("Colors".to_string(), "Apply a color.".to_string());
-                    source_switch
-                        .add_text_status("Effects".to_string(), "Apply an effect.".to_string());
-                    source_switch
-                        .add_text_status("Preview".to_string(), "Preview the map.".to_string());
-                    source_switch.set_item_width(80);
-                    source_switch.set_index(server_ctx.curr_map_tool_helper as i32);
-                    layout.add_widget(Box::new(source_switch));
-
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::TilePicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::MaterialPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::ColorPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::EffectPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::PreviewView as usize,
-                        ));
-                    }
-
-                    server_ctx.curr_map_tool_type = MapToolType::Selection;
-                }
+                self.activate_map_tool_helper(ui, ctx, project, server_ctx);
+                server_ctx.curr_map_tool_type = MapToolType::Selection;
 
                 return true;
             }
@@ -300,6 +253,7 @@ impl Tool for SelectionTool {
         undo_atom
     }
 
+    /*
     fn handle_event(
         &mut self,
         event: &TheEvent,
@@ -311,40 +265,8 @@ impl Tool for SelectionTool {
         let mut redraw = false;
         #[allow(clippy::single_match)]
         match event {
-            TheEvent::IndexChanged(id, index) => {
-                if id.name == "Map Helper Switch" {
-                    server_ctx.curr_map_tool_helper.set_from_index(*index);
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::TilePicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::MaterialPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::ColorPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::EffectPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::PreviewView as usize,
-                        ));
-                    }
-                    redraw = true;
-                }
-            }
             _ => {}
         }
         redraw
-    }
+    }*/
 }

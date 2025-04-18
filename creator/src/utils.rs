@@ -1,5 +1,4 @@
 use crate::editor::CONFIGEDITOR;
-use crate::editor::PALETTE;
 use crate::prelude::*;
 use rusterix::{PixelSource, Value, ValueContainer};
 
@@ -97,20 +96,25 @@ pub fn set_code(
 }
 
 /// Returns the currently active source
-pub fn get_source(ui: &mut TheUI, server_ctx: &ServerContext) -> Option<Value> {
+pub fn get_source(_ui: &mut TheUI, server_ctx: &ServerContext) -> Option<Value> {
     let mut source: Option<Value> = None;
 
     if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
         if let Some(id) = server_ctx.curr_tile_id {
             source = Some(Value::Source(PixelSource::TileId(id)));
         }
-    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-        if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker") {
-            if let Some(color) = &PALETTE.read().unwrap().colors[palette_picker.index()] {
-                source = Some(Value::Source(PixelSource::Color(color.clone())));
-            }
+    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+        if let Some(id) = server_ctx.curr_material {
+            source = Some(Value::Source(PixelSource::MaterialId(id)));
         }
+    } /*
+    else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+    if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker") {
+    if let Some(color) = &PALETTE.read().unwrap().colors[palette_picker.index()] {
+    source = Some(Value::Source(PixelSource::Color(color.clone())));
     }
+    }
+    }*/
 
     source
 }

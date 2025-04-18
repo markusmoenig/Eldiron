@@ -1,8 +1,8 @@
 //use shared::server::prelude::MapToolType;
 
-use crate::editor::{RUSTERIX, SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{NODEEDITOR, RUSTERIX, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
-use rusterix::Value;
+use rusterix::{PixelSource, Value};
 use vek::Vec2;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -435,43 +435,43 @@ impl MapEditor {
                         }
                     }
                 } /*else if id.name == "2D3D Group" {
-                      if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
-                          if *index == 0 {
-                              project.map_mode = MapMode::TwoD;
-                              shared.set_mode(TheSharedHLayoutMode::Left);
-                              *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
-                              PRERENDERTHREAD.lock().unwrap().set_paused(true);
-                              if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                                  if let Some(layout) = ui.get_rgba_layout("Region Editor") {
-                                      layout.set_zoom(region.zoom);
-                                      layout.relayout(ctx);
-                                  }
-                              }
-                          } else if *index == 1 {
-                              project.map_mode = MapMode::Mixed;
-                              shared.set_mode(TheSharedHLayoutMode::Shared);
-                              *RENDERMODE.lock().unwrap() = EditorDrawMode::DrawMixed;
-                              PRERENDERTHREAD.lock().unwrap().set_paused(false);
-                          } else if *index == 2 {
-                              project.map_mode = MapMode::ThreeD;
-                              shared.set_mode(TheSharedHLayoutMode::Right);
-                              *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw3D;
-                              PRERENDERTHREAD.lock().unwrap().set_paused(false);
-                          }
-                          ctx.ui.relayout = true;
+                if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
+                if *index == 0 {
+                project.map_mode = MapMode::TwoD;
+                shared.set_mode(TheSharedHLayoutMode::Left);
+                 *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
+                PRERENDERTHREAD.lock().unwrap().set_paused(true);
+                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                if let Some(layout) = ui.get_rgba_layout("Region Editor") {
+                layout.set_zoom(region.zoom);
+                layout.relayout(ctx);
+                }
+                }
+                } else if *index == 1 {
+                project.map_mode = MapMode::Mixed;
+                shared.set_mode(TheSharedHLayoutMode::Shared);
+                 *RENDERMODE.lock().unwrap() = EditorDrawMode::DrawMixed;
+                PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                } else if *index == 2 {
+                project.map_mode = MapMode::ThreeD;
+                shared.set_mode(TheSharedHLayoutMode::Right);
+                 *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw3D;
+                PRERENDERTHREAD.lock().unwrap().set_paused(false);
+                }
+                ctx.ui.relayout = true;
 
-                          // Set the region and textures to the RenderView if visible
-                          if *index > 0 {
-                              if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                                  RENDERER.lock().unwrap().set_region(region);
-                                  RENDERER
-                                      .lock()
-                                      .unwrap()
-                                      .set_textures(project.extract_tiles());
-                              }
-                          }
-                      }
-                  }*/
+                // Set the region and textures to the RenderView if visible
+                if *index > 0 {
+                if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                RENDERER.lock().unwrap().set_region(region);
+                RENDERER
+                .lock()
+                .unwrap()
+                .set_textures(project.extract_tiles());
+                }
+                }
+                }
+                }*/
             }
             // else if id.name == "Editor Group" {
             //         server_ctx.conceptual_display = None;
@@ -1597,6 +1597,19 @@ impl MapEditor {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
+        // Check if we need to apply the graph to the node editor
+        if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+            if let Some(sector) = map.find_sector(sector_id) {
+                if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
+                    sector.properties.get("floor_source")
+                {
+                    if let Some(graph) = map.shapefx_graphs.get(id) {
+                        NODEEDITOR.write().unwrap().apply_graph(graph, ui);
+                    }
+                }
+            }
+        }
+
         let mut nodeui = TheNodeUI::default();
 
         if let Some(sector) = map.find_sector(sector_id) {
