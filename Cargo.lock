@@ -991,9 +991,9 @@ dependencies = [
 
 [[package]]
 name = "der"
-version = "0.7.9"
+version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f55bf8e7b65898637379c1b74eb1551107c8294ed26d855ceb9fd1a09cfc9bc0"
+checksum = "e7c1832837b905bbfb5101e07cc24c8deddf52f93225eee6ead5f4d63d53ddcb"
 dependencies = [
  "const-oid",
  "zeroize",
@@ -4081,7 +4081,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#6be459a51c99e1bb67e5515fbc64de89d20795b8"
+source = "git+https://github.com/markusmoenig/Rusterix#2b812f18827c39b6455e0da410bf5eec6900221c"
 dependencies = [
  "bincode",
  "crossbeam-channel",

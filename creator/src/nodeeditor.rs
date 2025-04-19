@@ -51,10 +51,16 @@ impl NodeEditor {
         nodes_button.set_text(str!("Nodes"));
         nodes_button.set_status_text("Available region effect nodes.");
         nodes_button.set_context_menu(Some(TheContextMenu {
-            items: vec![TheContextMenuItem::new(
-                "Gradient".to_string(),
-                TheId::named("Gradient"),
-            )],
+            items: vec![
+                TheContextMenuItem::new("Color".to_string(), TheId::named("Color")),
+                TheContextMenuItem::new("Gradient".to_string(), TheId::named("Gradient")),
+                TheContextMenuItem::new(
+                    "Interior Gradient".to_string(),
+                    TheId::named("Interior Gradient"),
+                ),
+                TheContextMenuItem::new("Outline".to_string(), TheId::named("Outline")),
+                TheContextMenuItem::new("Noise Overlay".to_string(), TheId::named("Noise Overlay")),
+            ],
             ..Default::default()
         }));
 
@@ -84,6 +90,7 @@ impl NodeEditor {
             node_width: 136,
             selected_node: self.graph.selected_node,
             offset: self.graph.scroll_offset,
+            connections: self.graph.connections.clone(),
             ..Default::default()
         };
 
@@ -480,9 +487,11 @@ impl NodeEditor {
         switch_to_nodes: bool,
     ) {
         let mut nodeui = TheNodeUI::default();
+        let mut node_name = "Node".to_string();
 
         if let Some(index) = self.graph.selected_node {
             if let Some(node) = self.graph.nodes.get(index) {
+                node_name = node.name();
                 for param in node.params() {
                     match param {
                         Float(id, name, status, value, range) => {
@@ -592,7 +601,7 @@ impl NodeEditor {
             if switch_to_nodes {
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Show Node Settings"),
-                    TheValue::Text("Linedef Settings".to_string()),
+                    TheValue::Text(format!("{} Settings", node_name)),
                 ));
             }
         }

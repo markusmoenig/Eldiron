@@ -764,6 +764,7 @@ impl MapEditor {
                 } else if id.name == "linedefWallHeight"
                     || id.name == "linedefWallWidth"
                     || id.name == "linedefMaterialWidth"
+                    || id.name == "linedefMaterialAA"
                     || id.name == "linedefNoiseIntensity"
                 {
                     if let Some(value) = value.to_f32() {
@@ -776,6 +777,10 @@ impl MapEditor {
                                     //     0.0,
                                     // ) != value
                                     // {
+                                    println!(
+                                        "{}",
+                                        self.transform_to_snake_case(&id.name, "linedef")
+                                    );
                                     linedef.properties.set(
                                         &self.transform_to_snake_case(&id.name, "linedef"),
                                         Value::Float(value),
@@ -856,6 +861,8 @@ impl MapEditor {
                 } else if id.name == "sectorNoiseIntensity"
                     || id.name == "sectorFloorHeight"
                     || id.name == "sectorCeilingHeight"
+                    || id.name == "sectorMaterialAA"
+                    || id.name == "sectorMaterialRounding"
                     || id.name == "sectorOcclusion"
                 {
                     if let Some(value) = value.to_f32() {
@@ -1542,6 +1549,17 @@ impl MapEditor {
                 );
                 nodeui.add_item(item);
 
+                let item = TheNodeUIItem::FloatEditSlider(
+                    "linedefMaterialAA".into(),
+                    "Anti-Aliasing".into(),
+                    "Amount of Anti-Aliasing.".into(),
+                    linedef.properties.get_float_default("material_a_a", 1.0),
+                    0.0..=2.0,
+                    false,
+                );
+                nodeui.add_item(item);
+
+                /*
                 let item = TheNodeUIItem::IntEditSlider(
                     "linedefPixelization".into(),
                     "Pixelization".into(),
@@ -1574,6 +1592,7 @@ impl MapEditor {
                     0,
                 );
                 nodeui.add_item(item);
+                */
             }
         }
 
@@ -1665,6 +1684,28 @@ impl MapEditor {
             }
 
             if server_ctx.curr_map_context == MapContext::Material {
+                let item = TheNodeUIItem::FloatEditSlider(
+                    "sectorMaterialAA".into(),
+                    "Anti-Aliasing".into(),
+                    "Amount of Anti-Aliasing.".into(),
+                    sector.properties.get_float_default("material_a_a", 1.0),
+                    0.0..=2.0,
+                    false,
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::FloatEditSlider(
+                    "sectorMaterialRounding".into(),
+                    "Rounding".into(),
+                    "Amount of rounding.".into(),
+                    sector
+                        .properties
+                        .get_float_default("material_rounding", 0.0),
+                    0.0..=10.0,
+                    false,
+                );
+                nodeui.add_item(item);
+                /*
                 nodeui.add_item(TheNodeUIItem::Separator("Color".into()));
 
                 let item = TheNodeUIItem::IntEditSlider(
@@ -1699,6 +1740,7 @@ impl MapEditor {
                     0,
                 );
                 nodeui.add_item(item);
+                */
             }
 
             if sector.layer.is_some() {

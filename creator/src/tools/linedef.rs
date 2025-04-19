@@ -1,3 +1,4 @@
+use crate::editor::NODEEDITOR;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -528,7 +529,15 @@ impl Tool for LinedefTool {
                             if let Some(id) = server_ctx.curr_tile_id {
                                 source = Some(Value::Source(PixelSource::TileId(id)));
                             }
-                        } /*else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
+                        } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                            let node_editor = NODEEDITOR.read().unwrap();
+                            if !node_editor.graph.nodes.is_empty() {
+                                source = Some(Value::Source(PixelSource::ShapeFXGraphId(
+                                    node_editor.graph.id,
+                                )));
+                            }
+                        }
+                        /*else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
                         if let Some(palette_picker) =
                         ui.get_palette_picker("Panel Palette Picker")
                         {
