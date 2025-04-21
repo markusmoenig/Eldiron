@@ -826,10 +826,6 @@ impl MapEditor {
                                     //     0.0,
                                     // ) != value
                                     // {
-                                    println!(
-                                        "{}",
-                                        self.transform_to_snake_case(&id.name, "linedef")
-                                    );
                                     linedef.properties.set(
                                         &self.transform_to_snake_case(&id.name, "linedef"),
                                         Value::Float(value),
@@ -918,6 +914,7 @@ impl MapEditor {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             for sector_id in &map.selected_sectors.clone() {
                                 let prev = map.clone();
+                                map.changed += 1;
                                 if let Some(sector) = map.find_sector_mut(*sector_id) {
                                     sector.properties.set(
                                         &self.transform_to_snake_case(&id.name, "sector"),

@@ -529,6 +529,11 @@ impl Tool for LinedefTool {
                             if let Some(id) = server_ctx.curr_tile_id {
                                 source = Some(Value::Source(PixelSource::TileId(id)));
                             }
+                        } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+                            if let Some(id) = server_ctx.curr_material {
+                                println!("Material ID: {}", id);
+                                source = Some(Value::Source(PixelSource::MaterialId(id)));
+                            }
                         } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
                             let node_editor = NODEEDITOR.read().unwrap();
                             if !node_editor.graph.nodes.is_empty() {
@@ -537,16 +542,6 @@ impl Tool for LinedefTool {
                                 )));
                             }
                         }
-                        /*else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-                        if let Some(palette_picker) =
-                        ui.get_palette_picker("Panel Palette Picker")
-                        {
-                        if let Some(color) = &project.palette.colors[palette_picker.index()]
-                        {
-                        source = Some(Value::Source(PixelSource::Color(color.clone())));
-                        }
-                        }
-                        }*/
 
                         if let Some(source) = source {
                             if let Some(map) = project.get_map_mut(server_ctx) {

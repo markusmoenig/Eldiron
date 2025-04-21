@@ -54,11 +54,8 @@ impl NodeEditor {
             items: vec![
                 TheContextMenuItem::new("Color".to_string(), TheId::named("Color")),
                 TheContextMenuItem::new("Gradient".to_string(), TheId::named("Gradient")),
-                TheContextMenuItem::new(
-                    "Interior Gradient".to_string(),
-                    TheId::named("Interior Gradient"),
-                ),
                 TheContextMenuItem::new("Outline".to_string(), TheId::named("Outline")),
+                TheContextMenuItem::new("Glow".to_string(), TheId::named("Glow")),
                 TheContextMenuItem::new("Noise Overlay".to_string(), TheId::named("Noise Overlay")),
             ],
             ..Default::default()
@@ -168,6 +165,7 @@ impl NodeEditor {
                     self.graph.selected_node = *index;
                     self.set_selected_node_ui(server_ctx, project, ui, ctx, true);
                     if let Some(map) = project.get_map_mut(server_ctx) {
+                        map.changed += 1;
                         map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                     }
                 }
@@ -177,6 +175,7 @@ impl NodeEditor {
                     self.graph.nodes[*index].position = *position;
                     if let Some(map) = project.get_map_mut(server_ctx) {
                         let prev = map.clone();
+                        map.changed += 1;
                         map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                         let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
                         UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
@@ -189,6 +188,7 @@ impl NodeEditor {
                     self.graph.connections.clone_from(connections);
                     if let Some(map) = project.get_map_mut(server_ctx) {
                         let prev = map.clone();
+                        map.changed += 1;
                         map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                         let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
                         UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
@@ -221,6 +221,7 @@ impl NodeEditor {
 
                     if let Some(map) = project.get_map_mut(server_ctx) {
                         let prev = map.clone();
+                        map.changed += 1;
                         map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                         let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
                         UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
@@ -279,6 +280,7 @@ impl NodeEditor {
                         }
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             let prev = map.clone();
+                            map.changed += 1;
                             map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                             let undo =
                                 MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));

@@ -2,7 +2,10 @@ use crate::editor::RUSTERIX;
 use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
 pub use crate::tools::{
-    config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, shape::ShapeTool,
+    config::ConfigTool,
+    data::DataTool,
+    info::InfoTool,
+    rect::RectTool, //, shape::ShapeTool,
 };
 
 pub struct ToolList {
@@ -34,7 +37,7 @@ impl ToolList {
             Box::new(LinedefTool::new()),
             Box::new(SectorTool::new()),
             Box::new(RectTool::new()),
-            Box::new(ShapeTool::new()),
+            // Box::new(ShapeTool::new()),
             Box::new(CodeTool::new()),
             Box::new(DataTool::new()),
             Box::new(TilesetTool::new()),
@@ -198,6 +201,9 @@ impl ToolList {
                                 map,
                                 server_ctx,
                             );
+                            if undo_atom.is_some() {
+                                map.changed += 1;
+                            }
                             self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                         }
                     }
@@ -298,6 +304,9 @@ impl ToolList {
                                     map,
                                     server_ctx,
                                 );
+                                if undo_atom.is_some() {
+                                    map.changed += 1;
+                                }
                                 self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                             }
                         } else if *code == TheKeyCode::Delete {
@@ -333,6 +342,9 @@ impl ToolList {
                                     map,
                                     server_ctx,
                                 );
+                                if undo_atom.is_some() {
+                                    map.changed += 1;
+                                }
                                 self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                             }
                         }
@@ -350,6 +362,19 @@ impl ToolList {
                                 if let Some(hover) = server_ctx.hover_cursor {
                                     let prev = map.clone();
                                     map.paste_at_position(paste, hover);
+
+                                    if server_ctx.curr_map_tool_type == MapToolType::Vertex {
+                                        map.selected_linedefs.clear();
+                                        map.selected_sectors.clear();
+                                    } else if server_ctx.curr_map_tool_type == MapToolType::Linedef
+                                    {
+                                        map.selected_vertices.clear();
+                                        map.selected_sectors.clear();
+                                    } else if server_ctx.curr_map_tool_type == MapToolType::Sector {
+                                        map.selected_vertices.clear();
+                                        map.selected_linedefs.clear();
+                                    }
+
                                     server_ctx.paste_clipboard = None;
                                     RUSTERIX.write().unwrap().set_dirty();
 
@@ -472,6 +497,9 @@ impl ToolList {
                                     map,
                                     server_ctx,
                                 );
+                                if undo_atom.is_some() {
+                                    map.changed += 1;
+                                }
                                 self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                             }
                             redraw = true;
@@ -595,6 +623,9 @@ impl ToolList {
                             map,
                             server_ctx,
                         );
+                        if undo_atom.is_some() {
+                            map.changed += 1;
+                        }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                     }
 
@@ -629,6 +660,9 @@ impl ToolList {
                             map,
                             server_ctx,
                         );
+                        if undo_atom.is_some() {
+                            map.changed += 1;
+                        }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                     }
                     redraw = true;
@@ -644,6 +678,9 @@ impl ToolList {
                             map,
                             server_ctx,
                         );
+                        if undo_atom.is_some() {
+                            map.changed += 1;
+                        }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                     }
                     redraw = true;

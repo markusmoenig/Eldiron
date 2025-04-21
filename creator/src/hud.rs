@@ -34,6 +34,9 @@ pub struct Hud {
 
     is_playing: bool,
     light_icon: Option<TheRGBABuffer>,
+
+    material_changed: u32,
+    material_texture: Texture,
 }
 
 impl Hud {
@@ -58,6 +61,9 @@ impl Hud {
 
             is_playing: false,
             light_icon: None,
+
+            material_changed: u32::MAX,
+            material_texture: Texture::alloc(150, 150),
         }
     }
 
@@ -427,6 +433,13 @@ impl Hud {
         // ----- Preview
 
         if server_ctx.curr_map_context == MapContext::Material {
+            if map.changed != self.material_changed {
+                let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
+                stack.render(&mut self.material_texture, map, palette);
+
+                self.material_changed = map.changed;
+            }
+
             let preview_width = 150;
             let preview_height = 150;
             let preview_rect = TheDim::rect(
@@ -436,23 +449,9 @@ impl Hud {
                 preview_height,
             );
 
-            // let mut pixels = vec![0; (preview_width * preview_height * 4) as usize];
-            // pixels.fill(255);
-            // let mut texture = Texture::new(pixels, preview_width as usize, preview_height as usize);
-
-            // let builder = D2MaterialBuilder::new();
-            // builder.build_texture(map, &RUSTERIX.read().unwrap().assets, &mut texture);
-
-            // let mut target = TheRGBABuffer::new(TheDim::sized(preview_width, preview_height));
-            let pixels = vec![0; (preview_width * preview_height * 4) as usize];
-            let mut texture = Texture::new(pixels, preview_width as usize, preview_height as usize);
-
-            let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
-            stack.render(&mut texture, map, palette);
-
             ctx.draw.copy_slice(
                 buffer.pixels_mut(),
-                &texture.data,
+                &self.material_texture.data,
                 &preview_rect.to_buffer_utuple(),
                 stride,
             );

@@ -274,10 +274,6 @@ impl ServerContext {
 
         // Check the vertices
         for vertex in &map.vertices {
-            if self.no_rect_geo_on_map {
-                //&& map.is_vertex_in_rect(vertex.id) {
-                continue;
-            }
             if let Some(vertex_pos) = map.get_vertex(vertex.id) {
                 let vertex_pos = Self::map_grid_to_local(screen_size, vertex_pos, map);
                 if (screen_pos - vertex_pos).magnitude() <= hover_threshold {
