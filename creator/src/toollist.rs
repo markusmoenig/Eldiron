@@ -286,6 +286,11 @@ impl ToolList {
                         }
                         if *code == TheKeyCode::Escape {
                             if let Some(map) = project.get_map_mut(server_ctx) {
+                                if server_ctx.paste_clipboard.is_some() {
+                                    server_ctx.paste_clipboard = None;
+                                    return true;
+                                }
+
                                 let undo_atom = self.get_current_tool().map_event(
                                     MapEvent::MapEscape,
                                     ui,
@@ -340,6 +345,28 @@ impl ToolList {
                     self.item_click_selected = false;
                     if !server_ctx.game_mode {
                         if let Some(map) = project.get_map_mut(server_ctx) {
+                            // Test for Paste operation
+                            if let Some(paste) = &server_ctx.paste_clipboard {
+                                if let Some(hover) = server_ctx.hover_cursor {
+                                    let prev = map.clone();
+                                    map.paste_at_position(paste, hover);
+                                    server_ctx.paste_clipboard = None;
+                                    RUSTERIX.write().unwrap().set_dirty();
+
+                                    let undo_atom = RegionUndoAtom::MapEdit(
+                                        Box::new(prev),
+                                        Box::new(map.clone()),
+                                    );
+                                    UNDOMANAGER.write().unwrap().add_region_undo(
+                                        &server_ctx.curr_region,
+                                        undo_atom,
+                                        ctx,
+                                    );
+
+                                    return true;
+                                }
+                            }
+
                             // Test for character click
                             if let Some(render_view) = ui.get_render_view("PolyView") {
                                 let dim = *render_view.dim();

@@ -210,6 +210,55 @@ impl MapEditor {
     ) -> bool {
         let mut redraw = false;
         match event {
+            TheEvent::Copy => {
+                if let Some(map) = project.get_map_mut(server_ctx) {
+                    if map.has_selection() {
+                        server_ctx.clipboard = map.copy_selected(false);
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            "Geometry copied into clipboard.".to_string(),
+                        ));
+                    } else {
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            "No geometry selected!".to_string(),
+                        ));
+                    }
+                }
+            }
+            TheEvent::Cut => {
+                if let Some(map) = project.get_map_mut(server_ctx) {
+                    if map.has_selection() {
+                        let prev = map.clone();
+                        server_ctx.clipboard = map.copy_selected(true);
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            "Geometry copied into clipboard.".to_string(),
+                        ));
+                        let undo_atom =
+                            RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+                        UNDOMANAGER.write().unwrap().add_region_undo(
+                            &server_ctx.curr_region,
+                            undo_atom,
+                            ctx,
+                        );
+                    } else {
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            "No geometry selected!".to_string(),
+                        ));
+                    }
+                }
+            }
+            TheEvent::Paste(_, _) => {
+                if !server_ctx.clipboard.is_empty() {
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        "Geometry pasted. Click to insert, Escape to cancel.".to_string(),
+                    ));
+                    server_ctx.paste_clipboard = Some(server_ctx.clipboard.clone());
+                }
+            }
             TheEvent::Custom(id, value) => {
                 if id.name == "Base Anim State Selected" {
                     if let Some(layout) = ui.get_text_layout("Node Settings") {

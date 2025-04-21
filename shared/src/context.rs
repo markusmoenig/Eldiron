@@ -121,6 +121,12 @@ pub struct ServerContext {
 
     /// Game server is running
     pub game_mode: bool,
+
+    /// Map clipboard
+    pub clipboard: Map,
+
+    /// Map clipboard which is currently being pasted
+    pub paste_clipboard: Option<Map>,
 }
 
 impl Default for ServerContext {
@@ -170,6 +176,9 @@ impl ServerContext {
             selected_wall_row: Some(0),
 
             game_mode: false,
+
+            clipboard: Map::default(),
+            paste_clipboard: None,
         }
     }
 

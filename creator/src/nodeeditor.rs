@@ -1,4 +1,4 @@
-// use crate::editor::UNDOMANAGER;
+use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
 use shared::prelude::*;
 
@@ -123,45 +123,7 @@ impl NodeEditor {
         let redraw = false;
         #[allow(clippy::single_match)]
         match event {
-            /*
-            TheEvent::Custom(id, _) => {
-                if id.name == "Update Material Previews" {
-                    for i in 0..20 {
-                        if let Some(icon_view) = ui.get_icon_view(&format!("Material Icon #{}", i))
-                        {
-                            let index = self.material_start_index + i;
-                            if let Some((_, material)) = project.materials.get_index(index as usize)
-                            {
-                                icon_view.set_rgba_tile(TheRGBATile::buffer(
-                                    material.get_preview().scaled(20, 20),
-                                ));
-                            }
-                        }
-                    }
-                } else if id.name == "Map Selection Changed" {
-                    if let Some(map) = project.get_map(server_ctx) {
-                        if let Some(rc) =
-                            server_ctx.get_texture_for_mode(server_ctx.curr_texture_mode, map)
-                        {
-                            if let Some(material_index) = rc.1 {
-                                self.set_material_selection(
-                                    ui,
-                                    ctx,
-                                    project,
-                                    server_ctx,
-                                    Some(material_index),
-                                );
-                            } else {
-                                self.set_material_selection(ui, ctx, project, server_ctx, None);
-                            }
-                        } else {
-                            self.set_material_selection(ui, ctx, project, server_ctx, None);
-                        }
-                    }
-                }
-            }*/
             TheEvent::ContextMenuSelected(id, item) => {
-                #[allow(clippy::collapsible_if)]
                 if id.name == "ShapeFX Nodes" && !self.graph.nodes.is_empty() {
                     if let Ok(role) = item.name.parse::<ShapeFXRole>() {
                         let mut effect = ShapeFX::new(role);
@@ -194,86 +156,13 @@ impl NodeEditor {
                     ui.set_node_canvas("ShapeFX NodeCanvas", canvas);
 
                     if let Some(map) = project.get_map_mut(server_ctx) {
+                        let prev = map.clone();
                         map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
+                        let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+                        UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
                     }
                 }
             }
-            /*
-            if id.name.starts_with("Material Icon #") {
-                let index_str = id.name.replace("Material Icon #", "");
-                if let Ok(index) = index_str.parse::<i32>() {
-                    let index = (index + self.material_start_index) as u8;
-                    // if let Some((_, material)) = project.materials.get_index_mut(index as usize)
-                    // {
-                    //     let node_canvas = material.to_canvas(&project.palette);
-                    //     ui.set_node_canvas("Map NodeCanvas", node_canvas);
-                    // }
-                    if let Some(map) = project.get_map_mut(server_ctx) {
-                        let prev = map.clone();
-
-                        match server_ctx.curr_texture_mode {
-                            MapTextureMode::Floor => {
-                                for sector_id in &map.selected_sectors.clone() {
-                                    if let Some(sector) = map.find_sector_mut(*sector_id) {
-                                        sector.floor_material = Some(index);
-                                        sector.floor_texture = None;
-                                    }
-                                }
-                            }
-                            MapTextureMode::Wall => {
-                                let mut linedef_ids = Vec::new();
-                                for sector_id in &map.selected_sectors {
-                                    if let Some(sector) = map.find_sector(*sector_id) {
-                                        linedef_ids.extend(&sector.linedefs);
-                                    }
-                                }
-
-                                for linedef_id in &map.selected_linedefs {
-                                    if !linedef_ids.contains(linedef_id) {
-                                        linedef_ids.push(*linedef_id);
-                                    }
-                                }
-
-                                for linedef_id in linedef_ids {
-                                    if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                                        linedef.material = Some(index);
-                                        linedef.texture = None;
-                                    }
-                                }
-                            }
-                            MapTextureMode::Ceiling => {
-                                for sector_id in &map.selected_sectors.clone() {
-                                    if let Some(sector) = map.find_sector_mut(*sector_id) {
-                                        sector.ceiling_material = Some(index);
-                                        sector.ceiling_texture = None;
-                                    }
-                                }
-                            }
-                            _ => {}
-                        }
-
-                        let undo =
-                            RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-
-                        UNDOMANAGER.lock().unwrap().add_region_undo(
-                            &server_ctx.curr_region,
-                            undo,
-                            ctx,
-                        );
-
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Minimap"),
-                            TheValue::Empty,
-                        ));
-
-                        self.set_material_selection(ui, ctx, project, server_ctx, Some(index));
-                    }
-                }
-                if let Some(region) = project.get_region_ctx(server_ctx) {
-                    server.update_region(region);
-                }
-            }*/
-            // }
             TheEvent::NodeSelectedIndexChanged(id, index) => {
                 if id.name == "ShapeFX NodeCanvas" {
                     self.graph.selected_node = *index;
@@ -287,7 +176,10 @@ impl NodeEditor {
                 if id.name == "ShapeFX NodeCanvas" {
                     self.graph.nodes[*index].position = *position;
                     if let Some(map) = project.get_map_mut(server_ctx) {
+                        let prev = map.clone();
                         map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
+                        let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+                        UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
                     }
                 }
             }
@@ -296,8 +188,16 @@ impl NodeEditor {
                 if id.name == "ShapeFX NodeCanvas" {
                     self.graph.connections.clone_from(connections);
                     if let Some(map) = project.get_map_mut(server_ctx) {
+                        let prev = map.clone();
                         map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
+                        let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+                        UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
                     }
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Materialpicker"),
+                        TheValue::Empty,
+                    ));
                 }
                 //     if let Some(material_id) = server_ctx.curr_material {
                 //         if let Some(material) = project.materials.get_mut(&material_id) {
@@ -318,6 +218,18 @@ impl NodeEditor {
                 if id.name == "ShapeFX NodeCanvas" {
                     self.graph.nodes.remove(*deleted_node_index);
                     self.graph.connections.clone_from(connections);
+
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        let prev = map.clone();
+                        map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
+                        let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+                        UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
+                    }
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Materialpicker"),
+                        TheValue::Empty,
+                    ));
                 }
                 // if id.name == "Map NodeCanvas" {
                 //     if let Some(material_id) = server_ctx.curr_material {
@@ -347,27 +259,6 @@ impl NodeEditor {
                     self.graph.scroll_offset = *offset;
                 }
             }
-            TheEvent::PaletteIndexChanged(_, _index) => {
-                // if let Some(material_id) = server_ctx.curr_material_object {
-                //     if let Some(material) = project.materials.get_mut(&material_id) {
-                //         if let Some(selected_index) = material.selected_node {
-                //             let prev = material.to_json();
-                //             if material.nodes[selected_index].set_palette_index(*index) {
-                //                 material
-                //                     .render_preview(&project.palette, &TEXTURES.lock().unwrap());
-                //                 ui.set_node_preview("Map NodeCanvas", 0, material.get_preview());
-
-                //                 let next = material.to_json();
-                //                 MAPRENDER.lock().unwrap().set_materials(project);
-                //                 let undo = MaterialFXUndoAtom::Edit(material_id, prev, next);
-                //                 UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
-
-                //                 redraw = true;
-                //             }
-                //         }
-                //     }
-                // }
-            }
             TheEvent::ValueChanged(id, value) => {
                 if id.name.starts_with("shapefx") {
                     let snake_case = self.transform_to_snake_case(&id.name, "shapefx");
@@ -387,90 +278,20 @@ impl NodeEditor {
                             }
                         }
                         if let Some(map) = project.get_map_mut(server_ctx) {
+                            let prev = map.clone();
                             map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
+                            let undo =
+                                MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+                            UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
                         }
+
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Materialpicker"),
+                            TheValue::Empty,
+                        ));
                     }
                 }
             }
-            /*
-            if id.name.starts_with(":MATERIALFX:") {
-                if let Some(name) = id.name.strip_prefix(":MATERIALFX: ") {
-                    let mut value = value.clone();
-
-                    #[allow(clippy::collapsible_else_if)]
-                    if let Some(material_id) = server_ctx.curr_material_object {
-                        if let Some(material) = project.materials.get_mut(&material_id) {
-                            if let Some(selected_index) = material.selected_node {
-                                let prev = material.to_json();
-
-                                // Convert TextList back
-                                if let Some(TheValue::TextList(_, list)) =
-                                    material.nodes[selected_index].get(name)
-                                {
-                                    if let Some(v) = value.to_i32() {
-                                        value = TheValue::TextList(v, list.clone());
-                                    }
-                                }
-
-                                // Look up the texture.
-                                if material.nodes[selected_index].role
-                                    == MaterialFXNodeRole::Material
-                                {
-                                    // if let TheValue::Text(tags) = &value {
-                                    //     if let Some(TheValue::Tile(_, id)) = TILEDRAWER
-                                    //         .lock()
-                                    //         .unwrap()
-                                    //         .get_tile_by_tags(0, &tags.to_lowercase())
-                                    //     {
-                                    //         material.nodes[selected_index].texture_id =
-                                    //             Some(id);
-                                    //     } else {
-                                    //         material.nodes[selected_index].texture_id = None;
-                                    //     }
-                                    // }
-                                }
-
-                                material.nodes[selected_index].set(name, value);
-
-                                if material.nodes[selected_index].supports_preview {
-                                    material.nodes[selected_index]
-                                        .render_preview(&project.palette);
-                                    ui.set_node_preview(
-                                        "Map NodeCanvas",
-                                        selected_index,
-                                        material.nodes[selected_index].preview.clone(),
-                                    );
-                                }
-                                material.render_preview(
-                                    &project.palette,
-                                    &TEXTURES.lock().unwrap(),
-                                );
-                                ui.set_node_preview(
-                                    "Map NodeCanvas",
-                                    0,
-                                    material.get_preview(),
-                                );
-                                let next = material.to_json();
-                                MAPRENDER.lock().unwrap().set_materials(project);
-
-                                let undo = MaterialFXUndoAtom::Edit(material_id, prev, next);
-                                UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
-                            }
-                        }
-                    }
-                }
-            }*/
-            //}
-            // TheEvent::StateChanged(id, TheWidgetState::Selected) => {
-            //     if id.name == "Material Item" {
-            //         let material_id = id.uuid;
-            //         server_ctx.curr_material_object = Some(material_id);
-            //         if let Some(material) = project.materials.get_mut(&material_id) {
-            //             let node_canvas = material.to_canvas(&project.palette);
-            //             ui.set_node_canvas("MaterialFX NodeCanvas", node_canvas);
-            //         }
-            //     }
-            // }
             _ => {}
         }
 

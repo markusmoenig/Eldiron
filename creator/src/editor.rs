@@ -528,181 +528,6 @@ impl TheTrait for Editor {
             }
         }
 
-        /*
-        if tick_update {
-            // Update the widgets which have anims (if they are visible)
-            if let Some(icon_view) = ui.get_widget("Global Icon Preview") {
-                if let Some(icon_view) = icon_view.as_icon_view() {
-                    icon_view.step();
-                    redraw = true;
-                }
-            }
-            if let Some(icon_view) = ui.get_widget("Icon Preview") {
-                if let Some(icon_view) = icon_view.as_icon_view() {
-                    icon_view.step();
-                    redraw = true;
-                }
-            }
-            if let Some(icon_view) = ui.get_widget("Tilemap Selection Preview") {
-                if let Some(icon_view) = icon_view.as_icon_view() {
-                    icon_view.step();
-                    redraw = true;
-                }
-            }
-
-            if self.server.state == ServerState::Running {
-                // Ticks
-                self.client
-                    .tick(*ACTIVEEDITOR.lock().unwrap() == ActiveEditor::GameEditor);
-                let debug = self.server.tick();
-                if !debug.is_empty() {
-                    self.sidebar.add_debug_messages(debug, ui, ctx);
-                }
-
-                // Get the messages for the client from the server.
-                let client_messages = self.server.get_client_messages();
-                for cmd in client_messages {
-                    self.client.process_server_message(&cmd);
-                }
-
-                // Get the messages for the server from the client.
-                let server_messages = self.client.get_server_messages();
-                for cmd in server_messages {
-                    self.server.execute_client_cmd(self.client.id, cmd);
-                }
-
-                let interactions = self.server.get_interactions();
-                self.server_ctx.add_interactions(interactions);
-                PANELS.lock().unwrap().update_code_object(
-                    ui,
-                    ctx,
-                    &mut self.server,
-                    &mut self.server_ctx,
-                );
-                if let Some(update) = self
-                    .server
-                    .get_region_update_json(self.server_ctx.curr_region)
-                {
-                    self.client.set_region_update(update);
-                }
-
-                if let Some(widget) = ui.get_widget("Server Time Slider") {
-                    widget.set_value(TheValue::Time(self.server.world.time));
-                    TOOLLIST.lock().unwrap().server_time = self.server.world.time;
-                }
-            }
-
-            // Set Debug Data
-
-            let mut debug_entity: Option<Uuid> = None;
-            if let Some(id) = self.server_ctx.curr_character_instance {
-                debug_entity = Some(id);
-            } else if let Some(id) = self.server_ctx.curr_area {
-                debug_entity = Some(id);
-            }
-
-            if let Some(debug_entity) = debug_entity {
-                let mut debug_has_set = false;
-
-                if let Some(debug) = self
-                    .server
-                    .get_entity_debug_data(self.server_ctx.curr_region, debug_entity)
-                {
-                    let editor_codegrid_id = CODEEDITOR.lock().unwrap().get_codegrid_id(ui);
-                    for debug in debug.values() {
-                        if debug.codegrid_id == editor_codegrid_id {
-                            CODEEDITOR
-                                .lock()
-                                .unwrap()
-                                .set_debug_module(debug.clone(), ui);
-                            debug_has_set = true;
-                            break;
-                        }
-                    }
-                }
-
-                if !debug_has_set {
-                    CODEEDITOR
-                        .lock()
-                        .unwrap()
-                        .set_debug_module(TheDebugModule::default(), ui);
-                }
-            }
-        }*/
-
-        /*
-        // Get prerendered results
-        {
-            let mut renderer = RENDERER.lock().unwrap();
-
-            let mut counter = 0;
-            while let Some(rendered) = PRERENDERTHREAD.lock().unwrap().receive() {
-                match rendered {
-                    PreRenderResult::MaterialPreviewRendered(_, buffer) => {
-                        ui.set_node_overlay("MaterialFX NodeCanvas", Some(buffer));
-                    }
-                    PreRenderResult::ClearRegionTile(id, tile) => {
-                        if let Some(region) = self.project.get_region_mut(&id) {
-                            region.prerendered.clear_tile_albedo(&tile);
-                            self.server.clear_prerendered_tile(id, &tile);
-                        }
-                    }
-                    PreRenderResult::RenderedRegionTile(id, tile, sample, tile_data) => {
-                        if let Some(region) = self.project.get_region_mut(&id) {
-                            region.prerendered.merge_tile_data(
-                                region.tile_size,
-                                &tile,
-                                sample,
-                                &tile_data,
-                            );
-                            self.server
-                                .set_prerendered_tile(id, &tile, sample, &tile_data);
-                        }
-                        redraw = true;
-                    }
-                    PreRenderResult::Clear(id) => {
-                        if let Some(region) = self.project.get_region_mut(&id) {
-                            self.server.clear_prerendered(region.id);
-                            region.prerendered.clear();
-                            renderer.canvas.canvas.fill([0, 0, 0]);
-                            renderer.canvas.distance_canvas.clear();
-                            renderer.canvas.lights_canvas.clear();
-                        }
-                    }
-                    PreRenderResult::UpdateMiniMap => {
-                        if let Some(region) =
-                            self.project.get_region_mut(&self.server_ctx.curr_region)
-                        {
-                            if let Some(render_view) = ui.get_render_view("MiniMap") {
-                                let dim = *render_view.dim();
-                                let buffer = render_view.render_buffer_mut();
-                                buffer.resize(dim.width, dim.height);
-                                draw_minimap(region, buffer);
-                            }
-                        }
-                    }
-                    PreRenderResult::Progress(id) => {
-                        if let Some(region) = self.project.get_region_mut(&id) {
-                            renderer.render_canvas(region);
-                        }
-                    }
-                    PreRenderResult::Paused => {
-                        TOOLLIST.lock().unwrap().render_button_text = "Paused".to_string();
-                        ui.set_widget_value("Render Button", ctx, TheValue::Text(str!("Paused")));
-                    }
-                    PreRenderResult::Finished => {
-                        TOOLLIST.lock().unwrap().render_button_text = "Finished".to_string();
-                        ui.set_widget_value("Render Button", ctx, TheValue::Text(str!("Finished")));
-                    }
-                    _ => {}
-                }
-                counter += 1;
-                if counter > 50 {
-                    break;
-                }
-            }
-        }*/
-
         if redraw_update && !self.project.regions.is_empty() {
             // let render_mode = *RENDERMODE.lock().unwrap();
 
@@ -744,8 +569,7 @@ impl TheTrait for Editor {
                 }
             }
 
-            // Draw Region
-
+            // Draw Map
             if let Some(render_view) = ui.get_render_view("PolyView") {
                 let dim = *render_view.dim();
 
@@ -824,18 +648,40 @@ impl TheTrait for Editor {
 
                                 // let start_time = ctx.get_time();
 
-                                rusterix.build_scene(
-                                    Vec2::new(dim.width as f32, dim.height as f32),
-                                    &region.map,
-                                    &self.build_values,
-                                    self.server_ctx.game_mode,
-                                );
+                                if let Some(clipboard) = &self.server_ctx.paste_clipboard {
+                                    // During a paste operation we use a merged map
 
-                                if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                    let mut map = region.map.clone();
+                                    if let Some(hover) = self.server_ctx.hover_cursor {
+                                        map.paste_at_position(clipboard, hover);
+                                    }
+
+                                    rusterix.set_dirty();
+                                    rusterix.build_scene(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        &map,
+                                        &self.build_values,
+                                        self.server_ctx.game_mode,
+                                    );
+
                                     rusterix.apply_entities_items(
                                         Vec2::new(dim.width as f32, dim.height as f32),
-                                        map,
+                                        &map,
                                     );
+                                } else {
+                                    rusterix.build_scene(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        &region.map,
+                                        &self.build_values,
+                                        self.server_ctx.game_mode,
+                                    );
+
+                                    if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                        rusterix.apply_entities_items(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            map,
+                                        );
+                                    }
                                 }
 
                                 // Prepare the messages for the region for drawing
@@ -870,22 +716,48 @@ impl TheTrait for Editor {
                                     width: 10.0,
                                     height: 10.0,
                                 }));
-                                rusterix.build_scene(
-                                    Vec2::new(dim.width as f32, dim.height as f32),
-                                    material,
-                                    &self.build_values,
-                                    self.server_ctx.game_mode,
-                                );
-                                rusterix.apply_entities_items(
-                                    Vec2::new(dim.width as f32, dim.height as f32),
-                                    material,
-                                );
-                                rusterix.draw_scene(
-                                    material,
-                                    render_view.render_buffer_mut().pixels_mut(),
-                                    dim.width as usize,
-                                    dim.height as usize,
-                                );
+
+                                if let Some(clipboard) = &self.server_ctx.paste_clipboard {
+                                    // During a paste operation we use a merged map
+                                    let mut map = material.clone();
+                                    if let Some(hover) = self.server_ctx.hover_cursor {
+                                        map.paste_at_position(clipboard, hover);
+                                    }
+                                    rusterix.set_dirty();
+                                    rusterix.build_scene(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        &map,
+                                        &self.build_values,
+                                        self.server_ctx.game_mode,
+                                    );
+                                    rusterix.apply_entities_items(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        &map,
+                                    );
+                                    rusterix.draw_scene(
+                                        &map,
+                                        render_view.render_buffer_mut().pixels_mut(),
+                                        dim.width as usize,
+                                        dim.height as usize,
+                                    );
+                                } else {
+                                    rusterix.build_scene(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        material,
+                                        &self.build_values,
+                                        self.server_ctx.game_mode,
+                                    );
+                                    rusterix.apply_entities_items(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        material,
+                                    );
+                                    rusterix.draw_scene(
+                                        material,
+                                        render_view.render_buffer_mut().pixels_mut(),
+                                        dim.width as usize,
+                                        dim.height as usize,
+                                    );
+                                }
                             }
                         } else
                         // Draw the screen map
@@ -933,22 +805,48 @@ impl TheTrait for Editor {
                                     width: grid_width,
                                     height: grid_height,
                                 }));
-                                rusterix.build_scene(
-                                    Vec2::new(dim.width as f32, dim.height as f32),
-                                    &screen.map,
-                                    &self.build_values,
-                                    self.server_ctx.game_mode,
-                                );
-                                rusterix.apply_entities_items(
-                                    Vec2::new(dim.width as f32, dim.height as f32),
-                                    &screen.map,
-                                );
-                                rusterix.draw_scene(
-                                    &screen.map,
-                                    render_view.render_buffer_mut().pixels_mut(),
-                                    dim.width as usize,
-                                    dim.height as usize,
-                                );
+
+                                if let Some(clipboard) = &self.server_ctx.paste_clipboard {
+                                    // During a paste operation we use a merged map
+                                    let mut map = screen.map.clone();
+                                    if let Some(hover) = self.server_ctx.hover_cursor {
+                                        map.paste_at_position(clipboard, hover);
+                                    }
+                                    rusterix.set_dirty();
+                                    rusterix.build_scene(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        &map,
+                                        &self.build_values,
+                                        self.server_ctx.game_mode,
+                                    );
+                                    rusterix.apply_entities_items(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        &map,
+                                    );
+                                    rusterix.draw_scene(
+                                        &map,
+                                        render_view.render_buffer_mut().pixels_mut(),
+                                        dim.width as usize,
+                                        dim.height as usize,
+                                    );
+                                } else {
+                                    rusterix.build_scene(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        &screen.map,
+                                        &self.build_values,
+                                        self.server_ctx.game_mode,
+                                    );
+                                    rusterix.apply_entities_items(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        &screen.map,
+                                    );
+                                    rusterix.draw_scene(
+                                        &screen.map,
+                                        render_view.render_buffer_mut().pixels_mut(),
+                                        dim.width as usize,
+                                        dim.height as usize,
+                                    );
+                                }
                             }
                         }
                     }
@@ -1881,6 +1779,11 @@ impl TheTrait for Editor {
                                 if let Some(value) = &ctx.ui.clipboard {
                                     ctx.ui.send(TheEvent::Paste(
                                         value.clone(),
+                                        ctx.ui.clipboard_app_type.clone(),
+                                    ));
+                                } else {
+                                    ctx.ui.send(TheEvent::Paste(
+                                        TheValue::Empty,
                                         ctx.ui.clipboard_app_type.clone(),
                                     ));
                                 }

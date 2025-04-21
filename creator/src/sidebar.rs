@@ -1881,6 +1881,7 @@ impl Sidebar {
                     server_ctx.curr_material = Some(map.id);
                     project.materials.insert(map.id, map);
                     self.show_filtered_materials(ui, ctx, project, server_ctx);
+                    RUSTERIX.write().unwrap().set_dirty();
                 }
                 /*else if id.name == "Module Add" {
                     if let Some(list_layout) = ui.get_list_layout("Module List") {
