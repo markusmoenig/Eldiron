@@ -18,6 +18,9 @@ base_currency_name = "Gold"
 # The symbol of the base currency
 base_currency_symbol = "G"
 
+[materials]
+tile_size = 128 # Pixel size of materials
+
 [render]
 sample_mode = "nearest" # "nearest" or "linear"
 

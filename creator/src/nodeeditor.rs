@@ -1,10 +1,9 @@
-use crate::editor::UNDOMANAGER;
+use crate::editor::{CONFIGEDITOR, PALETTE, UNDOMANAGER};
 use crate::prelude::*;
 use shared::prelude::*;
 
-use rusterix::{ShapeFX, ShapeFXGraph, ShapeFXParam, ShapeFXRole};
-
 use ShapeFXParam::*;
+use rusterix::{ShapeFX, ShapeFXGraph, ShapeFXParam, ShapeFXRole, ShapeStack, Texture, Value};
 
 pub struct NodeEditor {
     pub graph: ShapeFXGraph,
@@ -192,6 +191,7 @@ impl NodeEditor {
                         map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                         let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
                         UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
+                        self.create_preview(map, &PALETTE.read().unwrap());
                     }
 
                     ctx.ui.send(TheEvent::Custom(
@@ -225,6 +225,7 @@ impl NodeEditor {
                         map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                         let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
                         UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
+                        self.create_preview(map, &PALETTE.read().unwrap());
                     }
 
                     ctx.ui.send(TheEvent::Custom(
@@ -285,6 +286,7 @@ impl NodeEditor {
                             let undo =
                                 MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
                             UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
+                            self.create_preview(map, &PALETTE.read().unwrap());
                         }
 
                         ctx.ui.send(TheEvent::Custom(
@@ -428,87 +430,32 @@ impl NodeEditor {
                 ));
             }
         }
-
-        /*
-        if let Some(material_id) = server_ctx.curr_material {
-            if let Some(material) = project.materials.get_mut(&material_id) {
-                if let Some(selected_index) = material.selected_node {
-                    // Safeguard, not actually needed
-                    if selected_index >= material.nodes.len() {
-                        material.selected_node = None;
-                        return;
-                    }
-
-                    let collection = material.nodes[selected_index].collection();
-
-                    if let Some(text_layout) = ui.get_text_layout("Node Settings") {
-                        text_layout.clear();
-
-                        if switch_to_nodes {
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Show Node Settings"),
-                                TheValue::Text("Material Node".to_string()),
-                            ));
-                        }
-
-                        for (name, value) in &collection.keys {
-                            if let TheValue::Text(text) = value {
-                                let mut edit = TheTextLineEdit::new(TheId::named(
-                                    (":MATERIALFX: ".to_owned() + name).as_str(),
-                                ));
-                                edit.set_value(TheValue::Text(text.clone()));
-                                text_layout.add_pair(name.clone(), Box::new(edit));
-                            } else if let TheValue::FloatRange(value, range) = value {
-                                let mut slider = TheTextLineEdit::new(TheId::named(
-                                    (":MATERIALFX: ".to_owned() + name).as_str(),
-                                ));
-                                slider.set_value(TheValue::Float(*value));
-                                //slider.set_default_value(TheValue::Float(0.0));
-                                slider.set_range(TheValue::RangeF32(range.clone()));
-                                //slider.set_continuous(true);
-                                text_layout.add_pair(name.clone(), Box::new(slider));
-                            } else if let TheValue::IntRange(value, range) = value {
-                                let mut slider = TheTextLineEdit::new(TheId::named(
-                                    (":MATERIALFX: ".to_owned() + name).as_str(),
-                                ));
-                                slider.set_value(TheValue::Int(*value));
-                                slider.set_range(TheValue::RangeI32(range.clone()));
-                                //slider.set_continuous(true);
-                                text_layout.add_pair(name.clone(), Box::new(slider));
-                            } else if let TheValue::TextList(index, list) = value {
-                                let mut dropdown = TheDropdownMenu::new(TheId::named(
-                                    (":MATERIALFX: ".to_owned() + name).as_str(),
-                                ));
-                                for item in list {
-                                    dropdown.add_option(item.clone());
-                                }
-                                dropdown.set_selected_index(*index);
-                                text_layout.add_pair(name.clone(), Box::new(dropdown));
-                            }
-                        }
-                        ctx.ui.relayout = true;
-                    }
-                }
-                // PRERENDERTHREAD
-                //     .lock()
-                //     .unwrap()
-                //     .material_changed(material.clone());
-                // if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                //     let area = region.get_material_area(material_id);
-                //     PRERENDERTHREAD.lock().unwrap().render_region(
-                //         region.clone(),
-                //         project.palette.clone(),
-                //         area,
-                //     );
-                // }
-            }
-        } else if let Some(text_layout) = ui.get_text_layout("Node Settings") {
-            text_layout.clear();
-        }*/
     }
 
+    /// Create a preview for the material and stores it in the map
+    pub fn create_preview(&self, map: &mut Map, palette: &ThePalette) {
+        let size = CONFIGEDITOR.read().unwrap().tile_size;
+        let mut texture = Texture::alloc(size as usize, size as usize);
+
+        let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
+        stack.render(&mut texture, map, palette);
+
+        map.properties.set("material", Value::Texture(texture));
+    }
+
+    pub fn force_update(&self, ctx: &mut TheContext, map: &mut Map) {
+        self.create_preview(map, &PALETTE.read().unwrap());
+
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Materialpicker"),
+            TheValue::Empty,
+        ));
+    }
+
+    /// Activates the given graph in the editor
     pub fn apply_graph(&mut self, graph: &ShapeFXGraph, ui: &mut TheUI) {
         self.graph = graph.clone();
+        self.graph.selected_node = None;
         let canvas = self.to_canvas();
         ui.set_node_canvas("ShapeFX NodeCanvas", canvas);
     }

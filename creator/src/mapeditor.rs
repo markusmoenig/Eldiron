@@ -921,6 +921,10 @@ impl MapEditor {
                                         Value::Float(value),
                                     );
                                     self.add_map_undo(map, prev, ctx, server_ctx);
+
+                                    if id.name.contains("Material") {
+                                        NODEEDITOR.read().unwrap().force_update(ctx, map);
+                                    }
                                 }
                             }
                         }
@@ -1663,7 +1667,16 @@ impl MapEditor {
         server_ctx: &mut ServerContext,
     ) {
         // Check if we need to apply the graph to the node editor
-        if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+        if server_ctx.curr_map_context == MapContext::Material {
+            if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor
+                && server_ctx.curr_map_tool_helper != MapToolHelper::Preview
+            {
+                ctx.ui
+                    .send(TheEvent::IndexChanged(TheId::named("Map Helper Switch"), 2));
+                if let Some(widget) = ui.get_group_button("Map Helper Switch") {
+                    widget.set_index(2);
+                }
+            }
             if let Some(sector) = map.find_sector(sector_id) {
                 if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
                     sector.properties.get("floor_source")

@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use rusterix::{D2MaterialBuilder, Texture};
+use rusterix::Value;
 
 pub struct MaterialPicker {
     pub id: String,
@@ -169,8 +169,6 @@ impl MaterialPicker {
                 return;
             }
 
-            let b = D2MaterialBuilder::new();
-
             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
                 let grid = (48_f32 * self.zoom) as i32;
                 rgba_view.set_grid(Some(grid));
@@ -195,25 +193,17 @@ impl MaterialPicker {
                     let x = i as i32 % tiles_per_row;
                     let y = i as i32 / tiles_per_row;
 
-                    let mut texture = Texture::new(
-                        vec![0_u8; grid as usize * grid as usize * 4],
-                        grid as usize,
-                        grid as usize,
-                    );
-                    b.build_texture(
-                        map,
-                        &crate::editor::RUSTERIX.read().unwrap().assets,
-                        &mut texture,
-                    );
-
                     self.tile_ids.insert((x, y), map.id);
                     self.tile_text.insert((x, y), map.name.clone());
-                    let rgba = TheRGBABuffer::from(
-                        texture.data,
-                        texture.width as u32,
-                        texture.height as u32,
-                    );
-                    buffer.copy_into(x * grid, y * grid, &rgba);
+                    if let Some(Value::Texture(texture)) = map.properties.get("material") {
+                        let resized = texture.resized(grid as usize, grid as usize);
+                        let rgba = TheRGBABuffer::from(
+                            resized.data.clone(),
+                            resized.width as u32,
+                            resized.height as u32,
+                        );
+                        buffer.copy_into(x * grid, y * grid, &rgba);
+                    }
                 }
 
                 rgba_view.set_buffer(buffer);

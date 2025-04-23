@@ -1,6 +1,5 @@
 use crate::editor::RUSTERIX;
 use crate::prelude::*;
-use rusterix::ShapeStack;
 use rusterix::prelude::*;
 use theframework::prelude::*;
 
@@ -34,9 +33,6 @@ pub struct Hud {
 
     is_playing: bool,
     light_icon: Option<TheRGBABuffer>,
-
-    material_changed: u32,
-    material_texture: Texture,
 }
 
 impl Hud {
@@ -61,9 +57,6 @@ impl Hud {
 
             is_playing: false,
             light_icon: None,
-
-            material_changed: u32::MAX,
-            material_texture: Texture::alloc(150, 150),
         }
     }
 
@@ -74,7 +67,7 @@ impl Hud {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
         id: Option<u32>,
-        palette: &ThePalette,
+        _palette: &ThePalette,
     ) {
         if (self.mode == HudMode::Linedef || self.mode == HudMode::Sector)
             && self.light_icon.is_none()
@@ -433,28 +426,17 @@ impl Hud {
         // ----- Preview
 
         if server_ctx.curr_map_context == MapContext::Material {
-            if map.changed != self.material_changed {
-                let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
-                stack.render(&mut self.material_texture, map, palette);
-
-                self.material_changed = map.changed;
+            if let Some(Value::Texture(texture)) = map.properties.get("material") {
+                let w = texture.width as i32;
+                let h = texture.height as i32;
+                let preview_rect = TheDim::rect(width as i32 - w - 1, height as i32 - h - 1, w, h);
+                ctx.draw.copy_slice(
+                    buffer.pixels_mut(),
+                    &texture.data,
+                    &preview_rect.to_buffer_utuple(),
+                    stride,
+                );
             }
-
-            let preview_width = 150;
-            let preview_height = 150;
-            let preview_rect = TheDim::rect(
-                width as i32 - preview_width - 1,
-                height as i32 - preview_height - 1,
-                preview_width,
-                preview_height,
-            );
-
-            ctx.draw.copy_slice(
-                buffer.pixels_mut(),
-                &self.material_texture.data,
-                &preview_rect.to_buffer_utuple(),
-                stride,
-            );
         }
     }
 

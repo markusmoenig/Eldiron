@@ -60,11 +60,6 @@ impl Tool for LinedefTool {
     ) -> bool {
         match tool_event {
             Activate => {
-                ctx.ui.send(TheEvent::SetStackIndex(
-                    TheId::named("Main Stack"),
-                    PanelIndices::TilePicker as usize,
-                ));
-
                 if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
                     layout.set_mode(TheSharedHLayoutMode::Right);
                     ctx.ui.relayout = true;
@@ -530,8 +525,7 @@ impl Tool for LinedefTool {
                                 source = Some(Value::Source(PixelSource::TileId(id)));
                             }
                         } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                            if let Some(id) = server_ctx.curr_material {
-                                println!("Material ID: {}", id);
+                            if let Some(id) = server_ctx.curr_material_id {
                                 source = Some(Value::Source(PixelSource::MaterialId(id)));
                             }
                         } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {

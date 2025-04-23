@@ -111,9 +111,12 @@ impl PreviewView {
             rusterix
                 .client
                 .apply_entities_items_d3(&region.map, &assets);
-            rusterix
-                .client
-                .draw_d3(buffer.pixels_mut(), dim.width as usize, dim.height as usize);
+            rusterix.client.draw_d3(
+                &region.map,
+                buffer.pixels_mut(),
+                dim.width as usize,
+                dim.height as usize,
+            );
 
             // Hud
             let bg_color = [50, 50, 50, 255];

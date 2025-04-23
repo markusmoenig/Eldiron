@@ -1,6 +1,7 @@
 use crate::editor::CONFIGEDITOR;
 use crate::prelude::*;
 use rusterix::{PixelSource, Value, ValueContainer};
+use toml::*;
 
 /// Sets the code for the code editor based on the current editor mode
 pub fn set_code(
@@ -132,5 +133,20 @@ pub fn extract_build_values_from_config(values: &mut ValueContainer) {
             "sample_mode",
             Value::SampleMode(rusterix::SampleMode::Nearest),
         );
+    }
+
+    values.set("tile_size", Value::Int(config.tile_size));
+}
+
+/// Reads map relevant region settings from the TOML config and stores it in the map.
+pub fn apply_region_config(map: &mut Map, config: String) {
+    if let Ok(table) = config.parse::<Table>() {
+        if let Some(rendering) = table.get("rendering").and_then(toml::Value::as_table) {
+            if let Some(value) = rendering.get("receives_daylight") {
+                if let Some(v) = value.as_bool() {
+                    map.properties.set("receives_daylight", Value::Bool(v));
+                }
+            }
+        }
     }
 }

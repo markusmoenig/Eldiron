@@ -1,3 +1,4 @@
+use crate::editor::NODEEDITOR;
 use crate::editor::RUSTERIX;
 use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
@@ -203,6 +204,9 @@ impl ToolList {
                             );
                             if undo_atom.is_some() {
                                 map.changed += 1;
+                                if server_ctx.curr_map_context == MapContext::Material {
+                                    NODEEDITOR.read().unwrap().force_update(ctx, map);
+                                }
                             }
                             self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                         }
@@ -306,6 +310,9 @@ impl ToolList {
                                 );
                                 if undo_atom.is_some() {
                                     map.changed += 1;
+                                    if server_ctx.curr_map_context == MapContext::Material {
+                                        NODEEDITOR.read().unwrap().force_update(ctx, map);
+                                    }
                                 }
                                 self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                             }
@@ -344,6 +351,9 @@ impl ToolList {
                                 );
                                 if undo_atom.is_some() {
                                     map.changed += 1;
+                                    if server_ctx.curr_map_context == MapContext::Material {
+                                        NODEEDITOR.read().unwrap().force_update(ctx, map);
+                                    }
                                 }
                                 self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                             }
@@ -499,6 +509,9 @@ impl ToolList {
                                 );
                                 if undo_atom.is_some() {
                                     map.changed += 1;
+                                    if server_ctx.curr_map_context == MapContext::Material {
+                                        NODEEDITOR.read().unwrap().force_update(ctx, map);
+                                    }
                                 }
                                 self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                             }
@@ -625,6 +638,9 @@ impl ToolList {
                         );
                         if undo_atom.is_some() {
                             map.changed += 1;
+                            if server_ctx.curr_map_context == MapContext::Material {
+                                NODEEDITOR.read().unwrap().force_update(ctx, map);
+                            }
                         }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                     }
@@ -662,6 +678,9 @@ impl ToolList {
                         );
                         if undo_atom.is_some() {
                             map.changed += 1;
+                            if server_ctx.curr_map_context == MapContext::Material {
+                                NODEEDITOR.read().unwrap().force_update(ctx, map);
+                            }
                         }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                     }
@@ -680,6 +699,9 @@ impl ToolList {
                         );
                         if undo_atom.is_some() {
                             map.changed += 1;
+                            if server_ctx.curr_map_context == MapContext::Material {
+                                NODEEDITOR.read().unwrap().force_update(ctx, map);
+                            }
                         }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                     }

@@ -13,6 +13,9 @@ pub struct Region {
     pub name: String,
     pub map: Map,
 
+    #[serde(default)]
+    pub config: String,
+
     pub characters: IndexMap<Uuid, Character>,
     pub items: IndexMap<Uuid, Item>,
 
@@ -40,6 +43,7 @@ impl Region {
             name: "New Region".to_string(),
 
             map: Map::default(),
+            config: String::new(),
 
             characters: IndexMap::default(),
             items: IndexMap::default(),

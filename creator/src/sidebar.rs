@@ -3,7 +3,7 @@ use crate::editor::{
 };
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
-use rusterix::{D2MaterialBuilder, Texture};
+use rusterix::Value;
 
 #[derive(PartialEq, Debug)]
 pub enum SidebarMode {
@@ -229,10 +229,24 @@ impl Sidebar {
 
         let mut settings_canvas = TheCanvas::default();
 
-        let mut text_layout: TheTextLayout = TheTextLayout::new(TheId::empty());
-        text_layout
-            .limiter_mut()
-            .set_max_size(Vec2::new(self.width, 250));
+        let mut textedit = TheTextAreaEdit::new(TheId::named("RegionConfigEdit"));
+        if let Some(bytes) = crate::Embedded::get("parser/TOML.sublime-syntax") {
+            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                textedit.add_syntax_from_string(source);
+                textedit.set_code_type("TOML");
+            }
+        }
+        textedit.set_continuous(true);
+        textedit.display_line_number(false);
+        textedit.set_code_theme("base16-eighties.dark");
+        textedit.use_global_statusbar(true);
+        textedit.set_font_size(13.0);
+        settings_canvas.set_widget(textedit);
+
+        // let mut text_layout: TheTextLayout = TheTextLayout::new(TheId::empty());
+        // text_layout
+        //     .limiter_mut()
+        //     .set_max_size(Vec2::new(self.width, 250));
 
         /*
         let mut grid_edit = TheTextLineEdit::new(TheId::named("Region Grid Edit"));
@@ -278,7 +292,7 @@ impl Sidebar {
         region4.set_status_text("The region property #4 you can query from CodeGridFX.");
         text_layout.add_pair("Property #4".to_string(), Box::new(region4));*/
 
-        settings_canvas.set_layout(text_layout);
+        // settings_canvas.set_layout(text_layout);
         region_tab.add_canvas("Settings".to_string(), settings_canvas);
 
         let mut center_tab = TheCanvas::default();
@@ -998,8 +1012,8 @@ impl Sidebar {
                             .iter()
                             .map(|(k, v)| (*k, v.clone()))
                             .collect(),
-                        60,
                     );
+                    RUSTERIX.write().unwrap().set_dirty();
                 } else if id.name == "Update Model List" {
                     self.show_filtered_models(ui, ctx, project, server_ctx);
 
@@ -1295,6 +1309,14 @@ impl Sidebar {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
+                if id.name == "RegionConfigEdit" {
+                    if let Some(code) = value.to_string() {
+                        if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+                            apply_region_config(&mut region.map, code.clone());
+                            region.config = code;
+                        }
+                    }
+                }
                 if id.name == "Palette Hex Edit" {
                     if let Some(hex) = value.to_string() {
                         let color = TheColor::from_hex(&hex);
@@ -1654,6 +1676,13 @@ impl Sidebar {
                     if let Some(list_layout) = ui.get_list_layout("Region List") {
                         let mut region = Region::new();
                         region.map.name = region.name.clone();
+
+                        if let Some(bytes) = crate::Embedded::get("toml/region.toml") {
+                            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                                region.config = source.to_string();
+                                apply_region_config(&mut region.map, region.config.clone());
+                            }
+                        }
 
                         let mut item =
                             TheListItem::new(TheId::named_with_id("Region Item", region.id));
@@ -2928,6 +2957,15 @@ impl Sidebar {
 
         RUSTERIX.write().unwrap().set_dirty();
 
+        if let Some(region_id) = region_id {
+            if let Some(region) = project.get_region(&region_id) {
+                ui.set_widget_value(
+                    "RegionConfigEdit",
+                    ctx,
+                    TheValue::Text(region.config.clone()),
+                );
+            }
+        }
         /*
         if let Some(widget) = ui
             .canvas
@@ -3257,8 +3295,6 @@ impl Sidebar {
             if let Some(list_layout) = layout.as_list_layout() {
                 list_layout.clear();
 
-                let b = D2MaterialBuilder::new();
-
                 for (index, material) in project.materials.values().enumerate() {
                     if filter_text.is_empty() || material.name.to_lowercase().contains(&filter_text)
                     //&& (filter_role == 0
@@ -3274,14 +3310,16 @@ impl Sidebar {
                             item.set_state(TheWidgetState::Selected);
                         }
 
-                        let mut texture = Texture::new(vec![0_u8; 36 * 36 * 4], 36, 36);
-                        b.build_texture(material, &RUSTERIX.read().unwrap().assets, &mut texture);
-                        let rgba = TheRGBABuffer::from(
-                            texture.data,
-                            texture.width as u32,
-                            texture.height as u32,
-                        );
-                        item.set_icon(rgba);
+                        if let Some(Value::Texture(texture)) = material.properties.get("material") {
+                            let resized = texture.resized(36, 36);
+                            let rgba = TheRGBABuffer::from(
+                                resized.data.clone(),
+                                resized.width as u32,
+                                resized.height as u32,
+                            );
+                            item.set_icon(rgba);
+                        }
+
                         item.set_context_menu(Some(TheContextMenu {
                             items: vec![TheContextMenuItem::new(
                                 "Rename Material...".to_string(),

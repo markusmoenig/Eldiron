@@ -59,7 +59,7 @@ impl Tool for ConfigTool {
         &mut self,
         event: &TheEvent,
         _ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         project: &mut Project,
         _server_ctx: &mut ServerContext,
     ) -> bool {
@@ -73,7 +73,16 @@ impl Tool for ConfigTool {
                         if let Ok(toml) = project.config.parse::<Table>() {
                             *CONFIG.write().unwrap() = toml;
                         }
+                        let ts = CONFIGEDITOR.read().unwrap().tile_size;
                         CONFIGEDITOR.write().unwrap().read_defaults();
+
+                        // If the tile_size changed update the materials
+                        if ts != CONFIGEDITOR.read().unwrap().tile_size {
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Update Materialpicker"),
+                                TheValue::Empty,
+                            ));
+                        }
                     }
                 }
             }
