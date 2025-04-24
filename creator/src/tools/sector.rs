@@ -495,6 +495,11 @@ impl Tool for SectorTool {
                                     }
                                 }
 
+                                // Force update
+                                if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                                    NODEEDITOR.read().unwrap().force_update(ctx, map);
+                                }
+
                                 let undo_atom =
                                     RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
 
@@ -544,6 +549,11 @@ impl Tool for SectorTool {
                                     }
                                 }
                             }
+                        }
+
+                        // Force node update
+                        if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                            NODEEDITOR.read().unwrap().force_update(ctx, map);
                         }
 
                         let undo_atom =

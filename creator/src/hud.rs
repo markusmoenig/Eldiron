@@ -285,6 +285,7 @@ impl Hud {
             icons = 0;
         }
 
+        self.icon_rects.clear();
         let x = width as i32 - (icon_size * icons) - 1;
         for i in 0..icons {
             let rect = TheDim::rect(x + (i * icon_size), 20, icon_size, icon_size);
