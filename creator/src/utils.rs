@@ -1,6 +1,6 @@
 use crate::editor::CONFIGEDITOR;
 use crate::prelude::*;
-use rusterix::{PixelSource, Value, ValueContainer};
+use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
 use toml::*;
 
 /// Sets the code for the code editor based on the current editor mode
@@ -142,11 +142,68 @@ pub fn extract_build_values_from_config(values: &mut ValueContainer) {
 pub fn apply_region_config(map: &mut Map, config: String) {
     if let Ok(table) = config.parse::<Table>() {
         if let Some(rendering) = table.get("rendering").and_then(toml::Value::as_table) {
+            // Daylight
             if let Some(value) = rendering.get("receives_daylight") {
                 if let Some(v) = value.as_bool() {
                     map.properties.set("receives_daylight", Value::Bool(v));
                 }
             }
+
+            // Fog
+            if let Some(value) = rendering.get("fog_enabled") {
+                if let Some(v) = value.as_bool() {
+                    map.properties.set("fog_enabled", Value::Bool(v));
+                }
+            }
+            if let Some(value) = rendering.get("fog_start_distance") {
+                if let Some(v) = value.as_float() {
+                    map.properties
+                        .set("fog_start_distance", Value::Float(v as f32));
+                }
+            }
+            if let Some(value) = rendering.get("fog_end_distance") {
+                if let Some(v) = value.as_float() {
+                    map.properties
+                        .set("fog_end_distance", Value::Float(v as f32));
+                }
+            }
+            let mut fog_color = Vec4::zero();
+            if let Some(value) = rendering.get("fog_color") {
+                if let Some(v) = value.as_str() {
+                    let c = hex_to_rgba_u8(v);
+                    fog_color = pixel_to_vec4(&c);
+                }
+            }
+            map.properties.set(
+                "fog_color",
+                Value::Vec4([fog_color.x, fog_color.y, fog_color.z, fog_color.w]),
+            );
         }
+    }
+}
+
+/// Converts an hex string to a vec4 color
+pub fn hex_to_rgba_u8(hex: &str) -> [u8; 4] {
+    let hex = hex.trim_start_matches('#');
+
+    match hex.len() {
+        6 => match (
+            u8::from_str_radix(&hex[0..2], 16),
+            u8::from_str_radix(&hex[2..4], 16),
+            u8::from_str_radix(&hex[4..6], 16),
+        ) {
+            (Ok(r), Ok(g), Ok(b)) => [r, g, b, 255],
+            _ => [255, 255, 255, 255],
+        },
+        8 => match (
+            u8::from_str_radix(&hex[0..2], 16),
+            u8::from_str_radix(&hex[2..4], 16),
+            u8::from_str_radix(&hex[4..6], 16),
+            u8::from_str_radix(&hex[6..8], 16),
+        ) {
+            (Ok(r), Ok(g), Ok(b), Ok(a)) => [r, g, b, a],
+            _ => [255, 255, 255, 255],
+        },
+        _ => [255, 255, 255, 255],
     }
 }

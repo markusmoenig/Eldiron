@@ -6,7 +6,7 @@ name = "creator"
 # authors.workspace = true
 # description.workspace = true
 edition = "2024"
-version = "0.8.22"
+version = "0.8.23"
 license = "MIT"
 authors = ["Markus Moenig"]
 description = "A game creator for classical RPGs."
@@ -55,6 +55,3 @@ Create classical RPGs with Eldiron.
 # [lib]
 # name = "rustapi"
 # crate-type = ["staticlib"]
-
-# vek = { version = "0.17", default-features = false, features = ["rgba"] }
-# euc = { git = "https://github.com/zesterer/euc" }

@@ -867,7 +867,7 @@ dependencies = [
 
 [[package]]
 name = "creator"
-version = "0.8.22"
+version = "0.8.23"
 dependencies = [
  "arboard",
  "fontdue",
@@ -4177,7 +4177,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#8553c8032910ae9d8af9305c7b475f22700455da"
+source = "git+https://github.com/markusmoenig/Rusterix#684666c3752ea1615012f72b1cd8ed24fe92f7ad"
 dependencies = [
  "bincode",
  "bvh",
@@ -4862,7 +4862,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.8.22"
+version = "0.8.23"
 dependencies = [
  "earcutr",
  "fontdue",
@@ -5010,7 +5010,7 @@ dependencies = [
 
 [[package]]
 name = "solo"
-version = "0.8.22"
+version = "0.8.23"
 dependencies = [
  "console_error_panic_hook",
  "fontdue",
@@ -5491,9 +5491,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.14"
+version = "0.7.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b9590b93e6fcc1739458317cccd391ad3955e2bde8913edf6f95f9e65a8f034"
+checksum = "66a539a9ad6d5d281510d5bd368c973d636c02dbf8a67300bfb6b950696ad7df"
 dependencies = [
  "bytes",
  "futures-core",
