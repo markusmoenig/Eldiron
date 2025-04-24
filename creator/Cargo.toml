@@ -39,6 +39,7 @@ vek = { version = "0.17.1", default-features = true }
 regex = "1.11.1"
 arboard = "3.4.1"
 toml = "0.8.20"
+# lazy_static = "1.5.0"
 
 [package.metadata.bundle.bin.eldiron]
 name = "Eldiron"

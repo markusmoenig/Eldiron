@@ -12,9 +12,11 @@ pub mod mapeditor;
 pub mod materialpicker;
 pub mod minimap;
 pub mod misc;
+pub mod nodeeditor;
 pub mod panels;
 pub mod previewview;
 pub mod self_update;
+pub mod shapepicker;
 pub mod sidebar;
 pub mod tilemapeditor;
 pub mod tilepicker;
@@ -47,6 +49,7 @@ pub mod prelude {
     pub use crate::misc::*;
     pub use crate::panels::*;
     pub use crate::previewview::*;
+    pub use crate::shapepicker::*;
     pub use crate::sidebar::*;
     pub use crate::tilemapeditor::*;
     pub use crate::tilepicker::*;
@@ -60,7 +63,6 @@ pub mod prelude {
     pub use crate::tools::*;
 
     pub use crate::tools::code::CodeTool;
-    pub use crate::tools::fx::FXTool;
     pub use crate::tools::game::GameTool;
     pub use crate::tools::linedef::LinedefTool;
     pub use crate::tools::sector::SectorTool;
@@ -72,6 +74,7 @@ pub mod prelude {
 
     pub use crate::configeditor::ConfigEditor;
     pub use crate::infoviewer::InfoViewer;
+    pub use crate::nodeeditor::NodeEditor;
     pub use toml::Table;
 
     pub const KEY_ESCAPE: u32 = 0;
@@ -101,7 +104,7 @@ lazy_static! {
     static ref UI: Mutex<TheUI> = Mutex::new(TheUI::new());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_init() {
     UI.lock().unwrap().init(&mut CTX.lock().unwrap());
     APP.lock().unwrap().init(&mut CTX.lock().unwrap());
@@ -111,7 +114,7 @@ pub extern "C" fn rust_init() {
 }
 
 /// # Safety
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rust_draw(pixels: *mut u8, width: u32, height: u32) {
     let length = width as usize * height as usize * 4;
     let slice = unsafe { std::slice::from_raw_parts_mut(pixels, length) };
@@ -122,7 +125,7 @@ pub unsafe extern "C" fn rust_draw(pixels: *mut u8, width: u32, height: u32) {
     UI.lock().unwrap().draw(slice, &mut CTX.lock().unwrap());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_update() -> bool {
     //println!("update");
     UI.lock().unwrap().update(&mut CTX.lock().unwrap());
@@ -132,18 +135,18 @@ pub extern "C" fn rust_update() -> bool {
     APP.lock().unwrap().update(&mut CTX.lock().unwrap())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_target_fps() -> u32 {
     30
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_hover(x: f32, y: f32) -> bool {
     //println!("hover {} {}", x, y);
     UI.lock().unwrap().hover(x, y, &mut CTX.lock().unwrap())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_touch_down(x: f32, y: f32) -> bool {
     //println!("touch down {} {}", x, y);
     UI.lock()
@@ -151,7 +154,7 @@ pub extern "C" fn rust_touch_down(x: f32, y: f32) -> bool {
         .touch_down(x, y, &mut CTX.lock().unwrap())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_touch_dragged(x: f32, y: f32) -> bool {
     //println!("touch dragged {} {}", x, y);
     UI.lock()
@@ -159,13 +162,13 @@ pub extern "C" fn rust_touch_dragged(x: f32, y: f32) -> bool {
         .touch_dragged(x, y, &mut CTX.lock().unwrap())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_touch_up(x: f32, y: f32) -> bool {
     //println!("touch up {} {}", x, y);
     UI.lock().unwrap().touch_up(x, y, &mut CTX.lock().unwrap())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_touch_wheel(x: f32, y: f32) -> bool {
     //println!("touch up {} {}", x, y);
     UI.lock()
@@ -174,7 +177,7 @@ pub extern "C" fn rust_touch_wheel(x: f32, y: f32) -> bool {
 }
 
 /// # Safety
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rust_key_down(p: *const c_char) -> bool {
     let c_str = unsafe { CStr::from_ptr(p) };
     if let Ok(key) = c_str.to_str() {
@@ -189,7 +192,7 @@ pub unsafe extern "C" fn rust_key_down(p: *const c_char) -> bool {
 }
 
 /// # Safety
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rust_key_up(p: *const c_char) -> bool {
     let c_str = unsafe { CStr::from_ptr(p) };
     if let Ok(key) = c_str.to_str() {
@@ -203,7 +206,7 @@ pub unsafe extern "C" fn rust_key_up(p: *const c_char) -> bool {
     false
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_special_key_down(key: u32) -> bool {
     if key == KEY_ESCAPE {
         UI.lock()
@@ -245,7 +248,7 @@ pub extern "C" fn rust_special_key_down(key: u32) -> bool {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_key_modifier_changed(
     shift: bool,
     ctrl: bool,
@@ -256,7 +259,7 @@ pub extern "C" fn rust_key_modifier_changed(
 }
 
 /// # Safety
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rust_dropped_file(p: *const c_char) {
     let path_str = unsafe { CStr::from_ptr(p) };
     if let Ok(path) = path_str.to_str() {
@@ -264,35 +267,35 @@ pub unsafe extern "C" fn rust_dropped_file(p: *const c_char) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_open() {
     APP.lock().unwrap().open();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_save() {
     APP.lock().unwrap().save();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_save_as() {
     APP.lock().unwrap().save_as();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_cut() -> *mut c_char {
     let text = APP.lock().unwrap().cut();
     CString::new(text).unwrap().into_raw()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_copy() -> *mut c_char {
     let text = APP.lock().unwrap().copy();
     CString::new(text).unwrap().into_raw()
 }
 
 /// # Safety
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rust_paste(p: *const c_char) {
     let text_str = unsafe { CStr::from_ptr(p) };
     if let Ok(text) = text_str.to_str() {
@@ -300,12 +303,12 @@ pub unsafe extern "C" fn rust_paste(p: *const c_char) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_undo() {
     APP.lock().unwrap().undo();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_redo() {
     APP.lock().unwrap().redo();
 }
