@@ -24,6 +24,7 @@ pub mod toollist;
 pub mod tools;
 pub mod undo;
 pub mod utils;
+pub mod worldeditor;
 
 use rust_embed::RustEmbed;
 #[derive(RustEmbed)]
@@ -75,6 +76,7 @@ pub mod prelude {
     pub use crate::configeditor::ConfigEditor;
     pub use crate::infoviewer::InfoViewer;
     pub use crate::nodeeditor::NodeEditor;
+    pub use crate::worldeditor::WorldEditor;
     pub use toml::Table;
 
     pub const KEY_ESCAPE: u32 = 0;

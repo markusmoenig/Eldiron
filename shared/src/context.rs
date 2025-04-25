@@ -42,6 +42,39 @@ impl MapToolHelper {
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
+pub enum WorldToolHelper {
+    Camera,
+    Terrain,
+    NodeEditor,
+    EffectsPicker,
+    Preview,
+}
+
+impl WorldToolHelper {
+    pub fn set_from_index(&mut self, index: usize) {
+        match index {
+            1 => *self = WorldToolHelper::Terrain,
+            _ => *self = WorldToolHelper::Camera,
+        }
+    }
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum WorldToolCamera {
+    Orbit,
+    FirstP,
+}
+
+impl WorldToolCamera {
+    pub fn set_from_index(&mut self, index: usize) {
+        match index {
+            1 => *self = WorldToolCamera::FirstP,
+            _ => *self = WorldToolCamera::Orbit,
+        }
+    }
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum MapTextureMode {
     Preview,
     Floor,
@@ -107,6 +140,12 @@ pub struct ServerContext {
     /// For map tools, indicates which helper is active
     pub curr_map_tool_helper: MapToolHelper,
 
+    /// For world tools, indicates which helper is active
+    pub curr_world_tool_helper: WorldToolHelper,
+
+    /// For world tools, indicates which camera is active
+    pub curr_world_tool_camera: WorldToolCamera,
+
     /// Map texture mode
     pub curr_texture_mode: MapTextureMode,
 
@@ -118,6 +157,9 @@ pub struct ServerContext {
 
     /// Selected wall row, set by the linedef Hud
     pub selected_wall_row: Option<i32>,
+
+    /// World mode is active
+    pub world_mode: bool,
 
     /// Game server is running
     pub game_mode: bool,
@@ -168,6 +210,8 @@ impl ServerContext {
             curr_map_tool_type: MapToolType::Linedef,
             curr_map_context: MapContext::Region,
             curr_map_tool_helper: MapToolHelper::TilePicker,
+            curr_world_tool_helper: WorldToolHelper::Camera,
+            curr_world_tool_camera: WorldToolCamera::Orbit,
             curr_texture_mode: MapTextureMode::Floor,
 
             content_click_from_map: false,
@@ -175,6 +219,7 @@ impl ServerContext {
 
             selected_wall_row: Some(0),
 
+            world_mode: false,
             game_mode: false,
 
             clipboard: Map::default(),

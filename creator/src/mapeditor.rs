@@ -315,7 +315,7 @@ impl MapEditor {
                     if is_running && server_ctx.game_mode {
                         let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
                         rusterix.client.target_offset -= *coord;
-                    } else {
+                    } else if !server_ctx.world_mode {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             if ui.ctrl || ui.logo {
                                 map.grid_size += coord.y as f32;

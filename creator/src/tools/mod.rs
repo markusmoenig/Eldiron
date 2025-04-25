@@ -12,6 +12,7 @@ pub mod selection;
 pub mod shape;
 pub mod tileset;
 pub mod vertex;
+pub mod world;
 
 #[derive(PartialEq, Clone, Debug, Copy)]
 pub enum ToolEvent {

@@ -45,6 +45,8 @@ pub static PREVIEWVIEW: LazyLock<RwLock<PreviewView>> =
     LazyLock::new(|| RwLock::new(PreviewView::new()));
 pub static NODEEDITOR: LazyLock<RwLock<NodeEditor>> =
     LazyLock::new(|| RwLock::new(NodeEditor::new()));
+pub static WORLDEDITOR: LazyLock<RwLock<WorldEditor>> =
+    LazyLock::new(|| RwLock::new(WorldEditor::new()));
 
 pub struct Editor {
     project: Project,
@@ -569,38 +571,222 @@ impl TheTrait for Editor {
                 }
             }
 
-            // Draw Map
-            if let Some(render_view) = ui.get_render_view("PolyView") {
-                let dim = *render_view.dim();
+            if self.server_ctx.world_mode {
+                // Draw World Editor
+                WORLDEDITOR.write().unwrap().draw(
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.server_ctx,
+                    &mut self.build_values,
+                );
+            } else {
+                // Draw Map
+                if let Some(render_view) = ui.get_render_view("PolyView") {
+                    let dim = *render_view.dim();
 
-                let buffer = render_view.render_buffer_mut();
-                buffer.resize(dim.width, dim.height);
+                    let buffer = render_view.render_buffer_mut();
+                    buffer.resize(dim.width, dim.height);
 
-                {
-                    let rusterix = &mut RUSTERIX.write().unwrap();
-                    let is_running = rusterix.server.state == rusterix::ServerState::Running;
-                    let b = &mut rusterix.client.builder_d2;
+                    {
+                        let rusterix = &mut RUSTERIX.write().unwrap();
+                        let is_running = rusterix.server.state == rusterix::ServerState::Running;
+                        let b = &mut rusterix.client.builder_d2;
 
-                    if is_running && self.server_ctx.game_mode {
-                        for r in &mut self.project.regions {
-                            if r.map.name == rusterix.client.current_map {
-                                rusterix.draw_game(&r.map, messages);
-                                break;
+                        if is_running && self.server_ctx.game_mode {
+                            for r in &mut self.project.regions {
+                                if r.map.name == rusterix.client.current_map {
+                                    rusterix.draw_game(&r.map, messages);
+                                    break;
+                                }
                             }
-                        }
 
-                        rusterix
-                            .client
-                            .insert_game_buffer(render_view.render_buffer_mut());
-                    } else {
-                        // Draw the region map
-                        if self.server_ctx.curr_map_context == MapContext::Region {
-                            if let Some(region) =
-                                self.project.get_region(&self.server_ctx.curr_region)
-                            {
-                                if region.map.camera == MapCamera::TwoD {
-                                    b.set_clip_rect(None);
-                                    b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                            rusterix
+                                .client
+                                .insert_game_buffer(render_view.render_buffer_mut());
+                        } else {
+                            // Draw the region map
+                            if self.server_ctx.curr_map_context == MapContext::Region {
+                                if let Some(region) =
+                                    self.project.get_region(&self.server_ctx.curr_region)
+                                {
+                                    if region.map.camera == MapCamera::TwoD {
+                                        b.set_clip_rect(None);
+                                        b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                                        if let Some(hover_cursor) = self.server_ctx.hover_cursor {
+                                            b.set_map_hover_info(
+                                                self.server_ctx.hover,
+                                                Some(vek::Vec2::new(
+                                                    hover_cursor.x,
+                                                    hover_cursor.y,
+                                                )),
+                                            );
+                                        } else {
+                                            b.set_map_hover_info(self.server_ctx.hover, None);
+                                        }
+
+                                        if let Some(camera_pos) = region.map.camera_xz {
+                                            b.set_camera_info(
+                                                Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
+                                                None,
+                                            );
+                                        }
+                                    } else if region.map.camera == MapCamera::ThreeDIso {
+                                        if !is_running || !self.server_ctx.game_mode {
+                                            let p = vek::Vec3::new(
+                                                region.editing_position_3d.x,
+                                                0.0,
+                                                region.editing_position_3d.z,
+                                            );
+
+                                            rusterix
+                                                .client
+                                                .camera_d3
+                                                .set_parameter_vec3("center", p);
+                                            rusterix.client.camera_d3.set_parameter_vec3(
+                                                "position",
+                                                p + vek::Vec3::new(-10.0, 10.0, 10.0),
+                                            );
+                                        }
+                                    } else if region.map.camera == MapCamera::ThreeDFirstPerson {
+                                        #[allow(clippy::collapsible_if)]
+                                        if !is_running || !self.server_ctx.game_mode {
+                                            let p = vek::Vec3::new(
+                                                region.editing_position_3d.x,
+                                                1.5,
+                                                region.editing_position_3d.z,
+                                            );
+                                            rusterix
+                                                .client
+                                                .camera_d3
+                                                .set_parameter_vec3("position", p);
+                                            rusterix.client.camera_d3.set_parameter_vec3(
+                                                "center",
+                                                p + vek::Vec3::new(0.0, 0.0, -1.0),
+                                            );
+                                        }
+                                    }
+
+                                    // let start_time = ctx.get_time();
+
+                                    if let Some(clipboard) = &self.server_ctx.paste_clipboard {
+                                        // During a paste operation we use a merged map
+
+                                        let mut map = region.map.clone();
+                                        if let Some(hover) = self.server_ctx.hover_cursor {
+                                            map.paste_at_position(clipboard, hover);
+                                        }
+
+                                        rusterix.set_dirty();
+                                        rusterix.build_scene(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            &map,
+                                            &self.build_values,
+                                            self.server_ctx.game_mode,
+                                        );
+
+                                        rusterix.apply_entities_items(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            &map,
+                                        );
+                                    } else {
+                                        rusterix.build_scene(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            &region.map,
+                                            &self.build_values,
+                                            self.server_ctx.game_mode,
+                                        );
+
+                                        if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                            rusterix.apply_entities_items(
+                                                Vec2::new(dim.width as f32, dim.height as f32),
+                                                map,
+                                            );
+                                        }
+                                    }
+
+                                    // Prepare the messages for the region for drawing
+                                    rusterix.process_messages(&region.map, messages);
+
+                                    rusterix.draw_scene(
+                                        &region.map,
+                                        render_view.render_buffer_mut().pixels_mut(),
+                                        dim.width as usize,
+                                        dim.height as usize,
+                                    );
+
+                                    // let stop_time = ctx.get_time();
+                                    //println!("{} ms", stop_time - start_time);
+                                }
+                            } else
+                            // Draw the material map
+                            if self.server_ctx.curr_map_context == MapContext::Material {
+                                b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                                if let Some(material) = self.project.get_map_mut(&self.server_ctx) {
+                                    if let Some(hover_cursor) = self.server_ctx.hover_cursor {
+                                        b.set_map_hover_info(
+                                            self.server_ctx.hover,
+                                            Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
+                                        );
+                                    } else {
+                                        b.set_map_hover_info(self.server_ctx.hover, None);
+                                    }
+                                    b.set_clip_rect(Some(rusterix::Rect {
+                                        x: -5.0,
+                                        y: -5.0,
+                                        width: 10.0,
+                                        height: 10.0,
+                                    }));
+
+                                    if let Some(clipboard) = &self.server_ctx.paste_clipboard {
+                                        // During a paste operation we use a merged map
+                                        let mut map = material.clone();
+                                        if let Some(hover) = self.server_ctx.hover_cursor {
+                                            map.paste_at_position(clipboard, hover);
+                                        }
+                                        rusterix.set_dirty();
+                                        rusterix.build_scene(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            &map,
+                                            &self.build_values,
+                                            self.server_ctx.game_mode,
+                                        );
+                                        rusterix.apply_entities_items(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            &map,
+                                        );
+                                        rusterix.draw_scene(
+                                            &map,
+                                            render_view.render_buffer_mut().pixels_mut(),
+                                            dim.width as usize,
+                                            dim.height as usize,
+                                        );
+                                    } else {
+                                        rusterix.build_scene(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            material,
+                                            &self.build_values,
+                                            self.server_ctx.game_mode,
+                                        );
+                                        rusterix.apply_entities_items(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            material,
+                                        );
+                                        rusterix.draw_scene(
+                                            material,
+                                            render_view.render_buffer_mut().pixels_mut(),
+                                            dim.width as usize,
+                                            dim.height as usize,
+                                        );
+                                    }
+                                }
+                            } else
+                            // Draw the screen map
+                            if self.server_ctx.curr_map_context == MapContext::Screen {
+                                b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                                if let Some(screen) =
+                                    self.project.get_screen_ctx_mut(&self.server_ctx)
+                                {
                                     if let Some(hover_cursor) = self.server_ctx.hover_cursor {
                                         b.set_map_hover_info(
                                             self.server_ctx.hover,
@@ -610,258 +796,95 @@ impl TheTrait for Editor {
                                         b.set_map_hover_info(self.server_ctx.hover, None);
                                     }
 
-                                    if let Some(camera_pos) = region.map.camera_xz {
-                                        b.set_camera_info(
-                                            Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
-                                            None,
-                                        );
-                                    }
-                                } else if region.map.camera == MapCamera::ThreeDIso {
-                                    if !is_running || !self.server_ctx.game_mode {
-                                        let p = vek::Vec3::new(
-                                            region.editing_position_3d.x,
-                                            0.0,
-                                            region.editing_position_3d.z,
-                                        );
+                                    let screen_width = CONFIGEDITOR
+                                        .read()
+                                        .unwrap()
+                                        .get_i32_default("viewport", "width", 1280);
 
-                                        rusterix.client.camera_d3.set_parameter_vec3("center", p);
-                                        rusterix.client.camera_d3.set_parameter_vec3(
-                                            "position",
-                                            p + vek::Vec3::new(-10.0, 10.0, 10.0),
-                                        );
-                                    }
-                                } else if region.map.camera == MapCamera::ThreeDFirstPerson {
-                                    #[allow(clippy::collapsible_if)]
-                                    if !is_running || !self.server_ctx.game_mode {
-                                        let p = vek::Vec3::new(
-                                            region.editing_position_3d.x,
-                                            1.5,
-                                            region.editing_position_3d.z,
-                                        );
-                                        rusterix.client.camera_d3.set_parameter_vec3("position", p);
-                                        rusterix.client.camera_d3.set_parameter_vec3(
-                                            "center",
-                                            p + vek::Vec3::new(0.0, 0.0, -1.0),
-                                        );
-                                    }
-                                }
+                                    let screen_height = CONFIGEDITOR
+                                        .read()
+                                        .unwrap()
+                                        .get_i32_default("viewport", "height", 720);
 
-                                // let start_time = ctx.get_time();
-
-                                if let Some(clipboard) = &self.server_ctx.paste_clipboard {
-                                    // During a paste operation we use a merged map
-
-                                    let mut map = region.map.clone();
-                                    if let Some(hover) = self.server_ctx.hover_cursor {
-                                        map.paste_at_position(clipboard, hover);
-                                    }
-
-                                    rusterix.set_dirty();
-                                    rusterix.build_scene(
-                                        Vec2::new(dim.width as f32, dim.height as f32),
-                                        &map,
-                                        &self.build_values,
-                                        self.server_ctx.game_mode,
+                                    let grid_size = CONFIGEDITOR.read().unwrap().get_i32_default(
+                                        "viewport",
+                                        "grid_size",
+                                        32,
                                     );
 
-                                    rusterix.apply_entities_items(
-                                        Vec2::new(dim.width as f32, dim.height as f32),
-                                        &map,
-                                    );
-                                } else {
-                                    rusterix.build_scene(
-                                        Vec2::new(dim.width as f32, dim.height as f32),
-                                        &region.map,
-                                        &self.build_values,
-                                        self.server_ctx.game_mode,
+                                    let grid_width = screen_width as f32 / grid_size as f32;
+                                    let grid_height = screen_height as f32 / grid_size as f32;
+
+                                    let (x, y) = rusterix::utils::align_screen_to_grid(
+                                        screen_width as f32,
+                                        screen_height as f32,
+                                        grid_size as f32,
                                     );
 
-                                    if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                    b.set_clip_rect(Some(rusterix::Rect {
+                                        x,
+                                        y,
+                                        width: grid_width,
+                                        height: grid_height,
+                                    }));
+
+                                    if let Some(clipboard) = &self.server_ctx.paste_clipboard {
+                                        // During a paste operation we use a merged map
+                                        let mut map = screen.map.clone();
+                                        if let Some(hover) = self.server_ctx.hover_cursor {
+                                            map.paste_at_position(clipboard, hover);
+                                        }
+                                        rusterix.set_dirty();
+                                        rusterix.build_scene(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            &map,
+                                            &self.build_values,
+                                            self.server_ctx.game_mode,
+                                        );
                                         rusterix.apply_entities_items(
                                             Vec2::new(dim.width as f32, dim.height as f32),
-                                            map,
+                                            &map,
+                                        );
+                                        rusterix.draw_scene(
+                                            &map,
+                                            render_view.render_buffer_mut().pixels_mut(),
+                                            dim.width as usize,
+                                            dim.height as usize,
+                                        );
+                                    } else {
+                                        rusterix.build_scene(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            &screen.map,
+                                            &self.build_values,
+                                            self.server_ctx.game_mode,
+                                        );
+                                        rusterix.apply_entities_items(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            &screen.map,
+                                        );
+                                        rusterix.draw_scene(
+                                            &screen.map,
+                                            render_view.render_buffer_mut().pixels_mut(),
+                                            dim.width as usize,
+                                            dim.height as usize,
                                         );
                                     }
-                                }
-
-                                // Prepare the messages for the region for drawing
-                                rusterix.process_messages(&region.map, messages);
-
-                                rusterix.draw_scene(
-                                    &region.map,
-                                    render_view.render_buffer_mut().pixels_mut(),
-                                    dim.width as usize,
-                                    dim.height as usize,
-                                );
-
-                                // let stop_time = ctx.get_time();
-                                //println!("{} ms", stop_time - start_time);
-                            }
-                        } else
-                        // Draw the material map
-                        if self.server_ctx.curr_map_context == MapContext::Material {
-                            b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
-                            if let Some(material) = self.project.get_map_mut(&self.server_ctx) {
-                                if let Some(hover_cursor) = self.server_ctx.hover_cursor {
-                                    b.set_map_hover_info(
-                                        self.server_ctx.hover,
-                                        Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
-                                    );
-                                } else {
-                                    b.set_map_hover_info(self.server_ctx.hover, None);
-                                }
-                                b.set_clip_rect(Some(rusterix::Rect {
-                                    x: -5.0,
-                                    y: -5.0,
-                                    width: 10.0,
-                                    height: 10.0,
-                                }));
-
-                                if let Some(clipboard) = &self.server_ctx.paste_clipboard {
-                                    // During a paste operation we use a merged map
-                                    let mut map = material.clone();
-                                    if let Some(hover) = self.server_ctx.hover_cursor {
-                                        map.paste_at_position(clipboard, hover);
-                                    }
-                                    rusterix.set_dirty();
-                                    rusterix.build_scene(
-                                        Vec2::new(dim.width as f32, dim.height as f32),
-                                        &map,
-                                        &self.build_values,
-                                        self.server_ctx.game_mode,
-                                    );
-                                    rusterix.apply_entities_items(
-                                        Vec2::new(dim.width as f32, dim.height as f32),
-                                        &map,
-                                    );
-                                    rusterix.draw_scene(
-                                        &map,
-                                        render_view.render_buffer_mut().pixels_mut(),
-                                        dim.width as usize,
-                                        dim.height as usize,
-                                    );
-                                } else {
-                                    rusterix.build_scene(
-                                        Vec2::new(dim.width as f32, dim.height as f32),
-                                        material,
-                                        &self.build_values,
-                                        self.server_ctx.game_mode,
-                                    );
-                                    rusterix.apply_entities_items(
-                                        Vec2::new(dim.width as f32, dim.height as f32),
-                                        material,
-                                    );
-                                    rusterix.draw_scene(
-                                        material,
-                                        render_view.render_buffer_mut().pixels_mut(),
-                                        dim.width as usize,
-                                        dim.height as usize,
-                                    );
-                                }
-                            }
-                        } else
-                        // Draw the screen map
-                        if self.server_ctx.curr_map_context == MapContext::Screen {
-                            b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
-                            if let Some(screen) = self.project.get_screen_ctx_mut(&self.server_ctx)
-                            {
-                                if let Some(hover_cursor) = self.server_ctx.hover_cursor {
-                                    b.set_map_hover_info(
-                                        self.server_ctx.hover,
-                                        Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
-                                    );
-                                } else {
-                                    b.set_map_hover_info(self.server_ctx.hover, None);
-                                }
-
-                                let screen_width = CONFIGEDITOR
-                                    .read()
-                                    .unwrap()
-                                    .get_i32_default("viewport", "width", 1280);
-
-                                let screen_height = CONFIGEDITOR
-                                    .read()
-                                    .unwrap()
-                                    .get_i32_default("viewport", "height", 720);
-
-                                let grid_size = CONFIGEDITOR.read().unwrap().get_i32_default(
-                                    "viewport",
-                                    "grid_size",
-                                    32,
-                                );
-
-                                let grid_width = screen_width as f32 / grid_size as f32;
-                                let grid_height = screen_height as f32 / grid_size as f32;
-
-                                let (x, y) = rusterix::utils::align_screen_to_grid(
-                                    screen_width as f32,
-                                    screen_height as f32,
-                                    grid_size as f32,
-                                );
-
-                                b.set_clip_rect(Some(rusterix::Rect {
-                                    x,
-                                    y,
-                                    width: grid_width,
-                                    height: grid_height,
-                                }));
-
-                                if let Some(clipboard) = &self.server_ctx.paste_clipboard {
-                                    // During a paste operation we use a merged map
-                                    let mut map = screen.map.clone();
-                                    if let Some(hover) = self.server_ctx.hover_cursor {
-                                        map.paste_at_position(clipboard, hover);
-                                    }
-                                    rusterix.set_dirty();
-                                    rusterix.build_scene(
-                                        Vec2::new(dim.width as f32, dim.height as f32),
-                                        &map,
-                                        &self.build_values,
-                                        self.server_ctx.game_mode,
-                                    );
-                                    rusterix.apply_entities_items(
-                                        Vec2::new(dim.width as f32, dim.height as f32),
-                                        &map,
-                                    );
-                                    rusterix.draw_scene(
-                                        &map,
-                                        render_view.render_buffer_mut().pixels_mut(),
-                                        dim.width as usize,
-                                        dim.height as usize,
-                                    );
-                                } else {
-                                    rusterix.build_scene(
-                                        Vec2::new(dim.width as f32, dim.height as f32),
-                                        &screen.map,
-                                        &self.build_values,
-                                        self.server_ctx.game_mode,
-                                    );
-                                    rusterix.apply_entities_items(
-                                        Vec2::new(dim.width as f32, dim.height as f32),
-                                        &screen.map,
-                                    );
-                                    rusterix.draw_scene(
-                                        &screen.map,
-                                        render_view.render_buffer_mut().pixels_mut(),
-                                        dim.width as usize,
-                                        dim.height as usize,
-                                    );
                                 }
                             }
                         }
                     }
-                }
 
-                if !self.server_ctx.game_mode {
-                    let palette = self.project.palette.clone();
-                    if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
-                        TOOLLIST.write().unwrap().draw_hud(
-                            render_view.render_buffer_mut(),
-                            map,
-                            ctx,
-                            &mut self.server_ctx,
-                            &palette,
-                        );
+                    if !self.server_ctx.game_mode {
+                        let palette = self.project.palette.clone();
+                        if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
+                            TOOLLIST.write().unwrap().draw_hud(
+                                render_view.render_buffer_mut(),
+                                map,
+                                ctx,
+                                &mut self.server_ctx,
+                                &palette,
+                            );
+                        }
                     }
                 }
             }

@@ -3,10 +3,7 @@ use crate::editor::RUSTERIX;
 use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
 pub use crate::tools::{
-    config::ConfigTool,
-    data::DataTool,
-    info::InfoTool,
-    rect::RectTool, //, shape::ShapeTool,
+    config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, world::WorldTool,
 };
 
 pub struct ToolList {
@@ -38,7 +35,7 @@ impl ToolList {
             Box::new(LinedefTool::new()),
             Box::new(SectorTool::new()),
             Box::new(RectTool::new()),
-            // Box::new(ShapeTool::new()),
+            Box::new(WorldTool::new()),
             Box::new(CodeTool::new()),
             Box::new(DataTool::new()),
             Box::new(TilesetTool::new()),

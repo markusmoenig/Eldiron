@@ -40,6 +40,8 @@ Unless explicitly stated otherwise, any contribution intentionally submitted for
 
 <!-- - The starter project uses the great [resurrect-64-palette](https://lospec.com/palette-list/resurrect-64). -->
 
-## Sponsors
+---
 
-None yet
+## Sponsor
+
+If you’d like to support the **Eldiron** project, please consider joining my [Patreon](https://www.patreon.com/eldiron), join my [GitHub Sponsor](https://github.com/markusmoenig) or send a [Donation](https://www.paypal.me/markusmoenigos). Your support helps me continue development, commission tilesets, host databases and forums, and more.

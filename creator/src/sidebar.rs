@@ -243,57 +243,7 @@ impl Sidebar {
         textedit.set_font_size(13.0);
         settings_canvas.set_widget(textedit);
 
-        // let mut text_layout: TheTextLayout = TheTextLayout::new(TheId::empty());
-        // text_layout
-        //     .limiter_mut()
-        //     .set_max_size(Vec2::new(self.width, 250));
-
-        /*
-        let mut grid_edit = TheTextLineEdit::new(TheId::named("Region Grid Edit"));
-        grid_edit.set_range(TheValue::RangeI32(1..=1000));
-        grid_edit.set_status_text("The size of the region grid in pixels for the 2D renderer.");
-        text_layout.add_pair("Grid Size".to_string(), Box::new(grid_edit));
-
-        let mut tile_size = TheTextLineEdit::new(TheId::named("Region Tile Size"));
-        tile_size.set_range(TheValue::RangeI32(1..=100));
-        tile_size.set_status_text("The tile size for the 3D renderer.");
-        text_layout.add_pair("Tile Size".to_string(), Box::new(tile_size));
-
-        let mut tracer_edit = TheTextLineEdit::new(TheId::named("Region Tracer Samples Edit"));
-        tracer_edit.set_range(TheValue::RangeI32(1..=100));
-        tracer_edit.set_status_text("The pathtracing samples for the region.");
-        text_layout.add_pair("Tracer Samples".to_string(), Box::new(tracer_edit));
-
-        let mut minbr = TheSlider::new(TheId::named("Region Min Brightness"));
-        minbr.set_value(TheValue::Float(0.3));
-        minbr.set_continuous(true);
-        minbr.set_status_text("The minimum brightness of the region for the daylight cycle.");
-        text_layout.add_pair("Min. Brightness".to_string(), Box::new(minbr));
-
-        let mut maxbr = TheSlider::new(TheId::named("Region Max Brightness"));
-        maxbr.set_value(TheValue::Float(1.0));
-        maxbr.set_continuous(true);
-        maxbr.set_status_text("The maximum brightness of the region for the daylight cycle.");
-        text_layout.add_pair("Max. Brightness".to_string(), Box::new(maxbr));
-
-        let mut region1 = TheTextLineEdit::new(TheId::named("Region Property 1"));
-        region1.set_status_text("The region property #1 you can query from CodeGridFX.");
-        text_layout.add_pair("Property #1".to_string(), Box::new(region1));
-
-        let mut region2 = TheTextLineEdit::new(TheId::named("Region Property 2"));
-        region2.set_status_text("The region property #2 you can query from CodeGridFX.");
-        text_layout.add_pair("Property #2".to_string(), Box::new(region2));
-
-        let mut region3 = TheTextLineEdit::new(TheId::named("Region Property 3"));
-        region3.set_status_text("The region property #3 you can query from CodeGridFX.");
-        text_layout.add_pair("Property #3".to_string(), Box::new(region3));
-
-        let mut region4 = TheTextLineEdit::new(TheId::named("Region Property 4"));
-        region4.set_status_text("The region property #4 you can query from CodeGridFX.");
-        text_layout.add_pair("Property #4".to_string(), Box::new(region4));*/
-
-        // settings_canvas.set_layout(text_layout);
-        region_tab.add_canvas("Settings".to_string(), settings_canvas);
+        region_tab.add_canvas("Config".to_string(), settings_canvas);
 
         let mut center_tab = TheCanvas::default();
         center_tab.set_layout(region_tab);
