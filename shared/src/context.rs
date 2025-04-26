@@ -43,18 +43,17 @@ impl MapToolHelper {
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum WorldToolHelper {
-    Camera,
-    Terrain,
-    NodeEditor,
-    EffectsPicker,
-    Preview,
+    Brushes,
+    TilePicker,
+    MaterialPicker,
 }
 
 impl WorldToolHelper {
     pub fn set_from_index(&mut self, index: usize) {
         match index {
-            1 => *self = WorldToolHelper::Terrain,
-            _ => *self = WorldToolHelper::Camera,
+            1 => *self = WorldToolHelper::TilePicker,
+            2 => *self = WorldToolHelper::MaterialPicker,
+            _ => *self = WorldToolHelper::Brushes,
         }
     }
 }
@@ -210,7 +209,7 @@ impl ServerContext {
             curr_map_tool_type: MapToolType::Linedef,
             curr_map_context: MapContext::Region,
             curr_map_tool_helper: MapToolHelper::TilePicker,
-            curr_world_tool_helper: WorldToolHelper::Camera,
+            curr_world_tool_helper: WorldToolHelper::Brushes,
             curr_world_tool_camera: WorldToolCamera::Orbit,
             curr_texture_mode: MapTextureMode::Floor,
 

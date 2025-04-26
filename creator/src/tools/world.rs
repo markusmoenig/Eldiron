@@ -1,7 +1,6 @@
+use crate::editor::WORLDEDITOR;
 use crate::prelude::*;
 use ToolEvent::*;
-
-use crate::editor::WORLDEDITOR;
 
 pub struct WorldTool {
     id: TheId,
@@ -38,7 +37,7 @@ impl Tool for WorldTool {
         _tool_context: ToolContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &mut Project,
+        _project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
@@ -49,11 +48,19 @@ impl Tool for WorldTool {
                     layout.clear();
 
                     let mut switch = TheGroupButton::new(TheId::named("World Helper Switch"));
-                    switch.add_text_status("Camera".to_string(), "Camera.".to_string());
                     switch.add_text_status(
-                        "Terrain".to_string(),
+                        "Brushes".to_string(),
+                        "Edit the terrain with brushes.".to_string(),
+                    );
+                    switch.add_text_status(
+                        "Tile Picker".to_string(),
+                        "Show tile picker.".to_string(),
+                    );
+                    switch.add_text_status(
+                        "Materials".to_string(),
                         "Apply procedural materials.".to_string(),
                     );
+                    switch.set_item_width(80);
                     switch.set_index(server_ctx.curr_world_tool_helper as i32);
                     layout.add_widget(Box::new(switch));
 
@@ -67,15 +74,27 @@ impl Tool for WorldTool {
                     camera_switch.set_index(server_ctx.curr_world_tool_camera as i32);
                     layout.add_widget(Box::new(camera_switch));
 
-                    if server_ctx.curr_world_tool_helper == WorldToolHelper::Camera {
+                    if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::TerrainBrush as usize,
+                        ));
+                    } else if server_ctx.curr_world_tool_helper == WorldToolHelper::TilePicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::TilePicker as usize,
+                        ));
+                    } else if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::MaterialPicker as usize,
                         ));
                     }
 
                     layout.set_reverse_index(Some(1));
                 }
+
+                WORLDEDITOR.write().unwrap().update_brush_preview(ui);
 
                 server_ctx.world_mode = true;
                 return true;
@@ -117,7 +136,6 @@ impl Tool for WorldTool {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let redraw = false;
-        #[allow(clippy::single_match)]
         match event {
             TheEvent::RenderViewScrollBy(id, coord) => {
                 if id.name == "PolyView" {
@@ -125,6 +143,40 @@ impl Tool for WorldTool {
                         .write()
                         .unwrap()
                         .scroll_by(ui, ctx, server_ctx, *coord);
+                }
+            }
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == "World Helper Switch" {
+                    server_ctx.curr_world_tool_helper.set_from_index(*index);
+                    if server_ctx.curr_world_tool_helper == WorldToolHelper::TilePicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::TilePicker as usize,
+                        ));
+                    } else if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::MaterialPicker as usize,
+                        ));
+                    }
+                } else if id.name == "Brush Type" {
+                    WORLDEDITOR
+                        .write()
+                        .unwrap()
+                        .brush_type
+                        .set_from_index(*index);
+                }
+            }
+            TheEvent::ValueChanged(id, TheValue::FloatRange(v, _)) => {
+                if id.name == "Brush Radius" {
+                    WORLDEDITOR.write().unwrap().radius = *v;
+                    WORLDEDITOR.write().unwrap().update_brush_preview(ui);
+                } else if id.name == "Brush Falloff" {
+                    WORLDEDITOR.write().unwrap().falloff = *v;
+                    WORLDEDITOR.write().unwrap().update_brush_preview(ui);
+                } else if id.name == "Brush Strength" {
+                    WORLDEDITOR.write().unwrap().strength = *v;
+                    WORLDEDITOR.write().unwrap().update_brush_preview(ui);
                 }
             }
             _ => {}

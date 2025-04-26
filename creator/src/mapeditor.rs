@@ -1425,16 +1425,29 @@ impl MapEditor {
                 || server_ctx.curr_map_tool_type == MapToolType::Rect)
                 && !map.selected_sectors.is_empty()
             {
-                self.create_sector_settings(map, map.selected_sectors[0], ui, ctx, server_ctx);
-
                 if server_ctx.curr_map_context == MapContext::Screen {
                     // In Screen Context make sure we create the default code and data items
                     if let Some(layout) = ui.get_list_layout("Screen Content List") {
                         if let Some(sector) = map.find_sector_mut(map.selected_sectors[0]) {
+                            if sector.name.is_empty() {
+                                sector.name = "Unnamed".to_string();
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Update Content List"),
+                                    TheValue::Empty,
+                                ));
+                                ctx.ui.send(TheEvent::StateChanged(
+                                    TheId::named_with_id(
+                                        "Screen Content List Item",
+                                        sector.creator_id,
+                                    ),
+                                    TheWidgetState::Clicked,
+                                ));
+                            }
                             layout.select_item(sector.creator_id, ctx, true);
                         }
                     }
                 }
+                self.create_sector_settings(map, map.selected_sectors[0], ui, ctx, server_ctx);
             }
         }
     }

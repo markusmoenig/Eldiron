@@ -1,13 +1,43 @@
-use crate::editor::{PALETTE, RUSTERIX, UNDOMANAGER};
+use crate::editor::{PALETTE, RUSTERIX};
+use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
+use rayon::prelude::*;
 use shared::prelude::*;
 
-use rusterix::{D3Camera, D3OrbitCamera, ValueContainer};
+use rusterix::{D3Camera, D3OrbitCamera, PixelSource, Terrain, ValueContainer};
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum BrushType {
+    Elevation,
+    Fill,
+    Smooth,
+    Fractal,
+}
+
+impl BrushType {
+    pub fn set_from_index(&mut self, index: usize) {
+        match index {
+            1 => *self = BrushType::Fill,
+            2 => *self = BrushType::Smooth,
+            3 => *self = BrushType::Fractal,
+            _ => *self = BrushType::Elevation,
+        }
+    }
+}
 
 pub struct WorldEditor {
     orbit_camera: D3OrbitCamera,
 
+    terrain_hit: Option<Vec3<f32>>,
     drag_coord: Vec2<i32>,
+
+    pub brush_type: BrushType,
+
+    pub radius: f32,
+    pub falloff: f32,
+    pub strength: f32,
+
+    hud: Hud,
 }
 
 #[allow(clippy::new_without_default)]
@@ -15,70 +45,78 @@ impl WorldEditor {
     pub fn new() -> Self {
         Self {
             orbit_camera: D3OrbitCamera::new(),
+
+            terrain_hit: None,
             drag_coord: Vec2::zero(),
+
+            brush_type: BrushType::Elevation,
+
+            radius: 2.0,
+            falloff: 2.0,
+            strength: 0.2,
+
+            hud: Hud::new(HudMode::Terrain),
         }
     }
 
-    pub fn build(&mut self) -> TheCanvas {
+    pub fn build_brush_canvas(&mut self) -> TheCanvas {
         let mut center = TheCanvas::new();
 
-        // Toolbar
-        let mut top_toolbar = TheCanvas::new();
-        top_toolbar.set_widget(TheTraybar::new(TheId::empty()));
+        let mut text_layout = TheTextLayout::new(TheId::named("Brush Settings"));
+        text_layout.limiter_mut().set_max_width(200);
 
-        let mut toolbar_hlayout = TheHLayout::new(TheId::named("Material Tool Params"));
-        toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(Vec4::new(10, 4, 5, 4));
+        let mut brush_switch = TheGroupButton::new(TheId::named("Brush Type"));
+        brush_switch.add_text_status(
+            "Elevation".to_string(),
+            "Raise or lower the terrain with brushes.".to_string(),
+        );
+        brush_switch.add_text_status(
+            "Fill".to_string(),
+            "Fill missing areas with flat terrain.".to_string(),
+        );
+        brush_switch.add_text_status(
+            "Smooth".to_string(),
+            "Smooth the terrain by averaging heights.".to_string(),
+        );
+        brush_switch.add_text_status(
+            "Fractal".to_string(),
+            "Generate natural mountains and noise patterns.".to_string(),
+        );
+        brush_switch.set_item_width(80);
+        text_layout.add_pair("".to_string(), Box::new(brush_switch));
 
-        /*
-        for i in 0..20 {
-            let mut icon = TheIconView::new(TheId::named(&format!("Material Icon #{}", i)));
-            // ground_icon.set_text(Some("FLOOR".to_string()));
-            // ground_icon.set_text_size(10.0);
-            // ground_icon.set_text_color([200, 200, 200, 255]);
-            icon.limiter_mut().set_max_size(Vec2::new(20, 20));
-            icon.set_border_color(Some(BLACK));
+        let mut radius = TheTextLineEdit::new(TheId::named("Brush Radius"));
+        radius.set_value(TheValue::Float(2.0));
+        radius.set_range(TheValue::RangeF32(0.5..=10.0));
+        // radius.set_continuous(true);
+        radius.set_status_text("The falloff of the brush.");
+        radius.limiter_mut().set_max_width(200);
+        text_layout.add_pair("Radius".to_string(), Box::new(radius));
 
-            toolbar_hlayout.add_widget(Box::new(icon));
-        }*/
+        let mut falloff = TheTextLineEdit::new(TheId::named("Brush Falloff"));
+        falloff.set_value(TheValue::Float(2.0));
+        falloff.set_range(TheValue::RangeF32(0.5..=4.0));
+        // falloff.set_continuous(true);
+        falloff.set_status_text("The falloff of the brush.");
+        falloff.limiter_mut().set_max_width(200);
+        text_layout.add_pair("Falloff".to_string(), Box::new(falloff));
 
-        let mut create_button = TheTraybarButton::new(TheId::named("Create Graph Button"));
-        create_button.set_status_text("Apply the source to the selected geometry.");
-        create_button.set_text("Create Graph".to_string());
-        toolbar_hlayout.add_widget(Box::new(create_button));
+        let mut strength = TheTextLineEdit::new(TheId::named("Brush Strength"));
+        strength.set_value(TheValue::Float(0.2));
+        strength.set_range(TheValue::RangeF32(0.01..=1.0));
+        // strength.set_continuous(true);
+        strength.set_status_text("The falloff of the brush.");
+        strength.limiter_mut().set_max_width(200);
+        text_layout.add_pair("Strength".to_string(), Box::new(strength));
 
-        let mut nodes_button = TheTraybarButton::new(TheId::named("ShapeFX Nodes"));
-        //add_button.set_icon_name("icon_role_add".to_string());
-        nodes_button.set_text(str!("Nodes"));
-        nodes_button.set_status_text("Available region effect nodes.");
-        nodes_button.set_context_menu(Some(TheContextMenu {
-            items: vec![
-                TheContextMenuItem::new("Color".to_string(), TheId::named("Color")),
-                TheContextMenuItem::new("Gradient".to_string(), TheId::named("Gradient")),
-                TheContextMenuItem::new("Outline".to_string(), TheId::named("Outline")),
-                TheContextMenuItem::new("Glow".to_string(), TheId::named("Glow")),
-                TheContextMenuItem::new("Noise Overlay".to_string(), TheId::named("Noise Overlay")),
-            ],
-            ..Default::default()
-        }));
+        center.set_layout(text_layout);
 
-        // let mut nodes_drop_down = TheDropdownMenu::new(TheId::named("Nodes Selector"));
-        // for role in ShapeFXRole::iterator() {
-        //     if role != ShapeFXRole::Geometry {
-        //         nodes_drop_down.add_option(role.to_string());
-        //     }
-        // }
-        toolbar_hlayout.add_widget(Box::new(nodes_button));
+        let mut preview_canvas: TheCanvas = TheCanvas::new();
+        let mut render_view = TheRenderView::new(TheId::named("Brush Preview"));
+        render_view.limiter_mut().set_max_size(Vec2::new(300, 300));
+        preview_canvas.set_widget(render_view);
 
-        toolbar_hlayout.set_reverse_index(Some(2));
-        top_toolbar.set_layout(toolbar_hlayout);
-        center.set_top(top_toolbar);
-
-        let mut material_node_canvas = TheCanvas::new();
-        let node_view = TheNodeCanvasView::new(TheId::named("ShapeFX NodeCanvas"));
-        material_node_canvas.set_widget(node_view);
-
-        center.set_center(material_node_canvas);
+        center.set_right(preview_canvas);
 
         center
     }
@@ -86,7 +124,7 @@ impl WorldEditor {
     pub fn draw(
         &mut self,
         ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
         build_values: &mut ValueContainer,
@@ -102,6 +140,8 @@ impl WorldEditor {
             rusterix.client.camera_d3 = Box::new(self.orbit_camera.clone());
 
             if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+                // region.map.terrain = Terrain::generate(20, Vec2::new(2.0, 2.0));
+
                 rusterix
                     .client
                     .camera_d3
@@ -119,6 +159,15 @@ impl WorldEditor {
                     dim.width as usize,
                     dim.height as usize,
                 );
+
+                self.hud.draw(
+                    buffer,
+                    &mut region.map,
+                    ctx,
+                    server_ctx,
+                    None,
+                    &PALETTE.read().unwrap(),
+                );
             }
         }
     }
@@ -128,12 +177,41 @@ impl WorldEditor {
         map_event: MapEvent,
         ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _map: &mut Map,
-        _server_ctx: &mut ServerContext,
+        map: &mut Map,
+        server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         match &map_event {
             MapEvent::MapClicked(coord) => {
                 self.drag_coord = *coord;
+
+                if let Some(hit) = self.terrain_hit {
+                    let mut rusterix = RUSTERIX.write().unwrap();
+
+                    if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
+                        if self.brush_type == BrushType::Elevation {
+                            self.apply_brush(
+                                &mut map.terrain,
+                                Vec2::new(hit.x, hit.z),
+                                self.radius,
+                                self.falloff,
+                                self.strength,
+                                true,
+                            );
+                        } else if self.brush_type == BrushType::Fill {
+                            self.fill_brush(&mut map.terrain, Vec2::new(hit.x, hit.z), self.radius);
+                        }
+
+                        rusterix.rebuild_terrain_d3(map, &ValueContainer::default());
+                    } else if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
+                        if let Some(id) = server_ctx.curr_material_id {
+                            let source = PixelSource::MaterialId(id);
+                            map.terrain.set_source(hit.x as i32, hit.z as i32, source);
+                            rusterix.set_dirty();
+                        }
+                    }
+                }
+
+                // rusterix.client.scene_d3.get_hit_info(&ray);
             }
             MapEvent::MapDragged(coord) => {
                 if ui.alt {
@@ -145,10 +223,105 @@ impl WorldEditor {
 
                 self.drag_coord = *coord;
             }
+            MapEvent::MapHover(coord) => {
+                if let Some(render_view) = ui.get_render_view("PolyView") {
+                    let dim = *render_view.dim();
+
+                    // self.orbit_camera
+                    //     .set_parameter_vec3("center", self.camera_center);
+
+                    let rusterix = RUSTERIX.read().unwrap();
+                    let ray = rusterix.client.camera_d3.create_ray(
+                        Vec2::new(
+                            coord.x as f32 / dim.width as f32,
+                            coord.y as f32 / dim.height as f32,
+                        ),
+                        Vec2::new(dim.width as f32, dim.height as f32),
+                        Vec2::zero(),
+                    );
+
+                    self.terrain_hit = None;
+                    if let Some(hit) = map.terrain.ray_terrain_hit(&ray, 100.0) {
+                        let p = self.world_to_editor(map.terrain.scale, hit.world_pos);
+                        server_ctx.hover_cursor = Some(p);
+                        self.terrain_hit = Some(hit.world_pos);
+                    }
+                }
+            }
             _ => {}
         }
 
         None
+    }
+
+    /// Apply a circular brush to the terrain at a ray hit
+    pub fn apply_brush(
+        &self,
+        terrain: &mut Terrain,
+        center: Vec2<f32>,
+        radius: f32,
+        falloff: f32,
+        strength: f32,
+        add: bool, // true = raise, false = lower
+    ) {
+        let radius2 = radius * radius;
+
+        let min_x = ((center.x - radius) / terrain.scale.x).floor() as i32;
+        let max_x = ((center.x + radius) / terrain.scale.x).ceil() as i32;
+        let min_y = ((center.y - radius) / terrain.scale.y).floor() as i32;
+        let max_y = ((center.y + radius) / terrain.scale.y).ceil() as i32;
+
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
+                let world_pos = Vec2::new(x as f32 * terrain.scale.x, y as f32 * terrain.scale.y);
+                let dist2 = (world_pos - center).magnitude_squared();
+
+                if dist2 <= radius2 {
+                    let dist = dist2.sqrt();
+                    let mut factor = 1.0 - (dist / radius);
+
+                    // Apply falloff curve
+                    factor = factor.powf(falloff.max(0.01));
+
+                    let delta = strength * factor;
+                    let current_height = terrain.get_height(x, y);
+
+                    if add {
+                        terrain.set_height(x, y, current_height + delta);
+                    } else {
+                        terrain.set_height(x, y, current_height - delta);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Create terrain (fill missing cells with height 0.0) inside a circular brush.
+    pub fn fill_brush(&self, terrain: &mut Terrain, center: Vec2<f32>, radius: f32) {
+        let radius_squared = radius * radius;
+
+        let min_x = ((center.x - radius) / terrain.scale.x).floor() as i32;
+        let max_x = ((center.x + radius) / terrain.scale.x).ceil() as i32;
+        let min_y = ((center.y - radius) / terrain.scale.y).floor() as i32;
+        let max_y = ((center.y + radius) / terrain.scale.y).ceil() as i32;
+
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
+                let world_pos = Vec2::new(x as f32 * terrain.scale.x, y as f32 * terrain.scale.y);
+                let dist_squared = (world_pos - center).magnitude_squared();
+
+                if dist_squared <= radius_squared {
+                    // Only set 0.0 if there is no height yet
+                    if !terrain.heights.contains_key(&(x, y)) {
+                        terrain.set_height(x, y, 0.0);
+                    }
+                }
+            }
+        }
+    }
+
+    fn world_to_editor(&self, grid_scale: Vec2<f32>, world_pos: Vec3<f32>) -> Vec2<f32> {
+        Vec2::new(world_pos.x / grid_scale.x, -world_pos.z / grid_scale.y)
     }
 
     pub fn scroll_by(
@@ -159,5 +332,41 @@ impl WorldEditor {
         coord: Vec2<i32>,
     ) {
         self.orbit_camera.zoom(coord.y as f32);
+    }
+
+    /// Create a preview of the brush
+    pub fn update_brush_preview(&self, ui: &mut TheUI) {
+        if let Some(render_view) = ui.get_render_view("Brush Preview") {
+            let dim = *render_view.dim();
+
+            let buffer = render_view.render_buffer_mut();
+            buffer.resize(dim.width, dim.height);
+
+            let width = buffer.dim().width as usize;
+            let height = buffer.dim().height as usize;
+
+            let falloff = self.falloff.max(0.01);
+
+            buffer
+                .pixels_mut()
+                .par_chunks_exact_mut(width * 4)
+                .enumerate()
+                .for_each(|(j, line)| {
+                    for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
+                        let x = i as f32 / width as f32;
+                        let y = j as f32 / height as f32;
+
+                        let dx = x - 0.5;
+                        let dy = y - 0.5;
+                        let dist = (dx * dx + dy * dy).sqrt() * 2.0;
+
+                        let mut strength = (1.0 - dist).clamp(0.0, 1.0);
+                        strength = strength.powf(falloff);
+
+                        let color = Vec4::new(strength, strength, strength, 1.0);
+                        pixel.copy_from_slice(&TheColor::from_vec4f(color).to_u8_array());
+                    }
+                });
+        }
     }
 }
