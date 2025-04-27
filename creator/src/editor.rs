@@ -83,6 +83,11 @@ impl TheTrait for Editor {
             }
         }
 
+        #[cfg(not(target_os = "macos"))]
+        let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "eldiron");
+        #[cfg(target_os = "macos")]
+        let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "Eldiron.app");
+
         Self {
             project,
             project_path: None,
@@ -97,11 +102,7 @@ impl TheTrait for Editor {
 
             self_update_rx,
             self_update_tx,
-            self_updater: Arc::new(Mutex::new(SelfUpdater::new(
-                "markusmoenig",
-                "Eldiron",
-                "eldiron",
-            ))),
+            self_updater: Arc::new(Mutex::new(self_updater)),
 
             update_counter: 0,
 
