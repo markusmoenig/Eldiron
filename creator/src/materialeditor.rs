@@ -5,12 +5,12 @@ use shared::prelude::*;
 use ShapeFXParam::*;
 use rusterix::{ShapeFX, ShapeFXGraph, ShapeFXParam, ShapeFXRole, ShapeStack, Texture, Value};
 
-pub struct NodeEditor {
+pub struct MaterialEditor {
     pub graph: ShapeFXGraph,
 }
 
 #[allow(clippy::new_without_default)]
-impl NodeEditor {
+impl MaterialEditor {
     pub fn new() -> Self {
         Self {
             graph: ShapeFXGraph::default(),
@@ -137,7 +137,7 @@ impl NodeEditor {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                         }
-                        self.set_selected_node_ui(server_ctx, project, ui, ctx, true);
+                        self.set_selected_node_ui(project, ui, ctx, true);
                     }
                 }
             }
@@ -162,7 +162,7 @@ impl NodeEditor {
             TheEvent::NodeSelectedIndexChanged(id, index) => {
                 if id.name == "ShapeFX NodeCanvas" {
                     self.graph.selected_node = *index;
-                    self.set_selected_node_ui(server_ctx, project, ui, ctx, true);
+                    self.set_selected_node_ui(project, ui, ctx, true);
                     if let Some(map) = project.get_map_mut(server_ctx) {
                         map.changed += 1;
                         map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
@@ -305,7 +305,6 @@ impl NodeEditor {
     /// Create the UI for the selected node.
     pub fn set_selected_node_ui(
         &mut self,
-        _server_ctx: &mut ServerContext,
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,

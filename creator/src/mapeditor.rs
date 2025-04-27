@@ -1,6 +1,6 @@
 //use shared::server::prelude::MapToolType;
 
-use crate::editor::{NODEEDITOR, RUSTERIX, SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{MATERIALEDITOR, RUSTERIX, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::{PixelSource, Value};
 use vek::Vec2;
@@ -923,7 +923,7 @@ impl MapEditor {
                                     self.add_map_undo(map, prev, ctx, server_ctx);
 
                                     if id.name.contains("Material") {
-                                        NODEEDITOR.read().unwrap().force_update(ctx, map);
+                                        MATERIALEDITOR.read().unwrap().force_update(ctx, map);
                                     }
                                 }
                             }
@@ -1681,7 +1681,7 @@ impl MapEditor {
     ) {
         // Check if we need to apply the graph to the node editor
         if server_ctx.curr_map_context == MapContext::Material {
-            if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor
+            if server_ctx.curr_map_tool_helper != MapToolHelper::MaterialEditor
                 && server_ctx.curr_map_tool_helper != MapToolHelper::Preview
             {
                 ctx.ui
@@ -1695,7 +1695,7 @@ impl MapEditor {
                     sector.properties.get("floor_source")
                 {
                     if let Some(graph) = map.shapefx_graphs.get(id) {
-                        NODEEDITOR.write().unwrap().apply_graph(graph, ui);
+                        MATERIALEDITOR.write().unwrap().apply_graph(graph, ui);
                     }
                 }
             }

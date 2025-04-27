@@ -1,6 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, CONFIGEDITOR, EFFECTPICKER, INFOVIEWER, MATERIALPICKER, NODEEDITOR, PREVIEWVIEW,
-    SHAPEPICKER, TILEMAPEDITOR, TILEPICKER, WORLDEDITOR,
+    CODEEDITOR, CONFIGEDITOR, EFFECTPICKER, INFOVIEWER, MATERIALEDITOR, MATERIALPICKER,
+    PREVIEWVIEW, SHAPEPICKER, TILEMAPEDITOR, TILEPICKER, WORLDEDITOR,
 };
 use crate::prelude::*;
 
@@ -78,7 +78,7 @@ impl Panels {
         main_stack.add_canvas(CONFIGEDITOR.write().unwrap().build());
         main_stack.add_canvas(INFOVIEWER.write().unwrap().build());
         main_stack.add_canvas(PREVIEWVIEW.write().unwrap().build());
-        main_stack.add_canvas(NODEEDITOR.write().unwrap().build());
+        main_stack.add_canvas(MATERIALEDITOR.write().unwrap().build());
         main_stack.add_canvas(WORLDEDITOR.write().unwrap().build_brush_canvas());
         main_stack.set_index(0);
 
@@ -197,7 +197,7 @@ impl Panels {
         {
             redraw = true;
         }
-        if NODEEDITOR
+        if MATERIALEDITOR
             .write()
             .unwrap()
             .handle_event(event, ui, ctx, project, server_ctx)

@@ -1,4 +1,6 @@
+use crate::editor::MATERIALEDITOR;
 use crate::prelude::*;
+use rusterix::{PixelSource, Value};
 use theframework::prelude::*;
 
 #[allow(clippy::large_enum_variant)]
@@ -8,33 +10,57 @@ pub enum MaterialUndoAtom {
 }
 
 impl MaterialUndoAtom {
-    pub fn undo(&self, project: &mut Project, _ui: &mut TheUI, ctx: &mut TheContext) {
+    pub fn undo(&self, project: &mut Project, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             MaterialUndoAtom::MapEdit(prev, _) => {
                 if let Some(material) = project.materials.get_mut(&prev.id) {
                     *material = *prev.clone();
                     material.clear_temp();
+                    MATERIALEDITOR.write().unwrap().force_update(ctx, material);
+                    for s in &material.selected_sectors {
+                        if let Some(sector) = material.find_sector(*s) {
+                            if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
+                                sector.properties.get("floor_source")
+                            {
+                                if let Some(graph) = material.shapefx_graphs.get(id) {
+                                    MATERIALEDITOR.write().unwrap().apply_graph(graph, ui);
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Update Materialpicker"),
-                    TheValue::Empty,
-                ));
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                MATERIALEDITOR
+                    .write()
+                    .unwrap()
+                    .set_selected_node_ui(project, ui, ctx, false);
             }
         }
     }
-    pub fn redo(&self, project: &mut Project, _ui: &mut TheUI, ctx: &mut TheContext) {
+    pub fn redo(&self, project: &mut Project, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             MaterialUndoAtom::MapEdit(_, next) => {
                 if let Some(material) = project.materials.get_mut(&next.id) {
                     *material = *next.clone();
                     material.clear_temp();
+                    MATERIALEDITOR.write().unwrap().force_update(ctx, material);
+                    for s in &material.selected_sectors {
+                        if let Some(sector) = material.find_sector(*s) {
+                            if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
+                                sector.properties.get("floor_source")
+                            {
+                                if let Some(graph) = material.shapefx_graphs.get(id) {
+                                    MATERIALEDITOR.write().unwrap().apply_graph(graph, ui);
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Update Materialpicker"),
-                    TheValue::Empty,
-                ));
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                MATERIALEDITOR
+                    .write()
+                    .unwrap()
+                    .set_selected_node_ui(project, ui, ctx, false);
             }
         }
     }
