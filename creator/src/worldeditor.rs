@@ -38,6 +38,9 @@ pub struct WorldEditor {
     pub strength: f32,
 
     hud: Hud,
+
+    pub first_draw: bool,
+    apply_brush: bool,
 }
 
 #[allow(clippy::new_without_default)]
@@ -51,11 +54,14 @@ impl WorldEditor {
 
             brush_type: BrushType::Elevation,
 
-            radius: 2.0,
+            radius: 10.0,
             falloff: 2.0,
             strength: 0.2,
 
             hud: Hud::new(HudMode::Terrain),
+
+            first_draw: true,
+            apply_brush: false,
         }
     }
 
@@ -86,7 +92,7 @@ impl WorldEditor {
         text_layout.add_pair("".to_string(), Box::new(brush_switch));
 
         let mut radius = TheTextLineEdit::new(TheId::named("Brush Radius"));
-        radius.set_value(TheValue::Float(2.0));
+        radius.set_value(TheValue::Float(10.0));
         radius.set_range(TheValue::RangeF32(0.5..=10.0));
         // radius.set_continuous(true);
         radius.set_status_text("The falloff of the brush.");
@@ -129,6 +135,15 @@ impl WorldEditor {
         server_ctx: &mut ServerContext,
         build_values: &mut ValueContainer,
     ) {
+        if self.apply_brush {
+            if let Some(hit) = self.terrain_hit {
+                if let Some(map) = project.get_map_mut(server_ctx) {
+                    self.apply_brush(&mut map.terrain, Vec2::new(hit.x, hit.z), ui);
+                    let mut rusterix = RUSTERIX.write().unwrap();
+                    rusterix.rebuild_terrain_d3(map, &ValueContainer::default());
+                }
+            }
+        }
         if let Some(render_view) = ui.get_render_view("PolyView") {
             let dim = *render_view.dim();
 
@@ -148,11 +163,14 @@ impl WorldEditor {
                     .set_parameter_vec3("center", region.editing_position_3d);
 
                 region.map.properties.remove("fog_enabled");
-                rusterix.build_scene_d3(&region.map, build_values);
-                let assets = rusterix.assets.clone();
-                rusterix
-                    .client
-                    .apply_entities_items_d3(&region.map, &assets);
+                if self.first_draw {
+                    rusterix.build_scene_d3(&region.map, build_values);
+                    self.first_draw = false;
+                }
+                // let assets = rusterix.assets.clone();
+                // rusterix
+                //     .client
+                //     .apply_entities_items_d3(&region.map, &assets);
                 rusterix.client.draw_d3(
                     &region.map,
                     buffer.pixels_mut(),
@@ -180,82 +198,104 @@ impl WorldEditor {
         map: &mut Map,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
+        let mut hover = |coord: Vec2<i32>| {
+            if let Some(render_view) = ui.get_render_view("PolyView") {
+                let dim = *render_view.dim();
+
+                // self.orbit_camera
+                //     .set_parameter_vec3("center", self.camera_center);
+
+                let rusterix = RUSTERIX.read().unwrap();
+                let ray = rusterix.client.camera_d3.create_ray(
+                    Vec2::new(
+                        coord.x as f32 / dim.width as f32,
+                        coord.y as f32 / dim.height as f32,
+                    ),
+                    Vec2::new(dim.width as f32, dim.height as f32),
+                    Vec2::zero(),
+                );
+
+                self.terrain_hit = None;
+                if let Some(hit) = map.terrain.ray_terrain_hit(&ray, 100.0) {
+                    let p = self.world_to_editor(map.terrain.scale, hit.world_pos);
+                    server_ctx.hover_cursor = Some(p);
+                    self.terrain_hit = Some(hit.world_pos);
+                }
+            }
+        };
+
         match &map_event {
             MapEvent::MapClicked(coord) => {
                 self.drag_coord = *coord;
-
-                if let Some(hit) = self.terrain_hit {
-                    let mut rusterix = RUSTERIX.write().unwrap();
-
-                    if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
-                        if self.brush_type == BrushType::Elevation {
-                            self.apply_brush(
-                                &mut map.terrain,
-                                Vec2::new(hit.x, hit.z),
-                                self.radius,
-                                self.falloff,
-                                self.strength,
-                                true,
-                            );
-                        } else if self.brush_type == BrushType::Fill {
-                            self.fill_brush(&mut map.terrain, Vec2::new(hit.x, hit.z), self.radius);
-                        }
-
-                        rusterix.rebuild_terrain_d3(map, &ValueContainer::default());
-                    } else if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
-                        if let Some(id) = server_ctx.curr_material_id {
-                            let source = PixelSource::MaterialId(id);
-                            map.terrain.set_source(hit.x as i32, hit.z as i32, source);
-                            rusterix.set_dirty();
-                        }
+                if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
+                    if !ui.logo {
+                        self.apply_brush = true;
                     }
+                } else {
+                    self.apply_action(map, ui, server_ctx);
                 }
-
-                // rusterix.client.scene_d3.get_hit_info(&ray);
+            }
+            MapEvent::MapUp(_coord) => {
+                self.apply_brush = false;
+                let mut rusterix = RUSTERIX.write().unwrap();
+                rusterix.rebuild_terrain_d3(map, &ValueContainer::default());
             }
             MapEvent::MapDragged(coord) => {
+                hover(*coord);
                 if ui.alt {
                     self.orbit_camera.zoom((*coord - self.drag_coord).y as f32);
-                } else {
+                } else if ui.logo {
                     self.orbit_camera
                         .rotate((*coord - self.drag_coord).map(|v| v as f32 * 5.0));
+                } else {
+                    self.apply_action(map, ui, server_ctx);
                 }
 
                 self.drag_coord = *coord;
             }
-            MapEvent::MapHover(coord) => {
-                if let Some(render_view) = ui.get_render_view("PolyView") {
-                    let dim = *render_view.dim();
-
-                    // self.orbit_camera
-                    //     .set_parameter_vec3("center", self.camera_center);
-
-                    let rusterix = RUSTERIX.read().unwrap();
-                    let ray = rusterix.client.camera_d3.create_ray(
-                        Vec2::new(
-                            coord.x as f32 / dim.width as f32,
-                            coord.y as f32 / dim.height as f32,
-                        ),
-                        Vec2::new(dim.width as f32, dim.height as f32),
-                        Vec2::zero(),
-                    );
-
-                    self.terrain_hit = None;
-                    if let Some(hit) = map.terrain.ray_terrain_hit(&ray, 100.0) {
-                        let p = self.world_to_editor(map.terrain.scale, hit.world_pos);
-                        server_ctx.hover_cursor = Some(p);
-                        self.terrain_hit = Some(hit.world_pos);
-                    }
-                }
-            }
+            MapEvent::MapHover(coord) => hover(*coord),
             _ => {}
         }
 
         None
     }
 
+    /// Applies the given action
+    pub fn apply_action(&mut self, map: &mut Map, ui: &TheUI, server_ctx: &mut ServerContext) {
+        if let Some(hit) = self.terrain_hit {
+            let mut rusterix = RUSTERIX.write().unwrap();
+
+            if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
+                self.apply_brush(&mut map.terrain, Vec2::new(hit.x, hit.z), ui);
+                rusterix.rebuild_terrain_d3(map, &ValueContainer::default());
+            } else if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
+                if let Some(id) = server_ctx.curr_material_id {
+                    let source = PixelSource::MaterialId(id);
+                    map.terrain.set_source(hit.x as i32, hit.z as i32, source);
+                    rusterix.set_dirty();
+                }
+            }
+        }
+    }
+
+    /// Applies the current brush
+    pub fn apply_brush(&mut self, terrain: &mut Terrain, center: Vec2<f32>, ui: &TheUI) {
+        if self.brush_type == BrushType::Elevation {
+            self.elevation_brush(
+                terrain,
+                center,
+                self.radius,
+                self.falloff,
+                self.strength,
+                !ui.shift,
+            );
+        } else if self.brush_type == BrushType::Fill {
+            self.fill_brush(terrain, center, self.radius);
+        }
+    }
+
     /// Apply a circular brush to the terrain at a ray hit
-    pub fn apply_brush(
+    pub fn elevation_brush(
         &self,
         terrain: &mut Terrain,
         center: Vec2<f32>,
@@ -312,7 +352,7 @@ impl WorldEditor {
 
                 if dist_squared <= radius_squared {
                     // Only set 0.0 if there is no height yet
-                    if !terrain.heights.contains_key(&(x, y)) {
+                    if !terrain.exists(x, y) {
                         terrain.set_height(x, y, 0.0);
                     }
                 }

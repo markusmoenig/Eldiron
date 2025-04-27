@@ -94,6 +94,7 @@ impl Tool for WorldTool {
                     layout.set_reverse_index(Some(1));
                 }
 
+                WORLDEDITOR.write().unwrap().first_draw = true;
                 WORLDEDITOR.write().unwrap().update_brush_preview(ui);
 
                 server_ctx.world_mode = true;
