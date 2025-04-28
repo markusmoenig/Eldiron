@@ -140,7 +140,7 @@ impl WorldEditor {
                 if let Some(map) = project.get_map_mut(server_ctx) {
                     self.apply_brush(&mut map.terrain, Vec2::new(hit.x, hit.z), ui);
                     let mut rusterix = RUSTERIX.write().unwrap();
-                    rusterix.rebuild_terrain_d3(map, &ValueContainer::default());
+                    rusterix.build_terrain_d3(map, &ValueContainer::default());
                 }
             }
         }
@@ -165,6 +165,7 @@ impl WorldEditor {
                 region.map.properties.remove("fog_enabled");
                 if self.first_draw {
                     rusterix.build_scene_d3(&region.map, build_values);
+                    rusterix.build_terrain_d3(&mut region.map, &ValueContainer::default());
                     self.first_draw = false;
                 }
                 // let assets = rusterix.assets.clone();
@@ -237,8 +238,6 @@ impl WorldEditor {
             }
             MapEvent::MapUp(_coord) => {
                 self.apply_brush = false;
-                let mut rusterix = RUSTERIX.write().unwrap();
-                rusterix.rebuild_terrain_d3(map, &ValueContainer::default());
             }
             MapEvent::MapDragged(coord) => {
                 hover(*coord);
@@ -267,14 +266,16 @@ impl WorldEditor {
 
             if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
                 self.apply_brush(&mut map.terrain, Vec2::new(hit.x, hit.z), ui);
-                rusterix.rebuild_terrain_d3(map, &ValueContainer::default());
+                rusterix.build_terrain_d3(map, &ValueContainer::default());
             } else if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
                 if let Some(id) = server_ctx.curr_material_id {
                     let source = PixelSource::MaterialId(id);
                     map.terrain.set_source(hit.x as i32, hit.z as i32, source);
-                    rusterix.set_dirty();
+                    // rusterix.set_dirty();
+                    rusterix.build_terrain_d3(map, &ValueContainer::default());
                 }
             }
+            map.terrain.mark_clean();
         }
     }
 
@@ -302,7 +303,7 @@ impl WorldEditor {
         radius: f32,
         falloff: f32,
         strength: f32,
-        add: bool, // true = raise, false = lower
+        add: bool,
     ) {
         let radius2 = radius * radius;
 
