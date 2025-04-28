@@ -685,7 +685,6 @@ impl TheTrait for Editor {
                                             &self.build_values,
                                             self.server_ctx.game_mode,
                                         );
-
                                         rusterix.apply_entities_items(
                                             Vec2::new(dim.width as f32, dim.height as f32),
                                             &map,
@@ -709,15 +708,19 @@ impl TheTrait for Editor {
                                     // Prepare the messages for the region for drawing
                                     rusterix.process_messages(&region.map, messages);
 
+                                    // let stop_time = ctx.get_time();
+                                    //println!("{} ms", stop_time - start_time);
+                                }
+
+                                if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
+                                    map.terrain.mark_dirty();
+                                    rusterix.build_terrain(map, &self.build_values);
                                     rusterix.draw_scene(
-                                        &region.map,
+                                        map,
                                         render_view.render_buffer_mut().pixels_mut(),
                                         dim.width as usize,
                                         dim.height as usize,
                                     );
-
-                                    // let stop_time = ctx.get_time();
-                                    //println!("{} ms", stop_time - start_time);
                                 }
                             } else
                             // Draw the material map

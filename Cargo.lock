@@ -874,6 +874,7 @@ dependencies = [
  "indexmap 2.9.0",
  "open",
  "png",
+ "rand 0.9.1",
  "rayon",
  "regex",
  "rust-embed",
@@ -4177,7 +4178,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#7772957a34649c5ea2e0486af759b62bd98cd1f2"
+source = "git+https://github.com/markusmoenig/Rusterix#cb45416c53059cd8c46d25b6afb14a69adf5bd23"
 dependencies = [
  "bincode",
  "bvh",
@@ -4871,7 +4872,7 @@ dependencies = [
  "line_drawing",
  "noiselib",
  "num_cpus",
- "rand 0.8.5",
+ "rand 0.9.1",
  "rayon",
  "rect_packer",
  "regex",

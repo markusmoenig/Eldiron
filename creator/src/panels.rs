@@ -16,7 +16,7 @@ pub enum PanelIndices {
     ConfigEditor,
     InfoViewer,
     PreviewView,
-    NodeEditor,
+    MaterialEditor,
     TerrainBrush,
 }
 

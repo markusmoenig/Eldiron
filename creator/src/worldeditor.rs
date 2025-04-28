@@ -1,10 +1,10 @@
-use crate::editor::{PALETTE, RUSTERIX};
+use crate::editor::{PALETTE, RUSTERIX, UNDOMANAGER};
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use rayon::prelude::*;
 use shared::prelude::*;
 
-use rusterix::{D3Camera, D3OrbitCamera, PixelSource, Terrain, ValueContainer};
+use rusterix::{D3Camera, D3OrbitCamera, PixelSource, Terrain, TerrainChunk, ValueContainer};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BrushType {
@@ -41,6 +41,9 @@ pub struct WorldEditor {
 
     pub first_draw: bool,
     apply_brush: bool,
+
+    undo_chunks: FxHashMap<(i32, i32), TerrainChunk>,
+    edited: bool,
 }
 
 #[allow(clippy::new_without_default)]
@@ -62,6 +65,9 @@ impl WorldEditor {
 
             first_draw: true,
             apply_brush: false,
+
+            undo_chunks: FxHashMap::default(),
+            edited: false,
         }
     }
 
@@ -74,19 +80,20 @@ impl WorldEditor {
         let mut brush_switch = TheGroupButton::new(TheId::named("Brush Type"));
         brush_switch.add_text_status(
             "Elevation".to_string(),
-            "Raise or lower the terrain with brushes.".to_string(),
+            "Raise (click-drag) or lower the terrain (shift click-drag).".to_string(),
         );
         brush_switch.add_text_status(
             "Fill".to_string(),
-            "Fill missing areas with flat terrain.".to_string(),
+            "Fill missing areas with flat terrain (click-drag) or removes it (shift click-drag)"
+                .to_string(),
         );
         brush_switch.add_text_status(
             "Smooth".to_string(),
-            "Smooth the terrain by averaging heights.".to_string(),
+            "Smooth the terrain (click-drag) or roughen it (shift click-drag).".to_string(),
         );
         brush_switch.add_text_status(
             "Fractal".to_string(),
-            "Generate natural mountains and noise patterns.".to_string(),
+            "Add fractal noise to create natural terrain (click-drag).".to_string(),
         );
         brush_switch.set_item_width(80);
         text_layout.add_pair("".to_string(), Box::new(brush_switch));
@@ -155,8 +162,6 @@ impl WorldEditor {
             rusterix.client.camera_d3 = Box::new(self.orbit_camera.clone());
 
             if let Some(region) = project.get_region_ctx_mut(server_ctx) {
-                // region.map.terrain = Terrain::generate(20, Vec2::new(2.0, 2.0));
-
                 rusterix
                     .client
                     .camera_d3
@@ -168,6 +173,7 @@ impl WorldEditor {
                     rusterix.build_terrain_d3(&mut region.map, &ValueContainer::default());
                     self.first_draw = false;
                 }
+
                 // let assets = rusterix.assets.clone();
                 // rusterix
                 //     .client
@@ -195,7 +201,7 @@ impl WorldEditor {
         &mut self,
         map_event: MapEvent,
         ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         map: &mut Map,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
@@ -228,6 +234,9 @@ impl WorldEditor {
         match &map_event {
             MapEvent::MapClicked(coord) => {
                 self.drag_coord = *coord;
+                self.undo_chunks = map.terrain.clone_chunks_clean();
+                self.edited = false;
+
                 if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
                     if !ui.logo {
                         self.apply_brush = true;
@@ -238,6 +247,20 @@ impl WorldEditor {
             }
             MapEvent::MapUp(_coord) => {
                 self.apply_brush = false;
+                if self.edited {
+                    let undo_atom = RegionUndoAtom::TerrainEdit(
+                        Box::new(self.undo_chunks.clone()),
+                        Box::new(map.terrain.clone_chunks_clean()),
+                    );
+                    UNDOMANAGER.write().unwrap().add_region_undo(
+                        &server_ctx.curr_region,
+                        undo_atom,
+                        ctx,
+                    );
+
+                    self.undo_chunks = FxHashMap::default();
+                    self.edited = false;
+                }
             }
             MapEvent::MapDragged(coord) => {
                 hover(*coord);
@@ -291,13 +314,24 @@ impl WorldEditor {
                 !ui.shift,
             );
         } else if self.brush_type == BrushType::Fill {
-            self.fill_brush(terrain, center, self.radius);
+            self.fill_brush(terrain, center, self.radius, ui.shift);
+        } else if self.brush_type == BrushType::Smooth {
+            self.smooth_brush(
+                terrain,
+                center,
+                self.radius,
+                self.falloff,
+                self.strength,
+                !ui.shift,
+            );
+        } else if self.brush_type == BrushType::Fractal {
+            self.fractal_brush(terrain, center, self.radius, self.falloff, self.strength);
         }
     }
 
     /// Apply a circular brush to the terrain at a ray hit
     pub fn elevation_brush(
-        &self,
+        &mut self,
         terrain: &mut Terrain,
         center: Vec2<f32>,
         radius: f32,
@@ -332,13 +366,20 @@ impl WorldEditor {
                     } else {
                         terrain.set_height(x, y, current_height - delta);
                     }
+                    self.edited = true;
                 }
             }
         }
     }
 
     /// Create terrain (fill missing cells with height 0.0) inside a circular brush.
-    pub fn fill_brush(&self, terrain: &mut Terrain, center: Vec2<f32>, radius: f32) {
+    pub fn fill_brush(
+        &mut self,
+        terrain: &mut Terrain,
+        center: Vec2<f32>,
+        radius: f32,
+        clear: bool,
+    ) {
         let radius_squared = radius * radius;
 
         let min_x = ((center.x - radius) / terrain.scale.x).floor() as i32;
@@ -352,10 +393,118 @@ impl WorldEditor {
                 let dist_squared = (world_pos - center).magnitude_squared();
 
                 if dist_squared <= radius_squared {
-                    // Only set 0.0 if there is no height yet
-                    if !terrain.exists(x, y) {
-                        terrain.set_height(x, y, 0.0);
+                    if !clear {
+                        if !terrain.exists(x, y) {
+                            terrain.set_height(x, y, 0.0);
+                        }
+                    } else {
+                        terrain.remove_height(x, y);
                     }
+                    self.edited = true;
+                }
+            }
+        }
+    }
+
+    /// Smoothen brush
+    pub fn smooth_brush(
+        &mut self,
+        terrain: &mut Terrain,
+        center: Vec2<f32>,
+        radius: f32,
+        falloff: f32,
+        strength: f32,
+        smooth: bool,
+    ) {
+        let radius2 = radius * radius;
+
+        let min_x = ((center.x - radius) / terrain.scale.x).floor() as i32;
+        let max_x = ((center.x + radius) / terrain.scale.x).ceil() as i32;
+        let min_y = ((center.y - radius) / terrain.scale.y).floor() as i32;
+        let max_y = ((center.y + radius) / terrain.scale.y).ceil() as i32;
+
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
+                let world_pos = Vec2::new(x as f32 * terrain.scale.x, y as f32 * terrain.scale.y);
+                let dist2 = (world_pos - center).magnitude_squared();
+
+                if dist2 <= radius2 {
+                    let dist = dist2.sqrt();
+                    let mut factor = 1.0 - (dist / radius);
+
+                    // Apply falloff curve
+                    factor = factor.powf(falloff.max(0.01));
+
+                    let center_height = terrain.get_height(x, y);
+                    let mut neighbor_sum = 0.0;
+                    let mut neighbor_count = 0.0;
+
+                    // Average 8 neighbors (or 4 if you want simpler)
+                    for dy in -1..=1 {
+                        for dx in -1..=1 {
+                            if dx == 0 && dy == 0 {
+                                continue;
+                            }
+                            neighbor_sum += terrain.get_height(x + dx, y + dy);
+                            neighbor_count += 1.0;
+                        }
+                    }
+
+                    if neighbor_count > 0.0 {
+                        let neighbor_avg = neighbor_sum / neighbor_count;
+                        let delta = (neighbor_avg - center_height) * strength * factor;
+
+                        let new_height = if smooth {
+                            center_height + delta
+                        } else {
+                            center_height - delta
+                        };
+
+                        terrain.set_height(x, y, new_height);
+                        self.edited = true;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Fractal brush
+    pub fn fractal_brush(
+        &mut self,
+        terrain: &mut Terrain,
+        center: Vec2<f32>,
+        radius: f32,
+        falloff: f32,
+        strength: f32,
+    ) {
+        use rand::Rng;
+        let mut rng = rand::rng();
+
+        let radius2 = radius * radius;
+
+        let min_x = ((center.x - radius) / terrain.scale.x).floor() as i32;
+        let max_x = ((center.x + radius) / terrain.scale.x).ceil() as i32;
+        let min_y = ((center.y - radius) / terrain.scale.y).floor() as i32;
+        let max_y = ((center.y + radius) / terrain.scale.y).ceil() as i32;
+
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
+                let world_pos = Vec2::new(x as f32 * terrain.scale.x, y as f32 * terrain.scale.y);
+                let dist2 = (world_pos - center).magnitude_squared();
+
+                if dist2 <= radius2 {
+                    let dist = dist2.sqrt();
+                    let mut factor = 1.0 - (dist / radius);
+
+                    // Apply falloff
+                    factor = factor.powf(falloff.max(0.01));
+
+                    // Generate a small random offset
+                    let noise = (rng.random::<f32>() * 2.0 - 1.0) * strength * factor;
+
+                    let current_height = terrain.get_height(x, y);
+                    terrain.set_height(x, y, current_height + noise);
+                    self.edited = true;
                 }
             }
         }

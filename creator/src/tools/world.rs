@@ -66,7 +66,14 @@ impl Tool for WorldTool {
 
                     let mut camera_switch =
                         TheGroupButton::new(TheId::named("World Camera Helper Switch"));
-                    camera_switch.add_text_status("Orbit".to_string(), "Orbit.".to_string());
+                    camera_switch.add_text_status(
+                        "Orbit".to_string(),
+                        if cfg!(target_os = "macos") {
+                            str!("Orbit Camera. Hold 'Cmd' and click-drag to rotate about center.")
+                        } else {
+                            str!("Orbit Camera. Hold 'Ctrl' and click-drag to rotate about center.")
+                        },
+                    );
                     camera_switch.add_text_status(
                         "FirstP".to_string(),
                         "Apply procedural materials.".to_string(),
@@ -149,7 +156,12 @@ impl Tool for WorldTool {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "World Helper Switch" {
                     server_ctx.curr_world_tool_helper.set_from_index(*index);
-                    if server_ctx.curr_world_tool_helper == WorldToolHelper::TilePicker {
+                    if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::TerrainBrush as usize,
+                        ));
+                    } else if server_ctx.curr_world_tool_helper == WorldToolHelper::TilePicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::TilePicker as usize,
