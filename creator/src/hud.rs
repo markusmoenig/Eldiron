@@ -113,8 +113,10 @@ impl Hud {
             }
         }
 
+        let show_states = false;
+
         // States
-        if self.mode != HudMode::Effects {
+        if show_states {
             let x = 0;
             let state_width = 70;
             let state_height = 25_i32;
@@ -282,7 +284,10 @@ impl Hud {
             icons = if self.mode == HudMode::Sector { 2 } else { 0 };
         }
 
-        if self.mode == HudMode::Effects || self.mode == HudMode::Rect {
+        if self.mode == HudMode::Effects
+            || self.mode == HudMode::Rect
+            || self.mode == HudMode::Terrain
+        {
             icons = 0;
         }
 
@@ -362,9 +367,10 @@ impl Hud {
         }
 
         // Show Subdivs
-        if map.camera == MapCamera::TwoD
+        if (map.camera == MapCamera::TwoD
             || server_ctx.curr_map_context == MapContext::Material
-            || server_ctx.curr_map_context == MapContext::Screen
+            || server_ctx.curr_map_context == MapContext::Screen)
+            && self.mode != HudMode::Terrain
         {
             let x = 150;
 
@@ -395,7 +401,8 @@ impl Hud {
             }
         }
 
-        if map.camera == MapCamera::TwoD {
+        // Show rect
+        if map.camera == MapCamera::TwoD && self.mode != HudMode::Terrain {
             let x = 400;
             let size = 20;
             self.rect_geo_rect = TheDim::rect(x, 0, 100, size);
@@ -422,6 +429,25 @@ impl Hud {
                     TheHorizontalAlign::Center,
                     TheVerticalAlign::Center,
                 );
+            }
+        }
+
+        // Terrain: Height
+
+        if self.mode == HudMode::Terrain {
+            if let Some(font) = &ctx.ui.font {
+                if let Some(v) = server_ctx.hover_height {
+                    ctx.draw.text(
+                        buffer.pixels_mut(),
+                        &(150, 2),
+                        stride,
+                        font,
+                        13.0,
+                        &format!("Elevation {:.2}", v),
+                        &text_color,
+                        &bg_color,
+                    );
+                }
             }
         }
 

@@ -148,6 +148,10 @@ impl WorldEditor {
                     self.apply_brush(&mut map.terrain, Vec2::new(hit.x, hit.z), ui);
                     let mut rusterix = RUSTERIX.write().unwrap();
                     rusterix.build_terrain_d3(map, &ValueContainer::default());
+
+                    if let Some(hit) = self.terrain_hit {
+                        server_ctx.hover_height = Some(map.terrain.sample_height(hit.x, hit.y));
+                    }
                 }
             }
         }
@@ -179,12 +183,17 @@ impl WorldEditor {
                 // rusterix
                 //     .client
                 //     .apply_entities_items_d3(&region.map, &assets);
+
+                if let Some(hit) = self.terrain_hit {
+                    rusterix.client.terrain_hover = Some(hit);
+                }
                 rusterix.client.draw_d3(
                     &region.map,
                     buffer.pixels_mut(),
                     dim.width as usize,
                     dim.height as usize,
                 );
+                rusterix.client.terrain_hover = None;
 
                 self.hud.draw(
                     buffer,
@@ -228,6 +237,8 @@ impl WorldEditor {
                     let p = self.world_to_editor(map.terrain.scale, hit.world_pos);
                     server_ctx.hover_cursor = Some(p);
                     self.terrain_hit = Some(hit.world_pos);
+                    server_ctx.hover_height =
+                        Some(map.terrain.sample_height(hit.world_pos.x, hit.world_pos.y));
                 }
             }
         };
@@ -298,7 +309,8 @@ impl WorldEditor {
             } else if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
                 if let Some(id) = server_ctx.curr_material_id {
                     let source = PixelSource::MaterialId(id);
-                    map.terrain.set_source(hit.x as i32, hit.z as i32, source);
+                    map.terrain
+                        .set_source(hit.x.floor() as i32, hit.z.floor() as i32, source);
                     // rusterix.set_dirty();
                     rusterix.build_terrain_d3(map, &ValueContainer::default());
                 }
