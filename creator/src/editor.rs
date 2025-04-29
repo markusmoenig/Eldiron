@@ -43,8 +43,8 @@ pub static CONFIG: LazyLock<RwLock<toml::Table>> =
     LazyLock::new(|| RwLock::new(toml::Table::default()));
 pub static PREVIEWVIEW: LazyLock<RwLock<PreviewView>> =
     LazyLock::new(|| RwLock::new(PreviewView::new()));
-pub static MATERIALEDITOR: LazyLock<RwLock<MaterialEditor>> =
-    LazyLock::new(|| RwLock::new(MaterialEditor::new()));
+pub static NODEEDITOR: LazyLock<RwLock<NodeEditor>> =
+    LazyLock::new(|| RwLock::new(NodeEditor::new()));
 pub static WORLDEDITOR: LazyLock<RwLock<WorldEditor>> =
     LazyLock::new(|| RwLock::new(WorldEditor::new()));
 
@@ -713,7 +713,6 @@ impl TheTrait for Editor {
                                 }
 
                                 if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
-                                    map.terrain.mark_dirty();
                                     rusterix.build_terrain(map, &self.build_values);
                                     rusterix.draw_scene(
                                         map,

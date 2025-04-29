@@ -5,12 +5,12 @@ use shared::prelude::*;
 use ShapeFXParam::*;
 use rusterix::{ShapeFX, ShapeFXGraph, ShapeFXParam, ShapeFXRole, ShapeStack, Texture, Value};
 
-pub struct MaterialEditor {
+pub struct NodeEditor {
     pub graph: ShapeFXGraph,
 }
 
 #[allow(clippy::new_without_default)]
-impl MaterialEditor {
+impl NodeEditor {
     pub fn new() -> Self {
         Self {
             graph: ShapeFXGraph::default(),

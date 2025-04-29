@@ -830,6 +830,18 @@ impl Sidebar {
                             let height = dim.height as f32;
 
                             if let Some(mut bbox) = region.map.bounding_box() {
+                                if let Some(tbbox) = region.map.terrain.compute_bounds() {
+                                    let bbox_min = Vec2::new(bbox.x, bbox.y);
+                                    let bbox_max = bbox_min + Vec2::new(bbox.z, bbox.w);
+
+                                    let new_min = bbox_min.map2(tbbox.min, f32::min);
+                                    let new_max = bbox_max.map2(tbbox.max, f32::max);
+
+                                    bbox.x = new_min.x;
+                                    bbox.y = new_min.y;
+                                    bbox.z = new_max.x - new_min.x;
+                                    bbox.w = new_max.y - new_min.y;
+                                }
                                 bbox.x -= 0.5;
                                 bbox.y -= 0.5;
                                 bbox.z += 1.0;

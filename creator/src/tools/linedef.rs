@@ -1,4 +1,4 @@
-use crate::editor::MATERIALEDITOR;
+use crate::editor::NODEEDITOR;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -528,8 +528,8 @@ impl Tool for LinedefTool {
                             if let Some(id) = server_ctx.curr_material_id {
                                 source = Some(Value::Source(PixelSource::MaterialId(id)));
                             }
-                        } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialEditor {
-                            let node_editor = MATERIALEDITOR.read().unwrap();
+                        } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                            let node_editor = NODEEDITOR.read().unwrap();
                             if !node_editor.graph.nodes.is_empty() {
                                 source = Some(Value::Source(PixelSource::ShapeFXGraphId(
                                     node_editor.graph.id,
@@ -556,9 +556,8 @@ impl Tool for LinedefTool {
                                 }
 
                                 // Force node update
-                                if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialEditor
-                                {
-                                    MATERIALEDITOR.read().unwrap().force_update(ctx, map);
+                                if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                                    NODEEDITOR.read().unwrap().force_update(ctx, map);
                                 }
 
                                 let undo_atom =
@@ -616,8 +615,8 @@ impl Tool for LinedefTool {
                         }
 
                         // Force node update
-                        if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialEditor {
-                            MATERIALEDITOR.read().unwrap().force_update(ctx, map);
+                        if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                            NODEEDITOR.read().unwrap().force_update(ctx, map);
                         }
 
                         let undo_atom =

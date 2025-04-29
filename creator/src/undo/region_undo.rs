@@ -1,8 +1,8 @@
-use crate::editor::RUSTERIX;
+use crate::editor::WORLDEDITOR;
 use crate::prelude::*;
 use crate::undo::material_undo::MaterialUndoAtom;
 use crate::undo::screen_undo::ScreenUndoAtom;
-use rusterix::{TerrainChunk, ValueContainer};
+use rusterix::TerrainChunk;
 use theframework::prelude::*;
 
 #[allow(clippy::large_enum_variant)]
@@ -49,8 +49,12 @@ impl RegionUndoAtom {
                 region.map.terrain.chunks = *prev.clone();
                 region.map.terrain.mark_dirty();
 
-                let mut rusterix = RUSTERIX.write().unwrap();
-                rusterix.build_terrain_d3(&mut region.map, &ValueContainer::default());
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                WORLDEDITOR.write().unwrap().first_draw = true;
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Minimap"),
+                    TheValue::Empty,
+                ));
             }
         }
     }
@@ -73,6 +77,13 @@ impl RegionUndoAtom {
             RegionUndoAtom::TerrainEdit(_, next) => {
                 region.map.terrain.chunks = *next.clone();
                 region.map.terrain.mark_dirty();
+
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                WORLDEDITOR.write().unwrap().first_draw = true;
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Minimap"),
+                    TheValue::Empty,
+                ));
             }
         }
     }

@@ -151,6 +151,7 @@ impl WorldEditor {
                 }
             }
         }
+
         if let Some(render_view) = ui.get_render_view("PolyView") {
             let dim = *render_view.dim();
 
@@ -261,6 +262,10 @@ impl WorldEditor {
                     self.undo_chunks = FxHashMap::default();
                     self.edited = false;
                 }
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Minimap"),
+                    TheValue::Empty,
+                ));
             }
             MapEvent::MapDragged(coord) => {
                 hover(*coord);

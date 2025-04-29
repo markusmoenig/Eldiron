@@ -37,7 +37,7 @@ impl Tool for WorldTool {
         _tool_context: ToolContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
@@ -113,6 +113,9 @@ impl Tool for WorldTool {
                     layout.set_reverse_index(None);
                 }
                 // server_ctx.curr_map_tool_type = MapToolType::General;
+                if let Some(map) = project.get_map_mut(server_ctx) {
+                    map.terrain.mark_dirty();
+                }
                 server_ctx.world_mode = false;
                 return true;
             }

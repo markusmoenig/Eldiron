@@ -25,6 +25,19 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
 
     let mut region = orig_region.clone();
     if let Some(mut bbox) = region.map.bounding_box() {
+        if let Some(tbbox) = region.map.terrain.compute_bounds() {
+            let bbox_min = Vec2::new(bbox.x, bbox.y);
+            let bbox_max = bbox_min + Vec2::new(bbox.z, bbox.w);
+
+            let new_min = bbox_min.map2(tbbox.min, f32::min);
+            let new_max = bbox_max.map2(tbbox.max, f32::max);
+
+            bbox.x = new_min.x;
+            bbox.y = new_min.y;
+            bbox.z = new_max.x - new_min.x;
+            bbox.w = new_max.y - new_min.y;
+        }
+
         bbox.x -= 0.5;
         bbox.y -= 0.5;
         bbox.z += 1.0;
@@ -86,7 +99,13 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
             Vec2::new(width, height),
             &ValueContainer::default(),
         );
-
+        map.terrain.mark_dirty();
+        builder.build_terrain(
+            &mut map,
+            &rusterix.assets,
+            &mut scene,
+            &ValueContainer::default(),
+        );
         builder.build_entities_items(&map, &rusterix.assets, &mut scene, Vec2::new(width, height));
 
         let mut light = Light::new(LightType::Ambient);

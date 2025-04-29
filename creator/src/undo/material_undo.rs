@@ -1,4 +1,4 @@
-use crate::editor::MATERIALEDITOR;
+use crate::editor::NODEEDITOR;
 use crate::prelude::*;
 use rusterix::{PixelSource, Value};
 use theframework::prelude::*;
@@ -16,21 +16,21 @@ impl MaterialUndoAtom {
                 if let Some(material) = project.materials.get_mut(&prev.id) {
                     *material = *prev.clone();
                     material.clear_temp();
-                    MATERIALEDITOR.write().unwrap().force_update(ctx, material);
+                    NODEEDITOR.write().unwrap().force_update(ctx, material);
                     for s in &material.selected_sectors {
                         if let Some(sector) = material.find_sector(*s) {
                             if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
                                 sector.properties.get("floor_source")
                             {
                                 if let Some(graph) = material.shapefx_graphs.get(id) {
-                                    MATERIALEDITOR.write().unwrap().apply_graph(graph, ui);
+                                    NODEEDITOR.write().unwrap().apply_graph(graph, ui);
                                     break;
                                 }
                             }
                         }
                     }
                 }
-                MATERIALEDITOR
+                NODEEDITOR
                     .write()
                     .unwrap()
                     .set_selected_node_ui(project, ui, ctx, false);
@@ -43,21 +43,21 @@ impl MaterialUndoAtom {
                 if let Some(material) = project.materials.get_mut(&next.id) {
                     *material = *next.clone();
                     material.clear_temp();
-                    MATERIALEDITOR.write().unwrap().force_update(ctx, material);
+                    NODEEDITOR.write().unwrap().force_update(ctx, material);
                     for s in &material.selected_sectors {
                         if let Some(sector) = material.find_sector(*s) {
                             if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
                                 sector.properties.get("floor_source")
                             {
                                 if let Some(graph) = material.shapefx_graphs.get(id) {
-                                    MATERIALEDITOR.write().unwrap().apply_graph(graph, ui);
+                                    NODEEDITOR.write().unwrap().apply_graph(graph, ui);
                                     break;
                                 }
                             }
                         }
                     }
                 }
-                MATERIALEDITOR
+                NODEEDITOR
                     .write()
                     .unwrap()
                     .set_selected_node_ui(project, ui, ctx, false);
