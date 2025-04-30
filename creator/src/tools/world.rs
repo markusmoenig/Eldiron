@@ -169,11 +169,19 @@ impl Tool for WorldTool {
                             TheId::named("Main Stack"),
                             PanelIndices::TilePicker as usize,
                         ));
+                        WORLDEDITOR
+                            .write()
+                            .unwrap()
+                            .set_tile_rules_ui(ui, ctx, true);
                     } else if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::MaterialPicker as usize,
                         ));
+                        WORLDEDITOR
+                            .write()
+                            .unwrap()
+                            .set_tile_rules_ui(ui, ctx, true);
                     }
                 } else if id.name == "Brush Type" {
                     WORLDEDITOR
@@ -181,6 +189,11 @@ impl Tool for WorldTool {
                         .unwrap()
                         .brush_type
                         .set_from_index(*index);
+                }
+            }
+            TheEvent::ValueChanged(id, TheValue::IntRange(v, _)) => {
+                if id.name == "tileRulesBlendRadius" {
+                    WORLDEDITOR.write().unwrap().blend_radius = *v;
                 }
             }
             TheEvent::ValueChanged(id, TheValue::FloatRange(v, _)) => {
@@ -193,6 +206,17 @@ impl Tool for WorldTool {
                 } else if id.name == "Brush Strength" {
                     WORLDEDITOR.write().unwrap().strength = *v;
                     WORLDEDITOR.write().unwrap().update_brush_preview(ui);
+                } else if id.name == "tileRulesDistance" {
+                    WORLDEDITOR.write().unwrap().tile_rules_distance = *v;
+                } else if id.name == "tileRulesHeight" {
+                    WORLDEDITOR.write().unwrap().tile_rules_height = *v;
+                } else if id.name == "tileRulesSteepness" {
+                    WORLDEDITOR.write().unwrap().tile_rules_steepness = *v;
+                }
+            }
+            TheEvent::ValueChanged(id, TheValue::Int(v)) => {
+                if id.name == "tileRules" {
+                    WORLDEDITOR.write().unwrap().tile_rules = *v == 0;
                 }
             }
             _ => {}

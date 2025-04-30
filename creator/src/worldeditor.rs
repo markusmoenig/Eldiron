@@ -4,7 +4,9 @@ use crate::prelude::*;
 use rayon::prelude::*;
 use shared::prelude::*;
 
-use rusterix::{D3Camera, D3OrbitCamera, PixelSource, Terrain, TerrainChunk, ValueContainer};
+use rusterix::{
+    D3Camera, D3OrbitCamera, PixelSource, Terrain, TerrainBlendMode, TerrainChunk, ValueContainer,
+};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BrushType {
@@ -44,6 +46,13 @@ pub struct WorldEditor {
 
     undo_chunks: FxHashMap<(i32, i32), TerrainChunk>,
     edited: bool,
+
+    // Tile Paint Rulez
+    pub blend_radius: i32,
+    pub tile_rules: bool,
+    pub tile_rules_distance: f32,
+    pub tile_rules_height: f32,
+    pub tile_rules_steepness: f32,
 }
 
 #[allow(clippy::new_without_default)]
@@ -68,6 +77,13 @@ impl WorldEditor {
 
             undo_chunks: FxHashMap::default(),
             edited: false,
+
+            blend_radius: 0,
+            tile_rules: true,
+
+            tile_rules_distance: 5.0,
+            tile_rules_height: 1.0,
+            tile_rules_steepness: 1.0,
         }
     }
 
@@ -98,29 +114,33 @@ impl WorldEditor {
         brush_switch.set_item_width(80);
         text_layout.add_pair("".to_string(), Box::new(brush_switch));
 
+        let mut spacer = TheSpacer::new(TheId::empty());
+        spacer.limiter_mut().set_max_height(20);
+        text_layout.add_pair("".to_string(), Box::new(spacer));
+
         let mut radius = TheTextLineEdit::new(TheId::named("Brush Radius"));
         radius.set_value(TheValue::Float(10.0));
         radius.set_range(TheValue::RangeF32(0.5..=10.0));
-        // radius.set_continuous(true);
-        radius.set_status_text("The falloff of the brush.");
-        radius.limiter_mut().set_max_width(200);
-        text_layout.add_pair("Radius".to_string(), Box::new(radius));
+        radius.set_info_text(Some("Radius".into()));
+        radius.set_status_text("Controls the size of the brush in world units.");
+        radius.limiter_mut().set_max_width(300);
+        text_layout.add_pair("".to_string(), Box::new(radius));
 
         let mut falloff = TheTextLineEdit::new(TheId::named("Brush Falloff"));
         falloff.set_value(TheValue::Float(2.0));
         falloff.set_range(TheValue::RangeF32(0.5..=4.0));
-        // falloff.set_continuous(true);
-        falloff.set_status_text("The falloff of the brush.");
-        falloff.limiter_mut().set_max_width(200);
-        text_layout.add_pair("Falloff".to_string(), Box::new(falloff));
+        falloff.set_info_text(Some("Falloff".into()));
+        falloff.set_status_text("Controls how quickly the brush strength fades from the center.");
+        falloff.limiter_mut().set_max_width(300);
+        text_layout.add_pair("".to_string(), Box::new(falloff));
 
         let mut strength = TheTextLineEdit::new(TheId::named("Brush Strength"));
         strength.set_value(TheValue::Float(0.2));
         strength.set_range(TheValue::RangeF32(0.01..=1.0));
-        // strength.set_continuous(true);
-        strength.set_status_text("The falloff of the brush.");
-        strength.limiter_mut().set_max_width(200);
-        text_layout.add_pair("Strength".to_string(), Box::new(strength));
+        strength.set_info_text(Some("Strength".into()));
+        strength.set_status_text("Maximum intensity of the brush effect at the center.");
+        strength.limiter_mut().set_max_width(300);
+        text_layout.add_pair("".to_string(), Box::new(strength));
 
         center.set_layout(text_layout);
 
@@ -150,7 +170,7 @@ impl WorldEditor {
                     rusterix.build_terrain_d3(map, &ValueContainer::default());
 
                     if let Some(hit) = self.terrain_hit {
-                        server_ctx.hover_height = Some(map.terrain.sample_height(hit.x, hit.y));
+                        server_ctx.hover_height = Some(map.terrain.sample_height(hit.x, hit.z));
                     }
                 }
             }
@@ -238,7 +258,7 @@ impl WorldEditor {
                     server_ctx.hover_cursor = Some(p);
                     self.terrain_hit = Some(hit.world_pos);
                     server_ctx.hover_height =
-                        Some(map.terrain.sample_height(hit.world_pos.x, hit.world_pos.y));
+                        Some(map.terrain.sample_height(hit.world_pos.x, hit.world_pos.z));
                 }
             }
         };
@@ -249,12 +269,12 @@ impl WorldEditor {
                 self.undo_chunks = map.terrain.clone_chunks_clean();
                 self.edited = false;
 
-                if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
-                    if !ui.logo {
+                if !ui.logo {
+                    if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
                         self.apply_brush = true;
+                    } else {
+                        self.apply_action(map, ui, server_ctx);
                     }
-                } else {
-                    self.apply_action(map, ui, server_ctx);
                 }
             }
             MapEvent::MapUp(_coord) => {
@@ -309,13 +329,74 @@ impl WorldEditor {
             } else if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
                 if let Some(id) = server_ctx.curr_material_id {
                     let source = PixelSource::MaterialId(id);
-                    map.terrain
-                        .set_source(hit.x.floor() as i32, hit.z.floor() as i32, source);
-                    // rusterix.set_dirty();
+                    let x = hit.x.floor() as i32;
+                    let z = hit.z.floor() as i32;
+
+                    if !self.tile_rules {
+                        map.terrain.set_source(x, z, source);
+                        let blend_mode = if self.blend_radius == 0 {
+                            TerrainBlendMode::None
+                        } else {
+                            TerrainBlendMode::Blend(self.blend_radius as u8)
+                        };
+                        map.terrain.set_blend_mode(x, z, blend_mode);
+                    } else {
+                        self.apply_source_rules(x, z, map, source);
+                    }
                     rusterix.build_terrain_d3(map, &ValueContainer::default());
+                    self.edited = true;
                 }
             }
             map.terrain.mark_clean();
+        }
+    }
+
+    pub fn apply_source_rules(&mut self, x: i32, z: i32, map: &mut Map, source: PixelSource) {
+        let world = Vec2::new(x as f32, z as f32);
+        let height = map.terrain.get_height(x, z);
+        let normal = map.terrain.sample_normal(world);
+        let steepness = 1.0 - normal.y;
+
+        for tile_ref in map.terrain.iter_tiles_mut() {
+            // println!("{:?}", tile_ref.world_coords);
+            unsafe {
+                let chunk = &mut *tile_ref.chunk;
+                let (wx, wz) = tile_ref.world_coords;
+                let (lx, lz) = tile_ref.local_coords;
+                let world_x = (chunk).origin.x + lx as i32;
+                let world_z = (chunk).origin.y + lz as i32;
+
+                let mut is_valid = false;
+                if world.distance(Vec2::new(wx, wz)) < self.tile_rules_distance {
+                    let local_height = chunk.get_height(world_x, world_z);
+                    let local_normal = chunk.sample_normal(Vec2::new(world_x, world_z));
+
+                    let diff = (local_height - height).abs(); // both in world units
+                    let height_range = self.tile_rules_height;
+                    // normalize diff into range [0.0..1.0] by mapping some max difference
+                    // (e.g., 10.0 world units == range 1.0)
+                    let normalized = (diff / 10.0).clamp(0.0, 1.0);
+                    let height_match = normalized <= height_range;
+
+                    let local_steepness = 1.0 - local_normal.y;
+                    let steepness_diff = (local_steepness - steepness).abs();
+                    let steepness_match = steepness_diff <= self.tile_rules_steepness;
+
+                    is_valid = height_match && steepness_match;
+                }
+
+                if is_valid {
+                    chunk.set_source(world_x, world_z, source.clone());
+                    let blend_mode = if self.blend_radius == 0 {
+                        TerrainBlendMode::None
+                    } else {
+                        TerrainBlendMode::Blend(self.blend_radius as u8)
+                    };
+                    chunk.set_blend_mode(world_x, world_z, blend_mode);
+                    chunk.mark_dirty();
+                    self.edited = true;
+                }
+            }
         }
     }
 
@@ -574,6 +655,79 @@ impl WorldEditor {
                         pixel.copy_from_slice(&TheColor::from_vec4f(color).to_u8_array());
                     }
                 });
+        }
+    }
+
+    pub fn set_tile_rules_ui(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        switch_to_nodes: bool,
+    ) {
+        let mut nodeui = TheNodeUI::default();
+
+        let item = TheNodeUIItem::IntEditSlider(
+            "tileRulesBlendRadius".into(),
+            "Blend Radius".into(),
+            "Controls how far neighboring tiles influence blending. A value of 0 disables blending.".into(),
+            self.blend_radius,
+            0..=3,
+            false,
+        );
+        nodeui.add_item(item);
+
+        let item = TheNodeUIItem::Selector(
+            "tileRules".into(),
+            "Use Rules".into(),
+            "Enable or disable rule-based tile painting.".into(),
+            vec!["Yes".to_string(), "No".to_string()],
+            if self.tile_rules { 0 } else { 1 },
+        );
+        nodeui.add_item(item);
+
+        nodeui.add_item(TheNodeUIItem::Separator("Tile Rules".into()));
+
+        let item = TheNodeUIItem::FloatEditSlider(
+            "tileRulesDistance".into(),
+            "Distance".into(),
+            "Affects tiles within this radius (in world units) around the painted point.".into(),
+            self.tile_rules_distance,
+            1.0..=100.0,
+            false,
+        );
+        nodeui.add_item(item);
+
+        let item = TheNodeUIItem::FloatEditSlider(
+            "tileRulesHeight".into(),
+            "Height".into(),
+            "Controls how much height difference is allowed from the painted tile (0 = exact match, 1 = any height).".into(),
+            self.tile_rules_height,
+            0.0..=1.0,
+            false,
+        );
+        nodeui.add_item(item);
+
+        let item = TheNodeUIItem::FloatEditSlider(
+            "tileRulesSteepness".into(),
+            "Steepness".into(),
+            "Controls how much steepness variation is allowed from the painted tile (0 = same steepness, 1 = any slope).".into(),
+            self.tile_rules_steepness,
+            0.0..=1.0,
+            false,
+        );
+        nodeui.add_item(item);
+
+        if let Some(layout) = ui.get_text_layout("Node Settings") {
+            nodeui.apply_to_text_layout(layout);
+            // layout.relayout(ctx);
+            ctx.ui.relayout = true;
+
+            if switch_to_nodes {
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Show Node Settings"),
+                    TheValue::Text("Tile Rules Settings".into()),
+                ));
+            }
         }
     }
 }
