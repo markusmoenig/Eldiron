@@ -1,11 +1,20 @@
-use crate::editor::{CONFIGEDITOR, PALETTE, UNDOMANAGER};
+use crate::editor::{CONFIGEDITOR, PALETTE, UNDOMANAGER, WORLDEDITOR};
 use crate::prelude::*;
 use shared::prelude::*;
 
 use ShapeFXParam::*;
 use rusterix::{ShapeFX, ShapeFXGraph, ShapeFXParam, ShapeFXRole, ShapeStack, Texture, Value};
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum NodeContext {
+    Region,
+    Skeleton,
+    Material,
+    Render,
+}
+
 pub struct NodeEditor {
+    pub context: NodeContext,
     pub graph: ShapeFXGraph,
 }
 
@@ -13,7 +22,55 @@ pub struct NodeEditor {
 impl NodeEditor {
     pub fn new() -> Self {
         Self {
+            context: NodeContext::Region,
             graph: ShapeFXGraph::default(),
+        }
+    }
+
+    /// Set the context of the node editor.
+    pub fn set_context(
+        &mut self,
+        context: NodeContext,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _project: &mut Project,
+        _server_ctx: &mut ServerContext,
+    ) {
+        self.context = context;
+        self.graph = ShapeFXGraph::default();
+        self.to_canvas();
+    }
+
+    /// Called when the graph has changed, updating the UI and providing undo.
+    fn graph_changed(
+        &mut self,
+        project: &mut Project,
+        _ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+        if self.context == NodeContext::Region {
+            if let Some(map) = project.get_map_mut(server_ctx) {
+                map.changed += 1;
+                map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
+                map.terrain.mark_dirty();
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                WORLDEDITOR.write().unwrap().first_draw = true;
+            }
+        } else if self.context == NodeContext::Material {
+            if let Some(map) = project.get_map_mut(server_ctx) {
+                let prev = map.clone();
+                map.changed += 1;
+                map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
+                let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+                UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
+                self.create_material_preview(map, &PALETTE.read().unwrap());
+
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Materialpicker"),
+                    TheValue::Empty,
+                ));
+            }
         }
     }
 
@@ -45,11 +102,23 @@ impl NodeEditor {
         create_button.set_text("Create Graph".to_string());
         toolbar_hlayout.add_widget(Box::new(create_button));
 
-        let mut nodes_button = TheTraybarButton::new(TheId::named("ShapeFX Nodes"));
-        //add_button.set_icon_name("icon_role_add".to_string());
-        nodes_button.set_text(str!("Nodes"));
-        nodes_button.set_status_text("Available region effect nodes.");
-        nodes_button.set_context_menu(Some(TheContextMenu {
+        let mut mesh_nodes_button = TheTraybarButton::new(TheId::named("Mesh Nodes"));
+        mesh_nodes_button.set_text(str!("Mesh Nodes"));
+        mesh_nodes_button.set_status_text("Nodes which control and modify terrain mesh creation.");
+        mesh_nodes_button.set_context_menu(Some(TheContextMenu {
+            items: vec![TheContextMenuItem::new(
+                "Level".to_string(),
+                TheId::named("Level"),
+            )],
+            ..Default::default()
+        }));
+        toolbar_hlayout.add_widget(Box::new(mesh_nodes_button));
+
+        let mut shapefx_nodes_button = TheTraybarButton::new(TheId::named("ShapeFX Nodes"));
+        shapefx_nodes_button.set_text(str!("Shape FX Nodes"));
+        shapefx_nodes_button
+            .set_status_text("Nodes which attach to geometry and shapes and create pixels.");
+        shapefx_nodes_button.set_context_menu(Some(TheContextMenu {
             items: vec![
                 TheContextMenuItem::new("Color".to_string(), TheId::named("Color")),
                 TheContextMenuItem::new("Gradient".to_string(), TheId::named("Gradient")),
@@ -59,14 +128,7 @@ impl NodeEditor {
             ],
             ..Default::default()
         }));
-
-        // let mut nodes_drop_down = TheDropdownMenu::new(TheId::named("Nodes Selector"));
-        // for role in ShapeFXRole::iterator() {
-        //     if role != ShapeFXRole::Geometry {
-        //         nodes_drop_down.add_option(role.to_string());
-        //     }
-        // }
-        toolbar_hlayout.add_widget(Box::new(nodes_button));
+        toolbar_hlayout.add_widget(Box::new(shapefx_nodes_button));
 
         toolbar_hlayout.set_reverse_index(Some(2));
         top_toolbar.set_layout(toolbar_hlayout);
@@ -96,9 +158,9 @@ impl NodeEditor {
                 position: node.position,
                 inputs: node.inputs(),
                 outputs: node.outputs(),
-                preview: TheRGBABuffer::default(), //node.preview.clone(),
-                supports_preview: false,           //node.supports_preview,
-                preview_is_open: false,            //node.preview_is_open,
+                preview: TheRGBABuffer::default(),
+                supports_preview: false,
+                preview_is_open: false,
                 can_be_deleted: index != 0,
             };
             canvas.nodes.push(n);
@@ -120,7 +182,9 @@ impl NodeEditor {
         #[allow(clippy::single_match)]
         match event {
             TheEvent::ContextMenuSelected(id, item) => {
-                if id.name == "ShapeFX Nodes" && !self.graph.nodes.is_empty() {
+                if (id.name == "ShapeFX Nodes" || id.name == "Mesh Nodes")
+                    && !self.graph.nodes.is_empty()
+                {
                     if let Ok(role) = item.name.parse::<ShapeFXRole>() {
                         let mut effect = ShapeFX::new(role);
 
@@ -143,20 +207,21 @@ impl NodeEditor {
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
                 if id.name == "Create Graph Button" {
-                    self.graph = ShapeFXGraph {
-                        nodes: vec![ShapeFX::new(ShapeFXRole::Geometry)],
-                        ..Default::default()
-                    };
+                    if self.context == NodeContext::Material {
+                        self.graph = ShapeFXGraph {
+                            nodes: vec![ShapeFX::new(ShapeFXRole::MaterialGeometry)],
+                            ..Default::default()
+                        };
+                    } else if self.context == NodeContext::Region {
+                        self.graph = ShapeFXGraph {
+                            nodes: vec![ShapeFX::new(ShapeFXRole::RegionGeometry)],
+                            ..Default::default()
+                        };
+                    }
 
                     let canvas = self.to_canvas();
                     ui.set_node_canvas("ShapeFX NodeCanvas", canvas);
-
-                    if let Some(map) = project.get_map_mut(server_ctx) {
-                        let prev = map.clone();
-                        map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
-                        let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-                        UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
-                    }
+                    self.graph_changed(project, ui, ctx, server_ctx);
                 }
             }
             TheEvent::NodeSelectedIndexChanged(id, index) => {
@@ -173,11 +238,11 @@ impl NodeEditor {
                 if id.name == "ShapeFX NodeCanvas" {
                     self.graph.nodes[*index].position = *position;
                     if let Some(map) = project.get_map_mut(server_ctx) {
-                        let prev = map.clone();
+                        // let prev = map.clone();
                         map.changed += 1;
                         map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
-                        let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-                        UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
+                        // let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+                        // UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
                     }
                 }
             }
@@ -185,76 +250,16 @@ impl NodeEditor {
             | TheEvent::NodeConnectionRemoved(id, connections) => {
                 if id.name == "ShapeFX NodeCanvas" {
                     self.graph.connections.clone_from(connections);
-                    if let Some(map) = project.get_map_mut(server_ctx) {
-                        let prev = map.clone();
-                        map.changed += 1;
-                        map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
-                        let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-                        UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
-                        self.create_preview(map, &PALETTE.read().unwrap());
-                    }
-
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Update Materialpicker"),
-                        TheValue::Empty,
-                    ));
+                    self.graph_changed(project, ui, ctx, server_ctx);
                 }
-                //     if let Some(material_id) = server_ctx.curr_material {
-                //         if let Some(material) = project.materials.get_mut(&material_id) {
-                //             let prev = material.to_json();
-                //             material.connections.clone_from(connections);
-                //             material.render_preview(&project.palette, &TEXTURES.lock().unwrap());
-                //             ui.set_node_preview("Map NodeCanvas", 0, material.get_preview());
-                //             let undo =
-                //                 MaterialFXUndoAtom::Edit(material.id, prev, material.to_json());
-                //             UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
-                //             redraw = true;
-                //         }
-                //         MAPRENDER.lock().unwrap().set_materials(project);
-                //     }
-                // }
             }
             TheEvent::NodeDeleted(id, deleted_node_index, connections) => {
                 if id.name == "ShapeFX NodeCanvas" {
                     self.graph.nodes.remove(*deleted_node_index);
                     self.graph.connections.clone_from(connections);
 
-                    if let Some(map) = project.get_map_mut(server_ctx) {
-                        let prev = map.clone();
-                        map.changed += 1;
-                        map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
-                        let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-                        UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
-                        self.create_preview(map, &PALETTE.read().unwrap());
-                    }
-
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Update Materialpicker"),
-                        TheValue::Empty,
-                    ));
+                    self.graph_changed(project, ui, ctx, server_ctx);
                 }
-                // if id.name == "Map NodeCanvas" {
-                //     if let Some(material_id) = server_ctx.curr_material {
-                //         if let Some(material) = project.materials.get_mut(&material_id) {
-                //             let prev = material.to_json();
-                //             material.nodes.remove(*deleted_node_index);
-                //             //material.node_previews.remove(*deleted_node_index);
-                //             material.connections.clone_from(connections);
-                //             material.selected_node = None;
-                //             material.render_preview(&project.palette, &TEXTURES.lock().unwrap());
-                //             ui.set_node_preview(
-                //                 "MaterialFX NodeCanvas",
-                //                 0,
-                //                 material.get_preview().clone(),
-                //             );
-                //             let undo =
-                //                 MaterialFXUndoAtom::Edit(material.id, prev, material.to_json());
-                //             UNDOMANAGER.lock().unwrap().add_materialfx_undo(undo, ctx);
-                //             redraw = true;
-                //         }
-                //         MAPRENDER.lock().unwrap().set_materials(project);
-                //     }
-                // }
             }
             TheEvent::NodeViewScrolled(id, offset) => {
                 if id.name == "ShapeFX NodeCanvas" {
@@ -279,20 +284,7 @@ impl NodeEditor {
                                 _ => {}
                             }
                         }
-                        if let Some(map) = project.get_map_mut(server_ctx) {
-                            let prev = map.clone();
-                            map.changed += 1;
-                            map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
-                            let undo =
-                                MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-                            UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
-                            self.create_preview(map, &PALETTE.read().unwrap());
-                        }
-
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Materialpicker"),
-                            TheValue::Empty,
-                        ));
+                        self.graph_changed(project, ui, ctx, server_ctx);
                     }
                 }
             }
@@ -379,41 +371,6 @@ impl NodeEditor {
                         }
                     }
                 }
-                /*
-                match node.role {
-                    Gradient => {
-                        let item = TheNodeUIItem::FloatEditSlider(
-                            "shapefxDirection".into(),
-                            "Direction".into(),
-                            "The gradient direction.".into(),
-                            node.values.get_float_default("direction", 0.0),
-                            0.0..=360.0,
-                            false,
-                        );
-                        nodeui.add_item(item);
-
-                        let item = TheNodeUIItem::PaletteSlider(
-                            "shapefxFrom".into(),
-                            "From".into(),
-                            "Set the start color".into(),
-                            node.values.get_int_default("from", 0),
-                            project.palette.clone(),
-                            false,
-                        );
-                        nodeui.add_item(item);
-
-                        let item = TheNodeUIItem::PaletteSlider(
-                            "shapefxTo".into(),
-                            "To".into(),
-                            "Set the end color".into(),
-                            node.values.get_int_default("to", 1),
-                            project.palette.clone(),
-                            false,
-                        );
-                        nodeui.add_item(item);
-                    }
-                    _ => {}
-                }*/
             }
         }
 
@@ -432,7 +389,7 @@ impl NodeEditor {
     }
 
     /// Create a preview for the material and stores it in the map
-    pub fn create_preview(&self, map: &mut Map, palette: &ThePalette) {
+    pub fn create_material_preview(&self, map: &mut Map, palette: &ThePalette) {
         let size = CONFIGEDITOR.read().unwrap().tile_size;
         let mut texture = Texture::alloc(size as usize, size as usize);
 
@@ -443,12 +400,14 @@ impl NodeEditor {
     }
 
     pub fn force_update(&self, ctx: &mut TheContext, map: &mut Map) {
-        self.create_preview(map, &PALETTE.read().unwrap());
+        if self.context == NodeContext::Material {
+            self.create_material_preview(map, &PALETTE.read().unwrap());
 
-        ctx.ui.send(TheEvent::Custom(
-            TheId::named("Update Materialpicker"),
-            TheValue::Empty,
-        ));
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Update Materialpicker"),
+                TheValue::Empty,
+            ));
+        }
     }
 
     /// Activates the given graph in the editor

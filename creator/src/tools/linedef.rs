@@ -540,10 +540,12 @@ impl Tool for LinedefTool {
                         if let Some(source) = source {
                             if let Some(map) = project.get_map_mut(server_ctx) {
                                 let prev = map.clone();
-
+                                let context = NODEEDITOR.read().unwrap().context;
                                 for linedef_id in map.selected_linedefs.clone() {
                                     if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                                        if self.hud.selected_icon_index == 0 {
+                                        if context == NodeContext::Region {
+                                            linedef.properties.set("region_graph", source.clone());
+                                        } else if self.hud.selected_icon_index == 0 {
                                             linedef.properties.set("row1_source", source.clone());
                                         } else if self.hud.selected_icon_index == 1 {
                                             linedef.properties.set("row2_source", source.clone());
@@ -575,10 +577,14 @@ impl Tool for LinedefTool {
                 } else if id.name == "Remove Map Properties" && *state == TheWidgetState::Clicked {
                     if let Some(map) = project.get_map_mut(server_ctx) {
                         let prev = map.clone();
-
+                        let context = NODEEDITOR.read().unwrap().context;
                         for linedef_id in map.selected_linedefs.clone() {
                             if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                                if self.hud.selected_icon_index == 0 {
+                                if context == NodeContext::Region
+                                    && server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor
+                                {
+                                    linedef.properties.remove("region_graph");
+                                } else if self.hud.selected_icon_index == 0 {
                                     if linedef.properties.contains("row1_light") {
                                         linedef.properties.remove("row1_light");
                                     } else {

@@ -810,6 +810,21 @@ impl MapEditor {
                             }
                         }
                     }
+                } else if id.name == "vertexHeight" {
+                    if let Some(value) = value.to_f32() {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            for vertex_id in &map.selected_vertices.clone() {
+                                let prev = map.clone();
+                                if let Some(vertex) = map.find_linedef_mut(*vertex_id) {
+                                    vertex.properties.set(
+                                        &self.transform_to_snake_case(&id.name, "vertex"),
+                                        Value::Float(value),
+                                    );
+                                    self.add_map_undo(map, prev, ctx, server_ctx);
+                                }
+                            }
+                        }
+                    }
                 } else if id.name == "linedefWallHeight"
                     || id.name == "linedefWallWidth"
                     || id.name == "linedefMaterialWidth"
@@ -1448,6 +1463,10 @@ impl MapEditor {
                     }
                 }
                 self.create_sector_settings(map, map.selected_sectors[0], ui, ctx, server_ctx);
+            } else if server_ctx.curr_map_tool_type == MapToolType::Vertex
+                && !map.selected_vertices.is_empty()
+            {
+                self.create_vertex_settings(map, map.selected_vertices[0], ui, ctx, server_ctx);
             }
         }
     }
@@ -1486,6 +1505,40 @@ impl MapEditor {
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Show Node Settings"),
                 TheValue::Text("Light Settings".to_string()),
+            ));
+        }
+    }
+
+    fn create_vertex_settings(
+        &self,
+        map: &Map,
+        vertex_id: u32,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        _server_ctx: &mut ServerContext,
+    ) {
+        let mut nodeui = TheNodeUI::default();
+
+        if let Some(vertex) = map.find_vertex(vertex_id) {
+            let item = TheNodeUIItem::FloatEditSlider(
+                "vertexHeight".into(),
+                "Terrain Height".into(),
+                "Specifies the height at this vertex, used by region graph nodes (e.g. paths) to shape the terrain.".into(),
+                vertex.properties.get_float_default("height", 0.0),
+                0.0..=100.0,
+                false,
+            );
+            nodeui.add_item(item);
+        }
+
+        if let Some(layout) = ui.get_text_layout("Node Settings") {
+            nodeui.apply_to_text_layout(layout);
+            // layout.relayout(ctx);
+            ctx.ui.relayout = true;
+
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Show Node Settings"),
+                TheValue::Text("Vertex Settings".to_string()),
             ));
         }
     }
@@ -1679,7 +1732,7 @@ impl MapEditor {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
-        // Check if we need to apply the graph to the node editor
+        // Check if we need to apply the material graph to the node editor
         if server_ctx.curr_map_context == MapContext::Material {
             if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor
                 && server_ctx.curr_map_tool_helper != MapToolHelper::Preview
@@ -1693,6 +1746,16 @@ impl MapEditor {
             if let Some(sector) = map.find_sector(sector_id) {
                 if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
                     sector.properties.get("floor_source")
+                {
+                    if let Some(graph) = map.shapefx_graphs.get(id) {
+                        NODEEDITOR.write().unwrap().apply_graph(graph, ui);
+                    }
+                }
+            }
+        } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+            if let Some(sector) = map.find_sector(sector_id) {
+                if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
+                    sector.properties.get("region_graph")
                 {
                     if let Some(graph) = map.shapefx_graphs.get(id) {
                         NODEEDITOR.write().unwrap().apply_graph(graph, ui);

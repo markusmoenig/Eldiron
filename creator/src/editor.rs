@@ -1406,10 +1406,11 @@ impl TheTrait for Editor {
 
                                 // let contents =
                                 //     std::fs::read_to_string(p.clone()).unwrap_or("".to_string());
-                                // if let Ok(contents) = std::fs::read(p) {
+                                // // if let Ok(contents) = std::fs::read(p) {
                                 // let pr: Result<Project, serde_json::Error> =
                                 //     serde_json::from_str(&contents);
                                 // println!("{:?}", pr.err());
+                                // }
                                 if let Ok(contents) = std::fs::read_to_string(p) {
                                     //if let Ok(project) =
                                     //    postcard::from_bytes::<Project>(contents.deref())

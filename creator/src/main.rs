@@ -73,7 +73,7 @@ pub mod prelude {
 
     pub use crate::configeditor::ConfigEditor;
     pub use crate::infoviewer::InfoViewer;
-    pub use crate::nodeeditor::NodeEditor;
+    pub use crate::nodeeditor::{NodeContext, NodeEditor};
     pub use crate::worldeditor::WorldEditor;
     pub use toml::Table;
 }
