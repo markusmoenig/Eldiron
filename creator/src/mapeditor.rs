@@ -815,7 +815,7 @@ impl MapEditor {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             for vertex_id in &map.selected_vertices.clone() {
                                 let prev = map.clone();
-                                if let Some(vertex) = map.find_linedef_mut(*vertex_id) {
+                                if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
                                     vertex.properties.set(
                                         &self.transform_to_snake_case(&id.name, "vertex"),
                                         Value::Float(value),
@@ -1522,8 +1522,8 @@ impl MapEditor {
         if let Some(vertex) = map.find_vertex(vertex_id) {
             let item = TheNodeUIItem::FloatEditSlider(
                 "vertexHeight".into(),
-                "Terrain Height".into(),
-                "Specifies the height at this vertex, used by region graph nodes (e.g. paths) to shape the terrain.".into(),
+                "Height".into(),
+                "Specifies the height at this vertex, used by region graph nodes (e.g. paths) to shape the terrain or lights etc.".into(),
                 vertex.properties.get_float_default("height", 0.0),
                 0.0..=100.0,
                 false,
