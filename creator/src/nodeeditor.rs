@@ -10,20 +10,30 @@ pub enum NodeContext {
     Region,
     Skeleton,
     Material,
-    Render,
+    GlobalRender,
 }
+
+use NodeContext::*;
 
 pub struct NodeEditor {
     pub context: NodeContext,
     pub graph: ShapeFXGraph,
+
+    pub categories: FxHashMap<String, TheColor>,
 }
 
 #[allow(clippy::new_without_default)]
 impl NodeEditor {
     pub fn new() -> Self {
+        let mut categories: FxHashMap<String, TheColor> = FxHashMap::default();
+        categories.insert("ShapeFX".into(), TheColor::from("#d1d1d1"));
+        categories.insert("Render".into(), TheColor::from("#d12a2a"));
+        categories.insert("Terrain".into(), TheColor::from("#0af505"));
+
         Self {
             context: NodeContext::Region,
             graph: ShapeFXGraph::default(),
+            categories,
         }
     }
 
@@ -31,14 +41,27 @@ impl NodeEditor {
     pub fn set_context(
         &mut self,
         context: NodeContext,
-        _ui: &mut TheUI,
-        _ctx: &mut TheContext,
-        _project: &mut Project,
-        _server_ctx: &mut ServerContext,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
     ) {
+        println!("NodeContext {:?}", context);
         self.context = context;
-        self.graph = ShapeFXGraph::default();
-        self.to_canvas();
+        if context == GlobalRender {
+            if project.render_graph.nodes.is_empty() {
+                project.render_graph = ShapeFXGraph {
+                    nodes: vec![ShapeFX::new(ShapeFXRole::Render)],
+                    ..Default::default()
+                };
+            }
+            self.graph = project.render_graph.clone();
+        } else {
+            self.graph = ShapeFXGraph::default();
+        }
+        let canvas = self.to_canvas();
+        ui.set_node_canvas("ShapeFX NodeCanvas", canvas);
+        self.graph_changed(project, ui, ctx, server_ctx);
     }
 
     /// Called when the graph has changed, updating the UI and providing undo.
@@ -85,36 +108,40 @@ impl NodeEditor {
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(Vec4::new(10, 4, 5, 4));
 
-        /*
-        for i in 0..20 {
-            let mut icon = TheIconView::new(TheId::named(&format!("Material Icon #{}", i)));
-            // ground_icon.set_text(Some("FLOOR".to_string()));
-            // ground_icon.set_text_size(10.0);
-            // ground_icon.set_text_color([200, 200, 200, 255]);
-            icon.limiter_mut().set_max_size(Vec2::new(20, 20));
-            icon.set_border_color(Some(BLACK));
-
-            toolbar_hlayout.add_widget(Box::new(icon));
-        }*/
-
         let mut create_button = TheTraybarButton::new(TheId::named("Create Graph Button"));
         create_button.set_status_text("Apply the source to the selected geometry.");
         create_button.set_text("Create Graph".to_string());
         toolbar_hlayout.add_widget(Box::new(create_button));
 
-        let mut mesh_nodes_button = TheTraybarButton::new(TheId::named("Mesh Nodes"));
-        mesh_nodes_button.set_text(str!("Mesh Nodes"));
+        let mut render_nodes_button = TheTraybarButton::new(TheId::named("Render Nodes"));
+        render_nodes_button.set_custom_color(self.categories.get("Render").cloned());
+        render_nodes_button.set_text(str!("Render Nodes"));
+        render_nodes_button.set_status_text("Nodes for the global and local render graphs.");
+        render_nodes_button.set_context_menu(Some(TheContextMenu {
+            items: vec![
+                TheContextMenuItem::new("Lights".to_string(), TheId::named("Lights")),
+                TheContextMenuItem::new("Fog".to_string(), TheId::named("Fog")),
+                TheContextMenuItem::new("Sky".to_string(), TheId::named("Sky")),
+            ],
+            ..Default::default()
+        }));
+        toolbar_hlayout.add_widget(Box::new(render_nodes_button));
+
+        let mut mesh_nodes_button = TheTraybarButton::new(TheId::named("Terrain Nodes"));
+        mesh_nodes_button.set_custom_color(self.categories.get("Terrain").cloned());
+        mesh_nodes_button.set_text(str!("Terrain Nodes"));
         mesh_nodes_button.set_status_text("Nodes which control and modify terrain mesh creation.");
         mesh_nodes_button.set_context_menu(Some(TheContextMenu {
             items: vec![TheContextMenuItem::new(
-                "Level".to_string(),
-                TheId::named("Level"),
+                "Flatten".to_string(),
+                TheId::named("Flatten"),
             )],
             ..Default::default()
         }));
         toolbar_hlayout.add_widget(Box::new(mesh_nodes_button));
 
         let mut shapefx_nodes_button = TheTraybarButton::new(TheId::named("ShapeFX Nodes"));
+        shapefx_nodes_button.set_custom_color(self.categories.get("ShapeFX").cloned());
         shapefx_nodes_button.set_text(str!("Shape FX Nodes"));
         shapefx_nodes_button
             .set_status_text("Nodes which attach to geometry and shapes and create pixels.");
@@ -130,7 +157,7 @@ impl NodeEditor {
         }));
         toolbar_hlayout.add_widget(Box::new(shapefx_nodes_button));
 
-        toolbar_hlayout.set_reverse_index(Some(2));
+        toolbar_hlayout.set_reverse_index(Some(3));
         top_toolbar.set_layout(toolbar_hlayout);
         center.set_top(top_toolbar);
 
@@ -149,6 +176,7 @@ impl NodeEditor {
             selected_node: self.graph.selected_node,
             offset: self.graph.scroll_offset,
             connections: self.graph.connections.clone(),
+            categories: self.categories.clone(),
             ..Default::default()
         };
 
@@ -182,7 +210,9 @@ impl NodeEditor {
         #[allow(clippy::single_match)]
         match event {
             TheEvent::ContextMenuSelected(id, item) => {
-                if (id.name == "ShapeFX Nodes" || id.name == "Mesh Nodes")
+                if (id.name == "ShapeFX Nodes"
+                    || id.name == "Terrain Nodes"
+                    || id.name == "Render Nodes")
                     && !self.graph.nodes.is_empty()
                 {
                     if let Ok(role) = item.name.parse::<ShapeFXRole>() {

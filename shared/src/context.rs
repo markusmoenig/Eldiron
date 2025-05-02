@@ -46,6 +46,7 @@ pub enum WorldToolHelper {
     Brushes,
     TilePicker,
     MaterialPicker,
+    GlobalRender,
 }
 
 impl WorldToolHelper {
@@ -53,6 +54,7 @@ impl WorldToolHelper {
         match index {
             1 => *self = WorldToolHelper::TilePicker,
             2 => *self = WorldToolHelper::MaterialPicker,
+            3 => *self = WorldToolHelper::GlobalRender,
             _ => *self = WorldToolHelper::Brushes,
         }
     }

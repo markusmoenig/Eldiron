@@ -111,15 +111,20 @@ pub trait Tool: Send + Sync {
             layout.clear();
 
             let mut source_switch = TheGroupButton::new(TheId::named("Map Helper Switch"));
-            source_switch
-                .add_text_status("Tile Picker".to_string(), "Show tile picker.".to_string());
+            source_switch.add_text_status("Tiles".to_string(), "Pick and place tiles.".to_string());
             source_switch.add_text_status(
                 "Materials".to_string(),
-                "Apply procedural materials.".to_string(),
+                "Pick and place procedural materials.".to_string(),
             );
-            source_switch.add_text_status("Nodes".to_string(), "Apply a color.".to_string());
-            source_switch.add_text_status("Effects".to_string(), "Apply an effect.".to_string());
-            source_switch.add_text_status("Preview".to_string(), "Preview the map.".to_string());
+            source_switch.add_text_status("Nodes".to_string(), "Work with nodes.".to_string());
+            source_switch.add_text_status(
+                "Effects".to_string(),
+                "Add visual effects to shapes.".to_string(),
+            );
+            source_switch.add_text_status(
+                "Preview".to_string(),
+                "Preview the final map output.".to_string(),
+            );
             source_switch.set_item_width(80);
             source_switch.set_index(server_ctx.curr_map_tool_helper as i32);
             layout.add_widget(Box::new(source_switch));

@@ -1,4 +1,4 @@
-use crate::editor::WORLDEDITOR;
+use crate::editor::{NODEEDITOR, WORLDEDITOR};
 use crate::prelude::*;
 use ToolEvent::*;
 
@@ -21,11 +21,11 @@ impl Tool for WorldTool {
     }
     fn info(&self) -> String {
         str!(
-            "World Tool (S). Hold 'Shift' to add. 'Alt' to subtract. Click and drag for multi-selection."
+            "Terrain Tool (W). Use brushes to edit terrain, paint with tiles, materials and rules."
         )
     }
     fn icon_name(&self) -> String {
-        str!("world")
+        str!("terrain")
     }
     fn accel(&self) -> Option<char> {
         Some('w')
@@ -54,11 +54,15 @@ impl Tool for WorldTool {
                     );
                     switch.add_text_status(
                         "Tile Picker".to_string(),
-                        "Show tile picker.".to_string(),
+                        "Pick and paint with tiles.".to_string(),
                     );
                     switch.add_text_status(
                         "Materials".to_string(),
-                        "Apply procedural materials.".to_string(),
+                        "Pick and paint with procedural materials.".to_string(),
+                    );
+                    switch.add_text_status(
+                        "Global".to_string(),
+                        "Edit the global render graph.".to_string(),
                     );
                     switch.set_item_width(80);
                     switch.set_index(server_ctx.curr_world_tool_helper as i32);
@@ -96,9 +100,24 @@ impl Tool for WorldTool {
                             TheId::named("Main Stack"),
                             PanelIndices::MaterialPicker as usize,
                         ));
+                    } else if server_ctx.curr_world_tool_helper == WorldToolHelper::GlobalRender {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::NodeEditor as usize,
+                        ));
                     }
 
                     layout.set_reverse_index(Some(1));
+                }
+
+                if server_ctx.curr_world_tool_helper == WorldToolHelper::GlobalRender {
+                    NODEEDITOR.write().unwrap().set_context(
+                        NodeContext::GlobalRender,
+                        ui,
+                        ctx,
+                        project,
+                        server_ctx,
+                    );
                 }
 
                 WORLDEDITOR.write().unwrap().first_draw = true;
@@ -143,7 +162,7 @@ impl Tool for WorldTool {
         event: &TheEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let redraw = false;
@@ -182,6 +201,19 @@ impl Tool for WorldTool {
                             .write()
                             .unwrap()
                             .set_tile_rules_ui(ui, ctx, true);
+                    } else if server_ctx.curr_world_tool_helper == WorldToolHelper::GlobalRender {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::NodeEditor as usize,
+                        ));
+
+                        NODEEDITOR.write().unwrap().set_context(
+                            NodeContext::GlobalRender,
+                            ui,
+                            ctx,
+                            project,
+                            server_ctx,
+                        );
                     }
                 } else if id.name == "Brush Type" {
                     WORLDEDITOR

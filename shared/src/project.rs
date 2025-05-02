@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use indexmap::IndexMap;
 pub use rusterix::map::*;
+use rusterix::{ShapeFX, ShapeFXGraph, ShapeFXRole};
 use theframework::prelude::*;
 
 /// The default target fps for the game.
@@ -61,6 +62,9 @@ pub struct Project {
 
     #[serde(default)]
     pub config: String,
+
+    #[serde(default)]
+    pub render_graph: ShapeFXGraph,
 }
 
 impl Default for Project {
@@ -71,6 +75,11 @@ impl Default for Project {
 
 impl Project {
     pub fn new() -> Self {
+        let render_graph = ShapeFXGraph {
+            nodes: vec![ShapeFX::new(ShapeFXRole::Render)],
+            ..Default::default()
+        };
+
         let mut materials = IndexMap::default();
         let map = Map {
             name: "Unnamed Material".to_string(),
@@ -101,6 +110,7 @@ impl Project {
             tick_ms: default_tick_ms(),
 
             config: String::new(),
+            render_graph,
         }
     }
 
