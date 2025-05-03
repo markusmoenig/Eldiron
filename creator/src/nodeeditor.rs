@@ -1,4 +1,4 @@
-use crate::editor::{CONFIGEDITOR, PALETTE, UNDOMANAGER, WORLDEDITOR};
+use crate::editor::{CONFIGEDITOR, PALETTE, RUSTERIX, UNDOMANAGER, WORLDEDITOR};
 use crate::prelude::*;
 use shared::prelude::*;
 
@@ -72,12 +72,16 @@ impl NodeEditor {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
-        if self.context == NodeContext::Region {
+        if self.context == NodeContext::GlobalRender {
+            let mut rusterix = RUSTERIX.write().unwrap();
+            rusterix.client.global = self.graph.clone();
+            project.render_graph = self.graph.clone();
+        } else if self.context == NodeContext::Region {
             if let Some(map) = project.get_map_mut(server_ctx) {
                 map.changed += 1;
                 map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                 map.terrain.mark_dirty();
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                RUSTERIX.write().unwrap().set_dirty();
                 WORLDEDITOR.write().unwrap().first_draw = true;
             }
         } else if self.context == NodeContext::Material {
@@ -311,6 +315,9 @@ impl NodeEditor {
                                 TheValue::Int(v) => {
                                     node.values.set(&snake_case, rusterix::Value::Int(*v))
                                 }
+                                TheValue::ColorObject(v) => node
+                                    .values
+                                    .set(&snake_case, rusterix::Value::Color(v.clone())),
                                 _ => {}
                             }
                         }
@@ -366,6 +373,20 @@ impl NodeEditor {
                                 status.clone(),
                                 value,
                                 range,
+                                false,
+                            );
+                            nodeui.add_item(item);
+                        }
+                        Color(id, name, status, value) => {
+                            let item = TheNodeUIItem::ColorPicker(
+                                format!(
+                                    "shapefx{}",
+                                    id.get(0..1).unwrap_or("").to_uppercase()
+                                        + id.get(1..).unwrap_or("")
+                                ),
+                                name.clone(),
+                                status.clone(),
+                                value,
                                 false,
                             );
                             nodeui.add_item(item);

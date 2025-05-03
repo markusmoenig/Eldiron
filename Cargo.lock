@@ -4178,7 +4178,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#adc7ae6ca2180976767f21dd85db923f7063a446"
+source = "git+https://github.com/markusmoenig/Rusterix#5f3bf52d9f1be97e529e66fd306e2af732dc6796"
 dependencies = [
  "bincode",
  "bvh",
@@ -5268,7 +5268,7 @@ checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
 [[package]]
 name = "theframework"
 version = "0.1.40"
-source = "git+https://github.com/markusmoenig/TheFramework#b6b0fc79b2f1911dcc8d1e5aecabc1e8bef93306"
+source = "git+https://github.com/markusmoenig/TheFramework#cc88c7a7aa91ce13a87eebd8a88ce321975af2ce"
 dependencies = [
  "aict",
  "arboard",
@@ -6825,9 +6825,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "0.7.8"
+version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e27d6ad3dac991091e4d35de9ba2d2d00647c5d0fc26c5496dee55984ae111b"
+checksum = "d9fb597c990f03753e08d3c29efbfcf2019a003b4bf4ba19225c158e1549f0f3"
 dependencies = [
  "memchr",
 ]
