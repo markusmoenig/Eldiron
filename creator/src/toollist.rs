@@ -3,7 +3,8 @@ use crate::editor::RUSTERIX;
 use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
 pub use crate::tools::{
-    config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, world::WorldTool,
+    config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, render::RenderTool,
+    world::WorldTool,
 };
 
 pub struct ToolList {
@@ -35,6 +36,7 @@ impl ToolList {
             Box::new(LinedefTool::new()),
             Box::new(SectorTool::new()),
             Box::new(RectTool::new()),
+            Box::new(RenderTool::new()),
             Box::new(WorldTool::new()),
             Box::new(CodeTool::new()),
             Box::new(DataTool::new()),
@@ -220,7 +222,7 @@ impl ToolList {
                     acc = false;
                 }
 
-                if acc {
+                if acc && ui.shift {
                     /*
                     if (*c == '-' || *c == '=' || *c == '+') && (ui.ctrl || ui.logo) {
                         // Global Zoom In / Zoom Out
@@ -531,7 +533,7 @@ impl ToolList {
                 }
             }
             TheEvent::RenderViewDragged(id, coord) => {
-                if id.name == "PolyView" {
+                if id.name == "PolyView" && !server_ctx.render_mode {
                     let mut changed_entities: FxHashMap<Uuid, Vec3<f32>> = FxHashMap::default();
                     let mut changed_items: FxHashMap<Uuid, Vec3<f32>> = FxHashMap::default();
 

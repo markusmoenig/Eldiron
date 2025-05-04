@@ -19,13 +19,13 @@ impl Tool for CodeTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Code Tool (C).")
+        str!("Code Tool (Shift + C).")
     }
     fn icon_name(&self) -> String {
         str!("code")
     }
     fn accel(&self) -> Option<char> {
-        Some('c')
+        Some('C')
     }
 
     fn tool_event(

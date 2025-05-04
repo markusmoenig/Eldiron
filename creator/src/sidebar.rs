@@ -861,23 +861,16 @@ impl Sidebar {
                                 let grid_x = (coord.x as f32 - width / 2.0 - offset_x) / grid_size;
                                 let grid_y = (coord.y as f32 - height / 2.0 + offset_y) / grid_size;
 
-                                let grid = Vec2::new(grid_x, grid_y);
-                                let editing_pos = Vec2::new(
-                                    region.editing_position_3d.x,
-                                    region.editing_position_3d.z,
-                                );
-                                let look_at = Vec2::new(
-                                    region.editing_look_at_3d.x,
-                                    region.editing_look_at_3d.z,
-                                );
-                                let dist_editing_pos = grid.distance(editing_pos);
-                                let dist_look_at = grid.distance(look_at);
-
-                                // We move the look_at position
-                                if dist_look_at < dist_editing_pos
-                                    && server_ctx.curr_map_tool_helper == MapToolHelper::Preview
+                                // If shift is pressed we move the look_at position
+                                if ui.shift
+                                    && (server_ctx.curr_map_tool_helper == MapToolHelper::Preview
+                                        || server_ctx.render_mode)
                                 {
-                                    region.editing_look_at_3d = Vec3::new(grid_x, 0.0, grid_y);
+                                    region.editing_look_at_3d = Vec3::new(
+                                        grid_x,
+                                        region.map.terrain.sample_height_bilinear(grid_x, grid_y),
+                                        grid_y,
+                                    );
                                 } else {
                                     // We move the camera position
                                     server_ctx.center_map_at_grid_pos(
@@ -887,7 +880,11 @@ impl Sidebar {
                                     );
 
                                     let old_editing_pos = region.editing_position_3d;
-                                    region.editing_position_3d = Vec3::new(grid_x, 0.0, grid_y);
+                                    region.editing_position_3d = Vec3::new(
+                                        grid_x,
+                                        region.map.terrain.sample_height_bilinear(grid_x, grid_y),
+                                        grid_y,
+                                    );
                                     region.editing_look_at_3d +=
                                         region.editing_position_3d - old_editing_pos;
                                 }

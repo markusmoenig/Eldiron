@@ -42,6 +42,23 @@ impl MapToolHelper {
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
+pub enum RenderToolHelper {
+    GlobalRender,
+    LocalRender,
+    Tracer,
+}
+
+impl RenderToolHelper {
+    pub fn set_from_index(&mut self, index: usize) {
+        match index {
+            1 => *self = RenderToolHelper::LocalRender,
+            2 => *self = RenderToolHelper::Tracer,
+            _ => *self = RenderToolHelper::GlobalRender,
+        }
+    }
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum WorldToolHelper {
     Brushes,
     TilePicker,
@@ -56,6 +73,21 @@ impl WorldToolHelper {
             2 => *self = WorldToolHelper::MaterialPicker,
             3 => *self = WorldToolHelper::GlobalRender,
             _ => *self = WorldToolHelper::Brushes,
+        }
+    }
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum RenderToolCamera {
+    FirstP,
+    Isometric,
+}
+
+impl RenderToolCamera {
+    pub fn set_from_index(&mut self, index: usize) {
+        match index {
+            1 => *self = RenderToolCamera::Isometric,
+            _ => *self = RenderToolCamera::FirstP,
         }
     }
 }
@@ -144,6 +176,12 @@ pub struct ServerContext {
     /// For map tools, indicates which helper is active
     pub curr_map_tool_helper: MapToolHelper,
 
+    /// For render tools, indicates which helper is active
+    pub curr_render_tool_helper: RenderToolHelper,
+
+    /// For render tools, indicates which camera is active
+    pub curr_render_tool_camera: RenderToolCamera,
+
     /// For world tools, indicates which helper is active
     pub curr_world_tool_helper: WorldToolHelper,
 
@@ -161,6 +199,9 @@ pub struct ServerContext {
 
     /// Selected wall row, set by the linedef Hud
     pub selected_wall_row: Option<i32>,
+
+    /// Render mode is active
+    pub render_mode: bool,
 
     /// World mode is active
     pub world_mode: bool,
@@ -215,6 +256,8 @@ impl ServerContext {
             curr_map_tool_type: MapToolType::Linedef,
             curr_map_context: MapContext::Region,
             curr_map_tool_helper: MapToolHelper::TilePicker,
+            curr_render_tool_helper: RenderToolHelper::GlobalRender,
+            curr_render_tool_camera: RenderToolCamera::FirstP,
             curr_world_tool_helper: WorldToolHelper::Brushes,
             curr_world_tool_camera: WorldToolCamera::Orbit,
             curr_texture_mode: MapTextureMode::Floor,
@@ -224,6 +267,7 @@ impl ServerContext {
 
             selected_wall_row: Some(0),
 
+            render_mode: false,
             world_mode: false,
             game_mode: false,
 

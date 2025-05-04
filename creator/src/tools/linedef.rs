@@ -40,13 +40,13 @@ impl Tool for LinedefTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Linedef Tool (L). Create line definitions and sectors.")
+        str!("Linedef Tool (Shift + L). Create line definitions and sectors.")
     }
     fn icon_name(&self) -> String {
         str!("line-segment")
     }
     fn accel(&self) -> Option<char> {
-        Some('l')
+        Some('L')
     }
 
     fn tool_event(

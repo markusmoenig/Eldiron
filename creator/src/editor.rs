@@ -47,6 +47,8 @@ pub static NODEEDITOR: LazyLock<RwLock<NodeEditor>> =
     LazyLock::new(|| RwLock::new(NodeEditor::new()));
 pub static WORLDEDITOR: LazyLock<RwLock<WorldEditor>> =
     LazyLock::new(|| RwLock::new(WorldEditor::new()));
+pub static RENDEREDITOR: LazyLock<RwLock<RenderEditor>> =
+    LazyLock::new(|| RwLock::new(RenderEditor::new()));
 
 pub struct Editor {
     project: Project,
@@ -572,7 +574,16 @@ impl TheTrait for Editor {
                 }
             }
 
-            if self.server_ctx.world_mode {
+            if self.server_ctx.render_mode {
+                // Draw Render Editor
+                RENDEREDITOR.write().unwrap().draw(
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.server_ctx,
+                    &mut self.build_values,
+                );
+            } else if self.server_ctx.world_mode {
                 // Draw World Editor
                 WORLDEDITOR.write().unwrap().draw(
                     ui,

@@ -74,7 +74,9 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
         if let Some(camera_pos) = region.map.camera_xz {
             builder.set_camera_info(
                 Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
-                if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
+                if server_ctx.curr_map_tool_helper == MapToolHelper::Preview
+                    || server_ctx.render_mode
+                {
                     Some(Vec3::new(
                         region.editing_look_at_3d.x,
                         0.0,

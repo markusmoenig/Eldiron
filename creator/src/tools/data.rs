@@ -19,13 +19,13 @@ impl Tool for DataTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Data Tool (A).")
+        str!("Data Tool ( Shift + A).")
     }
     fn icon_name(&self) -> String {
         str!("database")
     }
     fn accel(&self) -> Option<char> {
-        Some('a')
+        Some('A')
     }
 
     fn tool_event(

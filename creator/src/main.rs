@@ -15,6 +15,7 @@ pub mod misc;
 pub mod nodeeditor;
 pub mod panels;
 pub mod previewview;
+pub mod rendereditor;
 pub mod self_update;
 pub mod shapepicker;
 pub mod sidebar;
@@ -74,6 +75,7 @@ pub mod prelude {
     pub use crate::configeditor::ConfigEditor;
     pub use crate::infoviewer::InfoViewer;
     pub use crate::nodeeditor::{NodeContext, NodeEditor};
+    pub use crate::rendereditor::{RenderEditor, RenderMoveAction};
     pub use crate::worldeditor::WorldEditor;
     pub use toml::Table;
 }

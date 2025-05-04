@@ -7,6 +7,7 @@ pub mod game;
 pub mod info;
 pub mod linedef;
 pub mod rect;
+pub mod render;
 pub mod sector;
 pub mod selection;
 pub mod shape;

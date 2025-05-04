@@ -38,13 +38,13 @@ impl Tool for SectorTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Sector Tool (S).")
+        str!("Sector Tool (Shift + E).")
     }
     fn icon_name(&self) -> String {
         str!("polygon")
     }
     fn accel(&self) -> Option<char> {
-        Some('e')
+        Some('E')
     }
 
     fn tool_event(
