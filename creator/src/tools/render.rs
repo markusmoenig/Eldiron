@@ -50,6 +50,10 @@ impl Tool for RenderTool {
                         "Global".to_string(),
                         "Edit the global render graph.".to_string(),
                     );
+                    switch.add_text_status(
+                        "Trace".to_string(),
+                        "Enable / Disable ray-tracing.".to_string(),
+                    );
                     switch.set_item_width(80);
                     switch.set_index(server_ctx.curr_render_tool_helper as i32);
                     layout.add_widget(Box::new(switch));
@@ -174,6 +178,11 @@ impl Tool for RenderTool {
                             project,
                             server_ctx,
                         );
+                    } else if server_ctx.curr_render_tool_helper == RenderToolHelper::Tracer {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::Trace as usize,
+                        ));
                     }
                 }
                 if id.name == "Custom Camera Helper Switch" {
@@ -182,6 +191,11 @@ impl Tool for RenderTool {
                     } else if *index == 1 {
                         server_ctx.curr_custom_tool_camera = CustomToolCamera::Isometric;
                     }
+                }
+            }
+            TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
+                if id.name == "Trace Button" {
+                    RENDEREDITOR.write().unwrap().switch_trace();
                 }
             }
             _ => {}

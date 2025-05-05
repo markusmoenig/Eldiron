@@ -1435,6 +1435,10 @@ impl TheTrait for Editor {
                                         self.project = project;
                                         insert_content_into_maps(&mut self.project);
 
+                                        for r in &mut self.project.regions {
+                                            r.map.terrain.mark_dirty();
+                                        }
+
                                         // Set the project time to the server time slider widget
                                         if let Some(widget) = ui.get_widget("Server Time Slider") {
                                             widget.set_value(TheValue::Time(self.project.time));

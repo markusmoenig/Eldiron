@@ -21,6 +21,7 @@ pub struct RenderEditor {
     pub first_draw: bool,
 
     edited: bool,
+    trace: bool,
 }
 
 #[allow(clippy::new_without_default)]
@@ -35,7 +36,31 @@ impl RenderEditor {
             first_draw: true,
 
             edited: false,
+            trace: false,
         }
+    }
+
+    pub fn build_trace_canvas(&mut self) -> TheCanvas {
+        let mut center = TheCanvas::new();
+
+        let mut text_layout = TheTextLayout::new(TheId::named("Brush Settings"));
+
+        let mut trace_button = TheTraybarButton::new(TheId::named("Trace Button"));
+        trace_button.set_text("Start Trace".into());
+        trace_button.limiter_mut().set_min_width(120);
+        text_layout.add_pair("Trace".into(), Box::new(trace_button));
+
+        center.set_layout(text_layout);
+
+        /*
+        let mut preview_canvas: TheCanvas = TheCanvas::new();
+        let mut render_view = TheRenderView::new(TheId::named("Brush Preview"));
+        render_view.limiter_mut().set_max_size(Vec2::new(300, 300));
+        preview_canvas.set_widget(render_view);
+
+        center.set_right(preview_canvas);*/
+
+        center
     }
 
     pub fn draw(
@@ -77,6 +102,7 @@ impl RenderEditor {
                 if let Some(hit) = self.terrain_hit {
                     rusterix.client.terrain_hover = Some(hit);
                 }
+                rusterix.client.scene_d3.dynamic_lights = vec![];
                 rusterix.client.draw_d3(
                     &region.map,
                     buffer.pixels_mut(),
@@ -100,55 +126,25 @@ impl RenderEditor {
     pub fn map_event(
         &mut self,
         map_event: MapEvent,
-        ui: &mut TheUI,
+        _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        map: &mut Map,
-        server_ctx: &mut ServerContext,
+        _map: &mut Map,
+        _server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
-        let mut hover = |coord: Vec2<i32>| {
-            if let Some(render_view) = ui.get_render_view("PolyView") {
-                let dim = *render_view.dim();
-
-                let rusterix = RUSTERIX.read().unwrap();
-                let ray = rusterix.client.camera_d3.create_ray(
-                    Vec2::new(
-                        coord.x as f32 / dim.width as f32,
-                        coord.y as f32 / dim.height as f32,
-                    ),
-                    Vec2::new(dim.width as f32, dim.height as f32),
-                    Vec2::zero(),
-                );
-
-                self.terrain_hit = None;
-                if let Some(hit) = map.terrain.ray_terrain_hit(&ray, 100.0) {
-                    let p = self.world_to_editor(map.terrain.scale, hit.world_pos);
-                    server_ctx.hover_cursor = Some(p);
-                    self.terrain_hit = Some(hit.world_pos);
-                    server_ctx.hover_height =
-                        Some(map.terrain.sample_height(hit.world_pos.x, hit.world_pos.z));
-                }
-            }
-        };
-
         match &map_event {
             MapEvent::MapClicked(coord) => {
                 self.drag_coord = *coord;
                 self.edited = false;
             }
             MapEvent::MapUp(_coord) => {}
-            MapEvent::MapDragged(coord) => {
-                hover(*coord);
-                self.drag_coord = *coord;
-            }
-            MapEvent::MapHover(coord) => hover(*coord),
             _ => {}
         }
 
         None
     }
 
-    fn world_to_editor(&self, grid_scale: Vec2<f32>, world_pos: Vec3<f32>) -> Vec2<f32> {
-        Vec2::new(world_pos.x / grid_scale.x, -world_pos.z / grid_scale.y)
+    pub fn switch_trace(&mut self) {
+        println!("trace");
     }
 
     pub fn scroll_by(

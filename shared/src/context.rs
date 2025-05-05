@@ -51,8 +51,8 @@ pub enum RenderToolHelper {
 impl RenderToolHelper {
     pub fn set_from_index(&mut self, index: usize) {
         match index {
-            1 => *self = RenderToolHelper::LocalRender,
-            2 => *self = RenderToolHelper::Tracer,
+            // 1 => *self = RenderToolHelper::LocalRender,
+            1 => *self = RenderToolHelper::Tracer,
             _ => *self = RenderToolHelper::GlobalRender,
         }
     }

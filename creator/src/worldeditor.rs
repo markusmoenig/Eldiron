@@ -192,8 +192,8 @@ impl WorldEditor {
                     .camera_d3
                     .set_parameter_vec3("center", region.editing_position_3d);
 
-                region.map.properties.remove("fog_enabled");
                 if self.first_draw {
+                    region.map.terrain.mark_dirty();
                     rusterix.build_scene_d3(&region.map, build_values);
                     rusterix.build_terrain_d3(&mut region.map, &ValueContainer::default());
                     self.first_draw = false;
@@ -207,6 +207,7 @@ impl WorldEditor {
                 if let Some(hit) = self.terrain_hit {
                     rusterix.client.terrain_hover = Some(hit);
                 }
+                rusterix.client.scene_d3.dynamic_lights = vec![];
                 rusterix.client.draw_d3(
                     &region.map,
                     buffer.pixels_mut(),
