@@ -1,9 +1,9 @@
-use crate::editor::{PALETTE, RUSTERIX};
+use crate::editor::{CUSTOMCAMERA, PALETTE, RUSTERIX};
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use shared::prelude::*;
 
-use rusterix::{D3Camera, D3FirstPCamera, ValueContainer};
+use rusterix::ValueContainer;
 
 pub enum RenderMoveAction {
     Forward,
@@ -13,9 +13,6 @@ pub enum RenderMoveAction {
 }
 
 pub struct RenderEditor {
-    pub move_action: Option<RenderMoveAction>,
-    pub firstp_camera: D3FirstPCamera,
-
     terrain_hit: Option<Vec3<f32>>,
     drag_coord: Vec2<i32>,
 
@@ -30,9 +27,6 @@ pub struct RenderEditor {
 impl RenderEditor {
     pub fn new() -> Self {
         Self {
-            move_action: None,
-            firstp_camera: D3FirstPCamera::new(),
-
             terrain_hit: None,
             drag_coord: Vec2::zero(),
 
@@ -58,65 +52,17 @@ impl RenderEditor {
             let buffer = render_view.render_buffer_mut();
             buffer.resize(dim.width, dim.height);
 
-            let mut rusterix = RUSTERIX.write().unwrap();
-
-            rusterix.client.camera_d3 = Box::new(self.firstp_camera.clone());
-
-            let speed = 0.2;
-            let yaw_step = 4.0;
             if let Some(region) = project.get_region_ctx_mut(server_ctx) {
-                match &self.move_action {
-                    Some(RenderMoveAction::Forward) => {
-                        let (np, nl) = self.move_camera(
-                            region.editing_position_3d,
-                            region.editing_look_at_3d,
-                            Vec3::new(0.0, 0.0, 1.0),
-                            speed,
-                        );
-                        region.editing_position_3d = np;
-                        region.editing_look_at_3d = nl;
-                    }
-                    Some(RenderMoveAction::Backward) => {
-                        let (np, nl) = self.move_camera(
-                            region.editing_position_3d,
-                            region.editing_look_at_3d,
-                            Vec3::new(0.0, 0.0, -1.0),
-                            speed,
-                        );
-                        region.editing_position_3d = np;
-                        region.editing_look_at_3d = nl;
-                    }
-                    Some(RenderMoveAction::Left) => {
-                        let nl = self.rotate_camera_y(
-                            region.editing_position_3d,
-                            region.editing_look_at_3d,
-                            yaw_step,
-                        );
-                        region.editing_look_at_3d = nl;
-                    }
-                    Some(RenderMoveAction::Right) => {
-                        let nl = self.rotate_camera_y(
-                            region.editing_position_3d,
-                            region.editing_look_at_3d,
-                            -yaw_step,
-                        );
-                        region.editing_look_at_3d = nl;
-                    }
-                    None => {}
-                }
+                CUSTOMCAMERA
+                    .write()
+                    .unwrap()
+                    .update_action(region, server_ctx);
+                CUSTOMCAMERA
+                    .write()
+                    .unwrap()
+                    .update_camera(region, server_ctx);
 
-                let position = region.editing_position_3d + Vec3::new(0.0, 1.5, 0.0);
-                rusterix
-                    .client
-                    .camera_d3
-                    .set_parameter_vec3("position", position);
-                let center = region.editing_look_at_3d + Vec3::new(0.0, 1.5, 0.0);
-                rusterix
-                    .client
-                    .camera_d3
-                    .set_parameter_vec3("center", center);
-
-                region.map.properties.remove("fog_enabled");
+                let mut rusterix = RUSTERIX.write().unwrap();
                 if self.first_draw {
                     rusterix.build_scene_d3(&region.map, build_values);
                     rusterix.build_terrain_d3(&mut region.map, &ValueContainer::default());
@@ -213,72 +159,5 @@ impl RenderEditor {
         _coord: Vec2<i32>,
     ) {
         // self.orbit_camera.zoom(coord.y as f32);
-    }
-
-    fn camera_axes(&self, pos: Vec3<f32>, look_at: Vec3<f32>) -> (Vec3<f32>, Vec3<f32>, Vec3<f32>) {
-        let forward = (look_at - pos).normalized();
-        let world_up = Vec3::unit_y();
-        let right = forward.cross(world_up).normalized();
-        let up = right.cross(forward);
-        (forward, right, up)
-    }
-
-    fn move_camera(
-        &self,
-        mut pos: Vec3<f32>,
-        mut look_at: Vec3<f32>,
-        dir: Vec3<f32>, // e.g. (0,0,1) for “W”, (1,0,0) for “D” …
-        speed: f32,
-    ) -> (Vec3<f32>, Vec3<f32>) {
-        let (fwd, right, up) = self.camera_axes(pos, look_at);
-        let world_move = right * dir.x + up * dir.y + fwd * dir.z;
-        let world_move = world_move * speed;
-        pos += world_move;
-        look_at += world_move;
-        (pos, look_at)
-    }
-
-    pub fn rotate_camera_y(&self, pos: Vec3<f32>, look_at: Vec3<f32>, yaw_deg: f32) -> Vec3<f32> {
-        let dir = look_at - pos; // current forward
-        let r = yaw_deg.to_radians();
-        let (s, c) = r.sin_cos();
-        let new_dir = Vec3::new(dir.x * c + dir.z * s, dir.y, -dir.x * s + dir.z * c);
-        pos + new_dir
-    }
-
-    pub fn rotate_camera_pitch(
-        &self,
-        pos: Vec3<f32>,
-        look_at: Vec3<f32>,
-        pitch_deg: f32,
-    ) -> Vec3<f32> {
-        let dir = look_at - pos; // current forward
-        let len = dir.magnitude();
-        if len == 0.0 {
-            return look_at; // degeneracy guard
-        }
-
-        let forward = dir / len;
-        let right = forward.cross(Vec3::unit_y()).normalized();
-
-        let r = pitch_deg.to_radians();
-        let (s, c) = r.sin_cos();
-
-        let new_fwd =
-            forward * c + right.cross(forward) * s + right * right.dot(forward) * (1.0 - c);
-
-        pos + new_fwd * len // same distance, new dir
-    }
-
-    pub fn clamp_pitch(&self, old_pos: Vec3<f32>, new_look: Vec3<f32>, max_deg: f32) -> Vec3<f32> {
-        let dir = (new_look - old_pos).normalized();
-        let pitch = dir.y.asin().to_degrees(); // +90 top, -90 bottom
-        let clamped = pitch.clamp(-max_deg, max_deg);
-
-        if (pitch - clamped).abs() < 0.0001 {
-            new_look
-        } else {
-            self.rotate_camera_pitch(old_pos, new_look, clamped - pitch)
-        }
     }
 }

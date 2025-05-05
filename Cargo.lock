@@ -2561,9 +2561,9 @@ dependencies = [
 
 [[package]]
 name = "libm"
-version = "0.2.13"
+version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9627da5196e5d8ed0b0495e61e518847578da83483c37288316d9b2e03a7f72"
+checksum = "a25169bd5913a4b437588a7e3d127cd6e90127b60e0ffbd834a38f1599e016b8"
 
 [[package]]
 name = "libredox"
@@ -4178,7 +4178,6 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#8c915198362c808fbca2ca57c258e5070f87e2c2"
 dependencies = [
  "bincode",
  "bvh",
@@ -5269,7 +5268,7 @@ checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
 [[package]]
 name = "theframework"
 version = "0.1.40"
-source = "git+https://github.com/markusmoenig/TheFramework#d3d5cf0f0fdcd95d15c0cf97c4e96f297cb2e7d0"
+source = "git+https://github.com/markusmoenig/TheFramework#0e303f85735235f072e79825ef38f485c2cae3e3"
 dependencies = [
  "aict",
  "arboard",

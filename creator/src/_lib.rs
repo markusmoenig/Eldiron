@@ -4,6 +4,7 @@
 
 pub mod codeeditor;
 pub mod configeditor;
+pub mod cusomcamera;
 pub mod editor;
 pub mod effectpicker;
 pub mod hud;
@@ -75,6 +76,7 @@ pub mod prelude {
     //pub use crate::tools::*;
 
     pub use crate::configeditor::ConfigEditor;
+    pub use crate::customcamera::{CustomCamera, CustomMoveAction};
     pub use crate::infoviewer::InfoViewer;
     pub use crate::nodeeditor::NodeEditor;
     pub use crate::rendereditor::{RenderEditor, RenderMoveAction};

@@ -49,6 +49,8 @@ pub static WORLDEDITOR: LazyLock<RwLock<WorldEditor>> =
     LazyLock::new(|| RwLock::new(WorldEditor::new()));
 pub static RENDEREDITOR: LazyLock<RwLock<RenderEditor>> =
     LazyLock::new(|| RwLock::new(RenderEditor::new()));
+pub static CUSTOMCAMERA: LazyLock<RwLock<CustomCamera>> =
+    LazyLock::new(|| RwLock::new(CustomCamera::new()));
 
 pub struct Editor {
     project: Project,

@@ -78,16 +78,16 @@ impl WorldToolHelper {
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
-pub enum RenderToolCamera {
+pub enum CustomToolCamera {
     FirstP,
     Isometric,
 }
 
-impl RenderToolCamera {
+impl CustomToolCamera {
     pub fn set_from_index(&mut self, index: usize) {
         match index {
-            1 => *self = RenderToolCamera::Isometric,
-            _ => *self = RenderToolCamera::FirstP,
+            1 => *self = CustomToolCamera::Isometric,
+            _ => *self = CustomToolCamera::FirstP,
         }
     }
 }
@@ -179,8 +179,8 @@ pub struct ServerContext {
     /// For render tools, indicates which helper is active
     pub curr_render_tool_helper: RenderToolHelper,
 
-    /// For render tools, indicates which camera is active
-    pub curr_render_tool_camera: RenderToolCamera,
+    /// For custom tools, indicates which camera is active
+    pub curr_custom_tool_camera: CustomToolCamera,
 
     /// For world tools, indicates which helper is active
     pub curr_world_tool_helper: WorldToolHelper,
@@ -257,7 +257,7 @@ impl ServerContext {
             curr_map_context: MapContext::Region,
             curr_map_tool_helper: MapToolHelper::TilePicker,
             curr_render_tool_helper: RenderToolHelper::GlobalRender,
-            curr_render_tool_camera: RenderToolCamera::FirstP,
+            curr_custom_tool_camera: CustomToolCamera::FirstP,
             curr_world_tool_helper: WorldToolHelper::Brushes,
             curr_world_tool_camera: WorldToolCamera::Orbit,
             curr_texture_mode: MapTextureMode::Floor,

@@ -1,10 +1,9 @@
-use crate::editor::{NODEEDITOR, RENDEREDITOR};
+use crate::editor::{CUSTOMCAMERA, NODEEDITOR, RENDEREDITOR};
 use crate::prelude::*;
 use ToolEvent::*;
 
 pub struct RenderTool {
     id: TheId,
-    last_mouse: Option<Vec2<i32>>,
 }
 
 impl Tool for RenderTool {
@@ -14,7 +13,6 @@ impl Tool for RenderTool {
     {
         Self {
             id: TheId::named("Render Tool"),
-            last_mouse: None,
         }
     }
 
@@ -56,28 +54,18 @@ impl Tool for RenderTool {
                     switch.set_index(server_ctx.curr_render_tool_helper as i32);
                     layout.add_widget(Box::new(switch));
 
-                    let mut camera_switch =
-                        TheGroupButton::new(TheId::named("Render Camera Helper Switch"));
-                    camera_switch
-                        .add_text_status("FirstP".to_string(), str!("First Person Camera."));
-                    camera_switch.add_text_status(
-                        "Isometric".to_string(),
-                        "Apply procedural materials.".to_string(),
-                    );
-                    camera_switch.set_index(server_ctx.curr_render_tool_camera as i32);
-                    layout.add_widget(Box::new(camera_switch));
-
-                    if server_ctx.curr_render_tool_helper == RenderToolHelper::GlobalRender {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::NodeEditor as usize,
-                        ));
-                    }
-
-                    layout.set_reverse_index(Some(1));
+                    CUSTOMCAMERA
+                        .write()
+                        .unwrap()
+                        .setup_toolbar(layout, ctx, project, server_ctx);
                 }
 
                 if server_ctx.curr_render_tool_helper == RenderToolHelper::GlobalRender {
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        TheId::named("Main Stack"),
+                        PanelIndices::NodeEditor as usize,
+                    ));
+
                     NODEEDITOR.write().unwrap().set_context(
                         NodeContext::GlobalRender,
                         ui,
@@ -134,62 +122,30 @@ impl Tool for RenderTool {
         let mut redraw = false;
         match event {
             TheEvent::KeyUp(_) => {
-                RENDEREDITOR.write().unwrap().move_action = None;
+                CUSTOMCAMERA.write().unwrap().move_action = None;
             }
             TheEvent::KeyDown(TheValue::Char(c)) => {
                 if *c == 'w' {
-                    RENDEREDITOR.write().unwrap().move_action = Some(RenderMoveAction::Forward);
+                    CUSTOMCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Forward);
                 }
                 if *c == 's' {
-                    RENDEREDITOR.write().unwrap().move_action = Some(RenderMoveAction::Backward);
+                    CUSTOMCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Backward);
                 }
                 if *c == 'a' {
-                    RENDEREDITOR.write().unwrap().move_action = Some(RenderMoveAction::Left);
+                    CUSTOMCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Left);
                 }
                 if *c == 'd' {
-                    RENDEREDITOR.write().unwrap().move_action = Some(RenderMoveAction::Right);
+                    CUSTOMCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Right);
                 }
                 redraw = true;
             }
             TheEvent::RenderViewDragged(id, coord) => {
-                if id.name == "PolyView"
-                    && server_ctx.curr_render_tool_camera == RenderToolCamera::FirstP
-                {
+                if id.name == "PolyView" {
                     if let Some(region) = project.get_region_ctx_mut(server_ctx) {
-                        let sens_yaw = 0.15; // deg per pixel horizontally
-                        let sens_pitch = 0.15; // deg per pixel vertically
-                        let max_pitch = 85.0; // don’t let camera flip
-
-                        let curr = *coord;
-
-                        if let Some(prev) = self.last_mouse {
-                            let dx = (curr.x - prev.x) as f32;
-                            let dy = (curr.y - prev.y) as f32;
-
-                            // Yaw   (left / right)
-                            if dx.abs() > 0.0 {
-                                region.editing_look_at_3d =
-                                    RENDEREDITOR.read().unwrap().rotate_camera_y(
-                                        region.editing_position_3d,
-                                        region.editing_look_at_3d,
-                                        -dx * sens_yaw, // screen → world: left = +yaw
-                                    );
-                            }
-                            // Pitch (up / down)
-                            if dy.abs() > 0.0 {
-                                let look = RENDEREDITOR.read().unwrap().rotate_camera_pitch(
-                                    region.editing_position_3d,
-                                    region.editing_look_at_3d,
-                                    -dy * sens_pitch, // screen up = pitch up
-                                );
-                                region.editing_look_at_3d = RENDEREDITOR
-                                    .read()
-                                    .unwrap()
-                                    .clamp_pitch(region.editing_position_3d, look, max_pitch);
-                            }
-                        }
-
-                        self.last_mouse = Some(curr);
+                        CUSTOMCAMERA
+                            .write()
+                            .unwrap()
+                            .mouse_dragged(region, server_ctx, coord);
                         redraw = true;
                     }
                 }
@@ -218,6 +174,13 @@ impl Tool for RenderTool {
                             project,
                             server_ctx,
                         );
+                    }
+                }
+                if id.name == "Custom Camera Helper Switch" {
+                    if *index == 0 {
+                        server_ctx.curr_custom_tool_camera = CustomToolCamera::FirstP;
+                    } else if *index == 1 {
+                        server_ctx.curr_custom_tool_camera = CustomToolCamera::Isometric;
                     }
                 }
             }
