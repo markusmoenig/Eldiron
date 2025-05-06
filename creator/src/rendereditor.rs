@@ -1,5 +1,4 @@
-use crate::editor::{CUSTOMCAMERA, PALETTE, RUSTERIX};
-use crate::hud::{Hud, HudMode};
+use crate::editor::{CUSTOMCAMERA, RUSTERIX};
 use crate::prelude::*;
 use shared::prelude::*;
 
@@ -13,30 +12,24 @@ pub enum RenderMoveAction {
 }
 
 pub struct RenderEditor {
-    terrain_hit: Option<Vec3<f32>>,
     drag_coord: Vec2<i32>,
 
-    hud: Hud,
-
     pub first_draw: bool,
-
     edited: bool,
-    trace: bool,
+
+    accum: i32,
 }
 
 #[allow(clippy::new_without_default)]
 impl RenderEditor {
     pub fn new() -> Self {
         Self {
-            terrain_hit: None,
             drag_coord: Vec2::zero(),
 
-            hud: Hud::new(HudMode::Terrain),
-
             first_draw: true,
-
             edited: false,
-            trace: false,
+
+            accum: 0,
         }
     }
 
@@ -66,7 +59,7 @@ impl RenderEditor {
     pub fn draw(
         &mut self,
         ui: &mut TheUI,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
         build_values: &mut ValueContainer,
@@ -94,31 +87,24 @@ impl RenderEditor {
                     self.first_draw = false;
                 }
 
-                // let assets = rusterix.assets.clone();
-                // rusterix
-                //     .client
-                //     .apply_entities_items_d3(&region.map, &assets);
-
-                if let Some(hit) = self.terrain_hit {
-                    rusterix.client.terrain_hover = Some(hit);
-                }
                 rusterix.client.scene_d3.dynamic_lights = vec![];
-                rusterix.client.draw_d3(
-                    &region.map,
-                    buffer.pixels_mut(),
-                    dim.width as usize,
-                    dim.height as usize,
-                );
-                rusterix.client.terrain_hover = None;
 
-                self.hud.draw(
-                    buffer,
-                    &mut region.map,
-                    ctx,
-                    server_ctx,
-                    None,
-                    &PALETTE.read().unwrap(),
-                );
+                if server_ctx.curr_render_tool_helper != RenderToolHelper::Tracer {
+                    rusterix.client.draw_d3(
+                        &region.map,
+                        buffer.pixels_mut(),
+                        dim.width as usize,
+                        dim.height as usize,
+                    );
+                } else {
+                    rusterix.client.trace(
+                        buffer.pixels_mut(),
+                        dim.width as usize,
+                        dim.height as usize,
+                        self.accum,
+                    );
+                    self.accum += 1;
+                }
             }
         }
     }
@@ -143,8 +129,12 @@ impl RenderEditor {
         None
     }
 
-    pub fn switch_trace(&mut self) {
-        println!("trace");
+    pub fn start_trace(&mut self) {
+        self.accum = 0;
+    }
+
+    pub fn reset_trace(&mut self) {
+        self.accum = 0;
     }
 
     pub fn scroll_by(

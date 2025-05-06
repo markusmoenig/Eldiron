@@ -131,15 +131,19 @@ impl Tool for RenderTool {
             TheEvent::KeyDown(TheValue::Char(c)) => {
                 if *c == 'w' {
                     CUSTOMCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Forward);
+                    RENDEREDITOR.write().unwrap().reset_trace();
                 }
                 if *c == 's' {
                     CUSTOMCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Backward);
+                    RENDEREDITOR.write().unwrap().reset_trace();
                 }
                 if *c == 'a' {
                     CUSTOMCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Left);
+                    RENDEREDITOR.write().unwrap().reset_trace();
                 }
                 if *c == 'd' {
                     CUSTOMCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Right);
+                    RENDEREDITOR.write().unwrap().reset_trace();
                 }
                 redraw = true;
             }
@@ -150,6 +154,7 @@ impl Tool for RenderTool {
                             .write()
                             .unwrap()
                             .mouse_dragged(region, server_ctx, coord);
+                        RENDEREDITOR.write().unwrap().reset_trace();
                         redraw = true;
                     }
                 }
@@ -183,6 +188,7 @@ impl Tool for RenderTool {
                             TheId::named("Main Stack"),
                             PanelIndices::Trace as usize,
                         ));
+                        RENDEREDITOR.write().unwrap().start_trace();
                     }
                 }
                 if id.name == "Custom Camera Helper Switch" {
@@ -193,11 +199,11 @@ impl Tool for RenderTool {
                     }
                 }
             }
-            TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
-                if id.name == "Trace Button" {
-                    RENDEREDITOR.write().unwrap().switch_trace();
-                }
-            }
+            // TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
+            //     if id.name == "Trace Button" {
+            //         RENDEREDITOR.write().unwrap().switch_trace();
+            //     }
+            // }
             _ => {}
         }
         redraw

@@ -26,9 +26,10 @@ pub struct NodeEditor {
 impl NodeEditor {
     pub fn new() -> Self {
         let mut categories: FxHashMap<String, TheColor> = FxHashMap::default();
-        categories.insert("ShapeFX".into(), TheColor::from("#d1d1d1"));
-        categories.insert("Render".into(), TheColor::from("#d12a2a"));
-        categories.insert("Terrain".into(), TheColor::from("#0af505"));
+        categories.insert("ShapeFX".into(), TheColor::from("#c49a00")); // Warm gold — represents pixel-level artistic material control
+        categories.insert("Render".into(), TheColor::from("#e53935")); // Bright red — strong signal for core rendering pipeline
+        categories.insert("Modifier".into(), TheColor::from("#00bfa5")); // Teal green — evokes transformation, procedural mesh edits
+        categories.insert("FX".into(), TheColor::from("#7e57c2")); // Purple — expressive and magical for particles, screen fx, etc.
 
         Self {
             context: NodeContext::Region,
@@ -117,9 +118,23 @@ impl NodeEditor {
         create_button.set_text("Create Graph".to_string());
         toolbar_hlayout.add_widget(Box::new(create_button));
 
+        let mut fx_nodes_button = TheTraybarButton::new(TheId::named("FX Nodes"));
+        fx_nodes_button.set_custom_color(self.categories.get("FX").cloned());
+        fx_nodes_button.set_text(str!("FX"));
+        fx_nodes_button
+            .set_status_text("Nodes which create a special effect like lights or perticles.");
+        fx_nodes_button.set_context_menu(Some(TheContextMenu {
+            items: vec![TheContextMenuItem::new(
+                "Material".to_string(),
+                TheId::named("Material"),
+            )],
+            ..Default::default()
+        }));
+        toolbar_hlayout.add_widget(Box::new(fx_nodes_button));
+
         let mut render_nodes_button = TheTraybarButton::new(TheId::named("Render Nodes"));
         render_nodes_button.set_custom_color(self.categories.get("Render").cloned());
-        render_nodes_button.set_text(str!("Render Nodes"));
+        render_nodes_button.set_text(str!("Render"));
         render_nodes_button.set_status_text("Nodes for the global and local render graphs.");
         render_nodes_button.set_context_menu(Some(TheContextMenu {
             items: vec![
@@ -131,10 +146,11 @@ impl NodeEditor {
         }));
         toolbar_hlayout.add_widget(Box::new(render_nodes_button));
 
-        let mut mesh_nodes_button = TheTraybarButton::new(TheId::named("Terrain Nodes"));
-        mesh_nodes_button.set_custom_color(self.categories.get("Terrain").cloned());
-        mesh_nodes_button.set_text(str!("Terrain Nodes"));
-        mesh_nodes_button.set_status_text("Nodes which control and modify terrain mesh creation.");
+        let mut mesh_nodes_button = TheTraybarButton::new(TheId::named("Modifier Nodes"));
+        mesh_nodes_button.set_custom_color(self.categories.get("Modifier").cloned());
+        mesh_nodes_button.set_text(str!("Modifier"));
+        mesh_nodes_button
+            .set_status_text("Nodes which control and modify terrain and mesh creation.");
         mesh_nodes_button.set_context_menu(Some(TheContextMenu {
             items: vec![TheContextMenuItem::new(
                 "Flatten".to_string(),
@@ -146,7 +162,7 @@ impl NodeEditor {
 
         let mut shapefx_nodes_button = TheTraybarButton::new(TheId::named("ShapeFX Nodes"));
         shapefx_nodes_button.set_custom_color(self.categories.get("ShapeFX").cloned());
-        shapefx_nodes_button.set_text(str!("Shape FX Nodes"));
+        shapefx_nodes_button.set_text(str!("Shape FX"));
         shapefx_nodes_button
             .set_status_text("Nodes which attach to geometry and shapes and create pixels.");
         shapefx_nodes_button.set_context_menu(Some(TheContextMenu {
@@ -162,7 +178,7 @@ impl NodeEditor {
         }));
         toolbar_hlayout.add_widget(Box::new(shapefx_nodes_button));
 
-        toolbar_hlayout.set_reverse_index(Some(3));
+        toolbar_hlayout.set_reverse_index(Some(4));
         top_toolbar.set_layout(toolbar_hlayout);
         center.set_top(top_toolbar);
 
@@ -216,8 +232,9 @@ impl NodeEditor {
         match event {
             TheEvent::ContextMenuSelected(id, item) => {
                 if (id.name == "ShapeFX Nodes"
-                    || id.name == "Terrain Nodes"
-                    || id.name == "Render Nodes")
+                    || id.name == "Modifier Nodes"
+                    || id.name == "Render Nodes"
+                    || id.name == "FX Nodes")
                     && !self.graph.nodes.is_empty()
                 {
                     if let Ok(role) = item.name.parse::<ShapeFXRole>() {
