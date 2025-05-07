@@ -2,7 +2,7 @@ use crate::editor::{CUSTOMCAMERA, RUSTERIX};
 use crate::prelude::*;
 use shared::prelude::*;
 
-use rusterix::ValueContainer;
+use rusterix::{AccumBuffer, ValueContainer};
 
 pub enum RenderMoveAction {
     Forward,
@@ -17,7 +17,7 @@ pub struct RenderEditor {
     pub first_draw: bool,
     edited: bool,
 
-    accum: i32,
+    accum_buffer: AccumBuffer,
 }
 
 #[allow(clippy::new_without_default)]
@@ -29,7 +29,7 @@ impl RenderEditor {
             first_draw: true,
             edited: false,
 
-            accum: 0,
+            accum_buffer: AccumBuffer::empty(),
         }
     }
 
@@ -97,13 +97,14 @@ impl RenderEditor {
                         dim.height as usize,
                     );
                 } else {
-                    rusterix.client.trace(
-                        buffer.pixels_mut(),
-                        dim.width as usize,
-                        dim.height as usize,
-                        self.accum,
-                    );
-                    self.accum += 1;
+                    if dim.width as usize != self.accum_buffer.width
+                        || dim.height as usize != self.accum_buffer.height
+                    {
+                        self.accum_buffer =
+                            AccumBuffer::new(dim.width as usize, dim.height as usize);
+                    }
+                    rusterix.client.trace(&mut self.accum_buffer);
+                    self.accum_buffer.convert_to_u8(buffer.pixels_mut());
                 }
             }
         }
@@ -130,11 +131,11 @@ impl RenderEditor {
     }
 
     pub fn start_trace(&mut self) {
-        self.accum = 0;
+        self.accum_buffer.reset();
     }
 
     pub fn reset_trace(&mut self) {
-        self.accum = 0;
+        self.accum_buffer.reset();
     }
 
     pub fn scroll_by(
