@@ -110,11 +110,11 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
         );
         builder.build_entities_items(&map, &rusterix.assets, &mut scene, Vec2::new(width, height));
 
-        let mut light = Light::new(LightType::Ambient);
-        light.set_color([1.0, 1.0, 1.0]);
-        light.set_intensity(1.0);
+        // let mut light = Light::new(LightType::Ambient);
+        // light.set_color([1.0, 1.0, 1.0]);
+        // light.set_intensity(1.0);
 
-        scene.dynamic_lights.push(light);
+        // scene.dynamic_lights.push(light);
 
         let translation_matrix = Mat3::<f32>::translation_2d(Vec2::new(
             map.offset.x + width / 2.0,

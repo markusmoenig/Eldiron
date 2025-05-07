@@ -1551,8 +1551,24 @@ impl MapEditor {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
-        let mut nodeui = TheNodeUI::default();
+        // Check if we need to apply the node graph to the node editor
+        if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+            if let Some(linedef) = map.find_linedef(linedef_id) {
+                if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
+                    linedef.properties.get("region_graph")
+                {
+                    if let Some(graph) = map.shapefx_graphs.get(id) {
+                        NODEEDITOR
+                            .write()
+                            .unwrap()
+                            .set_context_light(NodeContext::Region, ui);
+                        NODEEDITOR.write().unwrap().apply_graph(graph, ui);
+                    }
+                }
+            }
+        }
 
+        let mut nodeui = TheNodeUI::default();
         if let Some(linedef) = map.find_linedef(linedef_id) {
             if server_ctx.curr_map_context == MapContext::Region {
                 let item = TheNodeUIItem::Text(
@@ -1674,41 +1690,6 @@ impl MapEditor {
                     false,
                 );
                 nodeui.add_item(item);
-
-                /*
-                let item = TheNodeUIItem::IntEditSlider(
-                    "linedefPixelization".into(),
-                    "Pixelization".into(),
-                    "Set the amount of pixelization.".into(),
-                    1,
-                    1..=20,
-                    false,
-                );
-                nodeui.add_item(item);
-
-                let item = TheNodeUIItem::FloatEditSlider(
-                    "linedefNoiseIntensity".into(),
-                    "Noise Intensity".into(),
-                    "Set the noise intensity.".into(),
-                    0.0,
-                    0.0..=1.0,
-                    false,
-                );
-                nodeui.add_item(item);
-
-                let item = TheNodeUIItem::Selector(
-                    "linedefNoiseTarget".into(),
-                    "Noise Target".into(),
-                    "Set the target property for the noise.".into(),
-                    vec![
-                        "RGB".to_string(),
-                        "Hue".to_string(),
-                        "Luminance".to_string(),
-                    ],
-                    0,
-                );
-                nodeui.add_item(item);
-                */
             }
         }
 
@@ -1840,42 +1821,6 @@ impl MapEditor {
                     false,
                 );
                 nodeui.add_item(item);
-                /*
-                nodeui.add_item(TheNodeUIItem::Separator("Color".into()));
-
-                let item = TheNodeUIItem::IntEditSlider(
-                    "sectorPixelization".into(),
-                    "Pixelization".into(),
-                    "Set the amount of pixelization.".into(),
-                    1,
-                    1..=20,
-                    false,
-                );
-                nodeui.add_item(item);
-
-                let item = TheNodeUIItem::FloatEditSlider(
-                    "sectorNoiseIntensity".into(),
-                    "Noise".into(),
-                    "Set the noise intensity.".into(),
-                    0.0,
-                    0.0..=1.0,
-                    false,
-                );
-                nodeui.add_item(item);
-
-                let item = TheNodeUIItem::Selector(
-                    "sectorNoiseTarget".into(),
-                    "Noise Target".into(),
-                    "Set the target property for the noise.".into(),
-                    vec![
-                        "RGB".to_string(),
-                        "Hue".to_string(),
-                        "Luminance".to_string(),
-                    ],
-                    0,
-                );
-                nodeui.add_item(item);
-                */
             }
 
             if sector.layer.is_some() {

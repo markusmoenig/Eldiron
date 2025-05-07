@@ -1,4 +1,4 @@
-use crate::editor::{CONFIGEDITOR, PALETTE, RUSTERIX, UNDOMANAGER, WORLDEDITOR};
+use crate::editor::{CONFIGEDITOR, PALETTE, RENDEREDITOR, RUSTERIX, UNDOMANAGER, WORLDEDITOR};
 use crate::prelude::*;
 use shared::prelude::*;
 
@@ -65,6 +65,15 @@ impl NodeEditor {
         self.graph_changed(project, ui, ctx, server_ctx);
     }
 
+    /// Set the context of the node editor.
+    pub fn set_context_light(&mut self, context: NodeContext, ui: &mut TheUI) {
+        println!("NodeContext {:?}", context);
+        self.context = context;
+        self.graph = ShapeFXGraph::default();
+        let canvas = self.to_canvas();
+        ui.set_node_canvas("ShapeFX NodeCanvas", canvas);
+    }
+
     /// Called when the graph has changed, updating the UI and providing undo.
     fn graph_changed(
         &mut self,
@@ -83,6 +92,7 @@ impl NodeEditor {
                 map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                 map.terrain.mark_dirty();
                 RUSTERIX.write().unwrap().set_dirty();
+                RENDEREDITOR.write().unwrap().first_draw = true;
                 WORLDEDITOR.write().unwrap().first_draw = true;
             }
         } else if self.context == NodeContext::Material {
@@ -124,10 +134,10 @@ impl NodeEditor {
         fx_nodes_button
             .set_status_text("Nodes which create a special effect like lights or perticles.");
         fx_nodes_button.set_context_menu(Some(TheContextMenu {
-            items: vec![TheContextMenuItem::new(
-                "Material".to_string(),
-                TheId::named("Material"),
-            )],
+            items: vec![
+                TheContextMenuItem::new("Material".to_string(), TheId::named("Material")),
+                TheContextMenuItem::new("Point Light".to_string(), TheId::named("Point Light")),
+            ],
             ..Default::default()
         }));
         toolbar_hlayout.add_widget(Box::new(fx_nodes_button));
@@ -265,10 +275,17 @@ impl NodeEditor {
                             ..Default::default()
                         };
                     } else if self.context == NodeContext::Region {
-                        self.graph = ShapeFXGraph {
-                            nodes: vec![ShapeFX::new(ShapeFXRole::RegionGeometry)],
-                            ..Default::default()
-                        };
+                        if server_ctx.curr_map_tool_type == MapToolType::Sector {
+                            self.graph = ShapeFXGraph {
+                                nodes: vec![ShapeFX::new(ShapeFXRole::SectorGeometry)],
+                                ..Default::default()
+                            };
+                        } else if server_ctx.curr_map_tool_type == MapToolType::Linedef {
+                            self.graph = ShapeFXGraph {
+                                nodes: vec![ShapeFX::new(ShapeFXRole::LinedefGeometry)],
+                                ..Default::default()
+                            };
+                        }
                     }
 
                     let canvas = self.to_canvas();

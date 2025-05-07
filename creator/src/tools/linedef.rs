@@ -467,111 +467,59 @@ impl Tool for LinedefTool {
             TheEvent::StateChanged(id, state) => {
                 #[allow(clippy::collapsible_if)]
                 if id.name == "Apply Map Properties" && *state == TheWidgetState::Clicked {
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
-                        // Apply an effect
+                    // Apply a source
+                    let mut source: Option<Value> = None;
+                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
+                        if let Some(id) = server_ctx.curr_tile_id {
+                            source = Some(Value::Source(PixelSource::TileId(id)));
+                        }
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+                        if let Some(id) = server_ctx.curr_material_id {
+                            source = Some(Value::Source(PixelSource::MaterialId(id)));
+                        }
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                        let node_editor = NODEEDITOR.read().unwrap();
+                        if !node_editor.graph.nodes.is_empty() {
+                            source = Some(Value::Source(PixelSource::ShapeFXGraphId(
+                                node_editor.graph.id,
+                            )));
+                        }
+                    }
 
+                    if let Some(source) = source {
                         if let Some(map) = project.get_map_mut(server_ctx) {
-                            if let Some(effect) = &server_ctx.curr_effect {
-                                if let Some(light) = effect.to_light(Vec2::zero()) {
-                                    // Apply the effect as a light source
-                                    let prev = map.clone();
-
-                                    for linedef_id in map.selected_linedefs.clone() {
-                                        if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                                            if self.hud.selected_icon_index == 0 {
-                                                linedef
-                                                    .properties
-                                                    .set("row1_light", Value::Light(light.clone()));
-                                            } else if self.hud.selected_icon_index == 1 {
-                                                linedef
-                                                    .properties
-                                                    .set("row2_light", Value::Light(light.clone()));
-                                            } else if self.hud.selected_icon_index == 2 {
-                                                linedef
-                                                    .properties
-                                                    .set("row3_light", Value::Light(light.clone()));
-                                            } else if self.hud.selected_icon_index == 3 {
-                                                linedef
-                                                    .properties
-                                                    .set("row4_light", Value::Light(light.clone()));
-                                            }
-                                        }
-                                    }
-
-                                    let undo_atom = RegionUndoAtom::MapEdit(
-                                        Box::new(prev),
-                                        Box::new(map.clone()),
-                                    );
-
-                                    crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
-                                        &server_ctx.curr_region,
-                                        undo_atom,
-                                        ctx,
-                                    );
-                                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
-
-                                    ctx.ui.send(TheEvent::Custom(
-                                        TheId::named("Map Selection Changed"),
-                                        TheValue::Empty,
-                                    ));
-                                }
-                            }
-                        }
-                    } else {
-                        // Apply a source
-                        let mut source: Option<Value> = None;
-                        if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-                            if let Some(id) = server_ctx.curr_tile_id {
-                                source = Some(Value::Source(PixelSource::TileId(id)));
-                            }
-                        } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                            if let Some(id) = server_ctx.curr_material_id {
-                                source = Some(Value::Source(PixelSource::MaterialId(id)));
-                            }
-                        } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-                            let node_editor = NODEEDITOR.read().unwrap();
-                            if !node_editor.graph.nodes.is_empty() {
-                                source = Some(Value::Source(PixelSource::ShapeFXGraphId(
-                                    node_editor.graph.id,
-                                )));
-                            }
-                        }
-
-                        if let Some(source) = source {
-                            if let Some(map) = project.get_map_mut(server_ctx) {
-                                let prev = map.clone();
-                                let context = NODEEDITOR.read().unwrap().context;
-                                for linedef_id in map.selected_linedefs.clone() {
-                                    if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                                        if context == NodeContext::Region {
-                                            linedef.properties.set("region_graph", source.clone());
-                                        } else if self.hud.selected_icon_index == 0 {
-                                            linedef.properties.set("row1_source", source.clone());
-                                        } else if self.hud.selected_icon_index == 1 {
-                                            linedef.properties.set("row2_source", source.clone());
-                                        } else if self.hud.selected_icon_index == 2 {
-                                            linedef.properties.set("row3_source", source.clone());
-                                        } else if self.hud.selected_icon_index == 3 {
-                                            linedef.properties.set("row4_source", source.clone());
-                                        }
+                            let prev = map.clone();
+                            let context = NODEEDITOR.read().unwrap().context;
+                            for linedef_id in map.selected_linedefs.clone() {
+                                if let Some(linedef) = map.find_linedef_mut(linedef_id) {
+                                    if context == NodeContext::Region {
+                                        linedef.properties.set("region_graph", source.clone());
+                                    } else if self.hud.selected_icon_index == 0 {
+                                        linedef.properties.set("row1_source", source.clone());
+                                    } else if self.hud.selected_icon_index == 1 {
+                                        linedef.properties.set("row2_source", source.clone());
+                                    } else if self.hud.selected_icon_index == 2 {
+                                        linedef.properties.set("row3_source", source.clone());
+                                    } else if self.hud.selected_icon_index == 3 {
+                                        linedef.properties.set("row4_source", source.clone());
                                     }
                                 }
-
-                                // Force node update
-                                if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-                                    NODEEDITOR.read().unwrap().force_update(ctx, map);
-                                }
-
-                                let undo_atom =
-                                    RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-
-                                crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
-                                    &server_ctx.curr_region,
-                                    undo_atom,
-                                    ctx,
-                                );
-                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
                             }
+
+                            // Force node update
+                            if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                                NODEEDITOR.read().unwrap().force_update(ctx, map);
+                            }
+
+                            let undo_atom =
+                                RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+
+                            crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
+                                &server_ctx.curr_region,
+                                undo_atom,
+                                ctx,
+                            );
+                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
                         }
                     }
                 } else if id.name == "Remove Map Properties" && *state == TheWidgetState::Clicked {
