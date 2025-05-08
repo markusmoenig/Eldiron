@@ -164,6 +164,13 @@ impl ToolList {
                             PanelIndices::MaterialPicker as usize,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                        NODEEDITOR.write().unwrap().set_context(
+                            NodeContext::Region,
+                            ui,
+                            ctx,
+                            project,
+                            server_ctx,
+                        );
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::NodeEditor as usize,

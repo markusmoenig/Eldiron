@@ -86,8 +86,8 @@ impl RenderEditor {
                     rusterix.build_terrain_d3(&mut region.map, &ValueContainer::default());
                     self.first_draw = false;
                 }
-
                 rusterix.client.scene_d3.dynamic_lights = vec![];
+                rusterix.build_entities_items_d3(&region.map);
 
                 if server_ctx.curr_render_tool_helper != RenderToolHelper::Tracer {
                     rusterix.client.draw_d3(

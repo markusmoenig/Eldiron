@@ -1739,6 +1739,10 @@ impl MapEditor {
                     sector.properties.get("region_graph")
                 {
                     if let Some(graph) = map.shapefx_graphs.get(id) {
+                        NODEEDITOR
+                            .write()
+                            .unwrap()
+                            .set_context_light(NodeContext::Region, ui);
                         NODEEDITOR.write().unwrap().apply_graph(graph, ui);
                     }
                 }

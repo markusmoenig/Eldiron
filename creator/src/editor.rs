@@ -1448,6 +1448,8 @@ impl TheTrait for Editor {
                                         {
                                             let mut rusterix = RUSTERIX.write().unwrap();
                                             rusterix.client.server_time = self.project.time;
+                                            rusterix.client.global =
+                                                self.project.render_graph.clone();
                                             if rusterix.server.state
                                                 == rusterix::ServerState::Running
                                             {

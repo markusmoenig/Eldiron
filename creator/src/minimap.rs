@@ -4,18 +4,6 @@ use vek::Vec2;
 
 use crate::editor::RUSTERIX;
 
-// static MINIMAP: LazyLock<RwLock<Map>> = LazyLock::new(|| RwLock::new(Map::default()));
-// static BUILDER: LazyLock<RwLock<D2PreviewBuilder>> =
-//     LazyLock::new(|| RwLock::new(D2PreviewBuilder::default()));
-
-// pub fn update_minimap(
-//     orig_region: &Region,
-//     buffer: &mut TheRGBABuffer,
-//     server_ctx: &ServerContext,
-// ) {
-//     println!("update_minimap");
-// }
-
 pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx: &ServerContext) {
     let dim = buffer.dim();
 
@@ -110,12 +98,6 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
         );
         builder.build_entities_items(&map, &rusterix.assets, &mut scene, Vec2::new(width, height));
 
-        // let mut light = Light::new(LightType::Ambient);
-        // light.set_color([1.0, 1.0, 1.0]);
-        // light.set_intensity(1.0);
-
-        // scene.dynamic_lights.push(light);
-
         let translation_matrix = Mat3::<f32>::translation_2d(Vec2::new(
             map.offset.x + width / 2.0,
             -map.offset.y + height / 2.0,
@@ -133,18 +115,16 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
         );
         let transform = translation_matrix * scale_matrix;
 
-        Rasterizer::setup(Some(transform), Mat4::identity(), Mat4::identity())
-            .background(background)
-            .rasterize(
-                &mut scene,
-                buffer.pixels_mut(),
-                width as usize,
-                height as usize,
-                64,
-            );
-
-        // *MINIMAP.write().unwrap() = map;
-        // *BUILDER.write().unwrap() = builder;
+        let mut rast = Rasterizer::setup(Some(transform), Mat4::identity(), Mat4::identity())
+            .background(background);
+        rast.ambient_color = Some(Vec4::one());
+        rast.rasterize(
+            &mut scene,
+            buffer.pixels_mut(),
+            width as usize,
+            height as usize,
+            64,
+        );
     } else {
         buffer.fill(background);
     }
