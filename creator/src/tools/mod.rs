@@ -110,6 +110,7 @@ pub trait Tool: Send + Sync {
     ) {
         if let Some(layout) = ui.get_hlayout("Game Tool Params") {
             layout.clear();
+            server_ctx.render_mode = false;
 
             let mut source_switch = TheGroupButton::new(TheId::named("Map Helper Switch"));
             source_switch.add_text_status("Tiles".to_string(), "Pick and place tiles.".to_string());
@@ -118,17 +119,27 @@ pub trait Tool: Send + Sync {
                 "Pick and place procedural materials.".to_string(),
             );
             source_switch.add_text_status("Nodes".to_string(), "Work with nodes.".to_string());
-            source_switch.add_text_status(
-                "Effects".to_string(),
-                "Add visual effects to shapes.".to_string(),
-            );
-            source_switch.add_text_status(
-                "Preview".to_string(),
-                "Preview the final map output.".to_string(),
-            );
+            // source_switch.add_text_status(
+            //     "Effects".to_string(),
+            //     "Add visual effects to shapes.".to_string(),
+            // );
+            // source_switch.add_text_status(
+            //     "Preview".to_string(),
+            //     "Preview the final map output.".to_string(),
+            // );
             source_switch.set_item_width(80);
             source_switch.set_index(server_ctx.curr_map_tool_helper as i32);
             layout.add_widget(Box::new(source_switch));
+
+            let mut spacer = TheSpacer::new(TheId::empty());
+            spacer.limiter_mut().set_max_width(100);
+            layout.add_widget(Box::new(spacer));
+
+            let mut preview_switch = TheGroupButton::new(TheId::named("Preview Switch"));
+            preview_switch.add_text_status("Edit".to_string(), "Edit the map.".to_string());
+            preview_switch
+                .add_text_status("Preview".to_string(), "Preview the map in 3D.".to_string());
+            layout.add_widget(Box::new(preview_switch));
 
             if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
                 ctx.ui.send(TheEvent::SetStackIndex(
@@ -144,16 +155,6 @@ pub trait Tool: Send + Sync {
                 ctx.ui.send(TheEvent::SetStackIndex(
                     TheId::named("Main Stack"),
                     PanelIndices::NodeEditor as usize,
-                ));
-            } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
-                ctx.ui.send(TheEvent::SetStackIndex(
-                    TheId::named("Main Stack"),
-                    PanelIndices::EffectPicker as usize,
-                ));
-            } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
-                ctx.ui.send(TheEvent::SetStackIndex(
-                    TheId::named("Main Stack"),
-                    PanelIndices::PreviewView as usize,
                 ));
             }
 

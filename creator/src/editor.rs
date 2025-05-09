@@ -41,8 +41,6 @@ pub static INFOVIEWER: LazyLock<RwLock<InfoViewer>> =
     LazyLock::new(|| RwLock::new(InfoViewer::new()));
 pub static CONFIG: LazyLock<RwLock<toml::Table>> =
     LazyLock::new(|| RwLock::new(toml::Table::default()));
-pub static PREVIEWVIEW: LazyLock<RwLock<PreviewView>> =
-    LazyLock::new(|| RwLock::new(PreviewView::new()));
 pub static NODEEDITOR: LazyLock<RwLock<NodeEditor>> =
     LazyLock::new(|| RwLock::new(NodeEditor::new()));
 pub static WORLDEDITOR: LazyLock<RwLock<WorldEditor>> =
@@ -906,16 +904,16 @@ impl TheTrait for Editor {
             }
 
             // Draw the 3D Preview if active.
-            if !self.server_ctx.game_mode
-                && self.server_ctx.curr_map_tool_helper == MapToolHelper::Preview
-            {
-                if let Some(region) = self.project.get_region_ctx(&self.server_ctx) {
-                    PREVIEWVIEW
-                        .write()
-                        .unwrap()
-                        .draw(region, ui, ctx, &mut self.server_ctx);
-                }
-            }
+            // if !self.server_ctx.game_mode
+            //     && self.server_ctx.curr_map_tool_helper == MapToolHelper::Preview
+            // {
+            //     if let Some(region) = self.project.get_region_ctx(&self.server_ctx) {
+            //         PREVIEWVIEW
+            //             .write()
+            //             .unwrap()
+            //             .draw(region, ui, ctx, &mut self.server_ctx);
+            //     }
+            // }
 
             redraw = true;
         }

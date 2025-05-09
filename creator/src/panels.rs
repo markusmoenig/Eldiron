@@ -1,6 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, CONFIGEDITOR, EFFECTPICKER, INFOVIEWER, MATERIALPICKER, NODEEDITOR, PREVIEWVIEW,
-    RENDEREDITOR, SHAPEPICKER, TILEMAPEDITOR, TILEPICKER, WORLDEDITOR,
+    CODEEDITOR, CONFIGEDITOR, EFFECTPICKER, INFOVIEWER, MATERIALPICKER, NODEEDITOR, RENDEREDITOR,
+    SHAPEPICKER, TILEMAPEDITOR, TILEPICKER, WORLDEDITOR,
 };
 use crate::prelude::*;
 
@@ -11,11 +11,9 @@ pub enum PanelIndices {
     CodeEditor,
     DataEditor,
     MaterialPicker,
-    EffectPicker,
     ShapePicker,
     ConfigEditor,
     InfoViewer,
-    PreviewView,
     NodeEditor,
     TerrainBrush,
     Trace,
@@ -74,11 +72,9 @@ impl Panels {
         main_stack.add_canvas(CODEEDITOR.write().unwrap().build());
         main_stack.add_canvas(CODEEDITOR.write().unwrap().build_data());
         main_stack.add_canvas(MATERIALPICKER.write().unwrap().build(false));
-        main_stack.add_canvas(EFFECTPICKER.write().unwrap().build(false));
         main_stack.add_canvas(SHAPEPICKER.write().unwrap().build(false));
         main_stack.add_canvas(CONFIGEDITOR.write().unwrap().build());
         main_stack.add_canvas(INFOVIEWER.write().unwrap().build());
-        main_stack.add_canvas(PREVIEWVIEW.write().unwrap().build());
         main_stack.add_canvas(NODEEDITOR.write().unwrap().build());
         main_stack.add_canvas(WORLDEDITOR.write().unwrap().build_brush_canvas());
         main_stack.add_canvas(RENDEREDITOR.write().unwrap().build_trace_canvas());
@@ -208,15 +204,6 @@ impl Panels {
         }
 
         match event {
-            TheEvent::RenderViewClicked(id, coord) => {
-                if id.name == "PreviewView" && coord.x < 75 && coord.y < 20 {
-                    if PREVIEWVIEW.read().unwrap().camera == MapCamera::ThreeDIso {
-                        PREVIEWVIEW.write().unwrap().camera = MapCamera::ThreeDFirstPerson;
-                    } else {
-                        PREVIEWVIEW.write().unwrap().camera = MapCamera::ThreeDIso;
-                    }
-                }
-            }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Details Stack Group" {
                     if let Some(stack) = ui.get_stack_layout("Details Stack") {

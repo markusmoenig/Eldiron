@@ -151,7 +151,9 @@ impl ToolList {
         let mut redraw = false;
         match event {
             TheEvent::IndexChanged(id, index) => {
-                if id.name == "Map Helper Switch" {
+                if id.name == "Preview Switch" {
+                    server_ctx.render_mode = *index != 0;
+                } else if id.name == "Map Helper Switch" {
                     server_ctx.curr_map_tool_helper.set_from_index(*index);
                     if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
@@ -164,26 +166,18 @@ impl ToolList {
                             PanelIndices::MaterialPicker as usize,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-                        NODEEDITOR.write().unwrap().set_context(
-                            NodeContext::Region,
-                            ui,
-                            ctx,
-                            project,
-                            server_ctx,
-                        );
+                        if NODEEDITOR.read().unwrap().context != NodeContext::Region {
+                            NODEEDITOR.write().unwrap().set_context(
+                                NodeContext::Region,
+                                ui,
+                                ctx,
+                                project,
+                                server_ctx,
+                            );
+                        }
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::NodeEditor as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::EffectsPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::EffectPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::Preview {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::PreviewView as usize,
                         ));
                     }
                     redraw = true;
@@ -369,6 +363,12 @@ impl ToolList {
             }
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == "PolyView" {
+                    if server_ctx.render_mode {
+                        server_ctx.render_mode = false;
+                        ui.set_widget_value("Preview Switch", ctx, TheValue::Int(0));
+                        return false;
+                    }
+
                     self.char_click_selected = false;
                     self.item_click_selected = false;
                     if !server_ctx.game_mode {

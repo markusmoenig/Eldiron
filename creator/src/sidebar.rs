@@ -862,10 +862,7 @@ impl Sidebar {
                                 let grid_y = (coord.y as f32 - height / 2.0 + offset_y) / grid_size;
 
                                 // If shift is pressed we move the look_at position
-                                if ui.shift
-                                    && (server_ctx.curr_map_tool_helper == MapToolHelper::Preview
-                                        || server_ctx.render_mode)
-                                {
+                                if ui.shift && server_ctx.render_mode {
                                     region.editing_look_at_3d = Vec3::new(
                                         grid_x,
                                         region.map.terrain.sample_height_bilinear(grid_x, grid_y),

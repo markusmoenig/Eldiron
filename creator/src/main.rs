@@ -15,7 +15,7 @@ pub mod minimap;
 pub mod misc;
 pub mod nodeeditor;
 pub mod panels;
-pub mod previewview;
+// pub mod previewview;
 pub mod rendereditor;
 pub mod self_update;
 pub mod shapepicker;
@@ -51,7 +51,7 @@ pub mod prelude {
     pub use crate::materialpicker::*;
     pub use crate::misc::*;
     pub use crate::panels::*;
-    pub use crate::previewview::*;
+    // pub use crate::previewview::*;
     pub use crate::shapepicker::*;
     pub use crate::sidebar::*;
     pub use crate::tilemapeditor::*;

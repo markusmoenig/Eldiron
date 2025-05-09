@@ -23,7 +23,11 @@ impl MaterialUndoAtom {
                                 sector.properties.get("floor_source")
                             {
                                 if let Some(graph) = material.shapefx_graphs.get(id) {
-                                    NODEEDITOR.write().unwrap().apply_graph(graph, ui);
+                                    NODEEDITOR.write().unwrap().apply_graph(
+                                        NodeContext::Material,
+                                        graph,
+                                        ui,
+                                    );
                                     break;
                                 }
                             }
@@ -50,7 +54,11 @@ impl MaterialUndoAtom {
                                 sector.properties.get("floor_source")
                             {
                                 if let Some(graph) = material.shapefx_graphs.get(id) {
-                                    NODEEDITOR.write().unwrap().apply_graph(graph, ui);
+                                    NODEEDITOR.write().unwrap().apply_graph(
+                                        NodeContext::Material,
+                                        graph,
+                                        ui,
+                                    );
                                     break;
                                 }
                             }

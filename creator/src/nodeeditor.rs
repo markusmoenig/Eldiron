@@ -65,11 +65,11 @@ impl NodeEditor {
         self.graph_changed(project, ui, ctx, server_ctx);
     }
 
-    /// Set the context of the node editor.
-    pub fn set_context_light(&mut self, context: NodeContext, ui: &mut TheUI) {
-        println!("NodeContext {:?}", context);
+    /// Activates the given graph in the editor
+    pub fn apply_graph(&mut self, context: NodeContext, graph: &ShapeFXGraph, ui: &mut TheUI) {
         self.context = context;
-        self.graph = ShapeFXGraph::default();
+        self.graph = graph.clone();
+        self.graph.selected_node = None;
         let canvas = self.to_canvas();
         ui.set_node_canvas("ShapeFX NodeCanvas", canvas);
     }
@@ -494,14 +494,6 @@ impl NodeEditor {
                 TheValue::Empty,
             ));
         }
-    }
-
-    /// Activates the given graph in the editor
-    pub fn apply_graph(&mut self, graph: &ShapeFXGraph, ui: &mut TheUI) {
-        self.graph = graph.clone();
-        self.graph.selected_node = None;
-        let canvas = self.to_canvas();
-        ui.set_node_canvas("ShapeFX NodeCanvas", canvas);
     }
 
     fn transform_to_snake_case(&self, input: &str, strip_prefix: &str) -> String {

@@ -1551,19 +1551,39 @@ impl MapEditor {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
-        // Check if we need to apply the node graph to the node editor
-        if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-            if let Some(linedef) = map.find_linedef(linedef_id) {
+        // Check if we need to apply the material graph to the node editor
+        if server_ctx.curr_map_context == MapContext::Material {
+            if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor {
+                ctx.ui
+                    .send(TheEvent::IndexChanged(TheId::named("Map Helper Switch"), 2));
+                if let Some(widget) = ui.get_group_button("Map Helper Switch") {
+                    widget.set_index(2);
+                }
+            }
+            if let Some(sector) = map.find_linedef(linedef_id) {
                 if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
-                    linedef.properties.get("region_graph")
+                    sector.properties.get("floor_source")
                 {
                     if let Some(graph) = map.shapefx_graphs.get(id) {
                         NODEEDITOR
                             .write()
                             .unwrap()
-                            .set_context_light(NodeContext::Region, ui);
-                        NODEEDITOR.write().unwrap().apply_graph(graph, ui);
+                            .apply_graph(NodeContext::Material, graph, ui);
                     }
+                }
+            }
+        } else
+        // Check if we need to apply the node graph to the node editor
+        // if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+        if let Some(linedef) = map.find_linedef(linedef_id) {
+            if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
+                linedef.properties.get("region_graph")
+            {
+                if let Some(graph) = map.shapefx_graphs.get(id) {
+                    NODEEDITOR
+                        .write()
+                        .unwrap()
+                        .apply_graph(NodeContext::Region, graph, ui);
                 }
             }
         }
@@ -1715,9 +1735,7 @@ impl MapEditor {
     ) {
         // Check if we need to apply the material graph to the node editor
         if server_ctx.curr_map_context == MapContext::Material {
-            if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor
-                && server_ctx.curr_map_tool_helper != MapToolHelper::Preview
-            {
+            if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor {
                 ctx.ui
                     .send(TheEvent::IndexChanged(TheId::named("Map Helper Switch"), 2));
                 if let Some(widget) = ui.get_group_button("Map Helper Switch") {
@@ -1729,22 +1747,24 @@ impl MapEditor {
                     sector.properties.get("floor_source")
                 {
                     if let Some(graph) = map.shapefx_graphs.get(id) {
-                        NODEEDITOR.write().unwrap().apply_graph(graph, ui);
-                    }
-                }
-            }
-        } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-            if let Some(sector) = map.find_sector(sector_id) {
-                if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
-                    sector.properties.get("region_graph")
-                {
-                    if let Some(graph) = map.shapefx_graphs.get(id) {
                         NODEEDITOR
                             .write()
                             .unwrap()
-                            .set_context_light(NodeContext::Region, ui);
-                        NODEEDITOR.write().unwrap().apply_graph(graph, ui);
+                            .apply_graph(NodeContext::Material, graph, ui);
                     }
+                }
+            }
+        } else
+        //if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+        if let Some(sector) = map.find_sector(sector_id) {
+            if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
+                sector.properties.get("region_graph")
+            {
+                if let Some(graph) = map.shapefx_graphs.get(id) {
+                    NODEEDITOR
+                        .write()
+                        .unwrap()
+                        .apply_graph(NodeContext::Region, graph, ui);
                 }
             }
         }
