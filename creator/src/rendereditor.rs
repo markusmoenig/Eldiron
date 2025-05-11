@@ -83,7 +83,7 @@ impl RenderEditor {
                 let mut rusterix = RUSTERIX.write().unwrap();
                 if self.first_draw {
                     rusterix.build_scene_d3(&region.map, build_values);
-                    rusterix.build_terrain_d3(&mut region.map, &ValueContainer::default());
+                    rusterix.build_terrain_d3(&mut region.map, true);
                     self.first_draw = false;
                 }
                 rusterix.client.scene_d3.dynamic_lights = vec![];

@@ -167,7 +167,7 @@ impl WorldEditor {
                 if let Some(map) = project.get_map_mut(server_ctx) {
                     self.apply_brush(&mut map.terrain, Vec2::new(hit.x, hit.z), ui);
                     let mut rusterix = RUSTERIX.write().unwrap();
-                    rusterix.build_terrain_d3(map, &ValueContainer::default());
+                    rusterix.build_terrain_d3(map, false);
 
                     if let Some(hit) = self.terrain_hit {
                         server_ctx.hover_height = Some(map.terrain.sample_height(hit.x, hit.z));
@@ -195,7 +195,7 @@ impl WorldEditor {
                 if self.first_draw {
                     region.map.terrain.mark_dirty();
                     rusterix.build_scene_d3(&region.map, build_values);
-                    rusterix.build_terrain_d3(&mut region.map, &ValueContainer::default());
+                    rusterix.build_terrain_d3(&mut region.map, true);
                     self.first_draw = false;
                 }
 
@@ -293,6 +293,7 @@ impl WorldEditor {
 
                     self.undo_chunks = FxHashMap::default();
                     self.edited = false;
+                    self.first_draw = true;
                 }
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimap"),
@@ -326,7 +327,7 @@ impl WorldEditor {
 
             if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
                 self.apply_brush(&mut map.terrain, Vec2::new(hit.x, hit.z), ui);
-                rusterix.build_terrain_d3(map, &ValueContainer::default());
+                rusterix.build_terrain_d3(map, true);
             } else if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
                 if let Some(id) = server_ctx.curr_material_id {
                     let source = PixelSource::MaterialId(id);
@@ -344,7 +345,7 @@ impl WorldEditor {
                     } else {
                         self.apply_source_rules(x, z, map, source);
                     }
-                    rusterix.build_terrain_d3(map, &ValueContainer::default());
+                    rusterix.build_terrain_d3(map, true);
                     self.edited = true;
                 }
             }

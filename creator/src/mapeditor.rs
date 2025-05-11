@@ -336,7 +336,7 @@ impl MapEditor {
                                 redraw = true;
 
                                 ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Update Minimap"),
+                                    TheId::named("Soft Update Minimap"),
                                     TheValue::Empty,
                                 ));
                                 //crate::editor::RUSTERIX.write().unwrap().set_dirty();

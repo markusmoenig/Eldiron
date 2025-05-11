@@ -4,8 +4,59 @@ use vek::Vec2;
 
 use crate::editor::RUSTERIX;
 
-pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx: &ServerContext) {
+pub static MINIMAPBUFFER: LazyLock<RwLock<TheRGBABuffer>> =
+    LazyLock::new(|| RwLock::new(TheRGBABuffer::default()));
+
+pub static MINIMAPBOX: LazyLock<RwLock<Vec4<f32>>> = LazyLock::new(|| RwLock::new(Vec4::one()));
+
+pub fn draw_camera_marker(region: &Region, buffer: &mut TheRGBABuffer, server_ctx: &ServerContext) {
+    let camera_pos = Vec2::new(region.editing_position_3d.x, region.editing_position_3d.z);
+
+    let dim = *buffer.dim();
+    let bbox = *MINIMAPBOX.read().unwrap();
+
+    let pos = world_to_minimap_pixel(
+        camera_pos,
+        Vec2::new(dim.width as f32, dim.height as f32),
+        bbox,
+    );
+
+    let w = 4;
+    buffer.draw_rect_outline(
+        &TheDim::rect(pos.x as i32 - w, pos.y as i32 - w, w * 2, w * 2),
+        &vek::Rgba::red().into_array(),
+    );
+
+    if server_ctx.render_mode {
+        let look_at_pos = Vec2::new(region.editing_look_at_3d.x, region.editing_look_at_3d.z);
+
+        let pos = world_to_minimap_pixel(
+            look_at_pos,
+            Vec2::new(dim.width as f32, dim.height as f32),
+            bbox,
+        );
+
+        buffer.draw_rect_outline(
+            &TheDim::rect(pos.x as i32 - w, pos.y as i32 - w, w * 2, w * 2),
+            &vek::Rgba::yellow().into_array(),
+        );
+    }
+}
+
+pub fn draw_minimap(
+    orig_region: &Region,
+    buffer: &mut TheRGBABuffer,
+    server_ctx: &ServerContext,
+    hard: bool,
+) {
+    if !hard {
+        buffer.copy_into(0, 0, &MINIMAPBUFFER.read().unwrap());
+        draw_camera_marker(orig_region, buffer, server_ctx);
+        return;
+    }
+
     let dim = buffer.dim();
+    // println!("hard update");
 
     let width = dim.width as f32;
     let height = dim.height as f32;
@@ -31,6 +82,8 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
         bbox.z += 1.0;
         bbox.w += 1.0;
 
+        *MINIMAPBOX.write().unwrap() = bbox;
+
         let scale_x = width / bbox.z;
         let scale_y = height / bbox.w;
 
@@ -46,33 +99,33 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
         // Compute the offset to center the map
         region.map.offset.x = -bbox_center_x * region.map.grid_size;
         region.map.offset.y = bbox_center_y * region.map.grid_size;
-        region.map.camera_xz = Some(Vec2::new(
-            region.editing_position_3d.x,
-            region.editing_position_3d.z,
-        ));
+        // region.map.camera_xz = Some(Vec2::new(
+        //     region.editing_position_3d.x,
+        //     region.editing_position_3d.z,
+        // ));
 
-        region.map.look_at_xz = Some(Vec2::new(
-            region.editing_look_at_3d.x,
-            region.editing_look_at_3d.z,
-        ));
+        // region.map.look_at_xz = Some(Vec2::new(
+        //     region.editing_look_at_3d.x,
+        //     region.editing_look_at_3d.z,
+        // ));
 
         let mut builder = D2PreviewBuilder::new();
         builder.set_map_tool_type(MapToolType::MiniMap);
         builder.draw_grid = false;
-        if let Some(camera_pos) = region.map.camera_xz {
-            builder.set_camera_info(
-                Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
-                if server_ctx.render_mode {
-                    Some(Vec3::new(
-                        region.editing_look_at_3d.x,
-                        0.0,
-                        region.editing_look_at_3d.z,
-                    ))
-                } else {
-                    None
-                },
-            );
-        }
+        // if let Some(camera_pos) = region.map.camera_xz {
+        //     builder.set_camera_info(
+        //         Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
+        //         if server_ctx.render_mode {
+        //             Some(Vec3::new(
+        //                 region.editing_look_at_3d.x,
+        //                 0.0,
+        //                 region.editing_look_at_3d.z,
+        //             ))
+        //         } else {
+        //             None
+        //         },
+        //     );
+        // }
 
         let rusterix = RUSTERIX.write().unwrap();
 
@@ -88,12 +141,7 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
             &ValueContainer::default(),
         );
         map.terrain.mark_dirty();
-        builder.build_terrain(
-            &mut map,
-            &rusterix.assets,
-            &mut scene,
-            &ValueContainer::default(),
-        );
+        builder.build_terrain(&mut map, &rusterix.assets, &mut scene, false);
         builder.build_entities_items(&map, &rusterix.assets, &mut scene, Vec2::new(width, height));
 
         let translation_matrix = Mat3::<f32>::translation_2d(Vec2::new(
@@ -123,7 +171,39 @@ pub fn draw_minimap(orig_region: &Region, buffer: &mut TheRGBABuffer, server_ctx
             height as usize,
             64,
         );
+
+        MINIMAPBUFFER
+            .write()
+            .unwrap()
+            .resize(buffer.dim().width, buffer.dim().height);
+
+        MINIMAPBUFFER.write().unwrap().copy_into(0, 0, buffer);
+        draw_camera_marker(orig_region, buffer, server_ctx);
     } else {
         buffer.fill(background);
     }
+}
+
+fn world_to_minimap_pixel(
+    world_pos: Vec2<f32>,
+    render_dim: Vec2<f32>,
+    bbox: Vec4<f32>, // x, y, w, h
+) -> Vec2<f32> {
+    let width = render_dim.x;
+    let height = render_dim.y;
+
+    let scale_x = width / bbox.z;
+    let scale_y = height / bbox.w;
+    let grid_size = scale_x.min(scale_y);
+
+    let bbox_center_x = bbox.x + bbox.z / 2.0;
+    let bbox_center_y = bbox.y + bbox.w / 2.0;
+
+    let offset_x = -bbox_center_x * grid_size;
+    let offset_y = bbox_center_y * grid_size;
+
+    let pixel_x = (world_pos.x * grid_size) + offset_x + (width / 2.0);
+    let pixel_y = (-world_pos.y * grid_size) + offset_y + (height / 2.0);
+
+    Vec2::new(pixel_x, render_dim.y - pixel_y)
 }

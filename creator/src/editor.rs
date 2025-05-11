@@ -724,7 +724,7 @@ impl TheTrait for Editor {
                                 }
 
                                 if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
-                                    rusterix.build_terrain(map, &self.build_values);
+                                    rusterix.build_terrain(map, true);
                                     rusterix.draw_scene(
                                         map,
                                         render_view.render_buffer_mut().pixels_mut(),
