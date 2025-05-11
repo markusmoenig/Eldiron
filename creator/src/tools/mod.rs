@@ -110,7 +110,13 @@ pub trait Tool: Send + Sync {
     ) {
         if let Some(layout) = ui.get_hlayout("Game Tool Params") {
             layout.clear();
-            server_ctx.render_mode = false;
+
+            if server_ctx.render_mode {
+                server_ctx.render_mode = false;
+                if let Some(map) = project.get_map_mut(server_ctx) {
+                    map.terrain.mark_dirty();
+                }
+            }
 
             let mut source_switch = TheGroupButton::new(TheId::named("Map Helper Switch"));
             source_switch.add_text_status("Tiles".to_string(), "Pick and place tiles.".to_string());

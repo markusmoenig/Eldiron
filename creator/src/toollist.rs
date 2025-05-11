@@ -153,6 +153,9 @@ impl ToolList {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Preview Switch" {
                     server_ctx.render_mode = *index != 0;
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        map.terrain.mark_dirty();
+                    }
                 } else if id.name == "Map Helper Switch" {
                     server_ctx.curr_map_tool_helper.set_from_index(*index);
                     if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
@@ -363,11 +366,14 @@ impl ToolList {
             }
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == "PolyView" {
-                    if server_ctx.render_mode {
-                        server_ctx.render_mode = false;
-                        ui.set_widget_value("Preview Switch", ctx, TheValue::Int(0));
-                        return false;
-                    }
+                    // if server_ctx.render_mode {
+                    //     server_ctx.render_mode = false;
+                    //     ui.set_widget_value("Preview Switch", ctx, TheValue::Int(0));
+                    //     if let Some(map) = project.get_map_mut(server_ctx) {
+                    //         map.terrain.mark_dirty();
+                    //     }
+                    //     return false;
+                    // }
 
                     self.char_click_selected = false;
                     self.item_click_selected = false;

@@ -5,7 +5,8 @@ use rayon::prelude::*;
 use shared::prelude::*;
 
 use rusterix::{
-    D3Camera, D3OrbitCamera, PixelSource, Terrain, TerrainBlendMode, TerrainChunk, ValueContainer,
+    BrushPreview, D3Camera, D3OrbitCamera, PixelSource, Terrain, TerrainBlendMode, TerrainChunk,
+    ValueContainer,
 };
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -205,7 +206,11 @@ impl WorldEditor {
                 //     .apply_entities_items_d3(&region.map, &assets);
 
                 if let Some(hit) = self.terrain_hit {
-                    rusterix.client.terrain_hover = Some(hit);
+                    rusterix.client.brush_preview = Some(BrushPreview {
+                        position: hit,
+                        radius: self.radius,
+                        falloff: self.falloff,
+                    });
                 }
                 rusterix.client.scene_d3.dynamic_lights = vec![];
                 rusterix.client.draw_d3(
@@ -214,7 +219,7 @@ impl WorldEditor {
                     dim.width as usize,
                     dim.height as usize,
                 );
-                rusterix.client.terrain_hover = None;
+                rusterix.client.brush_preview = None;
 
                 self.hud.draw(
                     buffer,
@@ -307,7 +312,7 @@ impl WorldEditor {
                 } else if ui.logo {
                     self.orbit_camera
                         .rotate((*coord - self.drag_coord).map(|v| v as f32 * 5.0));
-                } else {
+                } else if server_ctx.curr_world_tool_helper != WorldToolHelper::Brushes {
                     self.apply_action(map, ui, server_ctx);
                 }
 
@@ -321,14 +326,11 @@ impl WorldEditor {
     }
 
     /// Applies the given action
-    pub fn apply_action(&mut self, map: &mut Map, ui: &TheUI, server_ctx: &mut ServerContext) {
+    pub fn apply_action(&mut self, map: &mut Map, _ui: &TheUI, server_ctx: &mut ServerContext) {
         if let Some(hit) = self.terrain_hit {
             let mut rusterix = RUSTERIX.write().unwrap();
 
-            if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
-                self.apply_brush(&mut map.terrain, Vec2::new(hit.x, hit.z), ui);
-                rusterix.build_terrain_d3(map, true);
-            } else if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
+            if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
                 if let Some(id) = server_ctx.curr_material_id {
                     let source = PixelSource::MaterialId(id);
                     let x = hit.x.floor() as i32;

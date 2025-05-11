@@ -1435,6 +1435,8 @@ impl TheTrait for Editor {
 
                                         for r in &mut self.project.regions {
                                             r.map.terrain.mark_dirty();
+                                            r.editing_position_3d = Vec3::zero();
+                                            r.editing_look_at_3d = Vec3::new(0.0, 0.0, -1.0);
                                         }
 
                                         // Set the project time to the server time slider widget
