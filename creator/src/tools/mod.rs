@@ -10,7 +10,6 @@ pub mod rect;
 pub mod render;
 pub mod sector;
 pub mod selection;
-pub mod shape;
 pub mod tileset;
 pub mod vertex;
 pub mod world;
@@ -124,21 +123,18 @@ pub trait Tool: Send + Sync {
                 "Materials".to_string(),
                 "Pick and place procedural materials.".to_string(),
             );
-            source_switch.add_text_status("Nodes".to_string(), "Work with nodes.".to_string());
-            // source_switch.add_text_status(
-            //     "Effects".to_string(),
-            //     "Add visual effects to shapes.".to_string(),
-            // );
-            // source_switch.add_text_status(
-            //     "Preview".to_string(),
-            //     "Preview the final map output.".to_string(),
-            // );
+            source_switch.add_text_status(
+                "Nodes".to_string(),
+                "Work with nodes in the render graph.".to_string(),
+            );
+            source_switch
+                .add_text_status("Shapes".to_string(), "Place procedural shapes.".to_string());
             source_switch.set_item_width(80);
             source_switch.set_index(server_ctx.curr_map_tool_helper as i32);
             layout.add_widget(Box::new(source_switch));
 
             let mut spacer = TheSpacer::new(TheId::empty());
-            spacer.limiter_mut().set_max_width(100);
+            spacer.limiter_mut().set_max_width(80);
             layout.add_widget(Box::new(spacer));
 
             let mut preview_switch = TheGroupButton::new(TheId::named("Preview Switch"));
@@ -161,6 +157,11 @@ pub trait Tool: Send + Sync {
                 ctx.ui.send(TheEvent::SetStackIndex(
                     TheId::named("Main Stack"),
                     PanelIndices::NodeEditor as usize,
+                ));
+            } else if server_ctx.curr_map_tool_helper == MapToolHelper::ShapePicker {
+                ctx.ui.send(TheEvent::SetStackIndex(
+                    TheId::named("Main Stack"),
+                    PanelIndices::ShapePicker as usize,
                 ));
             }
 

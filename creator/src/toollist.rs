@@ -1,6 +1,4 @@
-use crate::editor::NODEEDITOR;
-use crate::editor::RUSTERIX;
-use crate::editor::UNDOMANAGER;
+use crate::editor::{NODEEDITOR, RUSTERIX, SHAPEPICKER, UNDOMANAGER};
 use crate::prelude::*;
 pub use crate::tools::{
     config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, render::RenderTool,
@@ -157,7 +155,16 @@ impl ToolList {
                         map.terrain.mark_dirty();
                     }
                 } else if id.name == "Map Helper Switch" {
+                    let was_shape_picker =
+                        server_ctx.curr_map_tool_helper == MapToolHelper::ShapePicker;
                     server_ctx.curr_map_tool_helper.set_from_index(*index);
+                    if was_shape_picker
+                        && server_ctx.curr_map_tool_helper != MapToolHelper::ShapePicker
+                    {
+                        server_ctx.paste_clipboard = None;
+                        RUSTERIX.write().unwrap().set_dirty();
+                    }
+
                     if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
@@ -182,6 +189,12 @@ impl ToolList {
                             TheId::named("Main Stack"),
                             PanelIndices::NodeEditor as usize,
                         ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ShapePicker {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::ShapePicker as usize,
+                        ));
+                        SHAPEPICKER.read().unwrap().activate_shape_paste(server_ctx);
                     }
                     redraw = true;
                 }
@@ -397,7 +410,10 @@ impl ToolList {
                                         map.selected_linedefs.clear();
                                     }
 
-                                    server_ctx.paste_clipboard = None;
+                                    if server_ctx.curr_map_tool_helper != MapToolHelper::ShapePicker
+                                    {
+                                        server_ctx.paste_clipboard = None;
+                                    }
                                     RUSTERIX.write().unwrap().set_dirty();
 
                                     let undo_atom = RegionUndoAtom::MapEdit(

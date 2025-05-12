@@ -1,4 +1,6 @@
 use crate::prelude::*;
+use ShapeFXParam::*;
+use rusterix::ShapeFXParam;
 use rusterix::{Light, LightType, Shape, ShapeType};
 use theframework::prelude::*;
 
@@ -29,9 +31,9 @@ impl ShapePicker {
         ];
 
         let mut shapes: FxHashMap<ShapeType, Shape> = FxHashMap::default();
-        shapes.insert(ShapeType::Circle, Shape::new_with_type(ShapeType::Circle));
-        shapes.insert(ShapeType::Star, Shape::new_with_type(ShapeType::Star));
-        shapes.insert(ShapeType::Bricks, Shape::new_with_type(ShapeType::Bricks));
+        shapes.insert(ShapeType::Circle, Shape::new(ShapeType::Circle));
+        shapes.insert(ShapeType::Star, Shape::new(ShapeType::Star));
+        shapes.insert(ShapeType::Bricks, Shape::new(ShapeType::Bricks));
 
         Self {
             id,
@@ -160,10 +162,10 @@ impl ShapePicker {
                     );
 
                     let shape_type = ShapeType::from(i as i32);
-                    let mut shape = Shape::new_with_type(shape_type);
+                    let mut shape = Shape::new(shape_type);
                     shape.preview(&mut rgba);
                     self.shape_map.insert((x, y), shape_type);
-                    self.shape_text.insert((x, y), shape.shape.to_string());
+                    self.shape_text.insert((x, y), shape.shape_type.to_string());
 
                     buffer.copy_into(x * grid, y * grid, &rgba);
                 }
@@ -194,6 +196,7 @@ impl ShapePicker {
                         self.curr_shape_type = Some(*shape_type);
                         self.apply_shape_settings(ui, ctx, project, server_ctx);
                         redraw = true;
+                        self.activate_shape_paste(server_ctx);
                     }
                 }
             }
@@ -230,26 +233,27 @@ impl ShapePicker {
             //     }
             //}
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "shapeSize" {
+                if id.name.starts_with("shapepicker") {
+                    let snake_case = self.transform_to_snake_case(&id.name, "shapepicker");
                     if let Some(shape_type) = self.curr_shape_type {
-                        if let Some(shape) = self.shapes.get_mut(&shape_type) {
-                            shape.size.x = value.to_f32().unwrap();
-                            shape.size.y = shape.size.x;
+                        if let Some(node) = self.shapes.get_mut(&shape_type) {
+                            match value {
+                                TheValue::FloatRange(v, _) => {
+                                    node.values.set(&snake_case, rusterix::Value::Float(*v))
+                                }
+                                TheValue::IntRange(v, _) => {
+                                    node.values.set(&snake_case, rusterix::Value::Int(*v))
+                                }
+                                TheValue::Int(v) => {
+                                    node.values.set(&snake_case, rusterix::Value::Int(*v))
+                                }
+                                TheValue::ColorObject(v) => node
+                                    .values
+                                    .set(&snake_case, rusterix::Value::Color(v.clone())),
+                                _ => {}
+                            }
                         }
-                    }
-                } else if id.name == self.make_id(" Filter Edit") {
-                    if let TheValue::Text(filter) = value {
-                        self.filter = filter.to_lowercase();
-                        self.update_tiles(project, ui, ctx);
-                    }
-                } else if id.name == self.make_id(" Filter Role") {
-                    if let TheValue::Int(filter) = value {
-                        self.filter_role = *filter as u8;
-                        self.update_tiles(project, ui, ctx);
-                    }
-                } else if id.name == self.make_id(" Zoom") {
-                    if let TheValue::Float(zoom) = value {
-                        self.zoom = *zoom;
+                        self.activate_shape_paste(server_ctx);
                         self.update_tiles(project, ui, ctx);
                     }
                 }
@@ -259,12 +263,26 @@ impl ShapePicker {
         redraw
     }
 
+    /// Activates the current shape for pasting
+    pub fn activate_shape_paste(&self, server_ctx: &mut ServerContext) {
+        if let Some(shape_type) = self.curr_shape_type {
+            if let Some(shape) = self.shapes.get(&shape_type) {
+                let mut map = Map {
+                    subdivisions: 1000.0,
+                    ..Default::default()
+                };
+                shape.create(&mut map, None, None);
+                server_ctx.paste_clipboard = Some(map);
+            }
+        }
+    }
+
     /// Sets the node settings for the map selection.
     fn apply_shape_settings(
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         _server_ctx: &mut ServerContext,
     ) {
         // Create Node Settings if necessary
@@ -275,16 +293,84 @@ impl ShapePicker {
         let mut nodeui = TheNodeUI::default();
 
         if let Some(shape_type) = self.curr_shape_type {
-            if let Some(shape) = self.shapes.get(&shape_type) {
-                let item = TheNodeUIItem::FloatEditSlider(
-                    "shapeSize".into(),
-                    "Size".into(),
-                    "Set the size of the shape.".into(),
-                    shape.size.x,
-                    0.0..=4.0,
-                    false,
-                );
-                nodeui.add_item(item);
+            if let Some(node) = self.shapes.get(&shape_type) {
+                for param in node.params() {
+                    match param {
+                        Float(id, name, status, value, range) => {
+                            let item = TheNodeUIItem::FloatEditSlider(
+                                format!(
+                                    "shapepicker{}",
+                                    id.get(0..1).unwrap_or("").to_uppercase()
+                                        + id.get(1..).unwrap_or("")
+                                ),
+                                name.clone(),
+                                status.clone(),
+                                value,
+                                range,
+                                false,
+                            );
+                            nodeui.add_item(item);
+                        }
+                        Int(id, name, status, value, range) => {
+                            let item = TheNodeUIItem::IntEditSlider(
+                                format!(
+                                    "shapepicker{}",
+                                    id.get(0..1).unwrap_or("").to_uppercase()
+                                        + id.get(1..).unwrap_or("")
+                                ),
+                                name.clone(),
+                                status.clone(),
+                                value,
+                                range,
+                                false,
+                            );
+                            nodeui.add_item(item);
+                        }
+                        Color(id, name, status, value) => {
+                            let item = TheNodeUIItem::ColorPicker(
+                                format!(
+                                    "shapepicker{}",
+                                    id.get(0..1).unwrap_or("").to_uppercase()
+                                        + id.get(1..).unwrap_or("")
+                                ),
+                                name.clone(),
+                                status.clone(),
+                                value,
+                                false,
+                            );
+                            nodeui.add_item(item);
+                        }
+                        PaletteIndex(id, name, status, value) => {
+                            let item = TheNodeUIItem::PaletteSlider(
+                                format!(
+                                    "shapepicker{}",
+                                    id.get(0..1).unwrap_or("").to_uppercase()
+                                        + id.get(1..).unwrap_or("")
+                                ),
+                                name.clone(),
+                                status.clone(),
+                                value,
+                                project.palette.clone(),
+                                false,
+                            );
+                            nodeui.add_item(item);
+                        }
+                        Selector(id, name, status, options, value) => {
+                            let item = TheNodeUIItem::Selector(
+                                format!(
+                                    "shapepicker{}",
+                                    id.get(0..1).unwrap_or("").to_uppercase()
+                                        + id.get(1..).unwrap_or("")
+                                ),
+                                name.clone(),
+                                status.clone(),
+                                options.clone(),
+                                value,
+                            );
+                            nodeui.add_item(item);
+                        }
+                    }
+                }
             }
         }
 
@@ -298,6 +384,31 @@ impl ShapePicker {
                 TheValue::Text("Shape Settings".to_string()),
             ));
         }
+    }
+
+    fn transform_to_snake_case(&self, input: &str, strip_prefix: &str) -> String {
+        // Strip the prefix if it exists
+        let stripped = if let Some(remainder) = input.strip_prefix(strip_prefix) {
+            remainder
+        } else {
+            input
+        };
+
+        // Convert to snake_case
+        let mut snake_case = String::new();
+        for (i, c) in stripped.chars().enumerate() {
+            if c.is_uppercase() {
+                // Add an underscore before uppercase letters (except for the first character)
+                if i > 0 {
+                    snake_case.push('_');
+                }
+                snake_case.push(c.to_ascii_lowercase());
+            } else {
+                snake_case.push(c);
+            }
+        }
+
+        snake_case
     }
 
     ///  Create an id.

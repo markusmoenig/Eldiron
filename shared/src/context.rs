@@ -25,6 +25,7 @@ pub enum MapToolHelper {
     TilePicker,
     MaterialPicker,
     NodeEditor,
+    ShapePicker,
 }
 
 impl MapToolHelper {
@@ -32,6 +33,7 @@ impl MapToolHelper {
         match index {
             1 => *self = MapToolHelper::MaterialPicker,
             2 => *self = MapToolHelper::NodeEditor,
+            3 => *self = MapToolHelper::ShapePicker,
             _ => *self = MapToolHelper::TilePicker,
         }
     }

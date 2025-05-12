@@ -164,6 +164,7 @@ pub fn draw_minimap(
         let mut rast = Rasterizer::setup(Some(transform), Mat4::identity(), Mat4::identity())
             .background(background);
         rast.ambient_color = Some(Vec4::one());
+        rast.render_terrain_in_d2 = true;
         rast.rasterize(
             &mut scene,
             buffer.pixels_mut(),
