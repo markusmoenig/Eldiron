@@ -336,7 +336,7 @@ impl NodeEditor {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name.starts_with("shapepicker") {
+                if id.name.starts_with("shapefx") {
                     let snake_case = self.transform_to_snake_case(&id.name, "shapefx");
                     if let Some(index) = self.graph.selected_node {
                         if let Some(node) = self.graph.nodes.get_mut(index) {
