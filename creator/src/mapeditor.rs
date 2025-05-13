@@ -318,13 +318,17 @@ impl MapEditor {
                     } else if !server_ctx.world_mode {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             if ui.ctrl || ui.logo {
+                                let old_grid_size = map.grid_size;
+
                                 map.grid_size += coord.y as f32;
                                 map.grid_size = map.grid_size.clamp(5.0, 100.0);
+
+                                let scale = map.grid_size / old_grid_size;
+                                map.offset *= scale;
                             } else {
                                 map.offset += Vec2::new(-coord.x as f32, coord.y as f32);
                             }
                             map.curr_rectangle = None;
-                            //crate::editor::RUSTERIX.write().unwrap().set_dirty();
                         }
 
                         if server_ctx.curr_map_context == MapContext::Region {
