@@ -183,6 +183,7 @@ impl NodeEditor {
                 TheContextMenuItem::new("Glow".to_string(), TheId::named("Glow")),
                 TheContextMenuItem::new("Noise Overlay".to_string(), TheId::named("Noise Overlay")),
                 TheContextMenuItem::new("Wood".to_string(), TheId::named("Wood")),
+                TheContextMenuItem::new("Stone".to_string(), TheId::named("Stone")),
             ],
             ..Default::default()
         }));
