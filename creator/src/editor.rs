@@ -1378,6 +1378,8 @@ impl TheTrait for Editor {
                                 let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
                                 let prev = self.project.palette.clone();
                                 self.project.palette.load_from_txt(contents);
+                                *PALETTE.write().unwrap() = self.project.palette.clone();
+
                                 if let Some(palette_picker) =
                                     ui.get_palette_picker("Palette Picker")
                                 {

@@ -1,5 +1,5 @@
 use crate::editor::{
-    CONFIG, CONFIGEDITOR, NODEEDITOR, PALETTE, RUSTERIX, SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER,
+    CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER,
 };
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
@@ -2097,13 +2097,6 @@ impl Sidebar {
                     server_ctx.curr_map_context = MapContext::Region;
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.write().unwrap().set_dirty();
-                    NODEEDITOR.write().unwrap().set_context(
-                        NodeContext::Region,
-                        ui,
-                        ctx,
-                        project,
-                        server_ctx,
-                    );
 
                     server_ctx.cc = server_ctx.curr_region_content;
                     set_code(ui, ctx, project, server_ctx);
@@ -2311,13 +2304,6 @@ impl Sidebar {
                     server_ctx.curr_map_context = MapContext::Material;
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Material;
                     RUSTERIX.write().unwrap().set_dirty();
-                    NODEEDITOR.write().unwrap().set_context(
-                        NodeContext::Material,
-                        ui,
-                        ctx,
-                        project,
-                        server_ctx,
-                    );
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
