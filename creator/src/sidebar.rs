@@ -1,5 +1,5 @@
 use crate::editor::{
-    CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER,
+    CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER,
 };
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
@@ -2929,6 +2929,8 @@ impl Sidebar {
 
         if let Some(region_id) = region_id {
             if let Some(region) = project.get_region(&region_id) {
+                SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+
                 ui.set_widget_value(
                     "RegionConfigEdit",
                     ctx,

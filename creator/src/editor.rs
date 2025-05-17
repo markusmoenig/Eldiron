@@ -2,7 +2,9 @@ use crate::Embedded;
 use crate::prelude::*;
 use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
-use rusterix::{PlayerCamera, Rusterix, Texture, Value, ValueContainer};
+use rusterix::{
+    PlayerCamera, Rusterix, SceneManager, SceneManagerResult, Texture, Value, ValueContainer,
+};
 use shared::rusterix_utils::*;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -10,6 +12,7 @@ use std::sync::{
     Arc, Mutex,
     mpsc::{Receiver, Sender, channel},
 };
+
 use std::thread;
 
 pub static TILEPICKER: LazyLock<RwLock<TilePicker>> =
@@ -49,6 +52,8 @@ pub static RENDEREDITOR: LazyLock<RwLock<RenderEditor>> =
     LazyLock::new(|| RwLock::new(RenderEditor::new()));
 pub static CUSTOMCAMERA: LazyLock<RwLock<CustomCamera>> =
     LazyLock::new(|| RwLock::new(CustomCamera::new()));
+pub static SCENEMANAGER: LazyLock<RwLock<SceneManager>> =
+    LazyLock::new(|| RwLock::new(SceneManager::default()));
 
 pub struct Editor {
     project: Project,
@@ -480,6 +485,7 @@ impl TheTrait for Editor {
         }
 
         RUSTERIX.write().unwrap().set_d2();
+        SCENEMANAGER.write().unwrap().startup();
 
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
     }
@@ -502,6 +508,7 @@ impl TheTrait for Editor {
         let mut redraw = false;
         let mut update_server_icons = false;
 
+        // Make sure on first startup the active tool is properly selected
         if self.update_counter == 0 {
             let mut toollist = TOOLLIST.write().unwrap();
             let id = toollist.get_current_tool().id().uuid;
@@ -509,6 +516,19 @@ impl TheTrait for Editor {
             toollist.set_tool(id, ui, ctx, &mut self.project, &mut self.server_ctx);
         }
 
+        // Get build results from the scene manager if any
+        while let Some(result) = SCENEMANAGER.write().unwrap().receive() {
+            match result {
+                SceneManagerResult::Startup => {
+                    println!("Scene manager has started up.");
+                }
+                SceneManagerResult::Quit => {
+                    println!("Scene manager has shutdown.");
+                }
+            }
+        }
+
+        // Check for redraw (30fps) and tick updates
         let (redraw_update, tick_update) = self.update_tracker.update(
             (1000 / CONFIGEDITOR.read().unwrap().target_fps) as u64,
             CONFIGEDITOR.read().unwrap().game_tick_ms as u64,
@@ -1433,8 +1453,8 @@ impl TheTrait for Editor {
 
                                     if let Ok(project) = serde_json::from_str(&contents) {
                                         self.project = project;
-                                        insert_content_into_maps(&mut self.project);
 
+                                        insert_content_into_maps(&mut self.project);
                                         for r in &mut self.project.regions {
                                             r.map.terrain.mark_dirty();
                                             r.editing_position_3d = Vec3::zero();
@@ -1478,6 +1498,11 @@ impl TheTrait for Editor {
 
                                         // Set palette and textures
                                         *PALETTE.write().unwrap() = self.project.palette.clone();
+
+                                        SCENEMANAGER
+                                            .write()
+                                            .unwrap()
+                                            .set_palette(self.project.palette.clone());
 
                                         ctx.ui.send(TheEvent::SetStatusText(
                                             TheId::empty(),

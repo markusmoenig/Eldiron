@@ -75,8 +75,11 @@ impl Default for Project {
 
 impl Project {
     pub fn new() -> Self {
+        let mut sky = ShapeFX::new(ShapeFXRole::Sky);
+        sky.position.x = 200;
         let render_graph = ShapeFXGraph {
-            nodes: vec![ShapeFX::new(ShapeFXRole::Render)],
+            nodes: vec![ShapeFX::new(ShapeFXRole::Render), sky],
+            connections: vec![(0, 1, 1, 0)],
             ..Default::default()
         };
 
