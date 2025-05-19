@@ -484,6 +484,12 @@ impl TheTrait for Editor {
                 .set("treasure_off", Value::Texture(texture));
         }
 
+        RUSTERIX
+            .write()
+            .unwrap()
+            .client
+            .builder_d2
+            .set_properties(&self.build_values);
         RUSTERIX.write().unwrap().set_d2();
         SCENEMANAGER.write().unwrap().startup();
 
@@ -521,6 +527,20 @@ impl TheTrait for Editor {
             match result {
                 SceneManagerResult::Startup => {
                     println!("Scene manager has started up.");
+                }
+                SceneManagerResult::Chunk(chunk) => {
+                    println!("Scene manager has send chunk {}.", chunk.origin);
+                    RUSTERIX
+                        .write()
+                        .unwrap()
+                        .client
+                        .scene
+                        .chunks
+                        .insert((chunk.origin.x, chunk.origin.y), chunk);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Minimap"),
+                        TheValue::Empty,
+                    ));
                 }
                 SceneManagerResult::Quit => {
                     println!("Scene manager has shutdown.");

@@ -109,9 +109,9 @@ pub fn draw_minimap(
         //     region.editing_look_at_3d.z,
         // ));
 
-        let mut builder = D2PreviewBuilder::new();
-        builder.set_map_tool_type(MapToolType::MiniMap);
-        builder.draw_grid = false;
+        // let mut builder = D2PreviewBuilder::new();
+        // builder.set_map_tool_type(MapToolType::MiniMap);
+        // builder.draw_grid = false;
         // if let Some(camera_pos) = region.map.camera_xz {
         //     builder.set_camera_info(
         //         Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
@@ -127,33 +127,34 @@ pub fn draw_minimap(
         //     );
         // }
 
-        let rusterix = RUSTERIX.write().unwrap();
+        let mut rusterix = RUSTERIX.write().unwrap();
 
-        let mut map = region.map.clone();
-        map.clear_temp();
-        map.entities.clear();
-        map.items.clear();
+        // let mut map = region.map.clone();
+        // map.clear_temp();
+        // map.entities.clear();
+        // map.items.clear();
 
-        let mut scene = builder.build(
-            &map,
-            &rusterix.assets,
-            Vec2::new(width, height),
-            &ValueContainer::default(),
-        );
-        map.terrain.mark_dirty();
-        builder.build_terrain(&mut map, &rusterix.assets, &mut scene, false);
-        builder.build_entities_items(&map, &rusterix.assets, &mut scene, Vec2::new(width, height));
+        // let mut scene = builder.build(
+        //     &map,
+        //     &rusterix.assets,
+        //     Vec2::new(width, height),
+        //     &ValueContainer::default(),
+        // );
+        //let mut scene = Scene::default();
+        //map.terrain.mark_dirty();
+        //builder.build_terrain(&mut map, &rusterix.assets, &mut scene, false);
+        //builder.build_entities_items(&map, &rusterix.assets, &mut scene, Vec2::new(width, height));
 
         let translation_matrix = Mat3::<f32>::translation_2d(Vec2::new(
-            map.offset.x + width / 2.0,
-            -map.offset.y + height / 2.0,
+            region.map.offset.x + width / 2.0,
+            -region.map.offset.y + height / 2.0,
         ));
         let scale_matrix = Mat3::new(
-            map.grid_size,
+            region.map.grid_size,
             0.0,
             0.0,
             0.0,
-            map.grid_size,
+            region.map.grid_size,
             0.0,
             0.0,
             0.0,
@@ -166,11 +167,11 @@ pub fn draw_minimap(
         rast.ambient_color = Some(Vec4::one());
         rast.render_terrain_in_d2 = true;
         rast.rasterize(
-            &mut scene,
+            &mut rusterix.client.scene,
             buffer.pixels_mut(),
             width as usize,
             height as usize,
-            64,
+            40,
         );
 
         MINIMAPBUFFER

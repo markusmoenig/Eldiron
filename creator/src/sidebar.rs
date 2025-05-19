@@ -962,14 +962,20 @@ impl Sidebar {
                 if id.name == "Update Materialpicker" {
                     self.show_filtered_materials(ui, ctx, project, server_ctx);
                     // Set the materials in the RUSTERIX assets
-                    RUSTERIX.write().unwrap().assets.set_materials(
+                    let mut rusterix = RUSTERIX.write().unwrap();
+                    rusterix.assets.set_materials(
                         project
                             .materials
                             .iter()
                             .map(|(k, v)| (*k, v.clone()))
                             .collect(),
                     );
-                    RUSTERIX.write().unwrap().set_dirty();
+                    rusterix.client.scene.textures = rusterix.assets.tile_list.clone();
+                    SCENEMANAGER.write().unwrap().set_tile_list(
+                        rusterix.assets.tile_list.clone(),
+                        rusterix.assets.tile_indices.clone(),
+                    );
+                    rusterix.set_dirty();
                 } else if id.name == "Update Model List" {
                     self.show_filtered_models(ui, ctx, project, server_ctx);
 
@@ -3413,11 +3419,14 @@ impl Sidebar {
     /// Tilemaps in the project have been updated, propagate the change to all relevant parties.
     pub fn update_tiles(&mut self, _ui: &mut TheUI, ctx: &mut TheContext, project: &mut Project) {
         let tiles = project.extract_tiles();
-        RUSTERIX
-            .write()
-            .unwrap()
-            .assets
-            .set_rgba_tiles(tiles.clone());
+
+        let mut rusterix = RUSTERIX.write().unwrap();
+        rusterix.assets.set_rgba_tiles(tiles.clone());
+        rusterix.client.scene.textures = rusterix.assets.tile_list.clone();
+        SCENEMANAGER.write().unwrap().set_tile_list(
+            rusterix.assets.tile_list.clone(),
+            rusterix.assets.tile_indices.clone(),
+        );
 
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Tilepicker"),
