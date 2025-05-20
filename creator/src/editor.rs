@@ -529,7 +529,7 @@ impl TheTrait for Editor {
                     println!("Scene manager has started up.");
                 }
                 SceneManagerResult::Chunk(chunk) => {
-                    println!("Scene manager has send chunk {}.", chunk.origin);
+                    // println!("Scene manager has send chunk {}.", chunk.origin);
                     RUSTERIX
                         .write()
                         .unwrap()
@@ -730,23 +730,23 @@ impl TheTrait for Editor {
                                         }
 
                                         rusterix.set_dirty();
-                                        rusterix.build_scene(
-                                            Vec2::new(dim.width as f32, dim.height as f32),
-                                            &map,
-                                            &self.build_values,
-                                            self.server_ctx.game_mode,
-                                        );
+                                        // rusterix.build_scene(
+                                        //     Vec2::new(dim.width as f32, dim.height as f32),
+                                        //     &map,
+                                        //     &self.build_values,
+                                        //     self.server_ctx.game_mode,
+                                        // );
                                         rusterix.apply_entities_items(
                                             Vec2::new(dim.width as f32, dim.height as f32),
                                             &map,
                                         );
                                     } else {
-                                        rusterix.build_scene(
-                                            Vec2::new(dim.width as f32, dim.height as f32),
-                                            &region.map,
-                                            &self.build_values,
-                                            self.server_ctx.game_mode,
-                                        );
+                                        // rusterix.build_scene(
+                                        //     Vec2::new(dim.width as f32, dim.height as f32),
+                                        //     &region.map,
+                                        //     &self.build_values,
+                                        //     self.server_ctx.game_mode,
+                                        // );
 
                                         if let Some(map) = self.project.get_map(&self.server_ctx) {
                                             rusterix.apply_entities_items(
@@ -799,34 +799,24 @@ impl TheTrait for Editor {
                                             map.paste_at_position(clipboard, hover);
                                         }
                                         rusterix.set_dirty();
-                                        rusterix.build_scene(
+                                        rusterix.build_custom_scene_d2(
                                             Vec2::new(dim.width as f32, dim.height as f32),
                                             &map,
                                             &self.build_values,
-                                            self.server_ctx.game_mode,
                                         );
-                                        rusterix.apply_entities_items(
-                                            Vec2::new(dim.width as f32, dim.height as f32),
-                                            &map,
-                                        );
-                                        rusterix.draw_scene(
+                                        rusterix.draw_custom_d2(
                                             &map,
                                             render_view.render_buffer_mut().pixels_mut(),
                                             dim.width as usize,
                                             dim.height as usize,
                                         );
                                     } else {
-                                        rusterix.build_scene(
+                                        rusterix.build_custom_scene_d2(
                                             Vec2::new(dim.width as f32, dim.height as f32),
                                             material,
                                             &self.build_values,
-                                            self.server_ctx.game_mode,
                                         );
-                                        rusterix.apply_entities_items(
-                                            Vec2::new(dim.width as f32, dim.height as f32),
-                                            material,
-                                        );
-                                        rusterix.draw_scene(
+                                        rusterix.draw_custom_d2(
                                             material,
                                             render_view.render_buffer_mut().pixels_mut(),
                                             dim.width as usize,
@@ -889,12 +879,12 @@ impl TheTrait for Editor {
                                             map.paste_at_position(clipboard, hover);
                                         }
                                         rusterix.set_dirty();
-                                        rusterix.build_scene(
-                                            Vec2::new(dim.width as f32, dim.height as f32),
-                                            &map,
-                                            &self.build_values,
-                                            self.server_ctx.game_mode,
-                                        );
+                                        // rusterix.build_scene(
+                                        //     Vec2::new(dim.width as f32, dim.height as f32),
+                                        //     &map,
+                                        //     &self.build_values,
+                                        //     self.server_ctx.game_mode,
+                                        // );
                                         rusterix.apply_entities_items(
                                             Vec2::new(dim.width as f32, dim.height as f32),
                                             &map,
@@ -906,12 +896,12 @@ impl TheTrait for Editor {
                                             dim.height as usize,
                                         );
                                     } else {
-                                        rusterix.build_scene(
-                                            Vec2::new(dim.width as f32, dim.height as f32),
-                                            &screen.map,
-                                            &self.build_values,
-                                            self.server_ctx.game_mode,
-                                        );
+                                        // rusterix.build_scene(
+                                        //     Vec2::new(dim.width as f32, dim.height as f32),
+                                        //     &screen.map,
+                                        //     &self.build_values,
+                                        //     self.server_ctx.game_mode,
+                                        // );
                                         rusterix.apply_entities_items(
                                             Vec2::new(dim.width as f32, dim.height as f32),
                                             &screen.map,

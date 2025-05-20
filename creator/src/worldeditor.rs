@@ -161,7 +161,7 @@ impl WorldEditor {
         ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
-        build_values: &mut ValueContainer,
+        _build_values: &mut ValueContainer,
     ) {
         if self.apply_brush {
             if let Some(hit) = self.terrain_hit {
@@ -195,7 +195,7 @@ impl WorldEditor {
 
                 if self.first_draw {
                     region.map.terrain.mark_dirty();
-                    rusterix.build_scene_d3(&region.map, build_values);
+                    // rusterix.build_scene_d3(&region.map, build_values);
                     rusterix.build_terrain_d3(&mut region.map, true);
                     self.first_draw = false;
                 }
@@ -213,7 +213,7 @@ impl WorldEditor {
                     });
                 }
                 rusterix.client.scene_d3.dynamic_lights = vec![];
-                rusterix.client.draw_d3(
+                rusterix.draw_d3(
                     &region.map,
                     buffer.pixels_mut(),
                     dim.width as usize,

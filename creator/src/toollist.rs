@@ -1,4 +1,4 @@
-use crate::editor::{NODEEDITOR, RUSTERIX, SHAPEPICKER, UNDOMANAGER};
+use crate::editor::{NODEEDITOR, RUSTERIX, SCENEMANAGER, SHAPEPICKER, UNDOMANAGER};
 use crate::prelude::*;
 pub use crate::tools::{
     config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, render::RenderTool,
@@ -82,7 +82,7 @@ impl ToolList {
         &mut self,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         server_ctx: &mut ServerContext,
         undo_atom: Option<RegionUndoAtom>,
     ) {
@@ -93,6 +93,10 @@ impl ToolList {
                     undo_atom,
                     ctx,
                 );
+                // Reset the background renderer
+                if let Some(map) = project.get_map(server_ctx) {
+                    SCENEMANAGER.write().unwrap().set_map(map.clone());
+                }
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
         } else if server_ctx.curr_map_context == MapContext::Material {

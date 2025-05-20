@@ -62,7 +62,7 @@ impl RenderEditor {
         _ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
-        build_values: &mut ValueContainer,
+        _build_values: &mut ValueContainer,
     ) {
         if let Some(render_view) = ui.get_render_view("PolyView") {
             let dim = *render_view.dim();
@@ -82,15 +82,15 @@ impl RenderEditor {
 
                 let mut rusterix = RUSTERIX.write().unwrap();
                 if self.first_draw {
-                    rusterix.build_scene_d3(&region.map, build_values);
+                    // rusterix.build_scene_d3(&region.map, build_values);
                     rusterix.build_terrain_d3(&mut region.map, true);
                     self.first_draw = false;
                 }
-                rusterix.client.scene_d3.dynamic_lights = vec![];
+                rusterix.client.scene.dynamic_lights = vec![];
                 rusterix.build_entities_items_d3(&region.map);
 
                 if server_ctx.curr_render_tool_helper != RenderToolHelper::Tracer {
-                    rusterix.client.draw_d3(
+                    rusterix.draw_d3(
                         &region.map,
                         buffer.pixels_mut(),
                         dim.width as usize,
@@ -103,7 +103,7 @@ impl RenderEditor {
                         self.accum_buffer =
                             AccumBuffer::new(dim.width as usize, dim.height as usize);
                     }
-                    rusterix.client.trace(&mut self.accum_buffer);
+                    rusterix.trace_scene(&mut self.accum_buffer);
                     self.accum_buffer.convert_to_u8(buffer.pixels_mut());
                 }
             }

@@ -162,17 +162,20 @@ pub fn draw_minimap(
         );
         let transform = translation_matrix * scale_matrix;
 
-        let mut rast = Rasterizer::setup(Some(transform), Mat4::identity(), Mat4::identity())
-            .background(background);
-        rast.ambient_color = Some(Vec4::one());
-        rast.render_terrain_in_d2 = true;
-        rast.rasterize(
-            &mut rusterix.client.scene,
-            buffer.pixels_mut(),
-            width as usize,
-            height as usize,
-            40,
-        );
+        let assets = rusterix.assets.clone();
+
+        Rasterizer::setup(Some(transform), Mat4::identity(), Mat4::identity())
+            .background(background)
+            .ambient(Vec4::one())
+            .render_mode(RenderMode::render_2d().ignore_background_shader(true))
+            .rasterize(
+                &mut rusterix.client.scene,
+                buffer.pixels_mut(),
+                width as usize,
+                height as usize,
+                40,
+                &assets,
+            );
 
         MINIMAPBUFFER
             .write()

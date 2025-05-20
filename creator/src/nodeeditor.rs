@@ -1,4 +1,6 @@
-use crate::editor::{CONFIGEDITOR, PALETTE, RENDEREDITOR, RUSTERIX, UNDOMANAGER, WORLDEDITOR};
+use crate::editor::{
+    CONFIGEDITOR, PALETTE, RENDEREDITOR, RUSTERIX, SCENEMANAGER, UNDOMANAGER, WORLDEDITOR,
+};
 use crate::prelude::*;
 use shared::prelude::*;
 
@@ -94,6 +96,11 @@ impl NodeEditor {
                 RUSTERIX.write().unwrap().set_dirty();
                 RENDEREDITOR.write().unwrap().first_draw = true;
                 WORLDEDITOR.write().unwrap().first_draw = true;
+
+                // Reset the background renderer
+                if let Some(map) = project.get_map(server_ctx) {
+                    SCENEMANAGER.write().unwrap().set_map(map.clone());
+                }
             }
         } else if self.context == NodeContext::Material {
             if let Some(map) = project.get_map_mut(server_ctx) {

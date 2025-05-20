@@ -970,7 +970,6 @@ impl Sidebar {
                             .map(|(k, v)| (*k, v.clone()))
                             .collect(),
                     );
-                    rusterix.client.scene.textures = rusterix.assets.tile_list.clone();
                     SCENEMANAGER.write().unwrap().set_tile_list(
                         rusterix.assets.tile_list.clone(),
                         rusterix.assets.tile_indices.clone(),
@@ -3422,7 +3421,6 @@ impl Sidebar {
 
         let mut rusterix = RUSTERIX.write().unwrap();
         rusterix.assets.set_rgba_tiles(tiles.clone());
-        rusterix.client.scene.textures = rusterix.assets.tile_list.clone();
         SCENEMANAGER.write().unwrap().set_tile_list(
             rusterix.assets.tile_list.clone(),
             rusterix.assets.tile_indices.clone(),

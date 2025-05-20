@@ -1,3 +1,4 @@
+use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use ShapeFXParam::*;
 use rusterix::ShapeFXParam;
@@ -163,7 +164,7 @@ impl ShapePicker {
 
                     let shape_type = ShapeType::from(i as i32);
                     let mut shape = Shape::new(shape_type);
-                    shape.preview(&mut rgba);
+                    shape.preview(&mut rgba, &RUSTERIX.read().unwrap().assets);
                     self.shape_map.insert((x, y), shape_type);
                     self.shape_text.insert((x, y), shape.shape_type.to_string());
 
