@@ -1,4 +1,4 @@
-use crate::editor::{NODEEDITOR, RUSTERIX, SCENEMANAGER, SHAPEPICKER, UNDOMANAGER};
+use crate::editor::{NODEEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, SHAPEPICKER, UNDOMANAGER};
 use crate::prelude::*;
 pub use crate::tools::{
     config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, render::RenderTool,
@@ -88,29 +88,43 @@ impl ToolList {
     ) {
         if server_ctx.curr_map_context == MapContext::Region {
             if let Some(undo_atom) = undo_atom {
+                let only_selection_changed = undo_atom.only_selection_changed();
                 UNDOMANAGER.write().unwrap().add_region_undo(
                     &server_ctx.curr_region,
                     undo_atom,
                     ctx,
                 );
-                // Reset the background renderer
-                if let Some(map) = project.get_map(server_ctx) {
-                    SCENEMANAGER.write().unwrap().set_map(map.clone());
+                if !only_selection_changed {
+                    // Reset the background renderer
+                    if let Some(map) = project.get_map(server_ctx) {
+                        SCENEMANAGER.write().unwrap().set_map(map.clone());
+                    }
                 }
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
         } else if server_ctx.curr_map_context == MapContext::Material {
             if let Some(undo_atom) = undo_atom {
+                let only_selection_changed = undo_atom.only_selection_changed();
                 if let Some(material_undo_atom) = undo_atom.to_material_atom() {
                     UNDOMANAGER
                         .write()
                         .unwrap()
                         .add_material_undo(material_undo_atom, ctx);
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Update Materialpicker"),
-                        TheValue::Empty,
-                    ));
+                    if NODEEDITOR.read().unwrap().context != NodeContext::Material
+                        && !only_selection_changed
+                    {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            NODEEDITOR
+                                .write()
+                                .unwrap()
+                                .create_material_preview(map, &PALETTE.read().unwrap());
+                        }
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Materialpicker"),
+                            TheValue::Empty,
+                        ));
+                    }
                 }
             }
         } else if server_ctx.curr_map_context == MapContext::Screen {

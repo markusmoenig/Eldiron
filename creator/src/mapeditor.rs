@@ -941,9 +941,9 @@ impl MapEditor {
                                     );
                                     self.add_map_undo(map, prev, ctx, server_ctx);
 
-                                    if id.name.contains("Material") {
-                                        NODEEDITOR.read().unwrap().force_update(ctx, map);
-                                    }
+                                    // if id.name.contains("Material") {
+                                    //     NODEEDITOR.read().unwrap().force_update(ctx, map);
+                                    // }
                                 }
                             }
                         }

@@ -1,4 +1,4 @@
-use crate::editor::WORLDEDITOR;
+use crate::editor::{SCENEMANAGER, WORLDEDITOR};
 use crate::prelude::*;
 use crate::undo::material_undo::MaterialUndoAtom;
 use crate::undo::screen_undo::ScreenUndoAtom;
@@ -16,6 +16,17 @@ pub enum RegionUndoAtom {
 }
 
 impl RegionUndoAtom {
+    pub fn only_selection_changed(&self) -> bool {
+        match self {
+            RegionUndoAtom::MapEdit(map1, map2) => {
+                map1.selected_vertices != map2.selected_vertices
+                    || map1.selected_linedefs != map2.selected_linedefs
+                    || map1.selected_sectors != map2.selected_sectors
+            }
+            _ => false,
+        }
+    }
+
     pub fn to_material_atom(self) -> Option<MaterialUndoAtom> {
         match self {
             RegionUndoAtom::MapEdit(map1, map2) => Some(MaterialUndoAtom::MapEdit(map1, map2)),
@@ -43,6 +54,9 @@ impl RegionUndoAtom {
                     TheValue::Empty,
                 ));
 
+                if !self.only_selection_changed() {
+                    SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+                }
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             RegionUndoAtom::TerrainEdit(prev, _) => {
@@ -72,6 +86,9 @@ impl RegionUndoAtom {
                     TheValue::Empty,
                 ));
 
+                if !self.only_selection_changed() {
+                    SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+                }
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             RegionUndoAtom::TerrainEdit(_, next) => {

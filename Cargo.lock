@@ -4200,7 +4200,6 @@ dependencies = [
  "pathfinding",
  "rand 0.9.1",
  "rayon",
- "rect_packer",
  "ref_thread_local",
  "regex",
  "rust-embed",
