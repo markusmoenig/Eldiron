@@ -1,4 +1,4 @@
-use crate::editor::NODEEDITOR;
+use crate::editor::{NODEEDITOR, SCENEMANAGER};
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -419,7 +419,10 @@ impl Tool for SectorTool {
                             let context = NODEEDITOR.read().unwrap().context;
                             for sector_id in &map.selected_sectors.clone() {
                                 if let Some(sector) = map.find_sector_mut(*sector_id) {
-                                    if context == NodeContext::Region {
+                                    if context == NodeContext::Region
+                                        && server_ctx.curr_map_tool_helper
+                                            == MapToolHelper::NodeEditor
+                                    {
                                         sector.properties.set("region_graph", source.clone());
                                     } else if self.hud.selected_icon_index == 0 {
                                         sector.properties.set("floor_source", source.clone());
@@ -455,6 +458,13 @@ impl Tool for SectorTool {
                                     ));
                                 }
                             }
+
+                            if server_ctx.curr_map_context == MapContext::Region {
+                                if let Some(map) = project.get_map(server_ctx) {
+                                    SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                }
+                            }
+
                             crate::editor::RUSTERIX.write().unwrap().set_dirty();
                         }
                     }
@@ -514,95 +524,17 @@ impl Tool for SectorTool {
                                 ));
                             }
                         }
+
+                        if server_ctx.curr_map_context == MapContext::Region {
+                            if let Some(map) = project.get_map(server_ctx) {
+                                SCENEMANAGER.write().unwrap().set_map(map.clone());
+                            }
+                        }
+
                         crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     }
                 }
             }
-            // TheEvent::ValueChanged(id, value) => {
-            //     if id.name == "CodeEdit" {
-            //         if let Some(code) = value.to_string() {
-            //             self.properties_code = code;
-            //         }
-            //     }
-            // }
-            /*
-            TheEvent::StateChanged(id, state) => {
-                if id.name == "Apply Sector Properties" && *state == TheWidgetState::Clicked {
-                    if let Some(value) = ui.get_widget_value("CodeEdit") {
-                        if let Some(code) = value.to_string() {
-                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                                for sector_id in &region.map.selected_sectors.clone() {
-                                    let mut mapscript = rusterix::MapScript::new();
-                                    let result = mapscript.transform(
-                                        code.clone(),
-                                        Some(region.map.clone()),
-                                        None,
-                                        Some(*sector_id),
-                                    );
-                                    match &result {
-                                        Ok(meta) => region.map = meta.map.clone(),
-                                        Err(err) => {
-                                            if let Some(first) = err.first() {
-                                                ctx.ui.send(TheEvent::SetStatusText(
-                                                    TheId::empty(),
-                                                    first.to_string(),
-                                                ));
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }*/
-            /*
-            TheEvent::ValueChanged(id, value) => {
-                if id.name == "Wall Width" {
-                    if let Some(value) = value.to_f32() {
-                        self.wall_width = value;
-
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            let mut linedef_ids = Vec::new();
-                            for sector_id in &region.map.selected_sectors {
-                                if let Some(sector) = region.map.find_sector(*sector_id) {
-                                    linedef_ids.extend(&sector.linedefs);
-                                }
-                            }
-
-                            for linedef_id in linedef_ids {
-                                if let Some(linedef) = region.map.find_linedef_mut(linedef_id) {
-                                    linedef.wall_width = value;
-                                }
-                            }
-
-                            server.update_region(region);
-                        }
-                    }
-                    redraw = true;
-                }
-                if id.name == "Wall Height" {
-                    if let Some(value) = value.to_f32() {
-                        self.wall_height = value;
-
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            let mut linedef_ids = Vec::new();
-                            for sector_id in &region.map.selected_sectors {
-                                if let Some(sector) = region.map.find_sector(*sector_id) {
-                                    linedef_ids.extend(&sector.linedefs);
-                                }
-                            }
-
-                            for linedef_id in linedef_ids {
-                                if let Some(linedef) = region.map.find_linedef_mut(linedef_id) {
-                                    linedef.wall_height = value;
-                                }
-                            }
-                        }
-                    }
-                    redraw = true;
-                }
-            }*/
             _ => {}
         }
         redraw

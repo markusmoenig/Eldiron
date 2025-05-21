@@ -1,4 +1,4 @@
-use crate::editor::NODEEDITOR;
+use crate::editor::{NODEEDITOR, SCENEMANAGER};
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -492,9 +492,13 @@ impl Tool for LinedefTool {
                             let context = NODEEDITOR.read().unwrap().context;
                             for linedef_id in map.selected_linedefs.clone() {
                                 if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                                    if context == NodeContext::Region {
+                                    if context == NodeContext::Region
+                                        && server_ctx.curr_map_tool_helper
+                                            == MapToolHelper::NodeEditor
+                                    {
                                         linedef.properties.set("region_graph", source.clone());
                                     } else if self.hud.selected_icon_index == 0 {
+                                        println!("1");
                                         linedef.properties.set("row1_source", source.clone());
                                     } else if self.hud.selected_icon_index == 1 {
                                         linedef.properties.set("row2_source", source.clone());
@@ -519,6 +523,13 @@ impl Tool for LinedefTool {
                                 undo_atom,
                                 ctx,
                             );
+
+                            if server_ctx.curr_map_context == MapContext::Region {
+                                if let Some(map) = project.get_map(server_ctx) {
+                                    SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                }
+                            }
+
                             crate::editor::RUSTERIX.write().unwrap().set_dirty();
                         }
                     }
@@ -586,6 +597,12 @@ impl Tool for LinedefTool {
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,
                         ));
+
+                        if server_ctx.curr_map_context == MapContext::Region {
+                            if let Some(map) = project.get_map(server_ctx) {
+                                SCENEMANAGER.write().unwrap().set_map(map.clone());
+                            }
+                        }
                     }
                 }
             }

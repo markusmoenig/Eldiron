@@ -2,6 +2,7 @@ use crate::Embedded;
 use crate::prelude::*;
 use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
+use rusterix::PixelSource;
 use rusterix::{
     PlayerCamera, Rusterix, SceneManager, SceneManagerResult, Texture, Value, ValueContainer,
 };
@@ -541,6 +542,12 @@ impl TheTrait for Editor {
                         TheId::named("Update Minimap"),
                         TheValue::Empty,
                     ));
+                }
+                SceneManagerResult::UpdatedBatch3D(coord, batch) => {
+                    let mut rusterix = RUSTERIX.write().unwrap();
+                    if let Some(chunk) = rusterix.client.scene.chunks.get_mut(&coord) {
+                        chunk.terrain_batch3d = Some(batch);
+                    }
                 }
                 SceneManagerResult::Quit => {
                     println!("Scene manager has shutdown.");
