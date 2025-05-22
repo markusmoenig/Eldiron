@@ -217,7 +217,7 @@ impl WorldEditor {
                         },
                     });
                 }
-                rusterix.client.scene_d3.dynamic_lights = vec![];
+                rusterix.client.scene.dynamic_lights = vec![];
                 rusterix.draw_d3(
                     &region.map,
                     buffer.pixels_mut(),
@@ -264,7 +264,7 @@ impl WorldEditor {
                 );
 
                 self.terrain_hit = None;
-                if let Some(hit) = map.terrain.ray_terrain_hit(&ray, 100.0) {
+                if let Some(hit) = map.terrain.ray_terrain_hit(&ray, 2000.0) {
                     let p = self.world_to_editor(map.terrain.scale, hit.world_pos);
                     server_ctx.hover_cursor = Some(p);
                     self.terrain_hit = Some(hit.world_pos);
