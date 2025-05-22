@@ -169,9 +169,6 @@ impl ToolList {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Preview Switch" {
                     server_ctx.render_mode = *index != 0;
-                    if let Some(map) = project.get_map_mut(server_ctx) {
-                        map.terrain.mark_dirty();
-                    }
                 } else if id.name == "Map Helper Switch" {
                     let was_shape_picker =
                         server_ctx.curr_map_tool_helper == MapToolHelper::ShapePicker;

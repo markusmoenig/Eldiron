@@ -13,8 +13,6 @@ pub enum RenderMoveAction {
 
 pub struct RenderEditor {
     drag_coord: Vec2<i32>,
-
-    pub first_draw: bool,
     edited: bool,
 
     accum_buffer: AccumBuffer,
@@ -25,8 +23,6 @@ impl RenderEditor {
     pub fn new() -> Self {
         Self {
             drag_coord: Vec2::zero(),
-
-            first_draw: true,
             edited: false,
 
             accum_buffer: AccumBuffer::empty(),
@@ -81,10 +77,6 @@ impl RenderEditor {
                     .update_camera(region, server_ctx);
 
                 let mut rusterix = RUSTERIX.write().unwrap();
-                if self.first_draw {
-                    // rusterix.build_scene_d3(&region.map, build_values);
-                    self.first_draw = false;
-                }
                 rusterix.client.scene.dynamic_lights = vec![];
                 rusterix.build_entities_items_d3(&region.map);
 

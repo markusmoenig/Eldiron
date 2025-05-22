@@ -1,4 +1,4 @@
-use crate::editor::{PALETTE, RUSTERIX, UNDOMANAGER};
+use crate::editor::{PALETTE, RUSTERIX, SCENEMANAGER, UNDOMANAGER};
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use rayon::prelude::*;
@@ -42,7 +42,6 @@ pub struct WorldEditor {
 
     hud: Hud,
 
-    pub first_draw: bool,
     apply_brush: bool,
 
     undo_chunks: FxHashMap<(i32, i32), TerrainChunk>,
@@ -73,7 +72,6 @@ impl WorldEditor {
 
             hud: Hud::new(HudMode::Terrain),
 
-            first_draw: true,
             apply_brush: false,
 
             undo_chunks: FxHashMap::default(),
@@ -166,13 +164,19 @@ impl WorldEditor {
         if self.apply_brush {
             if let Some(hit) = self.terrain_hit {
                 if let Some(map) = project.get_map_mut(server_ctx) {
+                    map.terrain.mark_clean();
                     self.apply_brush(&mut map.terrain, Vec2::new(hit.x, hit.z), ui);
-                    let mut rusterix = RUSTERIX.write().unwrap();
-                    // rusterix.build_terrain_d3(map, false);
-
                     if let Some(hit) = self.terrain_hit {
                         server_ctx.hover_height = Some(map.terrain.sample_height(hit.x, hit.z));
                     }
+                    let cloned = map.terrain.clone_dirty_chunks();
+                    if !cloned.is_empty() {
+                        SCENEMANAGER
+                            .write()
+                            .unwrap()
+                            .set_dirty_terrain_chunks(cloned);
+                    }
+                    map.terrain.mark_clean();
                 }
             }
         }
@@ -193,13 +197,6 @@ impl WorldEditor {
                     .camera_d3
                     .set_parameter_vec3("center", region.editing_position_3d);
 
-                if self.first_draw {
-                    region.map.terrain.mark_dirty();
-                    // rusterix.build_scene_d3(&region.map, build_values);
-                    // rusterix.build_terrain_d3(&mut region.map, true);
-                    self.first_draw = false;
-                }
-
                 // let assets = rusterix.assets.clone();
                 // rusterix
                 //     .client
@@ -208,8 +205,16 @@ impl WorldEditor {
                 if let Some(hit) = self.terrain_hit {
                     rusterix.client.brush_preview = Some(BrushPreview {
                         position: hit,
-                        radius: self.radius,
-                        falloff: self.falloff,
+                        radius: if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
+                            self.radius
+                        } else {
+                            0.5
+                        },
+                        falloff: if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
+                            self.falloff
+                        } else {
+                            0.5
+                        },
                     });
                 }
                 rusterix.client.scene_d3.dynamic_lights = vec![];
@@ -272,8 +277,9 @@ impl WorldEditor {
         match &map_event {
             MapEvent::MapClicked(coord) => {
                 self.drag_coord = *coord;
-                self.undo_chunks = map.terrain.clone_chunks_clean();
+                self.undo_chunks = map.terrain.clone_chunks();
                 self.edited = false;
+                map.terrain.mark_clean();
 
                 if !ui.logo {
                     if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
@@ -286,9 +292,17 @@ impl WorldEditor {
             MapEvent::MapUp(_coord) => {
                 self.apply_brush = false;
                 if self.edited {
+                    let cloned = map.terrain.clone_dirty_chunks();
+                    if !cloned.is_empty() {
+                        SCENEMANAGER
+                            .write()
+                            .unwrap()
+                            .set_dirty_terrain_chunks(cloned);
+                    }
+                    map.terrain.mark_clean();
                     let undo_atom = RegionUndoAtom::TerrainEdit(
                         Box::new(self.undo_chunks.clone()),
-                        Box::new(map.terrain.clone_chunks_clean()),
+                        Box::new(map.terrain.clone_chunks()),
                     );
                     UNDOMANAGER.write().unwrap().add_region_undo(
                         &server_ctx.curr_region,
@@ -298,7 +312,6 @@ impl WorldEditor {
 
                     self.undo_chunks = FxHashMap::default();
                     self.edited = false;
-                    self.first_draw = true;
                 }
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimap"),
@@ -328,8 +341,7 @@ impl WorldEditor {
     /// Applies the given action
     pub fn apply_action(&mut self, map: &mut Map, _ui: &TheUI, server_ctx: &mut ServerContext) {
         if let Some(hit) = self.terrain_hit {
-            let mut rusterix = RUSTERIX.write().unwrap();
-
+            map.terrain.mark_clean();
             if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
                 if let Some(id) = server_ctx.curr_material_id {
                     let source = PixelSource::MaterialId(id);
@@ -350,6 +362,13 @@ impl WorldEditor {
                     // rusterix.build_terrain_d3(map, true);
                     self.edited = true;
                 }
+            }
+            let cloned = map.terrain.clone_dirty_chunks();
+            if !cloned.is_empty() {
+                SCENEMANAGER
+                    .write()
+                    .unwrap()
+                    .set_dirty_terrain_chunks(cloned);
             }
             map.terrain.mark_clean();
         }

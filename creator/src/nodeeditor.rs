@@ -1,6 +1,4 @@
-use crate::editor::{
-    CONFIGEDITOR, PALETTE, RENDEREDITOR, RUSTERIX, SCENEMANAGER, UNDOMANAGER, WORLDEDITOR,
-};
+use crate::editor::{CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, UNDOMANAGER};
 use crate::prelude::*;
 use shared::prelude::*;
 
@@ -94,8 +92,6 @@ impl NodeEditor {
                 map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                 map.terrain.mark_dirty();
                 RUSTERIX.write().unwrap().set_dirty();
-                RENDEREDITOR.write().unwrap().first_draw = true;
-                WORLDEDITOR.write().unwrap().first_draw = true;
 
                 // Reset the background renderer
                 if let Some(map) = project.get_map(server_ctx) {

@@ -2,7 +2,6 @@ use crate::Embedded;
 use crate::prelude::*;
 use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
-use rusterix::PixelSource;
 use rusterix::{
     PlayerCamera, Rusterix, SceneManager, SceneManagerResult, Texture, Value, ValueContainer,
 };
@@ -621,18 +620,18 @@ impl TheTrait for Editor {
                 }
             }
 
-            if self.server_ctx.render_mode {
-                // Draw Render Editor
-                RENDEREDITOR.write().unwrap().draw(
+            if self.server_ctx.world_mode {
+                // Draw World Editor
+                WORLDEDITOR.write().unwrap().draw(
                     ui,
                     ctx,
                     &mut self.project,
                     &mut self.server_ctx,
                     &mut self.build_values,
                 );
-            } else if self.server_ctx.world_mode {
-                // Draw World Editor
-                WORLDEDITOR.write().unwrap().draw(
+            } else if self.server_ctx.render_mode {
+                // Draw Render Editor
+                RENDEREDITOR.write().unwrap().draw(
                     ui,
                     ctx,
                     &mut self.project,

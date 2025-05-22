@@ -1,4 +1,4 @@
-use crate::editor::{SCENEMANAGER, WORLDEDITOR};
+use crate::editor::SCENEMANAGER;
 use crate::prelude::*;
 use crate::undo::material_undo::MaterialUndoAtom;
 use crate::undo::screen_undo::ScreenUndoAtom;
@@ -60,15 +60,9 @@ impl RegionUndoAtom {
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             RegionUndoAtom::TerrainEdit(prev, _) => {
+                let array = prev.values().cloned().collect();
+                SCENEMANAGER.read().unwrap().set_dirty_terrain_chunks(array);
                 region.map.terrain.chunks = *prev.clone();
-                region.map.terrain.mark_dirty();
-
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                WORLDEDITOR.write().unwrap().first_draw = true;
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Update Minimap"),
-                    TheValue::Empty,
-                ));
             }
         }
     }
@@ -92,15 +86,9 @@ impl RegionUndoAtom {
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             RegionUndoAtom::TerrainEdit(_, next) => {
+                let array = next.values().cloned().collect();
+                SCENEMANAGER.read().unwrap().set_dirty_terrain_chunks(array);
                 region.map.terrain.chunks = *next.clone();
-                region.map.terrain.mark_dirty();
-
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                WORLDEDITOR.write().unwrap().first_draw = true;
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Update Minimap"),
-                    TheValue::Empty,
-                ));
             }
         }
     }
