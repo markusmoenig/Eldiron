@@ -165,10 +165,10 @@ impl NodeEditor {
         mesh_nodes_button
             .set_status_text("Nodes which control and modify terrain and mesh creation.");
         mesh_nodes_button.set_context_menu(Some(TheContextMenu {
-            items: vec![TheContextMenuItem::new(
-                "Flatten".to_string(),
-                TheId::named("Flatten"),
-            )],
+            items: vec![
+                TheContextMenuItem::new("Terrain: Colorize".to_string(), TheId::named("Colorize")),
+                TheContextMenuItem::new("Terrain: Flatten".to_string(), TheId::named("Flatten")),
+            ],
             ..Default::default()
         }));
         toolbar_hlayout.add_widget(Box::new(mesh_nodes_button));

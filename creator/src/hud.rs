@@ -111,6 +111,19 @@ impl Hud {
                     &bg_color,
                 );
             }
+
+            if let Some(v) = &server_ctx.background_progress {
+                ctx.draw.text(
+                    buffer.pixels_mut(),
+                    &(550, 2),
+                    stride,
+                    font,
+                    13.0,
+                    v,
+                    &text_color,
+                    &bg_color,
+                );
+            }
         }
 
         let show_states = false;

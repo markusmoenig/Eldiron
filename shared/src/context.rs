@@ -212,6 +212,9 @@ pub struct ServerContext {
 
     /// Map clipboard which is currently being pasted
     pub paste_clipboard: Option<Map>,
+
+    /// Background Progress Text
+    pub background_progress: Option<String>,
 }
 
 impl Default for ServerContext {
@@ -271,6 +274,8 @@ impl ServerContext {
 
             clipboard: Map::default(),
             paste_clipboard: None,
+
+            background_progress: None,
         }
     }
 
