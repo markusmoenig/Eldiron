@@ -1,9 +1,11 @@
-use crate::editor::{CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, UNDOMANAGER};
+use crate::editor::{CONFIGEDITOR, RUSTERIX, SCENEMANAGER, UNDOMANAGER};
 use crate::prelude::*;
 use shared::prelude::*;
 
 use ShapeFXParam::*;
-use rusterix::{ShapeFX, ShapeFXGraph, ShapeFXParam, ShapeFXRole, ShapeStack, Texture, Value};
+use rusterix::{
+    Assets, ShapeFX, ShapeFXGraph, ShapeFXParam, ShapeFXRole, ShapeStack, Texture, Value,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum NodeContext {
@@ -105,7 +107,7 @@ impl NodeEditor {
                 map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
                 let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
                 UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
-                self.create_material_preview(map, &PALETTE.read().unwrap());
+                self.create_material_preview(map, &RUSTERIX.read().unwrap().assets);
 
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Materialpicker"),
@@ -479,19 +481,19 @@ impl NodeEditor {
     }
 
     /// Create a preview for the material and stores it in the map
-    pub fn create_material_preview(&self, map: &mut Map, palette: &ThePalette) {
+    pub fn create_material_preview(&self, map: &mut Map, assets: &Assets) {
         let size = CONFIGEDITOR.read().unwrap().tile_size;
         let mut texture = Texture::alloc(size as usize, size as usize);
 
         let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
-        stack.render(&mut texture, map, palette);
+        stack.render(&mut texture, map, assets);
 
         map.properties.set("material", Value::Texture(texture));
     }
 
     pub fn force_update(&self, ctx: &mut TheContext, map: &mut Map) {
         if self.context == NodeContext::Material {
-            self.create_material_preview(map, &PALETTE.read().unwrap());
+            self.create_material_preview(map, &RUSTERIX.read().unwrap().assets);
 
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Update Materialpicker"),

@@ -1,4 +1,4 @@
-use crate::editor::{NODEEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, SHAPEPICKER, UNDOMANAGER};
+use crate::editor::{NODEEDITOR, RUSTERIX, SCENEMANAGER, SHAPEPICKER, UNDOMANAGER};
 use crate::prelude::*;
 pub use crate::tools::{
     config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, render::RenderTool,
@@ -118,7 +118,7 @@ impl ToolList {
                             NODEEDITOR
                                 .write()
                                 .unwrap()
-                                .create_material_preview(map, &PALETTE.read().unwrap());
+                                .create_material_preview(map, &RUSTERIX.read().unwrap().assets);
                         }
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Update Materialpicker"),

@@ -528,8 +528,15 @@ impl TheTrait for Editor {
                 SceneManagerResult::Startup => {
                     println!("Scene manager has started up.");
                 }
+                SceneManagerResult::ProcessedHeights(coord, heights) => {
+                    if let Some(map) = &mut self.project.get_map_mut(&self.server_ctx) {
+                        let local = map.terrain.get_chunk_coords(coord.x, coord.y);
+                        if let Some(chunk) = &mut map.terrain.chunks.get_mut(&local) {
+                            chunk.processed_heights = Some(heights);
+                        }
+                    }
+                }
                 SceneManagerResult::Chunk(chunk, togo, total) => {
-                    // println!("Scene manager has send chunk {}.", chunk.origin);
                     if togo == 0 {
                         self.server_ctx.background_progress = None;
                     } else {
