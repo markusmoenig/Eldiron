@@ -790,8 +790,11 @@ impl TheTrait for Editor {
                                     );
                                 }
                             } else
-                            // Draw the material map
-                            if self.server_ctx.curr_map_context == MapContext::Material {
+                            // Draw the material / character / item map
+                            if self.server_ctx.curr_map_context == MapContext::Material
+                                || self.server_ctx.curr_map_context == MapContext::Character
+                                || self.server_ctx.curr_map_context == MapContext::Item
+                            {
                                 b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
                                 if let Some(material) = self.project.get_map_mut(&self.server_ctx) {
                                     if let Some(hover_cursor) = self.server_ctx.hover_cursor {

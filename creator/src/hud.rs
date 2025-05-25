@@ -22,8 +22,8 @@ pub struct Hud {
 
     subdiv_rects: Vec<TheDim>,
 
-    state_rects: Vec<TheDim>,
-    add_state_rect: TheDim,
+    poses_rects: Vec<TheDim>,
+    add_pose_rect: TheDim,
 
     play_button_rect: TheDim,
     timeline_rect: TheDim,
@@ -46,8 +46,8 @@ impl Hud {
 
             subdiv_rects: vec![],
 
-            state_rects: vec![],
-            add_state_rect: TheDim::rect(0, 0, 0, 0),
+            poses_rects: vec![],
+            add_pose_rect: TheDim::rect(0, 0, 0, 0),
 
             play_button_rect: TheDim::rect(0, 0, 0, 0),
             timeline_rect: TheDim::rect(0, 0, 0, 0),
@@ -88,7 +88,7 @@ impl Hud {
         let text_color = [150, 150, 150, 255];
         let sel_text_color = [220, 220, 220, 255];
 
-        self.state_rects.clear();
+        self.poses_rects.clear();
         self.subdiv_rects = vec![];
 
         ctx.draw.rect(
@@ -126,18 +126,19 @@ impl Hud {
             }
         }
 
-        let show_states = false;
+        let show_poses = true;
 
-        // States
-        if show_states {
+        // Poses
+        if show_poses {
             let x = 0;
-            let state_width = 70;
-            let state_height = 25_i32;
-            let mut y =
-                height - state_height as usize - map.animation.states.len() * state_height as usize;
+            let poses_width = 70;
+            let poses_height = 25_i32;
+            let mut y = height
+                - poses_height as usize
+                - map.skeletal_animations.len() * poses_height as usize;
 
             // Base State
-            let rect = TheDim::rect(x, y as i32, state_width, state_height);
+            let rect = TheDim::rect(x, y as i32, poses_width, poses_height);
             ctx.draw.rect(
                 buffer.pixels_mut(),
                 &rect.to_buffer_utuple(),
@@ -153,23 +154,24 @@ impl Hud {
                     font,
                     11.5,
                     "Base State",
-                    if map.animation.current_state.is_none() {
-                        &sel_text_color
-                    } else {
-                        &text_color
-                    },
+                    // if map.animation.current_state.is_none() {
+                    //     &sel_text_color
+                    // } else {
+                    //     &text_color
+                    // },
+                    &text_color,
                     &dark_bg_color,
                     TheHorizontalAlign::Center,
                     TheVerticalAlign::Center,
                 );
             }
 
-            self.state_rects.push(rect);
+            self.poses_rects.push(rect);
 
-            // Animation States
-            y += state_height as usize;
-            for i in 0..map.animation.states.len() {
-                let rect = TheDim::rect(x, y as i32, state_width, state_height);
+            // Draw Poses
+            y += poses_height as usize;
+            for i in 0..map.skeletal_animations.len() {
+                let rect = TheDim::rect(x, y as i32, poses_width, poses_height);
                 ctx.draw.rect(
                     buffer.pixels_mut(),
                     &rect.to_buffer_utuple(),
@@ -183,27 +185,28 @@ impl Hud {
                         stride,
                         font,
                         11.5,
-                        &map.animation.states[i].state_name,
-                        if map.animation.current_state == Some(i)
-                            || map.animation.loop_states.contains(&i)
-                        {
-                            &sel_text_color
-                        } else {
-                            &text_color
-                        },
+                        &map.skeletal_animations[i].name,
+                        // if map.animation.current_state == Some(i)
+                        //     || map.animation.loop_states.contains(&i)
+                        // {
+                        //     &sel_text_color
+                        // } else {
+                        //     &text_color
+                        // },
+                        &text_color,
                         &dark_bg_color,
                         TheHorizontalAlign::Center,
                         TheVerticalAlign::Center,
                     );
                 }
 
-                self.state_rects.push(rect);
-                y += state_height as usize;
+                self.poses_rects.push(rect);
+                y += poses_height as usize;
             }
 
             // Plus buttton
-            y -= state_height as usize;
-            let rect = TheDim::rect(state_width, y as i32, state_height, state_height);
+            y -= poses_height as usize;
+            let rect = TheDim::rect(poses_width, y as i32, poses_height, poses_height);
             ctx.draw.rect(
                 buffer.pixels_mut(),
                 &rect.to_buffer_utuple(),
@@ -219,22 +222,23 @@ impl Hud {
                     font,
                     11.5,
                     "+",
-                    if map.animation.current_state.is_none() {
-                        &sel_text_color
-                    } else {
-                        &text_color
-                    },
+                    // if map.animation.current_state.is_none() {
+                    //     &sel_text_color
+                    // } else {
+                    //     &text_color
+                    // },
+                    &text_color,
                     &dark_bg_color,
                     TheHorizontalAlign::Center,
                     TheVerticalAlign::Center,
                 );
             }
 
-            self.add_state_rect = rect;
+            self.add_pose_rect = rect;
 
             // Play button and timeline
 
-            let rect = TheDim::rect(150, y as i32, state_height, state_height);
+            let rect = TheDim::rect(150, y as i32, poses_height, poses_height);
             ctx.draw.rect(
                 buffer.pixels_mut(),
                 &rect.to_buffer_utuple(),
@@ -250,11 +254,12 @@ impl Hud {
                     font,
                     11.5,
                     "P",
-                    if map.animation.current_state.is_none() {
-                        &sel_text_color
-                    } else {
-                        &text_color
-                    },
+                    // if map.animation.current_state.is_none() {
+                    //     &sel_text_color
+                    // } else {
+                    //     &text_color
+                    // },
+                    &text_color,
                     &dark_bg_color,
                     TheHorizontalAlign::Center,
                     TheVerticalAlign::Center,
@@ -267,7 +272,7 @@ impl Hud {
                 map.tick(1000.0 / 30.0);
             }
 
-            let rect = TheDim::rect(150 + state_height, y as i32, 150, state_height);
+            let rect = TheDim::rect(150 + poses_height, y as i32, 150, poses_height);
             ctx.draw.rect(
                 buffer.pixels_mut(),
                 &rect.to_buffer_utuple(),
@@ -517,6 +522,7 @@ impl Hud {
             }
         }
 
+        /*
         // Parse States
         for (i, rect) in self.state_rects.iter().enumerate() {
             if rect.contains(Vec2::new(x, y)) {
@@ -540,17 +546,22 @@ impl Hud {
                 return true;
             }
         }
-        // Add State
-        if self.add_state_rect.contains(Vec2::new(x, y)) {
-            let offset =
-                map.animation
-                    .add_state("New State", vec![], state::InterpolationType::Linear);
+        */
+        // Add Pos
+        if self.add_pose_rect.contains(Vec2::new(x, y)) {
+            // let offset =
+            //     map.animation
+            //         .add_state("New State", vec![], state::InterpolationType::Linear);
 
-            map.animation.current_state = Some(offset);
-            ctx.ui.send(TheEvent::Custom(
-                TheId::named("Anim State Selected"),
-                TheValue::Int(offset as i32),
-            ));
+            // map.animation.current_state = Some(offset);
+
+            let anim = SkeletalAnimation::default();
+            map.skeletal_animations.insert(anim.name.clone(), anim);
+
+            // ctx.ui.send(TheEvent::Custom(
+            //     TheId::named("Anim State Selected"),
+            //     TheValue::Int(offset as i32),
+            // ));
             return true;
         }
         // Play Button
@@ -560,10 +571,10 @@ impl Hud {
         }
         // Timeline
         if self.timeline_rect.contains(Vec2::new(x, y)) {
-            let offset = x - self.timeline_rect.x;
-            let progress = offset as f32 / self.timeline_rect.width as f32;
-            map.animation.transition_progress = progress;
-            println!("{:?}", map.animation);
+            // let offset = x - self.timeline_rect.x;
+            // let progress = offset as f32 / self.timeline_rect.width as f32;
+            // map.animation.transition_progress = progress;
+            // println!("{:?}", map.animation);
             return true;
         }
 
@@ -588,12 +599,13 @@ impl Hud {
         _ctx: &mut TheContext,
         _server_ctx: &mut ServerContext,
     ) -> bool {
+        /*
         if self.timeline_rect.contains(Vec2::new(x, y)) {
             let offset = x - self.timeline_rect.x;
             let progress = offset as f32 / self.timeline_rect.width as f32;
             map.animation.transition_progress = progress;
             return true;
-        }
+        }*/
 
         false
     }

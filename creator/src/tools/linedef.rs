@@ -254,10 +254,6 @@ impl Tool for LinedefTool {
                             if let Some(original_vertex) =
                                 self.rectangle_undo_map.find_vertex_mut(*vertex_id)
                             {
-                                // if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
-                                //     vertex.x = original_vertex.x - drag_delta.x;
-                                //     vertex.y = original_vertex.y - drag_delta.y;
-                                // }
                                 let new_pos = Vec2::new(
                                     original_vertex.x - drag_delta.x,
                                     original_vertex.y - drag_delta.y,

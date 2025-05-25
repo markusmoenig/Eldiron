@@ -2129,7 +2129,7 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Character;
-                    server_ctx.curr_map_context = MapContext::Region;
+                    server_ctx.curr_map_context = MapContext::Character;
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.write().unwrap().set_dirty();
 
@@ -2159,7 +2159,7 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Item;
-                    server_ctx.curr_map_context = MapContext::Region;
+                    server_ctx.curr_map_context = MapContext::Item;
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.write().unwrap().set_dirty();
 

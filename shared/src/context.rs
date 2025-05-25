@@ -18,6 +18,8 @@ pub enum MapContext {
     Model,
     Screen,
     Material,
+    Character,
+    Item,
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]

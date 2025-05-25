@@ -53,15 +53,20 @@ impl CustomCamera {
         if server_ctx.curr_custom_tool_camera == CustomToolCamera::FirstP {
             rusterix.client.camera_d3 = Box::new(self.firstp_camera.clone());
 
-            let position = region.editing_position_3d
-                + Vec3::new(
-                    0.0,
-                    region.map.terrain.sample_height_bilinear(
-                        region.editing_position_3d.x,
-                        region.editing_position_3d.z,
-                    ) + 1.5,
-                    0.0,
-                );
+            let height = region
+                .map
+                .terrain
+                .sample_height(region.editing_position_3d.x, region.editing_position_3d.z)
+                + 1.5;
+
+            // let h = region.map.terrain.get_height_unprocessed(
+            //     region.editing_position_3d.x as i32,
+            //     region.editing_position_3d.z as i32,
+            // );
+
+            // println!("{} {:?}", height, h);
+
+            let position = region.editing_position_3d + Vec3::new(0.0, height, 0.0);
 
             rusterix
                 .client

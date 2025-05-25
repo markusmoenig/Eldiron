@@ -259,12 +259,14 @@ impl MapEditor {
                     server_ctx.paste_clipboard = Some(server_ctx.clipboard.clone());
                 }
             }
-            TheEvent::Custom(id, value) => {
+            TheEvent::Custom(id, _value) => {
+                /*
                 if id.name == "Base Anim State Selected" {
                     if let Some(layout) = ui.get_text_layout("Node Settings") {
                         layout.clear();
                     }
-                } else if id.name == "Anim State Selected" {
+                } else
+                if id.name == "Anim State Selected" {
                     if let TheValue::Int(i) = value {
                         let mut nodeui = TheNodeUI::default();
 
@@ -291,7 +293,8 @@ impl MapEditor {
                             ));
                         }
                     }
-                } else if id.name == "Map Selection Changed" {
+                } else*/
+                if id.name == "Map Selection Changed" {
                     self.apply_map_settings(ui, ctx, project, server_ctx);
                 }
                 // else if id.name == "Cursor Pos Changed" {
@@ -974,24 +977,24 @@ impl MapEditor {
                         }
                     }
                     redraw = true;
-                } else if id.name == "animStateName" {
-                    if let Some(value) = value.to_string() {
-                        if let Some(map) = project.get_map_mut(server_ctx) {
-                            if let Some(state) = map.animation.current_state {
-                                let prev = map.clone();
-                                map.animation.states[state].state_name = value;
+                } /*else if id.name == "animStateName" {
+                if let Some(value) = value.to_string() {
+                if let Some(map) = project.get_map_mut(server_ctx) {
+                if let Some(state) = map.animation.current_state {
+                let prev = map.clone();
+                map.animation.states[state].state_name = value;
 
-                                let undo_atom =
-                                    RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-                                UNDOMANAGER.write().unwrap().add_region_undo(
-                                    &server_ctx.curr_region,
-                                    undo_atom,
-                                    ctx,
-                                );
-                            }
-                        }
-                    }
+                let undo_atom =
+                RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+                UNDOMANAGER.write().unwrap().add_region_undo(
+                &server_ctx.curr_region,
+                undo_atom,
+                ctx,
+                );
                 }
+                }
+                }
+                }*/
             }
             TheEvent::StateChanged(id, state) => {
                 if id.name == "linedefAddMidpoint" && *state == TheWidgetState::Clicked {

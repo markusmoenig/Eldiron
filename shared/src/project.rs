@@ -233,6 +233,18 @@ impl Project {
             if let Some(screen) = self.screens.get(&ctx.curr_screen) {
                 return Some(&screen.map);
             }
+        } else if ctx.curr_map_context == MapContext::Character {
+            if let ContentContext::CharacterTemplate(id) = ctx.curr_character {
+                if let Some(character) = self.characters.get(&id) {
+                    return Some(&character.map);
+                }
+            }
+        } else if ctx.curr_map_context == MapContext::Item {
+            if let ContentContext::ItemTemplate(id) = ctx.curr_item {
+                if let Some(item) = self.items.get(&id) {
+                    return Some(&item.map);
+                }
+            }
         }
         None
     }
@@ -252,6 +264,18 @@ impl Project {
         } else if ctx.curr_map_context == MapContext::Screen {
             if let Some(screen) = self.screens.get_mut(&ctx.curr_screen) {
                 return Some(&mut screen.map);
+            }
+        } else if ctx.curr_map_context == MapContext::Character {
+            if let ContentContext::CharacterTemplate(id) = ctx.curr_character {
+                if let Some(character) = self.characters.get_mut(&id) {
+                    return Some(&mut character.map);
+                }
+            }
+        } else if ctx.curr_map_context == MapContext::Item {
+            if let ContentContext::ItemTemplate(id) = ctx.curr_item {
+                if let Some(item) = self.items.get_mut(&id) {
+                    return Some(&mut item.map);
+                }
             }
         }
         None
