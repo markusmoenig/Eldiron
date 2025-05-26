@@ -823,6 +823,26 @@ impl MapEditor {
                             }
                         }
                     }
+                } else if id.name == "vertexName" {
+                    if let Some(value) = value.to_string() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            for vertex_id in &region.map.selected_vertices.clone() {
+                                let prev = region.map.clone();
+                                if let Some(vertex) = region.map.find_vertex_mut(*vertex_id) {
+                                    vertex.name = value.to_string();
+                                    let undo_atom = RegionUndoAtom::MapEdit(
+                                        Box::new(prev),
+                                        Box::new(region.map.clone()),
+                                    );
+                                    UNDOMANAGER.write().unwrap().add_region_undo(
+                                        &server_ctx.curr_region,
+                                        undo_atom,
+                                        ctx,
+                                    );
+                                }
+                            }
+                        }
+                    }
                 } else if id.name == "vertexHeight" {
                     if let Some(value) = value.to_f32() {
                         if let Some(map) = project.get_map_mut(server_ctx) {
@@ -1534,6 +1554,18 @@ impl MapEditor {
         _server_ctx: &mut ServerContext,
     ) {
         let mut nodeui = TheNodeUI::default();
+
+        if let Some(vertex) = map.find_vertex(vertex_id) {
+            let item = TheNodeUIItem::Text(
+                "vertexName".into(),
+                "Name".into(),
+                "Set the name of the vertex".into(),
+                vertex.name.clone(),
+                None,
+                false,
+            );
+            nodeui.add_item(item);
+        }
 
         if let Some(vertex) = map.find_vertex(vertex_id) {
             let item = TheNodeUIItem::FloatEditSlider(
