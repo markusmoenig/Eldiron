@@ -22,6 +22,7 @@ pub struct Hud {
 
     subdiv_rects: Vec<TheDim>,
 
+    show_softrigs: bool,
     poses_rects: Vec<TheDim>,
     add_pose_rect: TheDim,
 
@@ -46,6 +47,7 @@ impl Hud {
 
             subdiv_rects: vec![],
 
+            show_softrigs: false,
             poses_rects: vec![],
             add_pose_rect: TheDim::rect(0, 0, 0, 0),
 
@@ -126,16 +128,16 @@ impl Hud {
             }
         }
 
-        let show_poses = true;
+        self.show_softrigs = server_ctx.curr_map_context == MapContext::Material
+            || server_ctx.curr_map_context == MapContext::Character
+            || server_ctx.curr_map_context == MapContext::Item;
 
-        // Poses
-        if show_poses {
+        // SoftRigs
+        if self.show_softrigs {
             let x = 0;
-            let poses_width = 70;
+            let poses_width = 100;
             let poses_height = 25_i32;
-            let mut y = height
-                - poses_height as usize
-                - map.skeletal_animations.len() * poses_height as usize;
+            let mut y = height - poses_height as usize - map.softrigs.len() * poses_height as usize;
 
             // Base State
             let rect = TheDim::rect(x, y as i32, poses_width, poses_height);
@@ -146,31 +148,36 @@ impl Hud {
                 &dark_bg_color,
             );
 
+            let r = rect.to_buffer_utuple();
             if let Some(font) = &ctx.ui.font {
                 ctx.draw.text_rect(
                     buffer.pixels_mut(),
-                    &rect.to_buffer_utuple(),
+                    &(r.0 + 4, r.1, r.2 - 8, r.3),
                     stride,
                     font,
                     11.5,
                     "Base State",
-                    // if map.animation.current_state.is_none() {
-                    //     &sel_text_color
-                    // } else {
-                    //     &text_color
-                    // },
-                    &text_color,
+                    if map.editing_rig.is_none() {
+                        &sel_text_color
+                    } else {
+                        &text_color
+                    },
                     &dark_bg_color,
-                    TheHorizontalAlign::Center,
+                    TheHorizontalAlign::Left,
                     TheVerticalAlign::Center,
                 );
             }
 
             self.poses_rects.push(rect);
 
-            // Draw Poses
+            // Draw Rigs
             y += poses_height as usize;
-            for i in 0..map.skeletal_animations.len() {
+            for (i, (id, rig)) in map.softrigs.iter().enumerate() {
+                let selected = match map.editing_rig {
+                    Some(selected_id) => *id == selected_id,
+                    None => false,
+                };
+
                 let rect = TheDim::rect(x, y as i32, poses_width, poses_height);
                 ctx.draw.rect(
                     buffer.pixels_mut(),
@@ -178,24 +185,45 @@ impl Hud {
                     stride,
                     &dark_bg_color,
                 );
+
+                if rig.in_editor_playlist {
+                    let r = rect.to_buffer_utuple();
+                    if let Some(font) = &ctx.ui.font {
+                        ctx.draw.text_rect(
+                            buffer.pixels_mut(),
+                            &(r.0, r.1, 20, r.3),
+                            stride,
+                            font,
+                            11.5,
+                            "X",
+                            if selected {
+                                &sel_text_color
+                            } else {
+                                &text_color
+                            },
+                            &dark_bg_color,
+                            TheHorizontalAlign::Center,
+                            TheVerticalAlign::Center,
+                        );
+                    }
+                }
+
+                let r = rect.to_buffer_utuple();
                 if let Some(font) = &ctx.ui.font {
                     ctx.draw.text_rect(
                         buffer.pixels_mut(),
-                        &rect.to_buffer_utuple(),
+                        &(r.0 + 20, r.1, r.2 - 25, r.3),
                         stride,
                         font,
                         11.5,
-                        &map.skeletal_animations[i].name,
-                        // if map.animation.current_state == Some(i)
-                        //     || map.animation.loop_states.contains(&i)
-                        // {
-                        //     &sel_text_color
-                        // } else {
-                        //     &text_color
-                        // },
-                        &text_color,
+                        &map.softrigs[i].name,
+                        if selected {
+                            &sel_text_color
+                        } else {
+                            &text_color
+                        },
                         &dark_bg_color,
-                        TheHorizontalAlign::Center,
+                        TheHorizontalAlign::Left,
                         TheVerticalAlign::Center,
                     );
                 }
@@ -269,7 +297,7 @@ impl Hud {
             self.play_button_rect = rect;
 
             if self.is_playing {
-                map.tick(1000.0 / 30.0);
+                map.tick(1.0 / 30.0);
             }
 
             let rect = TheDim::rect(150 + poses_height, y as i32, 150, poses_height);
@@ -491,7 +519,7 @@ impl Hud {
         x: i32,
         y: i32,
         map: &mut Map,
-        ui: &mut TheUI,
+        _ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> bool {
@@ -522,60 +550,91 @@ impl Hud {
             }
         }
 
-        /*
-        // Parse States
-        for (i, rect) in self.state_rects.iter().enumerate() {
-            if rect.contains(Vec2::new(x, y)) {
-                if i == 0 {
-                    map.animation.current_state = None;
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Base Anim State Selected"),
-                        TheValue::Int(i as i32 - 1),
-                    ));
-                } else if ui.shift && !map.animation.loop_states.contains(&i) {
-                    // map.animation.loop_states.push(i - 1);
-                    map.animation.next_state = Some(i - 1);
-                } else {
-                    map.animation.current_state = Some(i - 1);
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Anim State Selected"),
-                        TheValue::Int(i as i32 - 1),
-                    ));
+        // Parse Softrigs
+        if self.show_softrigs {
+            for (i, rect) in self.poses_rects.iter().enumerate() {
+                if rect.contains(Vec2::new(x, y)) {
+                    if i == 0 {
+                        // Base state selected (no animation)
+                        map.editing_rig = None;
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Base State Selected"),
+                            TheValue::Empty,
+                        ));
+                    } else if let Some((_, softrig)) = map.softrigs.get_index_mut(i - 1) {
+                        if x < 22 {
+                            softrig.in_editor_playlist = !softrig.in_editor_playlist;
+                        } else {
+                            map.editing_rig = Some(softrig.id);
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("SoftRig Selected"),
+                                TheValue::Id(softrig.id),
+                            ));
+                        }
+                    }
+
+                    /*
+                    // Animation state: get the (Uuid, SkeletalAnimation) by index (i - 1)
+                    let anim_index = i - 1;
+                    if let Some((anim_id, anim)) = map.skeletal_animations.get_index(anim_index) {
+                        if ui.shift && map.editing_anim_pose.map_or(true, |(id, _)| id != *anim_id)
+                        {
+                            // Optional shift behavior (e.g., preview?)
+                            // Example: queue animation without switching state
+                            // map.preview_animation = Some(*anim_id);
+                        } else {
+                            // Set the currently edited pose (first frame for now)
+                            map.editing_anim_pose = Some((*anim_id, 0));
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Anim State Selected"),
+                                TheValue::Id(*anim_id),
+                            ));
+                        }
+                    }*/
+
+                    return true;
                 }
+            }
+
+            // Add SoftRig
+            if self.add_pose_rect.contains(Vec2::new(x, y)) {
+                let rig = SoftRig::new("Idle".into());
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("SoftRig Selected"),
+                    TheValue::Id(rig.id),
+                ));
+                map.editing_rig = Some(rig.id);
+                map.softrigs.insert(rig.id, rig);
 
                 return true;
             }
-        }
-        */
-        // Add Pos
-        if self.add_pose_rect.contains(Vec2::new(x, y)) {
-            // let offset =
-            //     map.animation
-            //         .add_state("New State", vec![], state::InterpolationType::Linear);
-
-            // map.animation.current_state = Some(offset);
-
-            let anim = SkeletalAnimation::default();
-            map.skeletal_animations.insert(anim.name.clone(), anim);
-
-            // ctx.ui.send(TheEvent::Custom(
-            //     TheId::named("Anim State Selected"),
-            //     TheValue::Int(offset as i32),
-            // ));
-            return true;
-        }
-        // Play Button
-        if self.play_button_rect.contains(Vec2::new(x, y)) {
-            //self.is_playing = !self.is_playing;
-            return true;
-        }
-        // Timeline
-        if self.timeline_rect.contains(Vec2::new(x, y)) {
-            // let offset = x - self.timeline_rect.x;
-            // let progress = offset as f32 / self.timeline_rect.width as f32;
-            // map.animation.transition_progress = progress;
-            // println!("{:?}", map.animation);
-            return true;
+            // Play Button
+            if self.play_button_rect.contains(Vec2::new(x, y)) {
+                if !self.is_playing {
+                    let animator = SoftRigAnimator {
+                        keyframes: map
+                            .softrigs
+                            .values()
+                            .filter(|rig| rig.in_editor_playlist)
+                            .map(|rig| rig.id)
+                            .collect(),
+                        ..Default::default()
+                    };
+                    map.soft_animator = Some(animator);
+                } else {
+                    map.soft_animator = None;
+                }
+                self.is_playing = !self.is_playing;
+                return true;
+            }
+            // Timeline
+            if self.timeline_rect.contains(Vec2::new(x, y)) {
+                // let offset = x - self.timeline_rect.x;
+                // let progress = offset as f32 / self.timeline_rect.width as f32;
+                // map.animation.transition_progress = progress;
+                // println!("{:?}", map.animation);
+                return true;
+            }
         }
 
         if self.rect_geo_rect.contains(Vec2::new(x, y)) {
@@ -592,9 +651,9 @@ impl Hud {
 
     pub fn dragged(
         &mut self,
-        x: i32,
-        y: i32,
-        map: &mut Map,
+        _x: i32,
+        _y: i32,
+        _map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         _server_ctx: &mut ServerContext,

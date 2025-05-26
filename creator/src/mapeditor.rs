@@ -259,23 +259,27 @@ impl MapEditor {
                     server_ctx.paste_clipboard = Some(server_ctx.clipboard.clone());
                 }
             }
-            TheEvent::Custom(id, _value) => {
-                /*
-                if id.name == "Base Anim State Selected" {
+            TheEvent::Custom(id, value) => {
+                if id.name == "Base State Selected" {
                     if let Some(layout) = ui.get_text_layout("Node Settings") {
                         layout.clear();
                     }
-                } else
-                if id.name == "Anim State Selected" {
-                    if let TheValue::Int(i) = value {
+                } else if id.name == "SoftRig Selected" {
+                    if let TheValue::Id(id) = value {
                         let mut nodeui = TheNodeUI::default();
 
                         if let Some(map) = project.get_map(server_ctx) {
+                            let name = if let Some(softrig) = map.softrigs.get(id) {
+                                softrig.name.clone()
+                            } else {
+                                "???".to_string()
+                            };
+
                             let item = TheNodeUIItem::Text(
-                                "animStateName".into(),
-                                "State Name".into(),
-                                "Set the name of the wall".into(),
-                                map.animation.states[*i as usize].state_name.clone(),
+                                "softRigName".into(),
+                                "Rig Name".into(),
+                                "Set the name of the soft rig keyframe.".into(),
+                                name,
                                 None,
                                 false,
                             );
@@ -284,17 +288,15 @@ impl MapEditor {
 
                         if let Some(layout) = ui.get_text_layout("Node Settings") {
                             nodeui.apply_to_text_layout(layout);
-                            // layout.relayout(ctx);
                             ctx.ui.relayout = true;
 
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Show Node Settings"),
-                                TheValue::Text("Animation State Setting".to_string()),
+                                TheValue::Text("Soft Rig Settings".to_string()),
                             ));
                         }
                     }
-                } else*/
-                if id.name == "Map Selection Changed" {
+                } else if id.name == "Map Selection Changed" {
                     self.apply_map_settings(ui, ctx, project, server_ctx);
                 }
                 // else if id.name == "Cursor Pos Changed" {
@@ -977,24 +979,27 @@ impl MapEditor {
                         }
                     }
                     redraw = true;
-                } /*else if id.name == "animStateName" {
-                if let Some(value) = value.to_string() {
-                if let Some(map) = project.get_map_mut(server_ctx) {
-                if let Some(state) = map.animation.current_state {
-                let prev = map.clone();
-                map.animation.states[state].state_name = value;
-
-                let undo_atom =
-                RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-                UNDOMANAGER.write().unwrap().add_region_undo(
-                &server_ctx.curr_region,
-                undo_atom,
-                ctx,
-                );
+                } else if id.name == "softRigName" {
+                    if let Some(value) = value.to_string() {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            if let Some(id) = map.editing_rig {
+                                let prev = map.clone();
+                                if let Some(rig) = map.softrigs.get_mut(&id) {
+                                    rig.name = value;
+                                    let undo_atom = RegionUndoAtom::MapEdit(
+                                        Box::new(prev),
+                                        Box::new(map.clone()),
+                                    );
+                                    UNDOMANAGER.write().unwrap().add_region_undo(
+                                        &server_ctx.curr_region,
+                                        undo_atom,
+                                        ctx,
+                                    );
+                                }
+                            }
+                        }
+                    }
                 }
-                }
-                }
-                }*/
             }
             TheEvent::StateChanged(id, state) => {
                 if id.name == "linedefAddMidpoint" && *state == TheWidgetState::Clicked {
