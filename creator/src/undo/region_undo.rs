@@ -15,13 +15,34 @@ pub enum RegionUndoAtom {
     ),
 }
 
+fn has_geometry_changed(map1: &Map, map2: &Map) -> bool {
+    let mut v1 = map1.vertices.clone();
+    let mut v2 = map2.vertices.clone();
+    v1.sort_by_key(|v| v.id);
+    v2.sort_by_key(|v| v.id);
+
+    let mut l1 = map1.linedefs.clone();
+    let mut l2 = map2.linedefs.clone();
+    l1.sort_by_key(|l| l.id);
+    l2.sort_by_key(|l| l.id);
+
+    let mut s1 = map1.sectors.clone();
+    let mut s2 = map2.sectors.clone();
+    s1.sort_by_key(|s| s.id);
+    s2.sort_by_key(|s| s.id);
+
+    v1 != v2 || l1 != l2 || s1 != s2
+}
+
 impl RegionUndoAtom {
+    /// Used after a Map tool was executed to check if the geometry of the map changed and if
+    /// we need to rerender (in contrast to selection changes).
     pub fn only_selection_changed(&self) -> bool {
         match self {
             RegionUndoAtom::MapEdit(map1, map2) => {
-                map1.selected_vertices != map2.selected_vertices
-                    || map1.selected_linedefs != map2.selected_linedefs
-                    || map1.selected_sectors != map2.selected_sectors
+                let changed = has_geometry_changed(map1, map2);
+                // println!("{}", changed);
+                !changed
             }
             _ => false,
         }

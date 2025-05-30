@@ -560,6 +560,10 @@ impl TheTrait for Editor {
                         chunk.terrain_batch3d = Some(batch);
                     }
                 }
+                SceneManagerResult::Clear => {
+                    let mut rusterix = RUSTERIX.write().unwrap();
+                    rusterix.client.scene.chunks.clear();
+                }
                 SceneManagerResult::Quit => {
                     println!("Scene manager has shutdown.");
                 }

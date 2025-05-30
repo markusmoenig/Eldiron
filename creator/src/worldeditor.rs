@@ -282,6 +282,11 @@ impl WorldEditor {
                 map.terrain.mark_clean();
 
                 if !ui.logo {
+                    SCENEMANAGER
+                        .write()
+                        .unwrap()
+                        .set_terrain_modifier_state(false);
+
                     if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
                         self.apply_brush = true;
                     } else {
@@ -312,6 +317,11 @@ impl WorldEditor {
 
                     self.undo_chunks = FxHashMap::default();
                     self.edited = false;
+
+                    SCENEMANAGER
+                        .write()
+                        .unwrap()
+                        .set_terrain_modifier_state(true);
                 }
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimap"),
