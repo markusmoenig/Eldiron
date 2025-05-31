@@ -743,29 +743,6 @@ impl Sidebar {
         toolbar_hlayout.set_reverse_index(Some(2));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
-
-        /*
-        let mut picker_canvas = TheCanvas::default();
-        picker_canvas.set_top(toolbar_canvas);
-
-        let mut picker_layout = TheVLayout::new(TheId::empty());
-        picker_layout
-            .limiter_mut()
-            .set_max_size(Vec2::new(self.width, 240));
-        //toolbar_hlayout.add_widget(Box::new(screen_add_button));
-        //toolbar_hlayout.add_widget(Box::new(screen_remove_button));
-
-        let mut w = TheColorPicker::new(TheId::named("Palette Color Picker"));
-        //w.set_value(TheValue::ColorObject(color.clone(), 0.0));
-        w.limiter_mut().set_max_size(Vec2::new(80, 80));
-        picker_layout.set_background_color(Some(ListLayoutBackground));
-        picker_layout.set_margin(Vec4::new(20, 10, 20, 10));
-        // picker_layout.add_widget(Box::new(w));
-        picker_canvas.set_layout(picker_layout);
-
-        //palette_canvas.set_top(palette_canvas);
-        palette_canvas.set_bottom(picker_canvas);*/
-
         palette_canvas.set_bottom(toolbar_canvas);
         stack_layout.add_canvas(palette_canvas);
 
@@ -813,10 +790,60 @@ impl Sidebar {
         let mut redraw = false;
 
         match event {
-            TheEvent::RenderViewClicked(id, coord) | TheEvent::RenderViewDragged(id, coord) => {
+            TheEvent::RenderViewClicked(id, coord)
+            | TheEvent::RenderViewDragged(id, coord)
+            | TheEvent::RenderViewUp(id, coord) => {
                 if id.name == "MiniMap" {
                     if let Some(render_view) = ui.get_render_view("MiniMap") {
                         let dim = *render_view.dim();
+
+                        // Color selected
+                        if *SIDEBARMODE.read().unwrap() == SidebarMode::Palette {
+                            if !matches!(event, TheEvent::RenderViewDragged(_, _)) {
+                                let buffer = render_view.render_buffer_mut();
+                                if let Some(col) = buffer.get_pixel(coord.x, coord.y) {
+                                    let color = TheColor::from(col);
+
+                                    if let Some(widget) = ui.get_widget("Palette Hex Edit") {
+                                        widget.set_value(TheValue::Text(color.to_hex()));
+                                    }
+
+                                    if let Some(palette_picker) =
+                                        ui.get_palette_picker("Palette Picker")
+                                    {
+                                        if project.palette[palette_picker.index()]
+                                            != Some(color.clone())
+                                        {
+                                            let prev = project.palette.clone();
+                                            palette_picker.set_color(color.clone());
+                                            redraw = true;
+                                            project.palette[palette_picker.index()] = Some(color);
+
+                                            let undo = PaletteUndoAtom::Edit(
+                                                prev,
+                                                project.palette.clone(),
+                                            );
+                                            UNDOMANAGER
+                                                .write()
+                                                .unwrap()
+                                                .add_palette_undo(undo, ctx);
+                                        }
+
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Soft Update Minimap"),
+                                            TheValue::Empty,
+                                        ));
+                                    }
+
+                                    *PALETTE.write().unwrap() = project.palette.clone();
+                                    RUSTERIX.write().unwrap().assets.palette =
+                                        project.palette.clone();
+                                }
+                            }
+
+                            return redraw;
+                        }
+
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             let width = dim.width as f32;
                             let height = dim.height as f32;
@@ -970,7 +997,7 @@ impl Sidebar {
                 } else if id.name == "Update Model List" {
                     self.show_filtered_models(ui, ctx, project, server_ctx);
 
-                    self.deselect_sections_buttons(ui, "Model Section".to_string());
+                    self.deselect_sections_buttons(ctx, ui, "Model Section".to_string());
                     self.select_section_button(ui, "Model Section".to_string());
 
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Model;
@@ -1007,7 +1034,7 @@ impl Sidebar {
                 } else if id.name == "Update Tiles" {
                     self.update_tiles(ui, ctx, project);
                 } else if id.name == "Show Node Settings" {
-                    self.deselect_sections_buttons(ui, "Node Section".to_string());
+                    self.deselect_sections_buttons(ctx, ui, "Node Section".to_string());
                     self.select_section_button(ui, "Node Section".to_string());
 
                     if let TheValue::Text(text) = value {
@@ -1036,16 +1063,17 @@ impl Sidebar {
             TheEvent::PaletteIndexChanged(id, index) => {
                 if id.name == "Palette Picker" {
                     project.palette.current_index = *index;
-                    if let Some(widget) = ui.get_widget("Palette Color Picker") {
-                        if let Some(color) = &project.palette[*index as usize] {
-                            widget.set_value(TheValue::ColorObject(color.clone()));
-                        }
-                    }
                     if let Some(widget) = ui.get_widget("Palette Hex Edit") {
                         if let Some(color) = &project.palette[*index as usize] {
                             widget.set_value(TheValue::Text(color.to_hex()));
                         }
                     }
+                    *PALETTE.write().unwrap() = project.palette.clone();
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Soft Update Minimap"),
+                        TheValue::Empty,
+                    ));
                 }
             }
             TheEvent::DialogValueOnClose(role, name, uuid, value) => {
@@ -1289,35 +1317,21 @@ impl Sidebar {
                         let color = TheColor::from_hex(&hex);
 
                         if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
-                            palette_picker.set_color(color.clone());
-                            redraw = true;
-                            project.palette[palette_picker.index()] = Some(color.clone());
+                            if project.palette[palette_picker.index()] != Some(color.clone()) {
+                                let prev = project.palette.clone();
+
+                                palette_picker.set_color(color.clone());
+                                redraw = true;
+                                project.palette[palette_picker.index()] = Some(color.clone());
+                                let undo = PaletteUndoAtom::Edit(prev, project.palette.clone());
+                                UNDOMANAGER.write().unwrap().add_palette_undo(undo, ctx);
+
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Soft Update Minimap"),
+                                    TheValue::Empty,
+                                ));
+                            }
                         }
-                        if let Some(widget) = ui.get_widget("Palette Color Picker") {
-                            widget.set_value(TheValue::ColorObject(color.clone()));
-                        }
-                        if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker")
-                        {
-                            palette_picker.set_palette(project.palette.clone());
-                        }
-                    }
-                    *PALETTE.write().unwrap() = project.palette.clone();
-                    RUSTERIX.write().unwrap().assets.palette = project.palette.clone();
-                } else if id.name == "Palette Color Picker" {
-                    if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
-                        if let Some(color) = value.to_color() {
-                            palette_picker.set_color(color.clone());
-                            redraw = true;
-                            project.palette[palette_picker.index()] = Some(color);
-                        }
-                    }
-                    if let Some(widget) = ui.get_widget("Palette Hex Edit") {
-                        if let Some(color) = value.to_color() {
-                            widget.set_value(TheValue::Text(color.to_hex()));
-                        }
-                    }
-                    if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker") {
-                        palette_picker.set_palette(project.palette.clone());
                     }
                     *PALETTE.write().unwrap() = project.palette.clone();
                     RUSTERIX.write().unwrap().assets.palette = project.palette.clone();
@@ -1579,11 +1593,6 @@ impl Sidebar {
                         let index = palette_picker.index();
 
                         palette_picker.set_palette(project.palette.clone());
-                        if let Some(widget) = ui.get_widget("Palette Color Picker") {
-                            if let Some(color) = &project.palette[index] {
-                                widget.set_value(TheValue::ColorObject(color.clone()));
-                            }
-                        }
                         if let Some(widget) = ui.get_widget("Palette Hex Edit") {
                             if let Some(color) = &project.palette[index] {
                                 widget.set_value(TheValue::Text(color.to_hex()));
@@ -2081,7 +2090,7 @@ impl Sidebar {
                 }*/
                 // Section Buttons
                 else if id.name == "Region Section" && *state == TheWidgetState::Selected {
-                    self.deselect_sections_buttons(ui, id.name.clone());
+                    self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
@@ -2104,7 +2113,7 @@ impl Sidebar {
                     ));
                     redraw = true;
                 } else if id.name == "Character Section" && *state == TheWidgetState::Selected {
-                    self.deselect_sections_buttons(ui, id.name.clone());
+                    self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
@@ -2134,7 +2143,7 @@ impl Sidebar {
                     ));
                     redraw = true;
                 } else if id.name == "Item Section" && *state == TheWidgetState::Selected {
-                    self.deselect_sections_buttons(ui, id.name.clone());
+                    self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
@@ -2164,6 +2173,7 @@ impl Sidebar {
                     ));
                     redraw = true;
                 } else if id.name == "Tileset Section" && *state == TheWidgetState::Selected {
+                    self.deselect_sections_buttons(ctx, ui, id.name.clone());
                     if let Some(widget) = ui
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
@@ -2187,10 +2197,9 @@ impl Sidebar {
                         self.stack_layout_id.clone(),
                         SidebarMode::Tilemap as usize,
                     ));
-                    self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
                 } else if id.name == "Module Section" && *state == TheWidgetState::Selected {
-                    self.deselect_sections_buttons(ui, id.name.clone());
+                    self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
@@ -2217,7 +2226,7 @@ impl Sidebar {
                     ));
                     redraw = true;
                 } else if id.name == "Screen Section" && *state == TheWidgetState::Selected {
-                    self.deselect_sections_buttons(ui, id.name.clone());
+                    self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
@@ -2244,7 +2253,7 @@ impl Sidebar {
                     ));
                     redraw = true;
                 } else if id.name == "Asset Section" && *state == TheWidgetState::Selected {
-                    self.deselect_sections_buttons(ui, id.name.clone());
+                    self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
@@ -2271,7 +2280,7 @@ impl Sidebar {
                     ));
                     redraw = true;
                 } else if id.name == "Model Section" && *state == TheWidgetState::Selected {
-                    self.deselect_sections_buttons(ui, id.name.clone());
+                    self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
@@ -2288,7 +2297,7 @@ impl Sidebar {
                     ));
                     redraw = true;
                 } else if id.name == "Material Section" && *state == TheWidgetState::Selected {
-                    self.deselect_sections_buttons(ui, id.name.clone());
+                    self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
@@ -2308,7 +2317,7 @@ impl Sidebar {
                     ));
                     redraw = true;
                 } else if id.name == "Node Section" && *state == TheWidgetState::Selected {
-                    self.deselect_sections_buttons(ui, id.name.clone());
+                    self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
@@ -2326,7 +2335,7 @@ impl Sidebar {
 
                     redraw = true;
                 } else if id.name == "Debug Section" && *state == TheWidgetState::Selected {
-                    self.deselect_sections_buttons(ui, id.name.clone());
+                    self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
@@ -2341,9 +2350,10 @@ impl Sidebar {
                         self.stack_layout_id.clone(),
                         SidebarMode::Debug as usize,
                     ));
+
                     redraw = true;
                 } else if id.name == "Palette Section" && *state == TheWidgetState::Selected {
-                    self.deselect_sections_buttons(ui, id.name.clone());
+                    self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
@@ -2358,6 +2368,7 @@ impl Sidebar {
                         self.stack_layout_id.clone(),
                         SidebarMode::Palette as usize,
                     ));
+
                     redraw = true;
                 }
             }
@@ -2492,20 +2503,10 @@ impl Sidebar {
         }
 
         // Adjust Palette and Color Picker
-        if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker") {
-            palette_picker.set_palette(project.palette.clone());
-        }
-
-        // Adjust Palette and Color Picker
         if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
             palette_picker.set_palette(project.palette.clone());
             let index = palette_picker.index();
 
-            if let Some(widget) = ui.get_widget("Palette Color Picker") {
-                if let Some(color) = &project.palette[index] {
-                    widget.set_value(TheValue::ColorObject(color.clone()));
-                }
-            }
             if let Some(widget) = ui.get_widget("Palette Hex Edit") {
                 if let Some(color) = &project.palette[index] {
                     widget.set_value(TheValue::Text(color.to_hex()));
@@ -3308,7 +3309,12 @@ impl Sidebar {
     pub fn apply_asset(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext, _asset: Option<&Asset>) {}
 
     /// Deselects the section buttons
-    pub fn deselect_sections_buttons(&mut self, ui: &mut TheUI, except: String) {
+    pub fn deselect_sections_buttons(
+        &mut self,
+        ctx: &mut TheContext,
+        ui: &mut TheUI,
+        except: String,
+    ) {
         if let Some(layout) = ui.canvas.get_layout(Some(&"Section Buttons".into()), None) {
             for w in layout.widgets() {
                 if !w.id().name.starts_with(&except) {
@@ -3316,6 +3322,11 @@ impl Sidebar {
                 }
             }
         }
+
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Soft Update Minimap"),
+            TheValue::Empty,
+        ));
     }
 
     pub fn select_section_button(&mut self, ui: &mut TheUI, name: String) {

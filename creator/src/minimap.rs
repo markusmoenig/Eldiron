@@ -2,7 +2,7 @@ use crate::prelude::*;
 use rusterix::prelude::*;
 use vek::Vec2;
 
-use crate::editor::RUSTERIX;
+use crate::editor::{PALETTE, RUSTERIX, SIDEBARMODE};
 
 pub static MINIMAPBUFFER: LazyLock<RwLock<TheRGBABuffer>> =
     LazyLock::new(|| RwLock::new(TheRGBABuffer::default()));
@@ -49,6 +49,22 @@ pub fn draw_minimap(
     server_ctx: &ServerContext,
     hard: bool,
 ) {
+    if *SIDEBARMODE.read().unwrap() == SidebarMode::Palette {
+        buffer.render_hsl_hue_waveform();
+
+        if let Some(color) = PALETTE.read().unwrap().get_current_color() {
+            if let Some(pos) = buffer.find_closest_color_position(color.to_u8_array_3()) {
+                let w = 4;
+                buffer.draw_rect_outline(
+                    &TheDim::rect(pos.x - w, pos.y - w, w * 2, w * 2),
+                    &vek::Rgba::white().into_array(),
+                );
+            }
+        }
+
+        return;
+    }
+
     if !hard {
         buffer.copy_into(0, 0, &MINIMAPBUFFER.read().unwrap());
         draw_camera_marker(orig_region, buffer, server_ctx);
