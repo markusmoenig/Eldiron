@@ -237,6 +237,9 @@ impl Tool for WorldTool {
                 } else if id.name == "Brush Strength" {
                     WORLDEDITOR.write().unwrap().strength = *v;
                     WORLDEDITOR.write().unwrap().update_brush_preview(ui);
+                } else if id.name == "Brush Fixed" {
+                    WORLDEDITOR.write().unwrap().fixed = *v;
+                    WORLDEDITOR.write().unwrap().update_brush_preview(ui);
                 } else if id.name == "tileRulesDistance" {
                     WORLDEDITOR.write().unwrap().tile_rules_distance = *v;
                 } else if id.name == "tileRulesHeight" {

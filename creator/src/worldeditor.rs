@@ -15,6 +15,7 @@ pub enum BrushType {
     Fill,
     Smooth,
     Fractal,
+    Fixed,
 }
 
 impl BrushType {
@@ -23,6 +24,7 @@ impl BrushType {
             1 => *self = BrushType::Fill,
             2 => *self = BrushType::Smooth,
             3 => *self = BrushType::Fractal,
+            4 => *self = BrushType::Fixed,
             _ => *self = BrushType::Elevation,
         }
     }
@@ -39,6 +41,7 @@ pub struct WorldEditor {
     pub radius: f32,
     pub falloff: f32,
     pub strength: f32,
+    pub fixed: f32,
 
     hud: Hud,
 
@@ -69,6 +72,7 @@ impl WorldEditor {
             radius: 10.0,
             falloff: 2.0,
             strength: 0.2,
+            fixed: 2.0,
 
             hud: Hud::new(HudMode::Terrain),
 
@@ -110,6 +114,10 @@ impl WorldEditor {
             "Fractal".to_string(),
             "Add fractal noise to create natural terrain (click-drag).".to_string(),
         );
+        brush_switch.add_text_status(
+            "Fixed".to_string(),
+            "Set terrain to a fixed height(click-drag).".to_string(),
+        );
         brush_switch.set_item_width(80);
         text_layout.add_pair("".to_string(), Box::new(brush_switch));
 
@@ -140,6 +148,14 @@ impl WorldEditor {
         strength.set_status_text("Maximum intensity of the brush effect at the center.");
         strength.limiter_mut().set_max_width(300);
         text_layout.add_pair("".to_string(), Box::new(strength));
+
+        let mut fixed = TheTextLineEdit::new(TheId::named("Brush Fixed"));
+        fixed.set_value(TheValue::Float(2.0));
+        fixed.set_range(TheValue::RangeF32(-10.0..=50.0));
+        fixed.set_info_text(Some("Fixed".into()));
+        fixed.set_status_text("Fixed terrain height used by the 'Fixed' brush.");
+        fixed.limiter_mut().set_max_width(300);
+        text_layout.add_pair("".to_string(), Box::new(fixed));
 
         center.set_layout(text_layout);
 
@@ -457,6 +473,8 @@ impl WorldEditor {
             );
         } else if self.brush_type == BrushType::Fractal {
             self.fractal_brush(terrain, center, self.radius, self.falloff, self.strength);
+        } else if self.brush_type == BrushType::Fixed {
+            self.fixed_brush(terrain, center, self.radius, self.falloff, self.fixed);
         }
     }
 
@@ -635,6 +653,44 @@ impl WorldEditor {
 
                     let current_height = terrain.get_height(x, y);
                     terrain.set_height(x, y, current_height + noise);
+                    self.edited = true;
+                }
+            }
+        }
+    }
+
+    /// Apply a circular fixed-height brush to the terrain at a ray hit
+    pub fn fixed_brush(
+        &mut self,
+        terrain: &mut Terrain,
+        center: Vec2<f32>,
+        radius: f32,
+        falloff: f32,
+        target_height: f32,
+    ) {
+        let radius2 = radius * radius;
+
+        let min_x = ((center.x - radius) / terrain.scale.x).floor() as i32;
+        let max_x = ((center.x + radius) / terrain.scale.x).ceil() as i32;
+        let min_y = ((center.y - radius) / terrain.scale.y).floor() as i32;
+        let max_y = ((center.y + radius) / terrain.scale.y).ceil() as i32;
+
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
+                let world_pos = Vec2::new(x as f32 * terrain.scale.x, y as f32 * terrain.scale.y);
+                let dist2 = (world_pos - center).magnitude_squared();
+
+                if dist2 <= radius2 {
+                    let dist = dist2.sqrt();
+                    let mut factor = 1.0 - (dist / radius);
+
+                    // Apply falloff curve
+                    factor = factor.powf(falloff.max(0.01)).clamp(0.0, 1.0);
+
+                    let current_height = terrain.get_height(x, y);
+                    let new_height = current_height * (1.0 - factor) + target_height * factor;
+
+                    terrain.set_height(x, y, new_height);
                     self.edited = true;
                 }
             }

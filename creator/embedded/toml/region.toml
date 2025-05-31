@@ -1,7 +1,2 @@
 [rendering]
 receives_daylight = false
-
-fog_enabled = false
-fog_color = "#000000"
-fog_start_distance = 3.0
-fog_end_distance = 5.0
