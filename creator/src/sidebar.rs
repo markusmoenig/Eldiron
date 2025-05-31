@@ -189,9 +189,7 @@ impl Sidebar {
         // Region Content
 
         let mut list_layout = TheListLayout::new(TheId::named("Region Content List"));
-        list_layout
-            .limiter_mut()
-            .set_max_size(Vec2::new(self.width, 250));
+        list_layout.limiter_mut().set_max_width(self.width);
         let mut content_canvas = TheCanvas::default();
         content_canvas.set_layout(list_layout);
 
@@ -254,27 +252,14 @@ impl Sidebar {
         region_shared_layout.set_shared_ratio(0.4);
         regions_canvas.set_layout(region_shared_layout);
 
-        // Mini Map
-
-        let mut minimap_canvas = TheCanvas::default();
-        let mut minimap = TheRenderView::new(TheId::named("MiniMap"));
-
-        minimap
-            .limiter_mut()
-            .set_max_size(Vec2::new(self.width, 200));
-        minimap_canvas.set_widget(minimap);
-
-        regions_canvas.set_bottom(minimap_canvas);
         stack_layout.add_canvas(regions_canvas);
 
         // Character
 
         let mut character_canvas = TheCanvas::default();
-        let mut list_layout = TheListLayout::new(TheId::named("Character List"));
-        list_layout
-            .limiter_mut()
-            .set_max_size(Vec2::new(self.width, 400));
         let mut list_canvas = TheCanvas::default();
+        let mut list_layout = TheListLayout::new(TheId::named("Character List"));
+        list_layout.limiter_mut().set_max_width(self.width);
         list_canvas.set_layout(list_layout);
 
         let mut regions_add_button = TheTraybarButton::new(TheId::named("Character Add"));
@@ -297,24 +282,13 @@ impl Sidebar {
         list_canvas.set_bottom(toolbar_canvas);
 
         character_canvas.set_top(list_canvas);
-
-        let mut empty = TheCanvas::new();
-        let mut layout = TheListLayout::new(TheId::empty());
-        layout.limiter_mut().set_max_width(self.width);
-        //empty.set_layout(layout);
-        empty.set_widget(TheColorButton::new(TheId::empty()));
-        empty.limiter_mut().set_max_width(self.width);
-        character_canvas.set_bottom(empty);
-
         stack_layout.add_canvas(character_canvas);
 
         // Item
 
         let mut item_canvas = TheCanvas::default();
         let mut list_layout = TheListLayout::new(TheId::named("Item List"));
-        list_layout
-            .limiter_mut()
-            .set_max_size(Vec2::new(self.width, 400));
+        list_layout.limiter_mut().set_max_width(self.width);
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -443,9 +417,7 @@ impl Sidebar {
 
         let mut module_canvas = TheCanvas::default();
         let mut list_layout = TheListLayout::new(TheId::named("Module List"));
-        list_layout
-            .limiter_mut()
-            .set_max_size(Vec2::new(self.width, 400));
+        list_layout.limiter_mut().set_max_width(self.width);
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -474,6 +446,8 @@ impl Sidebar {
         // Screens
 
         let mut screens_canvas = TheCanvas::default();
+
+        let mut shared_layout = TheSharedVLayout::new(TheId::named("Screen Shared Layout"));
 
         let mut list_layout = TheListLayout::new(TheId::named("Screen List"));
         list_layout
@@ -539,13 +513,15 @@ impl Sidebar {
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
         toolbar_canvas.set_layout(toolbar_hlayout);
         content_canvas.set_top(toolbar_canvas);
-        //content_canvas.set_bottom(widget_bottom_toolbar_canvas);
 
         screen_canvas.set_center(content_canvas);
-        screens_canvas.set_top(list_canvas);
-        //regions_canvas.set_layout(text_layout);
-        screens_canvas.set_center(screen_canvas);
 
+        shared_layout.add_canvas(list_canvas);
+        shared_layout.add_canvas(screen_canvas);
+        shared_layout.set_mode(TheSharedVLayoutMode::Shared);
+        shared_layout.set_shared_ratio(0.4);
+
+        screens_canvas.set_layout(shared_layout);
         stack_layout.add_canvas(screens_canvas);
 
         // Asset
@@ -553,9 +529,7 @@ impl Sidebar {
         let mut asset_canvas = TheCanvas::default();
 
         let mut list_layout = TheListLayout::new(TheId::named("Asset List"));
-        list_layout
-            .limiter_mut()
-            .set_max_size(Vec2::new(self.width, 300));
+        list_layout.limiter_mut().set_max_width(300);
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -743,7 +717,6 @@ impl Sidebar {
         let palette_picker = ThePalettePicker::new(TheId::named("Palette Picker"));
         palette_canvas.set_widget(palette_picker);
 
-        let mut picker_canvas = TheCanvas::default();
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
@@ -764,34 +737,39 @@ impl Sidebar {
         clear_all_button.set_icon_name("trash".to_string());
         clear_all_button.set_status_text("Clear all colors in the current palette.");
 
-        let mut picker_layout = TheVLayout::new(TheId::empty());
-
         toolbar_hlayout.add_widget(Box::new(hex_edit));
         toolbar_hlayout.add_widget(Box::new(import_button));
         toolbar_hlayout.add_widget(Box::new(clear_all_button));
         toolbar_hlayout.set_reverse_index(Some(2));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
+
+        /*
+        let mut picker_canvas = TheCanvas::default();
         picker_canvas.set_top(toolbar_canvas);
+
+        let mut picker_layout = TheVLayout::new(TheId::empty());
         picker_layout
             .limiter_mut()
             .set_max_size(Vec2::new(self.width, 240));
         //toolbar_hlayout.add_widget(Box::new(screen_add_button));
         //toolbar_hlayout.add_widget(Box::new(screen_remove_button));
 
-        let w = TheColorPicker::new(TheId::named("Palette Color Picker"));
+        let mut w = TheColorPicker::new(TheId::named("Palette Color Picker"));
         //w.set_value(TheValue::ColorObject(color.clone(), 0.0));
+        w.limiter_mut().set_max_size(Vec2::new(80, 80));
         picker_layout.set_background_color(Some(ListLayoutBackground));
         picker_layout.set_margin(Vec4::new(20, 10, 20, 10));
-        picker_layout.add_widget(Box::new(w));
+        // picker_layout.add_widget(Box::new(w));
         picker_canvas.set_layout(picker_layout);
 
         //palette_canvas.set_top(palette_canvas);
-        palette_canvas.set_bottom(picker_canvas);
+        palette_canvas.set_bottom(picker_canvas);*/
 
+        palette_canvas.set_bottom(toolbar_canvas);
         stack_layout.add_canvas(palette_canvas);
 
-        //
+        // - End of Sections
 
         let mut canvas = TheCanvas::new();
 
@@ -799,6 +777,20 @@ impl Sidebar {
         canvas.set_right(sectionbar_canvas);
         canvas.top_is_expanding = false;
         canvas.set_layout(stack_layout);
+
+        // Mini Map
+
+        let mut minimap_canvas = TheCanvas::default();
+        let mut minimap = TheRenderView::new(TheId::named("MiniMap"));
+
+        minimap
+            .limiter_mut()
+            .set_max_size(Vec2::new(self.width, 200));
+        minimap_canvas.set_widget(minimap);
+
+        canvas.set_bottom(minimap_canvas);
+
+        // --
 
         ui.canvas.set_right(canvas);
 
@@ -3317,32 +3309,6 @@ impl Sidebar {
 
     /// Deselects the section buttons
     pub fn deselect_sections_buttons(&mut self, ui: &mut TheUI, except: String) {
-        if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
-            // Remove code bundles UI from Character / Items / Modules
-            if let Some(canvas) = stack_layout.canvas_at_mut(SidebarMode::Character as usize) {
-                let mut c = TheCanvas::new();
-                c.set_layout(TheListLayout::new(TheId::empty()));
-                canvas.set_bottom(c);
-            }
-            if let Some(canvas) = stack_layout.canvas_at_mut(SidebarMode::Item as usize) {
-                let mut c = TheCanvas::new();
-                c.set_layout(TheListLayout::new(TheId::empty()));
-                canvas.set_bottom(c);
-            }
-            if let Some(canvas) = stack_layout.canvas_at_mut(SidebarMode::Module as usize) {
-                let mut c = TheCanvas::new();
-                c.set_layout(TheListLayout::new(TheId::empty()));
-                canvas.set_bottom(c);
-            }
-            if let Some(canvas) = stack_layout.canvas_at_mut(SidebarMode::Screen as usize) {
-                let mut c = TheCanvas::new();
-                let mut layout = TheListLayout::new(TheId::empty());
-                layout.limiter_mut().set_max_height(200);
-                c.set_layout(layout);
-                canvas.set_bottom(c);
-            }
-        }
-
         if let Some(layout) = ui.canvas.get_layout(Some(&"Section Buttons".into()), None) {
             for w in layout.widgets() {
                 if !w.id().name.starts_with(&except) {

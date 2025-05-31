@@ -28,6 +28,13 @@ impl CodeEditor {
         let mut center = TheCanvas::new();
 
         let mut textedit = TheTextAreaEdit::new(TheId::named("DataEdit"));
+        // textedit.as_code_editor(
+        //     "TOML",
+        //     TheCodeEditorSettings {
+        //         indicate_space: false,
+        //         ..Default::default()
+        //     },
+        // );
         if let Some(bytes) = crate::Embedded::get("parser/TOML.sublime-syntax") {
             if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
                 textedit.add_syntax_from_string(source);

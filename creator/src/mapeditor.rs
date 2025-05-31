@@ -1,5 +1,3 @@
-//use shared::server::prelude::MapToolType;
-
 use crate::editor::{NODEEDITOR, RUSTERIX, SCENEMANAGER, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::{PixelSource, Value};
