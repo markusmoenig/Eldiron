@@ -318,6 +318,7 @@ impl TheTrait for Editor {
         stop_button.set_icon_name("stop-fill".to_string());
 
         let mut time_slider = TheTimeSlider::new(TheId::named("Server Time Slider"));
+        time_slider.set_status_text("Adjust the server time.");
         time_slider.set_continuous(true);
         time_slider.limiter_mut().set_max_width(400);
         time_slider.set_value(TheValue::Time(TheTime::default()));
@@ -1018,6 +1019,21 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
                 match event {
+                    TheEvent::Custom(id, _) => {
+                        if id.name == "Update Client Properties" {
+                            let mut rusterix = RUSTERIX.write().unwrap();
+                            self.build_values.set(
+                                "no_rect_geo",
+                                rusterix::Value::Bool(self.server_ctx.no_rect_geo_on_map),
+                            );
+                            rusterix
+                                .client
+                                .builder_d2
+                                .set_properties(&self.build_values);
+                            rusterix.set_dirty();
+                        }
+                    }
+
                     TheEvent::DialogValueOnClose(role, name, uuid, _value) => {
                         if name == "Delete Character Instance ?" {
                             if role == TheDialogButtonRole::Delete {

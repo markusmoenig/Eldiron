@@ -449,9 +449,9 @@ impl Hud {
 
         // Show rect
         if map.camera == MapCamera::TwoD && self.mode != HudMode::Terrain {
-            let x = 400;
+            let x = 370;
             let size = 20;
-            self.rect_geo_rect = TheDim::rect(x, 0, 100, size);
+            self.rect_geo_rect = TheDim::rect(x, 0, 60, size);
 
             if let Some(font) = &ctx.ui.font {
                 let r = self.rect_geo_rect.to_buffer_utuple();
@@ -461,12 +461,10 @@ impl Hud {
                     stride,
                     font,
                     13.0,
-                    if server_ctx.no_rect_geo_on_map {
-                        "SHOW RECTS"
-                    } else {
-                        "HIDE RECTS"
-                    },
-                    &if self.rect_geo_rect.contains(self.mouse_pos) {
+                    "RECTS",
+                    &if self.rect_geo_rect.contains(self.mouse_pos)
+                        || !server_ctx.no_rect_geo_on_map
+                    {
                         sel_text_color
                     } else {
                         text_color
@@ -639,6 +637,12 @@ impl Hud {
 
         if self.rect_geo_rect.contains(Vec2::new(x, y)) {
             server_ctx.no_rect_geo_on_map = !server_ctx.no_rect_geo_on_map;
+
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Update Client Properties"),
+                TheValue::Empty,
+            ));
+
             return true;
         }
 
@@ -675,10 +679,20 @@ impl Hud {
         y: i32,
         _map: &mut Map,
         _ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         _server_ctx: &mut ServerContext,
     ) -> bool {
         self.mouse_pos = Vec2::new(x, y);
+
+        if self.rect_geo_rect.contains(self.mouse_pos) {
+            ctx.ui.send(TheEvent::SetStatusText(
+                TheId::empty(),
+                "Show / hide geometry created by the Rect tool.".to_string(),
+            ));
+        } else {
+            ctx.ui
+                .send(TheEvent::SetStatusText(TheId::empty(), "".into()));
+        }
         false
     }
 
