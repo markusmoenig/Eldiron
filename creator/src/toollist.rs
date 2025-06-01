@@ -102,6 +102,27 @@ impl ToolList {
                 }
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
+        } else if server_ctx.curr_map_context == MapContext::Character
+            || server_ctx.curr_map_context == MapContext::Item
+        {
+            if let Some(undo_atom) = undo_atom {
+                UNDOMANAGER.write().unwrap().add_region_undo(
+                    &server_ctx.curr_region,
+                    undo_atom,
+                    ctx,
+                );
+
+                if NODEEDITOR.read().unwrap().context == NodeContext::Shape {
+                    {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            NODEEDITOR
+                                .write()
+                                .unwrap()
+                                .create_shape_preview(map, &RUSTERIX.read().unwrap().assets);
+                        }
+                    }
+                }
+            }
         } else if server_ctx.curr_map_context == MapContext::Material {
             if let Some(undo_atom) = undo_atom {
                 let only_selection_changed = undo_atom.only_selection_changed();
@@ -111,6 +132,7 @@ impl ToolList {
                         .unwrap()
                         .add_material_undo(material_undo_atom, ctx);
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
+
                     if NODEEDITOR.read().unwrap().context != NodeContext::Material
                         && !only_selection_changed
                     {

@@ -1549,8 +1549,33 @@ impl MapEditor {
         vertex_id: u32,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) {
+        // Check if we need to apply the shape graph to the node editor
+        if server_ctx.curr_map_context == MapContext::Character
+            || server_ctx.curr_map_context == MapContext::Item
+        {
+            if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor {
+                ctx.ui
+                    .send(TheEvent::IndexChanged(TheId::named("Map Helper Switch"), 2));
+                if let Some(widget) = ui.get_group_button("Map Helper Switch") {
+                    widget.set_index(2);
+                }
+            }
+            if let Some(vertex) = map.find_vertex(vertex_id) {
+                if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
+                    vertex.properties.get("shape_graph")
+                {
+                    if let Some(graph) = map.shapefx_graphs.get(id) {
+                        NODEEDITOR
+                            .write()
+                            .unwrap()
+                            .apply_graph(NodeContext::Shape, graph, ui);
+                    }
+                }
+            }
+        }
+
         let mut nodeui = TheNodeUI::default();
 
         if let Some(vertex) = map.find_vertex(vertex_id) {
@@ -1597,6 +1622,30 @@ impl MapEditor {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
+        // Check if we need to apply the shape graph to the node editor
+        if server_ctx.curr_map_context == MapContext::Character
+            || server_ctx.curr_map_context == MapContext::Item
+        {
+            if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor {
+                ctx.ui
+                    .send(TheEvent::IndexChanged(TheId::named("Map Helper Switch"), 2));
+                if let Some(widget) = ui.get_group_button("Map Helper Switch") {
+                    widget.set_index(2);
+                }
+            }
+            if let Some(linedef) = map.find_linedef(linedef_id) {
+                if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
+                    linedef.properties.get("shape_graph")
+                {
+                    if let Some(graph) = map.shapefx_graphs.get(id) {
+                        NODEEDITOR
+                            .write()
+                            .unwrap()
+                            .apply_graph(NodeContext::Material, graph, ui);
+                    }
+                }
+            }
+        } else
         // Check if we need to apply the material graph to the node editor
         if server_ctx.curr_map_context == MapContext::Material {
             if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor {
@@ -1606,9 +1655,9 @@ impl MapEditor {
                     widget.set_index(2);
                 }
             }
-            if let Some(sector) = map.find_linedef(linedef_id) {
+            if let Some(linedef) = map.find_linedef(linedef_id) {
                 if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
-                    sector.properties.get("floor_source")
+                    linedef.properties.get("floor_source")
                 {
                     if let Some(graph) = map.shapefx_graphs.get(id) {
                         NODEEDITOR

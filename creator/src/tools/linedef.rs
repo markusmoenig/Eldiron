@@ -493,8 +493,9 @@ impl Tool for LinedefTool {
                                             == MapToolHelper::NodeEditor
                                     {
                                         linedef.properties.set("region_graph", source.clone());
+                                    } else if context == NodeContext::Shape {
+                                        linedef.properties.set("shape_graph", source.clone());
                                     } else if self.hud.selected_icon_index == 0 {
-                                        println!("1");
                                         linedef.properties.set("row1_source", source.clone());
                                     } else if self.hud.selected_icon_index == 1 {
                                         linedef.properties.set("row2_source", source.clone());
@@ -539,6 +540,11 @@ impl Tool for LinedefTool {
                                     && server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor
                                 {
                                     linedef.properties.remove("region_graph");
+                                }
+                                if context == NodeContext::Shape
+                                    && server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor
+                                {
+                                    linedef.properties.remove("shape_graph");
                                 } else if self.hud.selected_icon_index == 0 {
                                     if linedef.properties.contains("row1_light") {
                                         linedef.properties.remove("row1_light");

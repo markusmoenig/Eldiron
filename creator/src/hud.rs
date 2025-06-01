@@ -497,7 +497,21 @@ impl Hud {
 
         // ----- Preview
 
-        if server_ctx.curr_map_context == MapContext::Material {
+        if server_ctx.curr_map_context == MapContext::Character
+            || server_ctx.curr_map_context == MapContext::Item
+        {
+            if let Some(Value::Texture(texture)) = map.properties.get("shape") {
+                let w = texture.width as i32;
+                let h = texture.height as i32;
+                let preview_rect = TheDim::rect(width as i32 - w - 1, height as i32 - h - 1, w, h);
+                ctx.draw.copy_slice(
+                    buffer.pixels_mut(),
+                    &texture.data,
+                    &preview_rect.to_buffer_utuple(),
+                    stride,
+                );
+            }
+        } else if server_ctx.curr_map_context == MapContext::Material {
             if let Some(Value::Texture(texture)) = map.properties.get("material") {
                 let w = texture.width as i32;
                 let h = texture.height as i32;

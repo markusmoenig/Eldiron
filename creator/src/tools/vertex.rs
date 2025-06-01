@@ -397,6 +397,8 @@ impl Tool for VertexTool {
                                 if let Some(vertex) = map.find_vertex_mut(vertex_id) {
                                     if context == NodeContext::Region {
                                         vertex.properties.set("region_graph", source.clone());
+                                    } else if context == NodeContext::Shape {
+                                        vertex.properties.set("shape_graph", source.clone());
                                     }
                                 }
                             }
@@ -427,6 +429,10 @@ impl Tool for VertexTool {
                                     && server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor
                                 {
                                     vertex.properties.remove("region_graph");
+                                } else if context == NodeContext::Shape
+                                    && server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor
+                                {
+                                    vertex.properties.remove("shape_graph");
                                 }
                             }
                         }

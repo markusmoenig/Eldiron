@@ -10,7 +10,7 @@ use rusterix::{
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum NodeContext {
     Region,
-    Skeleton,
+    Shape,
     Material,
     GlobalRender,
 }
@@ -32,6 +32,7 @@ impl NodeEditor {
         categories.insert("Render".into(), TheColor::from("#e53935")); // Bright red — strong signal for core rendering pipeline
         categories.insert("Modifier".into(), TheColor::from("#00bfa5")); // Teal green — evokes transformation, procedural mesh edits
         categories.insert("FX".into(), TheColor::from("#7e57c2")); // Purple — expressive and magical for particles, screen fx, etc.
+        categories.insert("Shape".into(), TheColor::from("#4285F4")); // Vivid blue — represents structure, geometric form, and stability
 
         Self {
             context: NodeContext::Region,
@@ -49,7 +50,7 @@ impl NodeEditor {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
-        println!("NodeContext {:?}", context);
+        // println!("NodeContext {:?}", context);
         self.context = context;
         if context == GlobalRender {
             if project.render_graph.nodes.is_empty() {
@@ -69,6 +70,7 @@ impl NodeEditor {
 
     /// Activates the given graph in the editor
     pub fn apply_graph(&mut self, context: NodeContext, graph: &ShapeFXGraph, ui: &mut TheUI) {
+        // println!("Apply Graph {:?}", context);
         self.context = context;
         self.graph = graph.clone();
         self.graph.selected_node = None;
@@ -84,6 +86,8 @@ impl NodeEditor {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
+        // println!("Graph Changed {:?}", self.context);
+
         if self.context == NodeContext::GlobalRender {
             let mut rusterix = RUSTERIX.write().unwrap();
             rusterix.client.global = self.graph.clone();
@@ -113,6 +117,16 @@ impl NodeEditor {
                     TheId::named("Update Materialpicker"),
                     TheValue::Empty,
                 ));
+            }
+        }
+        if self.context == NodeContext::Shape {
+            if let Some(map) = project.get_map_mut(server_ctx) {
+                let prev = map.clone();
+                map.changed += 1;
+                map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
+                let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+                UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
+                self.create_shape_preview(map, &RUSTERIX.read().unwrap().assets);
             }
         }
     }
@@ -175,11 +189,25 @@ impl NodeEditor {
         }));
         toolbar_hlayout.add_widget(Box::new(mesh_nodes_button));
 
+        let mut shape_nodes_button = TheTraybarButton::new(TheId::named("Shape Nodes"));
+        shape_nodes_button.set_custom_color(self.categories.get("Shape").cloned());
+        shape_nodes_button.set_text(str!("Shape"));
+        shape_nodes_button.set_status_text("Nodes which attach to geometry and create shapes.");
+        shape_nodes_button.set_context_menu(Some(TheContextMenu {
+            items: vec![TheContextMenuItem::new(
+                "Circle".to_string(),
+                TheId::named("Circle"),
+            )],
+            ..Default::default()
+        }));
+        toolbar_hlayout.add_widget(Box::new(shape_nodes_button));
+
         let mut shapefx_nodes_button = TheTraybarButton::new(TheId::named("ShapeFX Nodes"));
         shapefx_nodes_button.set_custom_color(self.categories.get("ShapeFX").cloned());
         shapefx_nodes_button.set_text(str!("Shape FX"));
-        shapefx_nodes_button
-            .set_status_text("Nodes which attach to geometry and shapes and create pixels.");
+        shapefx_nodes_button.set_status_text(
+            "Nodes which attach to geometry and shapes and create colors and patterns.",
+        );
         shapefx_nodes_button.set_context_menu(Some(TheContextMenu {
             items: vec![
                 TheContextMenuItem::new("Color".to_string(), TheId::named("Color")),
@@ -194,7 +222,7 @@ impl NodeEditor {
         }));
         toolbar_hlayout.add_widget(Box::new(shapefx_nodes_button));
 
-        toolbar_hlayout.set_reverse_index(Some(4));
+        toolbar_hlayout.set_reverse_index(Some(5));
         top_toolbar.set_layout(toolbar_hlayout);
         center.set_top(top_toolbar);
 
@@ -250,7 +278,8 @@ impl NodeEditor {
                 if (id.name == "ShapeFX Nodes"
                     || id.name == "Modifier Nodes"
                     || id.name == "Render Nodes"
-                    || id.name == "FX Nodes")
+                    || id.name == "FX Nodes"
+                    || id.name == "Shape Nodes")
                     && !self.graph.nodes.is_empty()
                 {
                     if let Ok(role) = item.name.parse::<ShapeFXRole>() {
@@ -275,11 +304,23 @@ impl NodeEditor {
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
                 if id.name == "Create Graph Button" {
-                    if self.context == NodeContext::Material {
+                    // println!("{:?}", server_ctx.curr_map_context);
+                    if server_ctx.curr_map_context == MapContext::Character
+                        || server_ctx.curr_map_context == MapContext::Item
+                    {
                         self.graph = ShapeFXGraph {
-                            nodes: vec![ShapeFX::new(ShapeFXRole::MaterialGeometry)],
+                            nodes: vec![ShapeFX::new(ShapeFXRole::Shape)],
                             ..Default::default()
                         };
+                        self.context = NodeContext::Shape;
+                    } else if server_ctx.curr_map_context == MapContext::Material {
+                        {
+                            self.graph = ShapeFXGraph {
+                                nodes: vec![ShapeFX::new(ShapeFXRole::MaterialGeometry)],
+                                ..Default::default()
+                            };
+                            self.context = NodeContext::Material;
+                        }
                     } else if self.context == NodeContext::Region {
                         if server_ctx.curr_map_tool_type == MapToolType::Sector {
                             self.graph = ShapeFXGraph {
@@ -292,6 +333,7 @@ impl NodeEditor {
                                 ..Default::default()
                             };
                         }
+                        self.context = NodeContext::Region;
                     }
 
                     let canvas = self.to_canvas();
@@ -480,13 +522,24 @@ impl NodeEditor {
         }
     }
 
+    /// Create a preview for the shape and stores it in the map
+    pub fn create_shape_preview(&self, map: &mut Map, assets: &Assets) {
+        let size = CONFIGEDITOR.read().unwrap().tile_size;
+        let mut texture = Texture::alloc(size as usize, size as usize);
+
+        let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
+        stack.render_shape(&mut texture, map, assets);
+
+        map.properties.set("shape", Value::Texture(texture));
+    }
+
     /// Create a preview for the material and stores it in the map
     pub fn create_material_preview(&self, map: &mut Map, assets: &Assets) {
         let size = CONFIGEDITOR.read().unwrap().tile_size;
         let mut texture = Texture::alloc(size as usize, size as usize);
 
         let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
-        stack.render(&mut texture, map, assets);
+        stack.render_geometry(&mut texture, map, assets);
 
         map.properties.set("material", Value::Texture(texture));
     }
