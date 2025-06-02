@@ -297,7 +297,7 @@ impl WorldEditor {
                 self.edited = false;
                 map.terrain.mark_clean();
 
-                if !ui.logo {
+                if !ui.logo && !ui.ctrl {
                     SCENEMANAGER
                         .write()
                         .unwrap()
@@ -348,7 +348,7 @@ impl WorldEditor {
                 hover(*coord);
                 if ui.alt {
                     self.orbit_camera.zoom((*coord - self.drag_coord).y as f32);
-                } else if ui.logo {
+                } else if ui.logo || ui.ctrl {
                     self.orbit_camera
                         .rotate((*coord - self.drag_coord).map(|v| v as f32 * 5.0));
                 } else if server_ctx.curr_world_tool_helper != WorldToolHelper::Brushes {

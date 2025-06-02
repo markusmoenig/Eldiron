@@ -118,14 +118,16 @@ impl NodeEditor {
                     TheValue::Empty,
                 ));
             }
-        }
-        if self.context == NodeContext::Shape {
+        } else if self.context == NodeContext::Shape {
             if let Some(map) = project.get_map_mut(server_ctx) {
                 let prev = map.clone();
                 map.changed += 1;
                 map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
-                let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-                UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
+                let undo = RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
+                UNDOMANAGER
+                    .write()
+                    .unwrap()
+                    .add_region_undo(&map.id, undo, ctx);
                 self.create_shape_preview(map, &RUSTERIX.read().unwrap().assets);
             }
         }
@@ -151,7 +153,7 @@ impl NodeEditor {
         fx_nodes_button.set_custom_color(self.categories.get("FX").cloned());
         fx_nodes_button.set_text(str!("FX"));
         fx_nodes_button
-            .set_status_text("Nodes which create a special effect like lights or perticles.");
+            .set_status_text("Nodes which create a special effect like lights or particles.");
         fx_nodes_button.set_context_menu(Some(TheContextMenu {
             items: vec![
                 TheContextMenuItem::new("Material".to_string(), TheId::named("Material")),
@@ -194,10 +196,10 @@ impl NodeEditor {
         shape_nodes_button.set_text(str!("Shape"));
         shape_nodes_button.set_status_text("Nodes which attach to geometry and create shapes.");
         shape_nodes_button.set_context_menu(Some(TheContextMenu {
-            items: vec![TheContextMenuItem::new(
-                "Circle".to_string(),
-                TheId::named("Circle"),
-            )],
+            items: vec![
+                TheContextMenuItem::new("Circle".to_string(), TheId::named("Circle")),
+                TheContextMenuItem::new("Line".to_string(), TheId::named("Line")),
+            ],
             ..Default::default()
         }));
         toolbar_hlayout.add_widget(Box::new(shape_nodes_button));
