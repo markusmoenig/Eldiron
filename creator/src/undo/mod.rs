@@ -1,9 +1,13 @@
+pub mod character_undo;
+pub mod item_undo;
 pub mod material_undo;
 pub mod palette_undo;
 pub mod region_undo;
 pub mod screen_undo;
 
 use crate::prelude::*;
+use character_undo::*;
+use item_undo::*;
 use material_undo::*;
 use screen_undo::*;
 
@@ -13,7 +17,8 @@ pub enum UndoManagerContext {
     Region,
     Material,
     Screen,
-    CodeGridFX,
+    Character,
+    Item,
     Palette,
 }
 
@@ -25,6 +30,8 @@ pub struct UndoManager {
     regions: FxHashMap<Uuid, RegionUndo>,
     material: MaterialUndo,
     screen: ScreenUndo,
+    character: CharacterUndo,
+    item: ItemUndo,
     palette: PaletteUndo,
 }
 
@@ -43,6 +50,8 @@ impl UndoManager {
             regions: FxHashMap::default(),
             material: MaterialUndo::default(),
             screen: ScreenUndo::default(),
+            character: CharacterUndo::default(),
+            item: ItemUndo::default(),
             palette: PaletteUndo::default(),
         }
     }
@@ -60,17 +69,26 @@ impl UndoManager {
         self.can_save(ctx);
     }
 
-    // pub fn add_materialfx_undo(&mut self, atom: MaterialFXUndoAtom, ctx: &mut TheContext) {
-    //     self.context = UndoManagerContext::MaterialFX;
-    //     self.materialfx.add(atom);
-    //     ctx.ui.set_enabled("Undo");
-    //     self.can_save(ctx);
-    // }
-
     pub fn add_material_undo(&mut self, atom: MaterialUndoAtom, ctx: &mut TheContext) {
         self.context = UndoManagerContext::Material;
         self.material.add(atom);
         self.material.truncate_to_limit(self.max_undo);
+        ctx.ui.set_enabled("Undo");
+        self.can_save(ctx);
+    }
+
+    pub fn add_character_undo(&mut self, atom: CharacterUndoAtom, ctx: &mut TheContext) {
+        self.context = UndoManagerContext::Character;
+        self.character.add(atom);
+        self.character.truncate_to_limit(self.max_undo);
+        ctx.ui.set_enabled("Undo");
+        self.can_save(ctx);
+    }
+
+    pub fn add_item_undo(&mut self, atom: ItemUndoAtom, ctx: &mut TheContext) {
+        self.context = UndoManagerContext::Item;
+        self.item.add(atom);
+        self.item.truncate_to_limit(self.max_undo);
         ctx.ui.set_enabled("Undo");
         self.can_save(ctx);
     }
@@ -137,6 +155,36 @@ impl UndoManager {
                     ctx.ui.set_enabled("Redo");
                 }
             }
+            UndoManagerContext::Character => {
+                self.character.undo(project, ui, ctx);
+
+                if !self.character.has_undo() {
+                    ctx.ui.set_disabled("Undo");
+                } else {
+                    ctx.ui.set_enabled("Undo");
+                }
+
+                if !self.character.has_redo() {
+                    ctx.ui.set_disabled("Redo");
+                } else {
+                    ctx.ui.set_enabled("Redo");
+                }
+            }
+            UndoManagerContext::Item => {
+                self.item.undo(project, ui, ctx);
+
+                if !self.item.has_undo() {
+                    ctx.ui.set_disabled("Undo");
+                } else {
+                    ctx.ui.set_enabled("Undo");
+                }
+
+                if !self.item.has_redo() {
+                    ctx.ui.set_disabled("Redo");
+                } else {
+                    ctx.ui.set_enabled("Redo");
+                }
+            }
             UndoManagerContext::Screen => {
                 self.screen.undo(project, ui, ctx);
 
@@ -152,21 +200,6 @@ impl UndoManager {
                     ctx.ui.set_enabled("Redo");
                 }
             }
-            // UndoManagerContext::MaterialFX => {
-            //     self.materialfx.undo(server_ctx, project, ui, ctx);
-
-            //     if !self.materialfx.has_undo() {
-            //         ctx.ui.set_disabled("Undo");
-            //     } else {
-            //         ctx.ui.set_enabled("Undo");
-            //     }
-
-            //     if !self.materialfx.has_redo() {
-            //         ctx.ui.set_disabled("Redo");
-            //     } else {
-            //         ctx.ui.set_enabled("Redo");
-            //     }
-            // }
             UndoManagerContext::Palette => {
                 self.palette.undo(server_ctx, project, ui, ctx);
 
@@ -182,7 +215,6 @@ impl UndoManager {
                     ctx.ui.set_enabled("Redo");
                 }
             }
-            _ => {}
         }
         self.can_save(ctx);
     }
@@ -233,6 +265,36 @@ impl UndoManager {
                     ctx.ui.set_enabled("Redo");
                 }
             }
+            UndoManagerContext::Character => {
+                self.character.redo(project, ui, ctx);
+
+                if !self.character.has_undo() {
+                    ctx.ui.set_disabled("Undo");
+                } else {
+                    ctx.ui.set_enabled("Undo");
+                }
+
+                if !self.character.has_redo() {
+                    ctx.ui.set_disabled("Redo");
+                } else {
+                    ctx.ui.set_enabled("Redo");
+                }
+            }
+            UndoManagerContext::Item => {
+                self.item.redo(project, ui, ctx);
+
+                if !self.item.has_undo() {
+                    ctx.ui.set_disabled("Undo");
+                } else {
+                    ctx.ui.set_enabled("Undo");
+                }
+
+                if !self.item.has_redo() {
+                    ctx.ui.set_disabled("Redo");
+                } else {
+                    ctx.ui.set_enabled("Redo");
+                }
+            }
             UndoManagerContext::Screen => {
                 self.screen.redo(project, ui, ctx);
 
@@ -248,21 +310,6 @@ impl UndoManager {
                     ctx.ui.set_enabled("Redo");
                 }
             }
-            // UndoManagerContext::MaterialFX => {
-            //     self.materialfx.redo(server_ctx, project, ui, ctx);
-
-            //     if !self.materialfx.has_undo() {
-            //         ctx.ui.set_disabled("Undo");
-            //     } else {
-            //         ctx.ui.set_enabled("Undo");
-            //     }
-
-            //     if !self.materialfx.has_redo() {
-            //         ctx.ui.set_disabled("Redo");
-            //     } else {
-            //         ctx.ui.set_enabled("Redo");
-            //     }
-            // }
             UndoManagerContext::Palette => {
                 self.palette.redo(server_ctx, project, ui, ctx);
 
@@ -278,7 +325,6 @@ impl UndoManager {
                     ctx.ui.set_enabled("Redo");
                 }
             }
-            _ => {}
         }
         self.can_save(ctx);
     }
@@ -302,13 +348,19 @@ impl UndoManager {
             }
         }
         if self.material.has_undo() {
-            return false;
+            return true;
         }
         if self.screen.has_undo() {
-            return false;
+            return true;
+        }
+        if self.character.has_undo() {
+            return true;
+        }
+        if self.item.has_undo() {
+            return true;
         }
         if self.palette.has_undo() {
-            return false;
+            return true;
         }
         false
     }

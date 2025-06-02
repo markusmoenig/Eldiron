@@ -1,5 +1,7 @@
 use crate::editor::SCENEMANAGER;
 use crate::prelude::*;
+use crate::undo::character_undo::CharacterUndoAtom;
+use crate::undo::item_undo::ItemUndoAtom;
 use crate::undo::material_undo::MaterialUndoAtom;
 use crate::undo::screen_undo::ScreenUndoAtom;
 use rusterix::TerrainChunk;
@@ -51,7 +53,19 @@ impl RegionUndoAtom {
     pub fn to_material_atom(self) -> Option<MaterialUndoAtom> {
         match self {
             RegionUndoAtom::MapEdit(map1, map2) => Some(MaterialUndoAtom::MapEdit(map1, map2)),
-            _ => None, // Return None for unsupported variants
+            _ => None,
+        }
+    }
+    pub fn to_character_atom(self) -> Option<CharacterUndoAtom> {
+        match self {
+            RegionUndoAtom::MapEdit(map1, map2) => Some(CharacterUndoAtom::MapEdit(map1, map2)),
+            _ => None,
+        }
+    }
+    pub fn to_item_atom(self) -> Option<ItemUndoAtom> {
+        match self {
+            RegionUndoAtom::MapEdit(map1, map2) => Some(ItemUndoAtom::MapEdit(map1, map2)),
+            _ => None,
         }
     }
     pub fn to_screen_atom(self) -> Option<ScreenUndoAtom> {

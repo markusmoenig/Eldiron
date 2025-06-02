@@ -1857,6 +1857,8 @@ impl TheTrait for Editor {
                                 } else if manager.context == UndoManagerContext::Material
                                     || manager.context == UndoManagerContext::Palette
                                     || manager.context == UndoManagerContext::Screen
+                                    || manager.context == UndoManagerContext::Character
+                                    || manager.context == UndoManagerContext::Item
                                 {
                                     if id.name == "Undo" {
                                         manager.undo(

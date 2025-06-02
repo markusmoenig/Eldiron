@@ -1641,7 +1641,7 @@ impl MapEditor {
                         NODEEDITOR
                             .write()
                             .unwrap()
-                            .apply_graph(NodeContext::Material, graph, ui);
+                            .apply_graph(NodeContext::Shape, graph, ui);
                     }
                 }
             }

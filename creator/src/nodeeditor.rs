@@ -547,7 +547,9 @@ impl NodeEditor {
     }
 
     pub fn force_update(&self, ctx: &mut TheContext, map: &mut Map) {
-        if self.context == NodeContext::Material {
+        if self.context == NodeContext::Shape {
+            self.create_shape_preview(map, &RUSTERIX.read().unwrap().assets);
+        } else if self.context == NodeContext::Material {
             self.create_material_preview(map, &RUSTERIX.read().unwrap().assets);
 
             ctx.ui.send(TheEvent::Custom(

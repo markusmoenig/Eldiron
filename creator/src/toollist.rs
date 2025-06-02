@@ -102,18 +102,37 @@ impl ToolList {
                 }
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
-        } else if server_ctx.curr_map_context == MapContext::Character
-            || server_ctx.curr_map_context == MapContext::Item
-        {
+        } else if server_ctx.curr_map_context == MapContext::Character {
             if let Some(undo_atom) = undo_atom {
-                UNDOMANAGER.write().unwrap().add_region_undo(
-                    &server_ctx.curr_region,
-                    undo_atom,
-                    ctx,
-                );
+                let only_selection_changed = undo_atom.only_selection_changed();
+                if let Some(character_undo_atom) = undo_atom.to_character_atom() {
+                    UNDOMANAGER
+                        .write()
+                        .unwrap()
+                        .add_character_undo(character_undo_atom, ctx);
 
-                if NODEEDITOR.read().unwrap().context == NodeContext::Shape {
-                    {
+                    // if NODEEDITOR.read().unwrap().context == NodeContext::Shape {
+                    if !only_selection_changed {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            NODEEDITOR
+                                .write()
+                                .unwrap()
+                                .create_shape_preview(map, &RUSTERIX.read().unwrap().assets);
+                        }
+                    }
+                }
+            }
+        } else if server_ctx.curr_map_context == MapContext::Item {
+            if let Some(undo_atom) = undo_atom {
+                let only_selection_changed = undo_atom.only_selection_changed();
+                if let Some(item_undo_atom) = undo_atom.to_item_atom() {
+                    UNDOMANAGER
+                        .write()
+                        .unwrap()
+                        .add_item_undo(item_undo_atom, ctx);
+
+                    // if NODEEDITOR.read().unwrap().context == NodeContext::Shape {
+                    if !only_selection_changed {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             NODEEDITOR
                                 .write()
@@ -213,15 +232,6 @@ impl ToolList {
                             PanelIndices::MaterialPicker as usize,
                         ));
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-                        if NODEEDITOR.read().unwrap().context != NodeContext::Region {
-                            NODEEDITOR.write().unwrap().set_context(
-                                NodeContext::Region,
-                                ui,
-                                ctx,
-                                project,
-                                server_ctx,
-                            );
-                        }
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::NodeEditor as usize,
