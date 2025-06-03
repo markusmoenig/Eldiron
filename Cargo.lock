@@ -883,7 +883,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
- "theframework 0.1.40",
+ "theframework",
  "toml",
  "vectorize",
  "vek",
@@ -4207,7 +4207,7 @@ dependencies = [
  "rustpython-vm",
  "serde",
  "serde_json",
- "theframework 0.1.40 (git+https://github.com/markusmoenig/theframework)",
+ "theframework",
  "toml",
  "uuid",
  "vectorize",
@@ -4885,7 +4885,7 @@ dependencies = [
  "rusterix",
  "serde",
  "serde_json",
- "theframework 0.1.40",
+ "theframework",
  "vectorize",
  "vek",
  "wasm-bindgen",
@@ -5029,7 +5029,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
- "theframework 0.1.40",
+ "theframework",
  "vectorize",
  "wasm-bindgen",
  "web-sys",
@@ -5274,6 +5274,7 @@ checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
 [[package]]
 name = "theframework"
 version = "0.1.40"
+source = "git+https://github.com/markusmoenig/TheFramework#6d210abfc982eaf785db02bbba0334c6b1fb5c54"
 dependencies = [
  "aict",
  "arboard",
@@ -5312,47 +5313,6 @@ dependencies = [
  "winit",
  "winit_input_helper",
  "zeno",
-]
-
-[[package]]
-name = "theframework"
-version = "0.1.40"
-source = "git+https://github.com/markusmoenig/theframework#6d210abfc982eaf785db02bbba0334c6b1fb5c54"
-dependencies = [
- "aict",
- "arboard",
- "bytemuck",
- "console_error_panic_hook",
- "console_log",
- "env_logger 0.11.8",
- "flags",
- "flate2",
- "fontdue",
- "futures",
- "half 2.6.0",
- "indexmap 2.9.0",
- "itertools 0.13.0",
- "lazy_static",
- "log",
- "maths-rs",
- "png",
- "rand 0.8.5",
- "rust-embed",
- "rustc-hash 1.1.0",
- "serde",
- "serde_json",
- "syntect",
- "unicode-segmentation",
- "uuid",
- "vectorize",
- "vek",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "web-time 1.1.0",
- "wgpu",
- "winit",
- "winit_input_helper",
 ]
 
 [[package]]

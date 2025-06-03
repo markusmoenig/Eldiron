@@ -1,4 +1,5 @@
 pub use crate::prelude::*;
+use rusterix::Assets;
 
 pub mod code;
 pub mod config;
@@ -96,7 +97,7 @@ pub trait Tool: Send + Sync {
         map: &mut Map,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-        palette: &ThePalette,
+        assets: &Assets,
     ) {
     }
 

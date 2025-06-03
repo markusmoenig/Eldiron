@@ -4,6 +4,7 @@ pub use crate::tools::{
     config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, render::RenderTool,
     world::WorldTool,
 };
+use rusterix::Assets;
 
 pub struct ToolList {
     pub server_time: TheTime,
@@ -191,9 +192,9 @@ impl ToolList {
         map: &mut Map,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-        palette: &ThePalette,
+        assets: &Assets,
     ) {
-        self.game_tools[self.curr_game_tool].draw_hud(buffer, map, ctx, server_ctx, palette);
+        self.game_tools[self.curr_game_tool].draw_hud(buffer, map, ctx, server_ctx, assets);
     }
 
     #[allow(clippy::too_many_arguments)]

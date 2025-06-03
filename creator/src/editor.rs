@@ -944,14 +944,13 @@ impl TheTrait for Editor {
                     }
 
                     if !self.server_ctx.game_mode {
-                        let palette = self.project.palette.clone();
                         if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
                             TOOLLIST.write().unwrap().draw_hud(
                                 render_view.render_buffer_mut(),
                                 map,
                                 ctx,
                                 &mut self.server_ctx,
-                                &palette,
+                                &RUSTERIX.read().unwrap().assets,
                             );
                         }
                     }

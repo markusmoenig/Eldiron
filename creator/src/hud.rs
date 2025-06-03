@@ -1,5 +1,6 @@
-use crate::editor::RUSTERIX;
+use crate::editor::{CONFIGEDITOR, RUSTERIX};
 use crate::prelude::*;
+use rusterix::ShapeStack;
 use rusterix::prelude::*;
 use theframework::prelude::*;
 
@@ -70,7 +71,7 @@ impl Hud {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
         id: Option<u32>,
-        _palette: &ThePalette,
+        assets: &Assets,
     ) {
         if (self.mode == HudMode::Linedef || self.mode == HudMode::Sector)
             && self.light_icon.is_none()
@@ -495,11 +496,21 @@ impl Hud {
             }
         }
 
-        // ----- Preview
+        // Preview
 
         if server_ctx.curr_map_context == MapContext::Character
             || server_ctx.curr_map_context == MapContext::Item
         {
+            if self.is_playing {
+                let size = CONFIGEDITOR.read().unwrap().tile_size;
+                let mut texture = Texture::alloc(size as usize, size as usize);
+
+                let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
+                stack.render_shape(&mut texture, map, assets);
+
+                map.properties.set("shape", Value::Texture(texture));
+            }
+
             if let Some(Value::Texture(texture)) = map.properties.get("shape") {
                 let w = texture.width as i32;
                 let h = texture.height as i32;
@@ -538,6 +549,8 @@ impl Hud {
         if server_ctx.curr_map_context != MapContext::Region
             && server_ctx.curr_map_context != MapContext::Material
             && server_ctx.curr_map_context != MapContext::Screen
+            && server_ctx.curr_map_context == MapContext::Character
+            && server_ctx.curr_map_context == MapContext::Item
         {
             return false;
         }

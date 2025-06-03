@@ -3,6 +3,7 @@ use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
+use rusterix::Assets;
 use rusterix::prelude::*;
 
 pub struct VertexTool {
@@ -354,14 +355,14 @@ impl Tool for VertexTool {
         map: &mut Map,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-        palette: &ThePalette,
+        assets: &Assets,
     ) {
         let id = if !map.selected_vertices.is_empty() {
             Some(map.selected_vertices[0])
         } else {
             None
         };
-        self.hud.draw(buffer, map, ctx, server_ctx, id, palette);
+        self.hud.draw(buffer, map, ctx, server_ctx, id, assets);
     }
 
     fn handle_event(

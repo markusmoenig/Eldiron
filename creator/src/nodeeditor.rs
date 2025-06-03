@@ -199,6 +199,7 @@ impl NodeEditor {
             items: vec![
                 TheContextMenuItem::new("Circle".to_string(), TheId::named("Circle")),
                 TheContextMenuItem::new("Line".to_string(), TheId::named("Line")),
+                TheContextMenuItem::new("Box".to_string(), TheId::named("Box")),
             ],
             ..Default::default()
         }));

@@ -1,4 +1,4 @@
-use crate::editor::{PALETTE, RUSTERIX, SCENEMANAGER, UNDOMANAGER};
+use crate::editor::{RUSTERIX, SCENEMANAGER, UNDOMANAGER};
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use rayon::prelude::*;
@@ -248,7 +248,7 @@ impl WorldEditor {
                     ctx,
                     server_ctx,
                     None,
-                    &PALETTE.read().unwrap(),
+                    &rusterix.assets,
                 );
             }
         }

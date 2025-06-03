@@ -3,7 +3,7 @@ use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
-use rusterix::{PixelSource, Value};
+use rusterix::{Assets, PixelSource, Value};
 use vek::Vec2;
 
 pub struct SectorTool {
@@ -370,14 +370,14 @@ impl Tool for SectorTool {
         map: &mut Map,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-        palette: &ThePalette,
+        assets: &Assets,
     ) {
         let id = if !map.selected_sectors.is_empty() {
             Some(map.selected_sectors[0])
         } else {
             None
         };
-        self.hud.draw(buffer, map, ctx, server_ctx, id, palette);
+        self.hud.draw(buffer, map, ctx, server_ctx, id, assets);
     }
 
     fn handle_event(
