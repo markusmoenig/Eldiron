@@ -424,7 +424,11 @@ impl Tool for SectorTool {
                                             == MapToolHelper::NodeEditor
                                     {
                                         sector.properties.set("region_graph", source.clone());
-                                    } else if self.hud.selected_icon_index == 0 {
+                                    } else if context == NodeContext::Shape {
+                                        sector.properties.set("shape_graph", source.clone());
+                                    } else if self.hud.selected_icon_index == 0
+                                        || context == NodeContext::Material
+                                    {
                                         sector.properties.set("floor_source", source.clone());
                                     } else if self.hud.selected_icon_index == 1 {
                                         sector.properties.set("ceiling_source", source.clone());

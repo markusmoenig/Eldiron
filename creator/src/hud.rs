@@ -32,6 +32,8 @@ pub struct Hud {
 
     rect_geo_rect: TheDim,
 
+    profile_rect: TheDim,
+
     mouse_pos: Vec2<i32>,
 
     is_playing: bool,
@@ -56,6 +58,7 @@ impl Hud {
             timeline_rect: TheDim::rect(0, 0, 0, 0),
 
             rect_geo_rect: TheDim::zero(),
+            profile_rect: TheDim::zero(),
 
             mouse_pos: Vec2::zero(),
 
@@ -477,6 +480,33 @@ impl Hud {
             }
         }
 
+        // Show profile
+        if map.camera == MapCamera::TwoD && self.mode == HudMode::Linedef {
+            let x = 450;
+            let size = 20;
+            self.profile_rect = TheDim::rect(x, 0, 60, size);
+
+            if let Some(font) = &ctx.ui.font {
+                let r = self.profile_rect.to_buffer_utuple();
+                ctx.draw.text_rect(
+                    buffer.pixels_mut(),
+                    &(r.0, 1, r.2, 19),
+                    stride,
+                    font,
+                    13.0,
+                    "PROFILE",
+                    &if self.profile_rect.contains(self.mouse_pos) {
+                        sel_text_color
+                    } else {
+                        text_color
+                    },
+                    &bg_color,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
+            }
+        }
+
         // Terrain: Height
 
         if self.mode == HudMode::Terrain {
@@ -506,7 +536,7 @@ impl Hud {
                 let mut texture = Texture::alloc(size as usize, size as usize);
 
                 let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
-                stack.render_shape(&mut texture, map, assets);
+                stack.render_geometry(&mut texture, map, assets, false);
 
                 map.properties.set("shape", Value::Texture(texture));
             }
@@ -673,6 +703,12 @@ impl Hud {
             return true;
         }
 
+        if self.profile_rect.contains(Vec2::new(x, y)) {
+            //server_ctx.no_rect_geo_on_map = !server_ctx.no_rect_geo_on_map;
+
+            return true;
+        }
+
         if map.camera == MapCamera::TwoD && y < 20 {
             return true;
         }
@@ -714,7 +750,12 @@ impl Hud {
         if self.rect_geo_rect.contains(self.mouse_pos) {
             ctx.ui.send(TheEvent::SetStatusText(
                 TheId::empty(),
-                "Show / hide geometry created by the Rect tool.".to_string(),
+                "Show or hide geometry created with the Rect tool.".to_string(),
+            ));
+        } else if self.profile_rect.contains(self.mouse_pos) && self.mode == HudMode::Linedef {
+            ctx.ui.send(TheEvent::SetStatusText(
+                TheId::empty(),
+                "Show the profile view of the linedef to edit wall geometry.".to_string(),
             ));
         } else {
             ctx.ui

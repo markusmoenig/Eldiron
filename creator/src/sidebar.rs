@@ -25,7 +25,6 @@ pub struct Sidebar {
     pub width: i32,
 
     stack_layout_id: TheId,
-
     curr_tilemap_uuid: Option<Uuid>,
 
     pub startup: bool,
@@ -723,9 +722,18 @@ impl Sidebar {
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
 
+        let mut index_text = TheText::new(TheId::named("Palette Index Text"));
+        index_text.set_fixed_size_text("255.".into());
+        index_text.set_value(TheValue::Text("000".into()));
+        index_text.set_status_text("The index of the selected color.");
+
         let mut hex_edit = TheTextLineEdit::new(TheId::named("Palette Hex Edit"));
         hex_edit.limiter_mut().set_max_width(100);
-        hex_edit.set_status_text("Edit the color in hex format.");
+        hex_edit.set_status_text("The value of the selected color in hex format.");
+
+        // let mut name_edit = TheTextLineEdit::new(TheId::named("Palette Name Edit"));
+        // name_edit.limiter_mut().set_max_width(100);
+        // name_edit.set_status_text("The name of the selected color.");
 
         let mut import_button: TheTraybarButton =
             TheTraybarButton::new(TheId::named("Palette Import"));
@@ -737,7 +745,9 @@ impl Sidebar {
         clear_all_button.set_icon_name("trash".to_string());
         clear_all_button.set_status_text("Clear all colors in the current palette.");
 
+        toolbar_hlayout.add_widget(Box::new(index_text));
         toolbar_hlayout.add_widget(Box::new(hex_edit));
+        // toolbar_hlayout.add_widget(Box::new(name_edit));
         toolbar_hlayout.add_widget(Box::new(import_button));
         toolbar_hlayout.add_widget(Box::new(clear_all_button));
         toolbar_hlayout.set_reverse_index(Some(2));
@@ -1006,6 +1016,17 @@ impl Sidebar {
                         self.stack_layout_id.clone(),
                         SidebarMode::Model as usize,
                     ));
+                } else if id.name == "Nodegraph Id Changed" {
+                    if let Some(map) = project.get_map(server_ctx) {
+                        if let Some(widget) = ui.get_widget("Graph Id Text") {
+                            // map.shapefx_graphs.gener
+                            if let Some(index) = map.shapefx_graphs.get_index_of(&id.uuid) {
+                                widget.set_value(TheValue::Text(format!("({:02})", index)));
+                            } else {
+                                widget.set_value(TheValue::Text("(--)".into()));
+                            }
+                        }
+                    }
                 } else if id.name == "Update Minimap" {
                     // Rerenders the minimap
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -1063,11 +1084,19 @@ impl Sidebar {
             TheEvent::PaletteIndexChanged(id, index) => {
                 if id.name == "Palette Picker" {
                     project.palette.current_index = *index;
+                    if let Some(widget) = ui.get_widget("Palette Index Text") {
+                        widget.set_value(TheValue::Text(format!("{:03}", index)));
+                    }
                     if let Some(widget) = ui.get_widget("Palette Hex Edit") {
                         if let Some(color) = &project.palette[*index as usize] {
                             widget.set_value(TheValue::Text(color.to_hex()));
                         }
                     }
+                    // if let Some(widget) = ui.get_widget("Palette Name Edit") {
+                    //     if let Some(color) = &project.palette[*index as usize] {
+                    //         widget.set_value(TheValue::Text(color.name.clone()));
+                    //     }
+                    // }
                     *PALETTE.write().unwrap() = project.palette.clone();
 
                     ctx.ui.send(TheEvent::Custom(

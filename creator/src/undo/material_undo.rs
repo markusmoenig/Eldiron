@@ -27,6 +27,7 @@ impl MaterialUndoAtom {
                                         NodeContext::Material,
                                         graph,
                                         ui,
+                                        ctx,
                                     );
                                     break;
                                 }
@@ -58,6 +59,7 @@ impl MaterialUndoAtom {
                                         NodeContext::Material,
                                         graph,
                                         ui,
+                                        ctx,
                                     );
                                     break;
                                 }

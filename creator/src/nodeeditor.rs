@@ -66,16 +66,32 @@ impl NodeEditor {
         let canvas = self.to_canvas();
         ui.set_node_canvas("ShapeFX NodeCanvas", canvas);
         self.graph_changed(project, ui, ctx, server_ctx);
+
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named_with_id("Nodegraph Id Changed", self.graph.id),
+            TheValue::Empty,
+        ));
     }
 
     /// Activates the given graph in the editor
-    pub fn apply_graph(&mut self, context: NodeContext, graph: &ShapeFXGraph, ui: &mut TheUI) {
+    pub fn apply_graph(
+        &mut self,
+        context: NodeContext,
+        graph: &ShapeFXGraph,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
         // println!("Apply Graph {:?}", context);
         self.context = context;
         self.graph = graph.clone();
         self.graph.selected_node = None;
         let canvas = self.to_canvas();
         ui.set_node_canvas("ShapeFX NodeCanvas", canvas);
+
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named_with_id("Nodegraph Id Changed", graph.id),
+            TheValue::Empty,
+        ));
     }
 
     /// Called when the graph has changed, updating the UI and providing undo.
@@ -144,6 +160,12 @@ impl NodeEditor {
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(Vec4::new(10, 4, 5, 4));
 
+        let mut id_text = TheText::new(TheId::named("Graph Id Text"));
+        id_text.set_fixed_size_text("(---)".into());
+        id_text.set_status_text("The Id of the graph inside the map.");
+        id_text.set_text("(--)".to_string());
+        toolbar_hlayout.add_widget(Box::new(id_text));
+
         let mut create_button = TheTraybarButton::new(TheId::named("Create Graph Button"));
         create_button.set_status_text("Apply the source to the selected geometry.");
         create_button.set_text("Create Graph".to_string());
@@ -191,6 +213,7 @@ impl NodeEditor {
         }));
         toolbar_hlayout.add_widget(Box::new(mesh_nodes_button));
 
+        /*
         let mut shape_nodes_button = TheTraybarButton::new(TheId::named("Shape Nodes"));
         shape_nodes_button.set_custom_color(self.categories.get("Shape").cloned());
         shape_nodes_button.set_text(str!("Shape"));
@@ -204,6 +227,7 @@ impl NodeEditor {
             ..Default::default()
         }));
         toolbar_hlayout.add_widget(Box::new(shape_nodes_button));
+        */
 
         let mut shapefx_nodes_button = TheTraybarButton::new(TheId::named("ShapeFX Nodes"));
         shapefx_nodes_button.set_custom_color(self.categories.get("ShapeFX").cloned());
@@ -225,7 +249,7 @@ impl NodeEditor {
         }));
         toolbar_hlayout.add_widget(Box::new(shapefx_nodes_button));
 
-        toolbar_hlayout.set_reverse_index(Some(5));
+        toolbar_hlayout.set_reverse_index(Some(4));
         top_toolbar.set_layout(toolbar_hlayout);
         center.set_top(top_toolbar);
 
@@ -312,7 +336,7 @@ impl NodeEditor {
                         || server_ctx.curr_map_context == MapContext::Item
                     {
                         self.graph = ShapeFXGraph {
-                            nodes: vec![ShapeFX::new(ShapeFXRole::Shape)],
+                            nodes: vec![ShapeFX::new(ShapeFXRole::MaterialGeometry)],
                             ..Default::default()
                         };
                         self.context = NodeContext::Shape;
@@ -531,7 +555,7 @@ impl NodeEditor {
         let mut texture = Texture::alloc(size as usize, size as usize);
 
         let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
-        stack.render_shape(&mut texture, map, assets);
+        stack.render_geometry(&mut texture, map, assets, false);
 
         map.properties.set("shape", Value::Texture(texture));
     }
@@ -542,7 +566,7 @@ impl NodeEditor {
         let mut texture = Texture::alloc(size as usize, size as usize);
 
         let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
-        stack.render_geometry(&mut texture, map, assets);
+        stack.render_geometry(&mut texture, map, assets, true);
 
         map.properties.set("material", Value::Texture(texture));
     }

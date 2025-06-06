@@ -1549,8 +1549,9 @@ impl MapEditor {
         vertex_id: u32,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        _server_ctx: &mut ServerContext,
     ) {
+        /*
         // Check if we need to apply the shape graph to the node editor
         if server_ctx.curr_map_context == MapContext::Character
             || server_ctx.curr_map_context == MapContext::Item
@@ -1570,11 +1571,11 @@ impl MapEditor {
                         NODEEDITOR
                             .write()
                             .unwrap()
-                            .apply_graph(NodeContext::Shape, graph, ui);
+                            .apply_graph(NodeContext::Shape, graph, ui, ctx);
                     }
                 }
             }
-        }
+        }*/
 
         let mut nodeui = TheNodeUI::default();
 
@@ -1641,7 +1642,7 @@ impl MapEditor {
                         NODEEDITOR
                             .write()
                             .unwrap()
-                            .apply_graph(NodeContext::Shape, graph, ui);
+                            .apply_graph(NodeContext::Shape, graph, ui, ctx);
                     }
                 }
             }
@@ -1660,10 +1661,12 @@ impl MapEditor {
                     linedef.properties.get("floor_source")
                 {
                     if let Some(graph) = map.shapefx_graphs.get(id) {
-                        NODEEDITOR
-                            .write()
-                            .unwrap()
-                            .apply_graph(NodeContext::Material, graph, ui);
+                        NODEEDITOR.write().unwrap().apply_graph(
+                            NodeContext::Material,
+                            graph,
+                            ui,
+                            ctx,
+                        );
                     }
                 }
             }
@@ -1678,7 +1681,7 @@ impl MapEditor {
                     NODEEDITOR
                         .write()
                         .unwrap()
-                        .apply_graph(NodeContext::Region, graph, ui);
+                        .apply_graph(NodeContext::Region, graph, ui, ctx);
                 }
             }
         }
@@ -1842,10 +1845,12 @@ impl MapEditor {
                     sector.properties.get("floor_source")
                 {
                     if let Some(graph) = map.shapefx_graphs.get(id) {
-                        NODEEDITOR
-                            .write()
-                            .unwrap()
-                            .apply_graph(NodeContext::Material, graph, ui);
+                        NODEEDITOR.write().unwrap().apply_graph(
+                            NodeContext::Material,
+                            graph,
+                            ui,
+                            ctx,
+                        );
                     }
                 }
             }
@@ -1859,7 +1864,7 @@ impl MapEditor {
                     NODEEDITOR
                         .write()
                         .unwrap()
-                        .apply_graph(NodeContext::Region, graph, ui);
+                        .apply_graph(NodeContext::Region, graph, ui, ctx);
                 }
             }
         }
