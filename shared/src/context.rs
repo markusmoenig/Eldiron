@@ -197,6 +197,9 @@ pub struct ServerContext {
     /// Dont show rect based geometry on map
     pub no_rect_geo_on_map: bool,
 
+    /// Show wall profile in linedef mode.
+    pub profile_view: Option<u32>,
+
     /// Selected wall row, set by the linedef Hud
     pub selected_wall_row: Option<i32>,
 
@@ -267,6 +270,7 @@ impl ServerContext {
 
             content_click_from_map: false,
             no_rect_geo_on_map: true,
+            profile_view: None,
 
             selected_wall_row: Some(0),
 

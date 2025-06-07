@@ -220,7 +220,14 @@ impl Project {
     /// Get the map of the current context.
     pub fn get_map(&self, ctx: &ServerContext) -> Option<&Map> {
         if ctx.curr_map_context == MapContext::Region {
-            if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
+            if let Some(profile_id) = ctx.profile_view {
+                if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
+                    if let Some(linedef) = region.map.find_linedef(profile_id) {
+                        return Some(&linedef.profile);
+                    }
+                }
+                return None;
+            } else if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
                 return Some(&region.map);
             }
         } else if ctx.curr_map_context == MapContext::Material {
@@ -252,7 +259,14 @@ impl Project {
     /// Get the mutable map of the current context.
     pub fn get_map_mut(&mut self, ctx: &ServerContext) -> Option<&mut Map> {
         if ctx.curr_map_context == MapContext::Region {
-            if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
+            if let Some(profile_id) = ctx.profile_view {
+                if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
+                    if let Some(linedef) = region.map.find_linedef_mut(profile_id) {
+                        return Some(&mut linedef.profile);
+                    }
+                }
+                return None;
+            } else if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
                 return Some(&mut region.map);
             }
         } else if ctx.curr_map_context == MapContext::Material {

@@ -988,7 +988,11 @@ impl Sidebar {
                 }
             }
             TheEvent::Custom(id, value) => {
-                if id.name == "Update Materialpicker" {
+                if id.name == "Profile View Deselected" {
+                    if let Some(map) = project.get_map(server_ctx) {
+                        SCENEMANAGER.write().unwrap().set_map(map.clone());
+                    }
+                } else if id.name == "Update Materialpicker" {
                     self.show_filtered_materials(ui, ctx, project, server_ctx);
                     // Set the materials in the RUSTERIX assets
                     let mut rusterix = RUSTERIX.write().unwrap();

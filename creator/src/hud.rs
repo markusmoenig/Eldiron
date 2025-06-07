@@ -481,12 +481,22 @@ impl Hud {
         }
 
         // Show profile
-        if map.camera == MapCamera::TwoD && self.mode == HudMode::Linedef {
+        if map.camera == MapCamera::TwoD && self.mode == HudMode::Linedef
+            || server_ctx.profile_view.is_some()
+        {
             let x = 450;
             let size = 20;
             self.profile_rect = TheDim::rect(x, 0, 60, size);
 
             if let Some(font) = &ctx.ui.font {
+                let mut selected = server_ctx.profile_view.is_some();
+
+                if !selected && self.profile_rect.contains(self.mouse_pos)
+                // && !map.selected_linedefs.is_empty()
+                {
+                    selected = true;
+                }
+
                 let r = self.profile_rect.to_buffer_utuple();
                 ctx.draw.text_rect(
                     buffer.pixels_mut(),
@@ -495,11 +505,7 @@ impl Hud {
                     font,
                     13.0,
                     "PROFILE",
-                    &if self.profile_rect.contains(self.mouse_pos) {
-                        sel_text_color
-                    } else {
-                        text_color
-                    },
+                    &if selected { sel_text_color } else { text_color },
                     &bg_color,
                     TheHorizontalAlign::Center,
                     TheVerticalAlign::Center,
@@ -704,7 +710,16 @@ impl Hud {
         }
 
         if self.profile_rect.contains(Vec2::new(x, y)) {
-            //server_ctx.no_rect_geo_on_map = !server_ctx.no_rect_geo_on_map;
+            if server_ctx.profile_view.is_some() {
+                server_ctx.profile_view = None;
+
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Profile View Deselected"),
+                    TheValue::Empty,
+                ));
+            } else if let Some(linedef_id) = map.selected_linedefs.first() {
+                server_ctx.profile_view = Some(*linedef_id);
+            }
 
             return true;
         }

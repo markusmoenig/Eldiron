@@ -681,7 +681,9 @@ impl TheTrait for Editor {
                                 .insert_game_buffer(render_view.render_buffer_mut());
                         } else {
                             // Draw the region map
-                            if self.server_ctx.curr_map_context == MapContext::Region {
+                            if self.server_ctx.curr_map_context == MapContext::Region
+                                && self.server_ctx.profile_view.is_none()
+                            {
                                 if let Some(region) =
                                     self.project.get_region(&self.server_ctx.curr_region)
                                 {
@@ -793,6 +795,60 @@ impl TheTrait for Editor {
                                         dim.width as usize,
                                         dim.height as usize,
                                     );
+                                }
+                            } else if self.server_ctx.curr_map_context == MapContext::Region
+                                && self.server_ctx.profile_view.is_some()
+                            {
+                                // Draw the wall profile
+
+                                b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                                if let Some(profile) = self.project.get_map_mut(&self.server_ctx) {
+                                    if let Some(hover_cursor) = self.server_ctx.hover_cursor {
+                                        b.set_map_hover_info(
+                                            self.server_ctx.hover,
+                                            Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
+                                        );
+                                    } else {
+                                        b.set_map_hover_info(self.server_ctx.hover, None);
+                                    }
+                                    b.set_clip_rect(Some(rusterix::Rect {
+                                        x: -5.0,
+                                        y: -5.0,
+                                        width: 10.0,
+                                        height: 10.0,
+                                    }));
+
+                                    if let Some(clipboard) = &self.server_ctx.paste_clipboard {
+                                        // During a paste operation we use a merged map
+                                        let mut map = profile.clone();
+                                        if let Some(hover) = self.server_ctx.hover_cursor {
+                                            map.paste_at_position(clipboard, hover);
+                                        }
+                                        rusterix.set_dirty();
+                                        rusterix.build_custom_scene_d2(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            &map,
+                                            &self.build_values,
+                                        );
+                                        rusterix.draw_custom_d2(
+                                            &map,
+                                            render_view.render_buffer_mut().pixels_mut(),
+                                            dim.width as usize,
+                                            dim.height as usize,
+                                        );
+                                    } else {
+                                        rusterix.build_custom_scene_d2(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            profile,
+                                            &self.build_values,
+                                        );
+                                        rusterix.draw_custom_d2(
+                                            profile,
+                                            render_view.render_buffer_mut().pixels_mut(),
+                                            dim.width as usize,
+                                            dim.height as usize,
+                                        );
+                                    }
                                 }
                             } else
                             // Draw the material / character / item map

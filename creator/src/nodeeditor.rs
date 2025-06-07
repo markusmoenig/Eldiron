@@ -332,15 +332,10 @@ impl NodeEditor {
             TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
                 if id.name == "Create Graph Button" {
                     // println!("{:?}", server_ctx.curr_map_context);
-                    if server_ctx.curr_map_context == MapContext::Character
-                        || server_ctx.curr_map_context == MapContext::Item
+                    //
+                    if server_ctx.curr_map_context == MapContext::Material
+                        || server_ctx.profile_view.is_some()
                     {
-                        self.graph = ShapeFXGraph {
-                            nodes: vec![ShapeFX::new(ShapeFXRole::MaterialGeometry)],
-                            ..Default::default()
-                        };
-                        self.context = NodeContext::Shape;
-                    } else if server_ctx.curr_map_context == MapContext::Material {
                         {
                             self.graph = ShapeFXGraph {
                                 nodes: vec![ShapeFX::new(ShapeFXRole::MaterialGeometry)],
@@ -348,6 +343,14 @@ impl NodeEditor {
                             };
                             self.context = NodeContext::Material;
                         }
+                    } else if server_ctx.curr_map_context == MapContext::Character
+                        || server_ctx.curr_map_context == MapContext::Item
+                    {
+                        self.graph = ShapeFXGraph {
+                            nodes: vec![ShapeFX::new(ShapeFXRole::MaterialGeometry)],
+                            ..Default::default()
+                        };
+                        self.context = NodeContext::Shape;
                     } else if self.context == NodeContext::Region {
                         if server_ctx.curr_map_tool_type == MapToolType::Sector {
                             self.graph = ShapeFXGraph {
