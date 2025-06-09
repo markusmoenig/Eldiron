@@ -631,6 +631,7 @@ impl TheTrait for Editor {
                                 }
                             }
 
+                            rusterix::tile_builder(&mut r.map, &mut rusterix.assets);
                             messages = rusterix.server.get_messages(&r.map.id);
                         }
                     }
@@ -681,7 +682,7 @@ impl TheTrait for Editor {
                                 .insert_game_buffer(render_view.render_buffer_mut());
                         } else {
                             // Draw the region map
-                            if self.server_ctx.curr_map_context == MapContext::Region
+                            if self.server_ctx.get_map_context() == MapContext::Region
                                 && self.server_ctx.profile_view.is_none()
                             {
                                 if let Some(region) =
@@ -796,7 +797,7 @@ impl TheTrait for Editor {
                                         dim.height as usize,
                                     );
                                 }
-                            } else if self.server_ctx.curr_map_context == MapContext::Region
+                            } else if self.server_ctx.get_map_context() == MapContext::Region
                                 && self.server_ctx.profile_view.is_some()
                             {
                                 // Draw the wall profile
@@ -852,9 +853,9 @@ impl TheTrait for Editor {
                                 }
                             } else
                             // Draw the material / character / item map
-                            if self.server_ctx.curr_map_context == MapContext::Material
-                                || self.server_ctx.curr_map_context == MapContext::Character
-                                || self.server_ctx.curr_map_context == MapContext::Item
+                            if self.server_ctx.get_map_context() == MapContext::Material
+                                || self.server_ctx.get_map_context() == MapContext::Character
+                                || self.server_ctx.get_map_context() == MapContext::Item
                             {
                                 b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
                                 if let Some(material) = self.project.get_map_mut(&self.server_ctx) {
@@ -907,7 +908,7 @@ impl TheTrait for Editor {
                                 }
                             } else
                             // Draw the screen map
-                            if self.server_ctx.curr_map_context == MapContext::Screen {
+                            if self.server_ctx.get_map_context() == MapContext::Screen {
                                 b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
                                 if let Some(screen) =
                                     self.project.get_screen_ctx_mut(&self.server_ctx)

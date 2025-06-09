@@ -219,7 +219,7 @@ impl Project {
 
     /// Get the map of the current context.
     pub fn get_map(&self, ctx: &ServerContext) -> Option<&Map> {
-        if ctx.curr_map_context == MapContext::Region {
+        if ctx.get_map_context() == MapContext::Region {
             if let Some(profile_id) = ctx.profile_view {
                 if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
                     if let Some(linedef) = region.map.find_linedef(profile_id) {
@@ -230,23 +230,23 @@ impl Project {
             } else if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
                 return Some(&region.map);
             }
-        } else if ctx.curr_map_context == MapContext::Material {
+        } else if ctx.get_map_context() == MapContext::Material {
             if let Some(material_id) = ctx.curr_material {
                 if let Some(material) = self.materials.get(&material_id) {
                     return Some(material);
                 }
             }
-        } else if ctx.curr_map_context == MapContext::Screen {
+        } else if ctx.get_map_context() == MapContext::Screen {
             if let Some(screen) = self.screens.get(&ctx.curr_screen) {
                 return Some(&screen.map);
             }
-        } else if ctx.curr_map_context == MapContext::Character {
+        } else if ctx.get_map_context() == MapContext::Character {
             if let ContentContext::CharacterTemplate(id) = ctx.curr_character {
                 if let Some(character) = self.characters.get(&id) {
                     return Some(&character.map);
                 }
             }
-        } else if ctx.curr_map_context == MapContext::Item {
+        } else if ctx.get_map_context() == MapContext::Item {
             if let ContentContext::ItemTemplate(id) = ctx.curr_item {
                 if let Some(item) = self.items.get(&id) {
                     return Some(&item.map);
@@ -258,7 +258,7 @@ impl Project {
 
     /// Get the mutable map of the current context.
     pub fn get_map_mut(&mut self, ctx: &ServerContext) -> Option<&mut Map> {
-        if ctx.curr_map_context == MapContext::Region {
+        if ctx.get_map_context() == MapContext::Region {
             if let Some(profile_id) = ctx.profile_view {
                 if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
                     if let Some(linedef) = region.map.find_linedef_mut(profile_id) {
@@ -269,23 +269,23 @@ impl Project {
             } else if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
                 return Some(&mut region.map);
             }
-        } else if ctx.curr_map_context == MapContext::Material {
+        } else if ctx.get_map_context() == MapContext::Material {
             if let Some(material_id) = ctx.curr_material {
                 if let Some(material) = self.materials.get_mut(&material_id) {
                     return Some(material);
                 }
             }
-        } else if ctx.curr_map_context == MapContext::Screen {
+        } else if ctx.get_map_context() == MapContext::Screen {
             if let Some(screen) = self.screens.get_mut(&ctx.curr_screen) {
                 return Some(&mut screen.map);
             }
-        } else if ctx.curr_map_context == MapContext::Character {
+        } else if ctx.get_map_context() == MapContext::Character {
             if let ContentContext::CharacterTemplate(id) = ctx.curr_character {
                 if let Some(character) = self.characters.get_mut(&id) {
                     return Some(&mut character.map);
                 }
             }
-        } else if ctx.curr_map_context == MapContext::Item {
+        } else if ctx.get_map_context() == MapContext::Item {
             if let ContentContext::ItemTemplate(id) = ctx.curr_item {
                 if let Some(item) = self.items.get_mut(&id) {
                     return Some(&mut item.map);

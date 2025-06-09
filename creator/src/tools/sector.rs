@@ -444,13 +444,13 @@ impl Tool for SectorTool {
                             let undo_atom =
                                 RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
 
-                            if server_ctx.curr_map_context == MapContext::Region {
+                            if server_ctx.get_map_context() == MapContext::Region {
                                 crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
                                     &server_ctx.curr_region,
                                     undo_atom,
                                     ctx,
                                 );
-                            } else if server_ctx.curr_map_context == MapContext::Material {
+                            } else if server_ctx.get_map_context() == MapContext::Material {
                                 if let Some(material_undo_atom) = undo_atom.to_material_atom() {
                                     crate::editor::UNDOMANAGER
                                         .write()
@@ -463,7 +463,7 @@ impl Tool for SectorTool {
                                 }
                             }
 
-                            if server_ctx.curr_map_context == MapContext::Region {
+                            if server_ctx.get_map_context() == MapContext::Region {
                                 if let Some(map) = project.get_map(server_ctx) {
                                     SCENEMANAGER.write().unwrap().set_map(map.clone());
                                 }
@@ -510,13 +510,13 @@ impl Tool for SectorTool {
                         let undo_atom =
                             RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
 
-                        if server_ctx.curr_map_context == MapContext::Region {
+                        if server_ctx.get_map_context() == MapContext::Region {
                             crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
                                 &server_ctx.curr_region,
                                 undo_atom,
                                 ctx,
                             );
-                        } else if server_ctx.curr_map_context == MapContext::Material {
+                        } else if server_ctx.get_map_context() == MapContext::Material {
                             if let Some(material_undo_atom) = undo_atom.to_material_atom() {
                                 crate::editor::UNDOMANAGER
                                     .write()
@@ -529,7 +529,7 @@ impl Tool for SectorTool {
                             }
                         }
 
-                        if server_ctx.curr_map_context == MapContext::Region {
+                        if server_ctx.get_map_context() == MapContext::Region {
                             if let Some(map) = project.get_map(server_ctx) {
                                 SCENEMANAGER.write().unwrap().set_map(map.clone());
                             }

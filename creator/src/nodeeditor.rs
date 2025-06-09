@@ -333,7 +333,7 @@ impl NodeEditor {
                 if id.name == "Create Graph Button" {
                     // println!("{:?}", server_ctx.curr_map_context);
                     //
-                    if server_ctx.curr_map_context == MapContext::Material
+                    if server_ctx.get_map_context() == MapContext::Material
                         || server_ctx.profile_view.is_some()
                     {
                         {
@@ -343,8 +343,8 @@ impl NodeEditor {
                             };
                             self.context = NodeContext::Material;
                         }
-                    } else if server_ctx.curr_map_context == MapContext::Character
-                        || server_ctx.curr_map_context == MapContext::Item
+                    } else if server_ctx.get_map_context() == MapContext::Character
+                        || server_ctx.get_map_context() == MapContext::Item
                     {
                         self.graph = ShapeFXGraph {
                             nodes: vec![ShapeFX::new(ShapeFXRole::MaterialGeometry)],

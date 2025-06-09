@@ -16,6 +16,12 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
             character.name.clone(),
             (character.source.clone(), character.data.clone()),
         );
+        if !character.map.vertices.is_empty() {
+            rusterix
+                .assets
+                .character_maps
+                .insert(character.name.clone(), character.map.clone());
+        }
     }
 
     // Items
@@ -25,6 +31,12 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
             .assets
             .items
             .insert(item.name.clone(), (item.source.clone(), item.data.clone()));
+        if !item.map.vertices.is_empty() {
+            rusterix
+                .assets
+                .item_maps
+                .insert(item.name.clone(), item.map.clone());
+        }
     }
 
     // Create the regions

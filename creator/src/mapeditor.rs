@@ -334,7 +334,7 @@ impl MapEditor {
                             map.curr_rectangle = None;
                         }
 
-                        if server_ctx.curr_map_context == MapContext::Region {
+                        if server_ctx.get_map_context() == MapContext::Region {
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 region.editing_position_3d.x +=
                                     coord.x as f32 / region.map.grid_size;
@@ -672,9 +672,9 @@ impl MapEditor {
                     || id.name == "RenderView"
                     || id.name == "PolyView"
                 {
-                    if server_ctx.curr_map_context == MapContext::Material {
+                    if server_ctx.get_map_context() == MapContext::Material {
                         UNDOMANAGER.write().unwrap().context = UndoManagerContext::Material;
-                    } else if server_ctx.curr_map_context == MapContext::Screen {
+                    } else if server_ctx.get_map_context() == MapContext::Screen {
                         UNDOMANAGER.write().unwrap().context = UndoManagerContext::Screen;
                     } else {
                         UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
@@ -729,7 +729,9 @@ impl MapEditor {
                             }
                             if changed {
                                 self.add_map_undo(map, prev, ctx, server_ctx);
-                                SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                if server_ctx.get_map_context() == MapContext::Region {
+                                    SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                }
                             }
                         }
                     }
@@ -817,7 +819,9 @@ impl MapEditor {
                             }
                             if changed {
                                 self.add_map_undo(map, prev, ctx, server_ctx);
-                                SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                if server_ctx.get_map_context() == MapContext::Region {
+                                    SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                }
                             }
                         }
                     }
@@ -852,7 +856,9 @@ impl MapEditor {
                                         Value::Float(value),
                                     );
                                     self.add_map_undo(map, prev, ctx, server_ctx);
-                                    SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                    if server_ctx.get_map_context() == MapContext::Region {
+                                        SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                    }
                                 }
                             }
                         }
@@ -878,8 +884,9 @@ impl MapEditor {
                                         Value::Float(value),
                                     );
                                     self.add_map_undo(map, prev, ctx, server_ctx);
-                                    SCENEMANAGER.write().unwrap().set_map(map.clone());
-                                    // }
+                                    if server_ctx.get_map_context() == MapContext::Region {
+                                        SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                    }
                                 }
                             }
                         }
@@ -969,7 +976,9 @@ impl MapEditor {
                                         Value::Float(value),
                                     );
                                     self.add_map_undo(map, prev, ctx, server_ctx);
-                                    SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                    if server_ctx.get_map_context() == MapContext::Region {
+                                        SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                    }
                                 }
                             }
                         }
@@ -991,7 +1000,9 @@ impl MapEditor {
                                         Value::Int(value),
                                     );
                                     self.add_map_undo(map, prev, ctx, server_ctx);
-                                    SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                    if server_ctx.get_map_context() == MapContext::Region {
+                                        SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                    }
                                 }
                             }
                         }
@@ -1474,7 +1485,7 @@ impl MapEditor {
                 || server_ctx.curr_map_tool_type == MapToolType::Rect)
                 && !map.selected_sectors.is_empty()
             {
-                if server_ctx.curr_map_context == MapContext::Screen {
+                if server_ctx.get_map_context() == MapContext::Screen {
                     // In Screen Context make sure we create the default code and data items
                     if let Some(layout) = ui.get_list_layout("Screen Content List") {
                         if let Some(sector) = map.find_sector_mut(map.selected_sectors[0]) {
@@ -1507,13 +1518,13 @@ impl MapEditor {
 
     /// Adds an undo step for the given map change.
     fn add_map_undo(&self, map: &Map, prev: Map, ctx: &mut TheContext, server_ctx: &ServerContext) {
-        if server_ctx.curr_map_context == MapContext::Region {
+        if server_ctx.get_map_context() == MapContext::Region {
             let undo_atom = RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
             UNDOMANAGER
                 .write()
                 .unwrap()
                 .add_region_undo(&server_ctx.curr_region, undo_atom, ctx);
-        } else if server_ctx.curr_map_context == MapContext::Material {
+        } else if server_ctx.get_map_context() == MapContext::Material {
             let undo_atom = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
             UNDOMANAGER
                 .write()
@@ -1624,8 +1635,8 @@ impl MapEditor {
         server_ctx: &mut ServerContext,
     ) {
         // Check if we need to apply the shape graph to the node editor
-        if server_ctx.curr_map_context == MapContext::Character
-            || server_ctx.curr_map_context == MapContext::Item
+        if server_ctx.get_map_context() == MapContext::Character
+            || server_ctx.get_map_context() == MapContext::Item
         {
             if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor {
                 ctx.ui
@@ -1648,7 +1659,7 @@ impl MapEditor {
             }
         } else
         // Check if we need to apply the material graph to the node editor
-        if server_ctx.curr_map_context == MapContext::Material {
+        if server_ctx.get_map_context() == MapContext::Material {
             if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor {
                 ctx.ui
                     .send(TheEvent::IndexChanged(TheId::named("Map Helper Switch"), 2));
@@ -1688,17 +1699,17 @@ impl MapEditor {
 
         let mut nodeui = TheNodeUI::default();
         if let Some(linedef) = map.find_linedef(linedef_id) {
-            if server_ctx.curr_map_context == MapContext::Region {
-                let item = TheNodeUIItem::Text(
-                    "linedefName".into(),
-                    "Name".into(),
-                    "Set the name of the linedef".into(),
-                    linedef.name.clone(),
-                    None,
-                    false,
-                );
-                nodeui.add_item(item);
+            let item = TheNodeUIItem::Text(
+                "linedefName".into(),
+                "Name".into(),
+                "Set the name of the linedef".into(),
+                linedef.name.clone(),
+                None,
+                false,
+            );
+            nodeui.add_item(item);
 
+            if server_ctx.get_map_context() == MapContext::Region {
                 // let item = TheNodeUIItem::Text(
                 //     "linedefInstanceOf".into(),
                 //     "Name".into(),
@@ -1788,7 +1799,10 @@ impl MapEditor {
                 // }
             }
 
-            if server_ctx.curr_map_context == MapContext::Material {
+            if server_ctx.get_map_context() == MapContext::Material
+                || server_ctx.get_map_context() == MapContext::Character
+                || server_ctx.get_map_context() == MapContext::Item
+            {
                 let item = TheNodeUIItem::FloatEditSlider(
                     "linedefMaterialWidth".into(),
                     "Width".into(),
@@ -1831,8 +1845,32 @@ impl MapEditor {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
+        // Check if we need to apply the shape graph to the node editor
+        if server_ctx.get_map_context() == MapContext::Character
+            || server_ctx.get_map_context() == MapContext::Item
+        {
+            if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor {
+                ctx.ui
+                    .send(TheEvent::IndexChanged(TheId::named("Map Helper Switch"), 2));
+                if let Some(widget) = ui.get_group_button("Map Helper Switch") {
+                    widget.set_index(2);
+                }
+            }
+            if let Some(sector) = map.find_linedef(sector_id) {
+                if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
+                    sector.properties.get("shape_graph")
+                {
+                    if let Some(graph) = map.shapefx_graphs.get(id) {
+                        NODEEDITOR
+                            .write()
+                            .unwrap()
+                            .apply_graph(NodeContext::Shape, graph, ui, ctx);
+                    }
+                }
+            }
+        } else
         // Check if we need to apply the material graph to the node editor
-        if server_ctx.curr_map_context == MapContext::Material {
+        if server_ctx.get_map_context() == MapContext::Material {
             if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor {
                 ctx.ui
                     .send(TheEvent::IndexChanged(TheId::named("Map Helper Switch"), 2));
@@ -1872,17 +1910,17 @@ impl MapEditor {
         let mut nodeui = TheNodeUI::default();
 
         if let Some(sector) = map.find_sector(sector_id) {
-            if server_ctx.curr_map_context == MapContext::Region {
-                let item = TheNodeUIItem::Text(
-                    "sectorName".into(),
-                    "Name".into(),
-                    "Set the name of the sector".into(),
-                    sector.name.clone(),
-                    None,
-                    false,
-                );
-                nodeui.add_item(item);
+            let item = TheNodeUIItem::Text(
+                "sectorName".into(),
+                "Name".into(),
+                "Set the name of the sector".into(),
+                sector.name.clone(),
+                None,
+                false,
+            );
+            nodeui.add_item(item);
 
+            if server_ctx.get_map_context() == MapContext::Region {
                 let item = TheNodeUIItem::FloatEditSlider(
                     "sectorFloorHeight".into(),
                     "Floor Height".into(),
@@ -1923,7 +1961,10 @@ impl MapEditor {
                 nodeui.add_item(item);
             }
 
-            if server_ctx.curr_map_context == MapContext::Material {
+            if server_ctx.get_map_context() == MapContext::Material
+                || server_ctx.get_map_context() == MapContext::Character
+                || server_ctx.get_map_context() == MapContext::Item
+            {
                 let item = TheNodeUIItem::FloatEditSlider(
                     "sectorMaterialAA".into(),
                     "Anti-Aliasing".into(),
@@ -1984,7 +2025,7 @@ impl MapEditor {
             }
 
             // Screen
-            if server_ctx.curr_map_context == MapContext::Screen {
+            if server_ctx.get_map_context() == MapContext::Screen {
                 let item = TheNodeUIItem::Text(
                     "sectorName".into(),
                     "Name".into(),

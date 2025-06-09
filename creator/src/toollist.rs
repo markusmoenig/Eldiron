@@ -87,7 +87,7 @@ impl ToolList {
         server_ctx: &mut ServerContext,
         undo_atom: Option<RegionUndoAtom>,
     ) {
-        if server_ctx.curr_map_context == MapContext::Region {
+        if server_ctx.get_map_context() == MapContext::Region {
             if let Some(undo_atom) = undo_atom {
                 let only_selection_changed = undo_atom.only_selection_changed();
                 UNDOMANAGER.write().unwrap().add_region_undo(
@@ -103,7 +103,7 @@ impl ToolList {
                 }
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
-        } else if server_ctx.curr_map_context == MapContext::Character {
+        } else if server_ctx.get_map_context() == MapContext::Character {
             if let Some(undo_atom) = undo_atom {
                 let only_selection_changed = undo_atom.only_selection_changed();
                 if let Some(character_undo_atom) = undo_atom.to_character_atom() {
@@ -123,7 +123,7 @@ impl ToolList {
                     }
                 }
             }
-        } else if server_ctx.curr_map_context == MapContext::Item {
+        } else if server_ctx.get_map_context() == MapContext::Item {
             if let Some(undo_atom) = undo_atom {
                 let only_selection_changed = undo_atom.only_selection_changed();
                 if let Some(item_undo_atom) = undo_atom.to_item_atom() {
@@ -143,7 +143,7 @@ impl ToolList {
                     }
                 }
             }
-        } else if server_ctx.curr_map_context == MapContext::Material {
+        } else if server_ctx.get_map_context() == MapContext::Material {
             if let Some(undo_atom) = undo_atom {
                 let only_selection_changed = undo_atom.only_selection_changed();
                 if let Some(material_undo_atom) = undo_atom.to_material_atom() {
@@ -169,7 +169,7 @@ impl ToolList {
                     }
                 }
             }
-        } else if server_ctx.curr_map_context == MapContext::Screen {
+        } else if server_ctx.get_map_context() == MapContext::Screen {
             if let Some(undo_atom) = undo_atom {
                 if let Some(screen_undo_atom) = undo_atom.to_screen_atom() {
                     UNDOMANAGER
@@ -268,7 +268,7 @@ impl ToolList {
                             );
                             if undo_atom.is_some() {
                                 map.changed += 1;
-                                if server_ctx.curr_map_context == MapContext::Material {
+                                if server_ctx.get_map_context() == MapContext::Material {
                                     NODEEDITOR.read().unwrap().force_update(ctx, map);
                                 }
                             }
@@ -374,7 +374,7 @@ impl ToolList {
                                 );
                                 if undo_atom.is_some() {
                                     map.changed += 1;
-                                    if server_ctx.curr_map_context == MapContext::Material {
+                                    if server_ctx.get_map_context() == MapContext::Material {
                                         NODEEDITOR.read().unwrap().force_update(ctx, map);
                                     }
                                 }
@@ -382,7 +382,7 @@ impl ToolList {
                             }
                         } else if *code == TheKeyCode::Delete {
                             if let Some(map) = project.get_map_mut(server_ctx) {
-                                if server_ctx.curr_map_context == MapContext::Region
+                                if server_ctx.get_map_context() == MapContext::Region
                                     && server_ctx.curr_map_tool_type != MapToolType::Effects
                                     && map.selected_entity_item.is_some()
                                 {
@@ -415,7 +415,7 @@ impl ToolList {
                                 );
                                 if undo_atom.is_some() {
                                     map.changed += 1;
-                                    if server_ctx.curr_map_context == MapContext::Material {
+                                    if server_ctx.get_map_context() == MapContext::Material {
                                         NODEEDITOR.read().unwrap().force_update(ctx, map);
                                     }
                                 }
@@ -427,54 +427,81 @@ impl ToolList {
             }
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == "PolyView" {
-                    // if server_ctx.render_mode {
-                    //     server_ctx.render_mode = false;
-                    //     ui.set_widget_value("Preview Switch", ctx, TheValue::Int(0));
-                    //     if let Some(map) = project.get_map_mut(server_ctx) {
-                    //         map.terrain.mark_dirty();
-                    //     }
-                    //     return false;
-                    // }
-
                     self.char_click_selected = false;
                     self.item_click_selected = false;
                     if !server_ctx.game_mode {
                         if let Some(map) = project.get_map_mut(server_ctx) {
-                            // Test for Paste operation
-                            if let Some(paste) = &server_ctx.paste_clipboard {
-                                if let Some(hover) = server_ctx.hover_cursor {
-                                    let prev = map.clone();
-                                    map.paste_at_position(paste, hover);
+                            if coord.y > 20 {
+                                // Test for Paste operation
+                                if let Some(paste) = &server_ctx.paste_clipboard {
+                                    if let Some(hover) = server_ctx.hover_cursor {
+                                        let prev = map.clone();
+                                        map.paste_at_position(paste, hover);
 
-                                    if server_ctx.curr_map_tool_type == MapToolType::Vertex {
-                                        map.selected_linedefs.clear();
-                                        map.selected_sectors.clear();
-                                    } else if server_ctx.curr_map_tool_type == MapToolType::Linedef
-                                    {
-                                        map.selected_vertices.clear();
-                                        map.selected_sectors.clear();
-                                    } else if server_ctx.curr_map_tool_type == MapToolType::Sector {
-                                        map.selected_vertices.clear();
-                                        map.selected_linedefs.clear();
+                                        if server_ctx.curr_map_tool_type == MapToolType::Vertex {
+                                            map.selected_linedefs.clear();
+                                            map.selected_sectors.clear();
+                                        } else if server_ctx.curr_map_tool_type
+                                            == MapToolType::Linedef
+                                        {
+                                            map.selected_vertices.clear();
+                                            map.selected_sectors.clear();
+                                        } else if server_ctx.curr_map_tool_type
+                                            == MapToolType::Sector
+                                        {
+                                            map.selected_vertices.clear();
+                                            map.selected_linedefs.clear();
+                                        }
+
+                                        if server_ctx.curr_map_tool_helper
+                                            != MapToolHelper::ShapePicker
+                                        {
+                                            server_ctx.paste_clipboard = None;
+                                        }
+                                        RUSTERIX.write().unwrap().set_dirty();
+
+                                        let undo_atom = RegionUndoAtom::MapEdit(
+                                            Box::new(prev),
+                                            Box::new(map.clone()),
+                                        );
+
+                                        if server_ctx.get_map_context() == MapContext::Material {
+                                            if let Some(material_undo_atom) =
+                                                undo_atom.to_material_atom()
+                                            {
+                                                UNDOMANAGER
+                                                    .write()
+                                                    .unwrap()
+                                                    .add_material_undo(material_undo_atom, ctx);
+                                            }
+                                        } else if server_ctx.get_map_context()
+                                            == MapContext::Character
+                                        {
+                                            if let Some(character_undo_atom) =
+                                                undo_atom.to_character_atom()
+                                            {
+                                                UNDOMANAGER
+                                                    .write()
+                                                    .unwrap()
+                                                    .add_character_undo(character_undo_atom, ctx);
+                                            }
+                                        } else if server_ctx.get_map_context() == MapContext::Item {
+                                            if let Some(item_undo_atom) = undo_atom.to_item_atom() {
+                                                UNDOMANAGER
+                                                    .write()
+                                                    .unwrap()
+                                                    .add_item_undo(item_undo_atom, ctx);
+                                            }
+                                        } else {
+                                            UNDOMANAGER.write().unwrap().add_region_undo(
+                                                &server_ctx.curr_region,
+                                                undo_atom,
+                                                ctx,
+                                            );
+                                        }
+
+                                        return true;
                                     }
-
-                                    if server_ctx.curr_map_tool_helper != MapToolHelper::ShapePicker
-                                    {
-                                        server_ctx.paste_clipboard = None;
-                                    }
-                                    RUSTERIX.write().unwrap().set_dirty();
-
-                                    let undo_atom = RegionUndoAtom::MapEdit(
-                                        Box::new(prev),
-                                        Box::new(map.clone()),
-                                    );
-                                    UNDOMANAGER.write().unwrap().add_region_undo(
-                                        &server_ctx.curr_region,
-                                        undo_atom,
-                                        ctx,
-                                    );
-
-                                    return true;
                                 }
                             }
 
@@ -489,7 +516,7 @@ impl ToolList {
                                     1.0,
                                 );
 
-                                if server_ctx.curr_map_context == MapContext::Region
+                                if server_ctx.get_map_context() == MapContext::Region
                                     && server_ctx.curr_map_tool_type != MapToolType::Effects
                                     && id.name == "PolyView"
                                 {
@@ -585,7 +612,7 @@ impl ToolList {
                                 );
                                 if undo_atom.is_some() {
                                     map.changed += 1;
-                                    if server_ctx.curr_map_context == MapContext::Material {
+                                    if server_ctx.get_map_context() == MapContext::Material {
                                         NODEEDITOR.read().unwrap().force_update(ctx, map);
                                     }
                                 }
@@ -714,7 +741,7 @@ impl ToolList {
                         );
                         if undo_atom.is_some() {
                             map.changed += 1;
-                            if server_ctx.curr_map_context == MapContext::Material {
+                            if server_ctx.get_map_context() == MapContext::Material {
                                 NODEEDITOR.read().unwrap().force_update(ctx, map);
                             }
                         }
@@ -754,7 +781,7 @@ impl ToolList {
                         );
                         if undo_atom.is_some() {
                             map.changed += 1;
-                            if server_ctx.curr_map_context == MapContext::Material {
+                            if server_ctx.get_map_context() == MapContext::Material {
                                 NODEEDITOR.read().unwrap().force_update(ctx, map);
                             }
                         }
@@ -775,7 +802,7 @@ impl ToolList {
                         );
                         if undo_atom.is_some() {
                             map.changed += 1;
-                            if server_ctx.curr_map_context == MapContext::Material {
+                            if server_ctx.get_map_context() == MapContext::Material {
                                 NODEEDITOR.read().unwrap().force_update(ctx, map);
                             }
                         }

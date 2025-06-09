@@ -171,7 +171,7 @@ pub struct ServerContext {
     pub curr_map_tool_type: MapToolType,
 
     /// Current Map Context
-    pub curr_map_context: MapContext,
+    curr_map_context: MapContext,
 
     /// For map tools, indicates which helper is active
     pub curr_map_tool_helper: MapToolHelper,
@@ -220,6 +220,12 @@ pub struct ServerContext {
 
     /// Background Progress Text
     pub background_progress: Option<String>,
+
+    /// Character Region Override
+    pub character_region_override: bool,
+
+    /// Item Region Override
+    pub item_region_override: bool,
 }
 
 impl Default for ServerContext {
@@ -282,7 +288,25 @@ impl ServerContext {
             paste_clipboard: None,
 
             background_progress: None,
+
+            character_region_override: false,
+            item_region_override: false,
         }
+    }
+
+    /// Returns the current map context
+    pub fn get_map_context(&self) -> MapContext {
+        if (self.curr_map_context == MapContext::Character && self.character_region_override)
+            || (self.curr_map_context == MapContext::Item && self.item_region_override)
+        {
+            MapContext::Region
+        } else {
+            self.curr_map_context
+        }
+    }
+
+    pub fn set_map_context(&mut self, map_context: MapContext) {
+        self.curr_map_context = map_context;
     }
 
     /// Clears all state data.

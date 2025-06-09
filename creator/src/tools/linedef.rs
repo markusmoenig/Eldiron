@@ -521,7 +521,7 @@ impl Tool for LinedefTool {
                                 ctx,
                             );
 
-                            if server_ctx.curr_map_context == MapContext::Region {
+                            if server_ctx.get_map_context() == MapContext::Region {
                                 if let Some(map) = project.get_map(server_ctx) {
                                     SCENEMANAGER.write().unwrap().set_map(map.clone());
                                 }
@@ -600,7 +600,7 @@ impl Tool for LinedefTool {
                             TheValue::Empty,
                         ));
 
-                        if server_ctx.curr_map_context == MapContext::Region {
+                        if server_ctx.get_map_context() == MapContext::Region {
                             if let Some(map) = project.get_map(server_ctx) {
                                 SCENEMANAGER.write().unwrap().set_map(map.clone());
                             }

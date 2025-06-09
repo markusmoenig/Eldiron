@@ -132,9 +132,9 @@ impl Hud {
             }
         }
 
-        self.show_softrigs = server_ctx.curr_map_context == MapContext::Material
-            || server_ctx.curr_map_context == MapContext::Character
-            || server_ctx.curr_map_context == MapContext::Item;
+        self.show_softrigs = server_ctx.get_map_context() == MapContext::Material
+            || server_ctx.get_map_context() == MapContext::Character
+            || server_ctx.get_map_context() == MapContext::Item;
 
         // SoftRigs
         if self.show_softrigs {
@@ -320,7 +320,7 @@ impl Hud {
         let icon_size = 40;
         let mut icons = 0;
 
-        if server_ctx.curr_map_context == MapContext::Region {
+        if server_ctx.get_map_context() == MapContext::Region {
             icons = if self.mode == HudMode::Vertex {
                 0
             } else if self.mode == HudMode::Linedef {
@@ -328,9 +328,9 @@ impl Hud {
             } else {
                 2
             };
-        } else if server_ctx.curr_map_context == MapContext::Material {
+        } else if server_ctx.get_map_context() == MapContext::Material {
             icons = 1;
-        } else if server_ctx.curr_map_context == MapContext::Screen {
+        } else if server_ctx.get_map_context() == MapContext::Screen {
             icons = if self.mode == HudMode::Sector { 2 } else { 0 };
         }
 
@@ -418,8 +418,8 @@ impl Hud {
 
         // Show Subdivs
         if (map.camera == MapCamera::TwoD
-            || server_ctx.curr_map_context == MapContext::Material
-            || server_ctx.curr_map_context == MapContext::Screen)
+            || server_ctx.get_map_context() == MapContext::Material
+            || server_ctx.get_map_context() == MapContext::Screen)
             && self.mode != HudMode::Terrain
         {
             let x = 150;
@@ -534,8 +534,8 @@ impl Hud {
 
         // Preview
 
-        if server_ctx.curr_map_context == MapContext::Character
-            || server_ctx.curr_map_context == MapContext::Item
+        if server_ctx.get_map_context() == MapContext::Character
+            || server_ctx.get_map_context() == MapContext::Item
         {
             if self.is_playing {
                 let size = CONFIGEDITOR.read().unwrap().tile_size;
@@ -558,7 +558,7 @@ impl Hud {
                     stride,
                 );
             }
-        } else if server_ctx.curr_map_context == MapContext::Material {
+        } else if server_ctx.get_map_context() == MapContext::Material {
             if let Some(Value::Texture(texture)) = map.properties.get("material") {
                 let w = texture.width as i32;
                 let h = texture.height as i32;
@@ -582,11 +582,11 @@ impl Hud {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        if server_ctx.curr_map_context != MapContext::Region
-            && server_ctx.curr_map_context != MapContext::Material
-            && server_ctx.curr_map_context != MapContext::Screen
-            && server_ctx.curr_map_context == MapContext::Character
-            && server_ctx.curr_map_context == MapContext::Item
+        if server_ctx.get_map_context() != MapContext::Region
+            && server_ctx.get_map_context() != MapContext::Material
+            && server_ctx.get_map_context() != MapContext::Screen
+            && server_ctx.get_map_context() != MapContext::Character
+            && server_ctx.get_map_context() != MapContext::Item
         {
             return false;
         }
@@ -782,7 +782,7 @@ impl Hud {
     #[allow(clippy::collapsible_if)]
     pub fn get_icon_text(&self, index: i32, server_ctx: &mut ServerContext) -> String {
         let mut text: String = "".into();
-        if server_ctx.curr_map_context == MapContext::Region {
+        if server_ctx.get_map_context() == MapContext::Region {
             if self.mode == HudMode::Linedef {
                 if index == 0 {
                     text = "WALL".into();
@@ -800,11 +800,11 @@ impl Hud {
                     text = "CEIL".into();
                 }
             }
-        } else if server_ctx.curr_map_context == MapContext::Material {
+        } else if server_ctx.get_map_context() == MapContext::Material {
             if index == 0 {
                 text = "GRAPH".into();
             }
-        } else if server_ctx.curr_map_context == MapContext::Screen {
+        } else if server_ctx.get_map_context() == MapContext::Screen {
             if index == 0 {
                 text = "NORM".into();
             } else if index == 1 {

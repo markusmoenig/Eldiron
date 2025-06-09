@@ -268,12 +268,27 @@ impl Sidebar {
         regions_remove_button.set_icon_name("icon_role_remove".to_string());
         regions_remove_button.set_status_text("Remove the current character.");
 
+        let mut character_region_override =
+            TheGroupButton::new(TheId::named("Character Region Override"));
+        character_region_override.add_text_status(
+            "Character".to_string(),
+            "Show the character map.".to_string(),
+        );
+        character_region_override.add_text_status(
+            "Region".to_string(),
+            "Show the region map and drag and drop to instantiate a character.".to_string(),
+        );
+        character_region_override.set_item_width(80);
+
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
         toolbar_hlayout.add_widget(Box::new(regions_add_button));
         toolbar_hlayout.add_widget(Box::new(regions_remove_button));
+        toolbar_hlayout.add_widget(Box::new(character_region_override));
         //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+
+        toolbar_hlayout.set_reverse_index(Some(1));
 
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
@@ -800,6 +815,13 @@ impl Sidebar {
         let mut redraw = false;
 
         match event {
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == "Character Region Override" {
+                    server_ctx.character_region_override = *index == 1;
+                } else if id.name == "Item Region Override" {
+                    server_ctx.item_region_override = *index == 1;
+                }
+            }
             TheEvent::RenderViewClicked(id, coord)
             | TheEvent::RenderViewDragged(id, coord)
             | TheEvent::RenderViewUp(id, coord) => {
@@ -1078,9 +1100,9 @@ impl Sidebar {
                         SidebarMode::Node as usize,
                     ));
                 } else if id.name == "Update Content List" {
-                    if server_ctx.curr_map_context == MapContext::Region {
+                    if server_ctx.get_map_context() == MapContext::Region {
                         self.apply_region(ui, ctx, Some(server_ctx.curr_region), project);
-                    } else if server_ctx.curr_map_context == MapContext::Screen {
+                    } else if server_ctx.get_map_context() == MapContext::Screen {
                         self.apply_screen(ui, ctx, project.get_screen_ctx(server_ctx));
                     }
                 }
@@ -2133,7 +2155,7 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Region;
-                    server_ctx.curr_map_context = MapContext::Region;
+                    server_ctx.set_map_context(MapContext::Region);
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.write().unwrap().set_dirty();
 
@@ -2163,7 +2185,7 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Character;
-                    server_ctx.curr_map_context = MapContext::Character;
+                    server_ctx.set_map_context(MapContext::Character);
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.write().unwrap().set_dirty();
 
@@ -2193,7 +2215,7 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Item;
-                    server_ctx.curr_map_context = MapContext::Item;
+                    server_ctx.set_map_context(MapContext::Item);
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.write().unwrap().set_dirty();
 
@@ -2222,7 +2244,7 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Tilemap;
-                    server_ctx.curr_map_context = MapContext::Region;
+                    server_ctx.set_map_context(MapContext::Region);
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.write().unwrap().set_dirty();
 
@@ -2249,7 +2271,7 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Module;
-                    server_ctx.curr_map_context = MapContext::Region;
+                    server_ctx.set_map_context(MapContext::Region);
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.write().unwrap().set_dirty();
 
@@ -2276,7 +2298,7 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Screen;
-                    server_ctx.curr_map_context = MapContext::Screen;
+                    server_ctx.set_map_context(MapContext::Screen);
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Screen;
                     RUSTERIX.write().unwrap().set_dirty();
 
@@ -2303,7 +2325,7 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Asset;
-                    server_ctx.curr_map_context = MapContext::Region;
+                    server_ctx.set_map_context(MapContext::Region);
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Region;
                     RUSTERIX.write().unwrap().set_dirty();
 
@@ -2340,7 +2362,7 @@ impl Sidebar {
                     }
 
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Material;
-                    server_ctx.curr_map_context = MapContext::Material;
+                    server_ctx.set_map_context(MapContext::Material);
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Material;
                     RUSTERIX.write().unwrap().set_dirty();
 
