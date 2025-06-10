@@ -261,6 +261,14 @@ impl MapEditor {
                 if id.name == "Base State Selected" {
                     if let Some(layout) = ui.get_text_layout("Node Settings") {
                         layout.clear();
+
+                        let rusterix = RUSTERIX.read().unwrap();
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            NODEEDITOR
+                                .write()
+                                .unwrap()
+                                .create_shape_preview(map, &rusterix.assets);
+                        }
                     }
                 } else if id.name == "SoftRig Selected" {
                     if let TheValue::Id(id) = value {
@@ -282,6 +290,14 @@ impl MapEditor {
                                 false,
                             );
                             nodeui.add_item(item);
+
+                            let rusterix = RUSTERIX.read().unwrap();
+                            if let Some(map) = project.get_map_mut(server_ctx) {
+                                NODEEDITOR
+                                    .write()
+                                    .unwrap()
+                                    .create_shape_preview(map, &rusterix.assets);
+                            }
                         }
 
                         if let Some(layout) = ui.get_text_layout("Node Settings") {

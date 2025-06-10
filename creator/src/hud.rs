@@ -679,6 +679,7 @@ impl Hud {
                             .filter(|rig| rig.in_editor_playlist)
                             .map(|rig| rig.id)
                             .collect(),
+                        // total_duration: 0.5,
                         ..Default::default()
                     };
                     map.soft_animator = Some(animator);
