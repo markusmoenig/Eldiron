@@ -1,7 +1,12 @@
 [attributes]
+# Base strength of the character (uncomment to enable)
 # STR = 10
 
-# The character is visible on the map
+# Whether the character is visible on the map
 visible = true
-# Tthe radius of the characters collision circle
+
+# Radius of the character's collision circle
 radius = 0.5
+
+# Number of item slots available in the character's inventory
+inventory_slots = 8

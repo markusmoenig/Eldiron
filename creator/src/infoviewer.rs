@@ -84,9 +84,12 @@ impl InfoViewer {
                                 }
                             } else if self.info_mode == 1 {
                                 // Inventory
-                                for item in entity.iter_inventory() {
+                                for (slot, item) in entity.iter_inventory() {
                                     if let Some(name) = item.attributes.get_str("name") {
-                                        output.push(format!("# {}, ({})", name, item.id));
+                                        output.push(format!(
+                                            "# Slot {}: {}, ({})",
+                                            slot, name, item.id
+                                        ));
                                     }
 
                                     // Attributes
