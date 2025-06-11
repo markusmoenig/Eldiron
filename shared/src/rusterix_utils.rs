@@ -1,6 +1,5 @@
 use crate::prelude::*;
 use rusterix::{Command, Entity, Rusterix, Value};
-use theframework::prelude::*;
 
 /// Start the server
 pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
@@ -10,7 +9,9 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
     insert_content_into_maps(project);
 
     // Characters
-    rusterix.assets.entities = FxHashMap::default();
+    rusterix.assets.entities.clear();
+    rusterix.assets.character_maps.clear();
+    rusterix.assets.entity_tiles.clear();
     for character in project.characters.values() {
         rusterix.assets.entities.insert(
             character.name.clone(),
@@ -25,7 +26,9 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
     }
 
     // Items
-    rusterix.assets.items = FxHashMap::default();
+    rusterix.assets.items.clear();
+    rusterix.assets.item_maps.clear();
+    rusterix.assets.item_tiles.clear();
     for item in project.items.values() {
         rusterix
             .assets

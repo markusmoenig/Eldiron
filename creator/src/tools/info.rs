@@ -1,6 +1,6 @@
 use crate::prelude::*;
-use rusterix::Value;
 use ToolEvent::*;
+use rusterix::Value;
 
 use crate::editor::INFOVIEWER;
 
@@ -58,6 +58,10 @@ impl Tool for InfoTool {
                     info_switch.add_text_status(
                         "Inventory".to_string(),
                         "Show the inventory.".to_string(),
+                    );
+                    info_switch.add_text_status(
+                        "Equipped".to_string(),
+                        "Show the equipped items.".to_string(),
                     );
 
                     info_switch.set_item_width(80);

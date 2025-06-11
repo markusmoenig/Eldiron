@@ -1,18 +1,13 @@
 [attributes]
+
 # Set the tile ID for the item's sprite
 #tile_id = ""
 
-# The item is visible on the map
-visible = true
-# Static items cannot be moved (doors, fireplaces, etc.)
-static = false
-# Set to true if the item blocks character movement
-blocking = false
-# If blocking is true, this is the radius of the item's collision circle
-radius = 0.5
-# The worth of the item in the base currency
-worth = 0.0
-# This item represents money
-monetary = false
+name = "Unnamed"
 
-#[light]
+visible = true
+static = false
+blocking = false
+radius = 0.5
+worth = 0.0
+monetary = false

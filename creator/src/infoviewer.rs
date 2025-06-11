@@ -115,6 +115,39 @@ impl InfoViewer {
                                         }
                                     }
                                 }
+                            } else if self.info_mode == 2 {
+                                // Slots
+                                for (slot, item) in entity.equipped.iter() {
+                                    if let Some(name) = item.attributes.get_str("name") {
+                                        output.push(format!("# {}: {} ({})", slot, name, item.id));
+                                    }
+
+                                    // Attributes
+                                    for key in item.attributes.keys_sorted() {
+                                        if key != "source" && key != "setup" && key != "name" {
+                                            if let Some(value) = item.attributes.get(key) {
+                                                match value {
+                                                    Value::Str(text) => {
+                                                        output.push(format!(
+                                                            "{} = \"{}\"",
+                                                            key, text
+                                                        ));
+                                                    }
+                                                    Value::Bool(value) => {
+                                                        output.push(format!("{} = {}", key, value));
+                                                    }
+                                                    Value::Float(value) => {
+                                                        output.push(format!("{} = {}", key, value));
+                                                    }
+                                                    Value::Int(value) => {
+                                                        output.push(format!("{} = {}", key, value));
+                                                    }
+                                                    _ => {}
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             break;

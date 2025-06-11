@@ -276,7 +276,7 @@ impl Sidebar {
         );
         character_region_override.add_text_status(
             "Region".to_string(),
-            "Show the region map and drag and drop to instantiate a character.".to_string(),
+            "Show the region map, drag and drop to instantiate a character.".to_string(),
         );
         character_region_override.set_item_width(80);
 
@@ -313,11 +313,21 @@ impl Sidebar {
         item_remove_button.set_icon_name("icon_role_remove".to_string());
         item_remove_button.set_status_text("Remove the current item.");
 
+        let mut item_region_override = TheGroupButton::new(TheId::named("Item Region Override"));
+        item_region_override.add_text_status("Item".to_string(), "Show the item map.".to_string());
+        item_region_override.add_text_status(
+            "Region".to_string(),
+            "Show the region map, drag and drop to instantiate an item.".to_string(),
+        );
+        item_region_override.set_item_width(80);
+
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
         toolbar_hlayout.add_widget(Box::new(item_add_button));
         toolbar_hlayout.add_widget(Box::new(item_remove_button));
+        toolbar_hlayout.add_widget(Box::new(item_region_override));
+        toolbar_hlayout.set_reverse_index(Some(1));
         //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
 
         let mut toolbar_canvas = TheCanvas::default();

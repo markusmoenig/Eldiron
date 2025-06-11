@@ -977,8 +977,6 @@ impl MapEditor {
                 } else if id.name == "sectorNoiseIntensity"
                     || id.name == "sectorFloorHeight"
                     || id.name == "sectorCeilingHeight"
-                    || id.name == "sectorMaterialAA"
-                    || id.name == "sectorMaterialRounding"
                     || id.name == "sectorOcclusion"
                 {
                     if let Some(value) = value.to_f32() {
@@ -1815,6 +1813,7 @@ impl MapEditor {
                 // }
             }
 
+            /*
             if server_ctx.get_map_context() == MapContext::Material
                 || server_ctx.get_map_context() == MapContext::Character
                 || server_ctx.get_map_context() == MapContext::Item
@@ -1838,7 +1837,7 @@ impl MapEditor {
                     false,
                 );
                 nodeui.add_item(item);
-            }
+            }*/
         }
 
         if let Some(layout) = ui.get_text_layout("Node Settings") {
@@ -1977,6 +1976,7 @@ impl MapEditor {
                 nodeui.add_item(item);
             }
 
+            /*
             if server_ctx.get_map_context() == MapContext::Material
                 || server_ctx.get_map_context() == MapContext::Character
                 || server_ctx.get_map_context() == MapContext::Item
@@ -2002,7 +2002,7 @@ impl MapEditor {
                     false,
                 );
                 nodeui.add_item(item);
-            }
+            }*/
 
             if sector.layer.is_some() {
                 nodeui.add_item(TheNodeUIItem::Separator("Rect Tool".into()));

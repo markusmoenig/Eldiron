@@ -18,6 +18,12 @@ base_currency_name = "Gold"
 # The symbol of the base currency
 base_currency_symbol = "G"
 
+# The supported gear slots
+gear_slots = ["legs", "head", "torso"]
+
+# The supported weapon slots
+weapon_slots = ["main_hand"]
+
 [materials]
 tile_size = 128 # Pixel size of materials
 
