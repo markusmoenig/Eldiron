@@ -558,7 +558,7 @@ impl NodeEditor {
         let mut texture = Texture::alloc(size as usize, size as usize);
 
         let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
-        stack.render_geometry(&mut texture, map, assets, false);
+        stack.render_geometry(&mut texture, map, assets, false, &FxHashMap::default());
 
         map.properties.set("shape", Value::Texture(texture));
     }
@@ -569,7 +569,7 @@ impl NodeEditor {
         let mut texture = Texture::alloc(size as usize, size as usize);
 
         let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
-        stack.render_geometry(&mut texture, map, assets, true);
+        stack.render_geometry(&mut texture, map, assets, true, &FxHashMap::default());
 
         map.properties.set("material", Value::Texture(texture));
     }
