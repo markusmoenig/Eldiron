@@ -1871,7 +1871,7 @@ impl MapEditor {
                     widget.set_index(2);
                 }
             }
-            if let Some(sector) = map.find_linedef(sector_id) {
+            if let Some(sector) = map.find_sector(sector_id) {
                 if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
                     sector.properties.get("shape_graph")
                 {
