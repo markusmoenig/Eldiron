@@ -2,7 +2,7 @@
 /generated
 utilities/target
 .DS_Store
-solo/embedded/*.eldiron
+clients/solo/embedded/*.eldiron
 users
 Untitled*
 Xcode/Eldiron/librustapi.a

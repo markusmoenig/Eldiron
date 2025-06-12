@@ -612,7 +612,7 @@ impl TheTrait for Editor {
             {
                 let rusterix = &mut RUSTERIX.write().unwrap();
                 if rusterix.server.state == rusterix::ServerState::Running {
-                    rusterix.server.update();
+                    rusterix.update_server();
                     if rusterix.server.log_changed {
                         ui.set_widget_value(
                             "LogEdit",

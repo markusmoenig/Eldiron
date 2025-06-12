@@ -22,7 +22,7 @@ base_currency_symbol = "G"
 gear_slots = ["legs", "head", "torso"]
 
 # The supported weapon slots
-weapon_slots = ["main_hand"]
+weapon_slots = ["main_hand", "off_hand"]
 
 [materials]
 tile_size = 128 # Pixel size of materials

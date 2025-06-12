@@ -929,14 +929,14 @@ impl MapEditor {
                     redraw = true;
                 } else if id.name == "linedefName" {
                     if let Some(value) = value.to_string() {
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            for linedef_id in &region.map.selected_linedefs.clone() {
-                                let prev = region.map.clone();
-                                if let Some(linedef) = region.map.find_linedef_mut(*linedef_id) {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            for linedef_id in &map.selected_linedefs.clone() {
+                                let prev = map.clone();
+                                if let Some(linedef) = map.find_linedef_mut(*linedef_id) {
                                     linedef.name = value.to_string();
                                     let undo_atom = RegionUndoAtom::MapEdit(
                                         Box::new(prev),
-                                        Box::new(region.map.clone()),
+                                        Box::new(map.clone()),
                                     );
                                     UNDOMANAGER.write().unwrap().add_region_undo(
                                         &server_ctx.curr_region,
