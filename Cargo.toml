@@ -12,11 +12,11 @@ theframework = { version = "0.1.40", git = "https://github.com/markusmoenig/TheF
 # ], default-features = true }
 
 rusterix = { version = "0.2.8", git = "https://github.com/markusmoenig/Rusterix" }
-# rusterix = { path = "../rusterix" }
+# rusterix = { path = "../Rusterix" }
 
 [workspace.package]
 edition = "2024"
-version = "0.8.23"
+version = "0.8.40"
 license = "MIT"
 authors = ["Markus Moenig"]
 description = "A game creator for classical RPGs."
