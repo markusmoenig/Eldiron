@@ -2,9 +2,9 @@ name: Rust
 
 on:
   push:
-    branches: ['master']
+    branches: ["master"]
   pull_request:
-    branches: ['master']
+    branches: ["master"]
 
 jobs:
   build_and_test:
@@ -15,20 +15,55 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      # ────────────────────────────────────────────────────────────────────────────
+      # 1. Checkout – put the repo in a one-letter directory to shrink every path
+      # ────────────────────────────────────────────────────────────────────────────
       - uses: actions/checkout@v3
+        with:
+          path: s # s/… instead of the default work dir
 
-      - name: Prepare
+      # ────────────────────────────────────────────────────────────────────────────
+      # 2. Windows-only: lift the 260-char limit + shorten Cargo/Rustup locations
+      # ────────────────────────────────────────────────────────────────────────────
+      - name: Windows – allow long paths & move Cargo home
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          # 2a) Tell Git to use the long-path prefix (\\?\)
+          git config --system core.longpaths true
+
+          # 2b) Put Cargo/Rustup/target in ultra-short folders on C:\
+          echo "CARGO_HOME=C:\\c"                 >> $GITHUB_ENV
+          echo "RUSTUP_HOME=C:\\r"                >> $GITHUB_ENV
+          echo "CARGO_TARGET_DIR=C:\\t"           >> $GITHUB_ENV
+
+          # 2c) Tell Cargo to fetch git deps with the Git CLI (which obeys 2a)
+          echo "CARGO_NET_GIT_FETCH_WITH_CLI=true" >> $GITHUB_ENV
+
+      # ────────────────────────────────────────────────────────────────────────────
+      # 3. Linux-only build dependencies (ALSA, GTK)
+      # ────────────────────────────────────────────────────────────────────────────
+      - name: Prepare (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install libasound2-dev
+          sudo apt-get install -y libasound2-dev libgtk-3-dev
           pkg-config --libs --cflags alsa
-          sudo apt-get install libgtk-3-dev
 
+      # ────────────────────────────────────────────────────────────────────────────
+      # 4. Build
+      # ────────────────────────────────────────────────────────────────────────────
       - name: Build
+        shell: bash
         run: |
-          cd creator
+          cd s/creator
           cargo build --verbose
 
+      # ────────────────────────────────────────────────────────────────────────────
+      # 5. (optional) tests
+      # ────────────────────────────────────────────────────────────────────────────
       # - name: Run tests
-        # run: cargo test --verbose
+      #   shell: bash
+      #   run: |
+      #     cd s/creator
+      #     cargo test --verbose
