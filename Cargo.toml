@@ -20,3 +20,6 @@ version = "0.8.40"
 license = "MIT"
 authors = ["Markus Moenig"]
 description = "A game creator for classical RPGs."
+
+[patch.crates-io]
+radium = { version = "1.1.0", git = "https://github.com/youknowone/ferrilab", branch = "fix-nightly" }
