@@ -4216,6 +4216,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
+source = "git+https://github.com/markusmoenig/Rusterix#0dae5f062db19a9fa3ae0787157fdc429717bac1"
 dependencies = [
  "bincode",
  "bvh",
@@ -5264,6 +5265,7 @@ checksum = "c13547615a44dc9c452a8a534638acdf07120d4b6847c8178705da06306a3057"
 [[package]]
 name = "theframework"
 version = "0.1.40"
+source = "git+https://github.com/markusmoenig/TheFramework#702afd04f684115a1e421a627d11a85ce9c48eaa"
 dependencies = [
  "aict",
  "arboard",
