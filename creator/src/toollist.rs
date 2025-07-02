@@ -505,7 +505,7 @@ impl ToolList {
                                 }
                             }
 
-                            // Test for character click
+                            // Test for character / item click
                             if let Some(render_view) = ui.get_render_view("PolyView") {
                                 let dim = *render_view.dim();
 

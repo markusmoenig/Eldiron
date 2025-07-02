@@ -57,10 +57,15 @@ impl Tool for CodeTool {
                 build_button.set_text("Build".to_string());
                 layout.add_widget(Box::new(build_button));
 
-                let mut build_result = TheText::new(TheId::named("Build Result"));
-                build_result.limiter_mut().set_min_width(400);
-                build_result.set_text("".to_string());
-                layout.add_widget(Box::new(build_result));
+                let mut spaces_switch = TheGroupButton::new(TheId::named("Code Spaces Switch"));
+                spaces_switch.add_text_status(
+                    "Show Spaces".to_string(),
+                    str!("Visually display spaces in the editor."),
+                );
+                spaces_switch.add_text_status("Hide".to_string(), "Hide spaces.".to_string());
+                spaces_switch.set_index(0);
+                spaces_switch.set_item_width(100);
+                layout.add_widget(Box::new(spaces_switch));
 
                 layout.set_reverse_index(Some(1));
             }
@@ -82,6 +87,20 @@ impl Tool for CodeTool {
         let mut redraw = false;
         #[allow(clippy::single_match)]
         match event {
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == "Code Spaces Switch" {
+                    if let Some(edit) = ui.get_text_area_edit("CodeEdit") {
+                        edit.as_code_editor(
+                            "Python",
+                            TheCodeEditorSettings {
+                                auto_bracket_completion: true,
+                                auto_indent: true,
+                                indicate_space: *index == 0,
+                            },
+                        );
+                    }
+                }
+            }
             TheEvent::StateChanged(id, state) => {
                 #[allow(clippy::collapsible_if)]
                 if id.name == "Build" && *state == TheWidgetState::Clicked {
@@ -91,18 +110,26 @@ impl Tool for CodeTool {
                             let ri = rusterix::RegionInstance::default();
                             match ri.execute(&code) {
                                 Ok(_) => {
-                                    ui.set_widget_value(
-                                        "Build Result",
-                                        ctx,
-                                        TheValue::Text("Build OK".into()),
-                                    );
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Build OK".to_string(),
+                                    ));
+                                    // ui.set_widget_value(
+                                    //     "Build Result",
+                                    //     ctx,
+                                    //     TheValue::Text("Build OK".into()),
+                                    // );
                                 }
                                 Err(err) => {
-                                    ui.set_widget_value(
-                                        "Build Result",
-                                        ctx,
-                                        TheValue::Text(format!("Error: {err}")),
-                                    );
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        format!("Error: {err}"),
+                                    ));
+                                    // ui.set_widget_value(
+                                    //     "Build Result",
+                                    //     ctx,
+                                    //     TheValue::Text(format!("Error: {err}")),
+                                    // );
                                 }
                             }
                             if let Some(layout) = ui.get_hlayout("Game Tool Params") {

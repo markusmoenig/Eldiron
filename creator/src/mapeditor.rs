@@ -1098,20 +1098,24 @@ impl MapEditor {
                 } else
                 // Region Content List Selection
                 if id.name == "Region Content List Item" {
+                    let mut character_template_id: Option<Uuid> = None;
+
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         let prev = region.map.clone();
                         region.map.clear_selection();
                         let mut found = false;
                         if let Some(character) = region.characters.get(&id.uuid) {
                             found = true;
+
                             if *SIDEBARMODE.write().unwrap() == SidebarMode::Region {
                                 ui.set_widget_value(
                                     "CodeEdit",
                                     ctx,
                                     TheValue::Text(character.source.clone()),
                                 );
+                            } else if *SIDEBARMODE.write().unwrap() == SidebarMode::Character {
+                                character_template_id = Some(character.character_id);
                             }
-
                             region.map.selected_entity_item = Some(id.uuid);
                             server_ctx.curr_region_content =
                                 ContentContext::CharacterInstance(id.uuid);
@@ -1204,6 +1208,14 @@ impl MapEditor {
                         }
                         server_ctx.content_click_from_map = false;
                         RUSTERIX.write().unwrap().set_dirty();
+                    }
+
+                    // If in character sidebar mode, set the code aand data
+                    if let Some(character_template_id) = character_template_id {
+                        server_ctx.curr_region_content =
+                            ContentContext::CharacterTemplate(character_template_id);
+                        server_ctx.cc = ContentContext::CharacterTemplate(character_template_id);
+                        set_code(ui, ctx, project, server_ctx);
                     }
 
                     /*

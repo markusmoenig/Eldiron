@@ -14,7 +14,6 @@ impl CodeEditor {
         let mut textedit = TheTextAreaEdit::new(TheId::named("CodeEdit"));
         textedit.set_continuous(true);
         textedit.display_line_number(true);
-        //textedit.set_code_type("Python");
         textedit.as_code_editor("Python", TheCodeEditorSettings::default());
         textedit.set_code_theme("base16-eighties.dark");
         textedit.use_global_statusbar(true);
