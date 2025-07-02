@@ -717,7 +717,7 @@ impl MapEditor {
                                 if let Some(linedef) = map.find_linedef_mut(linedef_id) {
                                     if let Some(row) = server_ctx.selected_wall_row {
                                         let i = row + 1;
-                                        let light_name = format!("row{}_light", i);
+                                        let light_name = format!("row{i}_light");
                                         if let Some(Value::Light(light)) =
                                             linedef.properties.get_mut(&light_name)
                                         {
@@ -783,7 +783,7 @@ impl MapEditor {
                                 if let Some(linedef) = map.find_linedef_mut(linedef_id) {
                                     if let Some(row) = server_ctx.selected_wall_row {
                                         let i = row + 1;
-                                        let light_name = format!("row{}_light", i);
+                                        let light_name = format!("row{i}_light");
                                         if let Some(Value::Light(light)) =
                                             linedef.properties.get_mut(&light_name)
                                         {

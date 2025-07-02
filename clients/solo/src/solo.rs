@@ -49,9 +49,9 @@ impl TheTrait for Solo {
                             rusterix.server.process_client_commands(commands);
                             rusterix.client.server_time = project.time;
 
-                            println!("Project loaded successfully ({}).", name);
+                            println!("Project loaded successfully ({name}).");
                         } else {
-                            println!("Failed to load project ({}).", name);
+                            println!("Failed to load project ({name}).");
                         }
                     }
                 }

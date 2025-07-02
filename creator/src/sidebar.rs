@@ -1057,7 +1057,7 @@ impl Sidebar {
                         if let Some(widget) = ui.get_widget("Graph Id Text") {
                             // map.shapefx_graphs.gener
                             if let Some(index) = map.shapefx_graphs.get_index_of(&id.uuid) {
-                                widget.set_value(TheValue::Text(format!("({:02})", index)));
+                                widget.set_value(TheValue::Text(format!("({index:02})")));
                             } else {
                                 widget.set_value(TheValue::Text("(--)".into()));
                             }
@@ -1121,7 +1121,7 @@ impl Sidebar {
                 if id.name == "Palette Picker" {
                     project.palette.current_index = *index;
                     if let Some(widget) = ui.get_widget("Palette Index Text") {
-                        widget.set_value(TheValue::Text(format!("{:03}", index)));
+                        widget.set_value(TheValue::Text(format!("{index:03}")));
                     }
                     if let Some(widget) = ui.get_widget("Palette Hex Edit") {
                         if let Some(color) = &project.palette[*index as usize] {
@@ -1214,7 +1214,7 @@ impl Sidebar {
                         let name = str!("Unknown");
                         open_delete_confirmation_dialog(
                             "Delete Item Instance ?",
-                            &format!("Permanently delete '{}' ?", name),
+                            &format!("Permanently delete '{name}' ?"),
                             item_inst,
                             ui,
                             ctx,
@@ -1347,21 +1347,21 @@ impl Sidebar {
             TheEvent::DragStarted(id, text, offset) => {
                 if id.name == "Character Item" {
                     let mut drop = TheDrop::new(id.clone());
-                    drop.set_title(format!("Character: {}", text));
+                    drop.set_title(format!("Character: {text}"));
                     drop.set_text(text.clone());
                     drop.set_offset(*offset);
                     ui.style.create_drop_image(&mut drop, ctx);
                     ctx.ui.set_drop(drop);
                 } else if id.name == "Item Item" {
                     let mut drop = TheDrop::new(id.clone());
-                    drop.set_title(format!("Item: {}", text));
+                    drop.set_title(format!("Item: {text}"));
                     drop.set_text(text.clone());
                     drop.set_offset(*offset);
                     ui.style.create_drop_image(&mut drop, ctx);
                     ctx.ui.set_drop(drop);
                 } else if id.name == "Model Item" {
                     let mut drop = TheDrop::new(id.clone());
-                    drop.set_title(format!("Model: {}", text));
+                    drop.set_title(format!("Model: {text}"));
                     drop.set_text(text.clone());
                     drop.set_offset(*offset);
                     ui.style.create_drop_image(&mut drop, ctx);
@@ -3338,7 +3338,7 @@ impl Sidebar {
                         let mut item =
                             TheListItem::new(TheId::named_with_id("Material Item", material.id));
                         item.set_text(material.name.clone());
-                        let sub_text = format!("Index: {}", index);
+                        let sub_text = format!("Index: {index}");
                         item.set_sub_text(sub_text);
                         item.set_size(42);
                         if Some(material.id) == server_ctx.curr_material {

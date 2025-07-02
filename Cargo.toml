@@ -4,15 +4,15 @@ members = ["creator", "run-wasm", "shared", "clients/solo"]
 resolver = "2"
 
 [workspace.dependencies]
-theframework = { version = "0.1.40", git = "https://github.com/markusmoenig/TheFramework", features = [
-    "ui",
-], default-features = true }
-# theframework = { path = "../TheFramework", features = [
+# theframework = { version = "0.1.40", git = "https://github.com/markusmoenig/TheFramework", features = [
 #     "ui",
 # ], default-features = true }
+theframework = { path = "../TheFramework", features = [
+    "ui",
+], default-features = true }
 
-rusterix = { version = "0.2.8", git = "https://github.com/markusmoenig/Rusterix" }
-# rusterix = { path = "../Rusterix" }
+# rusterix = { version = "0.2.8", git = "https://github.com/markusmoenig/Rusterix" }
+rusterix = { path = "../Rusterix" }
 
 [workspace.package]
 edition = "2024"

@@ -101,7 +101,7 @@ impl Tool for DataTool {
                                     ui.set_widget_value(
                                         "Build Result",
                                         ctx,
-                                        TheValue::Text(format!("Error: {}", err)),
+                                        TheValue::Text(format!("Error: {err}")),
                                     );
                                 }
                             }

@@ -449,8 +449,8 @@ impl TheTrait for Editor {
 
         // -
 
-        // ctx.ui.set_disabled("Save");
-        // ctx.ui.set_disabled("Save As");
+        ctx.ui.set_disabled("Save");
+        ctx.ui.set_disabled("Save As");
         ctx.ui.set_disabled("Undo");
         ctx.ui.set_disabled("Redo");
 
@@ -541,7 +541,7 @@ impl TheTrait for Editor {
                     if togo == 0 {
                         self.server_ctx.background_progress = None;
                     } else {
-                        self.server_ctx.background_progress = Some(format!("{}/{}", togo, total));
+                        self.server_ctx.background_progress = Some(format!("{togo}/{total}"));
                     }
                     RUSTERIX
                         .write()
@@ -2059,7 +2059,7 @@ impl TheTrait for Editor {
                         statusbar
                             .as_statusbar()
                             .unwrap()
-                            .set_text(format!("Failed to update Eldiron: {}", err));
+                            .set_text(format!("Failed to update Eldiron: {err}"));
                     }
                 }
                 SelfUpdateEvent::UpdateStart(release) => {

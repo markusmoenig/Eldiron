@@ -524,7 +524,7 @@ impl Hud {
                         stride,
                         font,
                         13.0,
-                        &format!("Elevation {:.2}", v),
+                        &format!("Elevation {v:.2}"),
                         &text_color,
                         &bg_color,
                     );

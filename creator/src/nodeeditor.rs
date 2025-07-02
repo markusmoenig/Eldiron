@@ -546,7 +546,7 @@ impl NodeEditor {
             if switch_to_nodes {
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Show Node Settings"),
-                    TheValue::Text(format!("{} Settings", node_name)),
+                    TheValue::Text(format!("{node_name} Settings")),
                 ));
             }
         }
