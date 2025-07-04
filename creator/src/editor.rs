@@ -449,8 +449,8 @@ impl TheTrait for Editor {
 
         // -
 
-        ctx.ui.set_disabled("Save");
-        ctx.ui.set_disabled("Save As");
+        // ctx.ui.set_disabled("Save");
+        // ctx.ui.set_disabled("Save As");
         ctx.ui.set_disabled("Undo");
         ctx.ui.set_disabled("Redo");
 
@@ -612,7 +612,9 @@ impl TheTrait for Editor {
             {
                 let rusterix = &mut RUSTERIX.write().unwrap();
                 if rusterix.server.state == rusterix::ServerState::Running {
-                    rusterix.update_server();
+                    if let Some(new_region_name) = rusterix.update_server() {
+                        rusterix.client.current_map = new_region_name;
+                    }
                     if rusterix.server.log_changed {
                         ui.set_widget_value(
                             "LogEdit",

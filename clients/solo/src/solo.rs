@@ -149,8 +149,9 @@ impl TheTrait for Solo {
                 self.rusterix.server.apply_entities_items(&mut r.map);
 
                 if r.map.name == self.rusterix.client.current_map {
-                    self.rusterix.update_server();
-
+                    if let Some(new_region_name) = self.rusterix.update_server() {
+                        self.rusterix.client.current_map = new_region_name;
+                    }
                     if let Some(time) = self.rusterix.server.get_time(&r.map.id) {
                         self.rusterix.client.server_time = time;
                     }
