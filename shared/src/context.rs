@@ -226,6 +226,9 @@ pub struct ServerContext {
 
     /// Item Region Override
     pub item_region_override: bool,
+
+    /// Tile Preview Mode
+    pub tile_preview_mode: bool,
 }
 
 impl Default for ServerContext {
@@ -291,6 +294,8 @@ impl ServerContext {
 
             character_region_override: false,
             item_region_override: false,
+
+            tile_preview_mode: false,
         }
     }
 

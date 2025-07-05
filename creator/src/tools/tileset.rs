@@ -35,7 +35,7 @@ impl Tool for TilesetTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         _project: &mut Project,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) -> bool {
         if let Activate = tool_event {
             if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
@@ -46,11 +46,17 @@ impl Tool for TilesetTool {
                 TheValue::Empty,
             ));
 
+            server_ctx.tile_preview_mode = true;
             return true;
         } else if let DeActivate = tool_event {
             if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                 layout.set_mode(TheSharedVLayoutMode::Shared);
             }
+            server_ctx.tile_preview_mode = false;
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Soft Update Minimap"),
+                TheValue::Empty,
+            ));
         }
         false
     }

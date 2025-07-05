@@ -15,6 +15,9 @@ use std::sync::{
 
 use std::thread;
 
+pub static PREVIEW_ICON: LazyLock<RwLock<(TheRGBATile, i32)>> =
+    LazyLock::new(|| RwLock::new((TheRGBATile::default(), 0)));
+
 pub static TILEPICKER: LazyLock<RwLock<TilePicker>> =
     LazyLock::new(|| RwLock::new(TilePicker::new("Main Tile Picker".to_string())));
 pub static MATERIALPICKER: LazyLock<RwLock<MaterialPicker>> =
@@ -580,13 +583,87 @@ impl TheTrait for Editor {
         if tick_update {
             RUSTERIX.write().unwrap().client.inc_animation_frame();
 
-            // Update the widgets which have animations
+            // Display Tile Preview when we show the Tileset Tool
+            if self.server_ctx.tile_preview_mode {
+                if let Some(render_view) = ui.get_render_view("MiniMap") {
+                    let dim = *render_view.dim();
+                    let buffer = render_view.render_buffer_mut();
+                    buffer.resize(dim.width, dim.height);
+
+                    let mut tileset = PREVIEW_ICON.write().unwrap();
+                    if tileset.0.buffer.len() >= 2 {
+                        tileset.1 += 1;
+                        if tileset.1 >= tileset.0.buffer.len() as i32 {
+                            tileset.1 = 0;
+                        }
+                    }
+
+                    // if !tileset.0.buffer.is_empty() {
+                    //     let index = tileset.1 as usize;
+                    //     let stride: usize = buffer.stride();
+
+                    //     ctx.draw.scale_chunk(
+                    //         buffer.pixels_mut(),
+                    //         &(0, 0, dim.width as usize, dim.height as usize),
+                    //         stride,
+                    //         tileset.0.buffer[index].pixels(),
+                    //         &(
+                    //             tileset.0.buffer[0].dim().width as usize,
+                    //             tileset.0.buffer[0].dim().height as usize,
+                    //         ),
+                    //         1.0,
+                    //     );
+                    // }
+
+                    if !tileset.0.buffer.is_empty() {
+                        buffer.fill(BLACK);
+                        let index = tileset.1 as usize;
+                        let stride: usize = buffer.stride();
+
+                        let src_pixels = tileset.0.buffer[index].pixels();
+                        let src_dim = tileset.0.buffer[index].dim();
+                        let (src_w, src_h) = (src_dim.width as f32, src_dim.height as f32);
+
+                        let dst_w = dim.width as f32;
+                        let dst_h = dim.height as f32;
+
+                        // Compute scale
+                        let scale = (dst_w / src_w).min(dst_h / src_h);
+
+                        // Scaled dimensions
+                        let draw_w = src_w * scale;
+                        let draw_h = src_h * scale;
+
+                        // Center offsets (keep float for precision)
+                        let offset_x = ((dst_w - draw_w) * 0.5).round() as usize;
+                        let offset_y = ((dst_h - draw_h) * 0.5).round() as usize;
+
+                        let dst_rect = (
+                            offset_x / 2,
+                            offset_y,
+                            (offset_x as f32 + draw_w).round() as usize,
+                            (offset_y as f32 + draw_h).round() as usize,
+                        );
+
+                        ctx.draw.scale_chunk(
+                            buffer.pixels_mut(),
+                            &dst_rect,
+                            stride,
+                            src_pixels,
+                            &(src_w as usize, src_h as usize),
+                            scale,
+                        );
+                    }
+                }
+            }
+            // Update the icon preview
+            /*
             if let Some(icon_view) = ui.get_widget("Tilemap Selection Preview") {
                 if let Some(icon_view) = icon_view.as_icon_view() {
                     icon_view.step();
                     redraw = true;
                 }
-            }
+            }*/
 
             if RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running {
                 INFOVIEWER

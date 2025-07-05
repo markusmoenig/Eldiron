@@ -1,5 +1,5 @@
 use crate::editor::RUSTERIX;
-use crate::editor::UNDOMANAGER;
+use crate::editor::{PREVIEW_ICON, UNDOMANAGER};
 use crate::prelude::*;
 use shared::tilemap;
 
@@ -135,13 +135,13 @@ impl TilemapEditor {
         icon_preview.set_border_color(Some([100, 100, 100, 255]));
 
         // vlayout.add_widget(Box::new(switch_button));
-        vlayout.add_widget(Box::new(icon_preview));
+        // vlayout.add_widget(Box::new(icon_preview));
 
         details_canvas.set_layout(vlayout);
 
         toolbar_canvas.set_layout(toolbar_hlayout);
         canvas.set_top(toolbar_canvas);
-        canvas.set_right(details_canvas);
+        // canvas.set_right(details_canvas);
 
         canvas
     }
@@ -205,10 +205,17 @@ impl TilemapEditor {
     }
 
     /// Set the selection preview
-    pub fn set_tilemap_preview(&self, tile: TheRGBATile, ui: &mut TheUI) {
-        if let Some(icon_view) = ui.get_icon_view("Tilemap Selection Preview") {
-            icon_view.set_rgba_tile(tile);
-        }
+    pub fn set_tilemap_preview(&self, tile: TheRGBATile, _ui: &mut TheUI) {
+        // if let Some(icon_view) = ui.get_icon_view("Tilemap Selection Preview") {
+        //     icon_view.set_rgba_tile(tile);
+        // }
+        // if let Some(render_view) = ui.get_render_view("MiniMap") {
+        //     let dim = *render_view.dim();
+        //     let buffer = render_view.render_buffer_mut();
+
+        //     buffer.copy_into(0, 0, &tile.buffer[0]);
+        // }
+        *PREVIEW_ICON.write().unwrap() = (tile, 0);
     }
 
     /// Compute the selection preview

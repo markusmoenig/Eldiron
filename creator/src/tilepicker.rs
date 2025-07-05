@@ -237,11 +237,11 @@ impl TilePicker {
                     let y = i as i32 / tiles_per_row;
 
                     self.tile_ids.insert((x, y), tile.id);
+                    #[allow(clippy::useless_format)]
                     self.tile_text.insert(
                         (x, y),
                         format!(
-                            "{} : {}",
-                            tile.name,
+                            "{}",
                             TileRole::from_index(tile.role)
                                 .unwrap_or(TileRole::ManMade)
                                 .to_string()
