@@ -165,16 +165,16 @@ impl InfoViewer {
                                     if let Some(value) = item.attributes.get(key) {
                                         match value {
                                             Value::Str(text) => {
-                                                output.push(format!("{value} = \"{text}\""));
+                                                output.push(format!("{key} = \"{text}\""));
                                             }
                                             Value::Bool(value) => {
-                                                output.push(format!("{value} = {value}"));
+                                                output.push(format!("{key} = {value}"));
                                             }
                                             Value::Float(value) => {
-                                                output.push(format!("{value} = {value}"));
+                                                output.push(format!("{key} = {value}"));
                                             }
                                             Value::Int(value) => {
-                                                output.push(format!("{value} = {value}"));
+                                                output.push(format!("{key} = {value}"));
                                             }
                                             _ => {}
                                         }

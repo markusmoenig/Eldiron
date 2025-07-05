@@ -639,10 +639,10 @@ impl TheTrait for Editor {
                         let offset_y = ((dst_h - draw_h) * 0.5).round() as usize;
 
                         let dst_rect = (
-                            offset_x / 2,
+                            offset_x,
                             offset_y,
-                            (offset_x as f32 + draw_w).round() as usize,
-                            (offset_y as f32 + draw_h).round() as usize,
+                            draw_w.round() as usize,
+                            draw_h.round() as usize,
                         );
 
                         ctx.draw.scale_chunk(
@@ -1153,7 +1153,29 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
+                // println!("event: {:?}", event);
                 match event {
+                    TheEvent::LostHover(id) => {
+                        if id.name == "Main Tile Picker RGBA Layout View" {
+                            self.server_ctx.tile_preview_mode = false;
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Soft Update Minimap"),
+                                TheValue::Empty,
+                            ));
+                        }
+                    }
+                    TheEvent::TileEditorHoverChanged(id, coord) => {
+                        if id.name == "Main Tile Picker RGBA Layout View" {
+                            if let Some(id) =
+                                TILEPICKER.read().unwrap().tile_ids.get(&(coord.x, coord.y))
+                            {
+                                self.server_ctx.tile_preview_mode = true;
+                                if let Some(tile) = self.project.extract_tile(&id) {
+                                    *PREVIEW_ICON.write().unwrap() = (tile.clone(), 0);
+                                }
+                            }
+                        }
+                    }
                     TheEvent::Custom(id, _) => {
                         if id.name == "Update Client Properties" {
                             let mut rusterix = RUSTERIX.write().unwrap();
