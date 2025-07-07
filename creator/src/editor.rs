@@ -583,7 +583,7 @@ impl TheTrait for Editor {
         if tick_update {
             RUSTERIX.write().unwrap().client.inc_animation_frame();
 
-            // Display Tile Preview when we show the Tileset Tool
+            // Display Tile Preview when we in tile preview mode
             if self.server_ctx.tile_preview_mode {
                 if let Some(render_view) = ui.get_render_view("MiniMap") {
                     let dim = *render_view.dim();
@@ -597,23 +597,6 @@ impl TheTrait for Editor {
                             tileset.1 = 0;
                         }
                     }
-
-                    // if !tileset.0.buffer.is_empty() {
-                    //     let index = tileset.1 as usize;
-                    //     let stride: usize = buffer.stride();
-
-                    //     ctx.draw.scale_chunk(
-                    //         buffer.pixels_mut(),
-                    //         &(0, 0, dim.width as usize, dim.height as usize),
-                    //         stride,
-                    //         tileset.0.buffer[index].pixels(),
-                    //         &(
-                    //             tileset.0.buffer[0].dim().width as usize,
-                    //             tileset.0.buffer[0].dim().height as usize,
-                    //         ),
-                    //         1.0,
-                    //     );
-                    // }
 
                     if !tileset.0.buffer.is_empty() {
                         buffer.fill(BLACK);
@@ -634,7 +617,7 @@ impl TheTrait for Editor {
                         let draw_w = src_w * scale;
                         let draw_h = src_h * scale;
 
-                        // Center offsets (keep float for precision)
+                        // Center
                         let offset_x = ((dst_w - draw_w) * 0.5).round() as usize;
                         let offset_y = ((dst_h - draw_h) * 0.5).round() as usize;
 
@@ -935,6 +918,7 @@ impl TheTrait for Editor {
                             if self.server_ctx.get_map_context() == MapContext::Material
                                 || self.server_ctx.get_map_context() == MapContext::Character
                                 || self.server_ctx.get_map_context() == MapContext::Item
+                                || self.server_ctx.get_map_context() == MapContext::Screen
                             {
                                 b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
                                 if let Some(material) = self.project.get_map_mut(&self.server_ctx) {
@@ -946,12 +930,46 @@ impl TheTrait for Editor {
                                     } else {
                                         b.set_map_hover_info(self.server_ctx.hover, None);
                                     }
-                                    b.set_clip_rect(Some(rusterix::Rect {
-                                        x: -5.0,
-                                        y: -5.0,
-                                        width: 10.0,
-                                        height: 10.0,
-                                    }));
+
+                                    if self.server_ctx.get_map_context() != MapContext::Screen {
+                                        b.set_clip_rect(Some(rusterix::Rect {
+                                            x: -5.0,
+                                            y: -5.0,
+                                            width: 10.0,
+                                            height: 10.0,
+                                        }));
+                                    } else {
+                                        let screen_width = CONFIGEDITOR
+                                            .read()
+                                            .unwrap()
+                                            .get_i32_default("viewport", "width", 1280);
+
+                                        let screen_height = CONFIGEDITOR
+                                            .read()
+                                            .unwrap()
+                                            .get_i32_default("viewport", "height", 720);
+
+                                        let grid_size = CONFIGEDITOR
+                                            .read()
+                                            .unwrap()
+                                            .get_i32_default("viewport", "grid_size", 32);
+
+                                        let grid_width = screen_width as f32 / grid_size as f32;
+                                        let grid_height = screen_height as f32 / grid_size as f32;
+
+                                        let (x, y) = rusterix::utils::align_screen_to_grid(
+                                            screen_width as f32,
+                                            screen_height as f32,
+                                            grid_size as f32,
+                                        );
+
+                                        b.set_clip_rect(Some(rusterix::Rect {
+                                            x,
+                                            y,
+                                            width: grid_width,
+                                            height: grid_height,
+                                        }));
+                                    }
 
                                     if let Some(clipboard) = &self.server_ctx.paste_clipboard {
                                         // During a paste operation we use a merged map

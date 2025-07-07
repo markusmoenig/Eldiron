@@ -10,6 +10,7 @@
 - New `[light]` data attributes to enable light emission for entities and items.
 - New 'set_emit_light(True / False)` cmd to enable / disable light emission for an entity or an item.
 - New special `active` item attribute which specifies if the item is active or not. On startup (or if the attribute is changed) a new `active` event is send to the item which can than decide what to do based on the value, like enabling / disabling light emission for a torch.
+- New `intent` system. Define the current player intent (like "talk", "use", "open" etc.) via the new `intent` parameter for button widgets. Server will send new `intent` events to both entities and items for direction based and click based item interations.
 
 *Creator*
 
