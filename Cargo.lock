@@ -4300,7 +4300,7 @@ dependencies = [
 [[package]]
 name = "rustpython"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#240f87a911a31b36c70628ecf441db6ef74c6340"
+source = "git+https://github.com/RustPython/RustPython#341341520e4163599a38e8445ea37da1e2fbb216"
 dependencies = [
  "cfg-if",
  "dirs-next",
@@ -4461,7 +4461,7 @@ dependencies = [
 [[package]]
 name = "rustpython-pylib"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#240f87a911a31b36c70628ecf441db6ef74c6340"
+source = "git+https://github.com/RustPython/RustPython#341341520e4163599a38e8445ea37da1e2fbb216"
 dependencies = [
  "glob",
  "rustpython-compiler-core",
@@ -4482,7 +4482,7 @@ dependencies = [
 [[package]]
 name = "rustpython-stdlib"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#240f87a911a31b36c70628ecf441db6ef74c6340"
+source = "git+https://github.com/RustPython/RustPython#341341520e4163599a38e8445ea37da1e2fbb216"
 dependencies = [
  "adler32",
  "ahash",

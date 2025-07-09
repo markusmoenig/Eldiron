@@ -66,6 +66,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
 /// Setup the client
 pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Command> {
     rusterix.assets.config = project.config.clone();
+    rusterix.assets.read_locales();
     rusterix.assets.palette = project.palette.clone();
     rusterix.assets.maps.clear();
     for region in &project.regions {
