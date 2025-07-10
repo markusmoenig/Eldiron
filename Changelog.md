@@ -11,6 +11,9 @@
 - New 'set_emit_light(True / False)` cmd to enable / disable light emission for an entity or an item.
 - New special `active` item attribute which specifies if the item is active or not. On startup (or if the attribute is changed) a new `active` event is send to the item which can than decide what to do based on the value, like enabling / disabling light emission for a torch.
 - New `intent` system. Define the current player intent (like "talk", "use", "open" etc.) via the new `intent` parameter for button widgets. Server will send new `intent` events to both entities and items for direction based and click based item interations.
+- New `health` config attribute which holds the name of the default entity health attribute, by default `HP`.
+- New `mode` entity attribute which holds the current state string of the entity. Set to `active` on entity instantiation and `dead` when the health attribute is <= 0.
+- New `death` event send to an entity when the health attribute is <= 0.
 
 *Creator*
 
@@ -21,4 +24,3 @@
 
 - Make game widgets honor the global render graph.
 - Info viewer did not show item values correctly.
-

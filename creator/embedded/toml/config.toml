@@ -24,6 +24,9 @@ gear_slots = ["legs", "head", "torso"]
 # The supported weapon slots
 weapon_slots = ["main_hand", "off_hand"]
 
+# The attribute which handles health & death
+health = "HP"
+
 [materials]
 tile_size = 128 # Pixel size of materials
 
