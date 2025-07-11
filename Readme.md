@@ -1,6 +1,6 @@
-![Eldiron Header](images/eldiron_header.png)
+# Eldiron: A Next-Generation Classical RPG Creator
 
-Classic RPG Creation
+![Eldiron Header](images/eldiron_header.png)
 
 ---
 
@@ -9,8 +9,6 @@ Classic RPG Creation
 [![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/channel/UCCmrO356zLQv_m8dPEqBUfA)
 
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/) [![version](https://img.shields.io/badge/version-0.8.40-yellow.svg)](https://shields.io/) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/MarkusMoenig)
-
-# Eldiron: A Next-Generation Classical RPG Creator
 
 **Eldiron** is a cross-platform creator for classic retro role-playing games (RPGs). Its primary goal is to enable the creation of RPGs reminiscent of the 1980s and 1990s while incorporating modern features such as multiplayer support, procedural content generation, and more.
 
@@ -21,6 +19,7 @@ Eldiron is open-source and licensed under the **MIT License**.
 2D Example           | 3D First Person Example
 :-------------------------:|:-------------------------:
 ![Eldiron Screenshot](images/hideout2d.png)  |  ![Eldiron Screenshot](images/unending_night.png)
+
 ---
 
 ## Building Eldiron Locally

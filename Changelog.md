@@ -1,9 +1,9 @@
 
-**Eldiron Creator v 0.8.50**
+# Eldiron Creator v 0.8.50
 
-**New Features**
+## New Features
 
-*Server*
+### Server
 
 - New 'entered' and 'left' entity system events when entering / leaving named sectors.
 - New 'teleport' command which either takes one argument (destination sector name in the same region) or two, the destination sector name and the name of the destination region (which will transfer the character to a different region). The entity will be transferred to the center of the destination sector.
@@ -14,13 +14,20 @@
 - New `health` config attribute which holds the name of the default entity health attribute, by default `HP`.
 - New `mode` entity attribute which holds the current state string of the entity. Set to `active` on entity instantiation and `dead` when the health attribute is <= 0.
 - New `death` event send to an entity when the health attribute is <= 0.
+- New `id` command which returns the id of the current entity.
+- New `took_damage` command (my_id, from_id, damage_amount). This command sends out messages and checks for death.
 
-*Creator*
+### Client
+
+- New `intent` command to invoke an intention via key shortcuts (same as actions).
+
+### Creator
 
 - Tileset tool: Preview icons now in the minimap.
 - Tilepicker: Icons preview on hover in the minimap.
 
-**Bug Fixes**
+## Bug Fixes
 
 - Make game widgets honor the global render graph.
 - Info viewer did not show item values correctly.
+- Changed `Data` tool shortcut from `A` to `D`.
