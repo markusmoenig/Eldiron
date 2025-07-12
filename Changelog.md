@@ -16,6 +16,8 @@
 - New `death` event send to an entity when the health attribute is <= 0.
 - New `id` command which returns the id of the current entity.
 - New `took_damage` command (my_id, from_id, damage_amount). This command sends out messages and checks for death.
+- New `goto` command (sector name, speed). Makes an NPC go to a sector.
+- New  `close_in` command (target id, target radius, speed). Makes an NPC close in (in weapon range given by the target radius) of the entity id with the given speed.
 
 ### Client
 
