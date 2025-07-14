@@ -279,6 +279,7 @@ impl Sidebar {
             "Show the region map, drag and drop to instantiate a character.".to_string(),
         );
         character_region_override.set_item_width(80);
+        character_region_override.set_index(1);
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
@@ -320,6 +321,7 @@ impl Sidebar {
             "Show the region map, drag and drop to instantiate an item.".to_string(),
         );
         item_region_override.set_item_width(80);
+        item_region_override.set_index(1);
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);

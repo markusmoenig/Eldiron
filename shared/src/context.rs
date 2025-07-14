@@ -292,8 +292,8 @@ impl ServerContext {
 
             background_progress: None,
 
-            character_region_override: false,
-            item_region_override: false,
+            character_region_override: true,
+            item_region_override: true,
 
             tile_preview_mode: false,
         }
