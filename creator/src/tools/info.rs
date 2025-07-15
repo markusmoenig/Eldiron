@@ -24,13 +24,13 @@ impl Tool for InfoTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Info Tool.")
+        str!("Info Tool (Shift + I). Play the game while retrieving info about entites and items.")
     }
     fn icon_name(&self) -> String {
         str!("info")
     }
     fn accel(&self) -> Option<char> {
-        None //Some('x')
+        Some('I')
     }
 
     fn tool_event(
