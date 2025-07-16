@@ -22,7 +22,7 @@ jobs:
 
       - name: Move Resources
         run: |
-          mv target/release/eldiron .
+          Move-Item -Path "$env:CARGO_TARGET_DIR\release\eldiron.exe" -Destination .
           tar -zcvf eldiron-x86_64-unknown-linux-gnu.tar.gz eldiron
           mkdir output
           mv eldiron-*.gz output/
