@@ -39,6 +39,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Windows – allow long paths & move Cargo home
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          git config --system core.longpaths true
+          echo "CARGO_HOME=C:\\c"                 >> $GITHUB_ENV
+          echo "RUSTUP_HOME=C:\\r"                >> $GITHUB_ENV
+          echo "CARGO_TARGET_DIR=C:\\t"           >> $GITHUB_ENV
+          echo "CARGO_NET_GIT_FETCH_WITH_CLI=true" >> $GITHUB_ENV
+
       - name: Build
         run: |
           cd creator
