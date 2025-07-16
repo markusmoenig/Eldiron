@@ -2832,6 +2832,11 @@ impl Sidebar {
         ui.set_widget_disabled_state("Region Remove", ctx, region_id.is_none());
         ui.set_widget_disabled_state("Region Settings", ctx, region_id.is_none());
 
+        if UNDOMANAGER.read().unwrap().has_undo() {
+            ctx.ui.set_enabled("Undo");
+            ctx.ui.set_enabled("Redo");
+        }
+
         if region_id.is_none() {
             if let Some(zoom) = ui.get_widget("Region Editor Zoom") {
                 zoom.set_value(TheValue::Float(1.0));

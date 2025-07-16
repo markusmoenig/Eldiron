@@ -1,5 +1,5 @@
 use crate::editor::RUSTERIX;
-use crate::editor::{PREVIEW_ICON, UNDOMANAGER};
+use crate::editor::{PREVIEW_ICON, SCENEMANAGER, UNDOMANAGER};
 use crate::prelude::*;
 use shared::tilemap;
 
@@ -96,10 +96,8 @@ impl TilemapEditor {
         toolbar_hlayout.add_widget(Box::new(hdivider));
 
         let mut add_button = TheTraybarButton::new(TheId::named("Tilemap Editor Add"));
-        add_button.set_text("Add Tiles".to_string());
-        add_button.set_status_text(
-            "Adds the current selection as animation, every tile is one animation frame.",
-        );
+        add_button.set_text("Add Tile(s)".to_string());
+        add_button.set_status_text("Adds the current tile selection.");
 
         toolbar_hlayout.add_widget(Box::new(add_button));
 
@@ -473,12 +471,13 @@ impl TilemapEditor {
                                         self.set_tilemap(tilemap, ui, ctx);
                                     }
 
+                                    let mut rusterix = RUSTERIX.write().unwrap();
                                     let tiles = project.extract_tiles();
-                                    RUSTERIX
-                                        .write()
-                                        .unwrap()
-                                        .assets
-                                        .set_rgba_tiles(tiles.clone());
+                                    rusterix.assets.set_rgba_tiles(tiles.clone());
+                                    SCENEMANAGER.write().unwrap().set_tile_list(
+                                        rusterix.assets.tile_list.clone(),
+                                        rusterix.assets.tile_indices.clone(),
+                                    );
 
                                     ctx.ui.send(TheEvent::Custom(
                                         TheId::named("Update Tilepicker"),

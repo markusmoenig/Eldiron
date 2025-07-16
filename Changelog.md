@@ -1,5 +1,5 @@
 
-# Eldiron Creator v 0.8.50
+# Eldiron Creator v0.8.50
 
 ## New Features
 
@@ -16,7 +16,7 @@
 - New `death` event send to an entity when the health attribute is <= 0.
 - New `id` command which returns the id of the current entity.
 - New `took_damage` command (my_id, from_id, damage_amount). This command sends out messages and checks for death.
-- New `goto` command (sector name, speed). Makes an NPC go to a sector.
+- New `goto` command (sector name, speed). Makes an NPC go to a sector. Sends `arrived` event on arrival with the name of the sector as value.
 - New  `close_in` command (target id, target radius, speed). Makes an NPC close in (in weapon range given by the target radius) of the entity id with the given speed. Once the target is in range a `closed_in` event is send.
 - New `kill` event send to the attacker when he kills his target. The value of the event is the id of the dead target.
 
@@ -34,3 +34,5 @@
 - Make game widgets honor the global render graph.
 - Info viewer did not show item values correctly.
 - Changed `Data` tool shortcut from `A` to `D`.
+- When adding tiles to the project the background renderer was not updated correctly.
+- Adjust Undo / Redo state when switching regions.
