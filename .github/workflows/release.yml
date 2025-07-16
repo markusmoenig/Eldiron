@@ -27,7 +27,7 @@ jobs:
       - name: Package artefacts
         working-directory: creator
         run: |
-          mv target/release/eldiron .
+          mv ../target/release/eldiron .
           tar -czvf eldiron-x86_64-unknown-linux-gnu.tar.gz eldiron
           mkdir -p output
           mv eldiron-*.gz output/
