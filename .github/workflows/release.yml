@@ -49,6 +49,14 @@ jobs:
           echo "CARGO_TARGET_DIR=C:\\t"           >> $GITHUB_ENV
           echo "CARGO_NET_GIT_FETCH_WITH_CLI=true" >> $GITHUB_ENV
 
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
       - name: Build
         run: |
           cd creator
