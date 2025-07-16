@@ -64,7 +64,7 @@ jobs:
 
       - name: Move Resources
         run: |
-          mv /c/t/release/eldiron.exe .
+          mv /c/t/creator/release/eldiron.exe .
           tar -zcvf eldiron-x86_64-pc-windows-msvc.tar.gz eldiron.exe
           mkdir output
           mv eldiron-*.gz output/
