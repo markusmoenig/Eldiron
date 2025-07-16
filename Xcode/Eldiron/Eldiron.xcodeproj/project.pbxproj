@@ -55,6 +55,7 @@
 		DD5FD13528FBD15C00853829 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD0FC28FBD15B00853829 /* Assets.xcassets */; };
 		DD5FD13628FBD15C00853829 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD0FC28FBD15B00853829 /* Assets.xcassets */; };
 		DD5FD13728FBD15C00853829 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD0FC28FBD15B00853829 /* Assets.xcassets */; };
+		DD7BD2712E27AC49008519DA /* libffi.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = DD7BD2702E27AC30008519DA /* libffi.tbd */; };
 		DD86627B2978DE20003878C0 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD8662792978DE20003878C0 /* AudioToolbox.framework */; };
 		DD86627C2978DE20003878C0 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD86627A2978DE20003878C0 /* CoreAudio.framework */; };
 		DD8FB2B52BD396C7008D2A3C /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD8FB2B42BD396C7008D2A3C /* SystemConfiguration.framework */; };
@@ -96,6 +97,7 @@
 		DD5FD12628FBD15C00853829 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
 		DD5FD12928FBD15C00853829 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		DD5FD12B28FBD15C00853829 /* Eldiron_macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Eldiron_macOS.entitlements; sourceTree = "<group>"; };
+		DD7BD2702E27AC30008519DA /* libffi.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libffi.tbd; path = usr/lib/libffi.tbd; sourceTree = SDKROOT; };
 		DD8662772978DC85003878C0 /* librustapi_ios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = librustapi_ios.a; sourceTree = "<group>"; };
 		DD8662792978DE20003878C0 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.2.sdk/System/Library/Frameworks/AudioToolbox.framework; sourceTree = DEVELOPER_DIR; };
 		DD86627A2978DE20003878C0 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.2.sdk/System/Library/Frameworks/CoreAudio.framework; sourceTree = DEVELOPER_DIR; };
@@ -142,6 +144,7 @@
 				DD8FB2B52BD396C7008D2A3C /* SystemConfiguration.framework in Frameworks */,
 				DDB240202CF5A8E600425D2F /* Carbon.framework in Frameworks */,
 				DD219B8529752AE300E978F5 /* AudioToolbox.framework in Frameworks */,
+				DD7BD2712E27AC49008519DA /* libffi.tbd in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -226,6 +229,7 @@
 		DD976A98290E62C2007131BA /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				DD7BD2702E27AC30008519DA /* libffi.tbd */,
 				DDFD01862D6990CA00CEFB70 /* libz.1.2.8.tbd */,
 				DDFD01852D6990B700CEFB70 /* libz.tbd */,
 				DDB2401F2CF5A8E600425D2F /* Carbon.framework */,
@@ -771,7 +775,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
-				MARKETING_VERSION = 0.8.40;
+				MARKETING_VERSION = 0.8.50;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.moenig.eldiron;
 				PRODUCT_NAME = Eldiron;
@@ -813,7 +817,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
-				MARKETING_VERSION = 0.8.40;
+				MARKETING_VERSION = 0.8.50;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.moenig.eldiron;
 				PRODUCT_NAME = Eldiron;
