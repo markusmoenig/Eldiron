@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use MapEvent::*;
 use ToolEvent::*;
 
 pub struct DataTool {
@@ -38,11 +39,6 @@ impl Tool for DataTool {
         _server_ctx: &mut ServerContext,
     ) -> bool {
         if let Activate = tool_event {
-            // ctx.ui.send(TheEvent::Custom(
-            //     TheId::named("Set CodeGrid Panel"),
-            //     TheValue::Empty,
-            // ));
-
             ctx.ui.send(TheEvent::SetStackIndex(
                 TheId::named("Main Stack"),
                 PanelIndices::DataEditor as usize,
@@ -69,6 +65,106 @@ impl Tool for DataTool {
         };
 
         false
+    }
+
+    fn map_event(
+        &mut self,
+        map_event: MapEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        map: &mut Map,
+        server_ctx: &mut ServerContext,
+    ) -> Option<RegionUndoAtom> {
+        let mut undo_atom: Option<RegionUndoAtom> = None;
+
+        match map_event {
+            MapClicked(_) => {
+                if server_ctx.hover.2.is_some() {
+                    let prev = map.clone();
+                    let mut changed = false;
+
+                    map.selected_entity_item = None;
+                    map.selected_light = None;
+
+                    if ui.shift {
+                        // Add
+                        if let Some(s) = server_ctx.hover.2 {
+                            if !map.selected_sectors.contains(&s) {
+                                map.selected_sectors.push(s);
+                                changed = true;
+                            }
+                        }
+                    } else if ui.alt {
+                        // Subtract
+                        if let Some(v) = server_ctx.hover.2 {
+                            map.selected_sectors.retain(|&selected| selected != v);
+                            changed = true;
+                        }
+                    } else {
+                        // Replace
+                        if let Some(v) = server_ctx.hover.2 {
+                            map.selected_sectors = vec![v];
+                            changed = true;
+                        } else {
+                            map.selected_sectors.clear();
+                            changed = true;
+                        }
+                    }
+
+                    if changed {
+                        undo_atom = Some(RegionUndoAtom::MapEdit(
+                            Box::new(prev),
+                            Box::new(map.clone()),
+                        ));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
+
+                        for sector in &map.sectors {
+                            if Some(sector.id) == server_ctx.hover.2 {
+                                // ctx.ui.send(TheEvent::StateChanged(
+                                //     TheId::named_with_id(
+                                //         "Screen Content List Item",
+                                //         sector.creator_id,
+                                //     ),
+                                //     TheWidgetState::Clicked,
+                                // ));
+                                if let Some(layout) = ui.get_list_layout("Screen Content List") {
+                                    // server_ctx.content_click_from_map = true;
+                                    layout.select_item(sector.creator_id, ctx, true);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            MapHover(coord) => {
+                if let Some(render_view) = ui.get_render_view("PolyView") {
+                    let dim = *render_view.dim();
+                    let h = server_ctx.geometry_at(
+                        Vec2::new(dim.width as f32, dim.height as f32),
+                        Vec2::new(coord.x as f32, coord.y as f32),
+                        map,
+                    );
+                    server_ctx.hover.2 = h.2;
+
+                    let cp = server_ctx.local_to_map_grid(
+                        Vec2::new(dim.width as f32, dim.height as f32),
+                        Vec2::new(coord.x as f32, coord.y as f32),
+                        map,
+                        map.subdivisions,
+                    );
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Cursor Pos Changed"),
+                        TheValue::Float2(cp),
+                    ));
+                    server_ctx.hover_cursor = Some(cp);
+                }
+            }
+            _ => {}
+        }
+        undo_atom
     }
 
     fn handle_event(

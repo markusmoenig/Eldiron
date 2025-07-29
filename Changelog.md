@@ -1,4 +1,12 @@
 
+# Eldiron Creator v0.8.60
+
+## New Features
+
+### Creator
+
+- The `Data Tool` now supports direct sector selections in the map. Making it easier to select and edit widgets who are mostly data driven.
+
 # Eldiron Creator v0.8.50
 
 ## New Features
