@@ -6,6 +6,11 @@
 ### Creator
 
 - The `Data Tool` now supports direct sector selections in the map. Making it easier to select and edit widgets who are mostly data driven.
+- Button widgets have new capabilities
+  - **active** - Boolean, switch if the widget is active by default
+  - **show** - String array of widgets to show when clicked
+  - **hide** - String array of widgets to hide when clicked
+  - **deactivate** - String array of button widgets to deactivate when clicked
 
 # Eldiron Creator v0.8.50
 
