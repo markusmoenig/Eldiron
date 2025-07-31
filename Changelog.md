@@ -11,6 +11,15 @@
   - **show** - String array of widgets to show when clicked
   - **hide** - String array of widgets to hide when clicked
   - **deactivate** - String array of button widgets to deactivate when clicked
+- New `inventory_index` attribute for button widgets to display the inventory item at the given index.
+- Intent based actions now also work on items in the inventory (when an intent is active and an inventory button is clicked).
+
+### Server
+
+- New `drop` function to drop a specific item with the given id.
+- Refactored some code to make sure all actions / intent are executed correctly on items on the map **and** on items in inventories.
+
+---
 
 # Eldiron Creator v0.8.50
 
