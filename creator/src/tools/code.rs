@@ -107,7 +107,7 @@ impl Tool for CodeTool {
                     if let Some(value) = ui.get_widget_value("CodeEdit") {
                         if let Some(code) = value.to_string() {
                             // Compile the code to test for errors.
-                            let ri = rusterix::RegionInstance::default();
+                            let ri = rusterix::RegionInstance::new(0);
                             match ri.execute(&code) {
                                 Ok(_) => {
                                     ctx.ui.send(TheEvent::SetStatusText(

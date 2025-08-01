@@ -672,6 +672,16 @@ impl TheTrait for Editor {
             {
                 let rusterix = &mut RUSTERIX.write().unwrap();
                 if rusterix.server.state == rusterix::ServerState::Running {
+                    // Send a game tick to all servers
+                    if tick_update {
+                        rusterix.server.system_tick();
+                    }
+
+                    // Send a redraw tick to all servers
+                    if redraw_update {
+                        rusterix.server.redraw_tick();
+                    }
+
                     if let Some(new_region_name) = rusterix.update_server() {
                         rusterix.client.current_map = new_region_name;
                     }

@@ -184,7 +184,7 @@ impl Tool for DataTool {
                     if let Some(value) = ui.get_widget_value("DataEdit") {
                         if let Some(code) = value.to_string() {
                             // Compile the code to test for errors.
-                            let ri = rusterix::RegionInstance::default();
+                            let ri = rusterix::RegionInstance::new(0);
                             match ri.execute(&code) {
                                 Ok(_) => {
                                     ui.set_widget_value(
