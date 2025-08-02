@@ -570,6 +570,50 @@ impl Hud {
                     stride,
                 );
             }
+        } else if server_ctx.get_map_context() == MapContext::Screen {
+            // Show the widget previews in the icon rects
+            if let Some(id) = map.selected_sectors.get(0) {
+                if let Some(sector) = map.find_sector(*id) {
+                    if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
+                        sector.properties.get("screen_graph")
+                    {
+                        if let Some(graph) = map.shapefx_graphs.get(id)
+                            && self.icon_rects.len() == 2
+                        {
+                            let w = self.icon_rects[0].width;
+                            let h = self.icon_rects[0].height;
+
+                            let textures =
+                                graph.create_screen_widgets(w as usize, h as usize, assets);
+
+                            for i in 0..2 {
+                                ctx.draw.copy_slice(
+                                    buffer.pixels_mut(),
+                                    &textures[i as usize].data,
+                                    &self.icon_rects[i as usize].to_buffer_utuple(),
+                                    stride,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            //let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
+            //stack.render_geometry(&mut texture, map, assets, false, &FxHashMap::default());
+
+            /*
+            if let Some(Value::Texture(texture)) = map.properties.get("shape") {
+                let w = texture.width as i32;
+                let h = texture.height as i32;
+                let preview_rect = TheDim::rect(width as i32 - w - 1, height as i32 - h - 1, w, h);
+                ctx.draw.copy_slice(
+                    buffer.pixels_mut(),
+                    &texture.data,
+                    &preview_rect.to_buffer_utuple(),
+                    stride,
+                );
+            }*/
         }
     }
 

@@ -13,6 +13,7 @@
   - **deactivate** - String array of button widgets to deactivate when clicked
 - New `inventory_index` attribute for button widgets to display the inventory item at the given index.
 - Intent based actions now also work on items in the inventory (when an intent is active and an inventory button is clicked).
+- Material node graphs can now be created for screen widgets, allowing procedural borders and content for screen widgets.
 
 ### Server
 

@@ -419,7 +419,12 @@ impl Tool for SectorTool {
                             let context = NODEEDITOR.read().unwrap().context;
                             for sector_id in &map.selected_sectors.clone() {
                                 if let Some(sector) = map.find_sector_mut(*sector_id) {
-                                    if context == NodeContext::Region
+                                    if context == NodeContext::Screen
+                                        && server_ctx.curr_map_tool_helper
+                                            == MapToolHelper::NodeEditor
+                                    {
+                                        sector.properties.set("screen_graph", source.clone());
+                                    } else if context == NodeContext::Region
                                         && server_ctx.curr_map_tool_helper
                                             == MapToolHelper::NodeEditor
                                     {
@@ -482,6 +487,10 @@ impl Tool for SectorTool {
                                     && server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor
                                 {
                                     sector.properties.remove("region_graph");
+                                } else if context == NodeContext::Screen
+                                    && server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor
+                                {
+                                    sector.properties.remove("screen_graph");
                                 } else if self.hud.selected_icon_index == 0 {
                                     if sector.properties.contains("floor_light") {
                                         sector.properties.remove("floor_light");

@@ -13,6 +13,7 @@ pub enum NodeContext {
     Shape,
     Material,
     GlobalRender,
+    Screen,
 }
 
 use NodeContext::*;
@@ -333,7 +334,16 @@ impl NodeEditor {
                 if id.name == "Create Graph Button" {
                     // println!("{:?}", server_ctx.curr_map_context);
                     //
-                    if server_ctx.get_map_context() == MapContext::Material
+
+                    if server_ctx.get_map_context() == MapContext::Screen {
+                        {
+                            self.graph = ShapeFXGraph {
+                                nodes: vec![ShapeFX::new(ShapeFXRole::Widget)],
+                                ..Default::default()
+                            };
+                            self.context = NodeContext::Screen;
+                        }
+                    } else if server_ctx.get_map_context() == MapContext::Material
                         || server_ctx.profile_view.is_some()
                     {
                         {
