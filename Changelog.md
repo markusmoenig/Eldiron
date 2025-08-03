@@ -21,6 +21,10 @@
 - Refactored some code to make sure all actions / intent are executed correctly on items on the map **and** on items in inventories.
 - Major refactoring of the server instancing code. Removes the ref_thread_local dependency and enables rayon parallelism, which in turn finally enables web deployment.
 
+## Bug Fixes
+
+- Rect tool content was not shown in the screen editor.
+
 ---
 
 # Eldiron Creator v0.8.50
