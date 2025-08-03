@@ -299,6 +299,16 @@ impl ServerContext {
         }
     }
 
+    /// Checks if the PolyView has focus.
+    pub fn polyview_has_focus(&self, ctx: &TheContext) -> bool {
+        if let Some(focus) = &ctx.ui.focus {
+            if focus.name == "PolyView" {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Returns the current map context
     pub fn get_map_context(&self) -> MapContext {
         if (self.curr_map_context == MapContext::Character && self.character_region_override)

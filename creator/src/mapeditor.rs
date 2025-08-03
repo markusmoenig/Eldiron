@@ -249,7 +249,8 @@ impl MapEditor {
                 }
             }
             TheEvent::Paste(_, _) => {
-                if !server_ctx.clipboard.is_empty() {
+                // TODO use focus_widget_supports_clipboard here
+                if !server_ctx.clipboard.is_empty() && server_ctx.polyview_has_focus(ctx) {
                     ctx.ui.send(TheEvent::SetStatusText(
                         TheId::empty(),
                         "Geometry pasted. Click to insert, Escape to cancel.".to_string(),
