@@ -667,6 +667,7 @@ impl TheTrait for Editor {
             extract_build_values_from_config(&mut self.build_values);
 
             let mut messages = Vec::new();
+            let mut choices = Vec::new();
 
             // Update entities when the server is running
             {
@@ -705,6 +706,7 @@ impl TheTrait for Editor {
 
                             rusterix::tile_builder(&mut r.map, &mut rusterix.assets);
                             messages = rusterix.server.get_messages(&r.map.id);
+                            choices = rusterix.server.get_choices(&r.map.id);
                         }
                     }
                 }
@@ -744,7 +746,7 @@ impl TheTrait for Editor {
                         if is_running && self.server_ctx.game_mode {
                             for r in &mut self.project.regions {
                                 if r.map.name == rusterix.client.current_map {
-                                    rusterix.draw_game(&r.map, messages);
+                                    rusterix.draw_game(&r.map, messages, choices);
                                     break;
                                 }
                             }

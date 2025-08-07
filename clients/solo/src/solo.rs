@@ -158,7 +158,8 @@ impl TheTrait for Solo {
 
                     rusterix::tile_builder(&mut r.map, &mut self.rusterix.assets);
                     let messages = self.rusterix.server.get_messages(&r.map.id);
-                    self.rusterix.draw_game(&r.map, messages);
+                    let choices = self.rusterix.server.get_choices(&r.map.id);
+                    self.rusterix.draw_game(&r.map, messages, choices);
                     self.rusterix
                         .client
                         .insert_game_buffer(&mut ui.canvas.buffer);

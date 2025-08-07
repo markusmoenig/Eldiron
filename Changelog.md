@@ -15,11 +15,17 @@
 - Intent based actions now also work on items in the inventory (when an intent is active and an inventory button is clicked).
 - Material node graphs can now be created for screen widgets, allowing procedural borders and content for screen widgets.
 
+### Client
+
+- Messages widgets now support some new config strings: `multiple_choice` the color for multiple choice items (like inventory sales) and `column_width` to define the maximum size of item columns for multiple choice items.
+
 ### Server
 
 - New `drop` function to drop a specific item with the given id.
 - Refactored some code to make sure all actions / intent are executed correctly on items on the map **and** on items in inventories.
-- Major refactoring of the server instancing code. Removes the ref_thread_local dependency and enables rayon parallelism, which in turn finally enables web deployment.
+- **Major refactoring of the server instancing code. Removes the ref_thread_local dependency and enables rayon parallelism, which in turn finally enables web deployment**.
+- New `wealth` attribute for entities which defines the initial characters wealth in the base currency.
+- New multiple choice system, implemented right now for inventory sales which vendors can initiate via the new `offer_inventory` command after receiving an intent. `offer_inventory` takes two arguments, the target entity id and a filter string, if empty, i.e. "", all items are offered.
 
 ## Bug Fixes
 
