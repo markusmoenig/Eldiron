@@ -4230,6 +4230,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
+source = "git+https://github.com/markusmoenig/Rusterix#f3d70d1d02db915fd0ea22c86935edf1af3ce425"
 dependencies = [
  "bincode",
  "bvh",

@@ -26,10 +26,12 @@
 - **Major refactoring of the server instancing code. Removes the ref_thread_local dependency and enables rayon parallelism, which in turn finally enables web deployment**.
 - New `wealth` attribute for entities which defines the initial characters wealth in the base currency.
 - New multiple choice system, implemented right now for inventory sales which vendors can initiate via the new `offer_inventory` command after receiving an intent. `offer_inventory` takes two arguments, the target entity id and a filter string, if empty, i.e. "", all items are offered.
+- block_events() now supports specific intents via "intent: attack", this allows for blocking specific intents for a given amount of time. Previously it was only possible to block all intents via "intent".
 
 ## Bug Fixes
 
 - Rect tool content was not shown in the screen editor.
+- Items in an inventory had a bug during creation which prevented them to be used with events later on.
 
 ---
 
