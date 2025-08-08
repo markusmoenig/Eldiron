@@ -868,7 +868,7 @@ dependencies = [
 
 [[package]]
 name = "creator"
-version = "0.8.50"
+version = "0.8.60"
 dependencies = [
  "arboard",
  "fontdue",
@@ -4230,6 +4230,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
+source = "git+https://github.com/markusmoenig/Rusterix#5e160ff36a5e6d04472abd7fbfee6f7deca95ab4"
 dependencies = [
  "bincode",
  "bvh",
@@ -4861,7 +4862,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.8.50"
+version = "0.8.60"
 dependencies = [
  "earcutr",
  "fontdue",
@@ -5010,7 +5011,7 @@ dependencies = [
 
 [[package]]
 name = "solo"
-version = "0.8.50"
+version = "0.8.60"
 dependencies = [
  "console_error_panic_hook",
  "fontdue",

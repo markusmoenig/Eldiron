@@ -140,10 +140,13 @@ impl TheTrait for Solo {
 
         if tick_update {
             self.rusterix.client.inc_animation_frame();
+            self.rusterix.server.system_tick();
         }
 
         if redraw_update {
             redraw = true;
+
+            self.rusterix.server.redraw_tick();
 
             for r in &mut self.project.regions {
                 self.rusterix.server.apply_entities_items(&mut r.map);
