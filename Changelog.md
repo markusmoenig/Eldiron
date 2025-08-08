@@ -18,6 +18,7 @@
 ### Client
 
 - Messages widgets now support some new config strings: `multiple_choice` the color for multiple choice items (like inventory sales) and `column_width` to define the maximum size of item columns for multiple choice items.
+- New localisation and text formatting system, the server may now generate strings like **"{you_bought} {I:{}.name, article=indef, case=lower}"** which gets automatically resolved by the client. Characters and items also can send strings like this now, allowing for powerful in-game text formatting and localization.
 
 ### Server
 
