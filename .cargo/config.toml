@@ -1,2 +1,5 @@
 [alias]
 run-wasm = ["run", "--release", "--package", "run-wasm", "--"]
+
+[target.wasm32-unknown-unknown]
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"']

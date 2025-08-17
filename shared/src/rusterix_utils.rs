@@ -54,6 +54,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
     }
 
     // Wait for the region to be created
+    #[cfg(not(target_arch = "wasm32"))]
     std::thread::sleep(std::time::Duration::from_millis(10));
     // Set the time for each region to the project time
     for region in &mut project.regions {
