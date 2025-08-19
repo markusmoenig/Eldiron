@@ -1,3 +1,8 @@
+# Eldiron Creator v0.8.70
+
+## New Features
+
+---
 
 # Eldiron Creator v0.8.60
 

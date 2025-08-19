@@ -34,7 +34,7 @@ fn main() {
     // std::env::set_var("RUST_BACKTRACE", "1");
 
     let solo = Solo::new();
-    let mut app = TheApp::new();
+    let app = TheApp::new();
 
     let () = app.run(Box::new(solo));
 }

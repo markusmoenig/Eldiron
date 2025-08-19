@@ -1,6 +1,13 @@
 [workspace]
 
-members = ["creator", "run-wasm", "shared", "clients/solo"]
+members = [
+    "creator",
+    "run-wasm",
+    "shared",
+    "clients/solo",
+    "codegridfx/lib",
+    "codegridfx/test",
+]
 resolver = "2"
 
 [workspace.dependencies]
