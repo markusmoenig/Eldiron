@@ -5,8 +5,8 @@ use theframework::prelude::*;
 pub enum Cell {
     Empty,
     Variable(String),
-    Value,
-    Assign,
+    Value(String),
+    Assignment,
     GetAttr,
     SetAttr,
 }
@@ -18,8 +18,8 @@ impl Cell {
         match s {
             "Empty" => Some(Cell::Empty),
             "Variable" => Some(Cell::Variable("Unnamed".into())),
-            "Value" => Some(Cell::Value),
-            "Assign" => Some(Cell::Assign),
+            "Value" => Some(Cell::Value("0".into())),
+            "Assignment" => Some(Cell::Assignment),
             "GetAttr" => Some(Cell::GetAttr),
             "SetAttr" => Some(Cell::SetAttr),
             _ => None,

@@ -1,4 +1,4 @@
-use crate::{Cell, CellItem, GridCtx, Group, cellgroup::CellGroup};
+use crate::{Cell, CellItem, GridCtx};
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -15,8 +15,6 @@ pub struct Routine {
 
     pub grid: FxHashMap<(u32, u32), CellItem>,
     pub grid_rects: FxHashMap<(u32, u32), TheDim>,
-
-    pub groups: FxHashMap<Uuid, Group>,
 }
 
 impl Routine {
@@ -33,7 +31,6 @@ impl Routine {
             buffer: TheRGBABuffer::new(TheDim::sized(100, 100)),
             grid,
             grid_rects: FxHashMap::default(),
-            groups: FxHashMap::default(),
         }
     }
 
@@ -184,19 +181,6 @@ impl Routine {
         }
     }
 
-    /// Add a
-    pub fn add_group_at(&mut self, group: Group, coord: (u32, u32)) {
-        let cells = group.create_cells();
-        let mut group_item = CellGroup::new(group);
-
-        let mut offset = 0;
-        for cell in cells {
-            group_item.items.insert(cell.id);
-            self.grid.insert((coord.0 + offset, coord.1), cell);
-            offset += 1;
-        }
-    }
-
     /// Handle a click at the given position.
     pub fn drop_at(
         &mut self,
@@ -228,17 +212,27 @@ impl Routine {
         }
 
         if let Some(pos) = pos {
-            if !self.grid.contains_key(&(pos.0 + 1, pos.1)) {
-                self.grid
-                    .insert((pos.0 + 1, pos.1), CellItem::new(Cell::Empty));
-            }
-
             if let Some(item) = self.grid.get(&pos) {
                 let nodeui: TheNodeUI = item.create_settings();
                 if let Some(layout) = ui.get_text_layout("Node Settings") {
                     nodeui.apply_to_text_layout(layout);
                     ctx.ui.relayout = true;
                 }
+            }
+
+            if drop.title == "Variable"
+                && pos.0 == 0
+                && !self.grid.contains_key(&(pos.0 + 1, pos.1))
+            {
+                self.grid
+                    .insert((pos.0 + 1, pos.1), CellItem::new(Cell::Assignment));
+                self.grid
+                    .insert((pos.0 + 2, pos.1), CellItem::new(Cell::Value("0".into())));
+            }
+
+            if !self.grid.contains_key(&(pos.0 + 1, pos.1)) {
+                self.grid
+                    .insert((pos.0 + 1, pos.1), CellItem::new(Cell::Empty));
             }
 
             self.draw(ctx, grid_ctx);

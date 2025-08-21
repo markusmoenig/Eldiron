@@ -1,4 +1,4 @@
-use crate::{GridCtx, Group, Routine};
+use crate::{GridCtx, Routine};
 use indexmap::*;
 use theframework::prelude::*;
 
@@ -90,7 +90,17 @@ impl Module {
         // code_layout.select_first_item(ctx);
 
         let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
+        item.set_text("Assignment".to_string());
+        item.set_associated_layout(code_layout.id().clone());
+        code_layout.add_item(item, ctx);
+
+        let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
         item.set_text("Variable".to_string());
+        item.set_associated_layout(code_layout.id().clone());
+        code_layout.add_item(item, ctx);
+
+        let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
+        item.set_text("Value".to_string());
         item.set_associated_layout(code_layout.id().clone());
         code_layout.add_item(item, ctx);
 
@@ -101,15 +111,15 @@ impl Module {
 
         let render_view = TheRenderView::new(TheId::named("ModuleView"));
 
-        let mut context_menu = TheContextMenu::named(str!("Context"));
-        context_menu.add(TheContextMenuItem::new(
-            str!("Assignment"),
-            TheId::named("CGFAssignment"),
-        ));
+        // let mut context_menu = TheContextMenu::named(str!("Context"));
+        // context_menu.add(TheContextMenuItem::new(
+        //     str!("Assignment"),
+        //     TheId::named("CGFAssignment"),
+        // ));
         // context_menu.add(TheContextMenuItem::new(str!("Set"), TheId::named("Setter")));
         // file_menu.add_separator();
-
         //render_view.set_context_menu(Some(context_menu));
+
         canvas.set_widget(render_view);
 
         canvas
@@ -216,25 +226,24 @@ impl Module {
                     }
                 }
             }
-            TheEvent::ContextMenuSelected(id, item) => {
-                if id.name == "ModuleView" {
-                    if let Some(group) = Group::from_str(&item.name) {
-                        if let Some(cell) = self.grid_ctx.current_cell.clone() {
-                            println!("1");
-                            for r in self.routines.values_mut() {
-                                if Some(r.id) == self.grid_ctx.selected_routine {
-                                    r.add_group_at(group, cell);
-                                    r.draw(ctx, &self.grid_ctx);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if let Some(renderview) = ui.get_render_view("ModuleView") {
-                        self.draw(renderview.render_buffer_mut());
-                        redraw = true;
-                    }
-                }
+            TheEvent::ContextMenuSelected(_id, _item) => {
+                // if id.name == "ModuleView" {
+                //     if let Some(group) = Group::from_str(&item.name) {
+                //         if let Some(cell) = self.grid_ctx.current_cell.clone() {
+                //             println!("1");
+                //             for r in self.routines.values_mut() {
+                //                 if Some(r.id) == self.grid_ctx.selected_routine {
+                //                     r.draw(ctx, &self.grid_ctx);
+                //                     break;
+                //                 }
+                //             }
+                //         }
+                //     }
+                //     if let Some(renderview) = ui.get_render_view("ModuleView") {
+                //         self.draw(renderview.render_buffer_mut());
+                //         redraw = true;
+                //     }
+                // }
             }
             TheEvent::RenderViewContext(id, coord) => {
                 if id.name == "ModuleView" {
