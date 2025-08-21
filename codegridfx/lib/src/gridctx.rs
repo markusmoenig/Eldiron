@@ -6,11 +6,15 @@ pub struct GridCtx {
     pub cell_size: Vec2<u32>,
 
     pub selected_routine: Option<Uuid>,
-    pub selected_cell: Option<(u32, u32)>,
+    pub current_cell: Option<(u32, u32)>,
+
+    pub font_size: f32,
+    pub zoom: f32,
 
     // Grid Colors
     pub background_color: [u8; 4],
-    pub dark_background_color: [u8; 4],
+    pub normal_color: [u8; 4],
+    pub dark_color: [u8; 4],
     pub selection_color: [u8; 4],
     pub text_color: [u8; 4],
 }
@@ -28,10 +32,14 @@ impl GridCtx {
             cell_size: Vec2::new(100, 60),
 
             selected_routine: None,
-            selected_cell: None,
+            current_cell: None,
+
+            font_size: 12.5,
+            zoom: 1.0,
 
             background_color: [0; 4],
-            dark_background_color: [0; 4],
+            normal_color: [0; 4],
+            dark_color: [0; 4],
             selection_color: [0; 4],
             text_color: [0; 4],
         }

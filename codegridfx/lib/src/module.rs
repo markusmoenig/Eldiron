@@ -21,21 +21,83 @@ impl Module {
     /// Add a routine.
     pub fn add_routine(&mut self, routine: Routine) {
         self.grid_ctx.selected_routine = Some(routine.id);
-        self.grid_ctx.selected_cell = None;
+        self.grid_ctx.current_cell = None;
         self.routines.insert(routine.name.clone(), routine);
     }
 
     /// Read out the colors out of the style.
     pub fn get_colors(&mut self, ui: &mut TheUI) {
         self.grid_ctx.background_color = ui.style.theme().color(DefaultWidgetBackground).clone();
-        self.grid_ctx.dark_background_color =
-            ui.style.theme().color(DefaultWidgetDarkBackground).clone();
-        self.grid_ctx.selection_color = ui.style.theme().color(DefaultSelection).clone();
-        self.grid_ctx.text_color = ui.style.theme().color(TextEditTextColor).clone();
+        self.grid_ctx.normal_color = ui.style.theme().color(CodeGridNormal).clone();
+        self.grid_ctx.dark_color = ui.style.theme().color(CodeGridDark).clone();
+        self.grid_ctx.selection_color = ui.style.theme().color(CodeGridSelected).clone();
+        self.grid_ctx.text_color = ui.style.theme().color(CodeGridText).clone();
     }
 
-    pub fn build_canvas(&self) -> TheCanvas {
+    pub fn build_canvas(&self, ctx: &mut TheContext) -> TheCanvas {
         let mut canvas = TheCanvas::new();
+
+        // Left code list
+
+        let mut list_canvas: TheCanvas = TheCanvas::new();
+
+        let mut list_toolbar_canvas = TheCanvas::new();
+
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_margin(Vec4::new(2, 2, 2, 2));
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_mode(TheHLayoutMode::SizeBased);
+
+        let mut sdf_view = TheSDFView::new(TheId::named("Code List SDF View"));
+
+        let mut sdf_canvas = TheSDFCanvas::new();
+        sdf_canvas.background = TheColor::from_u8_array([118, 118, 118, 255]);
+        sdf_canvas.selected = Some(0);
+        sdf_canvas.add(
+            TheSDF::Circle(TheDim::new(5, 2, 20, 20)),
+            ThePattern::Solid(TheColor::from_u8(74, 74, 74, 255)),
+        );
+        sdf_view.set_status(0, "Show all keywords.".to_string());
+
+        sdf_canvas.add(
+            TheSDF::Hexagon(TheDim::new(40, 2, 20, 20)),
+            ThePattern::Solid(TheColor::from_u8(74, 74, 74, 255)),
+        );
+        sdf_view.set_status(1, "Show all value types.".to_string());
+
+        sdf_canvas.add(
+            TheSDF::Rhombus(TheDim::new(75, 2, 20, 20)),
+            ThePattern::Solid(TheColor::from_u8(74, 74, 74, 255)),
+        );
+        sdf_view.set_status(2, "Show all operators.".to_string());
+
+        sdf_canvas.add(
+            TheSDF::RoundedRect(TheDim::new(110, 2, 20, 20), (5.0, 5.0, 5.0, 5.0)),
+            ThePattern::Solid(TheColor::from_u8(74, 74, 74, 255)),
+        );
+        sdf_view.set_status(3, "Show all available functions.".to_string());
+
+        sdf_view.set_canvas(sdf_canvas);
+
+        toolbar_hlayout.add_widget(Box::new(sdf_view));
+        list_toolbar_canvas.set_layout(toolbar_hlayout);
+        list_toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        list_canvas.set_top(list_toolbar_canvas);
+
+        let mut code_layout = TheListLayout::new(TheId::named("Code Editor Code List"));
+        code_layout.limiter_mut().set_max_width(150);
+        // self.get_code_list_items(0, &mut code_layout, ctx);
+        // code_layout.select_first_item(ctx);
+
+        let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
+        item.set_text("Variable".to_string());
+        item.set_associated_layout(code_layout.id().clone());
+        code_layout.add_item(item, ctx);
+
+        list_canvas.set_layout(code_layout);
+        canvas.set_left(list_canvas);
+
+        // --
 
         let render_view = TheRenderView::new(TheId::named("ModuleView"));
 
@@ -101,10 +163,63 @@ impl Module {
                     redraw = true;
                 }
             }
+            TheEvent::ValueChanged(id, value) => {
+                if id.name.starts_with("cgfx") {
+                    for r in self.routines.values_mut() {
+                        if Some(r.id) == self.grid_ctx.selected_routine {
+                            if let Some(coord) = self.grid_ctx.current_cell {
+                                if let Some(item) = r.grid.get_mut(&coord) {
+                                    item.apply_value(&id.name, value);
+                                    r.draw(ctx, &self.grid_ctx);
+                                }
+                            }
+                        }
+                    }
+                    if let Some(renderview) = ui.get_render_view("ModuleView") {
+                        self.draw(renderview.render_buffer_mut());
+                    }
+                }
+            }
+            TheEvent::DragStarted(id, text, offset) => {
+                if id.name == "Code Editor Code List Item" {
+                    // if let Some(atom) = Some(self.create_atom(text.as_str(), id.uuid)) {
+                    let mut drop = TheDrop::new(TheId::named("Code Editor Atom"));
+                    // drop.set_data(atom.to_json());
+                    drop.set_title(text.clone());
+                    drop.set_offset(*offset);
+                    ui.style.create_drop_image(&mut drop, ctx);
+                    ctx.ui.set_drop(drop);
+                    // }
+                }
+            }
+            TheEvent::Drop(coord, drop) => {
+                // println!("{}, {}", coord, drop.title);
+                let mut handled = false;
+                for r in self.routines.values_mut() {
+                    if r.visible {
+                        handled = r.drop_at(
+                            Vec2::new(coord.x as u32, coord.y as u32 - r.module_offset),
+                            ui,
+                            ctx,
+                            &mut self.grid_ctx,
+                            drop,
+                        );
+                        if handled {
+                            break;
+                        }
+                    }
+                }
+                if handled {
+                    if let Some(renderview) = ui.get_render_view("ModuleView") {
+                        self.draw(renderview.render_buffer_mut());
+                        redraw = true;
+                    }
+                }
+            }
             TheEvent::ContextMenuSelected(id, item) => {
                 if id.name == "ModuleView" {
                     if let Some(group) = Group::from_str(&item.name) {
-                        if let Some(cell) = self.grid_ctx.selected_cell.clone() {
+                        if let Some(cell) = self.grid_ctx.current_cell.clone() {
                             println!("1");
                             for r in self.routines.values_mut() {
                                 if Some(r.id) == self.grid_ctx.selected_routine {
@@ -150,6 +265,7 @@ impl Module {
                         if r.visible {
                             handled = r.click_at(
                                 Vec2::new(coord.x as u32, coord.y as u32 - r.module_offset),
+                                ui,
                                 ctx,
                                 &mut self.grid_ctx,
                             );

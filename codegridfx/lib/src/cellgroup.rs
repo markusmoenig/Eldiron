@@ -22,7 +22,7 @@ impl Group {
 
         match &self {
             Assignment => {
-                cells.push(CellItem::new(Cell::Variable));
+                cells.push(CellItem::new(Cell::Variable("Unnamed".into())));
                 cells.push(CellItem::new(Cell::Assign));
                 cells.push(CellItem::new(Cell::Value));
             }

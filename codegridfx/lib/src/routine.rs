@@ -14,6 +14,8 @@ pub struct Routine {
     pub buffer: TheRGBABuffer,
 
     pub grid: FxHashMap<(u32, u32), CellItem>,
+    pub grid_rects: FxHashMap<(u32, u32), TheDim>,
+
     pub groups: FxHashMap<Uuid, Group>,
 }
 
@@ -30,13 +32,14 @@ impl Routine {
             screen_width: 100,
             buffer: TheRGBABuffer::new(TheDim::sized(100, 100)),
             grid,
+            grid_rects: FxHashMap::default(),
             groups: FxHashMap::default(),
         }
     }
 
     pub fn draw(&mut self, ctx: &TheContext, grid_ctx: &GridCtx) {
         // Size check
-        let height = self.size(grid_ctx).y;
+        let height = self.size(ctx, grid_ctx).y;
         if self.buffer.dim().width != self.screen_width as i32
             || self.buffer.dim().height != height as i32
         {
@@ -66,6 +69,8 @@ impl Routine {
             &WHITE,
         );
 
+        let stride = self.buffer.dim().width as usize;
+
         if let Some(font) = &ctx.ui.font {
             ctx.draw.text_rect_blend(
                 self.buffer.pixels_mut(),
@@ -75,7 +80,7 @@ impl Routine {
                     self.screen_width as usize,
                     grid_ctx.header_height as usize,
                 ),
-                ctx.width,
+                stride,
                 font,
                 15.0,
                 &self.name,
@@ -87,22 +92,13 @@ impl Routine {
 
         if !self.folded {
             for (coord, cell) in &mut self.grid {
-                let rect = Self::get_rect_for(coord, grid_ctx);
-                let is_selected = Some(self.id) == grid_ctx.selected_routine
-                    && Some(coord.clone()) == grid_ctx.selected_cell;
-                cell.draw(&mut self.buffer, &rect, ctx, grid_ctx, is_selected);
+                if let Some(rect) = self.grid_rects.get(coord) {
+                    let is_selected = Some(self.id) == grid_ctx.selected_routine
+                        && Some(coord.clone()) == grid_ctx.current_cell;
+                    cell.draw(&mut self.buffer, &rect, ctx, grid_ctx, is_selected, coord);
+                }
             }
         }
-    }
-
-    /// Get the rect for the given cell.
-    pub fn get_rect_for(coord: &(u32, u32), grid_ctx: &GridCtx) -> TheDim {
-        TheDim::rect(
-            (4 + coord.0 * grid_ctx.cell_size.x) as i32,
-            (4 + grid_ctx.header_height + coord.1 * grid_ctx.cell_size.y) as i32,
-            grid_ctx.cell_size.x as i32,
-            grid_ctx.cell_size.y as i32,
-        )
     }
 
     /// Sets the screen width.
@@ -123,13 +119,17 @@ impl Routine {
     }
 
     /// Returns the size of the grid.
-    pub fn size(&self, grid_ctx: &GridCtx) -> Vec2<u32> {
+    pub fn size(&mut self, ctx: &TheContext, grid_ctx: &GridCtx) -> Vec2<u32> {
         if !self.folded {
             let mut col_widths: FxHashMap<u32, u32> = FxHashMap::default();
             let mut row_heights: FxHashMap<u32, u32> = FxHashMap::default();
 
+            // Clear grid_rects before filling
+            self.grid_rects.clear();
+
+            // First pass: collect sizes
             for ((col, row), cell) in &self.grid {
-                let size = cell.size();
+                let size = cell.size(ctx, grid_ctx);
                 col_widths
                     .entry(*col)
                     .and_modify(|w| {
@@ -146,6 +146,32 @@ impl Routine {
                         }
                     })
                     .or_insert(size.y);
+            }
+
+            // Second pass: calculate offsets and fill grid_rects
+            for ((col, row), cell) in &self.grid {
+                let x_offset = 4 + col_widths
+                    .keys()
+                    .filter(|&&c| c < *col)
+                    .map(|c| col_widths[c])
+                    .sum::<u32>();
+                let y_offset = 4
+                    + grid_ctx.header_height
+                    + row_heights
+                        .keys()
+                        .filter(|&&r| r < *row)
+                        .map(|r| row_heights[r])
+                        .sum::<u32>();
+                let size = cell.size(ctx, grid_ctx);
+                self.grid_rects.insert(
+                    (*col, *row),
+                    TheDim::rect(
+                        x_offset as i32,
+                        y_offset as i32,
+                        size.x as i32,
+                        size.y as i32,
+                    ),
+                );
             }
 
             let total_width: u32 = col_widths.values().sum::<u32>() + 4;
@@ -172,24 +198,90 @@ impl Routine {
     }
 
     /// Handle a click at the given position.
-    pub fn click_at(&mut self, loc: Vec2<u32>, ctx: &TheContext, grid_ctx: &mut GridCtx) -> bool {
+    pub fn drop_at(
+        &mut self,
+        loc: Vec2<u32>,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        grid_ctx: &mut GridCtx,
+        drop: &TheDrop,
+    ) -> bool {
+        let mut handled = false;
+        let mut pos: Option<(u32, u32)> = None;
+
+        if loc.y > grid_ctx.header_height {
+            for (coord, item) in self.grid.iter_mut() {
+                if let Some(rect) = self.grid_rects.get(coord) {
+                    if rect.contains(Vec2::new(loc.x as i32, loc.y as i32)) {
+                        if let Some(cell) = Cell::from_str(&drop.title) {
+                            *item = CellItem::new(cell);
+
+                            grid_ctx.selected_routine = Some(self.id);
+                            grid_ctx.current_cell = Some(coord.clone());
+                            pos = Some(coord.clone());
+                        }
+                        handled = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if let Some(pos) = pos {
+            if !self.grid.contains_key(&(pos.0 + 1, pos.1)) {
+                self.grid
+                    .insert((pos.0 + 1, pos.1), CellItem::new(Cell::Empty));
+            }
+
+            if let Some(item) = self.grid.get(&pos) {
+                let nodeui: TheNodeUI = item.create_settings();
+                if let Some(layout) = ui.get_text_layout("Node Settings") {
+                    nodeui.apply_to_text_layout(layout);
+                    ctx.ui.relayout = true;
+                }
+            }
+
+            self.draw(ctx, grid_ctx);
+        }
+
+        handled
+    }
+
+    /// Handle a click at the given position.
+    pub fn click_at(
+        &mut self,
+        loc: Vec2<u32>,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        grid_ctx: &mut GridCtx,
+    ) -> bool {
         let mut handled = false;
 
         if loc.y < grid_ctx.header_height {
             self.folded = !self.folded;
             grid_ctx.selected_routine = Some(self.id);
-            grid_ctx.selected_cell = None;
+            grid_ctx.current_cell = None;
             self.draw(ctx, grid_ctx);
             handled = true;
         } else {
-            for (coord, _) in &self.grid {
-                let rect = Self::get_rect_for(coord, grid_ctx);
-                if rect.contains(Vec2::new(loc.x as i32, loc.y as i32)) {
-                    grid_ctx.selected_routine = Some(self.id);
-                    grid_ctx.selected_cell = Some(coord.clone());
-                    self.draw(ctx, grid_ctx);
-                    handled = true;
-                    break;
+            for (coord, cell) in &self.grid {
+                if let Some(rect) = self.grid_rects.get(coord) {
+                    if rect.contains(Vec2::new(loc.x as i32, loc.y as i32)) {
+                        grid_ctx.selected_routine = Some(self.id);
+                        if grid_ctx.current_cell != Some(coord.clone()) {
+                            grid_ctx.current_cell = Some(coord.clone());
+
+                            let nodeui: TheNodeUI = cell.create_settings();
+                            if let Some(layout) = ui.get_text_layout("Node Settings") {
+                                nodeui.apply_to_text_layout(layout);
+                                ctx.ui.relayout = true;
+                            }
+
+                            self.draw(ctx, grid_ctx);
+                        }
+                        handled = true;
+                        break;
+                    }
                 }
             }
         }
@@ -205,11 +297,12 @@ impl Routine {
         grid_ctx: &mut GridCtx,
     ) -> Option<TheContextMenu> {
         for (coord, item) in &self.grid {
-            let rect = Self::get_rect_for(coord, grid_ctx);
-            if rect.contains(Vec2::new(loc.x as i32, loc.y as i32)) {
-                grid_ctx.selected_routine = Some(self.id);
-                grid_ctx.selected_cell = Some(coord.clone());
-                return Some(item.generate_context());
+            if let Some(rect) = self.grid_rects.get(coord) {
+                if rect.contains(Vec2::new(loc.x as i32, loc.y as i32)) {
+                    grid_ctx.selected_routine = Some(self.id);
+                    grid_ctx.current_cell = Some(coord.clone());
+                    return Some(item.generate_context());
+                }
             }
         }
 

@@ -23,7 +23,7 @@ impl TheTrait for CodeEditor {
         "CodeGridFX".to_string()
     }
 
-    fn init_ui(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) {
+    fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         /*
         // Menu
         let mut menu_canvas = TheCanvas::new();
@@ -130,7 +130,21 @@ impl TheTrait for CodeEditor {
         let startup_routine = Routine::new("Startup".into());
         self.module.add_routine(startup_routine);
 
-        ui.canvas.set_center(self.module.build_canvas());
+        ui.canvas.set_center(self.module.build_canvas(ctx));
+
+        let mut node_ui_canvas = TheCanvas::default();
+        let mut text_layout = TheTextLayout::new(TheId::named("Node Settings"));
+        text_layout.limiter_mut().set_max_width(300);
+        text_layout.set_text_margin(20);
+        text_layout.set_text_align(TheHorizontalAlign::Right);
+        node_ui_canvas.set_layout(text_layout);
+        ui.canvas.set_right(node_ui_canvas);
+
+        let mut status_canvas = TheCanvas::new();
+        let mut statusbar = TheStatusbar::new(TheId::named("Statusbar"));
+        statusbar.set_text("CodeGridFX Tester".to_string());
+        status_canvas.set_widget(statusbar);
+        ui.canvas.set_bottom(status_canvas);
 
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
     }
