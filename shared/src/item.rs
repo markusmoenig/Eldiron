@@ -1,3 +1,4 @@
+use codegridfxlib::Module;
 use num_traits::zero;
 use rusterix::Map;
 use theframework::prelude::*;
@@ -10,6 +11,9 @@ pub struct Item {
 
     /// The item map model.
     pub map: Map,
+
+    /// The module source
+    pub module: Module,
 
     /// The instance initialization code.
     pub source: String,
@@ -37,6 +41,7 @@ impl Item {
             id: Uuid::new_v4(),
             name: "NewItem".to_string(),
 
+            module: Module::default(),
             map: Map::default(),
             source: String::new(),
             data: String::new(),

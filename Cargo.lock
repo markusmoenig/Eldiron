@@ -5001,6 +5001,7 @@ dependencies = [
 name = "shared"
 version = "0.8.60"
 dependencies = [
+ "codegridfxlib",
  "earcutr",
  "fontdue",
  "indexmap 2.10.0",

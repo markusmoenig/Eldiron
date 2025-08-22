@@ -1,4 +1,4 @@
-use crate::editor::CONFIGEDITOR;
+use crate::editor::{CODEGRIDFX, CONFIGEDITOR};
 use crate::prelude::*;
 use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
 use toml::*;
@@ -21,6 +21,7 @@ pub fn set_code(
                         ctx,
                         TheValue::Text(character_instance.source.clone()),
                     );
+                    *CODEGRIDFX.write().unwrap() = character_instance.module.clone();
                     success = true;
                 }
             }
@@ -46,6 +47,7 @@ pub fn set_code(
             if let Some(character) = project.characters.get_mut(&uuid) {
                 ui.set_widget_value("CodeEdit", ctx, TheValue::Text(character.source.clone()));
                 ui.set_widget_value("DataEdit", ctx, TheValue::Text(character.data.clone()));
+                *CODEGRIDFX.write().unwrap() = character.module.clone();
                 success = true;
             }
         }
@@ -53,6 +55,7 @@ pub fn set_code(
             if let Some(items) = project.items.get_mut(&uuid) {
                 ui.set_widget_value("CodeEdit", ctx, TheValue::Text(items.source.clone()));
                 ui.set_widget_value("DataEdit", ctx, TheValue::Text(items.data.clone()));
+                *CODEGRIDFX.write().unwrap() = items.module.clone();
                 success = true;
             }
         }

@@ -127,7 +127,7 @@ impl TheTrait for CodeEditor {
         */
 
         self.module.get_colors(ui);
-        let startup_routine = Routine::new("Startup".into());
+        let startup_routine = Routine::new("startup", "Called on creation");
         self.module.add_routine(startup_routine);
 
         ui.canvas.set_center(self.module.build_canvas(ctx));

@@ -10,6 +10,7 @@ description.workspace = true
 theframework.workspace = true
 rusterix.workspace = true
 
+codegridfxlib = { path = "../codegridfx/lib" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 vectorize = "0.2.0"

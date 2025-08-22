@@ -1,8 +1,9 @@
-use crate::prelude::*;
+use crate::{editor::CODEGRIDFX, prelude::*};
 use ToolEvent::*;
 
 pub struct CodeTool {
     id: TheId,
+    use_python: bool,
 }
 
 impl Tool for CodeTool {
@@ -12,6 +13,7 @@ impl Tool for CodeTool {
     {
         Self {
             id: TheId::named("Code Tool"),
+            use_python: false,
         }
     }
 
@@ -43,13 +45,50 @@ impl Tool for CodeTool {
             //     TheValue::Empty,
             // ));
 
-            ctx.ui.send(TheEvent::SetStackIndex(
-                TheId::named("Main Stack"),
-                PanelIndices::CodeEditor as usize,
-            ));
+            if !self.use_python {
+                ctx.ui.send(TheEvent::SetStackIndex(
+                    TheId::named("Main Stack"),
+                    PanelIndices::CodeGridFx as usize,
+                ));
+
+                CODEGRIDFX.write().unwrap().get_colors(ui);
+                if let Some(renderview) = ui.get_render_view("ModuleView") {
+                    *renderview.render_buffer_mut() = TheRGBABuffer::new(TheDim::new(
+                        0,
+                        0,
+                        renderview.dim().width,
+                        renderview.dim().height,
+                    ));
+                    CODEGRIDFX.write().unwrap().update_routines();
+                    CODEGRIDFX
+                        .write()
+                        .unwrap()
+                        .draw(renderview.render_buffer_mut());
+                }
+            } else {
+                ctx.ui.send(TheEvent::SetStackIndex(
+                    TheId::named("Main Stack"),
+                    PanelIndices::CodeEditor as usize,
+                ));
+            }
 
             if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                 layout.clear();
+
+                let mut code_switch = TheGroupButton::new(TheId::named("Code Node Switch"));
+                code_switch.add_text_status(
+                    "Nodes".to_string(),
+                    str!("Use nodes to create Python code."),
+                );
+                code_switch
+                    .add_text_status("Python".to_string(), "Code directly in Python.".to_string());
+                code_switch.set_index(if self.use_python { 1 } else { 0 });
+                code_switch.set_item_width(100);
+                layout.add_widget(Box::new(code_switch));
+
+                let mut hdivider = TheHDivider::new(TheId::empty());
+                hdivider.limiter_mut().set_max_width(15);
+                layout.add_widget(Box::new(hdivider));
 
                 let mut build_button = TheTraybarButton::new(TheId::named("Build"));
                 build_button
@@ -85,9 +124,33 @@ impl Tool for CodeTool {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
-        #[allow(clippy::single_match)]
+
+        if !self.use_python {
+            CODEGRIDFX.write().unwrap().handle_event(event, ui, ctx);
+        }
+
         match event {
             TheEvent::IndexChanged(id, index) => {
+                if id.name == "Code Node Switch" {
+                    if *index == 0 {
+                        self.use_python = false;
+                    } else {
+                        self.use_python = true;
+                    }
+
+                    if !self.use_python {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::CodeGridFx as usize,
+                        ));
+                    } else {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
+                            PanelIndices::CodeEditor as usize,
+                        ));
+                    }
+                }
+
                 if id.name == "Code Spaces Switch" {
                     if let Some(edit) = ui.get_text_area_edit("CodeEdit") {
                         edit.as_code_editor(

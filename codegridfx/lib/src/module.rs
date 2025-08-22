@@ -2,7 +2,7 @@ use crate::{GridCtx, Routine};
 use indexmap::*;
 use theframework::prelude::*;
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Module {
     pub name: String,
     pub routines: IndexMap<String, Routine>,
@@ -22,6 +22,12 @@ impl Module {
     pub fn add_routine(&mut self, routine: Routine) {
         self.grid_ctx.selected_routine = Some(routine.id);
         self.grid_ctx.current_cell = None;
+        self.routines.insert(routine.name.clone(), routine);
+    }
+
+    /// Add/ Update the routines of the module
+    pub fn update_routines(&mut self) {
+        let routine = Routine::new("startup".into(), "called on creation".into());
         self.routines.insert(routine.name.clone(), routine);
     }
 

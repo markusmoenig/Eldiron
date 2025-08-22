@@ -5,6 +5,7 @@ use theframework::prelude::*;
 pub struct Routine {
     pub id: Uuid,
     pub name: String,
+    pub description: String,
 
     pub module_offset: u32,
     pub visible: bool,
@@ -18,12 +19,13 @@ pub struct Routine {
 }
 
 impl Routine {
-    pub fn new(name: String) -> Self {
+    pub fn new(name: &str, description: &str) -> Self {
         let mut grid = FxHashMap::default();
         grid.insert((0, 0), CellItem::new(Cell::Empty));
         Self {
             id: Uuid::new_v4(),
-            name,
+            name: name.to_string(),
+            description: description.to_string(),
             module_offset: 0,
             visible: false,
             folded: false,
@@ -59,7 +61,7 @@ impl Routine {
             if is_selected {
                 &grid_ctx.selection_color
             } else {
-                &grid_ctx.background_color
+                &grid_ctx.normal_color
             },
             &(folded_corners, 12.0, folded_corners, 12.0),
             0.0,
@@ -72,7 +74,7 @@ impl Routine {
             ctx.draw.text_rect_blend(
                 self.buffer.pixels_mut(),
                 &(
-                    10,
+                    20,
                     0,
                     self.screen_width as usize,
                     grid_ctx.header_height as usize,
@@ -83,6 +85,22 @@ impl Routine {
                 &self.name,
                 &grid_ctx.text_color,
                 TheHorizontalAlign::Left,
+                TheVerticalAlign::Center,
+            );
+            ctx.draw.text_rect_blend(
+                self.buffer.pixels_mut(),
+                &(
+                    0,
+                    0,
+                    self.screen_width as usize - 10,
+                    grid_ctx.header_height as usize,
+                ),
+                stride,
+                font,
+                13.0,
+                &self.description,
+                &grid_ctx.text_color,
+                TheHorizontalAlign::Right,
                 TheVerticalAlign::Center,
             );
         }

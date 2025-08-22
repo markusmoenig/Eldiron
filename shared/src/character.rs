@@ -1,3 +1,4 @@
+use codegridfxlib::Module;
 use num_traits::zero;
 use rusterix::Map;
 use theframework::prelude::*;
@@ -10,6 +11,9 @@ pub struct Character {
 
     /// The character map model.
     pub map: Map,
+
+    /// The module source
+    pub module: Module,
 
     /// The instance initialization code.
     pub source: String,
@@ -36,6 +40,8 @@ impl Character {
         Self {
             id: Uuid::new_v4(),
             name: "NewCharacter".to_string(),
+
+            module: Module::default(),
 
             map: Map::default(),
             source: String::new(),

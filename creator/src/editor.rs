@@ -2,6 +2,7 @@ use crate::Embedded;
 use crate::prelude::*;
 use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
+use codegridfxlib::Module;
 use rusterix::{
     PlayerCamera, Rusterix, SceneManager, SceneManagerResult, Texture, Value, ValueContainer,
 };
@@ -57,6 +58,7 @@ pub static CUSTOMCAMERA: LazyLock<RwLock<CustomCamera>> =
     LazyLock::new(|| RwLock::new(CustomCamera::new()));
 pub static SCENEMANAGER: LazyLock<RwLock<SceneManager>> =
     LazyLock::new(|| RwLock::new(SceneManager::default()));
+pub static CODEGRIDFX: LazyLock<RwLock<Module>> = LazyLock::new(|| RwLock::new(Module::default()));
 
 pub struct Editor {
     project: Project,
