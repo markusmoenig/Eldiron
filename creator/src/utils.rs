@@ -1,5 +1,6 @@
 use crate::editor::{CODEGRIDFX, CONFIGEDITOR};
 use crate::prelude::*;
+use codegridfxlib::ModuleType;
 use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
 use toml::*;
 
@@ -21,7 +22,11 @@ pub fn set_code(
                         ctx,
                         TheValue::Text(character_instance.source.clone()),
                     );
+                    character_instance
+                        .module
+                        .set_module_type(ModuleType::CharacterInstance);
                     *CODEGRIDFX.write().unwrap() = character_instance.module.clone();
+                    CODEGRIDFX.write().unwrap().redraw(ui, ctx);
                     success = true;
                 }
             }
@@ -47,7 +52,11 @@ pub fn set_code(
             if let Some(character) = project.characters.get_mut(&uuid) {
                 ui.set_widget_value("CodeEdit", ctx, TheValue::Text(character.source.clone()));
                 ui.set_widget_value("DataEdit", ctx, TheValue::Text(character.data.clone()));
+                character
+                    .module
+                    .set_module_type(ModuleType::CharacterTemplate);
                 *CODEGRIDFX.write().unwrap() = character.module.clone();
+                CODEGRIDFX.write().unwrap().redraw(ui, ctx);
                 success = true;
             }
         }
@@ -55,7 +64,9 @@ pub fn set_code(
             if let Some(items) = project.items.get_mut(&uuid) {
                 ui.set_widget_value("CodeEdit", ctx, TheValue::Text(items.source.clone()));
                 ui.set_widget_value("DataEdit", ctx, TheValue::Text(items.data.clone()));
+                items.module.set_module_type(ModuleType::ItemTemplate);
                 *CODEGRIDFX.write().unwrap() = items.module.clone();
+                CODEGRIDFX.write().unwrap().redraw(ui, ctx);
                 success = true;
             }
         }

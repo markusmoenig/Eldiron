@@ -5,7 +5,11 @@ pub mod module;
 pub mod routine;
 
 pub use crate::{
-    cell::Cell, cellitem::CellItem, gridctx::GridCtx, module::Module, routine::Routine,
+    cell::Cell,
+    cellitem::CellItem,
+    gridctx::GridCtx,
+    module::{Module, ModuleType},
+    routine::Routine,
 };
 
 pub mod prelude {

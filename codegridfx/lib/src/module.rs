@@ -3,7 +3,17 @@ use indexmap::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub enum ModuleType {
+    CharacterInstance,
+    ItemInstance,
+    #[default]
+    CharacterTemplate,
+    ItemTemplate,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Module {
+    pub module_type: ModuleType,
     pub name: String,
     pub routines: IndexMap<String, Routine>,
     grid_ctx: GridCtx,
@@ -18,17 +28,25 @@ impl Module {
         }
     }
 
-    /// Add a routine.
-    pub fn add_routine(&mut self, routine: Routine) {
-        self.grid_ctx.selected_routine = Some(routine.id);
-        self.grid_ctx.current_cell = None;
-        self.routines.insert(routine.name.clone(), routine);
+    /// Sets the module type
+    pub fn set_module_type(&mut self, module_type: ModuleType) {
+        self.module_type = module_type;
+        self.update_routines();
     }
+
+    /// Add a routine.
+    // pub fn add_routine(&mut self, routine: Routine) {
+    //     self.grid_ctx.selected_routine = Some(routine.id);
+    //     self.grid_ctx.current_cell = None;
+    //     self.routines.insert(routine.name.clone(), routine);
+    // }
 
     /// Add/ Update the routines of the module
     pub fn update_routines(&mut self) {
-        let routine = Routine::new("startup".into(), "called on creation".into());
-        self.routines.insert(routine.name.clone(), routine);
+        if !self.routines.contains_key("startup") {
+            let routine = Routine::new("startup".into(), "called on creation".into());
+            self.routines.insert(routine.name.clone(), routine);
+        }
     }
 
     /// Read out the colors out of the style.
@@ -148,6 +166,23 @@ impl Module {
         }
     }
 
+    pub fn redraw(&mut self, ui: &mut TheUI, ctx: &TheContext) {
+        self.get_colors(ui);
+        if let Some(renderview) = ui.get_render_view("ModuleView") {
+            *renderview.render_buffer_mut() = TheRGBABuffer::new(TheDim::new(
+                0,
+                0,
+                renderview.dim().width,
+                renderview.dim().height,
+            ));
+            for r in self.routines.values_mut() {
+                r.set_screen_width(renderview.dim().width as u32, ctx, &self.grid_ctx);
+                r.draw(ctx, &self.grid_ctx);
+            }
+            self.draw(renderview.render_buffer_mut());
+        }
+    }
+
     /// Returns the selected routine
     pub fn get_selected_routine_mut(&mut self) -> Option<&mut Routine> {
         for r in self.routines.values_mut() {
@@ -228,6 +263,12 @@ impl Module {
                 if handled {
                     if let Some(renderview) = ui.get_render_view("ModuleView") {
                         self.draw(renderview.render_buffer_mut());
+
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Module Changed"),
+                            TheValue::Empty,
+                        ));
+
                         redraw = true;
                     }
                 }

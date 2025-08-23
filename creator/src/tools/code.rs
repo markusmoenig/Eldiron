@@ -59,7 +59,7 @@ impl Tool for CodeTool {
                         renderview.dim().width,
                         renderview.dim().height,
                     ));
-                    CODEGRIDFX.write().unwrap().update_routines();
+                    // CODEGRIDFX.write().unwrap().update_routines();
                     CODEGRIDFX
                         .write()
                         .unwrap()
@@ -199,6 +199,31 @@ impl Tool for CodeTool {
                                 layout.relayout(ctx);
                             }
                         }
+                    }
+                }
+            }
+            TheEvent::Custom(id, _) => {
+                if id.name == "Module Changed" {
+                    match server_ctx.cc {
+                        ContentContext::CharacterInstance(uuid) => {
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                if let Some(character_instance) = region.characters.get_mut(&uuid) {
+                                    character_instance.module = CODEGRIDFX.read().unwrap().clone();
+                                }
+                            }
+                        }
+                        ContentContext::CharacterTemplate(uuid) => {
+                            if let Some(character) = project.characters.get_mut(&uuid) {
+                                println!("11");
+                                character.module = CODEGRIDFX.read().unwrap().clone();
+                            }
+                        }
+                        ContentContext::ItemTemplate(uuid) => {
+                            if let Some(item) = project.items.get_mut(&uuid) {
+                                item.module = CODEGRIDFX.read().unwrap().clone();
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }

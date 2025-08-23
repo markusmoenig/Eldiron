@@ -1,8 +1,10 @@
 use crate::editor::{
-    CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER,
+    CODEGRIDFX, CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, SIDEBARMODE, TILEMAPEDITOR,
+    UNDOMANAGER,
 };
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
+use codegridfxlib::ModuleType;
 use rusterix::Value;
 
 #[derive(PartialEq, Debug)]
@@ -2633,6 +2635,14 @@ impl Sidebar {
         if let Some(character) = character {
             ui.set_widget_value("CodeEdit", ctx, TheValue::Text(character.source.clone()));
             ui.set_widget_value("DataEdit", ctx, TheValue::Text(character.data.clone()));
+
+            *CODEGRIDFX.write().unwrap() = character.module.clone();
+            CODEGRIDFX.write().unwrap().name = character.name.clone();
+            CODEGRIDFX
+                .write()
+                .unwrap()
+                .set_module_type(ModuleType::CharacterTemplate);
+            CODEGRIDFX.write().unwrap().redraw(ui, ctx);
         }
         /*
         // Set the character bundle.
@@ -2673,6 +2683,14 @@ impl Sidebar {
             //
             ui.set_widget_value("CodeEdit", ctx, TheValue::Text(item.source.clone()));
             ui.set_widget_value("DataEdit", ctx, TheValue::Text(item.data.clone()));
+
+            *CODEGRIDFX.write().unwrap() = item.module.clone();
+            CODEGRIDFX.write().unwrap().name = item.name.clone();
+            CODEGRIDFX
+                .write()
+                .unwrap()
+                .set_module_type(ModuleType::ItemTemplate);
+            CODEGRIDFX.write().unwrap().redraw(ui, ctx);
         } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
             if let Some(canvas) = stack_layout.canvas_at_mut(2) {
                 let mut empty = TheCanvas::new();

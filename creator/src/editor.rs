@@ -165,6 +165,7 @@ impl TheTrait for Editor {
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         RUSTERIX.write().unwrap().client.messages_font = ctx.ui.font.clone();
+        CODEGRIDFX.write().unwrap().get_colors(ui);
 
         // Embedded Icons
         for file in Embedded::iter() {

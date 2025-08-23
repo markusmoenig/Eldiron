@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use codegridfxlib::{Module, Routine};
+use codegridfxlib::Module;
 use std::sync::mpsc::Receiver;
 
 pub struct CodeEditor {
@@ -127,8 +127,7 @@ impl TheTrait for CodeEditor {
         */
 
         self.module.get_colors(ui);
-        let startup_routine = Routine::new("startup", "Called on creation");
-        self.module.add_routine(startup_routine);
+        self.module.update_routines();
 
         ui.canvas.set_center(self.module.build_canvas(ctx));
 
