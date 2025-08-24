@@ -1,4 +1,4 @@
-use crate::{Cell, CellItem, GridCtx};
+use crate::{Cell, CellItem, Grid, GridCtx};
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -14,13 +14,12 @@ pub struct Routine {
     pub screen_width: u32,
     pub buffer: TheRGBABuffer,
 
-    pub grid: FxHashMap<(u32, u32), CellItem>,
-    pub grid_rects: FxHashMap<(u32, u32), TheDim>,
+    pub grid: Grid,
 }
 
 impl Routine {
     pub fn new(name: &str, description: &str) -> Self {
-        let mut grid = FxHashMap::default();
+        let mut grid = Grid::default();
         grid.insert((0, 0), CellItem::new(Cell::Empty));
         Self {
             id: Uuid::new_v4(),
@@ -32,7 +31,6 @@ impl Routine {
             screen_width: 100,
             buffer: TheRGBABuffer::new(TheDim::sized(100, 100)),
             grid,
-            grid_rects: FxHashMap::default(),
         }
     }
 
@@ -106,8 +104,8 @@ impl Routine {
         }
 
         if !self.folded {
-            for (coord, cell) in &mut self.grid {
-                if let Some(rect) = self.grid_rects.get(coord) {
+            for (coord, cell) in &mut self.grid.grid {
+                if let Some(rect) = self.grid.grid_rects.get(coord) {
                     let is_selected = Some(self.id) == grid_ctx.selected_routine
                         && Some(coord.clone()) == grid_ctx.current_cell;
                     cell.draw(&mut self.buffer, &rect, ctx, grid_ctx, is_selected, coord);
@@ -125,7 +123,7 @@ impl Routine {
     /// Returns the number of lines in the grid.
     pub fn lines(&self) -> u32 {
         let mut lines = 1;
-        for (c, _) in &self.grid {
+        for (c, _) in &self.grid.grid {
             if c.1 > lines {
                 lines = c.1;
             }
@@ -140,10 +138,10 @@ impl Routine {
             let mut row_heights: FxHashMap<u32, u32> = FxHashMap::default();
 
             // Clear grid_rects before filling
-            self.grid_rects.clear();
+            self.grid.grid_rects.clear();
 
             // First pass: collect sizes
-            for ((col, row), cell) in &self.grid {
+            for ((col, row), cell) in &self.grid.grid {
                 let size = cell.size(ctx, grid_ctx);
                 col_widths
                     .entry(*col)
@@ -164,7 +162,7 @@ impl Routine {
             }
 
             // Second pass: calculate offsets and fill grid_rects
-            for ((col, row), cell) in &self.grid {
+            for ((col, row), cell) in &self.grid.grid {
                 let x_offset = 4 + col_widths
                     .keys()
                     .filter(|&&c| c < *col)
@@ -178,7 +176,7 @@ impl Routine {
                         .map(|r| row_heights[r])
                         .sum::<u32>();
                 let size = cell.size(ctx, grid_ctx);
-                self.grid_rects.insert(
+                self.grid.grid_rects.insert(
                     (*col, *row),
                     TheDim::rect(
                         x_offset as i32,
@@ -210,18 +208,20 @@ impl Routine {
     ) -> bool {
         let mut handled = false;
         let mut pos: Option<(u32, u32)> = None;
+        let mut old_item: CellItem = CellItem::new(Cell::Empty);
 
         if loc.y > grid_ctx.header_height {
-            for (coord, item) in self.grid.iter_mut() {
-                if let Some(rect) = self.grid_rects.get(coord) {
+            for (coord, item) in self.grid.grid.iter_mut() {
+                if let Some(rect) = self.grid.grid_rects.get(coord) {
                     if rect.contains(Vec2::new(loc.x as i32, loc.y as i32)) {
-                        if let Some(cell) = Cell::from_str(&drop.title) {
-                            *item = CellItem::new(cell);
+                        // if let Some(cell) = Cell::from_str(&drop.title) {
+                        // *item = CellItem::new(cell);
 
-                            grid_ctx.selected_routine = Some(self.id);
-                            grid_ctx.current_cell = Some(coord.clone());
-                            pos = Some(coord.clone());
-                        }
+                        grid_ctx.selected_routine = Some(self.id);
+                        grid_ctx.current_cell = Some(coord.clone());
+                        pos = Some(coord.clone());
+                        old_item = item.clone();
+                        // }
                         handled = true;
                         break;
                     }
@@ -230,7 +230,15 @@ impl Routine {
         }
 
         if let Some(pos) = pos {
-            if let Some(item) = self.grid.get(&pos) {
+            if let Some(cell) = Cell::from_str(&drop.title) {
+                let item = CellItem::new(cell);
+
+                item.insert_at(pos, &mut self.grid, old_item);
+            }
+        }
+
+        if let Some(pos) = pos {
+            if let Some(item) = self.grid.grid.get(&pos) {
                 let nodeui: TheNodeUI = item.create_settings();
                 if let Some(layout) = ui.get_text_layout("Node Settings") {
                     nodeui.apply_to_text_layout(layout);
@@ -238,17 +246,17 @@ impl Routine {
                 }
             }
 
-            if drop.title == "Variable"
-                && pos.0 == 0
-                && !self.grid.contains_key(&(pos.0 + 1, pos.1))
-            {
-                self.grid
-                    .insert((pos.0 + 1, pos.1), CellItem::new(Cell::Assignment));
-                self.grid
-                    .insert((pos.0 + 2, pos.1), CellItem::new(Cell::Value("0".into())));
-            }
+            // if drop.title == "Variable"
+            //     && pos.0 == 0
+            //     && !self.grid.contains_key(&(pos.0 + 1, pos.1))
+            // {
+            //     self.grid
+            //         .insert((pos.0 + 1, pos.1), CellItem::new(Cell::Assignment));
+            //     self.grid
+            //         .insert((pos.0 + 2, pos.1), CellItem::new(Cell::Value("0".into())));
+            // }
 
-            if !self.grid.contains_key(&(pos.0 + 1, pos.1)) {
+            if !self.grid.grid.contains_key(&(pos.0 + 1, pos.1)) {
                 self.grid
                     .insert((pos.0 + 1, pos.1), CellItem::new(Cell::Empty));
             }
@@ -276,8 +284,8 @@ impl Routine {
             self.draw(ctx, grid_ctx);
             handled = true;
         } else {
-            for (coord, cell) in &self.grid {
-                if let Some(rect) = self.grid_rects.get(coord) {
+            for (coord, cell) in &self.grid.grid {
+                if let Some(rect) = self.grid.grid_rects.get(coord) {
                     if rect.contains(Vec2::new(loc.x as i32, loc.y as i32)) {
                         grid_ctx.selected_routine = Some(self.id);
                         if grid_ctx.current_cell != Some(coord.clone()) {
@@ -308,8 +316,8 @@ impl Routine {
         _ctx: &TheContext,
         grid_ctx: &mut GridCtx,
     ) -> Option<TheContextMenu> {
-        for (coord, item) in &self.grid {
-            if let Some(rect) = self.grid_rects.get(coord) {
+        for (coord, item) in &self.grid.grid {
+            if let Some(rect) = self.grid.grid_rects.get(coord) {
                 if rect.contains(Vec2::new(loc.x as i32, loc.y as i32)) {
                     grid_ctx.selected_routine = Some(self.id);
                     grid_ctx.current_cell = Some(coord.clone());
@@ -319,5 +327,23 @@ impl Routine {
         }
 
         None
+    }
+
+    /// Build the routine into Python source
+    pub fn build(&self, out: &mut String, indent: usize) {
+        let mut indent = indent;
+
+        *out += &format!("{:indent$}if event == \"{}\":\n", "", self.name);
+        indent += 4;
+
+        let rows = self.grid.grid_by_rows();
+        for row in rows {
+            let mut row_code = String::new();
+            for (item, _pos) in row {
+                row_code += &item.code();
+                row_code += " ";
+            }
+            *out += &format!("{:indent$}{}\n", "", row_code);
+        }
     }
 }

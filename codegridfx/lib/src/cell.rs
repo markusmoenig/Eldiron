@@ -9,6 +9,10 @@ pub enum Cell {
     Assignment,
     GetAttr,
     SetAttr,
+
+    Comma,
+    LeftParent,
+    RightParent,
 }
 
 // use Cell::*;

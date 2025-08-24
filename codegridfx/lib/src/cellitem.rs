@@ -1,4 +1,4 @@
-use crate::{Cell, GridCtx};
+use crate::{Cell, Grid, GridCtx};
 use theframework::prelude::*;
 
 use Cell::*;
@@ -8,6 +8,8 @@ pub struct CellItem {
     pub id: Uuid,
     pub cell: Cell,
     pub has_error: bool,
+
+    pub dependend_on: Option<Uuid>,
 }
 
 impl CellItem {
@@ -16,6 +18,7 @@ impl CellItem {
             id: Uuid::new_v4(),
             cell,
             has_error: false,
+            dependend_on: None,
         }
     }
 
@@ -75,6 +78,51 @@ impl CellItem {
                     );
                 }
             }
+            Cell::Comma => {
+                if let Some(font) = &ctx.ui.font {
+                    ctx.draw.text_rect_blend(
+                        buffer.pixels_mut(),
+                        &rect.to_buffer_utuple(),
+                        stride,
+                        font,
+                        grid_ctx.font_size + 10.0 * grid_ctx.zoom,
+                        ",",
+                        color,
+                        TheHorizontalAlign::Center,
+                        TheVerticalAlign::Center,
+                    );
+                }
+            }
+            Cell::LeftParent => {
+                if let Some(font) = &ctx.ui.font {
+                    ctx.draw.text_rect_blend(
+                        buffer.pixels_mut(),
+                        &rect.to_buffer_utuple(),
+                        stride,
+                        font,
+                        grid_ctx.font_size + 10.0 * grid_ctx.zoom,
+                        "(",
+                        color,
+                        TheHorizontalAlign::Center,
+                        TheVerticalAlign::Center,
+                    );
+                }
+            }
+            Cell::RightParent => {
+                if let Some(font) = &ctx.ui.font {
+                    ctx.draw.text_rect_blend(
+                        buffer.pixels_mut(),
+                        &rect.to_buffer_utuple(),
+                        stride,
+                        font,
+                        grid_ctx.font_size + 10.0 * grid_ctx.zoom,
+                        ")",
+                        color,
+                        TheHorizontalAlign::Center,
+                        TheVerticalAlign::Center,
+                    );
+                }
+            }
             Cell::Value(value) => {
                 if let Some(font) = &ctx.ui.font {
                     ctx.draw.rounded_rect(
@@ -123,6 +171,21 @@ impl CellItem {
             Assignment => {
                 if let Some(font) = &ctx.ui.font {
                     size.x = ctx.draw.get_text_size(font, grid_ctx.font_size, "=").0 as u32 + 20;
+                }
+            }
+            Comma => {
+                if let Some(font) = &ctx.ui.font {
+                    size.x = ctx.draw.get_text_size(font, grid_ctx.font_size, ", ").0 as u32 + 10;
+                }
+            }
+            LeftParent => {
+                if let Some(font) = &ctx.ui.font {
+                    size.x = ctx.draw.get_text_size(font, grid_ctx.font_size, "(").0 as u32 + 10;
+                }
+            }
+            RightParent => {
+                if let Some(font) = &ctx.ui.font {
+                    size.x = ctx.draw.get_text_size(font, grid_ctx.font_size, ")").0 as u32 + 10;
                 }
             }
             _ => {}
@@ -185,6 +248,47 @@ impl CellItem {
                 }
             }
             _ => {}
+        }
+    }
+
+    /// Inserts the item at the given position.
+    pub fn insert_at(self, pos: (u32, u32), grid: &mut Grid, _old_item: CellItem) {
+        match &self.cell {
+            Cell::Variable(_) => {
+                if pos.0 == 0 && !grid.grid.contains_key(&(pos.0 + 1, pos.1)) {
+                    grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::Assignment));
+                    grid.insert((pos.0 + 2, pos.1), CellItem::new(Cell::Value("0".into())));
+                }
+
+                if !grid.grid.contains_key(&(pos.0 + 1, pos.1)) {
+                    grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::Empty));
+                }
+
+                grid.insert(pos, self)
+            }
+            Cell::SetAttr => {
+                grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::LeftParent));
+                grid.insert((pos.0 + 2, pos.1), CellItem::new(Cell::RightParent));
+
+                grid.insert(pos, self)
+            }
+            _ => grid.insert(pos, self),
+        }
+    }
+
+    /// Generates code for the item.
+    pub fn code(&self) -> String {
+        match &self.cell {
+            Variable(var_name) => var_name.clone(),
+            Value(value_name) => value_name.clone(),
+            GetAttr => "get_attr".into(),
+            SetAttr => "set_attr".into(),
+
+            Comma => ", ".into(),
+            LeftParent => "(".into(),
+            RightParent => ")".into(),
+            Assignment => "=".into(),
+            _ => "".into(),
         }
     }
 

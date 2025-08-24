@@ -13,6 +13,7 @@ pub struct Item {
     pub map: Map,
 
     /// The module source
+    #[serde(default)]
     pub module: Module,
 
     /// The instance initialization code.

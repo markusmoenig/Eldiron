@@ -2,7 +2,7 @@ use crate::{GridCtx, Routine};
 use indexmap::*;
 use theframework::prelude::*;
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Clone)]
 pub enum ModuleType {
     CharacterInstance,
     ItemInstance,
@@ -128,6 +128,11 @@ impl Module {
         item.set_associated_layout(code_layout.id().clone());
         code_layout.add_item(item, ctx);
 
+        let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
+        item.set_text("SetAttr".to_string());
+        item.set_associated_layout(code_layout.id().clone());
+        code_layout.add_item(item, ctx);
+
         list_canvas.set_layout(code_layout);
         canvas.set_left(list_canvas);
 
@@ -219,7 +224,7 @@ impl Module {
                     for r in self.routines.values_mut() {
                         if Some(r.id) == self.grid_ctx.selected_routine {
                             if let Some(coord) = self.grid_ctx.current_cell {
-                                if let Some(item) = r.grid.get_mut(&coord) {
+                                if let Some(item) = r.grid.grid.get_mut(&coord) {
                                     item.apply_value(&id.name, value);
                                     r.draw(ctx, &self.grid_ctx);
                                 }
@@ -342,5 +347,22 @@ impl Module {
         }
 
         redraw
+    }
+
+    /// Build the module into Python source
+    pub fn build(&self) -> String {
+        let mut out = String::new();
+
+        if self.module_type == ModuleType::CharacterTemplate
+            || self.module_type == ModuleType::ItemTemplate
+        {
+            out += &format!("class {}:\n", self.name);
+            out += "    def event(self, event, value):\n";
+
+            for r in self.routines.values() {
+                r.build(&mut out, 8);
+            }
+        }
+        out
     }
 }
