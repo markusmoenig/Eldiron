@@ -214,14 +214,12 @@ impl Routine {
             for (coord, item) in self.grid.grid.iter_mut() {
                 if let Some(rect) = self.grid.grid_rects.get(coord) {
                     if rect.contains(Vec2::new(loc.x as i32, loc.y as i32)) {
-                        // if let Some(cell) = Cell::from_str(&drop.title) {
-                        // *item = CellItem::new(cell);
-
-                        grid_ctx.selected_routine = Some(self.id);
-                        grid_ctx.current_cell = Some(coord.clone());
-                        pos = Some(coord.clone());
-                        old_item = item.clone();
-                        // }
+                        if item.replaceable {
+                            grid_ctx.selected_routine = Some(self.id);
+                            grid_ctx.current_cell = Some(coord.clone());
+                            pos = Some(coord.clone());
+                            old_item = item.clone();
+                        }
                         handled = true;
                         break;
                     }
@@ -233,6 +231,7 @@ impl Routine {
             if let Some(cell) = Cell::from_str(&drop.title) {
                 let item = CellItem::new(cell);
 
+                self.grid.remove_dependencies_for(old_item.id);
                 item.insert_at(pos, &mut self.grid, old_item);
             }
         }
@@ -246,21 +245,7 @@ impl Routine {
                 }
             }
 
-            // if drop.title == "Variable"
-            //     && pos.0 == 0
-            //     && !self.grid.contains_key(&(pos.0 + 1, pos.1))
-            // {
-            //     self.grid
-            //         .insert((pos.0 + 1, pos.1), CellItem::new(Cell::Assignment));
-            //     self.grid
-            //         .insert((pos.0 + 2, pos.1), CellItem::new(Cell::Value("0".into())));
-            // }
-
-            if !self.grid.grid.contains_key(&(pos.0 + 1, pos.1)) {
-                self.grid
-                    .insert((pos.0 + 1, pos.1), CellItem::new(Cell::Empty));
-            }
-
+            self.grid.insert_empty();
             self.draw(ctx, grid_ctx);
         }
 

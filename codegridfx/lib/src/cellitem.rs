@@ -10,6 +10,8 @@ pub struct CellItem {
     pub has_error: bool,
 
     pub dependend_on: Option<Uuid>,
+    pub replaceable: bool,
+    pub description: String,
 }
 
 impl CellItem {
@@ -18,7 +20,27 @@ impl CellItem {
             id: Uuid::new_v4(),
             cell,
             has_error: false,
+
             dependend_on: None,
+            replaceable: true,
+            description: String::new(),
+        }
+    }
+
+    pub fn new_dependency(
+        cell: Cell,
+        dependend_on: Uuid,
+        replaceable: bool,
+        description: &str,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            cell,
+            has_error: false,
+
+            dependend_on: Some(dependend_on),
+            replaceable,
+            description: description.to_string(),
         }
     }
 
@@ -63,7 +85,7 @@ impl CellItem {
                     );
                 }
             }
-            Cell::Assignment => {
+            Cell::Assignment | Cell::Comma => {
                 if let Some(font) = &ctx.ui.font {
                     ctx.draw.text_rect_blend(
                         buffer.pixels_mut(),
@@ -71,59 +93,68 @@ impl CellItem {
                         stride,
                         font,
                         grid_ctx.font_size + 10.0 * grid_ctx.zoom,
-                        "=",
+                        &self.cell.to_string(),
                         color,
                         TheHorizontalAlign::Center,
                         TheVerticalAlign::Center,
                     );
                 }
             }
-            Cell::Comma => {
+            Cell::LeftParent | Cell::RightParent => {
                 if let Some(font) = &ctx.ui.font {
                     ctx.draw.text_rect_blend(
                         buffer.pixels_mut(),
                         &rect.to_buffer_utuple(),
                         stride,
                         font,
-                        grid_ctx.font_size + 10.0 * grid_ctx.zoom,
-                        ",",
+                        grid_ctx.font_size * 2.0 + 10.0 * grid_ctx.zoom,
+                        &self.cell.to_string(),
                         color,
                         TheHorizontalAlign::Center,
                         TheVerticalAlign::Center,
                     );
                 }
             }
-            Cell::LeftParent => {
+            Cell::Number(_) | Cell::Str(_) => {
                 if let Some(font) = &ctx.ui.font {
-                    ctx.draw.text_rect_blend(
+                    ctx.draw.rounded_rect(
                         buffer.pixels_mut(),
                         &rect.to_buffer_utuple(),
                         stride,
-                        font,
-                        grid_ctx.font_size + 10.0 * grid_ctx.zoom,
-                        "(",
-                        color,
-                        TheHorizontalAlign::Center,
-                        TheVerticalAlign::Center,
+                        &color,
+                        &(2.0 * zoom, 2.0 * zoom, 2.0 * zoom, 2.0 * zoom),
                     );
-                }
-            }
-            Cell::RightParent => {
-                if let Some(font) = &ctx.ui.font {
+
+                    let r = rect.to_buffer_utuple();
                     ctx.draw.text_rect_blend(
                         buffer.pixels_mut(),
-                        &rect.to_buffer_utuple(),
+                        &(r.0, r.1, r.2, r.3 - 10),
                         stride,
                         font,
-                        grid_ctx.font_size + 10.0 * grid_ctx.zoom,
-                        ")",
-                        color,
+                        grid_ctx.font_size,
+                        &self.cell.to_string(),
+                        &grid_ctx.text_color,
                         TheHorizontalAlign::Center,
                         TheVerticalAlign::Center,
                     );
+
+                    if !self.description.is_empty() {
+                        let r = rect.to_buffer_utuple();
+                        ctx.draw.text_rect_blend(
+                            buffer.pixels_mut(),
+                            &(r.0, r.1 + 15, r.2, r.3),
+                            stride,
+                            font,
+                            grid_ctx.font_size,
+                            &self.description,
+                            &grid_ctx.highlight_text_color,
+                            TheHorizontalAlign::Center,
+                            TheVerticalAlign::Center,
+                        );
+                    }
                 }
             }
-            Cell::Value(value) => {
+            Cell::GetAttr | Cell::SetAttr => {
                 if let Some(font) = &ctx.ui.font {
                     ctx.draw.rounded_rect(
                         buffer.pixels_mut(),
@@ -139,12 +170,25 @@ impl CellItem {
                         stride,
                         font,
                         grid_ctx.font_size,
-                        value,
-                        &grid_ctx.text_color,
+                        &self.cell.to_string(),
+                        &grid_ctx.highlight_text_color,
                         TheHorizontalAlign::Center,
                         TheVerticalAlign::Center,
                     );
                 }
+            }
+            Empty => {
+                let mut shrinker = TheDimShrinker::zero();
+                shrinker.shrink(4);
+                ctx.draw.rounded_rect_with_border(
+                    buffer.pixels_mut(),
+                    &rect.to_buffer_shrunk_utuple(&shrinker),
+                    stride,
+                    &grid_ctx.background_color,
+                    &(2.0 * zoom, 2.0 * zoom, 2.0 * zoom, 2.0 * zoom),
+                    &color,
+                    1.5,
+                );
             }
             _ => {
                 buffer.draw_rect_outline(
@@ -161,31 +205,47 @@ impl CellItem {
 
     /// Returns the size of the cell
     pub fn size(&self, ctx: &TheContext, grid_ctx: &GridCtx) -> Vec2<u32> {
-        let mut size = Vec2::new(100, 60);
+        let mut size = Vec2::new(30, 50);
         match &self.cell {
-            Variable(name) | Value(name) => {
+            Variable(_) | Number(_) | Str(_) => {
                 if let Some(font) = &ctx.ui.font {
-                    size.x = ctx.draw.get_text_size(font, grid_ctx.font_size, name).0 as u32 + 20;
+                    size.x = ctx
+                        .draw
+                        .get_text_size(font, grid_ctx.font_size, &self.cell.to_string())
+                        .0 as u32
+                        + 20;
+
+                    if !self.description.is_empty() {
+                        let desc = ctx
+                            .draw
+                            .get_text_size(font, grid_ctx.font_size, &self.description)
+                            .0 as u32
+                            + 20;
+                        size.x = size.x.max(desc);
+                    }
                 }
             }
-            Assignment => {
+            Assignment | Comma => {
                 if let Some(font) = &ctx.ui.font {
                     size.x = ctx.draw.get_text_size(font, grid_ctx.font_size, "=").0 as u32 + 20;
                 }
             }
-            Comma => {
+            LeftParent | RightParent => {
                 if let Some(font) = &ctx.ui.font {
-                    size.x = ctx.draw.get_text_size(font, grid_ctx.font_size, ", ").0 as u32 + 10;
+                    size.x = ctx
+                        .draw
+                        .get_text_size(font, grid_ctx.font_size * 2.0, &self.cell.to_string())
+                        .0 as u32
+                        + 10;
                 }
             }
-            LeftParent => {
+            GetAttr | SetAttr => {
                 if let Some(font) = &ctx.ui.font {
-                    size.x = ctx.draw.get_text_size(font, grid_ctx.font_size, "(").0 as u32 + 10;
-                }
-            }
-            RightParent => {
-                if let Some(font) = &ctx.ui.font {
-                    size.x = ctx.draw.get_text_size(font, grid_ctx.font_size, ")").0 as u32 + 10;
+                    size.x = ctx
+                        .draw
+                        .get_text_size(font, grid_ctx.font_size, &self.cell.to_string())
+                        .0 as u32
+                        + 20;
                 }
             }
             _ => {}
@@ -209,7 +269,18 @@ impl CellItem {
                 );
                 nodeui.add_item(item);
             }
-            Value(value) => {
+            Number(value) => {
+                let item = TheNodeUIItem::Text(
+                    "cgfxValue".into(),
+                    "Value".into(),
+                    "Set the value".into(),
+                    value.clone(),
+                    None,
+                    false,
+                );
+                nodeui.add_item(item);
+            }
+            Str(value) => {
                 let item = TheNodeUIItem::Text(
                     "cgfxValue".into(),
                     "Value".into(),
@@ -238,13 +309,20 @@ impl CellItem {
                     }
                 }
             }
-            Value(value_name) => {
+            Number(value_name) => {
                 if let Some(v) = value.to_string()
                     && name == "cgfxValue"
                 {
                     if Self::is_valid_python_number(&v) {
                         *value_name = v;
                     }
+                }
+            }
+            Str(value_name) => {
+                if let Some(v) = value.to_string()
+                    && name == "cgfxValue"
+                {
+                    *value_name = v.replace("\"", "");
                 }
             }
             _ => {}
@@ -257,7 +335,7 @@ impl CellItem {
             Cell::Variable(_) => {
                 if pos.0 == 0 && !grid.grid.contains_key(&(pos.0 + 1, pos.1)) {
                     grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::Assignment));
-                    grid.insert((pos.0 + 2, pos.1), CellItem::new(Cell::Value("0".into())));
+                    grid.insert((pos.0 + 2, pos.1), CellItem::new(Cell::Number("0".into())));
                 }
 
                 if !grid.grid.contains_key(&(pos.0 + 1, pos.1)) {
@@ -267,8 +345,32 @@ impl CellItem {
                 grid.insert(pos, self)
             }
             Cell::SetAttr => {
-                grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::LeftParent));
-                grid.insert((pos.0 + 2, pos.1), CellItem::new(Cell::RightParent));
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(Cell::LeftParent, self.id, false, "".into()),
+                );
+
+                grid.insert(
+                    (pos.0 + 2, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Str("attr".into()),
+                        self.id,
+                        false,
+                        "Attribute Name",
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 3, pos.1),
+                    CellItem::new_dependency(Cell::Comma, self.id, false, ""),
+                );
+                grid.insert(
+                    (pos.0 + 4, pos.1),
+                    CellItem::new_dependency(Cell::Number("0".into()), self.id, true, "Value"),
+                );
+                grid.insert(
+                    (pos.0 + 5, pos.1),
+                    CellItem::new_dependency(Cell::RightParent, self.id, false, ""),
+                );
 
                 grid.insert(pos, self)
             }
@@ -278,18 +380,7 @@ impl CellItem {
 
     /// Generates code for the item.
     pub fn code(&self) -> String {
-        match &self.cell {
-            Variable(var_name) => var_name.clone(),
-            Value(value_name) => value_name.clone(),
-            GetAttr => "get_attr".into(),
-            SetAttr => "set_attr".into(),
-
-            Comma => ", ".into(),
-            LeftParent => "(".into(),
-            RightParent => ")".into(),
-            Assignment => "=".into(),
-            _ => "".into(),
-        }
+        self.cell.to_string()
     }
 
     /// Checks if the string is a valid python variable name

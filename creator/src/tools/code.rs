@@ -167,7 +167,35 @@ impl Tool for CodeTool {
             TheEvent::StateChanged(id, state) => {
                 #[allow(clippy::collapsible_if)]
                 if id.name == "Build" && *state == TheWidgetState::Clicked {
-                    if let Some(value) = ui.get_widget_value("CodeEdit") {
+                    if self.use_python == false {
+                        // Build the node code.
+                        let code = CODEGRIDFX.read().unwrap().build();
+                        ui.set_widget_value("CodeEdit", ctx, TheValue::Text(code.clone()));
+                        match server_ctx.cc {
+                            ContentContext::CharacterInstance(uuid) => {
+                                if let Some(region) =
+                                    project.get_region_mut(&server_ctx.curr_region)
+                                {
+                                    if let Some(character_instance) =
+                                        region.characters.get_mut(&uuid)
+                                    {
+                                        character_instance.source = code;
+                                    }
+                                }
+                            }
+                            ContentContext::CharacterTemplate(uuid) => {
+                                if let Some(character) = project.characters.get_mut(&uuid) {
+                                    character.source = code;
+                                }
+                            }
+                            ContentContext::ItemTemplate(uuid) => {
+                                if let Some(item) = project.items.get_mut(&uuid) {
+                                    item.source = code;
+                                }
+                            }
+                            _ => {}
+                        }
+                    } else if let Some(value) = ui.get_widget_value("CodeEdit") {
                         if let Some(code) = value.to_string() {
                             // Compile the code to test for errors.
                             let ri = rusterix::RegionInstance::new(0);
@@ -214,7 +242,6 @@ impl Tool for CodeTool {
                         }
                         ContentContext::CharacterTemplate(uuid) => {
                             if let Some(character) = project.characters.get_mut(&uuid) {
-                                println!("11");
                                 character.module = CODEGRIDFX.read().unwrap().clone();
                             }
                         }

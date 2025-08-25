@@ -17,6 +17,7 @@ pub struct GridCtx {
     pub dark_color: [u8; 4],
     pub selection_color: [u8; 4],
     pub text_color: [u8; 4],
+    pub highlight_text_color: [u8; 4],
 }
 
 impl Default for GridCtx {
@@ -29,7 +30,7 @@ impl GridCtx {
     pub fn new() -> Self {
         Self {
             header_height: 35,
-            cell_size: Vec2::new(100, 60),
+            cell_size: Vec2::new(100, 50),
 
             selected_routine: None,
             current_cell: None,
@@ -42,6 +43,7 @@ impl GridCtx {
             dark_color: [0; 4],
             selection_color: [0; 4],
             text_color: [0; 4],
+            highlight_text_color: [0; 4],
         }
     }
 }

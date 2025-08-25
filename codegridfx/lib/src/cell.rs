@@ -5,7 +5,9 @@ use theframework::prelude::*;
 pub enum Cell {
     Empty,
     Variable(String),
-    Value(String),
+    Number(String),
+    Str(String),
+    Boolean(bool),
     Assignment,
     GetAttr,
     SetAttr,
@@ -15,18 +17,36 @@ pub enum Cell {
     RightParent,
 }
 
-// use Cell::*;
+use Cell::*;
 
 impl Cell {
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "Empty" => Some(Cell::Empty),
             "Variable" => Some(Cell::Variable("Unnamed".into())),
-            "Value" => Some(Cell::Value("0".into())),
+            "Number" => Some(Cell::Number("0".into())),
+            "String" => Some(Cell::Str("".into())),
+            "Boolean" => Some(Cell::Boolean(true)),
             "Assignment" => Some(Cell::Assignment),
-            "GetAttr" => Some(Cell::GetAttr),
-            "SetAttr" => Some(Cell::SetAttr),
+            "get_attr" => Some(Cell::GetAttr),
+            "set_attr" => Some(Cell::SetAttr),
             _ => None,
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        match &self {
+            Variable(var_name) => var_name.clone(),
+            Number(value_name) => value_name.clone(),
+            Str(value) => format!("\"{}\"", value),
+            GetAttr => "get_attr".into(),
+            SetAttr => "set_attr".into(),
+
+            Comma => ", ".into(),
+            LeftParent => "(".into(),
+            RightParent => ")".into(),
+            Assignment => "=".into(),
+            _ => "".into(),
         }
     }
 }

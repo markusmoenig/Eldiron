@@ -56,6 +56,7 @@ impl Module {
         self.grid_ctx.dark_color = ui.style.theme().color(CodeGridDark).clone();
         self.grid_ctx.selection_color = ui.style.theme().color(CodeGridSelected).clone();
         self.grid_ctx.text_color = ui.style.theme().color(CodeGridText).clone();
+        self.grid_ctx.highlight_text_color = ui.style.theme().color(TextEditTextColor).clone();
     }
 
     pub fn build_canvas(&self, ctx: &mut TheContext) -> TheCanvas {
@@ -124,12 +125,12 @@ impl Module {
         code_layout.add_item(item, ctx);
 
         let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
-        item.set_text("Value".to_string());
+        item.set_text("Number".to_string());
         item.set_associated_layout(code_layout.id().clone());
         code_layout.add_item(item, ctx);
 
         let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
-        item.set_text("SetAttr".to_string());
+        item.set_text("set_attr".to_string());
         item.set_associated_layout(code_layout.id().clone());
         code_layout.add_item(item, ctx);
 

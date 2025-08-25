@@ -674,6 +674,7 @@ dependencies = [
  "serde_json",
  "theframework",
  "uuid",
+ "vectorize",
  "vek",
 ]
 
