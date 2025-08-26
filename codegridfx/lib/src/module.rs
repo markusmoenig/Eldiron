@@ -1,6 +1,10 @@
-use crate::{GridCtx, Routine};
+use crate::{GridCtx, Routine, cell::CellRole};
 use indexmap::*;
 use theframework::prelude::*;
+
+const VALUES: [&str; 5] = ["Boolean", "Float", "Integer", "String", "Variable"];
+const OPERATORS: [&str; 1] = ["Assignment"];
+const FUNCTIONS: [&str; 2] = ["get_attr", "set_attr"];
 
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Clone)]
 pub enum ModuleType {
@@ -19,29 +23,13 @@ pub struct Module {
     grid_ctx: GridCtx,
 
     filter_text: String,
-
-    values: Vec<String>,
-    operators: Vec<String>,
-    functions: Vec<String>,
 }
 
 impl Module {
     pub fn new(name: &str) -> Self {
-        let values = vec![
-            "Boolean".into(),
-            "Float".into(),
-            "Integer".into(),
-            "String".into(),
-            "Variable".into(),
-        ];
-        let operators = vec!["Assignment".into()];
-        let functions = vec!["get_attr".into(), "set_attr".into()];
         Self {
             name: name.into(),
             grid_ctx: GridCtx::new(),
-            values,
-            operators,
-            functions,
             ..Default::default()
         }
     }
@@ -67,8 +55,7 @@ impl Module {
         self.grid_ctx.dark_color = ui.style.theme().color(CodeGridDark).clone();
         self.grid_ctx.selection_color = ui.style.theme().color(CodeGridSelected).clone();
         self.grid_ctx.text_color = ui.style.theme().color(CodeGridText).clone();
-        self.grid_ctx.highlight_text_color = [170, 170, 170, 255];
-        // self.grid_ctx.highlight_text_color = ui.style.theme().color(TextEditTextColor).clone();
+        self.grid_ctx.highlight_text_color = ui.style.theme().color(TextEditTextColor).clone();
         self.grid_ctx.error_color = ui.style.theme().color(Red).clone();
     }
 
@@ -85,17 +72,18 @@ impl Module {
         toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
         toolbar_hlayout.set_background_color(None);
 
-        let mut filter_text = TheText::new(TheId::empty());
-        filter_text.set_text("Filter".to_string());
+        // let mut filter_text = TheText::new(TheId::empty());
+        // filter_text.set_text("Filter".to_string());
+        // toolbar_hlayout.add_widget(Box::new(filter_text));
 
-        toolbar_hlayout.add_widget(Box::new(filter_text));
         let mut filter_edit = TheTextLineEdit::new(TheId::named("Code Editor Filter Edit"));
         filter_edit.set_text("".to_string());
-        filter_edit.limiter_mut().set_max_size(Vec2::new(95, 18));
+        filter_edit.limiter_mut().set_max_size(Vec2::new(140, 22)); // 95
         filter_edit.set_font_size(12.5);
         filter_edit.set_embedded(true);
         filter_edit.set_status_text("Show content containing the given text.");
         filter_edit.set_continuous(true);
+        filter_edit.set_info_text(Some("Filter".into()));
         toolbar_hlayout.add_widget(Box::new(filter_edit));
         list_toolbar_canvas.set_layout(toolbar_hlayout);
         list_toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
@@ -103,7 +91,6 @@ impl Module {
 
         let mut code_layout = TheListLayout::new(TheId::named("Code Editor Code List"));
         code_layout.limiter_mut().set_max_width(150);
-        // self.get_code_list_items(0, &mut code_layout, ctx);
 
         self.build_item_list(&mut code_layout, ctx);
         code_layout.select_first_item(ctx);
@@ -132,32 +119,35 @@ impl Module {
     pub fn build_item_list(&self, list: &mut dyn TheListLayoutTrait, ctx: &mut TheContext) {
         list.clear();
 
-        for item_name in &self.values {
+        let color = CellRole::Value.to_color();
+        for item_name in VALUES {
             if self.filter_text.is_empty() || item_name.to_lowercase().contains(&self.filter_text) {
                 let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
-                item.set_text(item_name.clone());
+                item.set_text(item_name.to_string());
                 item.set_associated_layout(list.id().clone());
-                item.set_background_color(TheColor::from([200, 230, 201, 255]));
+                item.set_background_color(TheColor::from(color));
                 list.add_item(item, ctx);
             }
         }
 
-        for item_name in &self.operators {
+        let color = CellRole::Operator.to_color();
+        for item_name in OPERATORS {
             if self.filter_text.is_empty() || item_name.to_lowercase().contains(&self.filter_text) {
                 let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
-                item.set_text(item_name.clone());
+                item.set_text(item_name.to_string());
                 item.set_associated_layout(list.id().clone());
-                item.set_background_color(TheColor::from([255, 249, 196, 255]));
+                item.set_background_color(TheColor::from(color));
                 list.add_item(item, ctx);
             }
         }
 
-        for item_name in &self.functions {
+        let color = CellRole::Function.to_color();
+        for item_name in FUNCTIONS {
             if self.filter_text.is_empty() || item_name.to_lowercase().contains(&self.filter_text) {
                 let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
-                item.set_text(item_name.clone());
+                item.set_text(item_name.to_string());
                 item.set_associated_layout(list.id().clone());
-                item.set_background_color(TheColor::from([187, 222, 251, 255]));
+                item.set_background_color(TheColor::from(color));
                 list.add_item(item, ctx);
             }
         }

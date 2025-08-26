@@ -28,11 +28,11 @@ pub enum CellRole {
 impl CellRole {
     pub fn to_color(&self) -> [u8; 4] {
         match self {
-            CellRole::None => [240, 240, 240, 255],     // light gray
-            CellRole::Operator => [255, 249, 196, 255], // soft yellow
-            // CellRole::Operator => [255, 224, 178, 255],   // pastel orange
-            CellRole::Value => [200, 230, 201, 255], // light green
-            CellRole::Function => [187, 222, 251, 255], // light blue
+            CellRole::None => [180, 180, 180, 255],
+            CellRole::Operator => [200, 195, 150, 255],
+            // CellRole::Operator => [195, 170, 150, 255],
+            CellRole::Value => [160, 185, 160, 255],
+            CellRole::Function => [160, 175, 190, 255],
         }
     }
 }
