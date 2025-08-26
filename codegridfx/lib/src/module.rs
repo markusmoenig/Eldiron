@@ -17,13 +17,31 @@ pub struct Module {
     pub name: String,
     pub routines: IndexMap<String, Routine>,
     grid_ctx: GridCtx,
+
+    filter_text: String,
+
+    values: Vec<String>,
+    operators: Vec<String>,
+    functions: Vec<String>,
 }
 
 impl Module {
     pub fn new(name: &str) -> Self {
+        let values = vec![
+            "Boolean".into(),
+            "Float".into(),
+            "Integer".into(),
+            "String".into(),
+            "Variable".into(),
+        ];
+        let operators = vec!["Assignment".into()];
+        let functions = vec!["get_attr".into(), "set_attr".into()];
         Self {
             name: name.into(),
             grid_ctx: GridCtx::new(),
+            values,
+            operators,
+            functions,
             ..Default::default()
         }
     }
@@ -33,13 +51,6 @@ impl Module {
         self.module_type = module_type;
         self.update_routines();
     }
-
-    /// Add a routine.
-    // pub fn add_routine(&mut self, routine: Routine) {
-    //     self.grid_ctx.selected_routine = Some(routine.id);
-    //     self.grid_ctx.current_cell = None;
-    //     self.routines.insert(routine.name.clone(), routine);
-    // }
 
     /// Add/ Update the routines of the module
     pub fn update_routines(&mut self) {
@@ -56,7 +67,9 @@ impl Module {
         self.grid_ctx.dark_color = ui.style.theme().color(CodeGridDark).clone();
         self.grid_ctx.selection_color = ui.style.theme().color(CodeGridSelected).clone();
         self.grid_ctx.text_color = ui.style.theme().color(CodeGridText).clone();
-        self.grid_ctx.highlight_text_color = ui.style.theme().color(TextEditTextColor).clone();
+        self.grid_ctx.highlight_text_color = [170, 170, 170, 255];
+        // self.grid_ctx.highlight_text_color = ui.style.theme().color(TextEditTextColor).clone();
+        self.grid_ctx.error_color = ui.style.theme().color(Red).clone();
     }
 
     pub fn build_canvas(&self, ctx: &mut TheContext) -> TheCanvas {
@@ -69,42 +82,21 @@ impl Module {
         let mut list_toolbar_canvas = TheCanvas::new();
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
-        toolbar_hlayout.set_margin(Vec4::new(2, 2, 2, 2));
+        toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_mode(TheHLayoutMode::SizeBased);
 
-        let mut sdf_view = TheSDFView::new(TheId::named("Code List SDF View"));
+        let mut filter_text = TheText::new(TheId::empty());
+        filter_text.set_text("Filter".to_string());
 
-        let mut sdf_canvas = TheSDFCanvas::new();
-        sdf_canvas.background = TheColor::from_u8_array([118, 118, 118, 255]);
-        sdf_canvas.selected = Some(0);
-        sdf_canvas.add(
-            TheSDF::Circle(TheDim::new(5, 2, 20, 20)),
-            ThePattern::Solid(TheColor::from_u8(74, 74, 74, 255)),
-        );
-        sdf_view.set_status(0, "Show all keywords.".to_string());
-
-        sdf_canvas.add(
-            TheSDF::Hexagon(TheDim::new(40, 2, 20, 20)),
-            ThePattern::Solid(TheColor::from_u8(74, 74, 74, 255)),
-        );
-        sdf_view.set_status(1, "Show all value types.".to_string());
-
-        sdf_canvas.add(
-            TheSDF::Rhombus(TheDim::new(75, 2, 20, 20)),
-            ThePattern::Solid(TheColor::from_u8(74, 74, 74, 255)),
-        );
-        sdf_view.set_status(2, "Show all operators.".to_string());
-
-        sdf_canvas.add(
-            TheSDF::RoundedRect(TheDim::new(110, 2, 20, 20), (5.0, 5.0, 5.0, 5.0)),
-            ThePattern::Solid(TheColor::from_u8(74, 74, 74, 255)),
-        );
-        sdf_view.set_status(3, "Show all available functions.".to_string());
-
-        sdf_view.set_canvas(sdf_canvas);
-
-        toolbar_hlayout.add_widget(Box::new(sdf_view));
+        toolbar_hlayout.add_widget(Box::new(filter_text));
+        let mut filter_edit = TheTextLineEdit::new(TheId::named("Code Editor Filter Edit"));
+        filter_edit.set_text("".to_string());
+        filter_edit.limiter_mut().set_max_size(Vec2::new(95, 18));
+        filter_edit.set_font_size(12.5);
+        filter_edit.set_embedded(true);
+        filter_edit.set_status_text("Show content containing the given text.");
+        filter_edit.set_continuous(true);
+        toolbar_hlayout.add_widget(Box::new(filter_edit));
         list_toolbar_canvas.set_layout(toolbar_hlayout);
         list_toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
         list_canvas.set_top(list_toolbar_canvas);
@@ -112,27 +104,9 @@ impl Module {
         let mut code_layout = TheListLayout::new(TheId::named("Code Editor Code List"));
         code_layout.limiter_mut().set_max_width(150);
         // self.get_code_list_items(0, &mut code_layout, ctx);
-        // code_layout.select_first_item(ctx);
 
-        let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
-        item.set_text("Assignment".to_string());
-        item.set_associated_layout(code_layout.id().clone());
-        code_layout.add_item(item, ctx);
-
-        let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
-        item.set_text("Variable".to_string());
-        item.set_associated_layout(code_layout.id().clone());
-        code_layout.add_item(item, ctx);
-
-        let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
-        item.set_text("Number".to_string());
-        item.set_associated_layout(code_layout.id().clone());
-        code_layout.add_item(item, ctx);
-
-        let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
-        item.set_text("set_attr".to_string());
-        item.set_associated_layout(code_layout.id().clone());
-        code_layout.add_item(item, ctx);
+        self.build_item_list(&mut code_layout, ctx);
+        code_layout.select_first_item(ctx);
 
         list_canvas.set_layout(code_layout);
         canvas.set_left(list_canvas);
@@ -153,6 +127,40 @@ impl Module {
         canvas.set_widget(render_view);
 
         canvas
+    }
+
+    pub fn build_item_list(&self, list: &mut dyn TheListLayoutTrait, ctx: &mut TheContext) {
+        list.clear();
+
+        for item_name in &self.values {
+            if self.filter_text.is_empty() || item_name.to_lowercase().contains(&self.filter_text) {
+                let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
+                item.set_text(item_name.clone());
+                item.set_associated_layout(list.id().clone());
+                item.set_background_color(TheColor::from([200, 230, 201, 255]));
+                list.add_item(item, ctx);
+            }
+        }
+
+        for item_name in &self.operators {
+            if self.filter_text.is_empty() || item_name.to_lowercase().contains(&self.filter_text) {
+                let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
+                item.set_text(item_name.clone());
+                item.set_associated_layout(list.id().clone());
+                item.set_background_color(TheColor::from([255, 249, 196, 255]));
+                list.add_item(item, ctx);
+            }
+        }
+
+        for item_name in &self.functions {
+            if self.filter_text.is_empty() || item_name.to_lowercase().contains(&self.filter_text) {
+                let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
+                item.set_text(item_name.clone());
+                item.set_associated_layout(list.id().clone());
+                item.set_background_color(TheColor::from([187, 222, 251, 255]));
+                list.add_item(item, ctx);
+            }
+        }
     }
 
     pub fn draw(&mut self, buffer: &mut TheRGBABuffer) {
@@ -221,7 +229,19 @@ impl Module {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name.starts_with("cgfx") {
+                if id.name == "Code Editor Filter Edit" {
+                    self.filter_text = if let Some(widget) = ui
+                        .canvas
+                        .get_widget(Some(&"Code Editor Filter Edit".to_string()), None)
+                    {
+                        widget.value().to_string().unwrap_or_default()
+                    } else {
+                        "".to_string()
+                    };
+                    if let Some(list) = ui.get_list_layout("Code Editor Code List") {
+                        self.build_item_list(list, ctx);
+                    }
+                } else if id.name.starts_with("cgfx") {
                     for r in self.routines.values_mut() {
                         if Some(r.id) == self.grid_ctx.selected_routine {
                             if let Some(coord) = self.grid_ctx.current_cell {

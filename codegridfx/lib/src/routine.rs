@@ -1,4 +1,4 @@
-use crate::{Cell, CellItem, Grid, GridCtx};
+use crate::{Cell, CellItem, Grid, GridCtx, cell::CellRole};
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -229,10 +229,23 @@ impl Routine {
 
         if let Some(pos) = pos {
             if let Some(cell) = Cell::from_str(&drop.title) {
-                let item = CellItem::new(cell);
+                let mut item = CellItem::new(cell);
+                let mut insert = true;
 
-                self.grid.remove_dependencies_for(old_item.id);
-                item.insert_at(pos, &mut self.grid, old_item);
+                if old_item.cell.role() != item.cell.role() && old_item.cell != Cell::Empty {
+                    insert = false;
+                }
+
+                if insert {
+                    if item.cell.role() == CellRole::Value {
+                        item.description = old_item.description.clone();
+                        item.replaceable = old_item.replaceable.clone();
+                        item.dependend_on = old_item.dependend_on.clone();
+                    }
+
+                    self.grid.remove_dependencies_for(old_item.id);
+                    item.insert_at(pos, &mut self.grid, old_item);
+                }
             }
         }
 

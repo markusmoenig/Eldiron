@@ -9,6 +9,7 @@ pub struct GridCtx {
     pub current_cell: Option<(u32, u32)>,
 
     pub font_size: f32,
+    pub large_font_size: f32,
     pub zoom: f32,
 
     // Grid Colors
@@ -18,6 +19,7 @@ pub struct GridCtx {
     pub selection_color: [u8; 4],
     pub text_color: [u8; 4],
     pub highlight_text_color: [u8; 4],
+    pub error_color: [u8; 4],
 }
 
 impl Default for GridCtx {
@@ -36,6 +38,7 @@ impl GridCtx {
             current_cell: None,
 
             font_size: 12.5,
+            large_font_size: 14.0,
             zoom: 1.0,
 
             background_color: [0; 4],
@@ -44,6 +47,7 @@ impl GridCtx {
             selection_color: [0; 4],
             text_color: [0; 4],
             highlight_text_color: [0; 4],
+            error_color: [0; 4],
         }
     }
 }

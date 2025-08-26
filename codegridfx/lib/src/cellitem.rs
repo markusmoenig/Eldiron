@@ -3,6 +3,15 @@ use theframework::prelude::*;
 
 use Cell::*;
 
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub enum CellItemForm {
+    Box,
+    #[default]
+    Rounded,
+    LeftRounded,
+    RightRounded,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CellItem {
     pub id: Uuid,
@@ -12,6 +21,8 @@ pub struct CellItem {
     pub dependend_on: Option<Uuid>,
     pub replaceable: bool,
     pub description: String,
+
+    pub form: CellItemForm,
 }
 
 impl CellItem {
@@ -24,6 +35,7 @@ impl CellItem {
             dependend_on: None,
             replaceable: true,
             description: String::new(),
+            form: CellItemForm::default(),
         }
     }
 
@@ -32,6 +44,7 @@ impl CellItem {
         dependend_on: Uuid,
         replaceable: bool,
         description: &str,
+        form: CellItemForm,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -41,6 +54,7 @@ impl CellItem {
             dependend_on: Some(dependend_on),
             replaceable,
             description: description.to_string(),
+            form,
         }
     }
 
@@ -55,12 +69,16 @@ impl CellItem {
         _pos: &(u32, u32),
     ) {
         let stride = buffer.dim().width as usize;
-        let color = if is_selected {
+        let color = if self.has_error {
+            &grid_ctx.error_color
+        } else if is_selected {
             &grid_ctx.selection_color
         } else {
-            &grid_ctx.normal_color
+            // &grid_ctx.normal_color
+            &self.cell.role().to_color()
         };
         let zoom = 5.0;
+        let rounding = 2.0 * zoom;
         match &self.cell {
             Cell::Variable(name) => {
                 if let Some(font) = &ctx.ui.font {
@@ -69,12 +87,13 @@ impl CellItem {
                         &rect.to_buffer_utuple(),
                         stride,
                         &color,
-                        &(2.0 * zoom, 2.0 * zoom, 2.0 * zoom, 2.0 * zoom),
+                        &self.rounding(rounding),
                     );
 
+                    let r = rect.to_buffer_utuple();
                     ctx.draw.text_rect_blend(
                         buffer.pixels_mut(),
-                        &rect.to_buffer_utuple(),
+                        &(r.0, r.1, r.2, r.3 - 10),
                         stride,
                         font,
                         grid_ctx.font_size,
@@ -83,9 +102,24 @@ impl CellItem {
                         TheHorizontalAlign::Center,
                         TheVerticalAlign::Center,
                     );
+
+                    if !self.description.is_empty() {
+                        let r = rect.to_buffer_utuple();
+                        ctx.draw.text_rect_blend(
+                            buffer.pixels_mut(),
+                            &(r.0, r.1 + 15, r.2, r.3),
+                            stride,
+                            font,
+                            grid_ctx.font_size,
+                            &self.description,
+                            &grid_ctx.highlight_text_color,
+                            TheHorizontalAlign::Center,
+                            TheVerticalAlign::Center,
+                        );
+                    }
                 }
             }
-            Cell::Assignment | Cell::Comma => {
+            Cell::Assignment => {
                 if let Some(font) = &ctx.ui.font {
                     ctx.draw.text_rect_blend(
                         buffer.pixels_mut(),
@@ -115,14 +149,14 @@ impl CellItem {
                     );
                 }
             }
-            Cell::Number(_) | Cell::Str(_) => {
+            Cell::Integer(_) | Cell::Float(_) | Cell::Str(_) | Cell::Boolean(_) => {
                 if let Some(font) = &ctx.ui.font {
                     ctx.draw.rounded_rect(
                         buffer.pixels_mut(),
                         &rect.to_buffer_utuple(),
                         stride,
                         &color,
-                        &(2.0 * zoom, 2.0 * zoom, 2.0 * zoom, 2.0 * zoom),
+                        &self.rounding(rounding),
                     );
 
                     let r = rect.to_buffer_utuple();
@@ -161,7 +195,7 @@ impl CellItem {
                         &rect.to_buffer_utuple(),
                         stride,
                         &color,
-                        &(2.0 * zoom, 2.0 * zoom, 2.0 * zoom, 2.0 * zoom),
+                        &self.rounding(rounding),
                     );
 
                     ctx.draw.text_rect_blend(
@@ -169,9 +203,9 @@ impl CellItem {
                         &rect.to_buffer_utuple(),
                         stride,
                         font,
-                        grid_ctx.font_size,
+                        grid_ctx.large_font_size,
                         &self.cell.to_string(),
-                        &grid_ctx.highlight_text_color,
+                        &grid_ctx.text_color,
                         TheHorizontalAlign::Center,
                         TheVerticalAlign::Center,
                     );
@@ -185,21 +219,20 @@ impl CellItem {
                     &rect.to_buffer_shrunk_utuple(&shrinker),
                     stride,
                     &grid_ctx.background_color,
-                    &(2.0 * zoom, 2.0 * zoom, 2.0 * zoom, 2.0 * zoom),
+                    &self.rounding(rounding),
                     &color,
                     1.5,
                 );
-            }
-            _ => {
-                buffer.draw_rect_outline(
-                    rect,
-                    if is_selected {
-                        &grid_ctx.selection_color
-                    } else {
-                        &grid_ctx.dark_color
-                    },
-                );
-            }
+            } // _ => {
+              //     buffer.draw_rect_outline(
+              //         rect,
+              //         if is_selected {
+              //             &grid_ctx.selection_color
+              //         } else {
+              //             &grid_ctx.dark_color
+              //         },
+              //     );
+              // }
         }
     }
 
@@ -207,7 +240,7 @@ impl CellItem {
     pub fn size(&self, ctx: &TheContext, grid_ctx: &GridCtx) -> Vec2<u32> {
         let mut size = Vec2::new(30, 50);
         match &self.cell {
-            Variable(_) | Number(_) | Str(_) => {
+            Variable(_) | Integer(_) | Float(_) | Str(_) | Boolean(_) => {
                 if let Some(font) = &ctx.ui.font {
                     size.x = ctx
                         .draw
@@ -225,7 +258,7 @@ impl CellItem {
                     }
                 }
             }
-            Assignment | Comma => {
+            Assignment => {
                 if let Some(font) = &ctx.ui.font {
                     size.x = ctx.draw.get_text_size(font, grid_ctx.font_size, "=").0 as u32 + 20;
                 }
@@ -243,7 +276,7 @@ impl CellItem {
                 if let Some(font) = &ctx.ui.font {
                     size.x = ctx
                         .draw
-                        .get_text_size(font, grid_ctx.font_size, &self.cell.to_string())
+                        .get_text_size(font, grid_ctx.large_font_size, &self.cell.to_string())
                         .0 as u32
                         + 20;
                 }
@@ -269,7 +302,7 @@ impl CellItem {
                 );
                 nodeui.add_item(item);
             }
-            Number(value) => {
+            Integer(value) | Float(value) => {
                 let item = TheNodeUIItem::Text(
                     "cgfxValue".into(),
                     "Value".into(),
@@ -291,6 +324,16 @@ impl CellItem {
                 );
                 nodeui.add_item(item);
             }
+            &Boolean(value) => {
+                let item = TheNodeUIItem::Selector(
+                    "cgfxValue".into(),
+                    "Value".into(),
+                    "Set the value".into(),
+                    vec!["True".to_string(), "False".to_string()],
+                    if value { 0 } else { 1 },
+                );
+                nodeui.add_item(item);
+            }
             _ => {}
         }
 
@@ -309,13 +352,20 @@ impl CellItem {
                     }
                 }
             }
-            Number(value_name) => {
+            Integer(value_name) => {
                 if let Some(v) = value.to_string()
                     && name == "cgfxValue"
                 {
-                    if Self::is_valid_python_number(&v) {
-                        *value_name = v;
-                    }
+                    self.has_error = !Self::is_valid_python_integer(&v);
+                    *value_name = v;
+                }
+            }
+            Float(value_name) => {
+                if let Some(v) = value.to_string()
+                    && name == "cgfxValue"
+                {
+                    self.has_error = !Self::is_valid_python_float(&v);
+                    *value_name = v;
                 }
             }
             Str(value_name) => {
@@ -325,17 +375,22 @@ impl CellItem {
                     *value_name = v.replace("\"", "");
                 }
             }
+            Boolean(v) => {
+                if let Some(val) = value.to_i32() {
+                    *v = if val == 0 { true } else { false };
+                }
+            }
             _ => {}
         }
     }
 
     /// Inserts the item at the given position.
-    pub fn insert_at(self, pos: (u32, u32), grid: &mut Grid, _old_item: CellItem) {
+    pub fn insert_at(mut self, pos: (u32, u32), grid: &mut Grid, _old_item: CellItem) {
         match &self.cell {
             Cell::Variable(_) => {
                 if pos.0 == 0 && !grid.grid.contains_key(&(pos.0 + 1, pos.1)) {
                     grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::Assignment));
-                    grid.insert((pos.0 + 2, pos.1), CellItem::new(Cell::Number("0".into())));
+                    grid.insert((pos.0 + 2, pos.1), CellItem::new(Cell::Integer("0".into())));
                 }
 
                 if !grid.grid.contains_key(&(pos.0 + 1, pos.1)) {
@@ -347,31 +402,26 @@ impl CellItem {
             Cell::SetAttr => {
                 grid.insert(
                     (pos.0 + 1, pos.1),
-                    CellItem::new_dependency(Cell::LeftParent, self.id, false, "".into()),
-                );
-
-                grid.insert(
-                    (pos.0 + 2, pos.1),
                     CellItem::new_dependency(
                         Cell::Str("attr".into()),
                         self.id,
                         false,
                         "Attribute Name",
+                        CellItemForm::Box,
                     ),
                 );
                 grid.insert(
-                    (pos.0 + 3, pos.1),
-                    CellItem::new_dependency(Cell::Comma, self.id, false, ""),
-                );
-                grid.insert(
-                    (pos.0 + 4, pos.1),
-                    CellItem::new_dependency(Cell::Number("0".into()), self.id, true, "Value"),
-                );
-                grid.insert(
-                    (pos.0 + 5, pos.1),
-                    CellItem::new_dependency(Cell::RightParent, self.id, false, ""),
+                    (pos.0 + 2, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Integer("0".into()),
+                        self.id,
+                        true,
+                        "Value",
+                        CellItemForm::RightRounded,
+                    ),
                 );
 
+                self.form = CellItemForm::LeftRounded;
                 grid.insert(pos, self)
             }
             _ => grid.insert(pos, self),
@@ -419,6 +469,34 @@ impl CellItem {
             return true;
         }
         false
+    }
+
+    /// Checks if the string is a valid python integer
+    pub fn is_valid_python_integer(s: &str) -> bool {
+        // Try to parse as integer
+        if s.parse::<i64>().is_ok() {
+            return true;
+        }
+        false
+    }
+
+    /// Checks if the string is a valid python float
+    pub fn is_valid_python_float(s: &str) -> bool {
+        // Try to parse as float (Python allows scientific notation, etc.)
+        if s.parse::<f64>().is_ok() {
+            return true;
+        }
+        false
+    }
+
+    /// Rounding based on the form
+    pub fn rounding(&self, rounding: f32) -> (f32, f32, f32, f32) {
+        match &self.form {
+            CellItemForm::Box => (0.0, 0.0, 0.0, 0.0),
+            CellItemForm::Rounded => (rounding, rounding, rounding, rounding),
+            CellItemForm::LeftRounded => (0.0, 0.0, rounding, rounding),
+            CellItemForm::RightRounded => (rounding, rounding, 0.0, 0.0),
+        }
     }
 
     pub fn generate_context(&self) -> TheContextMenu {
