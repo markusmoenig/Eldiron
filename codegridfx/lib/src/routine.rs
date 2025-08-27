@@ -19,7 +19,7 @@ pub struct Routine {
 
 impl Routine {
     pub fn new(name: &str, description: &str) -> Self {
-        let mut grid = Grid::default();
+        let mut grid = Grid::new();
         grid.insert((0, 0), CellItem::new(Cell::Empty));
         Self {
             id: Uuid::new_v4(),
@@ -36,7 +36,10 @@ impl Routine {
 
     pub fn draw(&mut self, ctx: &TheContext, grid_ctx: &GridCtx) {
         // Size check
-        let height = self.size(ctx, grid_ctx).y;
+        let height = self
+            .grid
+            .size(ctx, grid_ctx, self.folded, self.screen_width)
+            .y;
         if self.buffer.dim().width != self.screen_width as i32
             || self.buffer.dim().height != height as i32
         {
@@ -48,6 +51,7 @@ impl Routine {
 
         let folded_corners = if !self.folded { 0.0 } else { 12.0 };
         let is_selected = Some(self.id) == grid_ctx.selected_routine;
+        let normal_color = CellRole::Event.to_color();
 
         self.buffer.draw_rounded_rect(
             &TheDim::rect(
@@ -59,7 +63,8 @@ impl Routine {
             if is_selected {
                 &grid_ctx.selection_color
             } else {
-                &grid_ctx.normal_color
+                //&grid_ctx.normal_color
+                &normal_color
             },
             &(folded_corners, 12.0, folded_corners, 12.0),
             0.0,
@@ -129,72 +134,6 @@ impl Routine {
             }
         }
         lines
-    }
-
-    /// Returns the size of the grid.
-    pub fn size(&mut self, ctx: &TheContext, grid_ctx: &GridCtx) -> Vec2<u32> {
-        if !self.folded {
-            let mut col_widths: FxHashMap<u32, u32> = FxHashMap::default();
-            let mut row_heights: FxHashMap<u32, u32> = FxHashMap::default();
-
-            // Clear grid_rects before filling
-            self.grid.grid_rects.clear();
-
-            // First pass: collect sizes
-            for ((col, row), cell) in &self.grid.grid {
-                let size = cell.size(ctx, grid_ctx);
-                col_widths
-                    .entry(*col)
-                    .and_modify(|w| {
-                        if size.x > *w {
-                            *w = size.x;
-                        }
-                    })
-                    .or_insert(size.x);
-                row_heights
-                    .entry(*row)
-                    .and_modify(|h| {
-                        if size.y > *h {
-                            *h = size.y;
-                        }
-                    })
-                    .or_insert(size.y);
-            }
-
-            // Second pass: calculate offsets and fill grid_rects
-            for ((col, row), cell) in &self.grid.grid {
-                let x_offset = 4 + col_widths
-                    .keys()
-                    .filter(|&&c| c < *col)
-                    .map(|c| col_widths[c])
-                    .sum::<u32>();
-                let y_offset = 4
-                    + grid_ctx.header_height
-                    + row_heights
-                        .keys()
-                        .filter(|&&r| r < *row)
-                        .map(|r| row_heights[r])
-                        .sum::<u32>();
-                let size = cell.size(ctx, grid_ctx);
-                self.grid.grid_rects.insert(
-                    (*col, *row),
-                    TheDim::rect(
-                        x_offset as i32,
-                        y_offset as i32,
-                        size.x as i32,
-                        size.y as i32,
-                    ),
-                );
-            }
-
-            let total_width: u32 = col_widths.values().sum::<u32>() + 4;
-            let total_height: u32 = row_heights.values().sum::<u32>() + grid_ctx.header_height + 4;
-
-            Vec2::new(total_width, total_height)
-        } else {
-            // Only header if folded
-            Vec2::new(self.screen_width, grid_ctx.header_height + 4)
-        }
     }
 
     /// Handle a click at the given position.
@@ -337,8 +276,21 @@ impl Routine {
         let rows = self.grid.grid_by_rows();
         for row in rows {
             let mut row_code = String::new();
-            for (item, _pos) in row {
+
+            for (item, pos) in row {
                 row_code += &item.code();
+                if !item.description.is_empty() {
+                    // Check if we need to insert a "," or ")"
+                    if let Some(next) = self.grid.grid.get(&(pos.0 + 1, pos.1)) {
+                        if !next.description.is_empty() {
+                            row_code += ", ";
+                        } else {
+                            row_code += ") ";
+                        }
+                    } else {
+                        row_code += ") ";
+                    }
+                }
                 row_code += " ";
             }
             *out += &format!("{:indent$}{}\n", "", row_code);

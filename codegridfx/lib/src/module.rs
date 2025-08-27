@@ -3,7 +3,7 @@ use indexmap::*;
 use theframework::prelude::*;
 
 const VALUES: [&str; 5] = ["Boolean", "Float", "Integer", "String", "Variable"];
-const OPERATORS: [&str; 1] = ["Assignment"];
+const OPERATORS: [&str; 2] = ["Assignment", "Comparison"];
 const FUNCTIONS: [&str; 2] = ["get_attr", "set_attr"];
 
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Clone)]
@@ -19,7 +19,7 @@ pub enum ModuleType {
 pub struct Module {
     pub module_type: ModuleType,
     pub name: String,
-    pub routines: IndexMap<String, Routine>,
+    pub routines: IndexMap<Uuid, Routine>,
     grid_ctx: GridCtx,
 
     filter_text: String,
@@ -40,11 +40,21 @@ impl Module {
         self.update_routines();
     }
 
+    /// Checks if the given event exists
+    pub fn contains(&self, event: &str) -> bool {
+        for r in self.routines.values() {
+            if r.name == event {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Add/ Update the routines of the module
     pub fn update_routines(&mut self) {
-        if !self.routines.contains_key("startup") {
-            let routine = Routine::new("startup".into(), "called on creation".into());
-            self.routines.insert(routine.name.clone(), routine);
+        if !self.contains("startup") {
+            let routine = Routine::new("startup".into(), "send on creation".into());
+            self.routines.insert(routine.id, routine);
         }
     }
 
@@ -93,7 +103,7 @@ impl Module {
         code_layout.limiter_mut().set_max_width(150);
 
         self.build_item_list(&mut code_layout, ctx);
-        code_layout.select_first_item(ctx);
+        // code_layout.select_first_item(ctx);
 
         list_canvas.set_layout(code_layout);
         canvas.set_left(list_canvas);
@@ -118,6 +128,14 @@ impl Module {
 
     pub fn build_item_list(&self, list: &mut dyn TheListLayoutTrait, ctx: &mut TheContext) {
         list.clear();
+
+        if self.filter_text.is_empty() || "event".contains(&self.filter_text) {
+            let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
+            item.set_text("Event".into());
+            item.set_associated_layout(list.id().clone());
+            item.set_background_color(TheColor::from(CellRole::Event.to_color()));
+            list.add_item(item, ctx);
+        }
 
         let color = CellRole::Value.to_color();
         for item_name in VALUES {
@@ -218,6 +236,33 @@ impl Module {
                     redraw = true;
                 }
             }
+            TheEvent::KeyCodeDown(key) => {
+                if !ui.focus_widget_supports_text_input(ctx) {
+                    if let Some(key_code) = key.to_key_code() {
+                        if key_code == TheKeyCode::Return {
+                            if let Some(sel) = self.grid_ctx.current_cell.clone() {
+                                if let Some(routine) = self.get_selected_routine_mut() {
+                                    routine.grid.return_at(sel.1);
+                                    self.grid_ctx.current_cell = Some((sel.0, sel.1 + 1));
+                                    self.redraw(ui, ctx);
+                                }
+                            }
+                        } else if key_code == TheKeyCode::Delete {
+                            if let Some(sel) = self.grid_ctx.current_cell.clone() {
+                                if let Some(routine) = self.get_selected_routine_mut() {
+                                    routine.grid.delete_at(sel.1);
+                                    if sel.1 > 0 {
+                                        self.grid_ctx.current_cell = Some((sel.0, sel.1 - 1));
+                                    } else {
+                                        self.grid_ctx.current_cell = Some((sel.0, 0));
+                                    }
+                                    self.redraw(ui, ctx);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             TheEvent::ValueChanged(id, value) => {
                 if id.name == "Code Editor Filter Edit" {
                     self.filter_text = if let Some(widget) = ui
@@ -230,6 +275,24 @@ impl Module {
                     };
                     if let Some(list) = ui.get_list_layout("Code Editor Code List") {
                         self.build_item_list(list, ctx);
+                    }
+                } else if id.name == "cgfxEventName" {
+                    if let Some(text) = value.to_string() {
+                        let mut exists = false;
+
+                        for r in self.routines.values_mut() {
+                            if r.name == text {
+                                exists = true;
+                                break;
+                            }
+                        }
+
+                        if !exists {
+                            if let Some(r) = self.get_selected_routine_mut() {
+                                r.name = text;
+                                self.redraw(ui, ctx);
+                            }
+                        }
                     }
                 } else if id.name.starts_with("cgfx") {
                     for r in self.routines.values_mut() {
@@ -262,31 +325,41 @@ impl Module {
             TheEvent::Drop(coord, drop) => {
                 // println!("{}, {}", coord, drop.title);
                 let mut handled = false;
-                for r in self.routines.values_mut() {
-                    if r.visible {
-                        handled = r.drop_at(
-                            Vec2::new(coord.x as u32, coord.y as u32 - r.module_offset),
-                            ui,
-                            ctx,
-                            &mut self.grid_ctx,
-                            drop,
-                        );
-                        if handled {
-                            break;
+
+                if drop.title == "Event" {
+                    let routine = Routine::new("custom".into(), "".into());
+
+                    self.grid_ctx.selected_routine = Some(routine.id);
+                    self.grid_ctx.current_cell = None;
+
+                    self.routines.insert(routine.id, routine);
+                    self.redraw(ui, ctx);
+
+                    self.show_event_settings(ui, ctx);
+                } else {
+                    for r in self.routines.values_mut() {
+                        if r.visible {
+                            handled = r.drop_at(
+                                Vec2::new(coord.x as u32, coord.y as u32 - r.module_offset),
+                                ui,
+                                ctx,
+                                &mut self.grid_ctx,
+                                drop,
+                            );
+                            if handled {
+                                break;
+                            }
                         }
                     }
                 }
+
                 if handled {
-                    if let Some(renderview) = ui.get_render_view("ModuleView") {
-                        self.draw(renderview.render_buffer_mut());
-
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Module Changed"),
-                            TheValue::Empty,
-                        ));
-
-                        redraw = true;
-                    }
+                    self.redraw(ui, ctx);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Module Changed"),
+                        TheValue::Empty,
+                    ));
+                    redraw = true;
                 }
             }
             TheEvent::ContextMenuSelected(_id, _item) => {
@@ -342,15 +415,19 @@ impl Module {
                                 &mut self.grid_ctx,
                             );
                             if handled {
+                                if self.grid_ctx.current_cell == None {
+                                    self.show_event_settings(ui, ctx);
+                                }
                                 break;
                             }
                         }
                     }
                     if handled {
-                        if let Some(renderview) = ui.get_render_view("ModuleView") {
-                            self.draw(renderview.render_buffer_mut());
-                            redraw = true;
-                        }
+                        self.redraw(ui, ctx);
+                        // if let Some(renderview) = ui.get_render_view("ModuleView") {
+                        //     self.draw(renderview.render_buffer_mut());
+                        //     redraw = true;
+                        // }
                     }
                 }
             }
@@ -358,6 +435,31 @@ impl Module {
         }
 
         redraw
+    }
+
+    /// Show the settings for the current event.
+    fn show_event_settings(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        let mut name = "".into();
+        if let Some(r) = self.get_selected_routine_mut() {
+            name = r.name.clone();
+        }
+
+        let mut nodeui: TheNodeUI = TheNodeUI::default();
+
+        let item = TheNodeUIItem::Text(
+            "cgfxEventName".into(),
+            "Event Name".into(),
+            "Set the event name.".into(),
+            name,
+            None,
+            false,
+        );
+        nodeui.add_item(item);
+
+        if let Some(layout) = ui.get_text_layout("Node Settings") {
+            nodeui.apply_to_text_layout(layout);
+            ctx.ui.relayout = true;
+        }
     }
 
     /// Build the module into Python source

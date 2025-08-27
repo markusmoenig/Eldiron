@@ -1,4 +1,4 @@
-use crate::{Cell, Grid, GridCtx};
+use crate::{Cell, Grid, GridCtx, cell::CellRole};
 use theframework::prelude::*;
 
 use Cell::*;
@@ -119,7 +119,7 @@ impl CellItem {
                     }
                 }
             }
-            Cell::Assignment => {
+            Cell::Assignment | Cell::Comparison | Cell::If => {
                 if let Some(font) = &ctx.ui.font {
                     ctx.draw.text_rect_blend(
                         buffer.pixels_mut(),
@@ -387,17 +387,26 @@ impl CellItem {
     /// Inserts the item at the given position.
     pub fn insert_at(mut self, pos: (u32, u32), grid: &mut Grid, _old_item: CellItem) {
         match &self.cell {
-            Cell::Variable(_) => {
-                if pos.0 == 0 && !grid.grid.contains_key(&(pos.0 + 1, pos.1)) {
-                    grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::Assignment));
+            Cell::Assignment => {
+                if pos.0 == 0 {
+                    grid.insert((pos.0, pos.1), CellItem::new(Cell::Variable("dest".into())));
+                    grid.insert((pos.0 + 1, pos.1), self);
                     grid.insert((pos.0 + 2, pos.1), CellItem::new(Cell::Integer("0".into())));
                 }
+            }
+            Cell::Comparison => {
+                if pos.0 == 0 {
+                    grid.insert((pos.0, pos.1), CellItem::new(Cell::If));
+                    grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::Integer("0".into())));
+                    grid.insert((pos.0 + 2, pos.1), self);
+                    grid.insert((pos.0 + 3, pos.1), CellItem::new(Cell::Integer("0".into())));
 
-                if !grid.grid.contains_key(&(pos.0 + 1, pos.1)) {
-                    grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::Empty));
+                    grid.insert((pos.0, pos.1 + 1), CellItem::new(Cell::Empty));
+                    grid.row_indents.insert(pos.1 + 1, 1);
+
+                    grid.insert((pos.0, pos.1 + 2), CellItem::new(Cell::Empty));
+                    grid.row_indents.insert(pos.1 + 2, 0);
                 }
-
-                grid.insert(pos, self)
             }
             Cell::SetAttr => {
                 grid.insert(
@@ -430,7 +439,26 @@ impl CellItem {
 
     /// Generates code for the item.
     pub fn code(&self) -> String {
-        self.cell.to_string()
+        if self.cell.role() == CellRole::Function {
+            return self.cell.to_string() + "(";
+        }
+
+        match &self.cell {
+            Variable(var_name) => var_name.clone(),
+            Integer(value) | Float(value) => value.clone(),
+            Boolean(value) => {
+                if *value {
+                    "True".into()
+                } else {
+                    "False".into()
+                }
+            }
+            Str(value) => format!("\"{}\"", value),
+            LeftParent => "(".into(),
+            RightParent => ")".into(),
+            Assignment => "=".into(),
+            _ => "".into(),
+        }
     }
 
     /// Checks if the string is a valid python variable name

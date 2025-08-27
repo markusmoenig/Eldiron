@@ -10,6 +10,9 @@ pub enum Cell {
     Str(String),
     Boolean(bool),
     Assignment,
+    Comparison,
+    If,
+
     GetAttr,
     SetAttr,
 
@@ -23,6 +26,7 @@ pub enum CellRole {
     Operator,
     Value,
     Function,
+    Event,
 }
 
 impl CellRole {
@@ -30,9 +34,9 @@ impl CellRole {
         match self {
             CellRole::None => [180, 180, 180, 255],
             CellRole::Operator => [200, 195, 150, 255],
-            // CellRole::Operator => [195, 170, 150, 255],
             CellRole::Value => [160, 185, 160, 255],
             CellRole::Function => [160, 175, 190, 255],
+            CellRole::Event => [195, 170, 150, 255],
         }
     }
 }
@@ -49,6 +53,9 @@ impl Cell {
             "String" => Some(Cell::Str("".into())),
             "Boolean" => Some(Cell::Boolean(true)),
             "Assignment" => Some(Cell::Assignment),
+            "Comparison" => Some(Cell::Comparison),
+            "If" => Some(Cell::If),
+
             "get_attr" => Some(Cell::GetAttr),
             "set_attr" => Some(Cell::SetAttr),
             _ => None,
@@ -67,12 +74,15 @@ impl Cell {
                 }
             }
             Str(value) => format!("\"{}\"", value),
+
+            Assignment => "=".into(),
+            If => "if".into(),
+
             GetAttr => "get_attr".into(),
             SetAttr => "set_attr".into(),
 
             LeftParent => "(".into(),
             RightParent => ")".into(),
-            Assignment => "=".into(),
             _ => "".into(),
         }
     }
@@ -80,7 +90,7 @@ impl Cell {
     pub fn role(&self) -> CellRole {
         match &self {
             Variable(_) | Integer(_) | Float(_) | Str(_) | Boolean(_) => CellRole::Value,
-            Assignment => CellRole::Operator,
+            Assignment | Comparison | If => CellRole::Operator,
             GetAttr | SetAttr => CellRole::Function,
 
             _ => CellRole::None,
