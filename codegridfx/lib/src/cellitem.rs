@@ -1,4 +1,7 @@
-use crate::{Cell, Grid, GridCtx, cell::CellRole};
+use crate::{
+    Cell, Grid, GridCtx,
+    cell::{CellRole, ComparisonOp},
+};
 use theframework::prelude::*;
 
 use Cell::*;
@@ -93,7 +96,12 @@ impl CellItem {
                     let r = rect.to_buffer_utuple();
                     ctx.draw.text_rect_blend(
                         buffer.pixels_mut(),
-                        &(r.0, r.1, r.2, r.3 - 10),
+                        &(
+                            r.0,
+                            r.1,
+                            r.2,
+                            r.3 - if self.description.is_empty() { 0 } else { 10 },
+                        ),
                         stride,
                         font,
                         grid_ctx.font_size,
@@ -119,14 +127,14 @@ impl CellItem {
                     }
                 }
             }
-            Cell::Assignment | Cell::Comparison | Cell::If => {
+            Cell::Assignment | Cell::Comparison(_) | Cell::If => {
                 if let Some(font) = &ctx.ui.font {
                     ctx.draw.text_rect_blend(
                         buffer.pixels_mut(),
                         &rect.to_buffer_utuple(),
                         stride,
                         font,
-                        grid_ctx.font_size + 10.0 * grid_ctx.zoom,
+                        grid_ctx.font_size * 2.0,
                         &self.cell.to_string(),
                         color,
                         TheHorizontalAlign::Center,
@@ -162,7 +170,12 @@ impl CellItem {
                     let r = rect.to_buffer_utuple();
                     ctx.draw.text_rect_blend(
                         buffer.pixels_mut(),
-                        &(r.0, r.1, r.2, r.3 - 10),
+                        &(
+                            r.0,
+                            r.1,
+                            r.2,
+                            r.3 - if self.description.is_empty() { 0 } else { 10 },
+                        ),
                         stride,
                         font,
                         grid_ctx.font_size,
@@ -263,6 +276,15 @@ impl CellItem {
                     size.x = ctx.draw.get_text_size(font, grid_ctx.font_size, "=").0 as u32 + 20;
                 }
             }
+            If | Comparison(_) => {
+                if let Some(font) = &ctx.ui.font {
+                    size.x = ctx
+                        .draw
+                        .get_text_size(font, grid_ctx.font_size * 2.0, &self.cell.to_string())
+                        .0 as u32
+                        + 10;
+                }
+            }
             LeftParent | RightParent => {
                 if let Some(font) = &ctx.ui.font {
                     size.x = ctx
@@ -334,6 +356,22 @@ impl CellItem {
                 );
                 nodeui.add_item(item);
             }
+            Comparison(op) => {
+                let item = TheNodeUIItem::Selector(
+                    "cgfxComparisonOp".into(),
+                    "Operator".into(),
+                    "Set the comparison operator".into(),
+                    vec![
+                        "==".to_string(),
+                        "<=".to_string(),
+                        ">=".to_string(),
+                        "<".to_string(),
+                        ">".to_string(),
+                    ],
+                    op.to_index() as i32,
+                );
+                nodeui.add_item(item);
+            }
             _ => {}
         }
 
@@ -380,6 +418,13 @@ impl CellItem {
                     *v = if val == 0 { true } else { false };
                 }
             }
+            Comparison(op) => {
+                if let Some(val) = value.to_i32() {
+                    if let Some(o) = ComparisonOp::from_index(val as usize) {
+                        *op = o;
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -394,7 +439,7 @@ impl CellItem {
                     grid.insert((pos.0 + 2, pos.1), CellItem::new(Cell::Integer("0".into())));
                 }
             }
-            Cell::Comparison => {
+            Cell::Comparison(_) => {
                 if pos.0 == 0 {
                     grid.insert((pos.0, pos.1), CellItem::new(Cell::If));
                     grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::Integer("0".into())));
@@ -443,22 +488,7 @@ impl CellItem {
             return self.cell.to_string() + "(";
         }
 
-        match &self.cell {
-            Variable(var_name) => var_name.clone(),
-            Integer(value) | Float(value) => value.clone(),
-            Boolean(value) => {
-                if *value {
-                    "True".into()
-                } else {
-                    "False".into()
-                }
-            }
-            Str(value) => format!("\"{}\"", value),
-            LeftParent => "(".into(),
-            RightParent => ")".into(),
-            Assignment => "=".into(),
-            _ => "".into(),
-        }
+        self.cell.to_string()
     }
 
     /// Checks if the string is a valid python variable name

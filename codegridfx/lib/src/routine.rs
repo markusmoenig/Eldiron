@@ -277,7 +277,20 @@ impl Routine {
         for row in rows {
             let mut row_code = String::new();
 
-            for (item, pos) in row {
+            let mut is_if = false;
+            let mut ind = indent;
+
+            for (index, (item, pos)) in row.iter().enumerate() {
+                if index == 0 {
+                    if matches!(item.cell, Cell::If) {
+                        is_if = true;
+                    }
+
+                    if let Some(i) = self.grid.row_indents.get(&pos.1) {
+                        ind += *i as usize * 4;
+                    }
+                }
+
                 row_code += &item.code();
                 if !item.description.is_empty() {
                     // Check if we need to insert a "," or ")"
@@ -291,9 +304,19 @@ impl Routine {
                         row_code += ") ";
                     }
                 }
-                row_code += " ";
+
+                if index == row.len() - 1 {
+                    if is_if {
+                        row_code += ":";
+                    } else {
+                        row_code += " ";
+                    }
+                } else {
+                    row_code += " ";
+                }
             }
-            *out += &format!("{:indent$}{}\n", "", row_code);
+
+            *out += &format!("{:ind$}{}\n", "", row_code);
         }
     }
 }

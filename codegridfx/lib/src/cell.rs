@@ -2,6 +2,46 @@
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum ComparisonOp {
+    Equal,
+    LessEqual,
+    GreaterEqual,
+    Less,
+    Greater,
+}
+impl ComparisonOp {
+    pub fn from_index(idx: usize) -> Option<Self> {
+        match idx {
+            0 => Some(ComparisonOp::Equal),
+            1 => Some(ComparisonOp::LessEqual),
+            2 => Some(ComparisonOp::GreaterEqual),
+            3 => Some(ComparisonOp::Less),
+            4 => Some(ComparisonOp::Greater),
+            _ => None,
+        }
+    }
+
+    pub fn to_index(&self) -> usize {
+        match self {
+            ComparisonOp::Equal => 0,
+            ComparisonOp::LessEqual => 1,
+            ComparisonOp::GreaterEqual => 2,
+            ComparisonOp::Less => 3,
+            ComparisonOp::Greater => 4,
+        }
+    }
+    pub fn to_string(&self) -> &'static str {
+        match self {
+            ComparisonOp::Equal => "==",
+            ComparisonOp::LessEqual => "<=",
+            ComparisonOp::GreaterEqual => ">=",
+            ComparisonOp::Less => "<",
+            ComparisonOp::Greater => ">",
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum Cell {
     Empty,
     Variable(String),
@@ -10,7 +50,7 @@ pub enum Cell {
     Str(String),
     Boolean(bool),
     Assignment,
-    Comparison,
+    Comparison(ComparisonOp),
     If,
 
     GetAttr,
@@ -53,7 +93,7 @@ impl Cell {
             "String" => Some(Cell::Str("".into())),
             "Boolean" => Some(Cell::Boolean(true)),
             "Assignment" => Some(Cell::Assignment),
-            "Comparison" => Some(Cell::Comparison),
+            "Comparison" => Some(Cell::Comparison(ComparisonOp::Equal)),
             "If" => Some(Cell::If),
 
             "get_attr" => Some(Cell::GetAttr),
@@ -76,6 +116,7 @@ impl Cell {
             Str(value) => format!("\"{}\"", value),
 
             Assignment => "=".into(),
+            Comparison(op) => op.to_string().to_string(),
             If => "if".into(),
 
             GetAttr => "get_attr".into(),
@@ -90,7 +131,7 @@ impl Cell {
     pub fn role(&self) -> CellRole {
         match &self {
             Variable(_) | Integer(_) | Float(_) | Str(_) | Boolean(_) => CellRole::Value,
-            Assignment | Comparison | If => CellRole::Operator,
+            Assignment | Comparison(_) | If => CellRole::Operator,
             GetAttr | SetAttr => CellRole::Function,
 
             _ => CellRole::None,
