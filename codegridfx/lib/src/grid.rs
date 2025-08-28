@@ -1,4 +1,4 @@
-use crate::{Cell, CellItem, GridCtx};
+use crate::{Cell, CellItem, CellRole, GridCtx};
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -20,8 +20,23 @@ impl Grid {
         }
     }
 
+    /// Insert a cell item at the given location.
     pub fn insert(&mut self, at: (u32, u32), item: CellItem) {
         self.grid.insert(at, item);
+    }
+
+    /// Checks the cell role at the given position / offset
+    pub fn is_role_at(&self, at: (u32, u32), x_offset: i32, role: CellRole) -> bool {
+        if at.0 as i32 + x_offset < 0 {
+            return false;
+        }
+
+        if let Some(item) = self.grid.get(&((at.0 as i32 + x_offset) as u32, at.1)) {
+            if item.cell.role() == role {
+                return true;
+            }
+        }
+        false
     }
 
     /// Make sure there is an empty cell at the end of each row and at the bottom row.

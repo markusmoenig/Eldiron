@@ -79,7 +79,7 @@ impl TheTrait for CodeEditor {
                     TheEvent::StateChanged(id, _) => {
                         if id.name == "Build" {
                             println!("Build");
-                            let code = self.module.build();
+                            let code = self.module.build(true);
                             println!("{}", code);
                         }
                     }

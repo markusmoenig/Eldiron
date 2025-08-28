@@ -171,8 +171,37 @@ impl Routine {
                 let mut item = CellItem::new(cell);
                 let mut insert = true;
 
+                // Only accept Cells to be dropped on cells with the same role
                 if old_item.cell.role() != item.cell.role() && old_item.cell != Cell::Empty {
                     insert = false;
+                }
+
+                // But allow functions on values
+                if old_item.cell.role() == CellRole::Value && item.cell.role() == CellRole::Function
+                {
+                    insert = true;
+                }
+
+                // Arithmetic ops can be dropped on empty positions if the left is value | fn
+                if matches!(item.cell, Cell::Arithmetic(_)) && old_item.cell == Cell::Empty {
+                    if self.grid.is_role_at(pos, -1, CellRole::Value)
+                        || self.grid.is_role_at(pos, -1, CellRole::Function)
+                    {
+                        insert = true;
+                    } else {
+                        insert = false;
+                    }
+                }
+
+                // Arithmetic ops can be dropped on empty positions if the left is value | fn
+                if (item.cell.role() == CellRole::Value || item.cell.role() == CellRole::Function)
+                    && old_item.cell == Cell::Empty
+                {
+                    if self.grid.is_role_at(pos, -1, CellRole::Operator) {
+                        insert = true;
+                    } else {
+                        insert = false;
+                    }
                 }
 
                 if insert {
@@ -267,7 +296,7 @@ impl Routine {
     }
 
     /// Build the routine into Python source
-    pub fn build(&self, out: &mut String, indent: usize) {
+    pub fn build(&self, out: &mut String, indent: usize, debug: bool) {
         let mut indent = indent;
 
         *out += &format!("{:indent$}if event == \"{}\":\n", "", self.name);
@@ -289,6 +318,11 @@ impl Routine {
                     if let Some(i) = self.grid.row_indents.get(&pos.1) {
                         ind += *i as usize * 4;
                     }
+                }
+
+                // Add debug code
+                if debug && item.cell.role() == CellRole::Function {
+                    row_code += &format!("set_debug_loc({}, {}); ", pos.0, pos.1);
                 }
 
                 row_code += &item.code();

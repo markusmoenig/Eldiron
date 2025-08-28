@@ -169,7 +169,8 @@ impl Tool for CodeTool {
                 if id.name == "Build" && *state == TheWidgetState::Clicked {
                     if self.use_python == false {
                         // Build the node code.
-                        let code = CODEGRIDFX.read().unwrap().build();
+                        let code = CODEGRIDFX.read().unwrap().build(false);
+                        let debug_code = CODEGRIDFX.read().unwrap().build(true);
                         ui.set_widget_value("CodeEdit", ctx, TheValue::Text(code.clone()));
                         match server_ctx.cc {
                             ContentContext::CharacterInstance(uuid) => {
@@ -180,17 +181,20 @@ impl Tool for CodeTool {
                                         region.characters.get_mut(&uuid)
                                     {
                                         character_instance.source = code;
+                                        character_instance.source_debug = debug_code;
                                     }
                                 }
                             }
                             ContentContext::CharacterTemplate(uuid) => {
                                 if let Some(character) = project.characters.get_mut(&uuid) {
                                     character.source = code;
+                                    character.source_debug = debug_code;
                                 }
                             }
                             ContentContext::ItemTemplate(uuid) => {
                                 if let Some(item) = project.items.get_mut(&uuid) {
                                     item.source = code;
+                                    item.source_debug = debug_code;
                                 }
                             }
                             _ => {}

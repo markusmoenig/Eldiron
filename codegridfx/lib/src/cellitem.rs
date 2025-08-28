@@ -1,6 +1,6 @@
 use crate::{
     Cell, Grid, GridCtx,
-    cell::{CellRole, ComparisonOp},
+    cell::{ArithmeticOp, CellRole, ComparisonOp},
 };
 use theframework::prelude::*;
 
@@ -127,7 +127,7 @@ impl CellItem {
                     }
                 }
             }
-            Cell::Assignment | Cell::Comparison(_) | Cell::If => {
+            Cell::Assignment | Cell::Comparison(_) | Cell::If | Arithmetic(_) => {
                 if let Some(font) = &ctx.ui.font {
                     ctx.draw.text_rect_blend(
                         buffer.pixels_mut(),
@@ -350,7 +350,7 @@ impl CellItem {
                 let item = TheNodeUIItem::Selector(
                     "cgfxValue".into(),
                     "Value".into(),
-                    "Set the value".into(),
+                    "Select the boolean value".into(),
                     vec!["True".to_string(), "False".to_string()],
                     if value { 0 } else { 1 },
                 );
@@ -360,13 +360,28 @@ impl CellItem {
                 let item = TheNodeUIItem::Selector(
                     "cgfxComparisonOp".into(),
                     "Operator".into(),
-                    "Set the comparison operator".into(),
+                    "Select the comparison operator".into(),
                     vec![
                         "==".to_string(),
                         "<=".to_string(),
                         ">=".to_string(),
                         "<".to_string(),
                         ">".to_string(),
+                    ],
+                    op.to_index() as i32,
+                );
+                nodeui.add_item(item);
+            }
+            Arithmetic(op) => {
+                let item = TheNodeUIItem::Selector(
+                    "cgfxArithmeticOp".into(),
+                    "Operator".into(),
+                    "Select the arithmetic operator".into(),
+                    vec![
+                        "+".to_string(),
+                        "-".to_string(),
+                        "*".to_string(),
+                        "/".to_string(),
                     ],
                     op.to_index() as i32,
                 );
@@ -421,6 +436,13 @@ impl CellItem {
             Comparison(op) => {
                 if let Some(val) = value.to_i32() {
                     if let Some(o) = ComparisonOp::from_index(val as usize) {
+                        *op = o;
+                    }
+                }
+            }
+            Arithmetic(op) => {
+                if let Some(val) = value.to_i32() {
+                    if let Some(o) = ArithmeticOp::from_index(val as usize) {
                         *op = o;
                     }
                 }

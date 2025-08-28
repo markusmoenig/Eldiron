@@ -3,7 +3,7 @@ use indexmap::*;
 use theframework::prelude::*;
 
 const VALUES: [&str; 5] = ["Boolean", "Float", "Integer", "String", "Variable"];
-const OPERATORS: [&str; 2] = ["Assignment", "Comparison"];
+const OPERATORS: [&str; 3] = ["Arithmetic", "Assignment", "Comparison"];
 const FUNCTIONS: [&str; 2] = ["get_attr", "set_attr"];
 
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Clone)]
@@ -463,7 +463,7 @@ impl Module {
     }
 
     /// Build the module into Python source
-    pub fn build(&self) -> String {
+    pub fn build(&self, debug: bool) -> String {
         let mut out = String::new();
 
         if self.module_type == ModuleType::CharacterTemplate
@@ -473,7 +473,7 @@ impl Module {
             out += "    def event(self, event, value):\n";
 
             for r in self.routines.values() {
-                r.build(&mut out, 8);
+                r.build(&mut out, 8, debug);
             }
         }
         out

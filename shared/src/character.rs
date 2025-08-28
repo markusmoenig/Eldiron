@@ -16,8 +16,12 @@ pub struct Character {
     #[serde(default)]
     pub module: Module,
 
-    /// The instance initialization code.
+    /// The instance initialization or template code.
     pub source: String,
+
+    /// The instance initialization or template debug code.
+    #[serde(default)]
+    pub source_debug: String,
 
     /// The attributes toml data.
     #[serde(default)]
@@ -46,6 +50,7 @@ impl Character {
 
             map: Map::default(),
             source: String::new(),
+            source_debug: String::new(),
             data: String::new(),
             position: zero(),
 

@@ -1,5 +1,42 @@
-// use crate::GridCtx;
 use theframework::prelude::*;
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum ArithmeticOp {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+}
+
+impl ArithmeticOp {
+    pub fn from_index(idx: usize) -> Option<Self> {
+        match idx {
+            0 => Some(ArithmeticOp::Add),
+            1 => Some(ArithmeticOp::Subtract),
+            2 => Some(ArithmeticOp::Multiply),
+            3 => Some(ArithmeticOp::Divide),
+            _ => None,
+        }
+    }
+
+    pub fn to_index(&self) -> usize {
+        match self {
+            ArithmeticOp::Add => 0,
+            ArithmeticOp::Subtract => 1,
+            ArithmeticOp::Multiply => 2,
+            ArithmeticOp::Divide => 3,
+        }
+    }
+
+    pub fn to_string(&self) -> &'static str {
+        match self {
+            ArithmeticOp::Add => "+",
+            ArithmeticOp::Subtract => "-",
+            ArithmeticOp::Multiply => "*",
+            ArithmeticOp::Divide => "/",
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ComparisonOp {
@@ -51,6 +88,7 @@ pub enum Cell {
     Boolean(bool),
     Assignment,
     Comparison(ComparisonOp),
+    Arithmetic(ArithmeticOp),
     If,
 
     GetAttr,
@@ -94,6 +132,7 @@ impl Cell {
             "Boolean" => Some(Cell::Boolean(true)),
             "Assignment" => Some(Cell::Assignment),
             "Comparison" => Some(Cell::Comparison(ComparisonOp::Equal)),
+            "Arithmetic" => Some(Cell::Arithmetic(ArithmeticOp::Add)),
             "If" => Some(Cell::If),
 
             "get_attr" => Some(Cell::GetAttr),
@@ -117,6 +156,7 @@ impl Cell {
 
             Assignment => "=".into(),
             Comparison(op) => op.to_string().to_string(),
+            Arithmetic(op) => op.to_string().to_string(),
             If => "if".into(),
 
             GetAttr => "get_attr".into(),

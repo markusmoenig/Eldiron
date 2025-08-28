@@ -6,7 +6,7 @@ pub mod module;
 pub mod routine;
 
 pub use crate::{
-    cell::Cell,
+    cell::{ArithmeticOp, Cell, CellRole, ComparisonOp},
     cellitem::CellItem,
     grid::Grid,
     gridctx::GridCtx,
