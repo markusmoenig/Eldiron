@@ -122,6 +122,24 @@ impl CellRole {
 use Cell::*;
 
 impl Cell {
+    pub fn description(&self) -> &'static str {
+        match self {
+            Cell::Empty => "Empty",
+            Cell::Variable(_) => "Variable",
+            Cell::Integer(_) => "Integer",
+            Cell::Float(_) => "Float",
+            Cell::Str(_) => "String",
+            Cell::Boolean(_) => "Boolean",
+            Cell::Assignment => "Assignment",
+            Cell::Comparison(_) => "Comparison",
+            Cell::Arithmetic(_) => "Arithmetic",
+            Cell::If => "If",
+            Cell::GetAttr => "Get Attribute",
+            Cell::SetAttr => "Set Attribute",
+            Cell::LeftParent => "Left Parenthesis",
+            Cell::RightParent => "Right Parenthesis",
+        }
+    }
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "Empty" => Some(Cell::Empty),

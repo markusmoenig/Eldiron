@@ -265,26 +265,28 @@ impl Module {
                 }
             }
             TheEvent::KeyCodeDown(key) => {
-                if !ui.focus_widget_supports_text_input(ctx) {
-                    if let Some(key_code) = key.to_key_code() {
-                        if key_code == TheKeyCode::Return {
-                            if let Some(sel) = self.grid_ctx.current_cell.clone() {
-                                if let Some(routine) = self.get_selected_routine_mut() {
-                                    routine.grid.return_at(sel.1);
-                                    self.grid_ctx.current_cell = Some((sel.0, sel.1 + 1));
-                                    self.redraw(ui, ctx);
-                                }
-                            }
-                        } else if key_code == TheKeyCode::Delete {
-                            if let Some(sel) = self.grid_ctx.current_cell.clone() {
-                                if let Some(routine) = self.get_selected_routine_mut() {
-                                    routine.grid.delete_at(sel.1);
-                                    if sel.1 > 0 {
-                                        self.grid_ctx.current_cell = Some((sel.0, sel.1 - 1));
-                                    } else {
-                                        self.grid_ctx.current_cell = Some((sel.0, 0));
+                if let Some(focus) = &ctx.ui.focus {
+                    if focus.name == "ModuleView" {
+                        if let Some(key_code) = key.to_key_code() {
+                            if key_code == TheKeyCode::Return {
+                                if let Some(sel) = self.grid_ctx.current_cell.clone() {
+                                    if let Some(routine) = self.get_selected_routine_mut() {
+                                        routine.grid.return_at(sel.1);
+                                        self.grid_ctx.current_cell = Some((sel.0, sel.1 + 1));
+                                        self.redraw(ui, ctx);
                                     }
-                                    self.redraw(ui, ctx);
+                                }
+                            } else if key_code == TheKeyCode::Delete {
+                                if let Some(sel) = self.grid_ctx.current_cell.clone() {
+                                    if let Some(routine) = self.get_selected_routine_mut() {
+                                        routine.grid.delete_at(sel.1);
+                                        if sel.1 > 0 {
+                                            self.grid_ctx.current_cell = Some((sel.0, sel.1 - 1));
+                                        } else {
+                                            self.grid_ctx.current_cell = Some((sel.0, 0));
+                                        }
+                                        self.redraw(ui, ctx);
+                                    }
                                 }
                             }
                         }
@@ -323,6 +325,7 @@ impl Module {
                         }
                     }
                 } else if id.name.starts_with("cgfx") {
+                    let prev = self.to_json();
                     for r in self.routines.values_mut() {
                         if Some(r.id) == self.grid_ctx.selected_routine {
                             if let Some(coord) = self.grid_ctx.current_cell {
@@ -336,6 +339,11 @@ impl Module {
                     if let Some(renderview) = ui.get_render_view("ModuleView") {
                         self.draw(renderview.render_buffer_mut());
                     }
+                    ctx.ui.send(TheEvent::CustomUndo(
+                        TheId::named("ModuleUndo"),
+                        prev,
+                        self.to_json(),
+                    ));
                 }
             }
             TheEvent::DragStarted(id, text, offset) => {
@@ -474,6 +482,37 @@ impl Module {
         redraw
     }
 
+    /// Show the current settings
+    pub fn show_settings(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext) {
+        return;
+        /*
+        let mut handled = false;
+        for r in self.routines.values() {
+            if Some(r.id) == self.grid_ctx.selected_routine {
+                if let Some(pos) = self.grid_ctx.current_cell {
+                    if let Some(item) = r.grid.grid.get(&pos) {
+                        let nodeui: TheNodeUI = item.create_settings();
+                        if let Some(layout) = ui.get_text_layout("Node Settings") {
+                            nodeui.apply_to_text_layout(layout);
+                            ctx.ui.relayout = true;
+
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Show Node Settings"),
+                                TheValue::Text(format!("{} Settings", item.cell.description())),
+                            ));
+
+                            handled = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if !handled {
+            self.show_event_settings(ui, ctx);
+        }*/
+    }
+
     /// Show the settings for the current event.
     fn show_event_settings(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         let mut name = "".into();
@@ -487,7 +526,7 @@ impl Module {
             "cgfxEventName".into(),
             "Event Name".into(),
             "Set the event name.".into(),
-            name,
+            name.clone(),
             None,
             false,
         );
@@ -496,6 +535,11 @@ impl Module {
         if let Some(layout) = ui.get_text_layout("Node Settings") {
             nodeui.apply_to_text_layout(layout);
             ctx.ui.relayout = true;
+
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Show Node Settings"),
+                TheValue::Text(format!("\"{}\" Settings", name)),
+            ));
         }
     }
 

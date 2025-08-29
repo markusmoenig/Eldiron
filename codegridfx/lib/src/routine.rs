@@ -225,6 +225,11 @@ impl Routine {
                 if let Some(layout) = ui.get_text_layout("Node Settings") {
                     nodeui.apply_to_text_layout(layout);
                     ctx.ui.relayout = true;
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Show Node Settings"),
+                        TheValue::Text(format!("{} Settings", item.cell.description())),
+                    ));
                 }
             }
 
@@ -263,6 +268,11 @@ impl Routine {
                             if let Some(layout) = ui.get_text_layout("Node Settings") {
                                 nodeui.apply_to_text_layout(layout);
                                 ctx.ui.relayout = true;
+
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Show Node Settings"),
+                                    TheValue::Text(format!("{} Settings", cell.cell.description())),
+                                ));
                             }
 
                             self.draw(ctx, grid_ctx);

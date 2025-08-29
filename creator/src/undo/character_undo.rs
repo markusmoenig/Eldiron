@@ -34,6 +34,7 @@ impl CharacterUndoAtom {
                 if let Some(character) = project.characters.get_mut(id) {
                     character.module = prev.clone();
                     character.module.redraw(ui, ctx);
+                    character.module.show_settings(ui, ctx);
                 }
             }
         }
@@ -62,6 +63,7 @@ impl CharacterUndoAtom {
                 if let Some(character) = project.characters.get_mut(id) {
                     character.module = next.clone();
                     character.module.redraw(ui, ctx);
+                    character.module.show_settings(ui, ctx);
                 }
             }
         }
