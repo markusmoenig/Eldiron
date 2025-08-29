@@ -467,12 +467,26 @@ impl CellItem {
                     grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::Integer("0".into())));
                     grid.insert((pos.0 + 2, pos.1), self);
                     grid.insert((pos.0 + 3, pos.1), CellItem::new(Cell::Integer("0".into())));
-
                     grid.insert((pos.0, pos.1 + 1), CellItem::new(Cell::Empty));
-                    grid.row_indents.insert(pos.1 + 1, 1);
 
-                    grid.insert((pos.0, pos.1 + 2), CellItem::new(Cell::Empty));
-                    grid.row_indents.insert(pos.1 + 2, 0);
+                    let mut indent = 1;
+                    if let Some(ind) = grid.row_indents.get(&pos.1) {
+                        indent += *ind;
+                    }
+                    grid.row_indents.insert(pos.1 + 1, indent);
+
+                    if indent == 2 {
+                        grid.row_indents.insert(pos.1 + 2, 1);
+
+                        grid.insert((pos.0, pos.1 + 3), CellItem::new(Cell::Empty));
+                        grid.row_indents.insert(pos.1 + 3, 1);
+
+                        grid.insert((pos.0, pos.1 + 4), CellItem::new(Cell::Empty));
+                        grid.row_indents.insert(pos.1 + 4, 0);
+                    } else {
+                        grid.insert((pos.0, pos.1 + 2), CellItem::new(Cell::Empty));
+                        grid.row_indents.insert(pos.1 + 2, 0);
+                    }
                 }
             }
             Cell::SetAttr => {

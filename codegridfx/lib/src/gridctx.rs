@@ -12,6 +12,8 @@ pub struct GridCtx {
     pub large_font_size: f32,
     pub zoom: f32,
 
+    pub offset_y: i32,
+
     // Grid Colors
     pub background_color: [u8; 4],
     pub normal_color: [u8; 4],
@@ -40,6 +42,8 @@ impl GridCtx {
             font_size: 12.5,
             large_font_size: 14.0,
             zoom: 1.0,
+
+            offset_y: 0,
 
             background_color: [0; 4],
             normal_color: [0; 4],

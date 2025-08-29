@@ -221,3 +221,28 @@ pub fn hex_to_rgba_u8(hex: &str) -> [u8; 4] {
         _ => [255, 255, 255, 255],
     }
 }
+
+/// Checks if the string is a valid python variable name
+pub fn is_valid_python_variable(name: &str) -> bool {
+    // Must not be empty, must start with a letter or underscore, and only contain letters, digits, or underscores
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' => (),
+        _ => return false,
+    }
+    if name.is_empty() {
+        return false;
+    }
+    if name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        // Python keywords are not valid variable names
+        const PYTHON_KEYWORDS: &[&str] = &[
+            "False", "None", "True", "and", "as", "assert", "break", "class", "continue", "def",
+            "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import",
+            "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try",
+            "while", "with", "yield",
+        ];
+        !PYTHON_KEYWORDS.contains(&name)
+    } else {
+        false
+    }
+}

@@ -12,6 +12,8 @@ pub struct Routine {
     pub folded: bool,
 
     pub screen_width: u32,
+
+    #[serde(skip)]
     pub buffer: TheRGBABuffer,
 
     pub grid: Grid,
@@ -193,7 +195,7 @@ impl Routine {
                     }
                 }
 
-                // Arithmetic ops can be dropped on empty positions if the left is value | fn
+                // Values / fns can be dropped on an empty cell if an arithmetic op is on the left.
                 if (item.cell.role() == CellRole::Value || item.cell.role() == CellRole::Function)
                     && old_item.cell == Cell::Empty
                 {

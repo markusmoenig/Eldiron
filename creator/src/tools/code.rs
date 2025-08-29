@@ -170,6 +170,7 @@ impl Tool for CodeTool {
                     if self.use_python == false {
                         // Build the node code.
                         let code = CODEGRIDFX.read().unwrap().build(false);
+                        println!("{}", code);
                         let debug_code = CODEGRIDFX.read().unwrap().build(true);
                         ui.set_widget_value("CodeEdit", ctx, TheValue::Text(code.clone()));
                         match server_ctx.cc {

@@ -1,11 +1,13 @@
 use crate::editor::NODEEDITOR;
 use crate::prelude::*;
+use codegridfxlib::Module;
 use theframework::prelude::*;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ItemUndoAtom {
     MapEdit(Box<Map>, Box<Map>),
+    ModuleEdit(Uuid, Module, Module),
 }
 
 impl ItemUndoAtom {
@@ -23,6 +25,12 @@ impl ItemUndoAtom {
                     .unwrap()
                     .set_selected_node_ui(project, ui, ctx, false);
             }
+            ItemUndoAtom::ModuleEdit(id, prev, _) => {
+                if let Some(character) = project.items.get_mut(id) {
+                    character.module = prev.clone();
+                    character.module.redraw(ui, ctx);
+                }
+            }
         }
     }
     pub fn redo(&self, project: &mut Project, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -38,6 +46,12 @@ impl ItemUndoAtom {
                     .write()
                     .unwrap()
                     .set_selected_node_ui(project, ui, ctx, false);
+            }
+            ItemUndoAtom::ModuleEdit(id, _, next) => {
+                if let Some(character) = project.items.get_mut(id) {
+                    character.module = next.clone();
+                    character.module.redraw(ui, ctx);
+                }
             }
         }
     }

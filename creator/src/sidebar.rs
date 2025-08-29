@@ -1152,6 +1152,20 @@ impl Sidebar {
                         region.map.name = value.describe();
                         ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
                     }
+                } else if name == "Rename Character" && *role == TheDialogButtonRole::Accept {
+                    if crate::utils::is_valid_python_variable(&value.describe()) {
+                        if let Some(character) = project.characters.get_mut(uuid) {
+                            character.name = value.describe();
+                            ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
+                        }
+                    }
+                } else if name == "Rename Item" && *role == TheDialogButtonRole::Accept {
+                    if crate::utils::is_valid_python_variable(&value.describe()) {
+                        if let Some(item) = project.items.get_mut(uuid) {
+                            item.name = value.describe();
+                            ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
+                        }
+                    }
                 }
                 /*else if name == "Rename Module" && *role == TheDialogButtonRole::Accept {
                     if let Some(bundle) = project.codes.get_mut(uuid) {
@@ -1285,7 +1299,29 @@ impl Sidebar {
                         );
                     }
                 }*/
-                else if item_id.name == "Rename Screen" {
+                else if item_id.name == "Rename Character" {
+                    if let Some(character) = project.characters.get(&widget_id.uuid) {
+                        open_text_dialog(
+                            "Rename Character",
+                            "Character Class",
+                            &character.name,
+                            widget_id.uuid,
+                            ui,
+                            ctx,
+                        );
+                    }
+                } else if item_id.name == "Rename Item" {
+                    if let Some(item) = project.items.get(&widget_id.uuid) {
+                        open_text_dialog(
+                            "Rename Item",
+                            "Item Class",
+                            &item.name,
+                            widget_id.uuid,
+                            ui,
+                            ctx,
+                        );
+                    }
+                } else if item_id.name == "Rename Screen" {
                     if let Some(screen) = project.screens.get(&widget_id.uuid) {
                         open_text_dialog(
                             "Rename Screen",
@@ -1881,6 +1917,13 @@ impl Sidebar {
                         item.set_state(TheWidgetState::Selected);
                         list_layout.deselect_all();
                         let id = item.id().clone();
+                        item.set_context_menu(Some(TheContextMenu {
+                            items: vec![TheContextMenuItem::new(
+                                "Rename Character...".to_string(),
+                                TheId::named("Rename Character"),
+                            )],
+                            ..Default::default()
+                        }));
                         list_layout.add_item(item, ctx);
                         ctx.ui
                             .send_widget_state_changed(&id, TheWidgetState::Selected);
@@ -1932,6 +1975,13 @@ impl Sidebar {
                         item.set_state(TheWidgetState::Selected);
                         list_layout.deselect_all();
                         let id = item.id().clone();
+                        item.set_context_menu(Some(TheContextMenu {
+                            items: vec![TheContextMenuItem::new(
+                                "Rename Item...".to_string(),
+                                TheId::named("Rename Item"),
+                            )],
+                            ..Default::default()
+                        }));
                         list_layout.add_item(item, ctx);
                         ctx.ui
                             .send_widget_state_changed(&id, TheWidgetState::Selected);
@@ -2483,6 +2533,13 @@ impl Sidebar {
             for (id, name) in list {
                 let mut item = TheListItem::new(TheId::named_with_id("Character Item", id));
                 item.set_text(name);
+                item.set_context_menu(Some(TheContextMenu {
+                    items: vec![TheContextMenuItem::new(
+                        "Rename Character...".to_string(),
+                        TheId::named("Rename Character"),
+                    )],
+                    ..Default::default()
+                }));
                 list_layout.add_item(item, ctx);
             }
         }
@@ -2493,6 +2550,13 @@ impl Sidebar {
             for (id, name) in list {
                 let mut item = TheListItem::new(TheId::named_with_id("Item Item", id));
                 item.set_text(name);
+                item.set_context_menu(Some(TheContextMenu {
+                    items: vec![TheContextMenuItem::new(
+                        "Rename Item...".to_string(),
+                        TheId::named("Rename Item"),
+                    )],
+                    ..Default::default()
+                }));
                 list_layout.add_item(item, ctx);
             }
         }
@@ -2644,28 +2708,6 @@ impl Sidebar {
                 .set_module_type(ModuleType::CharacterTemplate);
             CODEGRIDFX.write().unwrap().redraw(ui, ctx);
         }
-        /*
-        // Set the character bundle.
-        if let Some(character) = character {
-            let char_list_canvas: TheCanvas =
-                CODEEDITOR
-                    .lock()
-                    .unwrap()
-                    .set_bundle(character.clone(), ctx, self.width, None);
-            CODEEDITOR.lock().unwrap().code_id = str!("Character");
-
-            if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
-                if let Some(canvas) = stack_layout.canvas_at_mut(1) {
-                    canvas.set_bottom(char_list_canvas);
-                }
-            }
-        } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
-            if let Some(canvas) = stack_layout.canvas_at_mut(1) {
-                let mut empty = TheCanvas::new();
-                empty.set_layout(TheListLayout::new(TheId::empty()));
-                canvas.set_bottom(empty);
-            }
-        }*/
 
         ctx.ui.relayout = true;
     }

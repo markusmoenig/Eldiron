@@ -174,12 +174,12 @@ impl Module {
     pub fn draw(&mut self, buffer: &mut TheRGBABuffer) {
         buffer.fill(self.grid_ctx.background_color);
 
-        let mut y: u32 = 0;
+        let mut y: i32 = self.grid_ctx.offset_y;
         for r in self.routines.values_mut() {
-            if y < buffer.dim().height as u32 {
+            if y < buffer.dim().height {
                 buffer.copy_into(0, y as i32, &r.buffer);
-                r.module_offset = y;
-                y += r.buffer.dim().height as u32;
+                r.module_offset = y as u32;
+                y += r.buffer.dim().height;
 
                 r.visible = true;
             } else {
@@ -234,6 +234,34 @@ impl Module {
                     }
 
                     redraw = true;
+                }
+            }
+            TheEvent::RenderViewScrollBy(id, coord) => {
+                if id.name == "ModuleView" {
+                    if let Some(renderview) = ui.get_render_view("ModuleView") {
+                        let view_port_height = renderview.dim().height;
+                        let total_height = self.height();
+
+                        self.grid_ctx.offset_y -= coord.y;
+                        // Clamp offset_y so content stays within the visible area
+                        let vp_h_i32 = view_port_height as i32;
+                        let total_h_i32 = total_height as i32;
+                        if total_h_i32 <= vp_h_i32 {
+                            // Content fits entirely; lock to top
+                            self.grid_ctx.offset_y = 0;
+                        } else {
+                            // Allowed range: [-(total - viewport), 0]
+                            let min_offset = vp_h_i32 - total_h_i32; // negative value
+                            let max_offset = 0;
+                            if self.grid_ctx.offset_y < min_offset {
+                                self.grid_ctx.offset_y = min_offset;
+                            }
+                            if self.grid_ctx.offset_y > max_offset {
+                                self.grid_ctx.offset_y = max_offset;
+                            }
+                        }
+                        self.draw(renderview.render_buffer_mut());
+                    }
                 }
             }
             TheEvent::KeyCodeDown(key) => {
@@ -326,6 +354,8 @@ impl Module {
                 // println!("{}, {}", coord, drop.title);
                 let mut handled = false;
 
+                let prev = self.to_json();
+
                 if drop.title == "Event" {
                     let routine = Routine::new("custom".into(), "".into());
 
@@ -359,6 +389,13 @@ impl Module {
                         TheId::named("Module Changed"),
                         TheValue::Empty,
                     ));
+
+                    ctx.ui.send(TheEvent::CustomUndo(
+                        TheId::named("ModuleUndo"),
+                        prev,
+                        self.to_json(),
+                    ));
+
                     redraw = true;
                 }
             }
@@ -462,6 +499,15 @@ impl Module {
         }
     }
 
+    /// Returns the total height
+    fn height(&self) -> u32 {
+        let mut height = 0;
+        for r in self.routines.values() {
+            height += r.buffer.dim().height as u32;
+        }
+        height
+    }
+
     /// Build the module into Python source
     pub fn build(&self, debug: bool) -> String {
         let mut out = String::new();
@@ -477,5 +523,16 @@ impl Module {
             }
         }
         out
+    }
+
+    /// Load a module from a JSON string.
+    pub fn from_json(json: &str) -> Self {
+        let module: Module = serde_json::from_str(json).unwrap_or_default();
+        module
+    }
+
+    /// Convert the module to a JSON string.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self).unwrap_or_default()
     }
 }

@@ -2,6 +2,8 @@ use crate::Embedded;
 use crate::prelude::*;
 use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
+use crate::undo::character_undo::CharacterUndoAtom;
+use crate::undo::item_undo::ItemUndoAtom;
 use codegridfxlib::Module;
 use rusterix::{
     PlayerCamera, Rusterix, SceneManager, SceneManagerResult, Texture, Value, ValueContainer,
@@ -1184,6 +1186,24 @@ impl TheTrait for Editor {
                 }
                 // println!("event: {:?}", event);
                 match event {
+                    TheEvent::CustomUndo(id, p, n) => {
+                        if id.name == "ModuleUndo" {
+                            let prev = Module::from_json(&p);
+                            let next = Module::from_json(&n);
+                            match self.server_ctx.cc {
+                                ContentContext::CharacterTemplate(id) => {
+                                    let atom = CharacterUndoAtom::ModuleEdit(id, prev, next);
+                                    UNDOMANAGER.write().unwrap().add_character_undo(atom, ctx);
+                                }
+                                ContentContext::ItemTemplate(id) => {
+                                    let atom: ItemUndoAtom =
+                                        ItemUndoAtom::ModuleEdit(id, prev, next);
+                                    UNDOMANAGER.write().unwrap().add_item_undo(atom, ctx);
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                     TheEvent::LostHover(id) => {
                         if id.name == "Main Tile Picker RGBA Layout View" {
                             self.server_ctx.tile_preview_mode = false;
