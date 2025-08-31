@@ -201,7 +201,20 @@ impl CellItem {
                     }
                 }
             }
-            Cell::GetAttr | Cell::SetAttr => {
+            Empty => {
+                let mut shrinker = TheDimShrinker::zero();
+                shrinker.shrink(4);
+                ctx.draw.rounded_rect_with_border(
+                    buffer.pixels_mut(),
+                    &rect.to_buffer_shrunk_utuple(&shrinker),
+                    stride,
+                    &grid_ctx.background_color,
+                    &self.rounding(rounding),
+                    &color,
+                    1.5,
+                );
+            }
+            _ => {
                 if let Some(font) = &ctx.ui.font {
                     ctx.draw.rounded_rect(
                         buffer.pixels_mut(),
@@ -223,19 +236,6 @@ impl CellItem {
                         TheVerticalAlign::Center,
                     );
                 }
-            }
-            Empty => {
-                let mut shrinker = TheDimShrinker::zero();
-                shrinker.shrink(4);
-                ctx.draw.rounded_rect_with_border(
-                    buffer.pixels_mut(),
-                    &rect.to_buffer_shrunk_utuple(&shrinker),
-                    stride,
-                    &grid_ctx.background_color,
-                    &self.rounding(rounding),
-                    &color,
-                    1.5,
-                );
             } // _ => {
               //     buffer.draw_rect_outline(
               //         rect,
@@ -294,7 +294,8 @@ impl CellItem {
                         + 10;
                 }
             }
-            GetAttr | SetAttr => {
+            Empty => {}
+            _ => {
                 if let Some(font) = &ctx.ui.font {
                     size.x = ctx
                         .draw
@@ -303,7 +304,6 @@ impl CellItem {
                         + 20;
                 }
             }
-            _ => {}
         }
         size
     }
@@ -488,6 +488,69 @@ impl CellItem {
                         grid.row_indents.insert(pos.1 + 2, 0);
                     }
                 }
+            }
+            Cell::AddItem => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Str("".into()),
+                        self.id,
+                        false,
+                        "Item Name",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
+            Cell::GetAttr => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Str("attr".into()),
+                        self.id,
+                        false,
+                        "Attribute Name",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
+            Cell::RandomWalkInSector => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Float("1.0".into()),
+                        self.id,
+                        true,
+                        "Distance",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 2, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Float("1.0".into()),
+                        self.id,
+                        true,
+                        "Speed",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 3, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Integer("1".into()),
+                        self.id,
+                        true,
+                        "Max Sleep",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
             }
             Cell::SetAttr => {
                 grid.insert(

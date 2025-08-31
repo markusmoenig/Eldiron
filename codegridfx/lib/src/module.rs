@@ -1,10 +1,10 @@
-use crate::{GridCtx, Routine, cell::CellRole};
+use crate::{Cell, GridCtx, Routine, cell::CellRole};
 use indexmap::*;
 use theframework::prelude::*;
 
 const VALUES: [&str; 5] = ["Boolean", "Float", "Integer", "String", "Variable"];
 const OPERATORS: [&str; 3] = ["Arithmetic", "Assignment", "Comparison"];
-const FUNCTIONS: [&str; 2] = ["get_attr", "set_attr"];
+const FUNCTIONS: [&str; 4] = ["add_item", "get_attr", "random_walk_in_sector", "set_attr"];
 
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Clone)]
 pub enum ModuleType {
@@ -100,7 +100,7 @@ impl Module {
         list_canvas.set_top(list_toolbar_canvas);
 
         let mut code_layout = TheListLayout::new(TheId::named("Code Editor Code List"));
-        code_layout.limiter_mut().set_max_width(150);
+        code_layout.limiter_mut().set_max_width(180);
 
         self.build_item_list(&mut code_layout, ctx);
         // code_layout.select_first_item(ctx);
@@ -166,6 +166,9 @@ impl Module {
                 item.set_text(item_name.to_string());
                 item.set_associated_layout(list.id().clone());
                 item.set_background_color(TheColor::from(color));
+                if let Some(cell) = Cell::from_str(item_name) {
+                    item.set_status_text(&cell.status());
+                }
                 list.add_item(item, ctx);
             }
         }

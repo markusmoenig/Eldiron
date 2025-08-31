@@ -206,6 +206,11 @@ impl Routine {
                     }
                 }
 
+                // Insert a function
+                if item.cell.role() == CellRole::Function && pos.0 == 0 {
+                    insert = true;
+                }
+
                 if insert {
                     if item.cell.role() == CellRole::Value {
                         item.description = old_item.description.clone();
@@ -315,6 +320,12 @@ impl Routine {
         indent += 4;
 
         let rows = self.grid.grid_by_rows();
+
+        // If empty just add a "pass" statement
+        if rows.len() <= 1 {
+            *out += &format!("{:indent$}pass\n", "");
+        }
+
         for row in rows {
             let mut row_code = String::new();
 

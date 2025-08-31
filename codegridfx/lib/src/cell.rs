@@ -91,7 +91,10 @@ pub enum Cell {
     Arithmetic(ArithmeticOp),
     If,
 
+    AddItem,
     GetAttr,
+    RandomWalkInSector,
+
     SetAttr,
 
     LeftParent,
@@ -134,7 +137,9 @@ impl Cell {
             Cell::Comparison(_) => "Comparison",
             Cell::Arithmetic(_) => "Arithmetic",
             Cell::If => "If",
+            Cell::AddItem => "Add Item",
             Cell::GetAttr => "Get Attribute",
+            Cell::RandomWalkInSector => "Random Walk",
             Cell::SetAttr => "Set Attribute",
             Cell::LeftParent => "Left Parenthesis",
             Cell::RightParent => "Right Parenthesis",
@@ -153,7 +158,9 @@ impl Cell {
             "Arithmetic" => Some(Cell::Arithmetic(ArithmeticOp::Add)),
             "If" => Some(Cell::If),
 
+            "add_item" => Some(Cell::AddItem),
             "get_attr" => Some(Cell::GetAttr),
+            "random_walk_in_sector" => Some(Cell::RandomWalkInSector),
             "set_attr" => Some(Cell::SetAttr),
             _ => None,
         }
@@ -177,7 +184,9 @@ impl Cell {
             Arithmetic(op) => op.to_string().to_string(),
             If => "if".into(),
 
+            AddItem => "add_item".into(),
             GetAttr => "get_attr".into(),
+            RandomWalkInSector => "random_walk_in_sector".into(),
             SetAttr => "set_attr".into(),
 
             LeftParent => "(".into(),
@@ -186,11 +195,21 @@ impl Cell {
         }
     }
 
+    pub fn status(&self) -> String {
+        match &self {
+            AddItem => "Add an item to the inventory of the current entity.".into(),
+            GetAttr => "Get an attribute of the current entity or item.".into(),
+            RandomWalkInSector => "Randomly walk in the entities current sector.".into(),
+            SetAttr => "Set an attribute of the current entity or item.".into(),
+            _ => "".into(),
+        }
+    }
+
     pub fn role(&self) -> CellRole {
         match &self {
             Variable(_) | Integer(_) | Float(_) | Str(_) | Boolean(_) => CellRole::Value,
             Assignment | Comparison(_) | If => CellRole::Operator,
-            GetAttr | SetAttr => CellRole::Function,
+            AddItem | GetAttr | RandomWalkInSector | SetAttr => CellRole::Function,
 
             _ => CellRole::None,
         }
