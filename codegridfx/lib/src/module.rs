@@ -1,5 +1,6 @@
 use crate::{Cell, GridCtx, Routine, cell::CellRole};
 use indexmap::*;
+use rusterix::Debug;
 use theframework::prelude::*;
 
 const VALUES: [&str; 5] = ["Boolean", "Float", "Integer", "String", "Variable"];
@@ -202,7 +203,24 @@ impl Module {
             ));
             for r in self.routines.values_mut() {
                 r.set_screen_width(renderview.dim().width as u32, ctx, &self.grid_ctx);
-                r.draw(ctx, &self.grid_ctx);
+                r.draw(ctx, &self.grid_ctx, 0, None);
+            }
+            self.draw(renderview.render_buffer_mut());
+        }
+    }
+
+    pub fn redraw_debug(&mut self, ui: &mut TheUI, ctx: &TheContext, id: u32, debug: &Debug) {
+        self.get_colors(ui);
+        if let Some(renderview) = ui.get_render_view("ModuleView") {
+            *renderview.render_buffer_mut() = TheRGBABuffer::new(TheDim::new(
+                0,
+                0,
+                renderview.dim().width,
+                renderview.dim().height,
+            ));
+            for r in self.routines.values_mut() {
+                r.set_screen_width(renderview.dim().width as u32, ctx, &self.grid_ctx);
+                r.draw(ctx, &self.grid_ctx, id, Some(debug));
             }
             self.draw(renderview.render_buffer_mut());
         }
@@ -334,7 +352,7 @@ impl Module {
                             if let Some(coord) = self.grid_ctx.current_cell {
                                 if let Some(item) = r.grid.grid.get_mut(&coord) {
                                     item.apply_value(&id.name, value);
-                                    r.draw(ctx, &self.grid_ctx);
+                                    r.draw(ctx, &self.grid_ctx, 0, None);
                                 }
                             }
                         }
@@ -342,6 +360,10 @@ impl Module {
                     if let Some(renderview) = ui.get_render_view("ModuleView") {
                         self.draw(renderview.render_buffer_mut());
                     }
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("ModuleChanged"),
+                        TheValue::Empty,
+                    ));
                     ctx.ui.send(TheEvent::CustomUndo(
                         TheId::named("ModuleUndo"),
                         prev,
@@ -397,7 +419,7 @@ impl Module {
                 if handled {
                     self.redraw(ui, ctx);
                     ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Module Changed"),
+                        TheId::named("ModuleChanged"),
                         TheValue::Empty,
                     ));
 
@@ -438,7 +460,7 @@ impl Module {
                                 ctx,
                                 &mut self.grid_ctx,
                             ) {
-                                r.draw(ctx, &mut self.grid_ctx);
+                                r.draw(ctx, &mut self.grid_ctx, 0, None);
                                 if let Some(renderview) = ui.get_render_view("ModuleView") {
                                     self.draw(renderview.render_buffer_mut());
                                     redraw = true;

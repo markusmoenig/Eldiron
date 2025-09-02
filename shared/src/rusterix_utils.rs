@@ -2,8 +2,9 @@ use crate::prelude::*;
 use rusterix::{Command, Entity, Rusterix, Value};
 
 /// Start the server
-pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
+pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool) {
     rusterix.server.clear();
+    rusterix.server.debug_mode = debug;
     rusterix.server.log_changed = true;
     rusterix.assets.global = project.render_graph.clone();
 
@@ -14,10 +15,17 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
     rusterix.assets.character_maps.clear();
     rusterix.assets.entity_tiles.clear();
     for character in project.characters.values() {
-        rusterix.assets.entities.insert(
-            character.name.clone(),
-            (character.source.clone(), character.data.clone()),
-        );
+        if debug && !character.source_debug.is_empty() {
+            rusterix.assets.entities.insert(
+                character.name.clone(),
+                (character.source_debug.clone(), character.data.clone()),
+            );
+        } else {
+            rusterix.assets.entities.insert(
+                character.name.clone(),
+                (character.source.clone(), character.data.clone()),
+            );
+        }
         if !character.map.vertices.is_empty() {
             rusterix
                 .assets
@@ -31,10 +39,17 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project) {
     rusterix.assets.item_maps.clear();
     rusterix.assets.item_tiles.clear();
     for item in project.items.values() {
-        rusterix
-            .assets
-            .items
-            .insert(item.name.clone(), (item.source.clone(), item.data.clone()));
+        if debug && !item.source_debug.is_empty() {
+            rusterix.assets.items.insert(
+                item.name.clone(),
+                (item.source_debug.clone(), item.data.clone()),
+            );
+        } else {
+            rusterix
+                .assets
+                .items
+                .insert(item.name.clone(), (item.source.clone(), item.data.clone()));
+        }
         if !item.map.vertices.is_empty() {
             rusterix
                 .assets

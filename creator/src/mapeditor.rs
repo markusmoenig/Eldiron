@@ -958,6 +958,7 @@ impl MapEditor {
                                 for entity in region.map.entities.iter() {
                                     if entity.creator_id == character.id {
                                         position = entity.get_pos_xz();
+
                                         break;
                                     }
                                 }

@@ -1,4 +1,5 @@
 use crate::{Cell, CellItem, CellRole, GridCtx};
+use rusterix::Debug;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -298,6 +299,8 @@ impl Grid {
         grid_ctx: &GridCtx,
         folded: bool,
         screen_width: u32,
+        id: u32,
+        debug: Option<&Debug>,
     ) -> Vec2<u32> {
         if !folded {
             // Track widths per row and column and heights per row
@@ -308,7 +311,7 @@ impl Grid {
 
             // First pass: collect individual cell sizes
             for ((col, row), cell) in &self.grid {
-                let size = cell.size(ctx, grid_ctx);
+                let size = cell.size(ctx, grid_ctx, id, debug);
                 // Update width for this row/column
                 row_col_widths
                     .entry(*row)
@@ -360,7 +363,7 @@ impl Grid {
                         .sum::<u32>();
 
                 // Store the rectangle for this cell
-                let size = cell.size(ctx, grid_ctx);
+                let size = cell.size(ctx, grid_ctx, id, debug);
                 self.grid_rects.insert(
                     (*col, *row),
                     TheDim::rect(

@@ -2,6 +2,7 @@ use crate::{
     Cell, Grid, GridCtx,
     cell::{ArithmeticOp, CellRole, ComparisonOp},
 };
+use rusterix::Debug;
 use theframework::prelude::*;
 
 use Cell::*;
@@ -69,7 +70,10 @@ impl CellItem {
         ctx: &TheContext,
         grid_ctx: &GridCtx,
         is_selected: bool,
-        _pos: &(u32, u32),
+        pos: &(u32, u32),
+        event: &str,
+        id: u32,
+        debug: Option<&Debug>,
     ) {
         let stride = buffer.dim().width as usize;
         let color = if self.has_error {
@@ -215,6 +219,8 @@ impl CellItem {
                 );
             }
             _ => {
+                // Function Header
+
                 if let Some(font) = &ctx.ui.font {
                     ctx.draw.rounded_rect(
                         buffer.pixels_mut(),
@@ -235,6 +241,24 @@ impl CellItem {
                         TheHorizontalAlign::Center,
                         TheVerticalAlign::Center,
                     );
+
+                    if let Some(debug) = debug {
+                        println!("0");
+                        if let Some(value) = debug.get_value(id, event, pos.0, pos.1) {
+                            let r = rect.to_buffer_utuple();
+                            ctx.draw.text_rect_blend(
+                                buffer.pixels_mut(),
+                                &(r.0, r.1 + 15, r.2, r.3),
+                                stride,
+                                font,
+                                grid_ctx.font_size,
+                                &value.to_string(),
+                                &grid_ctx.highlight_text_color,
+                                TheHorizontalAlign::Center,
+                                TheVerticalAlign::Center,
+                            );
+                        }
+                    }
                 }
             } // _ => {
               //     buffer.draw_rect_outline(
@@ -250,7 +274,13 @@ impl CellItem {
     }
 
     /// Returns the size of the cell
-    pub fn size(&self, ctx: &TheContext, grid_ctx: &GridCtx) -> Vec2<u32> {
+    pub fn size(
+        &self,
+        ctx: &TheContext,
+        grid_ctx: &GridCtx,
+        _id: u32,
+        _debug: Option<&Debug>,
+    ) -> Vec2<u32> {
         let mut size = Vec2::new(30, 50);
         match &self.cell {
             Variable(_) | Integer(_) | Float(_) | Str(_) | Boolean(_) => {

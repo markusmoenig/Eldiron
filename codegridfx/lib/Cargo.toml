@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 theframework.workspace = true
+rusterix.workspace = true
 indexmap = { version = "2", features = ["serde"], default-features = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

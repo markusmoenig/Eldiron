@@ -712,6 +712,23 @@ impl TheTrait for Editor {
                             rusterix::tile_builder(&mut r.map, &mut rusterix.assets);
                             messages = rusterix.server.get_messages(&r.map.id);
                             choices = rusterix.server.get_choices(&r.map.id);
+
+                            // Redraw the nodes
+                            match &self.server_ctx.cc {
+                                ContentContext::CharacterInstance(uuid) => {
+                                    for entity in r.map.entities.iter() {
+                                        if entity.creator_id == *uuid {
+                                            CODEGRIDFX.write().unwrap().redraw_debug(
+                                                ui,
+                                                ctx,
+                                                entity.id,
+                                                &rusterix.server.debug,
+                                            );
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
                         }
                     }
                 }
@@ -1972,7 +1989,11 @@ impl TheTrait for Editor {
                         else if id.name == "Play" {
                             let state = RUSTERIX.read().unwrap().server.state;
                             if state == rusterix::ServerState::Off {
-                                start_server(&mut RUSTERIX.write().unwrap(), &mut self.project);
+                                start_server(
+                                    &mut RUSTERIX.write().unwrap(),
+                                    &mut self.project,
+                                    true,
+                                );
                                 let commands =
                                     setup_client(&mut RUSTERIX.write().unwrap(), &mut self.project);
                                 RUSTERIX

@@ -1,11 +1,15 @@
 use crate::prelude::*;
 
-pub struct CodeEditor {}
+pub struct CodeEditor {
+    pub show_template: bool,
+}
 
 #[allow(clippy::new_without_default)]
 impl CodeEditor {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            show_template: true,
+        }
     }
 
     pub fn build(&mut self) -> TheCanvas {

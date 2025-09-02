@@ -1,4 +1,7 @@
-use crate::{editor::CODEGRIDFX, prelude::*};
+use crate::{
+    editor::{CODEEDITOR, CODEGRIDFX},
+    prelude::*,
+};
 use ToolEvent::*;
 
 pub struct CodeTool {
@@ -86,6 +89,7 @@ impl Tool for CodeTool {
                 code_switch.set_item_width(100);
                 layout.add_widget(Box::new(code_switch));
 
+                /*
                 let mut hdivider = TheHDivider::new(TheId::empty());
                 hdivider.limiter_mut().set_max_width(15);
                 layout.add_widget(Box::new(hdivider));
@@ -95,7 +99,26 @@ impl Tool for CodeTool {
                     .set_status_text("Build and test the source code. Just for validation. Runtime errors are shown in the Log.");
                 build_button.set_text("Build".to_string());
                 layout.add_widget(Box::new(build_button));
+                */
 
+                let mut template_switch = TheGroupButton::new(TheId::named("Template Switch"));
+                template_switch.add_text_status(
+                    "Template".to_string(),
+                    str!("Show the character / item template code."),
+                );
+                template_switch.add_text_status(
+                    "Instance".to_string(),
+                    "Show the character / item instantiation code.".to_string(),
+                );
+                template_switch.set_index(if CODEEDITOR.read().unwrap().show_template {
+                    0
+                } else {
+                    1
+                });
+                template_switch.set_item_width(100);
+                layout.add_widget(Box::new(template_switch));
+
+                /*
                 let mut spaces_switch = TheGroupButton::new(TheId::named("Code Spaces Switch"));
                 spaces_switch.add_text_status(
                     "Show Spaces".to_string(),
@@ -105,6 +128,7 @@ impl Tool for CodeTool {
                 spaces_switch.set_index(0);
                 spaces_switch.set_item_width(100);
                 layout.add_widget(Box::new(spaces_switch));
+                */
 
                 layout.set_reverse_index(Some(1));
             }
@@ -151,17 +175,21 @@ impl Tool for CodeTool {
                     }
                 }
 
-                if id.name == "Code Spaces Switch" {
-                    if let Some(edit) = ui.get_text_area_edit("CodeEdit") {
-                        edit.as_code_editor(
-                            "Python",
-                            TheCodeEditorSettings {
-                                auto_bracket_completion: true,
-                                auto_indent: true,
-                                indicate_space: *index == 0,
-                            },
-                        );
-                    }
+                // if id.name == "Code Spaces Switch" {
+                //     if let Some(edit) = ui.get_text_area_edit("CodeEdit") {
+                //         edit.as_code_editor(
+                //             "Python",
+                //             TheCodeEditorSettings {
+                //                 auto_bracket_completion: true,
+                //                 auto_indent: true,
+                //                 indicate_space: *index == 0,
+                //             },
+                //         );
+                //     }
+                // }
+
+                if id.name == "Template Switch" {
+                    CODEEDITOR.write().unwrap().show_template = *index == 0;
                 }
             }
             TheEvent::StateChanged(id, state) => {
@@ -170,7 +198,6 @@ impl Tool for CodeTool {
                     if self.use_python == false {
                         // Build the node code.
                         let code = CODEGRIDFX.read().unwrap().build(false);
-                        println!("{}", code);
                         let debug_code = CODEGRIDFX.read().unwrap().build(true);
                         ui.set_widget_value("CodeEdit", ctx, TheValue::Text(code.clone()));
                         match server_ctx.cc {
@@ -236,23 +263,32 @@ impl Tool for CodeTool {
                 }
             }
             TheEvent::Custom(id, _) => {
-                if id.name == "Module Changed" {
+                if id.name == "ModuleChanged" {
+                    let code = CODEGRIDFX.read().unwrap().build(false);
+                    let debug_code = CODEGRIDFX.read().unwrap().build(true);
+                    println!("{}", debug_code);
                     match server_ctx.cc {
                         ContentContext::CharacterInstance(uuid) => {
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 if let Some(character_instance) = region.characters.get_mut(&uuid) {
                                     character_instance.module = CODEGRIDFX.read().unwrap().clone();
+                                    character_instance.source = code;
+                                    character_instance.source_debug = debug_code;
                                 }
                             }
                         }
                         ContentContext::CharacterTemplate(uuid) => {
                             if let Some(character) = project.characters.get_mut(&uuid) {
                                 character.module = CODEGRIDFX.read().unwrap().clone();
+                                character.source = code;
+                                character.source_debug = debug_code;
                             }
                         }
                         ContentContext::ItemTemplate(uuid) => {
                             if let Some(item) = project.items.get_mut(&uuid) {
                                 item.module = CODEGRIDFX.read().unwrap().clone();
+                                item.source = code;
+                                item.source_debug = debug_code;
                             }
                         }
                         _ => {}
@@ -272,6 +308,7 @@ impl Tool for CodeTool {
                                         region.characters.get_mut(&uuid)
                                     {
                                         character_instance.source = code;
+                                        character_instance.source_debug = "".into();
                                     }
                                 }
                             }
@@ -293,6 +330,7 @@ impl Tool for CodeTool {
                                         }
                                     }
                                     character.source = code;
+                                    character.source_debug = "".into();
                                 }
                             }
                             ContentContext::ItemTemplate(uuid) => {
@@ -313,6 +351,7 @@ impl Tool for CodeTool {
                                         }
                                     }
                                     item.source = code;
+                                    item.source_debug = "".into();
                                 }
                             }
                             ContentContext::Sector(uuid) => {

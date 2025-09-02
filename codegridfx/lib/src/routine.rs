@@ -1,4 +1,5 @@
 use crate::{Cell, CellItem, Grid, GridCtx, cell::CellRole};
+use rusterix::Debug;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -36,11 +37,11 @@ impl Routine {
         }
     }
 
-    pub fn draw(&mut self, ctx: &TheContext, grid_ctx: &GridCtx) {
+    pub fn draw(&mut self, ctx: &TheContext, grid_ctx: &GridCtx, id: u32, debug: Option<&Debug>) {
         // Size check
         let height = self
             .grid
-            .size(ctx, grid_ctx, self.folded, self.screen_width)
+            .size(ctx, grid_ctx, self.folded, self.screen_width, id, debug)
             .y;
         if self.buffer.dim().width != self.screen_width as i32
             || self.buffer.dim().height != height as i32
@@ -115,7 +116,17 @@ impl Routine {
                 if let Some(rect) = self.grid.grid_rects.get(coord) {
                     let is_selected = Some(self.id) == grid_ctx.selected_routine
                         && Some(coord.clone()) == grid_ctx.current_cell;
-                    cell.draw(&mut self.buffer, &rect, ctx, grid_ctx, is_selected, coord);
+                    cell.draw(
+                        &mut self.buffer,
+                        &rect,
+                        ctx,
+                        grid_ctx,
+                        is_selected,
+                        coord,
+                        &self.name,
+                        id,
+                        debug,
+                    );
                 }
             }
         }
@@ -124,7 +135,7 @@ impl Routine {
     /// Sets the screen width.
     pub fn set_screen_width(&mut self, width: u32, ctx: &TheContext, grid_ctx: &GridCtx) {
         self.screen_width = width;
-        self.draw(ctx, grid_ctx);
+        self.draw(ctx, grid_ctx, 0, None);
     }
 
     /// Returns the number of lines in the grid.
@@ -239,7 +250,7 @@ impl Routine {
             }
 
             self.grid.insert_empty();
-            self.draw(ctx, grid_ctx);
+            self.draw(ctx, grid_ctx, 0, None);
         }
 
         handled
@@ -259,7 +270,7 @@ impl Routine {
             self.folded = !self.folded;
             grid_ctx.selected_routine = Some(self.id);
             grid_ctx.current_cell = None;
-            self.draw(ctx, grid_ctx);
+            self.draw(ctx, grid_ctx, 0, None);
             handled = true;
         } else {
             for (coord, cell) in &self.grid.grid {
@@ -280,7 +291,7 @@ impl Routine {
                                 ));
                             }
 
-                            self.draw(ctx, grid_ctx);
+                            self.draw(ctx, grid_ctx, 0, None);
                         }
                         handled = true;
                         break;
@@ -345,7 +356,8 @@ impl Routine {
 
                 // Add debug code
                 if debug && item.cell.role() == CellRole::Function {
-                    row_code += &format!("set_debug_loc({}, {}); ", pos.0, pos.1);
+                    row_code +=
+                        &format!("set_debug_loc(\"{}\", {}, {}); ", self.name, pos.0, pos.1);
                 }
 
                 row_code += &item.code();

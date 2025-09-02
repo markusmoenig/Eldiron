@@ -44,7 +44,7 @@ impl TheTrait for Solo {
 
                             // Init server / client
 
-                            start_server(&mut rusterix, &mut project);
+                            start_server(&mut rusterix, &mut project, false);
                             let commands = setup_client(&mut rusterix, &mut project);
                             rusterix.server.process_client_commands(commands);
                             rusterix.client.server_time = project.time;
