@@ -94,7 +94,7 @@ impl Tool for CodeTool {
                 layout.add_widget(Box::new(hdivider));
 
                 let mut text = TheText::new(TheId::named("Code Editor Header Text"));
-                text.set_text("".to_string());
+                text.set_text(CODEEDITOR.read().unwrap().last_header_text.clone());
                 layout.add_widget(Box::new(text));
 
                 let mut template_switch = TheGroupButton::new(TheId::named("Code Template Switch"));

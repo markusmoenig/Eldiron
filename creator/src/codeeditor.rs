@@ -5,8 +5,8 @@ use codegridfxlib::{Module, ModuleType};
 
 pub struct CodeEditor {
     pub show_template: bool,
-    pub selected_is_template: bool,
     pub content: ContentContext,
+    pub last_header_text: String,
 }
 
 #[allow(clippy::new_without_default)]
@@ -14,8 +14,8 @@ impl CodeEditor {
     pub fn new() -> Self {
         Self {
             show_template: true,
-            selected_is_template: false,
             content: ContentContext::Unknown,
+            last_header_text: "".into(),
         }
     }
 
@@ -34,8 +34,9 @@ impl CodeEditor {
             .set_module_type(ModuleType::CharacterTemplate);
         CODEGRIDFX.write().unwrap().redraw(ui, ctx);
 
+        self.last_header_text = format!("{} - Character Template", character.name);
         if let Some(text) = ui.get_text("Code Editor Header Text") {
-            text.set_text(format!("{} - Character Template", character.name));
+            text.set_text(self.last_header_text.clone());
             ctx.ui.relayout = true;
         }
 
@@ -46,7 +47,6 @@ impl CodeEditor {
         self.content = ContentContext::CharacterTemplate(character.id);
 
         self.show_template = true;
-        self.selected_is_template = true;
     }
 
     /// Set the module based on the given context and template mode.
@@ -64,8 +64,9 @@ impl CodeEditor {
             .set_module_type(ModuleType::CharacterInstance);
         CODEGRIDFX.write().unwrap().redraw(ui, ctx);
 
+        self.last_header_text = format!("{} - Character Instance", character.name);
         if let Some(text) = ui.get_text("Code Editor Header Text") {
-            text.set_text(format!("{} - Character Instance", character.name));
+            text.set_text(self.last_header_text.clone());
             ctx.ui.relayout = true;
         }
 
@@ -76,7 +77,6 @@ impl CodeEditor {
         self.content = ContentContext::CharacterInstance(character.id);
 
         self.show_template = false;
-        self.selected_is_template = false;
     }
 
     /// Set the module based on the given context and template mode.
@@ -89,8 +89,9 @@ impl CodeEditor {
             .set_module_type(ModuleType::ItemTemplate);
         CODEGRIDFX.write().unwrap().redraw(ui, ctx);
 
+        self.last_header_text = format!("{} - Item Template", item.name);
         if let Some(text) = ui.get_text("Code Editor Header Text") {
-            text.set_text(format!("{} - Item Template", item.name));
+            text.set_text(self.last_header_text.clone());
             ctx.ui.relayout = true;
         }
 
@@ -101,7 +102,30 @@ impl CodeEditor {
         self.content = ContentContext::ItemTemplate(item.id);
 
         self.show_template = true;
-        self.selected_is_template = true;
+    }
+
+    /// Set the module based on the given context and template mode.
+    pub fn set_module_item_instance(&mut self, ui: &mut TheUI, ctx: &mut TheContext, item: &Item) {
+        *CODEGRIDFX.write().unwrap() = item.module.clone();
+        CODEGRIDFX.write().unwrap().name = item.name.clone();
+        CODEGRIDFX
+            .write()
+            .unwrap()
+            .set_module_type(ModuleType::CharacterInstance);
+        CODEGRIDFX.write().unwrap().redraw(ui, ctx);
+
+        self.last_header_text = "Item Instances are not supported".to_string();
+        if let Some(text) = ui.get_text("Code Editor Header Text") {
+            text.set_text(self.last_header_text.clone());
+            ctx.ui.relayout = true;
+        }
+
+        if let Some(button) = ui.get_group_button("Code Template Switch") {
+            button.set_index(1);
+        }
+
+        self.content = ContentContext::ItemInstance(item.id);
+        self.show_template = false;
     }
 
     /// Switch between template / instance
@@ -114,6 +138,23 @@ impl CodeEditor {
         template: bool,
     ) {
         let handled = match self.content {
+            ContentContext::CharacterTemplate(_) => {
+                if !template {
+                    if let ContentContext::CharacterInstance(inst_id) = server_ctx.cc {
+                        if let Some(region) = project.get_region_ctx(server_ctx) {
+                            if let Some(character) = region.characters.get(&inst_id) {
+                                self.set_module_character_instance(ui, ctx, character);
+                                ui.set_widget_value(
+                                    "CodeEdit",
+                                    ctx,
+                                    TheValue::Text(character.source.clone()),
+                                );
+                            }
+                        }
+                    }
+                }
+                true
+            }
             ContentContext::CharacterInstance(id) => {
                 if template {
                     // Switch from instance to template
@@ -137,15 +178,40 @@ impl CodeEditor {
                 }
                 true
             }
-            ContentContext::CharacterTemplate(_) => {
-                if let ContentContext::CharacterInstance(inst_id) = server_ctx.cc {
+            ContentContext::ItemTemplate(_) => {
+                if !template {
+                    if let ContentContext::ItemInstance(inst_id) = server_ctx.cc {
+                        if let Some(region) = project.get_region_ctx(server_ctx) {
+                            if let Some(item) = region.items.get(&inst_id) {
+                                self.set_module_item_instance(ui, ctx, item);
+                                ui.set_widget_value(
+                                    "CodeEdit",
+                                    ctx,
+                                    TheValue::Text(item.source.clone()),
+                                );
+                            }
+                        }
+                    }
+                }
+                true
+            }
+            ContentContext::ItemInstance(id) => {
+                if template {
+                    // Switch from instance to template
+                    let mut temp_id = None;
                     if let Some(region) = project.get_region_ctx(server_ctx) {
-                        if let Some(character) = region.characters.get(&inst_id) {
-                            self.set_module_character_instance(ui, ctx, character);
+                        if let Some(temp) = region.items.get(&id) {
+                            temp_id = Some(temp.item_id);
+                        }
+                    }
+                    if let Some(temp_id) = temp_id {
+                        if let Some(item) = project.items.get(&temp_id) {
+                            self.set_module_item(ui, ctx, item);
+
                             ui.set_widget_value(
                                 "CodeEdit",
                                 ctx,
-                                TheValue::Text(character.source.clone()),
+                                TheValue::Text(item.source.clone()),
                             );
                         }
                     }
@@ -168,7 +234,8 @@ impl CodeEditor {
         CODEGRIDFX.write().unwrap().redraw(ui, ctx);
 
         if let Some(text) = ui.get_text("Code Editor Header Text") {
-            text.set_text(format!("Undefined"));
+            self.last_header_text = "Undefined".to_string();
+            text.set_text(self.last_header_text.clone());
             ctx.ui.relayout = true;
         }
 
