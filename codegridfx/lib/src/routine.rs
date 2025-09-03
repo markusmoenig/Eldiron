@@ -41,7 +41,15 @@ impl Routine {
         // Size check
         let height = self
             .grid
-            .size(ctx, grid_ctx, self.folded, self.screen_width, id, debug)
+            .size(
+                ctx,
+                grid_ctx,
+                self.folded,
+                self.screen_width,
+                &self.name,
+                id,
+                debug,
+            )
             .y;
         if self.buffer.dim().width != self.screen_width as i32
             || self.buffer.dim().height != height as i32

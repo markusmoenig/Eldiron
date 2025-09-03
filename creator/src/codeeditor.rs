@@ -1,7 +1,12 @@
 use crate::prelude::*;
 
+use crate::editor::CODEGRIDFX;
+use codegridfxlib::{Module, ModuleType};
+
 pub struct CodeEditor {
     pub show_template: bool,
+    pub selected_is_template: bool,
+    pub content: ContentContext,
 }
 
 #[allow(clippy::new_without_default)]
@@ -9,7 +14,165 @@ impl CodeEditor {
     pub fn new() -> Self {
         Self {
             show_template: true,
+            selected_is_template: false,
+            content: ContentContext::Unknown,
         }
+    }
+
+    /// Set the module based on the given context and template mode.
+    pub fn set_module_character(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        character: &Character,
+    ) {
+        *CODEGRIDFX.write().unwrap() = character.module.clone();
+        CODEGRIDFX.write().unwrap().name = character.name.clone();
+        CODEGRIDFX
+            .write()
+            .unwrap()
+            .set_module_type(ModuleType::CharacterTemplate);
+        CODEGRIDFX.write().unwrap().redraw(ui, ctx);
+
+        if let Some(text) = ui.get_text("Code Editor Header Text") {
+            text.set_text(format!("{} - Character Template", character.name));
+            ctx.ui.relayout = true;
+        }
+
+        if let Some(button) = ui.get_group_button("Code Template Switch") {
+            button.set_index(0);
+        }
+
+        self.content = ContentContext::CharacterTemplate(character.id);
+
+        self.show_template = true;
+        self.selected_is_template = true;
+    }
+
+    /// Set the module based on the given context and template mode.
+    pub fn set_module_character_instance(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        character: &Character,
+    ) {
+        *CODEGRIDFX.write().unwrap() = character.module.clone();
+        CODEGRIDFX.write().unwrap().name = character.name.clone();
+        CODEGRIDFX
+            .write()
+            .unwrap()
+            .set_module_type(ModuleType::CharacterInstance);
+        CODEGRIDFX.write().unwrap().redraw(ui, ctx);
+
+        if let Some(text) = ui.get_text("Code Editor Header Text") {
+            text.set_text(format!("{} - Character Instance", character.name));
+            ctx.ui.relayout = true;
+        }
+
+        if let Some(button) = ui.get_group_button("Code Template Switch") {
+            button.set_index(1);
+        }
+
+        self.content = ContentContext::CharacterInstance(character.id);
+
+        self.show_template = false;
+        self.selected_is_template = false;
+    }
+
+    /// Set the module based on the given context and template mode.
+    pub fn set_module_item(&mut self, ui: &mut TheUI, ctx: &mut TheContext, item: &Item) {
+        *CODEGRIDFX.write().unwrap() = item.module.clone();
+        CODEGRIDFX.write().unwrap().name = item.name.clone();
+        CODEGRIDFX
+            .write()
+            .unwrap()
+            .set_module_type(ModuleType::ItemTemplate);
+        CODEGRIDFX.write().unwrap().redraw(ui, ctx);
+
+        if let Some(text) = ui.get_text("Code Editor Header Text") {
+            text.set_text(format!("{} - Item Template", item.name));
+            ctx.ui.relayout = true;
+        }
+
+        if let Some(button) = ui.get_group_button("Code Template Switch") {
+            button.set_index(0);
+        }
+
+        self.content = ContentContext::ItemTemplate(item.id);
+
+        self.show_template = true;
+        self.selected_is_template = true;
+    }
+
+    /// Switch between template / instance
+    pub fn switch_module_to(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &ServerContext,
+        template: bool,
+    ) {
+        let handled = match self.content {
+            ContentContext::CharacterInstance(id) => {
+                if template {
+                    // Switch from instance to template
+                    let mut temp_id = None;
+                    if let Some(region) = project.get_region_ctx(server_ctx) {
+                        if let Some(temp) = region.characters.get(&id) {
+                            temp_id = Some(temp.character_id);
+                        }
+                    }
+                    if let Some(temp_id) = temp_id {
+                        if let Some(character) = project.characters.get(&temp_id) {
+                            self.set_module_character(ui, ctx, character);
+
+                            ui.set_widget_value(
+                                "CodeEdit",
+                                ctx,
+                                TheValue::Text(character.source.clone()),
+                            );
+                        }
+                    }
+                }
+                true
+            }
+            ContentContext::CharacterTemplate(_) => {
+                if let ContentContext::CharacterInstance(inst_id) = server_ctx.cc {
+                    if let Some(region) = project.get_region_ctx(server_ctx) {
+                        if let Some(character) = region.characters.get(&inst_id) {
+                            self.set_module_character_instance(ui, ctx, character);
+                            ui.set_widget_value(
+                                "CodeEdit",
+                                ctx,
+                                TheValue::Text(character.source.clone()),
+                            );
+                        }
+                    }
+                }
+                true
+            }
+            _ => false,
+        };
+
+        if !handled {
+            self.clear_module(ui, ctx);
+        }
+
+        self.show_template = template;
+    }
+
+    /// Clear the module
+    pub fn clear_module(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        *CODEGRIDFX.write().unwrap() = Module::default();
+        CODEGRIDFX.write().unwrap().redraw(ui, ctx);
+
+        if let Some(text) = ui.get_text("Code Editor Header Text") {
+            text.set_text(format!("Undefined"));
+            ctx.ui.relayout = true;
+        }
+
+        self.content = ContentContext::Unknown;
     }
 
     pub fn build(&mut self) -> TheCanvas {

@@ -89,19 +89,15 @@ impl Tool for CodeTool {
                 code_switch.set_item_width(100);
                 layout.add_widget(Box::new(code_switch));
 
-                /*
                 let mut hdivider = TheHDivider::new(TheId::empty());
                 hdivider.limiter_mut().set_max_width(15);
                 layout.add_widget(Box::new(hdivider));
 
-                let mut build_button = TheTraybarButton::new(TheId::named("Build"));
-                build_button
-                    .set_status_text("Build and test the source code. Just for validation. Runtime errors are shown in the Log.");
-                build_button.set_text("Build".to_string());
-                layout.add_widget(Box::new(build_button));
-                */
+                let mut text = TheText::new(TheId::named("Code Editor Header Text"));
+                text.set_text("".to_string());
+                layout.add_widget(Box::new(text));
 
-                let mut template_switch = TheGroupButton::new(TheId::named("Template Switch"));
+                let mut template_switch = TheGroupButton::new(TheId::named("Code Template Switch"));
                 template_switch.add_text_status(
                     "Template".to_string(),
                     str!("Show the character / item template code."),
@@ -188,8 +184,14 @@ impl Tool for CodeTool {
                 //     }
                 // }
 
-                if id.name == "Template Switch" {
-                    CODEEDITOR.write().unwrap().show_template = *index == 0;
+                if id.name == "Code Template Switch" {
+                    CODEEDITOR.write().unwrap().switch_module_to(
+                        ui,
+                        ctx,
+                        project,
+                        server_ctx,
+                        *index == 0,
+                    );
                 }
             }
             TheEvent::StateChanged(id, state) => {
@@ -267,7 +269,7 @@ impl Tool for CodeTool {
                     let code = CODEGRIDFX.read().unwrap().build(false);
                     let debug_code = CODEGRIDFX.read().unwrap().build(true);
                     println!("{}", debug_code);
-                    match server_ctx.cc {
+                    match CODEEDITOR.read().unwrap().content {
                         ContentContext::CharacterInstance(uuid) => {
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 if let Some(character_instance) = region.characters.get_mut(&uuid) {

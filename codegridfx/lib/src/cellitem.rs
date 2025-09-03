@@ -230,9 +230,33 @@ impl CellItem {
                         &self.rounding(rounding),
                     );
 
+                    let r = rect.to_buffer_utuple();
+                    let mut has_debug = false;
+                    if let Some(debug) = debug {
+                        if let Some(value) = debug.get_value(id, event, pos.0, pos.1) {
+                            let color = if debug.has_error(id, event, pos.0, pos.1) {
+                                &grid_ctx.error_color
+                            } else {
+                                &grid_ctx.highlight_text_color
+                            };
+                            has_debug = true;
+                            ctx.draw.text_rect_blend(
+                                buffer.pixels_mut(),
+                                &(r.0, r.1 + 15, r.2, r.3),
+                                stride,
+                                font,
+                                grid_ctx.font_size,
+                                &value.to_string(),
+                                color,
+                                TheHorizontalAlign::Center,
+                                TheVerticalAlign::Center,
+                            );
+                        }
+                    }
+
                     ctx.draw.text_rect_blend(
                         buffer.pixels_mut(),
-                        &rect.to_buffer_utuple(),
+                        &(r.0, r.1, r.2, r.3 - if !has_debug { 0 } else { 10 }),
                         stride,
                         font,
                         grid_ctx.large_font_size,
@@ -241,24 +265,6 @@ impl CellItem {
                         TheHorizontalAlign::Center,
                         TheVerticalAlign::Center,
                     );
-
-                    if let Some(debug) = debug {
-                        println!("0");
-                        if let Some(value) = debug.get_value(id, event, pos.0, pos.1) {
-                            let r = rect.to_buffer_utuple();
-                            ctx.draw.text_rect_blend(
-                                buffer.pixels_mut(),
-                                &(r.0, r.1 + 15, r.2, r.3),
-                                stride,
-                                font,
-                                grid_ctx.font_size,
-                                &value.to_string(),
-                                &grid_ctx.highlight_text_color,
-                                TheHorizontalAlign::Center,
-                                TheVerticalAlign::Center,
-                            );
-                        }
-                    }
                 }
             } // _ => {
               //     buffer.draw_rect_outline(
@@ -278,8 +284,10 @@ impl CellItem {
         &self,
         ctx: &TheContext,
         grid_ctx: &GridCtx,
-        _id: u32,
-        _debug: Option<&Debug>,
+        pos: &(u32, u32),
+        event: &str,
+        id: u32,
+        debug: Option<&Debug>,
     ) -> Vec2<u32> {
         let mut size = Vec2::new(30, 50);
         match &self.cell {
@@ -332,6 +340,17 @@ impl CellItem {
                         .get_text_size(font, grid_ctx.large_font_size, &self.cell.to_string())
                         .0 as u32
                         + 20;
+
+                    if let Some(debug) = debug {
+                        if let Some(value) = debug.get_value(id, event, pos.0, pos.1) {
+                            let desc = ctx
+                                .draw
+                                .get_text_size(font, grid_ctx.font_size, &value.to_string())
+                                .0 as u32
+                                + 20;
+                            size.x = size.x.max(desc);
+                        }
+                    }
                 }
             }
         }

@@ -927,8 +927,33 @@ impl MapEditor {
                 } else
                 // Region Content List Selection
                 if id.name == "Region Content List Item" {
-                    let mut character_template_id: Option<Uuid> = None;
+                    // If this is a character instance, update its name from the template
 
+                    let mut temp_id = None;
+                    let mut temp_name = "".to_string();
+                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                        if let Some(character) = region.characters.get(&id.uuid) {
+                            temp_id = Some(character.character_id);
+                        }
+                    }
+
+                    if let Some(temp_id) = temp_id {
+                        if let Some(char_temp) = project.characters.get(&temp_id) {
+                            temp_name = char_temp.name.clone();
+                        }
+                    }
+
+                    if !temp_name.is_empty() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            if let Some(character) = region.characters.get_mut(&id.uuid) {
+                                character.name = temp_name.clone();
+                            }
+                        }
+                    }
+
+                    // ---
+
+                    let mut character_template_id: Option<Uuid> = None;
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         let prev = region.map.clone();
                         region.map.clear_selection();

@@ -1,10 +1,9 @@
 use crate::editor::{
-    CODEGRIDFX, CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, SIDEBARMODE, TILEMAPEDITOR,
+    CODEEDITOR, CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, SIDEBARMODE, TILEMAPEDITOR,
     UNDOMANAGER,
 };
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
-use codegridfxlib::ModuleType;
 use rusterix::Value;
 
 #[derive(PartialEq, Debug)]
@@ -810,7 +809,7 @@ impl Sidebar {
 
         ui.canvas.set_right(canvas);
 
-        self.apply_region(ui, ctx, None, &Project::default());
+        self.apply_region(ui, ctx, None, &mut Project::default());
         self.apply_character(ui, ctx, None);
         self.apply_item(ui, ctx, None);
         self.apply_tilemap(ui, ctx, None);
@@ -2700,13 +2699,12 @@ impl Sidebar {
             ui.set_widget_value("CodeEdit", ctx, TheValue::Text(character.source.clone()));
             ui.set_widget_value("DataEdit", ctx, TheValue::Text(character.data.clone()));
 
-            *CODEGRIDFX.write().unwrap() = character.module.clone();
-            CODEGRIDFX.write().unwrap().name = character.name.clone();
-            CODEGRIDFX
+            CODEEDITOR
                 .write()
                 .unwrap()
-                .set_module_type(ModuleType::CharacterTemplate);
-            CODEGRIDFX.write().unwrap().redraw(ui, ctx);
+                .set_module_character(ui, ctx, character);
+        } else {
+            CODEEDITOR.write().unwrap().clear_module(ui, ctx);
         }
 
         ctx.ui.relayout = true;
@@ -2726,19 +2724,14 @@ impl Sidebar {
             ui.set_widget_value("CodeEdit", ctx, TheValue::Text(item.source.clone()));
             ui.set_widget_value("DataEdit", ctx, TheValue::Text(item.data.clone()));
 
-            *CODEGRIDFX.write().unwrap() = item.module.clone();
-            CODEGRIDFX.write().unwrap().name = item.name.clone();
-            CODEGRIDFX
-                .write()
-                .unwrap()
-                .set_module_type(ModuleType::ItemTemplate);
-            CODEGRIDFX.write().unwrap().redraw(ui, ctx);
+            CODEEDITOR.write().unwrap().set_module_item(ui, ctx, item);
         } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
             if let Some(canvas) = stack_layout.canvas_at_mut(2) {
                 let mut empty = TheCanvas::new();
                 empty.set_layout(TheVLayout::new(TheId::empty()));
                 canvas.set_bottom(empty);
             }
+            CODEEDITOR.write().unwrap().clear_module(ui, ctx);
         }
 
         ctx.ui.relayout = true;
@@ -2887,7 +2880,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         region_id: Option<Uuid>,
-        project: &Project,
+        project: &mut Project,
     ) {
         ui.set_widget_disabled_state("Region Remove", ctx, region_id.is_none());
         ui.set_widget_disabled_state("Region Settings", ctx, region_id.is_none());

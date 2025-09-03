@@ -1,4 +1,4 @@
-use crate::editor::{CODEGRIDFX, CONFIGEDITOR};
+use crate::editor::{CODEEDITOR, CONFIGEDITOR};
 use crate::prelude::*;
 use codegridfxlib::ModuleType;
 use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
@@ -22,11 +22,12 @@ pub fn set_code(
                         ctx,
                         TheValue::Text(character_instance.source.clone()),
                     );
-                    character_instance
-                        .module
-                        .set_module_type(ModuleType::CharacterInstance);
-                    *CODEGRIDFX.write().unwrap() = character_instance.module.clone();
-                    CODEGRIDFX.write().unwrap().redraw(ui, ctx);
+
+                    CODEEDITOR.write().unwrap().set_module_character_instance(
+                        ui,
+                        ctx,
+                        character_instance,
+                    );
                     success = true;
                 }
             }
@@ -47,6 +48,7 @@ pub fn set_code(
                     }
                 }
             }
+            CODEEDITOR.write().unwrap().clear_module(ui, ctx);
         }
         ContentContext::CharacterTemplate(uuid) => {
             if let Some(character) = project.characters.get_mut(&uuid) {
@@ -55,19 +57,39 @@ pub fn set_code(
                 character
                     .module
                     .set_module_type(ModuleType::CharacterTemplate);
-                *CODEGRIDFX.write().unwrap() = character.module.clone();
-                CODEGRIDFX.write().unwrap().redraw(ui, ctx);
+                CODEEDITOR
+                    .write()
+                    .unwrap()
+                    .set_module_character(ui, ctx, character);
                 success = true;
             }
         }
         ContentContext::ItemTemplate(uuid) => {
-            if let Some(items) = project.items.get_mut(&uuid) {
-                ui.set_widget_value("CodeEdit", ctx, TheValue::Text(items.source.clone()));
-                ui.set_widget_value("DataEdit", ctx, TheValue::Text(items.data.clone()));
-                items.module.set_module_type(ModuleType::ItemTemplate);
-                *CODEGRIDFX.write().unwrap() = items.module.clone();
-                CODEGRIDFX.write().unwrap().redraw(ui, ctx);
+            if let Some(item) = project.items.get_mut(&uuid) {
+                ui.set_widget_value("CodeEdit", ctx, TheValue::Text(item.source.clone()));
+                ui.set_widget_value("DataEdit", ctx, TheValue::Text(item.data.clone()));
+                item.module.set_module_type(ModuleType::ItemTemplate);
+                CODEEDITOR.write().unwrap().set_module_item(ui, ctx, item);
                 success = true;
+            }
+        }
+        ContentContext::ItemInstance(uuid) => {
+            let mut temp_id = None;
+
+            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                if let Some(item_inst) = region.items.get_mut(&uuid) {
+                    temp_id = Some(item_inst.item_id);
+                }
+            }
+
+            if let Some(temp_id) = temp_id {
+                if let Some(item) = project.items.get_mut(&temp_id) {
+                    ui.set_widget_value("CodeEdit", ctx, TheValue::Text(item.source.clone()));
+                    ui.set_widget_value("DataEdit", ctx, TheValue::Text(item.data.clone()));
+                    item.module.set_module_type(ModuleType::ItemTemplate);
+                    CODEEDITOR.write().unwrap().set_module_item(ui, ctx, item);
+                    success = true;
+                }
             }
         }
         _ => {}

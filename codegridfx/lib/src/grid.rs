@@ -299,6 +299,7 @@ impl Grid {
         grid_ctx: &GridCtx,
         folded: bool,
         screen_width: u32,
+        event: &str,
         id: u32,
         debug: Option<&Debug>,
     ) -> Vec2<u32> {
@@ -311,7 +312,7 @@ impl Grid {
 
             // First pass: collect individual cell sizes
             for ((col, row), cell) in &self.grid {
-                let size = cell.size(ctx, grid_ctx, id, debug);
+                let size = cell.size(ctx, grid_ctx, &(*col, *row), event, id, debug);
                 // Update width for this row/column
                 row_col_widths
                     .entry(*row)
@@ -363,7 +364,7 @@ impl Grid {
                         .sum::<u32>();
 
                 // Store the rectangle for this cell
-                let size = cell.size(ctx, grid_ctx, id, debug);
+                let size = cell.size(ctx, grid_ctx, &(*col, *row), event, id, debug);
                 self.grid_rects.insert(
                     (*col, *row),
                     TheDim::rect(
