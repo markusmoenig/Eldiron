@@ -7,6 +7,8 @@ pub struct CodeEditor {
     pub show_template: bool,
     pub content: ContentContext,
     pub last_header_text: String,
+
+    pub last_data_header_text: String,
 }
 
 #[allow(clippy::new_without_default)]
@@ -16,6 +18,8 @@ impl CodeEditor {
             show_template: true,
             content: ContentContext::Unknown,
             last_header_text: "".into(),
+
+            last_data_header_text: "".into(),
         }
     }
 
@@ -37,6 +41,12 @@ impl CodeEditor {
         self.last_header_text = format!("{} - Character Template", character.name);
         if let Some(text) = ui.get_text("Code Editor Header Text") {
             text.set_text(self.last_header_text.clone());
+            ctx.ui.relayout = true;
+        }
+
+        self.last_data_header_text = format!("{} - Character Template", character.name);
+        if let Some(text) = ui.get_text("Data Editor Header Text") {
+            text.set_text(self.last_data_header_text.clone());
             ctx.ui.relayout = true;
         }
 
@@ -92,6 +102,12 @@ impl CodeEditor {
         self.last_header_text = format!("{} - Item Template", item.name);
         if let Some(text) = ui.get_text("Code Editor Header Text") {
             text.set_text(self.last_header_text.clone());
+            ctx.ui.relayout = true;
+        }
+
+        self.last_data_header_text = format!("{} - Item Template", item.name);
+        if let Some(text) = ui.get_text("Data Editor Header Text") {
+            text.set_text(self.last_data_header_text.clone());
             ctx.ui.relayout = true;
         }
 

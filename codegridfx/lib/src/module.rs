@@ -16,6 +16,15 @@ pub enum ModuleType {
     ItemTemplate,
 }
 
+impl ModuleType {
+    pub fn is_instance(&self) -> bool {
+        match self {
+            ModuleType::CharacterInstance | ModuleType::ItemInstance => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Module {
     pub module_type: ModuleType,
@@ -53,7 +62,12 @@ impl Module {
 
     /// Add/ Update the routines of the module
     pub fn update_routines(&mut self) {
-        if !self.contains("startup") {
+        if self.module_type.is_instance() {
+            if !self.contains("instantiation") {
+                let routine = Routine::new("instantiation".into(), "instance specifics".into());
+                self.routines.insert(routine.id, routine);
+            }
+        } else if !self.contains("startup") {
             let routine = Routine::new("startup".into(), "send on creation".into());
             self.routines.insert(routine.id, routine);
         }
@@ -390,6 +404,10 @@ impl Module {
                 let prev = self.to_json();
 
                 if drop.title == "Event" {
+                    if self.module_type.is_instance() {
+                        return false;
+                    }
+
                     let routine = Routine::new("custom".into(), "".into());
 
                     self.grid_ctx.selected_routine = Some(routine.id);
@@ -589,6 +607,12 @@ impl Module {
 
             for r in self.routines.values() {
                 r.build(&mut out, 8, debug);
+            }
+        } else {
+            out += "def setup():\n";
+
+            for r in self.routines.values() {
+                r.build(&mut out, 4, debug);
             }
         }
         out

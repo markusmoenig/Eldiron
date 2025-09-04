@@ -2,6 +2,8 @@ use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
 
+use crate::editor::CODEEDITOR;
+
 pub struct DataTool {
     id: TheId,
 }
@@ -33,7 +35,7 @@ impl Tool for DataTool {
         &mut self,
         tool_event: ToolEvent,
         _tool_context: ToolContext,
-        _ui: &mut TheUI,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
         _project: &mut Project,
         _server_ctx: &mut ServerContext,
@@ -44,22 +46,13 @@ impl Tool for DataTool {
                 PanelIndices::DataEditor as usize,
             ));
 
-            // if let Some(layout) = ui.get_hlayout("Game Tool Params") {
-            //     layout.clear();
+            if let Some(layout) = ui.get_hlayout("Game Tool Params") {
+                layout.clear();
 
-            //     let mut build_button = TheTraybarButton::new(TheId::named("Build"));
-            //     build_button
-            //         .set_status_text("Build and test the source code. Just for validation. Runtime errors are shown in the Log.");
-            //     build_button.set_text("Build".to_string());
-            //     layout.add_widget(Box::new(build_button));
-
-            //     let mut build_result = TheText::new(TheId::named("Build Result"));
-            //     build_result.limiter_mut().set_min_width(400);
-            //     build_result.set_text("".to_string());
-            //     layout.add_widget(Box::new(build_result));
-
-            //     layout.set_reverse_index(Some(1));
-            // }
+                let mut text = TheText::new(TheId::named("Data Editor Header Text"));
+                text.set_text(CODEEDITOR.read().unwrap().last_data_header_text.clone());
+                layout.add_widget(Box::new(text));
+            }
 
             return true;
         };

@@ -335,8 +335,10 @@ impl Routine {
     pub fn build(&self, out: &mut String, indent: usize, debug: bool) {
         let mut indent = indent;
 
-        *out += &format!("{:indent$}if event == \"{}\":\n", "", self.name);
-        indent += 4;
+        if self.name != "instantiation" {
+            *out += &format!("{:indent$}if event == \"{}\":\n", "", self.name);
+            indent += 4;
+        }
 
         let rows = self.grid.grid_by_rows();
 
