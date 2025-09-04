@@ -353,6 +353,16 @@ impl Routine {
             let mut is_if = false;
             let mut ind = indent;
 
+            if debug {
+                for (_, (item, pos)) in row.iter().enumerate() {
+                    // Add debug code
+                    if item.cell.role() == CellRole::Function {
+                        row_code +=
+                            &format!("set_debug_loc(\"{}\", {}, {}); ", self.name, pos.0, pos.1);
+                    }
+                }
+            }
+
             for (index, (item, pos)) in row.iter().enumerate() {
                 if index == 0 {
                     if matches!(item.cell, Cell::If) {
@@ -362,12 +372,6 @@ impl Routine {
                     if let Some(i) = self.grid.row_indents.get(&pos.1) {
                         ind += *i as usize * 4;
                     }
-                }
-
-                // Add debug code
-                if debug && item.cell.role() == CellRole::Function {
-                    row_code +=
-                        &format!("set_debug_loc(\"{}\", {}, {}); ", self.name, pos.0, pos.1);
                 }
 
                 row_code += &item.code();
