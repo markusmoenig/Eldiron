@@ -5,15 +5,20 @@ use theframework::prelude::*;
 
 const VALUES: [&str; 5] = ["Boolean", "Float", "Integer", "String", "Variable"];
 const OPERATORS: [&str; 3] = ["Arithmetic", "Assignment", "Comparison"];
-const FUNCTIONS: [&str; 8] = [
+const FUNCTIONS: [&str; 13] = [
     "add_item",
     "get_attr",
     "get_entity_attr",
     "get_item_attr",
+    "goto",
     "random",
     "random_walk",
     "random_walk_in_sector",
     "set_attr",
+    "set_emit_light",
+    "set_tile",
+    "take",
+    "teleport",
 ];
 
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Clone)]
