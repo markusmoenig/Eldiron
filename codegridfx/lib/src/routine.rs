@@ -235,6 +235,7 @@ impl Routine {
                         item.description = old_item.description.clone();
                         item.replaceable = old_item.replaceable.clone();
                         item.dependend_on = old_item.dependend_on.clone();
+                        item.form = old_item.form.clone();
                     }
 
                     self.grid.remove_dependencies_for(old_item.id);

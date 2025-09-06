@@ -268,6 +268,7 @@ impl Tool for CodeTool {
                 if id.name == "ModuleChanged" {
                     let code = CODEGRIDFX.read().unwrap().build(false);
                     let debug_code = CODEGRIDFX.read().unwrap().build(true);
+                    println!("{}", debug_code);
                     ui.set_widget_value("CodeEdit", ctx, TheValue::Text(code.clone()));
 
                     match CODEEDITOR.read().unwrap().content {

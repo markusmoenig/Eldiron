@@ -5,12 +5,19 @@ use theframework::prelude::*;
 
 const VALUES: [&str; 5] = ["Boolean", "Float", "Integer", "String", "Variable"];
 const OPERATORS: [&str; 3] = ["Arithmetic", "Assignment", "Comparison"];
-const FUNCTIONS: [&str; 13] = [
+const FUNCTIONS: [&str; 21] = [
+    "action",
     "add_item",
+    "entities_in_radius",
+    "equip",
     "get_attr",
     "get_entity_attr",
     "get_item_attr",
     "goto",
+    "inventory_items",
+    "inventory_items_of",
+    "message",
+    "notify_in",
     "random",
     "random_walk",
     "random_walk_in_sector",
@@ -19,6 +26,7 @@ const FUNCTIONS: [&str; 13] = [
     "set_tile",
     "take",
     "teleport",
+    "toggle_attr",
 ];
 
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Clone)]

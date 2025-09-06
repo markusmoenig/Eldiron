@@ -91,11 +91,17 @@ pub enum Cell {
     Arithmetic(ArithmeticOp),
     If,
 
+    Action,
     AddItem,
+    Equip,
     GetAttr,
     GetEntityAttr,
     GetItemAttr,
     Goto,
+    InventoryItems,
+    InventoryItemsOf,
+    Message,
+    NotifyIn,
     Random,
     RandomWalk,
     RandomWalkInSector,
@@ -104,6 +110,7 @@ pub enum Cell {
     SetTile,
     Take,
     Teleport,
+    ToggleAttr,
 
     LeftParent,
     RightParent,
@@ -145,11 +152,18 @@ impl Cell {
             Cell::Comparison(_) => "Comparison",
             Cell::Arithmetic(_) => "Arithmetic",
             Cell::If => "If",
+
+            Cell::Action => "Action",
             Cell::AddItem => "Add Item",
+            Cell::Equip => "Equip",
             Cell::GetAttr => "Get Attribute",
             Cell::GetEntityAttr => "Get Entity Attribute",
             Cell::GetItemAttr => "Get Item Attribute",
             Cell::Goto => "Goto.",
+            Cell::InventoryItems => "Inventory Items",
+            Cell::InventoryItemsOf => "Inventory Items Of",
+            Cell::Message => "Message",
+            Cell::NotifyIn => "Notify In",
             Cell::Random => "Random Number",
             Cell::RandomWalk => "Random Walk",
             Cell::RandomWalkInSector => "Random Walk In Sector",
@@ -158,6 +172,7 @@ impl Cell {
             Cell::SetTile => "Set Tile",
             Cell::Take => "Take",
             Cell::Teleport => "Teleport",
+            Cell::ToggleAttr => "toggle_attr",
             Cell::LeftParent => "Left Parenthesis",
             Cell::RightParent => "Right Parenthesis",
         }
@@ -175,12 +190,17 @@ impl Cell {
             "Arithmetic" => Some(Cell::Arithmetic(ArithmeticOp::Add)),
             "If" => Some(Cell::If),
 
+            "action" => Some(Cell::Action),
             "add_item" => Some(Cell::AddItem),
+            "equip" => Some(Cell::Equip),
             "get_attr" => Some(Cell::GetAttr),
             "get_entity_attr" => Some(Cell::GetEntityAttr),
             "get_item_attr" => Some(Cell::GetItemAttr),
             "goto" => Some(Cell::Goto),
-
+            "inventory_items" => Some(Cell::InventoryItems),
+            "inventory_items_of" => Some(Cell::InventoryItemsOf),
+            "message" => Some(Cell::Message),
+            "notify_in" => Some(Cell::NotifyIn),
             "random" => Some(Cell::Random),
             "random_walk" => Some(Cell::RandomWalk),
             "random_walk_in_sector" => Some(Cell::RandomWalkInSector),
@@ -189,6 +209,7 @@ impl Cell {
             "set_tile" => Some(Cell::SetTile),
             "take" => Some(Cell::Take),
             "teleport" => Some(Cell::Teleport),
+            "toggle_attr" => Some(Cell::ToggleAttr),
             _ => None,
         }
     }
@@ -211,11 +232,17 @@ impl Cell {
             Arithmetic(op) => op.to_string().to_string(),
             If => "if".into(),
 
+            Action => "action".into(),
             AddItem => "add_item".into(),
+            Equip => "equip".into(),
             GetAttr => "get_attr".into(),
             GetEntityAttr => "get_entity_attr".into(),
             GetItemAttr => "get_item_attr".into(),
             Goto => "goto".into(),
+            InventoryItems => "inventory_items".into(),
+            InventoryItemsOf => "inventory_items_of".into(),
+            Message => "message".into(),
+            NotifyIn => "notify_in".into(),
             Random => "random".into(),
             RandomWalk => "random_walk".into(),
             RandomWalkInSector => "random_walk_in_sector".into(),
@@ -224,6 +251,7 @@ impl Cell {
             SetTile => "set_tile".into(),
             Take => "take".into(),
             Teleport => "teleport".into(),
+            ToggleAttr => "toggle_attr".into(),
 
             LeftParent => "(".into(),
             RightParent => ")".into(),
@@ -233,11 +261,18 @@ impl Cell {
 
     pub fn status(&self) -> String {
         match &self {
+            Action => "Player based action.".into(),
             AddItem => "Add an item to the inventory of the current entity.".into(),
             GetAttr => "Get an attribute of the current entity or item.".into(),
             GetEntityAttr => "Get an attribute of the given entity ID.".into(),
             GetItemAttr => "Get an attribute of the given item ID.".into(),
             Goto => "Go to a sector using pathfinding.".into(),
+            InventoryItems => {
+                "Returns a list of item IDs of the inventory of the current entity.".into()
+            }
+            InventoryItemsOf => "Returns a list of item IDs of the item with the given ID.".into(),
+            Message => "Send a message to an entity.".into(),
+            NotifyIn => "Send the given event after the given amount of in-game minutes.".into(),
             Random => "Generate a random number within an open range.".into(),
             RandomWalk => "Randomly walk.".into(),
             RandomWalkInSector => "Randomly walk in the entities current sector.".into(),
@@ -246,6 +281,7 @@ impl Cell {
             SetTile => "Set the tile ID for the current entity or item.".into(),
             Take => "Take the item with the given ID.".into(),
             Teleport => "Teleport to a sector. Optionally in another region.".into(),
+            ToggleAttr => "Toggles a boolean attribute of the current entity or item.".into(),
             _ => "".into(),
         }
     }
