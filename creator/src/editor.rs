@@ -1209,7 +1209,8 @@ impl TheTrait for Editor {
                             let next = Module::from_json(&n);
                             match self.server_ctx.cc {
                                 ContentContext::CharacterTemplate(id) => {
-                                    let atom = CharacterUndoAtom::ModuleEdit(id, prev, next);
+                                    let atom =
+                                        CharacterUndoAtom::CharacterModuleEdit(id, prev, next);
                                     UNDOMANAGER.write().unwrap().add_character_undo(atom, ctx);
                                 }
                                 ContentContext::ItemTemplate(id) => {

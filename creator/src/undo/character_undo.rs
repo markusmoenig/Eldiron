@@ -7,7 +7,7 @@ use theframework::prelude::*;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum CharacterUndoAtom {
     MapEdit(Box<Map>, Box<Map>),
-    ModuleEdit(Uuid, Module, Module),
+    CharacterModuleEdit(Uuid, Module, Module),
 }
 
 impl CharacterUndoAtom {
@@ -30,7 +30,7 @@ impl CharacterUndoAtom {
                     .unwrap()
                     .set_selected_node_ui(project, ui, ctx, false);
             }
-            CharacterUndoAtom::ModuleEdit(id, prev, _) => {
+            CharacterUndoAtom::CharacterModuleEdit(id, prev, _) => {
                 if let Some(character) = project.characters.get_mut(id) {
                     character.module = prev.clone();
                     character.module.redraw(ui, ctx);
@@ -59,7 +59,7 @@ impl CharacterUndoAtom {
                     .unwrap()
                     .set_selected_node_ui(project, ui, ctx, false);
             }
-            CharacterUndoAtom::ModuleEdit(id, _, next) => {
+            CharacterUndoAtom::CharacterModuleEdit(id, _, next) => {
                 if let Some(character) = project.characters.get_mut(id) {
                     character.module = next.clone();
                     character.module.redraw(ui, ctx);

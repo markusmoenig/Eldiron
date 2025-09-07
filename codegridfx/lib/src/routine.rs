@@ -336,7 +336,7 @@ impl Routine {
     pub fn build(&self, out: &mut String, indent: usize, debug: bool) {
         let mut indent = indent;
 
-        if self.name != "instantiation" {
+        if self.name != "instantiation" && self.name != "user_event" {
             *out += &format!("{:indent$}if event == \"{}\":\n", "", self.name);
             indent += 4;
         }
@@ -354,7 +354,7 @@ impl Routine {
             let mut is_if = false;
             let mut ind = indent;
 
-            if debug {
+            if debug && self.name != "user_event" {
                 for (_, (item, pos)) in row.iter().enumerate() {
                     // Add debug code
                     if item.cell.role() == CellRole::Function {

@@ -513,29 +513,37 @@ impl CellItem {
             Cell::Comparison(_) => {
                 if pos.0 == 0 {
                     grid.insert((pos.0, pos.1), CellItem::new(Cell::If));
-                    grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::Integer("0".into())));
+                    grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::Variable("".into())));
                     grid.insert((pos.0 + 2, pos.1), self);
                     grid.insert((pos.0 + 3, pos.1), CellItem::new(Cell::Integer("0".into())));
-                    grid.insert((pos.0, pos.1 + 1), CellItem::new(Cell::Empty));
+
+                    grid.move_down_from(pos.1 + 1);
+                    grid.insert((0, pos.1 + 1), CellItem::new(Cell::Empty));
 
                     let mut indent = 1;
                     if let Some(ind) = grid.row_indents.get(&pos.1) {
                         indent += *ind;
                     }
                     grid.row_indents.insert(pos.1 + 1, indent);
+                    // grid.insert_empty();
+                    // if indent == 2 {
+                    //     if !grid.grid.contains_key(&(0, pos.1 + 2)) {
+                    //         grid.row_indents.insert(pos.1 + 2, 1);
+                    //     }
 
-                    if indent == 2 {
-                        grid.row_indents.insert(pos.1 + 2, 1);
+                    //     if !grid.grid.contains_key(&(0, pos.1 + 3)) {
+                    //         grid.insert((pos.0, pos.1 + 3), CellItem::new(Cell::Empty));
+                    //         grid.row_indents.insert(pos.1 + 3, 1);
+                    //     }
 
-                        grid.insert((pos.0, pos.1 + 3), CellItem::new(Cell::Empty));
-                        grid.row_indents.insert(pos.1 + 3, 1);
-
-                        grid.insert((pos.0, pos.1 + 4), CellItem::new(Cell::Empty));
-                        grid.row_indents.insert(pos.1 + 4, 0);
-                    } else {
-                        grid.insert((pos.0, pos.1 + 2), CellItem::new(Cell::Empty));
-                        grid.row_indents.insert(pos.1 + 2, 0);
-                    }
+                    //     if !grid.grid.contains_key(&(0, pos.1 + 4)) {
+                    //         grid.insert((pos.0, pos.1 + 4), CellItem::new(Cell::Empty));
+                    //         grid.row_indents.insert(pos.1 + 4, 0);
+                    //     }
+                    // } else {
+                    //     grid.insert((pos.0, pos.1 + 2), CellItem::new(Cell::Empty));
+                    //     grid.row_indents.insert(pos.1 + 2, 0);
+                    // }
                 }
             }
             Cell::Action => {
@@ -870,6 +878,31 @@ impl CellItem {
                         self.id,
                         true,
                         "Event Name",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
+            Cell::OfferInventory => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Integer("0".into()),
+                        self.id,
+                        true,
+                        "Entity ID",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 2, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Str("".into()),
+                        self.id,
+                        true,
+                        "Filter",
                         CellItemForm::RightRounded,
                     ),
                 );

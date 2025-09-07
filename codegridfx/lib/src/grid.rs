@@ -40,17 +40,66 @@ impl Grid {
         false
     }
 
-    /// Make sure there is an empty cell at the end of each row and at the bottom row.
+    /// Return the effective indent for a given row, walking upward if absent.
+    fn effective_indent(&self, row: u32) -> u32 {
+        if let Some(&ind) = self.row_indents.get(&row) {
+            return ind;
+        }
+        let mut r = row;
+        while r > 0 {
+            let prev = r - 1;
+            if let Some(&i) = self.row_indents.get(&prev) {
+                return i;
+            }
+            r -= 1;
+        }
+        0
+    }
+
+    /// Shift all rows with index >= start_row down by `count`.
+    fn shift_rows_down_from(&mut self, start_row: u32, count: u32) {
+        // Collect and remove impacted cells first
+        let mut to_shift: Vec<((u32, u32), CellItem)> = Vec::new();
+        for (&(col, r), cell) in &self.grid {
+            if r >= start_row {
+                to_shift.push(((col, r), cell.clone()));
+            }
+        }
+        for ((col, r), _) in &to_shift {
+            self.grid.remove(&(*col, *r));
+            self.grid_rects.remove(&(*col, *r));
+        }
+        for ((col, r), cell) in to_shift {
+            self.grid.insert((col, r + count), cell);
+        }
+
+        // Update indents
+        let mut new_indents = FxHashMap::default();
+        for (&r, &ind) in &self.row_indents {
+            if r >= start_row {
+                new_indents.insert(r + count, ind);
+            } else {
+                new_indents.insert(r, ind);
+            }
+        }
+        self.row_indents = new_indents;
+    }
+
+    /// Ensure invariants:
+    /// 1) Every existing row ends with a trailing `Cell::Empty`.
+    /// 2) After the last **non-empty** row, create a suffix of rows — one per
+    ///    indentation level from that row's indent down to 0 — each containing at
+    ///    least one `Cell::Empty`. This guarantees there's always a drop target at
+    ///    every indentation level.
     pub fn insert_empty(&mut self) {
-        // Add an empty cell at the end of each row only if not already empty (unchanged)
+        // --- (1) Make sure each existing row ends with an Empty cell ---
         let mut rows: FxHashMap<u32, Vec<u32>> = FxHashMap::default();
         for (&(col, row), _) in &self.grid {
             rows.entry(row).or_default().push(col);
         }
-        for (&row, cols) in &rows {
+        for (row, cols) in rows {
             if let Some(&max_col) = cols.iter().max() {
-                let last_cell = self.grid.get(&(max_col, row));
-                let needs_empty = match last_cell {
+                let needs_empty = match self.grid.get(&(max_col, row)) {
                     Some(cell_item) => !matches!(cell_item.cell, Cell::Empty),
                     None => true,
                 };
@@ -58,43 +107,136 @@ impl Grid {
                     self.grid
                         .insert((max_col + 1, row), CellItem::new(Cell::Empty));
                 }
+            } else {
+                // No cells recorded for this row key; ensure at least one empty cell exists.
+                self.grid.insert((0, row), CellItem::new(Cell::Empty));
             }
         }
 
-        // Determine the current bottom row and whether it’s all empty (unchanged)
-        let max_row = self.grid.keys().map(|&(_, row)| row).max().unwrap_or(0);
-        let bottom_row_cells: Vec<&CellItem> = self
-            .grid
-            .iter()
-            .filter(|&(&(_, row), _)| row == max_row)
-            .map(|(_, cell_item)| cell_item)
-            .collect();
-        let all_empty = !bottom_row_cells.is_empty()
-            && bottom_row_cells
-                .iter()
-                .all(|cell_item| matches!(cell_item.cell, Cell::Empty));
+        // --- (2) Find the bottom-most row that has ANY non-empty cell ---
+        let mut bottom_nonempty_row: Option<u32> = None;
+        for (&(_, row), cell) in &self.grid {
+            if !matches!(cell.cell, Cell::Empty) {
+                bottom_nonempty_row = match bottom_nonempty_row {
+                    Some(r) if row > r => Some(row),
+                    None => Some(row),
+                    other => other,
+                };
+            }
+        }
 
-        // If the bottom row contains any non-empty cell, add one or two new rows based on indent
-        if !all_empty {
-            let bottom_indent = *self.row_indents.get(&max_row).unwrap_or(&0);
-            let first_new_row = max_row + 1;
+        // If there are no non-empty rows at all, treat row 0 as the base.
+        let base_row = bottom_nonempty_row.unwrap_or(0);
 
-            // Insert the row inside the current indent (if it doesn’t already exist)
-            if !self.grid.contains_key(&(0, first_new_row)) {
-                self.grid
-                    .insert((0, first_new_row), CellItem::new(Cell::Empty));
-                self.row_indents.insert(first_new_row, bottom_indent);
+        // Determine the indentation level of the base row. If it's not explicitly in
+        // row_indents, walk upwards to find the nearest defined indent, defaulting to 0.
+        let base_indent = if let Some(&ind) = self.row_indents.get(&base_row) {
+            ind
+        } else {
+            let mut r = base_row;
+            let mut ind = 0;
+            while r > 0 {
+                r -= 1;
+                if let Some(&i) = self.row_indents.get(&r) {
+                    ind = i;
+                    break;
+                }
+            }
+            ind
+        };
+
+        // --- (3) Ensure a suffix of rows: one Empty row per indent level down to 0 ---
+        // We want rows: base_row+1 with indent=base_indent,
+        //               base_row+2 with indent=base_indent-1,
+        //               ... down to indent=0.
+        let mut next_row = base_row + 1;
+        for level in (0..=base_indent).rev() {
+            // If the row doesn't exist at all, create a single Empty cell at column 0.
+            let row_exists = self.grid.keys().any(|&(_, r)| r == next_row);
+            if !row_exists {
+                self.grid.insert((0, next_row), CellItem::new(Cell::Empty));
+            } else {
+                // Ensure this row ends with an Empty cell (in case it already has content).
+                // Recompute max col for this specific row.
+                let mut max_col: Option<u32> = None;
+                for (&(c, r), _) in &self.grid {
+                    if r == next_row {
+                        max_col = Some(max_col.map_or(c, |m| m.max(c)));
+                    }
+                }
+                if let Some(mc) = max_col {
+                    let needs_empty = match self.grid.get(&(mc, next_row)) {
+                        Some(cell_item) => !matches!(cell_item.cell, Cell::Empty),
+                        None => true,
+                    };
+                    if needs_empty {
+                        self.grid
+                            .insert((mc + 1, next_row), CellItem::new(Cell::Empty));
+                    }
+                } else {
+                    // Row exists logically but has no cells recorded; make sure there is one.
+                    self.grid.insert((0, next_row), CellItem::new(Cell::Empty));
+                }
             }
 
-            // If there is indentation, insert an extra row with one level less indent
-            if bottom_indent > 0 {
-                let second_new_row = first_new_row + 1;
-                if !self.grid.contains_key(&(0, second_new_row)) {
-                    self.grid
-                        .insert((0, second_new_row), CellItem::new(Cell::Empty));
-                    // The “outside” row should have indent bottom_indent - 1; clamp at 0 if needed.
-                    self.row_indents.insert(second_new_row, bottom_indent - 1);
+            // Update/record the intended indent for this suffix row.
+            self.row_indents.insert(next_row, level);
+            next_row += 1;
+        }
+
+        // --- (4) Normalize mid-grid indent gaps (ensure drop target at each level)
+        self.fill_indent_gaps();
+    }
+
+    /// Ensure that between any two adjacent existing rows, if the indent drops by
+    /// more than 1, we insert intermediate empty rows so there is always a drop
+    /// target at each missing indent level.
+    pub fn fill_indent_gaps(&mut self) {
+        loop {
+            let mut changed = false;
+            // Build sorted unique list of existing row indices
+            let mut row_keys: Vec<u32> = self.grid.keys().map(|&(_, r)| r).collect();
+            row_keys.sort();
+            row_keys.dedup();
+
+            for w in row_keys.windows(2) {
+                let r = w[0];
+                let next = w[1];
+                let ind_r = self.effective_indent(r);
+                let ind_next = self.effective_indent(next);
+
+                if ind_r > ind_next + 1 {
+                    // Insert one intermediate row just before `next` with indent ind_r-1
+                    self.shift_rows_down_from(next, 1);
+                    self.grid.insert((0, next), CellItem::new(Cell::Empty));
+                    self.row_indents.insert(next, ind_r - 1);
+                    changed = true;
+                    break; // restart scan since indices changed
                 }
+            }
+
+            if !changed {
+                break;
+            }
+        }
+
+        // After structural inserts, ensure each row ends with an empty cell
+        let mut rows: FxHashMap<u32, Vec<u32>> = FxHashMap::default();
+        for (&(col, row), _) in &self.grid {
+            rows.entry(row).or_default().push(col);
+        }
+        for (row, cols) in rows {
+            if let Some(&max_col) = cols.iter().max() {
+                let needs_empty = match self.grid.get(&(max_col, row)) {
+                    Some(cell_item) => !matches!(cell_item.cell, Cell::Empty),
+                    None => true,
+                };
+                if needs_empty {
+                    self.grid
+                        .insert((max_col + 1, row), CellItem::new(Cell::Empty));
+                }
+            } else {
+                self.grid.insert((0, row), CellItem::new(Cell::Empty));
             }
         }
     }
@@ -290,6 +432,39 @@ impl Grid {
 
         // Restore grid invariants: ensure each row ends with an empty cell and a new bottom row if needed
         self.insert_empty();
+    }
+
+    /// Move all rows at or below the given row index one line down (shift by 1).
+    pub fn move_down_from(&mut self, row: u32) {
+        // Collect and remove impacted cells first
+        let mut to_shift: Vec<((u32, u32), CellItem)> = Vec::new();
+        for (&(col, r), cell) in &self.grid {
+            if r >= row {
+                to_shift.push(((col, r), cell.clone()));
+            }
+        }
+
+        // Remove them from current positions
+        for ((col, r), _) in &to_shift {
+            self.grid.remove(&(*col, *r));
+            self.grid_rects.remove(&(*col, *r));
+        }
+
+        // Reinsert them shifted down by one
+        for ((col, r), cell) in to_shift {
+            self.grid.insert((col, r + 1), cell);
+        }
+
+        // Update row indents accordingly
+        let mut new_indents = FxHashMap::default();
+        for (&r, &ind) in &self.row_indents {
+            if r >= row {
+                new_indents.insert(r + 1, ind);
+            } else {
+                new_indents.insert(r, ind);
+            }
+        }
+        self.row_indents = new_indents;
     }
 
     /// Returns the size of the grid.

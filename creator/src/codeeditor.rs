@@ -32,6 +32,23 @@ impl CodeEditor {
     ) {
         *CODEGRIDFX.write().unwrap() = character.module.clone();
         CODEGRIDFX.write().unwrap().name = character.name.clone();
+
+        let mut is_player = false;
+
+        // Get all player entities
+        match character.data.parse::<Table>() {
+            Ok(data) => {
+                if let Some(game) = data.get("attributes").and_then(toml::Value::as_table) {
+                    if let Some(value) = game.get("player") {
+                        if let Some(v) = value.as_bool() {
+                            is_player = v;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        CODEGRIDFX.write().unwrap().player = is_player;
         CODEGRIDFX
             .write()
             .unwrap()

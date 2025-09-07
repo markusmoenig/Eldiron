@@ -5,7 +5,7 @@ use theframework::prelude::*;
 
 const VALUES: [&str; 5] = ["Boolean", "Float", "Integer", "String", "Variable"];
 const OPERATORS: [&str; 3] = ["Arithmetic", "Assignment", "Comparison"];
-const FUNCTIONS: [&str; 29] = [
+const FUNCTIONS: [&str; 30] = [
     "action",
     "add_item",
     "block_events",
@@ -24,6 +24,7 @@ const FUNCTIONS: [&str; 29] = [
     "inventory_items_of",
     "message",
     "notify_in",
+    "offer_inventory",
     "random",
     "random_walk",
     "random_walk_in_sector",
@@ -61,6 +62,8 @@ pub struct Module {
     pub name: String,
     pub routines: IndexMap<Uuid, Routine>,
     grid_ctx: GridCtx,
+    #[serde(default)]
+    pub player: bool,
 
     filter_text: String,
 }
@@ -97,9 +100,29 @@ impl Module {
                 let routine = Routine::new("instantiation".into(), "instance specifics".into());
                 self.routines.insert(routine.id, routine);
             }
-        } else if !self.contains("startup") {
-            let routine = Routine::new("startup".into(), "send on creation".into());
-            self.routines.insert(routine.id, routine);
+        } else {
+            if !self.contains("startup") {
+                let routine = Routine::new("startup".into(), "send on creation".into());
+                self.routines.insert(routine.id, routine);
+            }
+            if self.module_type == ModuleType::CharacterTemplate {
+                // Search for the user_event id
+                let user_event_id = self
+                    .routines
+                    .iter()
+                    .find(|(_, r)| r.name == "user_event")
+                    .map(|(id, _)| *id);
+                if !self.player {
+                    // If not a player, make sure to delete the "user_event" routine if it exists
+                    if let Some(id) = user_event_id {
+                        self.routines.shift_remove(&id);
+                    }
+                } else if user_event_id.is_none() {
+                    // If a player and there is no user_event routine, add one
+                    let routine = Routine::new("user_event".into(), "for player characters".into());
+                    self.routines.insert(routine.id, routine);
+                }
+            }
         }
     }
 
@@ -332,6 +355,7 @@ impl Module {
             TheEvent::KeyCodeDown(key) => {
                 if let Some(focus) = &ctx.ui.focus {
                     if focus.name == "ModuleView" {
+                        let prev = self.to_json();
                         if let Some(key_code) = key.to_key_code() {
                             if key_code == TheKeyCode::Return {
                                 if let Some(sel) = self.grid_ctx.current_cell.clone() {
@@ -339,6 +363,16 @@ impl Module {
                                         routine.grid.return_at(sel.1);
                                         self.grid_ctx.current_cell = Some((sel.0, sel.1 + 1));
                                         self.redraw(ui, ctx);
+
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("ModuleChanged"),
+                                            TheValue::Empty,
+                                        ));
+                                        ctx.ui.send(TheEvent::CustomUndo(
+                                            TheId::named("ModuleUndo"),
+                                            prev,
+                                            self.to_json(),
+                                        ));
                                     }
                                 }
                             } else if key_code == TheKeyCode::Delete {
@@ -351,6 +385,16 @@ impl Module {
                                             self.grid_ctx.current_cell = Some((sel.0, 0));
                                         }
                                         self.redraw(ui, ctx);
+
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("ModuleChanged"),
+                                            TheValue::Empty,
+                                        ));
+                                        ctx.ui.send(TheEvent::CustomUndo(
+                                            TheId::named("ModuleUndo"),
+                                            prev,
+                                            self.to_json(),
+                                        ));
                                     }
                                 }
                             }
@@ -428,9 +472,7 @@ impl Module {
                 }
             }
             TheEvent::Drop(coord, drop) => {
-                // println!("{}, {}", coord, drop.title);
                 let mut handled = false;
-
                 let prev = self.to_json();
 
                 if drop.title == "Event" {
@@ -635,8 +677,21 @@ impl Module {
             out += &format!("class {}:\n", self.name);
             out += "    def event(self, event, value):\n";
 
+            // Build non user_events first
             for r in self.routines.values() {
-                r.build(&mut out, 8, debug);
+                if r.name != "user_event" {
+                    r.build(&mut out, 8, debug);
+                }
+            }
+
+            // Build user_event (if any)
+            for r in self.routines.values() {
+                if r.name == "user_event" {
+                    out += "    def user_event(self, event, value):\n";
+
+                    r.build(&mut out, 8, debug);
+                    break;
+                }
             }
         } else {
             out += "def setup():\n";
