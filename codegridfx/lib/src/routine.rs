@@ -1,4 +1,4 @@
-use crate::{Cell, CellItem, Grid, GridCtx, cell::CellRole};
+use crate::{Cell, CellItem, Grid, GridCtx, cell::CellRole, cellitem::CellItemForm};
 use rusterix::Debug;
 use theframework::prelude::*;
 
@@ -376,6 +376,10 @@ impl Routine {
                 }
 
                 row_code += &item.code();
+                if item.cell.role() == CellRole::Function && item.form == CellItemForm::Rounded {
+                    row_code += ")";
+                }
+
                 if !item.description.is_empty() {
                     // Check if we need to insert a "," or ")"
                     if let Some(next) = self.grid.grid.get(&(pos.0 + 1, pos.1)) {

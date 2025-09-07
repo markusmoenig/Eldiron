@@ -567,6 +567,110 @@ impl CellItem {
                 self.form = CellItemForm::LeftRounded;
                 grid.insert(pos, self)
             }
+            Cell::BlockEvents => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Integer("1".into()),
+                        self.id,
+                        true,
+                        "Minutes",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 2, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Str("".into()),
+                        self.id,
+                        true,
+                        "Event",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
+            Cell::CloseIn => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Integer("0".into()),
+                        self.id,
+                        true,
+                        "Target ID",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 2, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Float("5.0".into()),
+                        self.id,
+                        true,
+                        "Radius",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 3, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Float("1.0".into()),
+                        self.id,
+                        true,
+                        "Speed",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
+            Cell::DealDamage => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Integer("0".into()),
+                        self.id,
+                        true,
+                        "Entity",
+                        CellItemForm::Box,
+                    ),
+                );
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
+            Cell::Drop => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Integer("0".into()),
+                        self.id,
+                        true,
+                        "Item ID",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
+            Cell::DropItems => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Str("".into()),
+                        self.id,
+                        false,
+                        "Filter",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
+            Cell::EntitiesInRadius => {
+                self.form = CellItemForm::Rounded;
+                grid.insert(pos, self)
+            }
             Cell::Equip => {
                 grid.insert(
                     (pos.0 + 1, pos.1),
@@ -667,6 +771,10 @@ impl CellItem {
                 );
 
                 self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
+            Cell::Id => {
+                self.form = CellItemForm::Box;
                 grid.insert(pos, self)
             }
             Cell::InventoryItems => {
@@ -869,6 +977,31 @@ impl CellItem {
                 self.form = CellItemForm::LeftRounded;
                 grid.insert(pos, self)
             }
+            Cell::SetProximityTracking => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Boolean(true),
+                        self.id,
+                        true,
+                        "On / Off",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 2, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Float("5.0".into()),
+                        self.id,
+                        true,
+                        "Distance",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
             Cell::SetTile => {
                 grid.insert(
                     (pos.0 + 1, pos.1),
@@ -933,6 +1066,21 @@ impl CellItem {
                         false,
                         "Attribute Name",
                         CellItemForm::Box,
+                    ),
+                );
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
+            Cell::TookDamage => {
+                // TODO
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Str("attr".into()),
+                        self.id,
+                        false,
+                        "Attribute Name",
+                        CellItemForm::RightRounded,
                     ),
                 );
                 self.form = CellItemForm::LeftRounded;
