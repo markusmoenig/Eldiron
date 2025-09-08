@@ -27,6 +27,9 @@ pub struct CellItem {
     pub description: String,
 
     pub form: CellItemForm,
+
+    #[serde(default)]
+    pub option: i32,
 }
 
 impl CellItem {
@@ -40,6 +43,8 @@ impl CellItem {
             replaceable: true,
             description: String::new(),
             form: CellItemForm::default(),
+
+            option: 0,
         }
     }
 
@@ -59,6 +64,8 @@ impl CellItem {
             replaceable,
             description: description.to_string(),
             form,
+
+            option: 0,
         }
     }
 
@@ -88,6 +95,15 @@ impl CellItem {
         let rounding = 2.0 * zoom;
         match &self.cell {
             Cell::Variable(name) => {
+                let text = match self.option {
+                    1 => {
+                        format!("First({})", name)
+                    }
+                    2 => {
+                        format!("Length({})", name)
+                    }
+                    _ => self.cell.to_string(),
+                };
                 if let Some(font) = &ctx.ui.font {
                     ctx.draw.rounded_rect(
                         buffer.pixels_mut(),
@@ -109,7 +125,7 @@ impl CellItem {
                         stride,
                         font,
                         grid_ctx.font_size,
-                        name,
+                        &text,
                         &grid_ctx.text_color,
                         TheHorizontalAlign::Center,
                         TheVerticalAlign::Center,
@@ -292,12 +308,17 @@ impl CellItem {
         let mut size = Vec2::new(30, 50);
         match &self.cell {
             Variable(_) | Integer(_) | Float(_) | Str(_) | Boolean(_) => {
+                let text = match self.option {
+                    1 => {
+                        format!("First({})", self.cell.to_string())
+                    }
+                    2 => {
+                        format!("Length({})", self.cell.to_string())
+                    }
+                    _ => self.cell.to_string(),
+                };
                 if let Some(font) = &ctx.ui.font {
-                    size.x = ctx
-                        .draw
-                        .get_text_size(font, grid_ctx.font_size, &self.cell.to_string())
-                        .0 as u32
-                        + 20;
+                    size.x = ctx.draw.get_text_size(font, grid_ctx.font_size, &text).0 as u32 + 20;
 
                     if !self.description.is_empty() {
                         let desc = ctx
@@ -365,11 +386,24 @@ impl CellItem {
             Variable(name) => {
                 let item = TheNodeUIItem::Text(
                     "cgfxVariableName".into(),
-                    "Variable Name".into(),
+                    "Name".into(),
                     "Set the name of the variable".into(),
                     name.clone(),
                     None,
                     false,
+                );
+                nodeui.add_item(item);
+
+                let item = TheNodeUIItem::Selector(
+                    "cgfxVariableOption".into(),
+                    "Access".into(),
+                    "Select the access mode of the variable".into(),
+                    vec![
+                        "Self".to_string(),
+                        "List: First Item".to_string(),
+                        "List: Length".to_string(),
+                    ],
+                    self.option,
                 );
                 nodeui.add_item(item);
             }
@@ -452,6 +486,10 @@ impl CellItem {
                     if Self::is_valid_python_variable(&n) {
                         *var_name = n;
                     }
+                } else if let Some(v) = value.to_i32()
+                    && name == "cgfxVariableOption"
+                {
+                    self.option = v;
                 }
             }
             Integer(value_name) => {
@@ -513,18 +551,30 @@ impl CellItem {
             Cell::Comparison(_) => {
                 if pos.0 == 0 {
                     grid.insert((pos.0, pos.1), CellItem::new(Cell::If));
-                    grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::Variable("".into())));
+                    grid.insert(
+                        (pos.0 + 1, pos.1),
+                        CellItem::new(Cell::Variable("variable".into())),
+                    );
                     grid.insert((pos.0 + 2, pos.1), self);
                     grid.insert((pos.0 + 3, pos.1), CellItem::new(Cell::Integer("0".into())));
 
-                    grid.move_down_from(pos.1 + 1);
+                    grid.move_down_from(pos.1 + 2);
                     grid.insert((0, pos.1 + 1), CellItem::new(Cell::Empty));
 
                     let mut indent = 1;
                     if let Some(ind) = grid.row_indents.get(&pos.1) {
                         indent += *ind;
                     }
-                    grid.row_indents.insert(pos.1 + 1, indent);
+
+                    if !grid.grid.contains_key(&(0, pos.1 + 1)) {
+                        grid.row_indents.insert(pos.1 + 1, indent);
+                    }
+                    grid.insert_empty();
+
+                    // } else {
+                    // grid.insert((pos.0, pos.1 + 2), CellItem::new(Cell::Empty));
+                    // grid.row_indents.insert(pos.1 + 2, 0);
+                    // }
                     // grid.insert_empty();
                     // if indent == 2 {
                     //     if !grid.grid.contains_key(&(0, pos.1 + 2)) {
@@ -716,7 +766,7 @@ impl CellItem {
                         self.id,
                         true,
                         "Entity ID",
-                        CellItemForm::RightRounded,
+                        CellItemForm::Box,
                     ),
                 );
                 grid.insert(
@@ -740,7 +790,7 @@ impl CellItem {
                         self.id,
                         true,
                         "Item ID",
-                        CellItemForm::RightRounded,
+                        CellItemForm::Box,
                     ),
                 );
                 grid.insert(
@@ -1129,7 +1179,18 @@ impl CellItem {
             return self.cell.to_string() + "(";
         }
 
-        self.cell.to_string()
+        match self.cell {
+            Variable(_) => match self.option {
+                1 => {
+                    format!("{}[0]", self.cell.to_string())
+                }
+                2 => {
+                    format!("length({})", self.cell.to_string())
+                }
+                _ => self.cell.to_string(),
+            },
+            _ => self.cell.to_string(),
+        }
     }
 
     /// Checks if the string is a valid python variable name

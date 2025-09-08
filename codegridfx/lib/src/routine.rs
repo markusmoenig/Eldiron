@@ -6,7 +6,6 @@ use theframework::prelude::*;
 pub struct Routine {
     pub id: Uuid,
     pub name: String,
-    pub description: String,
 
     pub module_offset: u32,
     pub visible: bool,
@@ -21,13 +20,12 @@ pub struct Routine {
 }
 
 impl Routine {
-    pub fn new(name: &str, description: &str) -> Self {
+    pub fn new(name: &str) -> Self {
         let mut grid = Grid::new();
         grid.insert((0, 0), CellItem::new(Cell::Empty));
         Self {
             id: Uuid::new_v4(),
             name: name.to_string(),
-            description: description.to_string(),
             module_offset: 0,
             visible: false,
             folded: false,
@@ -83,6 +81,7 @@ impl Routine {
         );
 
         let stride = self.buffer.dim().width as usize;
+        let desc = self.get_description();
 
         if let Some(font) = &ctx.ui.font {
             ctx.draw.text_rect_blend(
@@ -96,7 +95,7 @@ impl Routine {
                 stride,
                 font,
                 15.0,
-                &self.name,
+                &format!("{} ({})", self.name, self.grid.count()),
                 &grid_ctx.text_color,
                 TheHorizontalAlign::Left,
                 TheVerticalAlign::Center,
@@ -112,7 +111,7 @@ impl Routine {
                 stride,
                 font,
                 13.0,
-                &self.description,
+                &desc,
                 &grid_ctx.text_color,
                 TheHorizontalAlign::Right,
                 TheVerticalAlign::Center,
@@ -170,7 +169,7 @@ impl Routine {
         let mut pos: Option<(u32, u32)> = None;
         let mut old_item: CellItem = CellItem::new(Cell::Empty);
 
-        if loc.y > grid_ctx.header_height {
+        if loc.y > grid_ctx.header_height && !self.folded {
             for (coord, item) in self.grid.grid.iter_mut() {
                 if let Some(rect) = self.grid.grid_rects.get(coord) {
                     if rect.contains(Vec2::new(loc.x as i32, loc.y as i32)) {
@@ -281,7 +280,12 @@ impl Routine {
             grid_ctx.current_cell = None;
             self.draw(ctx, grid_ctx, 0, None);
             handled = true;
-        } else {
+
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("ModuleChanged"),
+                TheValue::Empty,
+            ));
+        } else if !self.folded {
             for (coord, cell) in &self.grid.grid {
                 if let Some(rect) = self.grid.grid_rects.get(coord) {
                     if rect.contains(Vec2::new(loc.x as i32, loc.y as i32)) {
@@ -336,7 +340,7 @@ impl Routine {
     pub fn build(&self, out: &mut String, indent: usize, debug: bool) {
         let mut indent = indent;
 
-        if self.name != "instantiation" && self.name != "user_event" {
+        if self.name != "instantiation" {
             *out += &format!("{:indent$}if event == \"{}\":\n", "", self.name);
             indent += 4;
         }
@@ -354,7 +358,7 @@ impl Routine {
             let mut is_if = false;
             let mut ind = indent;
 
-            if debug && self.name != "user_event" {
+            if debug {
                 for (_, (item, pos)) in row.iter().enumerate() {
                     // Add debug code
                     if item.cell.role() == CellRole::Function {
@@ -405,6 +409,17 @@ impl Routine {
             }
 
             *out += &format!("{:ind$}{}\n", "", row_code);
+        }
+    }
+
+    /// Get the description of the event
+    fn get_description(&self) -> String {
+        match self.name.as_str() {
+            "startup" => "send on startup, 'value' contains the ID".into(),
+            "proximity_warning" => "'value' is a list of entity IDs in proximity".into(),
+            "key_down" => "'value' contains the pressed key".into(),
+            "key_up" => "'value' contains the released key".into(),
+            _ => "custom event".into(),
         }
     }
 }

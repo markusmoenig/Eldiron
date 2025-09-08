@@ -21,6 +21,17 @@ impl Grid {
         }
     }
 
+    /// Counts the amount of non empty cells in the grid
+    pub fn count(&self) -> i32 {
+        let mut count = 0;
+        for item in self.grid.values() {
+            if !matches!(item.cell, Cell::Empty) {
+                count += 1;
+            }
+        }
+        count
+    }
+
     /// Insert a cell item at the given location.
     pub fn insert(&mut self, at: (u32, u32), item: CellItem) {
         self.grid.insert(at, item);
@@ -145,19 +156,69 @@ impl Grid {
             ind
         };
 
-        // --- (3) Ensure a suffix of rows: one Empty row per indent level down to 0 ---
-        // We want rows: base_row+1 with indent=base_indent,
-        //               base_row+2 with indent=base_indent-1,
-        //               ... down to indent=0.
+        // --- (3) Ensure a suffix of rows without downgrading existing indents ---
+        // If there is already an (all-empty) row directly after the last non-empty row
+        // with indent = base_indent + 1 (typical after inserting an `If`), keep it.
+        let first_row = base_row + 1;
+
+        // Check whether `first_row` exists and is all-empty
+        let mut first_row_exists = false;
+        let mut first_row_all_empty = true;
+        for (&(_, r), cell) in &self.grid {
+            if r == first_row {
+                first_row_exists = true;
+                if !matches!(cell.cell, Cell::Empty) {
+                    first_row_all_empty = false;
+                    break;
+                }
+            }
+        }
+
+        // Detect whether the base row is a control opener (If / For / While, etc.)
+        let mut base_is_control = false;
+        for (&(_, r), cell) in &self.grid {
+            if r == base_row {
+                match cell.cell {
+                    Cell::If /* | Cell::For | Cell::While */ => {
+                        base_is_control = true;
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // Determine the starting indent level for the suffix sequence.
+        // Default is the base indent; allow base_indent+1 only if base row opens a block.
+        let existing_first_indent = self.row_indents.get(&first_row).copied();
+        let mut start_level = base_indent;
+
+        if base_is_control && first_row_exists && first_row_all_empty {
+            let desired = base_indent.saturating_add(1);
+            let effective = existing_first_indent.unwrap_or(desired);
+            // Keep the higher one (never downgrade an existing higher indent)
+            start_level = effective.max(desired);
+        } else {
+            // No block opener: do not elevate indent. Normalize back to base_indent if needed.
+            if first_row_exists {
+                if let Some(cur) = existing_first_indent {
+                    if cur > base_indent {
+                        self.row_indents.insert(first_row, base_indent);
+                    }
+                }
+            }
+        }
+
+        // Now create/ensure a continuous suffix from `start_level` down to 0
+        // mapping levels to rows: row = base_row + 1 + offset, level = start_level - offset
         let mut next_row = base_row + 1;
-        for level in (0..=base_indent).rev() {
-            // If the row doesn't exist at all, create a single Empty cell at column 0.
+        for level in (0..=start_level).rev() {
+            // Ensure row exists
             let row_exists = self.grid.keys().any(|&(_, r)| r == next_row);
             if !row_exists {
                 self.grid.insert((0, next_row), CellItem::new(Cell::Empty));
             } else {
-                // Ensure this row ends with an Empty cell (in case it already has content).
-                // Recompute max col for this specific row.
+                // Ensure this row ends with an Empty cell (in case it already has content)
                 let mut max_col: Option<u32> = None;
                 for (&(c, r), _) in &self.grid {
                     if r == next_row {
@@ -174,18 +235,48 @@ impl Grid {
                             .insert((mc + 1, next_row), CellItem::new(Cell::Empty));
                     }
                 } else {
-                    // Row exists logically but has no cells recorded; make sure there is one.
                     self.grid.insert((0, next_row), CellItem::new(Cell::Empty));
                 }
             }
 
-            // Update/record the intended indent for this suffix row.
-            self.row_indents.insert(next_row, level);
+            // Set the indent for this suffix row, but do not downgrade if a higher indent exists
+            match self.row_indents.get(&next_row).copied() {
+                Some(existing) => {
+                    if existing < level {
+                        self.row_indents.insert(next_row, level);
+                    }
+                }
+                None => {
+                    self.row_indents.insert(next_row, level);
+                }
+            }
+
             next_row += 1;
         }
 
         // --- (4) Normalize mid-grid indent gaps (ensure drop target at each level)
         self.fill_indent_gaps();
+
+        // --- (5) Always ensure one empty row after the last non-empty row ---
+        let mut last_nonempty: Option<u32> = None;
+        for (&(_, r), cell) in &self.grid {
+            if !matches!(cell.cell, Cell::Empty) {
+                last_nonempty = Some(last_nonempty.map_or(r, |m| m.max(r)));
+            }
+        }
+
+        if let Some(last) = last_nonempty {
+            // Is there any row strictly below the last non-empty row?
+            let has_below = self.grid.keys().any(|&(_, r)| r > last);
+            if !has_below {
+                let new_row = last + 1;
+                // Insert a single Empty cell for the new bottom row
+                self.grid.insert((0, new_row), CellItem::new(Cell::Empty));
+                // Inherit the effective indent of the last non-empty row (usually 0 here)
+                let ind = self.effective_indent(last);
+                self.row_indents.insert(new_row, ind);
+            }
+        }
     }
 
     /// Ensure that between any two adjacent existing rows, if the indent drops by

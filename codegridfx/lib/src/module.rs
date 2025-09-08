@@ -5,6 +5,7 @@ use theframework::prelude::*;
 
 const VALUES: [&str; 5] = ["Boolean", "Float", "Integer", "String", "Variable"];
 const OPERATORS: [&str; 3] = ["Arithmetic", "Assignment", "Comparison"];
+const USER_EVENTS: [&str; 2] = ["key_down", "key_up"];
 const FUNCTIONS: [&str; 30] = [
     "action",
     "add_item",
@@ -97,30 +98,33 @@ impl Module {
     pub fn update_routines(&mut self) {
         if self.module_type.is_instance() {
             if !self.contains("instantiation") {
-                let routine = Routine::new("instantiation".into(), "instance specifics".into());
+                let routine = Routine::new("instantiation".into());
                 self.routines.insert(routine.id, routine);
             }
         } else {
             if !self.contains("startup") {
-                let routine = Routine::new("startup".into(), "send on creation".into());
+                let routine = Routine::new("startup".into());
                 self.routines.insert(routine.id, routine);
             }
             if self.module_type == ModuleType::CharacterTemplate {
-                // Search for the user_event id
-                let user_event_id = self
-                    .routines
-                    .iter()
-                    .find(|(_, r)| r.name == "user_event")
-                    .map(|(id, _)| *id);
-                if !self.player {
-                    // If not a player, make sure to delete the "user_event" routine if it exists
-                    if let Some(id) = user_event_id {
-                        self.routines.shift_remove(&id);
+                for event in USER_EVENTS {
+                    // Search for the user_event id
+                    let user_event_id = self
+                        .routines
+                        .iter()
+                        .find(|(_, r)| r.name == event)
+                        .map(|(id, _)| *id);
+                    if !self.player {
+                        // If not a player, make sure to delete the "user_event" routine if it exists
+                        if let Some(id) = user_event_id {
+                            self.routines.shift_remove(&id);
+                        }
+                    } else if user_event_id.is_none() {
+                        // If a player and there is no user_event routine, add one
+                        let mut routine = Routine::new(event.into());
+                        routine.folded = true;
+                        self.routines.insert(routine.id, routine);
                     }
-                } else if user_event_id.is_none() {
-                    // If a player and there is no user_event routine, add one
-                    let routine = Routine::new("user_event".into(), "for player characters".into());
-                    self.routines.insert(routine.id, routine);
                 }
             }
         }
@@ -480,7 +484,7 @@ impl Module {
                         return false;
                     }
 
-                    let routine = Routine::new("custom".into(), "".into());
+                    let routine = Routine::new("custom".into());
 
                     self.grid_ctx.selected_routine = Some(routine.id);
                     self.grid_ctx.current_cell = None;
@@ -677,20 +681,24 @@ impl Module {
             out += &format!("class {}:\n", self.name);
             out += "    def event(self, event, value):\n";
 
+            let mut contains_user_events = false;
+
             // Build non user_events first
             for r in self.routines.values() {
-                if r.name != "user_event" {
+                if !USER_EVENTS.contains(&r.name.as_str()) {
                     r.build(&mut out, 8, debug);
+                } else {
+                    contains_user_events = true;
                 }
             }
 
-            // Build user_event (if any)
-            for r in self.routines.values() {
-                if r.name == "user_event" {
-                    out += "    def user_event(self, event, value):\n";
-
-                    r.build(&mut out, 8, debug);
-                    break;
+            if contains_user_events {
+                out += "    def user_event(self, event, value):\n";
+                // Build user_event (if any)
+                for r in self.routines.values() {
+                    if USER_EVENTS.contains(&r.name.as_str()) {
+                        r.build(&mut out, 8, debug);
+                    }
                 }
             }
         } else {
