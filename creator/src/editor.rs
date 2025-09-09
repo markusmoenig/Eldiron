@@ -1207,15 +1207,33 @@ impl TheTrait for Editor {
                         if id.name == "ModuleUndo" {
                             let prev = Module::from_json(&p);
                             let next = Module::from_json(&n);
-                            match self.server_ctx.cc {
+                            match CODEEDITOR.read().unwrap().content {
                                 ContentContext::CharacterTemplate(id) => {
                                     let atom =
-                                        CharacterUndoAtom::CharacterModuleEdit(id, prev, next);
+                                        CharacterUndoAtom::TemplateModuleEdit(id, prev, next);
+                                    UNDOMANAGER.write().unwrap().add_character_undo(atom, ctx);
+                                }
+                                ContentContext::CharacterInstance(id) => {
+                                    let atom = CharacterUndoAtom::InstanceModuleEdit(
+                                        self.server_ctx.curr_region,
+                                        id,
+                                        prev,
+                                        next,
+                                    );
                                     UNDOMANAGER.write().unwrap().add_character_undo(atom, ctx);
                                 }
                                 ContentContext::ItemTemplate(id) => {
                                     let atom: ItemUndoAtom =
-                                        ItemUndoAtom::ModuleEdit(id, prev, next);
+                                        ItemUndoAtom::TemplateModuleEdit(id, prev, next);
+                                    UNDOMANAGER.write().unwrap().add_item_undo(atom, ctx);
+                                }
+                                ContentContext::ItemInstance(id) => {
+                                    let atom = ItemUndoAtom::InstanceModuleEdit(
+                                        self.server_ctx.curr_region,
+                                        id,
+                                        prev,
+                                        next,
+                                    );
                                     UNDOMANAGER.write().unwrap().add_item_undo(atom, ctx);
                                 }
                                 _ => {}

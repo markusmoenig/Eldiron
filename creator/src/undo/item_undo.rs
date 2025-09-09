@@ -7,7 +7,8 @@ use theframework::prelude::*;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ItemUndoAtom {
     MapEdit(Box<Map>, Box<Map>),
-    ModuleEdit(Uuid, Module, Module),
+    TemplateModuleEdit(Uuid, Module, Module),
+    InstanceModuleEdit(Uuid, Uuid, Module, Module),
 }
 
 impl ItemUndoAtom {
@@ -25,11 +26,20 @@ impl ItemUndoAtom {
                     .unwrap()
                     .set_selected_node_ui(project, ui, ctx, false);
             }
-            ItemUndoAtom::ModuleEdit(id, prev, _) => {
+            ItemUndoAtom::TemplateModuleEdit(id, prev, _) => {
                 if let Some(item) = project.items.get_mut(id) {
                     item.module = prev.clone();
                     item.module.redraw(ui, ctx);
                     item.module.show_settings(ui, ctx);
+                }
+            }
+            ItemUndoAtom::InstanceModuleEdit(region_id, id, prev, _) => {
+                if let Some(region) = project.get_region_mut(region_id) {
+                    if let Some(item) = region.items.get_mut(id) {
+                        item.module = prev.clone();
+                        item.module.redraw(ui, ctx);
+                        item.module.show_settings(ui, ctx);
+                    }
                 }
             }
         }
@@ -48,11 +58,20 @@ impl ItemUndoAtom {
                     .unwrap()
                     .set_selected_node_ui(project, ui, ctx, false);
             }
-            ItemUndoAtom::ModuleEdit(id, _, next) => {
+            ItemUndoAtom::TemplateModuleEdit(id, _, next) => {
                 if let Some(item) = project.items.get_mut(id) {
                     item.module = next.clone();
                     item.module.redraw(ui, ctx);
                     item.module.show_settings(ui, ctx);
+                }
+            }
+            ItemUndoAtom::InstanceModuleEdit(region_id, id, _, next) => {
+                if let Some(region) = project.get_region_mut(region_id) {
+                    if let Some(item) = region.items.get_mut(id) {
+                        item.module = next.clone();
+                        item.module.redraw(ui, ctx);
+                        item.module.show_settings(ui, ctx);
+                    }
                 }
             }
         }

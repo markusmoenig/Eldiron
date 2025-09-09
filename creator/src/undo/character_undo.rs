@@ -7,7 +7,8 @@ use theframework::prelude::*;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum CharacterUndoAtom {
     MapEdit(Box<Map>, Box<Map>),
-    CharacterModuleEdit(Uuid, Module, Module),
+    TemplateModuleEdit(Uuid, Module, Module),
+    InstanceModuleEdit(Uuid, Uuid, Module, Module),
 }
 
 impl CharacterUndoAtom {
@@ -30,11 +31,20 @@ impl CharacterUndoAtom {
                     .unwrap()
                     .set_selected_node_ui(project, ui, ctx, false);
             }
-            CharacterUndoAtom::CharacterModuleEdit(id, prev, _) => {
+            CharacterUndoAtom::TemplateModuleEdit(id, prev, _) => {
                 if let Some(character) = project.characters.get_mut(id) {
                     character.module = prev.clone();
                     character.module.redraw(ui, ctx);
                     character.module.show_settings(ui, ctx);
+                }
+            }
+            CharacterUndoAtom::InstanceModuleEdit(region_id, id, prev, _) => {
+                if let Some(region) = project.get_region_mut(region_id) {
+                    if let Some(character) = region.characters.get_mut(id) {
+                        character.module = prev.clone();
+                        character.module.redraw(ui, ctx);
+                        character.module.show_settings(ui, ctx);
+                    }
                 }
             }
         }
@@ -59,11 +69,20 @@ impl CharacterUndoAtom {
                     .unwrap()
                     .set_selected_node_ui(project, ui, ctx, false);
             }
-            CharacterUndoAtom::CharacterModuleEdit(id, _, next) => {
+            CharacterUndoAtom::TemplateModuleEdit(id, _, next) => {
                 if let Some(character) = project.characters.get_mut(id) {
                     character.module = next.clone();
                     character.module.redraw(ui, ctx);
                     character.module.show_settings(ui, ctx);
+                }
+            }
+            CharacterUndoAtom::InstanceModuleEdit(region_id, id, _, next) => {
+                if let Some(region) = project.get_region_mut(region_id) {
+                    if let Some(character) = region.characters.get_mut(id) {
+                        character.module = next.clone();
+                        character.module.redraw(ui, ctx);
+                        character.module.show_settings(ui, ctx);
+                    }
                 }
             }
         }
