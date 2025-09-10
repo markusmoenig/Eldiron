@@ -2,6 +2,14 @@
 
 ## New Features
 
+### Client
+
+- New grid based node editor for coding entity and item behavior in the code tool. The main new feature for this release.
+
+### Server
+
+- Removed `get_entity_attr` and `get_item_attr` and replaced it with `get_attr_of` which works for both entities and items.
+
 ---
 
 # Eldiron Creator v0.8.60

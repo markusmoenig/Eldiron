@@ -1,4 +1,4 @@
-use crate::{Cell, GridCtx, Routine, cell::CellRole};
+use crate::{Cell, CellItem, GridCtx, Routine, cell::CellRole};
 use indexmap::*;
 use rusterix::Debug;
 use theframework::prelude::*;
@@ -6,7 +6,7 @@ use theframework::prelude::*;
 const VALUES: [&str; 5] = ["Boolean", "Float", "Integer", "String", "Variable"];
 const OPERATORS: [&str; 3] = ["Arithmetic", "Assignment", "Comparison"];
 const USER_EVENTS: [&str; 2] = ["key_down", "key_up"];
-const FUNCTIONS: [&str; 30] = [
+const FUNCTIONS: [&str; 29] = [
     "action",
     "add_item",
     "block_events",
@@ -17,8 +17,7 @@ const FUNCTIONS: [&str; 30] = [
     "entities_in_radius",
     "equip",
     "get_attr",
-    "get_entity_attr",
-    "get_item_attr",
+    "get_attr_of",
     "goto",
     "id",
     "inventory_items",
@@ -378,6 +377,23 @@ impl Module {
                                             self.to_json(),
                                         ));
                                     }
+                                } else {
+                                    // Return on header
+                                    if let Some(routine) = self.get_selected_routine_mut() {
+                                        routine.grid.shift_rows_down_from(0, 1);
+                                        routine.grid.insert((0, 0), CellItem::new(Cell::Empty));
+                                        self.redraw(ui, ctx);
+
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("ModuleChanged"),
+                                            TheValue::Empty,
+                                        ));
+                                        ctx.ui.send(TheEvent::CustomUndo(
+                                            TheId::named("ModuleUndo"),
+                                            prev,
+                                            self.to_json(),
+                                        ));
+                                    }
                                 }
                             } else if key_code == TheKeyCode::Delete {
                                 if let Some(sel) = self.grid_ctx.current_cell.clone() {
@@ -489,7 +505,22 @@ impl Module {
                     self.grid_ctx.selected_routine = Some(routine.id);
                     self.grid_ctx.current_cell = None;
 
-                    self.routines.insert(routine.id, routine);
+                    // Make sure to always insert before potential user events
+                    let mut insert_before = None;
+                    for (index, r) in self.routines.values().enumerate() {
+                        if r.name == USER_EVENTS[0] {
+                            insert_before = Some(index);
+                            break;
+                        }
+                    }
+
+                    if let Some(insert_before) = insert_before {
+                        self.routines
+                            .insert_before(insert_before, routine.id, routine);
+                    } else {
+                        self.routines.insert(routine.id, routine);
+                    }
+
                     self.redraw(ui, ctx);
 
                     self.show_event_settings(ui, ctx);

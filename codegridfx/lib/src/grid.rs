@@ -68,7 +68,7 @@ impl Grid {
     }
 
     /// Shift all rows with index >= start_row down by `count`.
-    fn shift_rows_down_from(&mut self, start_row: u32, count: u32) {
+    pub fn shift_rows_down_from(&mut self, start_row: u32, count: u32) {
         // Collect and remove impacted cells first
         let mut to_shift: Vec<((u32, u32), CellItem)> = Vec::new();
         for (&(col, r), cell) in &self.grid {
@@ -459,29 +459,43 @@ impl Grid {
     }
 
     /// Handles deletion/backspace at the given row.
-    /// If the previous row exists and is empty, delete that previous row; otherwise delete the current row.
-    /// All rows below the removed row are shifted up and the indent map is updated accordingly.
+    /// If the current row is empty, delete it. Otherwise, if the previous row exists and is empty,
+    /// delete that previous row. Otherwise, delete the current row. Then shift rows below up by one
+    /// and update indents accordingly. Finally, restore grid invariants via `insert_empty()`.
     pub fn delete_at(&mut self, row: u32) {
-        // Decide which row to remove: if the previous row is all empty cells, remove it instead.
-        let mut remove_row = row;
-        if row > 0 {
-            let prev = row - 1;
-            // Check whether the previous row exists and whether it contains only empty cells
-            let mut has_prev = false;
-            let mut prev_all_empty = true;
+        // Helper: does a row exist and is it all empty?
+        let row_exists = |rr: u32| -> bool { self.grid.keys().any(|&(_, r)| r == rr) };
+        let row_all_empty = |rr: u32| -> bool {
+            let mut any = false;
             for ((_, r), cell) in &self.grid {
-                if *r == prev {
-                    has_prev = true;
+                if *r == rr {
+                    any = true;
                     if !matches!(cell.cell, Cell::Empty) {
-                        prev_all_empty = false;
-                        break;
+                        return false;
                     }
                 }
             }
-            if !has_prev || prev_all_empty {
-                remove_row = prev;
+            // If the row has no cells recorded at all, treat it as empty-only if it truly doesn't exist.
+            // We use row_exists separately to decide whether it's a candidate for deletion.
+            any && true
+        };
+
+        // Decide which row to remove.
+        let remove_row: u32 = {
+            let current_is_empty = row_exists(row) && row_all_empty(row);
+            if current_is_empty {
+                row
+            } else if row > 0 {
+                let prev = row - 1;
+                if row_exists(prev) && row_all_empty(prev) {
+                    prev
+                } else {
+                    row
+                }
+            } else {
+                row
             }
-        }
+        };
 
         // Gather cells to remove (the row we’re deleting) and cells to shift (rows below)
         let mut to_shift: Vec<((u32, u32), CellItem)> = Vec::new();
@@ -500,8 +514,11 @@ impl Grid {
             self.grid_rects.remove(&(*col, *r));
         }
 
-        // Remove and reinsert all cells in lower rows, shifting them up by one
+        // Remove and reinsert all cells in lower rows, shifting them up by one.
+        // IMPORTANT: process in ASCENDING row order to avoid overwriting freshly shifted rows.
+        to_shift.sort_by_key(|&((_, r), _)| r);
         for ((col, r), cell) in to_shift {
+            // remove original position (if still present) and insert at r-1
             self.grid.remove(&(col, r));
             self.grid_rects.remove(&(col, r));
             self.grid.insert((col, r - 1), cell);

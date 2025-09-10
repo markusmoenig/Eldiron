@@ -41,6 +41,7 @@ impl ArithmeticOp {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ComparisonOp {
     Equal,
+    NotEqual,
     LessEqual,
     GreaterEqual,
     Less,
@@ -50,10 +51,11 @@ impl ComparisonOp {
     pub fn from_index(idx: usize) -> Option<Self> {
         match idx {
             0 => Some(ComparisonOp::Equal),
-            1 => Some(ComparisonOp::LessEqual),
-            2 => Some(ComparisonOp::GreaterEqual),
-            3 => Some(ComparisonOp::Less),
-            4 => Some(ComparisonOp::Greater),
+            1 => Some(ComparisonOp::NotEqual),
+            2 => Some(ComparisonOp::LessEqual),
+            3 => Some(ComparisonOp::GreaterEqual),
+            4 => Some(ComparisonOp::Less),
+            5 => Some(ComparisonOp::Greater),
             _ => None,
         }
     }
@@ -61,15 +63,17 @@ impl ComparisonOp {
     pub fn to_index(&self) -> usize {
         match self {
             ComparisonOp::Equal => 0,
-            ComparisonOp::LessEqual => 1,
-            ComparisonOp::GreaterEqual => 2,
-            ComparisonOp::Less => 3,
-            ComparisonOp::Greater => 4,
+            ComparisonOp::NotEqual => 1,
+            ComparisonOp::LessEqual => 2,
+            ComparisonOp::GreaterEqual => 3,
+            ComparisonOp::Less => 4,
+            ComparisonOp::Greater => 5,
         }
     }
     pub fn to_string(&self) -> &'static str {
         match self {
             ComparisonOp::Equal => "==",
+            ComparisonOp::NotEqual => "!=",
             ComparisonOp::LessEqual => "<=",
             ComparisonOp::GreaterEqual => ">=",
             ComparisonOp::Less => "<",
@@ -101,8 +105,8 @@ pub enum Cell {
     EntitiesInRadius,
     Equip,
     GetAttr,
+    GetAttrOf,
     GetEntityAttr,
-    GetItemAttr,
     Goto,
     Id,
     InventoryItems,
@@ -173,8 +177,8 @@ impl Cell {
             Cell::EntitiesInRadius => "Entities in Radius",
             Cell::Equip => "Equip",
             Cell::GetAttr => "Get Attribute",
-            Cell::GetEntityAttr => "Get Entity Attribute",
-            Cell::GetItemAttr => "Get Item Attribute",
+            Cell::GetAttrOf => "Get Attribute Of",
+            Cell::GetEntityAttr => "Get Attribute Of",
             Cell::Goto => "Goto",
             Cell::Id => "Id",
             Cell::InventoryItems => "Inventory Items",
@@ -221,8 +225,7 @@ impl Cell {
             "entities_in_radius" => Some(Cell::EntitiesInRadius),
             "equip" => Some(Cell::Equip),
             "get_attr" => Some(Cell::GetAttr),
-            "get_entity_attr" => Some(Cell::GetEntityAttr),
-            "get_item_attr" => Some(Cell::GetItemAttr),
+            "get_attr_of" => Some(Cell::GetAttrOf),
             "goto" => Some(Cell::Goto),
             "id" => Some(Cell::Id),
             "inventory_items" => Some(Cell::InventoryItems),
@@ -247,7 +250,13 @@ impl Cell {
 
     pub fn to_string(&self) -> String {
         match &self {
-            Variable(var_name) => var_name.clone(),
+            Variable(var_name) => {
+                if var_name == "myself" {
+                    "id()".to_string()
+                } else {
+                    var_name.clone()
+                }
+            }
             Integer(value) | Float(value) => value.clone(),
             Boolean(value) => {
                 if *value {
@@ -256,7 +265,13 @@ impl Cell {
                     "False".into()
                 }
             }
-            Str(value) => format!("\"{}\"", value),
+            Str(value) => {
+                if value.contains("\"") {
+                    value.clone()
+                } else {
+                    format!("\"{}\"", value)
+                }
+            }
 
             Assignment => "=".into(),
             Comparison(op) => op.to_string().to_string(),
@@ -273,8 +288,7 @@ impl Cell {
             EntitiesInRadius => "entities_in_radius".into(),
             Equip => "equip".into(),
             GetAttr => "get_attr".into(),
-            GetEntityAttr => "get_entity_attr".into(),
-            GetItemAttr => "get_item_attr".into(),
+            GetAttrOf => "get_attr_of".into(),
             Goto => "goto".into(),
             Id => "id".into(),
             InventoryItems => "inventory_items".into(),
@@ -313,8 +327,7 @@ impl Cell {
                 "Returns a list of entity IDs in the radius of the current entity or item.".into()
             }
             GetAttr => "Get an attribute of the current entity or item.".into(),
-            GetEntityAttr => "Get an attribute of the given entity ID.".into(),
-            GetItemAttr => "Get an attribute of the given item ID.".into(),
+            GetAttrOf => "Get an attribute of the given entity or item.".into(),
             Goto => "Go to a sector using pathfinding.".into(),
             Id => "Returns the ID of the current entity or item.".into(),
             InventoryItems => {

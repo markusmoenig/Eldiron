@@ -229,12 +229,17 @@ impl Routine {
                     insert = true;
                 }
 
+                if item.cell.role() == CellRole::Function && !old_item.description.is_empty() {
+                    insert = false;
+                }
+
                 if insert {
                     if item.cell.role() == CellRole::Value {
                         item.description = old_item.description.clone();
                         item.replaceable = old_item.replaceable.clone();
                         item.dependend_on = old_item.dependend_on.clone();
                         item.form = old_item.form.clone();
+                        item.special_role = old_item.special_role.clone();
                     }
 
                     self.grid.remove_dependencies_for(old_item.id);
@@ -345,6 +350,11 @@ impl Routine {
             indent += 4;
         }
 
+        if self.name == "take_damage" {
+            *out += &format!("{:indent$}amount = value[\"amount\"]\n", "");
+            *out += &format!("{:indent$}from_id = value[\"from\"]\n", "");
+        }
+
         let rows = self.grid.grid_by_rows();
 
         // If empty just add a "pass" statement
@@ -416,7 +426,10 @@ impl Routine {
     fn get_description(&self) -> String {
         match self.name.as_str() {
             "startup" => "send on startup, 'value' contains the ID".into(),
+            "instantiation" => "".into(),
             "proximity_warning" => "'value' is a list of entity IDs in proximity".into(),
+            "closed_in" => "`value` is the entity ID".into(),
+            "take_damage" => "`amount` is the amount and `from_id` is the ID".into(),
             "key_down" => "'value' contains the pressed key".into(),
             "key_up" => "'value' contains the released key".into(),
             _ => "custom event".into(),

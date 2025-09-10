@@ -16,6 +16,13 @@ pub enum CellItemForm {
     RightRounded,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub enum CellItemSpecialRole {
+    #[default]
+    None,
+    DealDamageValue,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CellItem {
     pub id: Uuid,
@@ -30,6 +37,9 @@ pub struct CellItem {
 
     #[serde(default)]
     pub option: i32,
+
+    #[serde(default)]
+    pub special_role: CellItemSpecialRole,
 }
 
 impl CellItem {
@@ -45,6 +55,7 @@ impl CellItem {
             form: CellItemForm::default(),
 
             option: 0,
+            special_role: CellItemSpecialRole::None,
         }
     }
 
@@ -66,6 +77,7 @@ impl CellItem {
             form,
 
             option: 0,
+            special_role: CellItemSpecialRole::None,
         }
     }
 
@@ -319,6 +331,7 @@ impl CellItem {
                 };
                 if let Some(font) = &ctx.ui.font {
                     size.x = ctx.draw.get_text_size(font, grid_ctx.font_size, &text).0 as u32 + 20;
+                    size.x = size.x.min(200);
 
                     if !self.description.is_empty() {
                         let desc = ctx
@@ -446,6 +459,7 @@ impl CellItem {
                     "Select the comparison operator".into(),
                     vec![
                         "==".to_string(),
+                        "!=".to_string(),
                         "<=".to_string(),
                         ">=".to_string(),
                         "<".to_string(),
@@ -512,7 +526,7 @@ impl CellItem {
                 if let Some(v) = value.to_string()
                     && name == "cgfxValue"
                 {
-                    *value_name = v.replace("\"", "");
+                    *value_name = v.clone(); //replace("\"", "");
                 }
             }
             Boolean(v) => {
@@ -653,7 +667,7 @@ impl CellItem {
                 grid.insert(
                     (pos.0 + 1, pos.1),
                     CellItem::new_dependency(
-                        Cell::Integer("0".into()),
+                        Cell::Variable("".into()),
                         self.id,
                         true,
                         "Target ID",
@@ -663,7 +677,7 @@ impl CellItem {
                 grid.insert(
                     (pos.0 + 2, pos.1),
                     CellItem::new_dependency(
-                        Cell::Float("5.0".into()),
+                        Cell::Float("1.5".into()),
                         self.id,
                         true,
                         "Radius",
@@ -687,13 +701,22 @@ impl CellItem {
                 grid.insert(
                     (pos.0 + 1, pos.1),
                     CellItem::new_dependency(
-                        Cell::Integer("0".into()),
+                        Cell::Variable("".into()),
                         self.id,
                         true,
-                        "Entity",
+                        "Entity ID",
                         CellItemForm::Box,
                     ),
                 );
+                let mut item = CellItem::new_dependency(
+                    Cell::Integer("0".into()),
+                    self.id,
+                    true,
+                    "Damage",
+                    CellItemForm::RightRounded,
+                );
+                item.special_role = CellItemSpecialRole::DealDamageValue;
+                grid.insert((pos.0 + 2, pos.1), item);
                 self.form = CellItemForm::LeftRounded;
                 grid.insert(pos, self)
             }
@@ -758,38 +781,14 @@ impl CellItem {
                 self.form = CellItemForm::LeftRounded;
                 grid.insert(pos, self)
             }
-            Cell::GetEntityAttr => {
+            Cell::GetAttrOf => {
                 grid.insert(
                     (pos.0 + 1, pos.1),
                     CellItem::new_dependency(
-                        Cell::Integer("0".into()),
+                        Cell::Variable("".into()),
                         self.id,
                         true,
-                        "Entity ID",
-                        CellItemForm::Box,
-                    ),
-                );
-                grid.insert(
-                    (pos.0 + 2, pos.1),
-                    CellItem::new_dependency(
-                        Cell::Str("attr".into()),
-                        self.id,
-                        false,
-                        "Attribute Name",
-                        CellItemForm::RightRounded,
-                    ),
-                );
-                self.form = CellItemForm::LeftRounded;
-                grid.insert(pos, self)
-            }
-            Cell::GetItemAttr => {
-                grid.insert(
-                    (pos.0 + 1, pos.1),
-                    CellItem::new_dependency(
-                        Cell::Integer("0".into()),
-                        self.id,
-                        true,
-                        "Item ID",
+                        "Entity/Item ID",
                         CellItemForm::Box,
                     ),
                 );
@@ -832,7 +831,7 @@ impl CellItem {
                 grid.insert(pos, self)
             }
             Cell::Id => {
-                self.form = CellItemForm::Box;
+                self.form = CellItemForm::Rounded;
                 grid.insert(pos, self)
             }
             Cell::InventoryItems => {
@@ -854,7 +853,7 @@ impl CellItem {
                 grid.insert(
                     (pos.0 + 1, pos.1),
                     CellItem::new_dependency(
-                        Cell::Integer("0".into()),
+                        Cell::Variable("".into()),
                         self.id,
                         true,
                         "Entity ID",
@@ -939,7 +938,7 @@ impl CellItem {
                 grid.insert(
                     (pos.0 + 1, pos.1),
                     CellItem::new_dependency(
-                        Cell::Integer("0".into()),
+                        Cell::Variable("".into()),
                         self.id,
                         true,
                         "Entity ID",
@@ -1155,14 +1154,23 @@ impl CellItem {
                 grid.insert(pos, self)
             }
             Cell::TookDamage => {
-                // TODO
                 grid.insert(
                     (pos.0 + 1, pos.1),
                     CellItem::new_dependency(
-                        Cell::Str("attr".into()),
+                        Cell::Integer("0".into()),
                         self.id,
-                        false,
-                        "Attribute Name",
+                        true,
+                        "ID",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 2, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Integer("0".into()),
+                        self.id,
+                        true,
+                        "Amount",
                         CellItemForm::RightRounded,
                     ),
                 );
@@ -1177,6 +1185,11 @@ impl CellItem {
     pub fn code(&self) -> String {
         if self.cell.role() == CellRole::Function {
             return self.cell.to_string() + "(";
+        }
+
+        if self.special_role == CellItemSpecialRole::DealDamageValue {
+            // deal_damage(value, {"from": id(), "amount": random(1, 3)})
+            return format!("{{\"from\": id(), \"amount\": {}}}", self.cell.to_string());
         }
 
         match self.cell {
