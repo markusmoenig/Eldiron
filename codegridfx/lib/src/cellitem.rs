@@ -878,7 +878,7 @@ impl CellItem {
                 grid.insert(
                     (pos.0 + 1, pos.1),
                     CellItem::new_dependency(
-                        Cell::Integer("0".into()),
+                        Cell::Variable("".into()),
                         self.id,
                         true,
                         "Receiver ID",
