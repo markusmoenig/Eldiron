@@ -1,4 +1,4 @@
-use crate::editor::NODEEDITOR;
+use crate::editor::{CODEGRIDFX, NODEEDITOR};
 use crate::prelude::*;
 use codegridfxlib::Module;
 use theframework::prelude::*;
@@ -36,6 +36,7 @@ impl CharacterUndoAtom {
                     character.module = prev.clone();
                     character.module.redraw(ui, ctx);
                     character.module.show_settings(ui, ctx);
+                    *CODEGRIDFX.write().unwrap() = character.module.clone();
                 }
             }
             CharacterUndoAtom::InstanceModuleEdit(region_id, id, prev, _) => {
@@ -44,6 +45,7 @@ impl CharacterUndoAtom {
                         character.module = prev.clone();
                         character.module.redraw(ui, ctx);
                         character.module.show_settings(ui, ctx);
+                        *CODEGRIDFX.write().unwrap() = character.module.clone();
                     }
                 }
             }
@@ -74,6 +76,7 @@ impl CharacterUndoAtom {
                     character.module = next.clone();
                     character.module.redraw(ui, ctx);
                     character.module.show_settings(ui, ctx);
+                    *CODEGRIDFX.write().unwrap() = character.module.clone();
                 }
             }
             CharacterUndoAtom::InstanceModuleEdit(region_id, id, _, next) => {
@@ -82,6 +85,7 @@ impl CharacterUndoAtom {
                         character.module = next.clone();
                         character.module.redraw(ui, ctx);
                         character.module.show_settings(ui, ctx);
+                        *CODEGRIDFX.write().unwrap() = character.module.clone();
                     }
                 }
             }

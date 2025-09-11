@@ -3,8 +3,9 @@ use indexmap::*;
 use rusterix::Debug;
 use theframework::prelude::*;
 
+const BLOCKS: [&str; 3] = ["Event", "Var = ..", "If .. == .."];
 const VALUES: [&str; 5] = ["Boolean", "Float", "Integer", "String", "Variable"];
-const OPERATORS: [&str; 3] = ["Arithmetic", "Assignment", "Comparison"];
+const OPERATORS: [&str; 4] = ["Arithmetic", "Assignment", "Comparison", "Else"];
 const USER_EVENTS: [&str; 2] = ["key_down", "key_up"];
 const FUNCTIONS: [&str; 29] = [
     "action",
@@ -200,12 +201,15 @@ impl Module {
     pub fn build_item_list(&self, list: &mut dyn TheListLayoutTrait, ctx: &mut TheContext) {
         list.clear();
 
-        if self.filter_text.is_empty() || "event".contains(&self.filter_text) {
-            let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
-            item.set_text("Event".into());
-            item.set_associated_layout(list.id().clone());
-            item.set_background_color(TheColor::from(CellRole::Event.to_color()));
-            list.add_item(item, ctx);
+        let color = CellRole::Event.to_color();
+        for item_name in BLOCKS {
+            if self.filter_text.is_empty() || item_name.to_lowercase().contains(&self.filter_text) {
+                let mut item = TheListItem::new(TheId::named("Code Editor Code List Item"));
+                item.set_text(item_name.to_string());
+                item.set_associated_layout(list.id().clone());
+                item.set_background_color(TheColor::from(color));
+                list.add_item(item, ctx);
+            }
         }
 
         let color = CellRole::Value.to_color();

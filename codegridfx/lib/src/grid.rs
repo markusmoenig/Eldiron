@@ -2,6 +2,8 @@ use crate::{Cell, CellItem, CellRole, GridCtx};
 use rusterix::Debug;
 use theframework::prelude::*;
 
+const INDENT_WIDTH: u32 = 60;
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Grid {
     #[serde(with = "vectorize")]
@@ -10,13 +12,11 @@ pub struct Grid {
     pub grid_rects: FxHashMap<(u32, u32), TheDim>,
     #[serde(with = "vectorize")]
     pub row_indents: FxHashMap<u32, u32>,
-    pub indent_width: u32,
 }
 
 impl Grid {
     pub fn new() -> Self {
         Self {
-            indent_width: 40,
             ..Default::default()
         }
     }
@@ -109,6 +109,31 @@ impl Grid {
             rows.entry(row).or_default().push(col);
         }
         for (row, cols) in rows {
+            // Determine the left-most **non-empty** cell for this row
+            let mut leading_is_else = false;
+            if let Some(&lead_col) = cols
+                .iter()
+                .filter(|&&c| {
+                    if let Some(ci) = self.grid.get(&(c, row)) {
+                        !matches!(ci.cell, Cell::Empty)
+                    } else {
+                        false
+                    }
+                })
+                .min()
+            {
+                if let Some(ci) = self.grid.get(&(lead_col, row)) {
+                    if matches!(ci.cell, Cell::Else) {
+                        leading_is_else = true;
+                    }
+                }
+            }
+
+            if leading_is_else {
+                // For an Else row, do NOT append a trailing empty cell.
+                continue;
+            }
+
             if let Some(&max_col) = cols.iter().max() {
                 let needs_empty = match self.grid.get(&(max_col, row)) {
                     Some(cell_item) => !matches!(cell_item.cell, Cell::Empty),
@@ -179,7 +204,7 @@ impl Grid {
         for (&(_, r), cell) in &self.grid {
             if r == base_row {
                 match cell.cell {
-                    Cell::If /* | Cell::For | Cell::While */ => {
+                    Cell::If | Cell::Else /* | Cell::For | Cell::While */ => {
                         base_is_control = true;
                         break;
                     }
@@ -317,6 +342,31 @@ impl Grid {
             rows.entry(row).or_default().push(col);
         }
         for (row, cols) in rows {
+            // Determine the left-most **non-empty** cell for this row
+            let mut leading_is_else = false;
+            if let Some(&lead_col) = cols
+                .iter()
+                .filter(|&&c| {
+                    if let Some(ci) = self.grid.get(&(c, row)) {
+                        !matches!(ci.cell, Cell::Empty)
+                    } else {
+                        false
+                    }
+                })
+                .min()
+            {
+                if let Some(ci) = self.grid.get(&(lead_col, row)) {
+                    if matches!(ci.cell, Cell::Else) {
+                        leading_is_else = true;
+                    }
+                }
+            }
+
+            if leading_is_else {
+                // For an Else row, do NOT append a trailing empty cell.
+                continue;
+            }
+
             if let Some(&max_col) = cols.iter().max() {
                 let needs_empty = match self.grid.get(&(max_col, row)) {
                     Some(cell_item) => !matches!(cell_item.cell, Cell::Empty),
@@ -392,7 +442,7 @@ impl Grid {
         for ((_, r), cell) in &self.grid {
             if *r == row {
                 match cell.cell {
-                Cell::If /* | Cell::For | Cell::While */ => {
+                Cell::If | Cell::Else /* | Cell::For | Cell::While */ => {
                     is_control = true;
                     break;
                 }
@@ -626,7 +676,7 @@ impl Grid {
 
                 // Determine the indent offset for this row (default to 0 if missing)
                 let indent = *self.row_indents.get(row).unwrap_or(&0);
-                let indent_offset = indent * self.indent_width;
+                let indent_offset = indent * INDENT_WIDTH;
 
                 // x offset includes the indent plus the widths of earlier columns
                 let x_offset = indent_offset
@@ -664,7 +714,7 @@ impl Grid {
                 .iter()
                 .map(|(&row, cols)| {
                     let indent = *self.row_indents.get(&row).unwrap_or(&0);
-                    let indent_offset = indent * self.indent_width;
+                    let indent_offset = indent * INDENT_WIDTH;
                     indent_offset + cols.values().sum::<u32>()
                 })
                 .max()

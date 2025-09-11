@@ -159,7 +159,7 @@ impl CellItem {
                     }
                 }
             }
-            Cell::Assignment | Cell::Comparison(_) | Cell::If | Arithmetic(_) => {
+            Cell::Assignment | Cell::Comparison(_) | Cell::If | Arithmetic(_) | Cell::Else => {
                 if let Some(font) = &ctx.ui.font {
                     ctx.draw.text_rect_blend(
                         buffer.pixels_mut(),
@@ -348,13 +348,16 @@ impl CellItem {
                     size.x = ctx.draw.get_text_size(font, grid_ctx.font_size, "=").0 as u32 + 20;
                 }
             }
-            If | Comparison(_) => {
+            If | Else | Comparison(_) => {
                 if let Some(font) = &ctx.ui.font {
                     size.x = ctx
                         .draw
                         .get_text_size(font, grid_ctx.font_size * 2.0, &self.cell.to_string())
                         .0 as u32
                         + 10;
+                    if matches!(self.cell, Cell::Else) {
+                        size.y = 30;
+                    }
                 }
             }
             LeftParent | RightParent => {
@@ -555,21 +558,24 @@ impl CellItem {
     /// Inserts the item at the given position.
     pub fn insert_at(mut self, pos: (u32, u32), grid: &mut Grid, _old_item: CellItem) {
         match &self.cell {
-            Cell::Assignment => {
+            Cell::ConstructAssignBlock => {
                 if pos.0 == 0 {
                     grid.insert((pos.0, pos.1), CellItem::new(Cell::Variable("dest".into())));
-                    grid.insert((pos.0 + 1, pos.1), self);
+                    grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::Assignment));
                     grid.insert((pos.0 + 2, pos.1), CellItem::new(Cell::Integer("0".into())));
                 }
             }
-            Cell::Comparison(_) => {
+            Cell::ConstructIfBlock => {
                 if pos.0 == 0 {
                     grid.insert((pos.0, pos.1), CellItem::new(Cell::If));
                     grid.insert(
                         (pos.0 + 1, pos.1),
                         CellItem::new(Cell::Variable("variable".into())),
                     );
-                    grid.insert((pos.0 + 2, pos.1), self);
+                    grid.insert(
+                        (pos.0 + 2, pos.1),
+                        CellItem::new(Cell::Comparison(ComparisonOp::Equal)),
+                    );
                     grid.insert((pos.0 + 3, pos.1), CellItem::new(Cell::Integer("0".into())));
 
                     grid.move_down_from(pos.1 + 2);
@@ -584,30 +590,24 @@ impl CellItem {
                         grid.row_indents.insert(pos.1 + 1, indent);
                     }
                     grid.insert_empty();
+                }
+            }
+            Cell::Else => {
+                if pos.0 == 0 {
+                    grid.insert((pos.0, pos.1), CellItem::new(Cell::Else));
 
-                    // } else {
-                    // grid.insert((pos.0, pos.1 + 2), CellItem::new(Cell::Empty));
-                    // grid.row_indents.insert(pos.1 + 2, 0);
-                    // }
-                    // grid.insert_empty();
-                    // if indent == 2 {
-                    //     if !grid.grid.contains_key(&(0, pos.1 + 2)) {
-                    //         grid.row_indents.insert(pos.1 + 2, 1);
-                    //     }
+                    grid.move_down_from(pos.1 + 2);
+                    grid.insert((0, pos.1 + 1), CellItem::new(Cell::Empty));
 
-                    //     if !grid.grid.contains_key(&(0, pos.1 + 3)) {
-                    //         grid.insert((pos.0, pos.1 + 3), CellItem::new(Cell::Empty));
-                    //         grid.row_indents.insert(pos.1 + 3, 1);
-                    //     }
+                    let mut indent = 1;
+                    if let Some(ind) = grid.row_indents.get(&pos.1) {
+                        indent += *ind;
+                    }
 
-                    //     if !grid.grid.contains_key(&(0, pos.1 + 4)) {
-                    //         grid.insert((pos.0, pos.1 + 4), CellItem::new(Cell::Empty));
-                    //         grid.row_indents.insert(pos.1 + 4, 0);
-                    //     }
-                    // } else {
-                    //     grid.insert((pos.0, pos.1 + 2), CellItem::new(Cell::Empty));
-                    //     grid.row_indents.insert(pos.1 + 2, 0);
-                    // }
+                    if !grid.grid.contains_key(&(0, pos.1 + 1)) {
+                        grid.row_indents.insert(pos.1 + 1, indent);
+                    }
+                    grid.insert_empty();
                 }
             }
             Cell::Action => {

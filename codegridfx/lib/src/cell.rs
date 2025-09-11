@@ -84,6 +84,9 @@ impl ComparisonOp {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum Cell {
+    ConstructAssignBlock,
+    ConstructIfBlock,
+
     Empty,
     Variable(String),
     Integer(String),
@@ -94,6 +97,7 @@ pub enum Cell {
     Comparison(ComparisonOp),
     Arithmetic(ArithmeticOp),
     If,
+    Else,
 
     Action,
     AddItem,
@@ -156,6 +160,9 @@ use Cell::*;
 impl Cell {
     pub fn description(&self) -> &'static str {
         match self {
+            Cell::ConstructAssignBlock => "Var = ..",
+            Cell::ConstructIfBlock => "If .. == ..",
+
             Cell::Empty => "Empty",
             Cell::Variable(_) => "Variable",
             Cell::Integer(_) => "Integer",
@@ -166,6 +173,7 @@ impl Cell {
             Cell::Comparison(_) => "Comparison",
             Cell::Arithmetic(_) => "Arithmetic",
             Cell::If => "If",
+            Cell::Else => "Else",
 
             Cell::Action => "Action",
             Cell::AddItem => "Add Item",
@@ -204,6 +212,9 @@ impl Cell {
     }
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
+            "Var = .." => Some(Cell::ConstructAssignBlock),
+            "If .. == .." => Some(Cell::ConstructIfBlock),
+
             "Empty" => Some(Cell::Empty),
             "Variable" => Some(Cell::Variable("Unnamed".into())),
             "Integer" => Some(Cell::Integer("0".into())),
@@ -214,6 +225,7 @@ impl Cell {
             "Comparison" => Some(Cell::Comparison(ComparisonOp::Equal)),
             "Arithmetic" => Some(Cell::Arithmetic(ArithmeticOp::Add)),
             "If" => Some(Cell::If),
+            "Else" => Some(Cell::Else),
 
             "action" => Some(Cell::Action),
             "add_item" => Some(Cell::AddItem),
@@ -277,6 +289,7 @@ impl Cell {
             Comparison(op) => op.to_string().to_string(),
             Arithmetic(op) => op.to_string().to_string(),
             If => "if".into(),
+            Else => "else".into(),
 
             Action => "action".into(),
             AddItem => "add_item".into(),
@@ -357,7 +370,7 @@ impl Cell {
     pub fn role(&self) -> CellRole {
         match &self {
             Variable(_) | Integer(_) | Float(_) | Str(_) | Boolean(_) => CellRole::Value,
-            Assignment | Comparison(_) | If => CellRole::Operator,
+            Assignment | Comparison(_) | If | Else => CellRole::Operator,
             Empty => CellRole::None,
 
             _ => CellRole::Function,

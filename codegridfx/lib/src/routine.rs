@@ -353,6 +353,15 @@ impl Routine {
         if self.name == "take_damage" {
             *out += &format!("{:indent$}amount = value[\"amount\"]\n", "");
             *out += &format!("{:indent$}from_id = value[\"from\"]\n", "");
+        } else if self.name == "intent" {
+            *out += &format!("{:indent$}intent = value[\"intent\"]\n", "");
+            *out += &format!("{:indent$}distance = value[\"distance\"]\n", "");
+            *out += &format!(
+                "{:indent$}target_id = value[\"target_id\"] if \"target_id\" in value else value.get(\"item_id\")\n",
+                ""
+            );
+        } else if self.name == "key_down" || self.name == "key_up" {
+            *out += &format!("{:indent$}key = value\n", "");
         }
 
         let rows = self.grid.grid_by_rows();
@@ -366,6 +375,7 @@ impl Routine {
             let mut row_code = String::new();
 
             let mut is_if = false;
+            let mut is_else = false;
             let mut ind = indent;
 
             if debug {
@@ -382,6 +392,9 @@ impl Routine {
                 if index == 0 {
                     if matches!(item.cell, Cell::If) {
                         is_if = true;
+                    }
+                    if matches!(item.cell, Cell::Else) {
+                        is_else = true;
                     }
 
                     if let Some(i) = self.grid.row_indents.get(&pos.1) {
@@ -408,7 +421,7 @@ impl Routine {
                 }
 
                 if index == row.len() - 1 {
-                    if is_if {
+                    if is_if || is_else {
                         row_code += ":";
                     } else {
                         row_code += " ";
@@ -431,10 +444,11 @@ impl Routine {
             "closed_in" => "`value` is the entity ID".into(),
             "take_damage" => "`amount` is the damage and `from_id` is the ID".into(),
             "death" => "send on death".into(),
-            "kill" => "`value` is the killed entity ID".into(),
+            "kill" => "`value` is the killed entity's ID".into(),
             "arrived" => "`value` is the sector name".into(),
-            "key_down" => "'value' contains the pressed key".into(),
-            "key_up" => "'value' contains the released key".into(),
+            "intent" => "`intent` is the command, 'target_id' the target ID".into(),
+            "key_down" => "'key' contains the pressed key string".into(),
+            "key_up" => "'key' contains the released key string".into(),
             _ => "custom event".into(),
         }
     }
