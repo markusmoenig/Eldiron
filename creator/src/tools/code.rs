@@ -268,7 +268,7 @@ impl Tool for CodeTool {
                 if id.name == "ModuleChanged" {
                     let code = CODEGRIDFX.read().unwrap().build(false);
                     let debug_code = CODEGRIDFX.read().unwrap().build(true);
-                    println!("{}", debug_code);
+                    // println!("{}", debug_code);
                     ui.set_widget_value("CodeEdit", ctx, TheValue::Text(code.clone()));
 
                     match CODEEDITOR.read().unwrap().content {
@@ -302,7 +302,6 @@ impl Tool for CodeTool {
             TheEvent::ValueChanged(id, value) => {
                 if id.name == "CodeEdit" {
                     if let Some(code) = value.to_string() {
-                        // println!("cc {:?}", server_ctx.cc);
                         match server_ctx.cc {
                             ContentContext::CharacterInstance(uuid) => {
                                 if let Some(region) =

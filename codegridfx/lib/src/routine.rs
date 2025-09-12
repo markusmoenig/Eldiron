@@ -460,6 +460,8 @@ impl Routine {
             "bumped_into_item" => "`value` is the item ID".into(),
             "active" => "`value` is the active state of the item".into(),
             "goodbye" => "`value` is the entity ID".into(),
+            "entered" => "`value` is the sector name".into(),
+            "left" => "`value` is the sector name".into(),
             "key_down" => "'key' contains the pressed key string".into(),
             "key_up" => "'key' contains the released key string".into(),
             _ => "custom event".into(),
