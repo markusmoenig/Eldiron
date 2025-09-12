@@ -21,7 +21,7 @@ jobs:
 
       - name: Build (release)
         working-directory: creator
-        run: cargo build --verbose --release --features log
+        run: cargo build --verbose --release
 
       # --- Package artefacts -------------------------------------------------
       - name: Package artefacts
@@ -68,7 +68,7 @@ jobs:
       # --- Build Eldiron -----------------------------------------------------
       - name: Build (release)
         working-directory: creator
-        run: cargo build --verbose --release --features log
+        run: cargo build --verbose --release
 
       # --- Package artefacts -------------------------------------------------
       - name: Package artefacts
