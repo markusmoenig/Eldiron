@@ -1327,6 +1327,8 @@ impl TheTrait for Editor {
                                             ui.select_first_list_item("Region Content List", ctx);
                                             ctx.ui.relayout = true;
                                         }
+                                        insert_content_into_maps(&mut self.project);
+                                        RUSTERIX.write().unwrap().set_dirty();
                                     }
                                 }
                             }

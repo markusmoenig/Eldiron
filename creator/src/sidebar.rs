@@ -1211,27 +1211,44 @@ impl Sidebar {
                     if let ContentContext::CharacterInstance(char_inst) =
                         server_ctx.curr_region_content
                     {
-                        // if let Some((value, _)) = server.get_character_property(
-                        //     server_ctx.curr_region,
-                        //     char_inst,
-                        //     "name".to_string(),
-                        // ) {
+                        let mut name = str!("Unknown");
+                        let mut template_id = None;
+                        if let Some(region) = project.get_region_ctx(&server_ctx) {
+                            if let Some(character) = region.characters.get(&char_inst) {
+                                template_id = Some(character.character_id);
+                            }
+                        }
+                        if let Some(template_id) = template_id {
+                            if let Some(character) = project.characters.get(&template_id) {
+                                name = character.name.clone();
+                            }
+                        }
                         open_delete_confirmation_dialog(
                             "Delete Character Instance ?",
-                            format!("Permanently delete '{}' ?", "the instance").as_str(),
+                            format!("Permanently delete the '{name}' instance ?").as_str(),
                             char_inst,
                             ui,
                             ctx,
                         );
-                        // }
                     }
                 } else if item_id.name == "Sidebar Delete Item Instance" {
                     if let ContentContext::ItemInstance(item_inst) = server_ctx.curr_region_content
                     {
-                        let name = str!("Unknown");
+                        let mut name = str!("Unknown");
+                        let mut template_id = None;
+                        if let Some(region) = project.get_region_ctx(&server_ctx) {
+                            if let Some(item) = region.items.get(&item_inst) {
+                                template_id = Some(item.item_id);
+                            }
+                        }
+                        if let Some(template_id) = template_id {
+                            if let Some(item) = project.items.get(&template_id) {
+                                name = item.name.clone();
+                            }
+                        }
                         open_delete_confirmation_dialog(
                             "Delete Item Instance ?",
-                            &format!("Permanently delete '{name}' ?"),
+                            &format!("Permanently delete the '{name}' instance ?"),
                             item_inst,
                             ui,
                             ctx,
