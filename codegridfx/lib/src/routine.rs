@@ -37,23 +37,21 @@ impl Routine {
 
     pub fn draw(&mut self, ctx: &TheContext, grid_ctx: &GridCtx, id: u32, debug: Option<&Debug>) {
         // Size check
-        let height = self
-            .grid
-            .size(
-                ctx,
-                grid_ctx,
-                self.folded,
-                self.screen_width,
-                &self.name,
-                id,
-                debug,
-            )
-            .y;
-        if self.buffer.dim().width != self.screen_width as i32
-            || self.buffer.dim().height != height as i32
-        {
-            self.buffer =
-                TheRGBABuffer::new(TheDim::sized(self.screen_width as i32, height as i32));
+        let size = self.grid.size(
+            ctx,
+            grid_ctx,
+            self.folded,
+            self.screen_width,
+            &self.name,
+            id,
+            debug,
+        );
+
+        let width = size.x.max(self.screen_width);
+        let height = size.y;
+
+        if self.buffer.dim().width != width as i32 || self.buffer.dim().height != height as i32 {
+            self.buffer = TheRGBABuffer::new(TheDim::sized(width as i32, height as i32));
         }
 
         self.buffer.fill(grid_ctx.background_color);
@@ -357,6 +355,14 @@ impl Routine {
             *out += &format!("{:indent$}intent = value[\"intent\"]\n", "");
             *out += &format!("{:indent$}distance = value[\"distance\"]\n", "");
             *out += &format!(
+                "{:indent$}item_id = value[\"item_id\"] if \"item_id\" in value else -1\n",
+                ""
+            );
+            *out += &format!(
+                "{:indent$}entity_id = value[\"entity_id\"] if \"entity_id\" in value else -1\n",
+                ""
+            );
+            *out += &format!(
                 "{:indent$}target_id = value[\"target_id\"] if \"target_id\" in value else value.get(\"item_id\")\n",
                 ""
             );
@@ -446,7 +452,14 @@ impl Routine {
             "death" => "send on death".into(),
             "kill" => "`value` is the killed entity's ID".into(),
             "arrived" => "`value` is the sector name".into(),
-            "intent" => "`intent` is the command, 'target_id' the target ID".into(),
+            "intent" => {
+                "`intent` is the command, 'target_id', 'entity_id', 'item_id' the IDs".into()
+            }
+            "bumped_by_entity" => "`value` is the entity ID".into(),
+            "bumped_into_entity" => "`value` is the entity ID".into(),
+            "bumped_into_item" => "`value` is the item ID".into(),
+            "active" => "`value` is the active state of the item".into(),
+            "goodbye" => "`value` is the entity ID".into(),
             "key_down" => "'key' contains the pressed key string".into(),
             "key_up" => "'key' contains the released key string".into(),
             _ => "custom event".into(),

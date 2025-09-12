@@ -560,7 +560,7 @@ impl CellItem {
         match &self.cell {
             Cell::ConstructAssignBlock => {
                 if pos.0 == 0 {
-                    grid.insert((pos.0, pos.1), CellItem::new(Cell::Variable("dest".into())));
+                    grid.insert((pos.0, pos.1), CellItem::new(Cell::Variable("var".into())));
                     grid.insert((pos.0 + 1, pos.1), CellItem::new(Cell::Assignment));
                     grid.insert((pos.0 + 2, pos.1), CellItem::new(Cell::Integer("0".into())));
                 }
@@ -570,7 +570,7 @@ impl CellItem {
                     grid.insert((pos.0, pos.1), CellItem::new(Cell::If));
                     grid.insert(
                         (pos.0 + 1, pos.1),
-                        CellItem::new(Cell::Variable("variable".into())),
+                        CellItem::new(Cell::Variable("var".into())),
                     );
                     grid.insert(
                         (pos.0 + 2, pos.1),
@@ -618,6 +618,21 @@ impl CellItem {
                         self.id,
                         true,
                         "Action Cmd",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
+            Cell::Intent => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Str("".into()),
+                        self.id,
+                        true,
+                        "Intent Cmd",
                         CellItemForm::RightRounded,
                     ),
                 );
@@ -1103,7 +1118,7 @@ impl CellItem {
                 grid.insert(
                     (pos.0 + 1, pos.1),
                     CellItem::new_dependency(
-                        Cell::Integer("0".into()),
+                        Cell::Variable("".into()),
                         self.id,
                         true,
                         "Item ID",
@@ -1198,7 +1213,7 @@ impl CellItem {
                     format!("{}[0]", self.cell.to_string())
                 }
                 2 => {
-                    format!("length({})", self.cell.to_string())
+                    format!("len({})", self.cell.to_string())
                 }
                 _ => self.cell.to_string(),
             },

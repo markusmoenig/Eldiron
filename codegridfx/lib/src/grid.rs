@@ -417,50 +417,80 @@ impl Grid {
         result
     }
 
+    /// Insert a sibling empty row adjacent to `row` with the same indent.
+    /// For control rows (If/Else), insert **above** so the line below stays reserved for the block body.
+    /// For non-control rows, insert **below**.
+    pub fn return_sibling_at(&mut self, row: u32) {
+        let indent = self.effective_indent(row);
+
+        // Detect if the leading non-empty cell is a control opener (If/Else)
+        let mut lead_col: Option<u32> = None;
+        let mut is_control = false;
+        for (&(c, r), cell) in &self.grid {
+            if r == row && !matches!(cell.cell, Cell::Empty) {
+                match lead_col {
+                    Some(prev) if c >= prev => {}
+                    _ => lead_col = Some(c),
+                }
+            }
+        }
+        if let Some(c0) = lead_col {
+            if let Some(ci) = self.grid.get(&(c0, row)) {
+                is_control = matches!(ci.cell, Cell::If /* | Cell::For | Cell::While */);
+            }
+        }
+
+        if is_control {
+            // Insert sibling **above** current row
+            self.shift_rows_down_from(row, 1);
+            self.grid.insert((0, row), CellItem::new(Cell::Empty));
+            self.row_indents.insert(row, indent);
+        } else {
+            // Insert sibling **below** current row
+            self.shift_rows_down_from(row + 1, 1);
+            let new_row = row + 1;
+            self.grid.insert((0, new_row), CellItem::new(Cell::Empty));
+            self.row_indents.insert(new_row, indent);
+        }
+
+        // Keep invariants (trailing empties, gap filling, etc.)
+        self.insert_empty();
+    }
+
     /// Handles a return at the given row, i.e. pushes all rows down and inserts an empty row.
     /// The new row inherits the indent level of the line at `row`.
     pub fn return_at(&mut self, row: u32) {
-        // Determine the current row’s indent, looking up the nearest preceding entry
-        let current_indent = match self.row_indents.get(&row) {
-            Some(&ind) => ind,
-            None => {
-                let mut r = row;
-                let mut ind = 0;
-                while r > 0 {
-                    r -= 1;
-                    if let Some(&i) = self.row_indents.get(&r) {
-                        ind = i;
-                        break;
-                    }
-                }
-                ind
-            }
-        };
+        // Determine the current row’s indent based on effective indent
+        let current_indent = self.effective_indent(row);
 
-        // Check whether this row ends with a control statement (e.g. 'If')
+        // Check whether the **leading non-empty** cell of this row is a control opener (If/Else)
         let mut is_control = false;
-        for ((_, r), cell) in &self.grid {
-            if *r == row {
-                match cell.cell {
-                Cell::If | Cell::Else /* | Cell::For | Cell::While */ => {
-                    is_control = true;
-                    break;
+        let mut lead_col: Option<u32> = None;
+        for (&(c, r), cell) in &self.grid {
+            if r == row && !matches!(cell.cell, Cell::Empty) {
+                match lead_col {
+                    Some(prev) if c >= prev => {}
+                    _ => lead_col = Some(c),
                 }
-                _ => {}
             }
+        }
+        if let Some(c0) = lead_col {
+            if let Some(ci) = self.grid.get(&(c0, row)) {
+                is_control = matches!(
+                    ci.cell,
+                    Cell::If | Cell::Else /* | Cell::For | Cell::While */
+                );
             }
         }
 
         // Decide how many rows to insert and what indent to use for the first new row
-        let (insert_count, first_indent, _second_indent) = if current_indent == 0 && is_control {
-            // At an 'if' line: insert one row with indent=1
-            (1, current_indent + 1, None)
-        } else if current_indent > 0 {
-            // Inside a block: insert two rows, one with indent=current_indent and one with indent-1
-            (2, current_indent, Some(current_indent - 1))
+        // Control lines (If/Else) always open a block: insert one row with indent + 1
+        // Non-control lines: insert one row at the same indent
+        let insert_count = 1u32;
+        let first_indent = if is_control {
+            current_indent + 1
         } else {
-            // Top-level, non-control line: insert one unindented row
-            (1, current_indent, None)
+            current_indent
         };
 
         // Shift rows > `row` down by insert_count
@@ -493,12 +523,7 @@ impl Grid {
         self.grid.insert((0, inner_row), CellItem::new(Cell::Empty));
         new_indents.insert(inner_row, first_indent);
 
-        // If a second row is needed (inside a block), insert it with indent one level less
-        // if let Some(outdent) = second_indent {
-        //     let outer_row = row + 2;
-        //     self.grid.insert((0, outer_row), CellItem::new(Cell::Empty));
-        //     new_indents.insert(outer_row, outdent);
-        // }
+        // (No second row insertion; Return always inserts exactly one new row.)
 
         self.row_indents = new_indents;
 

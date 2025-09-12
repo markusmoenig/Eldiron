@@ -113,6 +113,7 @@ pub enum Cell {
     GetEntityAttr,
     Goto,
     Id,
+    Intent,
     InventoryItems,
     InventoryItemsOf,
     Message,
@@ -189,6 +190,7 @@ impl Cell {
             Cell::GetEntityAttr => "Get Attribute Of",
             Cell::Goto => "Goto",
             Cell::Id => "Id",
+            Cell::Intent => "Intent",
             Cell::InventoryItems => "Inventory Items",
             Cell::InventoryItemsOf => "Inventory Items Of",
             Cell::Message => "Message",
@@ -240,6 +242,7 @@ impl Cell {
             "get_attr_of" => Some(Cell::GetAttrOf),
             "goto" => Some(Cell::Goto),
             "id" => Some(Cell::Id),
+            "intent" => Some(Cell::Intent),
             "inventory_items" => Some(Cell::InventoryItems),
             "inventory_items_of" => Some(Cell::InventoryItemsOf),
             "message" => Some(Cell::Message),
@@ -304,6 +307,7 @@ impl Cell {
             GetAttrOf => "get_attr_of".into(),
             Goto => "goto".into(),
             Id => "id".into(),
+            Intent => "intent".into(),
             InventoryItems => "inventory_items".into(),
             InventoryItemsOf => "inventory_items_of".into(),
             Message => "message".into(),
@@ -343,6 +347,7 @@ impl Cell {
             GetAttrOf => "Get an attribute of the given entity or item.".into(),
             Goto => "Go to a sector using pathfinding.".into(),
             Id => "Returns the ID of the current entity or item.".into(),
+            Intent=> "Player intent. Only applicable during for user events.".into(),
             InventoryItems => {
                 "Returns a list of item IDs of the inventory of the current entity.".into()
             }

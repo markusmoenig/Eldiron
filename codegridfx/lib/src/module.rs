@@ -7,7 +7,7 @@ const BLOCKS: [&str; 3] = ["Event", "Var = ..", "If .. == .."];
 const VALUES: [&str; 5] = ["Boolean", "Float", "Integer", "String", "Variable"];
 const OPERATORS: [&str; 4] = ["Arithmetic", "Assignment", "Comparison", "Else"];
 const USER_EVENTS: [&str; 2] = ["key_down", "key_up"];
-const FUNCTIONS: [&str; 29] = [
+const FUNCTIONS: [&str; 30] = [
     "action",
     "add_item",
     "block_events",
@@ -21,6 +21,7 @@ const FUNCTIONS: [&str; 29] = [
     "get_attr_of",
     "goto",
     "id",
+    "intent",
     "inventory_items",
     "inventory_items_of",
     "message",
@@ -367,7 +368,11 @@ impl Module {
                             if key_code == TheKeyCode::Return {
                                 if let Some(sel) = self.grid_ctx.current_cell.clone() {
                                     if let Some(routine) = self.get_selected_routine_mut() {
-                                        routine.grid.return_at(sel.1);
+                                        if ui.shift {
+                                            routine.grid.return_sibling_at(sel.1);
+                                        } else {
+                                            routine.grid.return_at(sel.1);
+                                        }
                                         self.grid_ctx.current_cell = Some((sel.0, sel.1 + 1));
                                         self.redraw(ui, ctx);
 
@@ -420,6 +425,19 @@ impl Module {
                                             self.to_json(),
                                         ));
                                     }
+                                } else if let Some(r) = self.grid_ctx.selected_routine {
+                                    self.routines.shift_remove(&r);
+                                    self.redraw(ui, ctx);
+
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("ModuleChanged"),
+                                        TheValue::Empty,
+                                    ));
+                                    ctx.ui.send(TheEvent::CustomUndo(
+                                        TheId::named("ModuleUndo"),
+                                        prev,
+                                        self.to_json(),
+                                    ));
                                 }
                             }
                         }
