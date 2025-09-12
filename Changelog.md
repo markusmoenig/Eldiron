@@ -2,13 +2,18 @@
 
 ## New Features
 
-### Client
+### Creator
 
-- New grid based node editor for coding entity and item behavior in the code tool. The main new feature for this release.
+- Character and item classes can now be renamed via their context menus.
+- New grid based node editor for coding entity and item behavior in the code tool. **The main new feature for this release.**
 
 ### Server
 
 - Removed `get_entity_attr` and `get_item_attr` and replaced it with `get_attr_of` which works for both entities and items.
+
+## Bug Fixes
+
+- Fixed deletion of character and item instances in the map (the map would not immediately update sometimes).
 
 ---
 
