@@ -58,3 +58,6 @@ Create classical RPGs with Eldiron.
 # [lib]
 # name = "rustapi"
 # crate-type = ["staticlib"]
+
+[features]
+log = ["theframework/log"]
