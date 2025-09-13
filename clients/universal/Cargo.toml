@@ -1,5 +1,5 @@
 [package]
-name = "solo"
+name = "universal"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

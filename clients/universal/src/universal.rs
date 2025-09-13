@@ -1,11 +1,12 @@
 use crate::Embedded;
 use crate::prelude::*;
-use std::sync::mpsc::Receiver;
-//use std::sync::Mutex;
 use rusterix::{EntityAction, Rusterix, Value};
 use shared::{project::Project, rusterix_utils::*};
+use std::path::PathBuf;
+use std::str::FromStr;
+use std::sync::mpsc::Receiver;
 
-pub struct Solo {
+pub struct Universal {
     name: String,
     project: Project,
 
@@ -13,51 +14,17 @@ pub struct Solo {
     event_receiver: Option<Receiver<TheEvent>>,
 
     rusterix: Rusterix,
+    cmd_line_path: Option<PathBuf>,
 }
 
-impl TheTrait for Solo {
+impl TheTrait for Universal {
     fn new() -> Self
     where
         Self: Sized,
     {
-        let mut game_name = "Eldiron Solo Adventure";
-        let mut project = Project::default();
-        let mut rusterix = Rusterix::default();
-        let mut cloned;
-
-        for file in Embedded::iter() {
-            let name = file.as_ref().to_string();
-            cloned = name.clone();
-
-            // Get the embedded project
-            if name.ends_with(".eldiron") {
-                game_name = cloned.split(".").next().unwrap_or_default();
-                if let Some(file) = Embedded::get(&name) {
-                    if let Ok(str_slice) = std::str::from_utf8(&file.data) {
-                        let json = str_slice.to_string();
-                        let emd_project: Option<Project> = serde_json::from_str(&json).ok();
-                        if let Some(emd_project) = emd_project {
-                            project = emd_project;
-
-                            let tiles = project.extract_tiles();
-                            rusterix.assets.set_rgba_tiles(tiles.clone());
-
-                            // Init server / client
-
-                            start_server(&mut rusterix, &mut project, false);
-                            let commands = setup_client(&mut rusterix, &mut project);
-                            rusterix.server.process_client_commands(commands);
-                            rusterix.client.server_time = project.time;
-
-                            println!("Project loaded successfully ({name}).");
-                        } else {
-                            println!("Failed to load project ({name}).");
-                        }
-                    }
-                }
-                break;
-            }
-        }
+        let game_name = "Eldiron Adventure";
+        let project = Project::default();
+        let rusterix = Rusterix::default();
 
         Self {
             name: game_name.into(),
@@ -67,6 +34,37 @@ impl TheTrait for Solo {
             event_receiver: None,
 
             rusterix,
+            cmd_line_path: None,
+        }
+    }
+
+    /// Set the command line arguments
+    fn set_cmd_line_args_early(&mut self, args: Vec<String>) {
+        // Assign the path
+        if args.len() > 1 {
+            #[allow(irrefutable_let_patterns)]
+            if let Ok(path) = PathBuf::from_str(&args[1]) {
+                self.cmd_line_path = Some(path);
+            }
+        }
+
+        // Load the game data path
+        if let Some(path) = self.get_data_path() {
+            let mut project = self.load_project(path);
+            let tiles = project.extract_tiles();
+            self.rusterix.assets.set_rgba_tiles(tiles.clone());
+
+            // Init server / client
+
+            start_server(&mut self.rusterix, &mut project, false);
+            let commands = setup_client(&mut self.rusterix, &mut project);
+            self.rusterix.server.process_client_commands(commands);
+            self.rusterix.client.server_time = project.time;
+            self.project = project;
+
+            println!("Project loaded successfully");
+        } else {
+            panic!("No data file!");
         }
     }
 
@@ -232,8 +230,32 @@ impl TheTrait for Solo {
     }
 }
 
-// pub trait SoloTrait {
-//fn update_server_state_icons(&mut self, ui: &mut TheUI);
-// }
+pub trait UniversalTrait {
+    fn get_data_path(&self) -> Option<PathBuf>;
+    fn load_project(&mut self, path: PathBuf) -> Project;
+}
 
-//impl SoloTrait for Solo {}
+impl UniversalTrait for Universal {
+    /// Returns the path to the game data
+    fn get_data_path(&self) -> Option<PathBuf> {
+        // For now, return only the command line path
+        // We will need to adjust this based on platform specific features
+        // to hardcode the path
+        if let Some(clp) = self.cmd_line_path.clone() {
+            return Some(clp);
+        }
+
+        None
+    }
+
+    /// Load project
+    fn load_project(&mut self, path: PathBuf) -> Project {
+        if let Ok(contents) = std::fs::read_to_string(path) {
+            if let Ok(project) = serde_json::from_str::<Project>(&contents) {
+                return project;
+            }
+        }
+
+        Project::default()
+    }
+}

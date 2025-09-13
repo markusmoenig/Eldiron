@@ -3,7 +3,7 @@
 use theframework::*;
 
 pub mod misc;
-pub mod solo;
+pub mod universal;
 
 use rust_embed::RustEmbed;
 #[derive(RustEmbed)]
@@ -18,7 +18,7 @@ pub mod prelude {
     pub use theframework::prelude::*;
 }
 
-use crate::solo::Solo;
+use crate::universal::Universal;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -31,10 +31,15 @@ pub fn start() {
 }
 
 fn main() {
-    // std::env::set_var("RUST_BACKTRACE", "1");
+    // unsafe {
+    //     std::env::set_var("RUST_BACKTRACE", "1");
+    // }
 
-    let solo = Solo::new();
+    let args: Vec<_> = std::env::args().collect();
+
+    let mut universal = Universal::new();
+    universal.set_cmd_line_args_early(args.clone());
     let app = TheApp::new();
 
-    let () = app.run(Box::new(solo));
+    let () = app.run(Box::new(universal));
 }
