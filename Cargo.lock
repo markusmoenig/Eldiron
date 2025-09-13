@@ -822,6 +822,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "client"
+version = "0.8.70"
+dependencies = [
+ "console_error_panic_hook",
+ "fontdue",
+ "instant",
+ "png 0.17.16",
+ "rust-embed",
+ "rusterix",
+ "serde",
+ "serde_json",
+ "shared",
+ "theframework",
+ "vectorize",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "clipboard-win"
 version = "5.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6225,25 +6244,6 @@ dependencies = [
  "log",
  "phf_codegen",
  "rand 0.8.5",
-]
-
-[[package]]
-name = "universal"
-version = "0.8.70"
-dependencies = [
- "console_error_panic_hook",
- "fontdue",
- "instant",
- "png 0.17.16",
- "rust-embed",
- "rusterix",
- "serde",
- "serde_json",
- "shared",
- "theframework",
- "vectorize",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]

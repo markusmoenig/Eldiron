@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::mpsc::Receiver;
 
-pub struct Universal {
+pub struct Client {
     name: String,
     project: Project,
 
@@ -17,7 +17,7 @@ pub struct Universal {
     cmd_line_path: Option<PathBuf>,
 }
 
-impl TheTrait for Universal {
+impl TheTrait for Client {
     fn new() -> Self
     where
         Self: Sized,
@@ -230,12 +230,12 @@ impl TheTrait for Universal {
     }
 }
 
-pub trait UniversalTrait {
+pub trait ClientTrait {
     fn get_data_path(&self) -> Option<PathBuf>;
     fn load_project(&mut self, path: PathBuf) -> Project;
 }
 
-impl UniversalTrait for Universal {
+impl ClientTrait for Client {
     /// Returns the path to the game data
     fn get_data_path(&self) -> Option<PathBuf> {
         // For now, return only the command line path

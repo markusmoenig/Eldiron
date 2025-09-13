@@ -2,8 +2,8 @@
 
 use theframework::*;
 
+pub mod client;
 pub mod misc;
-pub mod universal;
 
 use rust_embed::RustEmbed;
 #[derive(RustEmbed)]
@@ -18,7 +18,7 @@ pub mod prelude {
     pub use theframework::prelude::*;
 }
 
-use crate::universal::Universal;
+use crate::client::Client;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -37,9 +37,9 @@ fn main() {
 
     let args: Vec<_> = std::env::args().collect();
 
-    let mut universal = Universal::new();
-    universal.set_cmd_line_args_early(args.clone());
+    let mut client = Client::new();
+    client.set_cmd_line_args_early(args.clone());
     let app = TheApp::new();
 
-    let () = app.run(Box::new(universal));
+    let () = app.run(Box::new(client));
 }

@@ -4,7 +4,7 @@ members = [
     "creator",
     "run-wasm",
     "shared",
-    "clients/universal",
+    "clients/client",
     "codegridfx/lib",
     "codegridfx/test",
 ]
