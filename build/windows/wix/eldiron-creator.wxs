@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="windows-1252"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
-    <Product Name="Eldiron"
+    <Product Name="Eldiron Creator"
              Id="*"
              UpgradeCode="da44883f-ca50-4b8b-8b3f-0001b8d51f64"
              Language="1033"
@@ -13,8 +13,8 @@
         <WixVariable Id="WixUILicenseRtf" Value=".\build\windows\wix\license.rtf"/>
         <Property Id="ARPPRODUCTICON" Value="EldironIcon"/>
         <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR"/>
-        <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Eldiron"/>
-        <Property Id="WixShellExecTarget" Value="[#EldironExeFile]"/>
+        <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Eldiron Creator"/>
+        <Property Id="WixShellExecTarget" Value="[#EldironCreatorExeFile]"/>
         <CustomAction Id="LaunchApplication" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes"/>
         <MediaTemplate EmbedCab="yes"/>
 
@@ -28,16 +28,16 @@
 
         <Directory Id="TARGETDIR" Name="SourceDir">
             <Directory Id="ProgramFiles64Folder">
-                <Directory Id="INSTALLDIR" Name="Eldiron"/>
+                <Directory Id="INSTALLDIR" Name="EldironCreator"/>
             </Directory>
             <Directory Id="ProgramMenuFolder">
-                <Directory Id="ProgramMenu" Name="Eldiron"/>
+                <Directory Id="ProgramMenu" Name="EldironCreator"/>
             </Directory>
         </Directory>
 
         <DirectoryRef Id="INSTALLDIR">
-            <Component Id="EldironExe" Guid="*">
-                <File Id="EldironExeFile" Source=".\eldiron.exe" Name="eldiron.exe" KeyPath="yes" Checksum="yes"/>
+            <Component Id="EldironCreatorExe" Guid="*">
+                <File Id="EldironCreatorExeFile" Source=".\eldiron-creator.exe" Name="eldiron-creator.exe" KeyPath="yes" Checksum="yes"/>
             </Component>
         </DirectoryRef>
 
@@ -45,17 +45,17 @@
             <Component Id="Shortcut" Guid="*">
                 <Shortcut Id="ShortcutFile"
                           Icon="EldironIcon"
-                          Name="Eldiron"
+                          Name="EldironCreator"
                           Description="Classic RPG Creation"
-                          Target="[!EldironExeFile]"
+                          Target="[!EldironCreatorExeFile]"
                           WorkingDirectory="INSTALLDIR"/>
                 <Shortcut Id="UninstallProduct"
-                          Name="Uninstall Eldiron"
+                          Name="Uninstall Eldiron Creator"
                           Target="[SystemFolder]msiexec.exe"
                           Arguments="/x [ProductCode]"
-                          Description="Uninstalls Eldiron" />
+                          Description="Uninstalls Eldiron Creator" />
                 <RemoveFolder Id="ProgramMenu" On="uninstall"/>
-                <RegistryValue Root="HKCU" Key="Software\MarkusMoenig\Eldiron" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+                <RegistryValue Root="HKCU" Key="Software\MarkusMoenig\EldironCreator" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
             </Component>
         </DirectoryRef>
 
@@ -66,7 +66,7 @@
         </DirectoryRef>
 
         <Feature Id="MainApplicatiton" Title="Main Application" Level="1">
-            <ComponentRef Id="EldironExe"/>
+            <ComponentRef Id="EldironCreatorExe"/>
             <ComponentRef Id="Shortcut"/>
             <ComponentRef Id="ModifyPathEnv"/>
             <!-- <ComponentGroupRef Id="Resources"/> -->

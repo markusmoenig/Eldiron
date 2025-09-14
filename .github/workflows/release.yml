@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+*'
+      - "v[0-9]+.[0-9]+.[0-9]+*"
 
 # ─────────────────────────────── Linux build ────────────────────────────────
 jobs:
@@ -27,10 +27,10 @@ jobs:
       - name: Package artefacts
         working-directory: creator
         run: |
-          mv ../target/release/eldiron .
-          tar -czvf eldiron-x86_64-unknown-linux-gnu.tar.gz eldiron
+          mv ../target/release/eldiron-creator .
+          tar -czvf eldiron-creator-x86_64-unknown-linux-gnu.tar.gz eldiron-creator
           mkdir -p output
-          mv eldiron-*.gz output/
+          mv eldiron-creator-*.gz output/
 
       - name: Upload artefacts
         uses: actions/upload-artifact@v4
@@ -38,12 +38,12 @@ jobs:
           name: Linux
           path: creator/output
 
-# ────────────────────────────── Windows build ───────────────────────────────
+  # ────────────────────────────── Windows build ───────────────────────────────
   windows_build:
     runs-on: windows-latest
     defaults:
       run:
-        shell: bash        # use Git-bash for every step
+        shell: bash # use Git-bash for every step
 
     steps:
       - uses: actions/checkout@v4
@@ -73,10 +73,10 @@ jobs:
       # --- Package artefacts -------------------------------------------------
       - name: Package artefacts
         run: |
-          mv /c/t/release/eldiron.exe .
-          tar -czvf eldiron-x86_64-pc-windows-msvc.tar.gz eldiron.exe
+          mv /c/t/release/eldiron-creator.exe .
+          tar -czvf eldiron-creator-x86_64-pc-windows-msvc.tar.gz eldiron-creator.exe
           mkdir -p output
-          mv eldiron-*.gz output/
+          mv eldiron-creator-*.gz output/
 
       - name: Upload artefacts
         uses: actions/upload-artifact@v4
@@ -84,7 +84,7 @@ jobs:
           name: Windows
           path: output
 
-# ─────────────────────────── Linux release job ──────────────────────────────
+  # ─────────────────────────── Linux release job ──────────────────────────────
   linux_release:
     runs-on: ubuntu-latest
     needs: linux_build
@@ -102,7 +102,7 @@ jobs:
           name: Linux
 
       - name: Unpack tarball
-        run: tar -xzvf eldiron-*.gz
+        run: tar -xzvf eldiron-creator-*.gz
 
       - name: Install cargo-bundle
         run: cargo install cargo-bundle@0.6.0
@@ -110,21 +110,21 @@ jobs:
       - name: Build .deb package
         run: |
           mkdir -p target/release
-          cp eldiron target/release/
+          cp eldiron-creator target/release/
           cd creator
-          cargo bundle --release --bin eldiron
+          cargo bundle --release --bin eldiron-creator
 
       - name: Rename .deb
-        run: mv target/release/bundle/deb/*.deb Eldiron.deb
+        run: mv target/release/bundle/deb/*.deb Eldiron-Creator.deb
 
       - name: GitHub release (Linux)
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            Eldiron.deb
-            eldiron-*.gz
+            Eldiron-Creator.deb
+            eldiron-creator-*.gz
 
-# ────────────────────────── Windows release job ─────────────────────────────
+  # ────────────────────────── Windows release job ─────────────────────────────
   windows_release:
     runs-on: windows-latest
     needs: windows_build
@@ -143,7 +143,7 @@ jobs:
           name: Windows
 
       - name: Unpack tarball
-        run: tar -xzvf eldiron-*.gz
+        run: tar -xzvf eldiron-creator-*.gz
 
       - name: Install WiX
         run: nuget install WiX -Version 3.11.2
@@ -151,13 +151,13 @@ jobs:
       - name: Build MSI installer
         run: |
           ./WiX.*/tools/candle.exe -arch x64 -ext WixUIExtension -ext WixUtilExtension \
-            -out eldiron.wixobj ./build/windows/wix/eldiron.wxs
+            -out eldiron-creator.wixobj ./build/windows/wix/eldiron-creator.wxs
           ./WiX.*/tools/light.exe -ext WixUIExtension -ext WixUtilExtension \
-            -out Eldiron.msi -sice:ICE61 -sice:ICE91 eldiron.wixobj
+            -out Eldiron-Creator.msi -sice:ICE61 -sice:ICE91 eldiron-creator.wixobj
 
       - name: GitHub release (Windows)
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            Eldiron.msi
-            eldiron-*.gz
+            Eldiron-Creator.msi
+            eldiron-creator-*.gz

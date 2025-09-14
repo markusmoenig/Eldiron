@@ -98,9 +98,9 @@ impl TheTrait for Editor {
         }
 
         #[cfg(not(target_os = "macos"))]
-        let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "eldiron");
+        let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "eldiron-creator");
         #[cfg(target_os = "macos")]
-        let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "Eldiron.app");
+        let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "Eldiron-Creator.app");
 
         Self {
             project,
