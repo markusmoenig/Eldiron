@@ -2576,6 +2576,7 @@ impl Sidebar {
                 list_layout.add_item(item, ctx);
             }
         }
+        self.apply_tilemap(ui, ctx, None);
         if let Some(list_layout) = ui.get_list_layout("Tilemap List") {
             list_layout.clear();
             for tilemap in &project.tilemaps {
@@ -2614,6 +2615,7 @@ impl Sidebar {
                 list_layout.add_item(item, ctx);
             }
         }*/
+        self.apply_screen(ui, ctx, None);
         if let Some(list_layout) = ui.get_list_layout("Screen List") {
             list_layout.clear();
             let list = project.sorted_screens_list();

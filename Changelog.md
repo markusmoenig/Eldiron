@@ -1,3 +1,11 @@
+# Eldiron Creator v0.8.80
+
+## Bug Fixes
+
+- Correctly refresh screen and tilemap lists after loading a new project.
+
+---
+
 # Eldiron Creator v0.8.70
 
 ## New Features
