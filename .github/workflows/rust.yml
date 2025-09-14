@@ -66,6 +66,8 @@ jobs:
         run: |
           cd s/creator
           cargo build --verbose
+          cd s/clients/client
+          cargo build --verbose
 
       # ────────────────────────────────────────────────────────────────────────────
       # 5. (optional) tests
