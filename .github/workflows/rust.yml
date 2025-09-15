@@ -11,16 +11,15 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        working-directory: ["creator", "clients/client"]
 
     runs-on: ${{ matrix.os }}
 
     steps:
       # ────────────────────────────────────────────────────────────────────────────
-      # 1. Checkout – put the repo in a one-letter directory to shrink every path
+      # 1. Checkout
       # ────────────────────────────────────────────────────────────────────────────
       - uses: actions/checkout@v3
-        with:
-          path: s # s/… instead of the default work dir
 
       # ────────────────────────────────────────────────────────────────────────────
       # 2. Windows-only: lift the 260-char limit + shorten Cargo/Rustup locations
@@ -63,10 +62,8 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────────
       - name: Build
         shell: bash
+        working-directory: ${{ matrix.working-directory }}
         run: |
-          cd s/creator
-          cargo build --verbose
-          cd s/clients/client
           cargo build --verbose
 
       # ────────────────────────────────────────────────────────────────────────────
@@ -74,6 +71,6 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────────
       # - name: Run tests
       #   shell: bash
+      #   working-directory: ${{ matrix.working-directory }}
       #   run: |
-      #     cd s/creator
       #     cargo test --verbose
