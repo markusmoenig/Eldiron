@@ -6,6 +6,10 @@ license.workspace = true
 authors.workspace = true
 description.workspace = true
 
+[[bin]]
+name = "eldiron-client"
+path = "src/main.rs"
+
 [dependencies]
 theframework.workspace = true
 rusterix.workspace = true
@@ -31,3 +35,6 @@ instant = { version = "0.1", features = ["wasm-bindgen"] }
 # [lib]
 # name = "rustapi"
 # crate-type = ["staticlib"]
+
+[features]
+log = ["theframework/log"]

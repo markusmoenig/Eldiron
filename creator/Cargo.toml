@@ -12,7 +12,7 @@ authors = ["Markus Moenig"]
 description = "A game creator for classical RPGs."
 
 [[bin]]
-name = "eldiron"
+name = "eldiron-creator"
 path = "src/main.rs"
 
 [dependencies]
@@ -43,8 +43,8 @@ toml = "0.8.20"
 # lazy_static = "1.5.0"
 rand = "0.9"
 
-[package.metadata.bundle.bin.eldiron]
-name = "Eldiron"
+[package.metadata.bundle.bin.eldiron-creator]
+name = "Eldiron Creator"
 identifier = "com.moenig.eldiron"
 icon = ["../build/Eldiron.icns"]
 resources = []
