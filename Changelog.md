@@ -4,7 +4,7 @@
 
 ### CI
 
-- Build clients for all platforms.
+- Build clients for all platforms at release.
 
 ---
 
