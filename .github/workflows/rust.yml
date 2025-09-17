@@ -67,7 +67,17 @@ jobs:
           cargo build --verbose
 
       # ────────────────────────────────────────────────────────────────────────────
-      # 5. (optional) tests
+      # 5. Build Web
+      # ────────────────────────────────────────────────────────────────────────────
+      - name: Build Web
+        shell: bash
+        working-directory: ${{ matrix.working-directory }}
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo build --verbose --target wasm32-unknown-unknown
+
+      # ────────────────────────────────────────────────────────────────────────────
+      # 6. (optional) tests
       # ────────────────────────────────────────────────────────────────────────────
       # - name: Run tests
       #   shell: bash
