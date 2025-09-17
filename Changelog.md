@@ -1,3 +1,13 @@
+# Eldiron Creator v0.8.90
+
+## New Features
+
+### CI
+
+- Build clients for all platforms.
+
+---
+
 # Eldiron Creator v0.8.80
 
 ## Bug Fixes
