@@ -1,13 +1,6 @@
 [workspace]
 
-members = [
-    "creator",
-    "run-wasm",
-    "shared",
-    "clients/client",
-    "codegridfx/lib",
-    "codegridfx/test",
-]
+members = ["creator", "run-wasm", "shared", "clients/client"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -19,7 +12,10 @@ theframework = { version = "0.1.40", git = "https://github.com/markusmoenig/TheF
 # ], default-features = true }
 
 rusterix = { version = "0.2.8", git = "https://github.com/markusmoenig/Rusterix" }
+codegridfx = { git = "https://github.com/markusmoenig/Rusterix", package = "codegridfx" }
+
 # rusterix = { path = "../Rusterix" }
+# codegridfx = { path = "../Rusterix/codegridfx/lib", package = "codegridfx" }
 
 [workspace.package]
 edition = "2024"

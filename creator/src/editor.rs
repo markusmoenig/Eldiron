@@ -4,7 +4,7 @@ use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
 use crate::undo::character_undo::CharacterUndoAtom;
 use crate::undo::item_undo::ItemUndoAtom;
-use codegridfxlib::Module;
+use codegridfx::Module;
 use rusterix::{
     PlayerCamera, Rusterix, SceneManager, SceneManagerResult, Texture, Value, ValueContainer,
 };
@@ -60,7 +60,9 @@ pub static CUSTOMCAMERA: LazyLock<RwLock<CustomCamera>> =
     LazyLock::new(|| RwLock::new(CustomCamera::new()));
 pub static SCENEMANAGER: LazyLock<RwLock<SceneManager>> =
     LazyLock::new(|| RwLock::new(SceneManager::default()));
+
 pub static CODEGRIDFX: LazyLock<RwLock<Module>> = LazyLock::new(|| RwLock::new(Module::default()));
+pub static SHADEGRIDFX: LazyLock<RwLock<Module>> = LazyLock::new(|| RwLock::new(Module::default()));
 
 pub struct Editor {
     project: Project,
@@ -167,7 +169,6 @@ impl TheTrait for Editor {
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         RUSTERIX.write().unwrap().client.messages_font = ctx.ui.font.clone();
-        CODEGRIDFX.write().unwrap().get_colors(ui);
 
         // Embedded Icons
         for file in Embedded::iter() {

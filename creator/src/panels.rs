@@ -1,6 +1,6 @@
 use crate::editor::{
     CODEEDITOR, CODEGRIDFX, CONFIGEDITOR, EFFECTPICKER, INFOVIEWER, MATERIALPICKER, NODEEDITOR,
-    RENDEREDITOR, SHAPEPICKER, TILEMAPEDITOR, TILEPICKER, WORLDEDITOR,
+    RENDEREDITOR, SHADEGRIDFX, SHAPEPICKER, TILEMAPEDITOR, TILEPICKER, WORLDEDITOR,
 };
 use crate::prelude::*;
 
@@ -18,6 +18,7 @@ pub enum PanelIndices {
     TerrainBrush,
     Trace,
     CodeGridFx,
+    ShadeGridFx,
 }
 
 pub struct Panels {}
@@ -80,6 +81,7 @@ impl Panels {
         main_stack.add_canvas(WORLDEDITOR.write().unwrap().build_brush_canvas());
         main_stack.add_canvas(RENDEREDITOR.write().unwrap().build_trace_canvas());
         main_stack.add_canvas(CODEGRIDFX.write().unwrap().build_canvas(ctx));
+        main_stack.add_canvas(SHADEGRIDFX.write().unwrap().build_canvas(ctx));
         main_stack.set_index(0);
 
         let tilemap_editor = TheRGBALayout::new(TheId::named("Tilemap Editor"));

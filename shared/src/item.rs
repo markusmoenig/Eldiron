@@ -1,4 +1,4 @@
-use codegridfxlib::Module;
+use codegridfx::Module;
 use num_traits::zero;
 use rusterix::Map;
 use theframework::prelude::*;

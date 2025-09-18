@@ -1,6 +1,6 @@
 use crate::editor::{CODEEDITOR, CONFIGEDITOR};
 use crate::prelude::*;
-use codegridfxlib::ModuleType;
+use codegridfx::ModuleType;
 use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
 use toml::*;
 

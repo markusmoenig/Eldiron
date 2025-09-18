@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 use crate::editor::CODEGRIDFX;
-use codegridfxlib::{Module, ModuleType};
+use codegridfx::{Module, ModuleType};
 
 pub struct CodeEditor {
     pub show_template: bool,

@@ -54,7 +54,6 @@ impl Tool for CodeTool {
                     PanelIndices::CodeGridFx as usize,
                 ));
 
-                CODEGRIDFX.write().unwrap().get_colors(ui);
                 if let Some(renderview) = ui.get_render_view("ModuleView") {
                     *renderview.render_buffer_mut() = TheRGBABuffer::new(TheDim::new(
                         0,
@@ -62,7 +61,6 @@ impl Tool for CodeTool {
                         renderview.dim().width,
                         renderview.dim().height,
                     ));
-                    // CODEGRIDFX.write().unwrap().update_routines();
                     CODEGRIDFX
                         .write()
                         .unwrap()

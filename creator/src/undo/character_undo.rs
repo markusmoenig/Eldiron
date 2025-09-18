@@ -1,6 +1,6 @@
 use crate::editor::{CODEGRIDFX, NODEEDITOR};
 use crate::prelude::*;
-use codegridfxlib::Module;
+use codegridfx::Module;
 use theframework::prelude::*;
 
 #[allow(clippy::large_enum_variant)]

@@ -41,7 +41,7 @@ const DEFAULT_VLAYOUT_RATIO: f32 = 0.62;
 pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
 
-    pub use codegridfxlib::prelude::*;
+    pub use codegridfx::prelude::*;
     pub use shared::prelude::*;
     pub use std::sync::{LazyLock, RwLock};
     pub use theframework::prelude::*;
