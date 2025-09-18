@@ -46,7 +46,7 @@ impl Character {
             id: Uuid::new_v4(),
             name: "NewCharacter".to_string(),
 
-            module: Module::default(),
+            module: Module::as_type(codegridfx::ModuleType::CharacterTemplate),
 
             map: Map::default(),
             source: String::new(),

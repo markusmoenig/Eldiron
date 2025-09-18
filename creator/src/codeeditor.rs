@@ -1,14 +1,24 @@
 use crate::prelude::*;
 
-use crate::editor::CODEGRIDFX;
+use crate::editor::{CODEGRIDFX, SHADEGRIDFX};
 use codegridfx::{Module, ModuleType};
+
+#[derive(Debug, PartialEq)]
+pub enum VisibleCodePanel {
+    None,
+    Code,
+    Shade,
+}
 
 pub struct CodeEditor {
     pub show_template: bool,
-    pub content: ContentContext,
+    pub code_content: ContentContext,
+    pub shader_content: ContentContext,
     pub last_header_text: String,
 
     pub last_data_header_text: String,
+
+    pub active_panel: VisibleCodePanel,
 }
 
 #[allow(clippy::new_without_default)]
@@ -16,11 +26,30 @@ impl CodeEditor {
     pub fn new() -> Self {
         Self {
             show_template: true,
-            content: ContentContext::Unknown,
+            code_content: ContentContext::Unknown,
+            shader_content: ContentContext::Unknown,
             last_header_text: "".into(),
 
             last_data_header_text: "".into(),
+            active_panel: VisibleCodePanel::None,
         }
+    }
+
+    ///
+    pub fn set_shader_for_current_geometry(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &ServerContext,
+    ) {
+        self.active_panel = VisibleCodePanel::Shade;
+        *SHADEGRIDFX.write().unwrap() = Module::as_type(ModuleType::Sector);
+        SHADEGRIDFX
+            .write()
+            .unwrap()
+            .set_module_type(ModuleType::Sector);
+        SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
     }
 
     /// Set the module based on the given context and template mode.
@@ -71,7 +100,7 @@ impl CodeEditor {
             button.set_index(0);
         }
 
-        self.content = ContentContext::CharacterTemplate(character.id);
+        self.code_content = ContentContext::CharacterTemplate(character.id);
 
         self.show_template = true;
     }
@@ -101,7 +130,7 @@ impl CodeEditor {
             button.set_index(1);
         }
 
-        self.content = ContentContext::CharacterInstance(character.id);
+        self.code_content = ContentContext::CharacterInstance(character.id);
 
         self.show_template = false;
     }
@@ -132,7 +161,7 @@ impl CodeEditor {
             button.set_index(0);
         }
 
-        self.content = ContentContext::ItemTemplate(item.id);
+        self.code_content = ContentContext::ItemTemplate(item.id);
 
         self.show_template = true;
     }
@@ -157,7 +186,7 @@ impl CodeEditor {
             button.set_index(1);
         }
 
-        self.content = ContentContext::ItemInstance(item.id);
+        self.code_content = ContentContext::ItemInstance(item.id);
         self.show_template = false;
     }
 
@@ -170,7 +199,7 @@ impl CodeEditor {
         server_ctx: &ServerContext,
         template: bool,
     ) {
-        let handled = match self.content {
+        let handled = match self.code_content {
             ContentContext::CharacterTemplate(_) => {
                 if !template {
                     if let ContentContext::CharacterInstance(inst_id) = server_ctx.cc {
@@ -263,7 +292,7 @@ impl CodeEditor {
 
     /// Clear the module
     pub fn clear_module(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-        *CODEGRIDFX.write().unwrap() = Module::default();
+        *CODEGRIDFX.write().unwrap() = Module::as_type(ModuleType::CharacterTemplate);
         CODEGRIDFX.write().unwrap().redraw(ui, ctx);
 
         if let Some(text) = ui.get_text("Code Editor Header Text") {
@@ -272,7 +301,7 @@ impl CodeEditor {
             ctx.ui.relayout = true;
         }
 
-        self.content = ContentContext::Unknown;
+        self.code_content = ContentContext::Unknown;
     }
 
     pub fn build(&mut self) -> TheCanvas {

@@ -61,8 +61,10 @@ pub static CUSTOMCAMERA: LazyLock<RwLock<CustomCamera>> =
 pub static SCENEMANAGER: LazyLock<RwLock<SceneManager>> =
     LazyLock::new(|| RwLock::new(SceneManager::default()));
 
-pub static CODEGRIDFX: LazyLock<RwLock<Module>> = LazyLock::new(|| RwLock::new(Module::default()));
-pub static SHADEGRIDFX: LazyLock<RwLock<Module>> = LazyLock::new(|| RwLock::new(Module::default()));
+pub static CODEGRIDFX: LazyLock<RwLock<Module>> =
+    LazyLock::new(|| RwLock::new(Module::as_type(codegridfx::ModuleType::CharacterTemplate)));
+pub static SHADEGRIDFX: LazyLock<RwLock<Module>> =
+    LazyLock::new(|| RwLock::new(Module::as_type(codegridfx::ModuleType::Sector)));
 
 pub struct Editor {
     project: Project,
@@ -1206,38 +1208,40 @@ impl TheTrait for Editor {
                 match event {
                     TheEvent::CustomUndo(id, p, n) => {
                         if id.name == "ModuleUndo" {
-                            let prev = Module::from_json(&p);
-                            let next = Module::from_json(&n);
-                            match CODEEDITOR.read().unwrap().content {
-                                ContentContext::CharacterTemplate(id) => {
-                                    let atom =
-                                        CharacterUndoAtom::TemplateModuleEdit(id, prev, next);
-                                    UNDOMANAGER.write().unwrap().add_character_undo(atom, ctx);
+                            if CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Code {
+                                let prev = Module::from_json(&p);
+                                let next = Module::from_json(&n);
+                                match CODEEDITOR.read().unwrap().code_content {
+                                    ContentContext::CharacterTemplate(id) => {
+                                        let atom =
+                                            CharacterUndoAtom::TemplateModuleEdit(id, prev, next);
+                                        UNDOMANAGER.write().unwrap().add_character_undo(atom, ctx);
+                                    }
+                                    ContentContext::CharacterInstance(id) => {
+                                        let atom = CharacterUndoAtom::InstanceModuleEdit(
+                                            self.server_ctx.curr_region,
+                                            id,
+                                            prev,
+                                            next,
+                                        );
+                                        UNDOMANAGER.write().unwrap().add_character_undo(atom, ctx);
+                                    }
+                                    ContentContext::ItemTemplate(id) => {
+                                        let atom: ItemUndoAtom =
+                                            ItemUndoAtom::TemplateModuleEdit(id, prev, next);
+                                        UNDOMANAGER.write().unwrap().add_item_undo(atom, ctx);
+                                    }
+                                    ContentContext::ItemInstance(id) => {
+                                        let atom = ItemUndoAtom::InstanceModuleEdit(
+                                            self.server_ctx.curr_region,
+                                            id,
+                                            prev,
+                                            next,
+                                        );
+                                        UNDOMANAGER.write().unwrap().add_item_undo(atom, ctx);
+                                    }
+                                    _ => {}
                                 }
-                                ContentContext::CharacterInstance(id) => {
-                                    let atom = CharacterUndoAtom::InstanceModuleEdit(
-                                        self.server_ctx.curr_region,
-                                        id,
-                                        prev,
-                                        next,
-                                    );
-                                    UNDOMANAGER.write().unwrap().add_character_undo(atom, ctx);
-                                }
-                                ContentContext::ItemTemplate(id) => {
-                                    let atom: ItemUndoAtom =
-                                        ItemUndoAtom::TemplateModuleEdit(id, prev, next);
-                                    UNDOMANAGER.write().unwrap().add_item_undo(atom, ctx);
-                                }
-                                ContentContext::ItemInstance(id) => {
-                                    let atom = ItemUndoAtom::InstanceModuleEdit(
-                                        self.server_ctx.curr_region,
-                                        id,
-                                        prev,
-                                        next,
-                                    );
-                                    UNDOMANAGER.write().unwrap().add_item_undo(atom, ctx);
-                                }
-                                _ => {}
                             }
                         }
                     }

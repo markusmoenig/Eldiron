@@ -46,7 +46,7 @@ impl Item {
             id: Uuid::new_v4(),
             name: "NewItem".to_string(),
 
-            module: Module::default(),
+            module: Module::as_type(codegridfx::ModuleType::ItemTemplate),
             map: Map::default(),
             source: String::new(),
             source_debug: String::new(),

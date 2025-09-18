@@ -43,10 +43,7 @@ impl Tool for CodeTool {
         _server_ctx: &mut ServerContext,
     ) -> bool {
         if let Activate = tool_event {
-            // ctx.ui.send(TheEvent::Custom(
-            //     TheId::named("Set CodeGrid Panel"),
-            //     TheValue::Empty,
-            // ));
+            CODEEDITOR.write().unwrap().active_panel = VisibleCodePanel::Code;
 
             if !self.use_python {
                 ctx.ui.send(TheEvent::SetStackIndex(
@@ -54,7 +51,7 @@ impl Tool for CodeTool {
                     PanelIndices::CodeGridFx as usize,
                 ));
 
-                if let Some(renderview) = ui.get_render_view("ModuleView") {
+                if let Some(renderview) = ui.get_render_view("CodeModuleView") {
                     *renderview.render_buffer_mut() = TheRGBABuffer::new(TheDim::new(
                         0,
                         0,
@@ -263,13 +260,15 @@ impl Tool for CodeTool {
                 }
             }
             TheEvent::Custom(id, _) => {
-                if id.name == "ModuleChanged" {
+                if id.name == "ModuleChanged"
+                    && CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Code
+                {
                     let code = CODEGRIDFX.read().unwrap().build(false);
                     let debug_code = CODEGRIDFX.read().unwrap().build(true);
                     // println!("{}", debug_code);
                     ui.set_widget_value("CodeEdit", ctx, TheValue::Text(code.clone()));
 
-                    match CODEEDITOR.read().unwrap().content {
+                    match CODEEDITOR.read().unwrap().code_content {
                         ContentContext::CharacterInstance(uuid) => {
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 if let Some(character_instance) = region.characters.get_mut(&uuid) {

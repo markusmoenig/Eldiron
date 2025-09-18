@@ -1,4 +1,4 @@
-use crate::editor::{NODEEDITOR, RUSTERIX, SCENEMANAGER, SHAPEPICKER, UNDOMANAGER};
+use crate::editor::{CODEEDITOR, NODEEDITOR, RUSTERIX, SCENEMANAGER, SHAPEPICKER, UNDOMANAGER};
 use crate::prelude::*;
 pub use crate::tools::{
     config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, render::RenderTool,
@@ -237,6 +237,12 @@ impl ToolList {
                             TheId::named("Main Stack"),
                             PanelIndices::ShadeGridFx as usize,
                         ));
+                        CODEEDITOR.write().unwrap().set_shader_for_current_geometry(
+                            ui,
+                            ctx,
+                            project,
+                            &server_ctx,
+                        )
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::ShapePicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),

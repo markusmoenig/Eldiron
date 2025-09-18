@@ -80,8 +80,18 @@ impl Panels {
         main_stack.add_canvas(NODEEDITOR.write().unwrap().build());
         main_stack.add_canvas(WORLDEDITOR.write().unwrap().build_brush_canvas());
         main_stack.add_canvas(RENDEREDITOR.write().unwrap().build_trace_canvas());
-        main_stack.add_canvas(CODEGRIDFX.write().unwrap().build_canvas(ctx));
-        main_stack.add_canvas(SHADEGRIDFX.write().unwrap().build_canvas(ctx));
+        main_stack.add_canvas(
+            CODEGRIDFX
+                .write()
+                .unwrap()
+                .build_canvas(ctx, "CodeModuleView"),
+        );
+        main_stack.add_canvas(
+            SHADEGRIDFX
+                .write()
+                .unwrap()
+                .build_canvas(ctx, "ShadeModuleView"),
+        );
         main_stack.set_index(0);
 
         let tilemap_editor = TheRGBALayout::new(TheId::named("Tilemap Editor"));
@@ -199,13 +209,19 @@ impl Panels {
         {
             redraw = true;
         }
+
+        // Not sure we need this if here
+        if CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Shade {
+            SHADEGRIDFX.write().unwrap().handle_event(event, ui, ctx);
+        }
+        /*
         if NODEEDITOR
             .write()
             .unwrap()
             .handle_event(event, ui, ctx, project, server_ctx)
         {
             redraw = true;
-        }
+        }*/
 
         match event {
             TheEvent::IndexChanged(id, index) => {
