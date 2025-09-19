@@ -234,7 +234,25 @@ impl Panels {
                 }
             }
             TheEvent::Custom(id, _) => {
-                if id.name == "Set Region Modeler" {
+                if id.name == "ModuleChanged"
+                    && CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Shade
+                {
+                    // Update the current shader
+                    match CODEEDITOR.read().unwrap().shader_content {
+                        ContentContext::Sector(sector_id) => {
+                            if let Some(map) = project.get_map_mut(server_ctx) {
+                                for s in &mut map.sectors {
+                                    if s.creator_id == sector_id {
+                                        s.module = SHADEGRIDFX.read().unwrap().clone();
+                                        SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                } else if id.name == "Set Region Modeler" {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 4));
                     if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {

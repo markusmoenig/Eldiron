@@ -35,7 +35,7 @@ impl CodeEditor {
         }
     }
 
-    ///
+    /// Set the shader to the current selection state.
     pub fn set_shader_for_current_geometry(
         &mut self,
         ui: &mut TheUI,
@@ -44,7 +44,41 @@ impl CodeEditor {
         server_ctx: &ServerContext,
     ) {
         self.active_panel = VisibleCodePanel::Shade;
-        *SHADEGRIDFX.write().unwrap() = Module::as_type(ModuleType::Sector);
+
+        let mut has_sector = false;
+        if let Some(map) = project.get_map_mut(server_ctx) {
+            if let Some(sector_id) = map.selected_sectors.first() {
+                if let Some(sector) = map.find_sector(*sector_id) {
+                    has_sector = true;
+
+                    *SHADEGRIDFX.write().unwrap() = sector.module.clone();
+                    self.shader_content = ContentContext::Sector(sector.creator_id);
+                }
+            }
+        }
+
+        if !has_sector {
+            *SHADEGRIDFX.write().unwrap() = Module::as_type(ModuleType::Sector);
+            self.shader_content = ContentContext::Unknown
+        }
+
+        SHADEGRIDFX
+            .write()
+            .unwrap()
+            .set_module_type(ModuleType::Sector);
+        SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
+    }
+
+    /// Set the shader to the given sector.
+    pub fn set_shader_sector(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        sector: &rusterix::Sector,
+    ) {
+        *SHADEGRIDFX.write().unwrap() = sector.module.clone();
+        self.shader_content = ContentContext::Sector(sector.creator_id);
+
         SHADEGRIDFX
             .write()
             .unwrap()

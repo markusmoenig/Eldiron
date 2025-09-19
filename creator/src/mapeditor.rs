@@ -1,4 +1,4 @@
-use crate::editor::{NODEEDITOR, RUSTERIX, SCENEMANAGER, SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{CODEEDITOR, NODEEDITOR, RUSTERIX, SCENEMANAGER, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::{PixelSource, Value};
 use vek::Vec2;
@@ -1573,6 +1573,11 @@ impl MapEditor {
         let mut nodeui = TheNodeUI::default();
 
         if let Some(sector) = map.find_sector(sector_id) {
+            CODEEDITOR
+                .write()
+                .unwrap()
+                .set_shader_sector(ui, ctx, sector);
+
             let item = TheNodeUIItem::Text(
                 "sectorName".into(),
                 "Name".into(),
