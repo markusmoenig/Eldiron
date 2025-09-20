@@ -31,10 +31,6 @@ rayon = "1"
 png = "0.17"
 open = "5.0.1"
 fontdue = "0.9.3"
-self_update = { version = "0.39.0", features = [
-    "archive-tar",
-    "compression-flate2",
-] }
 indexmap = { version = "2", features = ["serde"], default-features = true }
 vek = { version = "0.17.1", default-features = true }
 regex = "1.11.1"
@@ -42,6 +38,12 @@ arboard = "3.4.1"
 toml = "0.8.20"
 # lazy_static = "1.5.0"
 rand = "0.9"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+self_update = { version = "0.39.0", features = [
+    "archive-tar",
+    "compression-flate2",
+] }
 
 [package.metadata.bundle.bin.eldiron-creator]
 name = "Eldiron Creator"

@@ -1,7 +1,7 @@
 use crate::Embedded;
 use crate::prelude::*;
-use crate::self_update::SelfUpdateEvent;
-use crate::self_update::SelfUpdater;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::self_update::{SelfUpdateEvent, SelfUpdater};
 use crate::undo::character_undo::CharacterUndoAtom;
 use crate::undo::item_undo::ItemUndoAtom;
 use codegridfx::Module;
@@ -78,8 +78,11 @@ pub struct Editor {
     update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
 
+    #[cfg(not(target_arch = "wasm32"))]
     self_update_rx: Receiver<SelfUpdateEvent>,
+    #[cfg(not(target_arch = "wasm32"))]
     self_update_tx: Sender<SelfUpdateEvent>,
+    #[cfg(not(target_arch = "wasm32"))]
     self_updater: Arc<Mutex<SelfUpdater>>,
 
     update_counter: usize,
@@ -92,6 +95,7 @@ impl TheTrait for Editor {
     where
         Self: Sized,
     {
+        #[cfg(not(target_arch = "wasm32"))]
         let (self_update_tx, self_update_rx) = channel();
 
         let mut project = Project::new();
@@ -101,10 +105,13 @@ impl TheTrait for Editor {
             }
         }
 
-        #[cfg(not(target_os = "macos"))]
-        let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "eldiron-creator");
-        #[cfg(target_os = "macos")]
-        let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "Eldiron-Creator.app");
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            #[cfg(not(target_os = "macos"))]
+            let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "eldiron-creator");
+            #[cfg(target_os = "macos")]
+            let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "Eldiron-Creator.app");
+        }
 
         Self {
             project,
@@ -118,8 +125,11 @@ impl TheTrait for Editor {
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
 
+            #[cfg(not(target_arch = "wasm32"))]
             self_update_rx,
+            #[cfg(not(target_arch = "wasm32"))]
             self_update_tx,
+            #[cfg(not(target_arch = "wasm32"))]
             self_updater: Arc::new(Mutex::new(self_updater)),
 
             update_counter: 0,
@@ -129,17 +139,20 @@ impl TheTrait for Editor {
     }
 
     fn init(&mut self, _ctx: &mut TheContext) {
-        let updater = Arc::clone(&self.self_updater);
-        let tx = self.self_update_tx.clone();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let updater = Arc::clone(&self.self_updater);
+            let tx = self.self_update_tx.clone();
 
-        thread::spawn(move || {
-            let mut updater = updater.lock().unwrap();
+            thread::spawn(move || {
+                let mut updater = updater.lock().unwrap();
 
-            if let Err(err) = updater.fetch_release_list() {
-                tx.send(SelfUpdateEvent::UpdateError(err.to_string()))
-                    .unwrap();
-            };
-        });
+                if let Err(err) = updater.fetch_release_list() {
+                    tx.send(SelfUpdateEvent::UpdateError(err.to_string()))
+                        .unwrap();
+                };
+            });
+        }
     }
 
     fn window_title(&self) -> String {
@@ -1338,39 +1351,47 @@ impl TheTrait for Editor {
                                 }
                             }
                         } else if name == "Update Eldiron" && role == TheDialogButtonRole::Accept {
-                            let updater = self.self_updater.lock().unwrap();
+                            #[cfg(not(target_arch = "wasm32"))]
+                            {
+                                let updater = self.self_updater.lock().unwrap();
 
-                            if updater.has_newer_release() {
-                                let release = updater.latest_release().cloned().unwrap();
+                                if updater.has_newer_release() {
+                                    let release = updater.latest_release().cloned().unwrap();
 
-                                let updater = Arc::clone(&self.self_updater);
-                                let tx = self.self_update_tx.clone();
+                                    let updater = Arc::clone(&self.self_updater);
+                                    let tx = self.self_update_tx.clone();
 
-                                self.self_update_tx
-                                    .send(SelfUpdateEvent::UpdateStart(release.clone()))
-                                    .unwrap();
+                                    self.self_update_tx
+                                        .send(SelfUpdateEvent::UpdateStart(release.clone()))
+                                        .unwrap();
 
-                                thread::spawn(move || {
-                                    match updater.lock().unwrap().update_latest() {
-                                        Ok(status) => match status {
-                                            self_update::Status::UpToDate(_) => {
-                                                tx.send(SelfUpdateEvent::AlreadyUpToDate).unwrap();
-                                            }
-                                            self_update::Status::Updated(_) => {
-                                                tx.send(SelfUpdateEvent::UpdateCompleted(release))
+                                    thread::spawn(move || {
+                                        match updater.lock().unwrap().update_latest() {
+                                            Ok(status) => match status {
+                                                self_update::Status::UpToDate(_) => {
+                                                    tx.send(SelfUpdateEvent::AlreadyUpToDate)
+                                                        .unwrap();
+                                                }
+                                                self_update::Status::Updated(_) => {
+                                                    tx.send(SelfUpdateEvent::UpdateCompleted(
+                                                        release,
+                                                    ))
                                                     .unwrap();
-                                            }
-                                        },
-                                        Err(err) => {
-                                            tx.send(SelfUpdateEvent::UpdateError(err.to_string()))
+                                                }
+                                            },
+                                            Err(err) => {
+                                                tx.send(SelfUpdateEvent::UpdateError(
+                                                    err.to_string(),
+                                                ))
                                                 .unwrap();
+                                            }
                                         }
-                                    }
-                                });
-                            } else {
-                                self.self_update_tx
-                                    .send(SelfUpdateEvent::AlreadyUpToDate)
-                                    .unwrap();
+                                    });
+                                } else {
+                                    self.self_update_tx
+                                        .send(SelfUpdateEvent::AlreadyUpToDate)
+                                        .unwrap();
+                                }
                             }
                         }
                     }
@@ -1911,51 +1932,57 @@ impl TheTrait for Editor {
                             ctx.ui.clear_hover();
                             redraw = true;
                         } else if id.name == "Update" {
-                            let updater = self.self_updater.lock().unwrap();
+                            #[cfg(not(target_arch = "wasm32"))]
+                            {
+                                let updater = self.self_updater.lock().unwrap();
 
-                            if updater.has_newer_release() {
-                                self.self_update_tx
-                                    .send(SelfUpdateEvent::UpdateConfirm(
-                                        updater.latest_release().cloned().unwrap(),
-                                    ))
-                                    .unwrap();
-                            } else {
-                                if let Some(statusbar) = ui.get_widget("Statusbar") {
-                                    statusbar
-                                        .as_statusbar()
-                                        .unwrap()
-                                        .set_text("Checking updates...".to_string());
-                                }
+                                if updater.has_newer_release() {
+                                    self.self_update_tx
+                                        .send(SelfUpdateEvent::UpdateConfirm(
+                                            updater.latest_release().cloned().unwrap(),
+                                        ))
+                                        .unwrap();
+                                } else {
+                                    if let Some(statusbar) = ui.get_widget("Statusbar") {
+                                        statusbar
+                                            .as_statusbar()
+                                            .unwrap()
+                                            .set_text("Checking updates...".to_string());
+                                    }
 
-                                let updater = Arc::clone(&self.self_updater);
-                                let tx = self.self_update_tx.clone();
+                                    let updater = Arc::clone(&self.self_updater);
+                                    let tx = self.self_update_tx.clone();
 
-                                thread::spawn(move || {
-                                    let mut updater = updater.lock().unwrap();
+                                    thread::spawn(move || {
+                                        let mut updater = updater.lock().unwrap();
 
-                                    match updater.fetch_release_list() {
-                                        Ok(_) => {
-                                            if updater.has_newer_release() {
-                                                tx.send(SelfUpdateEvent::UpdateConfirm(
-                                                    updater.latest_release().cloned().unwrap(),
+                                        match updater.fetch_release_list() {
+                                            Ok(_) => {
+                                                if updater.has_newer_release() {
+                                                    tx.send(SelfUpdateEvent::UpdateConfirm(
+                                                        updater.latest_release().cloned().unwrap(),
+                                                    ))
+                                                    .unwrap();
+                                                } else {
+                                                    tx.send(SelfUpdateEvent::AlreadyUpToDate)
+                                                        .unwrap();
+                                                }
+                                            }
+                                            Err(err) => {
+                                                tx.send(SelfUpdateEvent::UpdateError(
+                                                    err.to_string(),
                                                 ))
                                                 .unwrap();
-                                            } else {
-                                                tx.send(SelfUpdateEvent::AlreadyUpToDate).unwrap();
                                             }
                                         }
-                                        Err(err) => {
-                                            tx.send(SelfUpdateEvent::UpdateError(err.to_string()))
-                                                .unwrap();
-                                        }
-                                    }
-                                });
-                            }
+                                    });
+                                }
 
-                            ctx.ui
-                                .set_widget_state("Update".to_string(), TheWidgetState::None);
-                            ctx.ui.clear_hover();
-                            redraw = true;
+                                ctx.ui
+                                    .set_widget_state("Update".to_string(), TheWidgetState::None);
+                                ctx.ui.clear_hover();
+                                redraw = true;
+                            }
                         } else if id.name == "Open" {
                             ctx.ui.open_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
@@ -2187,6 +2214,7 @@ impl TheTrait for Editor {
             }
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
         while let Ok(event) = self.self_update_rx.try_recv() {
             match event {
                 SelfUpdateEvent::AlreadyUpToDate => {
