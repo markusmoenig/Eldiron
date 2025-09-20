@@ -93,6 +93,41 @@ jobs:
           name: windows-${{ matrix.config.bin-name }}
           path: output
 
+  # ──────────────────────────────── WASM build ────────────────────────────────
+  wasm_build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config:
+          - { working-directory: "creator", bin-name: "eldiron-creator" }
+          - { working-directory: "clients/client", bin-name: "eldiron-client" }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Build Eldiron -----------------------------------------------------
+      - name: Install build dependencies
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo update
+
+      - name: Build (release)
+        run: cargo run-wasm --release --bin ${{ matrix.config.bin-name }} --build-only
+
+      # --- Package artefacts -------------------------------------------------
+      - name: Package artefacts
+        run: |
+          mv target/wasm-examples/${{ matrix.config.bin-name }} .
+          tar -czvf ${{ matrix.config.bin-name }}-wasm32-unknown-unknown.tar.gz ${{ matrix.config.bin-name }}
+          mkdir -p output
+          mv ${{ matrix.config.bin-name }}-*.gz output/
+
+      - name: Upload artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-${{ matrix.config.bin-name }}
+          path: output
+
   # ─────────────────────────── Linux release creator ──────────────────────────────
   linux_release_creator:
     runs-on: ubuntu-latest
@@ -133,7 +168,7 @@ jobs:
             Eldiron-Creator.deb
             eldiron-creator-*.gz
 
-  # ─────────────────────────── Linux release client ──────────────────────────────
+  # ──────────────────────────── Linux release client ──────────────────────────────
   linux_release_client:
     runs-on: ubuntu-latest
     needs: linux_build
@@ -195,8 +230,8 @@ jobs:
             Eldiron-Creator.msi
             eldiron-creator-*.gz
 
-  # ─────────────────────────── Windows release client ──────────────────────────────
-  wiindows_release_client:
+  # ─────────────────────────── Windows release client ─────────────────────────────
+  windows_release_client:
     runs-on: windows-latest
     needs: windows_build
     permissions:
@@ -221,3 +256,30 @@ jobs:
         with:
           files: |
             eldiron-client-*.gz
+
+  # ──────────────────────────────── WASM release ──────────────────────────────────
+  wasm_release_client:
+    runs-on: ubuntu-latest
+    needs: wasm_build
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        bin-name: ["eldiron-creator", "eldiron-client"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-${{ matrix.bin-name }}
+
+      - name: Unpack tarball
+        run: tar -xzvf ${{ matrix.bin-name }}-*.gz
+
+      - name: GitHub release (WASM)
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ matrix.bin-name }}-*.gz
