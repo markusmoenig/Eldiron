@@ -72,6 +72,7 @@ jobs:
       - name: Build Web
         shell: bash
         working-directory: ${{ matrix.working-directory }}
+        if: ${{ matrix.working-directory == 'clients/client' }}
         run: |
           rustup target add wasm32-unknown-unknown
           cargo build --verbose --target wasm32-unknown-unknown
