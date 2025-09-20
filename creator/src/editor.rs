@@ -1,6 +1,5 @@
 use crate::Embedded;
 use crate::prelude::*;
-#[cfg(not(target_arch = "wasm32"))]
 use crate::self_update::{SelfUpdateEvent, SelfUpdater};
 use crate::undo::character_undo::CharacterUndoAtom;
 use crate::undo::item_undo::ItemUndoAtom;
@@ -95,7 +94,6 @@ impl TheTrait for Editor {
     where
         Self: Sized,
     {
-        #[cfg(not(target_arch = "wasm32"))]
         let (self_update_tx, self_update_rx) = channel();
 
         let mut project = Project::new();
@@ -105,13 +103,10 @@ impl TheTrait for Editor {
             }
         }
 
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            #[cfg(not(target_os = "macos"))]
-            let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "eldiron-creator");
-            #[cfg(target_os = "macos")]
-            let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "Eldiron-Creator.app");
-        }
+        #[cfg(not(target_os = "macos"))]
+        let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "eldiron-creator");
+        #[cfg(target_os = "macos")]
+        let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "Eldiron-Creator.app");
 
         Self {
             project,

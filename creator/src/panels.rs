@@ -1,6 +1,7 @@
 use crate::editor::{
     CODEEDITOR, CODEGRIDFX, CONFIGEDITOR, EFFECTPICKER, INFOVIEWER, MATERIALPICKER, NODEEDITOR,
-    RENDEREDITOR, SHADEGRIDFX, SHAPEPICKER, TILEMAPEDITOR, TILEPICKER, WORLDEDITOR,
+    RENDEREDITOR, RUSTERIX, SCENEMANAGER, SHADEGRIDFX, SHAPEPICKER, TILEMAPEDITOR, TILEPICKER,
+    WORLDEDITOR,
 };
 use crate::prelude::*;
 
@@ -245,6 +246,10 @@ impl Panels {
                                     if s.creator_id == sector_id {
                                         s.module = SHADEGRIDFX.read().unwrap().clone();
                                         SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
+
+                                        SCENEMANAGER.write().unwrap().set_map(map.clone());
+
+                                        RUSTERIX.write().unwrap().set_dirty();
                                         break;
                                     }
                                 }
