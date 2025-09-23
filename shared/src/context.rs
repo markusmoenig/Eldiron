@@ -1,5 +1,6 @@
 use crate::prelude::*;
-pub use rusterix::map::*;
+use rusterix::Vertex;
+pub use rusterix::{Value, map::*};
 use theframework::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -27,6 +28,7 @@ pub enum MapToolHelper {
     TilePicker,
     MaterialPicker,
     NodeEditor,
+    ShaderEditor,
     ShapePicker,
 }
 
@@ -35,7 +37,8 @@ impl MapToolHelper {
         match index {
             1 => *self = MapToolHelper::MaterialPicker,
             2 => *self = MapToolHelper::NodeEditor,
-            3 => *self = MapToolHelper::ShapePicker,
+            3 => *self = MapToolHelper::ShaderEditor,
+            4 => *self = MapToolHelper::ShapePicker,
             _ => *self = MapToolHelper::TilePicker,
         }
     }
@@ -693,6 +696,119 @@ impl ServerContext {
                 interactions.push(interaction);
             } else {
                 self.interactions.insert(interaction.to, vec![interaction]);
+            }
+        }
+    }
+
+    /// When the user switches to profile view, check if we need to setup the default wall sector
+    pub fn setup_default_wall_profile(&self, map: &mut Map) {
+        let mut pt1: Vertex = Vertex::default();
+        let mut pt2: Vertex = Vertex::default();
+
+        let mut add_mode = true;
+
+        // Get the two wall defining base vertices of the source
+        if let Some(linedef_id) = self.profile_view {
+            if let Some(linedef) = map.find_linedef(linedef_id) {
+                if !linedef.profile.is_empty() {
+                    // The wall already has geometry
+                    add_mode = false;
+                }
+
+                if let Some(p) = map.find_vertex(linedef.start_vertex) {
+                    pt1 = p.clone();
+                } else {
+                    return;
+                }
+
+                if let Some(p) = map.find_vertex(linedef.end_vertex) {
+                    pt2 = p.clone();
+                } else {
+                    return;
+                }
+            }
+        }
+
+        if add_mode {
+            // Add the outline sector for the profile
+            let distance = pt1.as_vec2().distance(pt2.as_vec2());
+            if let Some(linedef_id) = self.profile_view {
+                if let Some(linedef) = map.find_linedef_mut(linedef_id) {
+                    let v0 = linedef.profile.add_vertex_at(distance / 2.0, 0.0);
+                    let v1 = linedef.profile.add_vertex_at(-distance / 2.0, 0.0);
+                    let v2 = linedef.profile.add_vertex_at(-distance / 2.0, 2.0);
+                    let v3 = linedef.profile.add_vertex_at(distance / 2.0, 2.0);
+
+                    // Tag profile vertices with stable IDs so we can reposition later by ID
+                    if let Some(v) = linedef.profile.find_vertex_mut(v0) {
+                        v.properties.set("profile_id", Value::Int(0)); // right-bottom
+                        v.properties.set("lock_x", Value::Bool(true));
+                    }
+                    if let Some(v) = linedef.profile.find_vertex_mut(v1) {
+                        v.properties.set("profile_id", Value::Int(1)); // left-bottom
+                        v.properties.set("lock_x", Value::Bool(true));
+                    }
+                    if let Some(v) = linedef.profile.find_vertex_mut(v2) {
+                        v.properties.set("profile_id", Value::Int(2)); // left-top
+                        v.properties.set("lock_x", Value::Bool(true));
+                    }
+                    if let Some(v) = linedef.profile.find_vertex_mut(v3) {
+                        v.properties.set("profile_id", Value::Int(3)); // right-top
+                        v.properties.set("lock_x", Value::Bool(true));
+                    }
+
+                    linedef.profile.possible_polygon = vec![];
+                    let l0 = linedef.profile.create_linedef(v0, v1);
+                    let l1 = linedef.profile.create_linedef(v1, v2);
+                    let l2 = linedef.profile.create_linedef(v2, v3);
+                    let id = linedef.profile.create_linedef(v3, v0);
+
+                    if let Some(sector_id) = id.1 {
+                        // Add the profile tag so that we can easily identify the outline geometry
+                        if let Some(l) = linedef.profile.find_linedef_mut(l0.0) {
+                            l.properties.set("profile", Value::Int(0));
+                        }
+                        if let Some(l) = linedef.profile.find_linedef_mut(l1.0) {
+                            l.properties.set("profile", Value::Int(1));
+                        }
+                        if let Some(l) = linedef.profile.find_linedef_mut(l2.0) {
+                            l.properties.set("profile", Value::Int(2));
+                        }
+                        if let Some(l) = linedef.profile.find_linedef_mut(id.0) {
+                            l.properties.set("profile", Value::Int(3));
+                        }
+
+                        if let Some(sector) = linedef.profile.find_sector_mut(sector_id) {
+                            sector.properties.set("profile", Value::Bool(true));
+                        }
+                    }
+                }
+            }
+        } else {
+            if let Some(linedef_id) = self.profile_view {
+                if let Some(linedef) = map.find_linedef_mut(linedef_id) {
+                    let new_len = pt1.as_vec2().distance(pt2.as_vec2());
+                    let new_half = new_len * 0.5;
+
+                    let profile = &mut linedef.profile;
+
+                    // Move each vertex to its exact target X based on its stable profile_id
+                    for v in &mut profile.vertices {
+                        if let Some(id) = v.properties.get_int("profile_id") {
+                            match id {
+                                0 | 3 => {
+                                    // right side vertices
+                                    v.x = new_half;
+                                }
+                                1 | 2 => {
+                                    // left side vertices
+                                    v.x = -new_half;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
             }
         }
     }

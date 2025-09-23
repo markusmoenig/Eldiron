@@ -128,14 +128,20 @@ pub trait Tool: Send + Sync {
                 "Nodes".to_string(),
                 "Work with nodes in the render graph.".to_string(),
             );
-            source_switch
-                .add_text_status("Shapes".to_string(), "Place procedural shapes.".to_string());
+            source_switch.add_text_status(
+                "Shader".to_string(),
+                "Procedurally shade your geometry in realtime.".to_string(),
+            );
+            source_switch.add_text_status(
+                "Shapes".to_string(),
+                "Place geometric shapes on the map.".to_string(),
+            );
             source_switch.set_item_width(80);
             source_switch.set_index(server_ctx.curr_map_tool_helper as i32);
             layout.add_widget(Box::new(source_switch));
 
             let mut spacer = TheSpacer::new(TheId::empty());
-            spacer.limiter_mut().set_max_width(80);
+            spacer.limiter_mut().set_max_width(40);
             layout.add_widget(Box::new(spacer));
 
             let mut preview_switch = TheGroupButton::new(TheId::named("Preview Switch"));
@@ -155,6 +161,11 @@ pub trait Tool: Send + Sync {
                     PanelIndices::MaterialPicker as usize,
                 ));
             } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                ctx.ui.send(TheEvent::SetStackIndex(
+                    TheId::named("Main Stack"),
+                    PanelIndices::NodeEditor as usize,
+                ));
+            } else if server_ctx.curr_map_tool_helper == MapToolHelper::ShaderEditor {
                 ctx.ui.send(TheEvent::SetStackIndex(
                     TheId::named("Main Stack"),
                     PanelIndices::ShadeGridFx as usize,

@@ -211,18 +211,22 @@ impl Panels {
             redraw = true;
         }
 
-        // Not sure we need this if here
-        if CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Shade {
+        // Shader, not sure we need this "if" here
+        if server_ctx.curr_map_tool_helper == MapToolHelper::ShaderEditor
+            && CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Shade
+        {
             SHADEGRIDFX.write().unwrap().handle_event(event, ui, ctx);
         }
-        /*
-        if NODEEDITOR
-            .write()
-            .unwrap()
-            .handle_event(event, ui, ctx, project, server_ctx)
+
+        // Nodes
+        if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor
+            && NODEEDITOR
+                .write()
+                .unwrap()
+                .handle_event(event, ui, ctx, project, server_ctx)
         {
             redraw = true;
-        }*/
+        }
 
         match event {
             TheEvent::IndexChanged(id, index) => {

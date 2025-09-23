@@ -766,6 +766,10 @@ impl Hud {
                 server_ctx.profile_view = Some(*linedef_id);
             }
 
+            if server_ctx.profile_view.is_some() {
+                server_ctx.setup_default_wall_profile(map);
+            }
+
             return true;
         }
 

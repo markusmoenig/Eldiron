@@ -235,6 +235,11 @@ impl ToolList {
                     } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
+                            PanelIndices::NodeEditor as usize,
+                        ));
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::ShaderEditor {
+                        ctx.ui.send(TheEvent::SetStackIndex(
+                            TheId::named("Main Stack"),
                             PanelIndices::ShadeGridFx as usize,
                         ));
                         CODEEDITOR.write().unwrap().set_shader_for_current_geometry(

@@ -207,6 +207,7 @@ impl MapEditor {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
+
         match event {
             TheEvent::Copy => {
                 if let Some(map) = project.get_map_mut(server_ctx) {
@@ -370,133 +371,6 @@ impl MapEditor {
                     }
                 }
             }
-            /*
-            TheEvent::RenderViewScrollBy(id, amount) => {
-                if id.name == "RenderView" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        region.editing_position_3d.x += amount.x as f32 / region.grid_size as f32;
-                        region.editing_position_3d.z += amount.y as f32 / region.grid_size as f32;
-                        server.set_editing_position_3d(region.editing_position_3d);
-                        redraw = true;
-                    }
-                }
-            }*/
-            /*
-            TheEvent::RenderViewLostHover(id) => {
-                if id.name == "RenderView" {
-                    RENDERER.lock().unwrap().hover_pos = None;
-                }
-            }
-            TheEvent::RenderViewHoverChanged(id, coord) => {
-                if id.name == "RenderView" {
-                    if let Some(render_view) = ui.get_render_view("RenderView") {
-                        let dim = render_view.dim();
-                        let palette = project.palette.clone();
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            let pos = RENDERER.lock().unwrap().get_hit_position_at(
-                                *coord,
-                                region,
-                                &mut server.get_instance_draw_settings(server_ctx.curr_region),
-                                dim.width as usize,
-                                dim.height as usize,
-                            );
-                            if let Some((pos, _)) = pos {
-                                RENDERER.lock().unwrap().hover_pos = Some(pos);
-
-                                if let Some(text) = ui.get_text("Cursor Position") {
-                                    text.set_text(format!("({}, {})", pos.x, pos.z));
-                                    redraw = true;
-                                }
-
-                                if let Some(text) = ui.get_text("Cursor Height") {
-                                    let h = region.heightmap.get_height(pos.x as f32, pos.z as f32);
-                                    text.set_text(format!("H: {:.3}", h));
-                                    redraw = true;
-                                }
-
-                                if let Some(layout) = ui.get_layout("Editor Icon Layout") {
-                                    layout.relayout(ctx);
-                                }
-
-                                self.set_icon_previews(
-                                    region,
-                                    &palette,
-                                    vec2i(pos.x, pos.z),
-                                    ui,
-                                    ctx,
-                                );
-                            }
-                        }
-                    }
-                }
-            }*/
-            // TheEvent::RenderViewClicked(id, coord) => {
-            //     if id.name == "RenderView" {
-            //         self.processed_coords.clear();
-            //         if let Some(render_view) = ui.get_render_view("RenderView") {
-            //             let dim = render_view.dim();
-            //             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-            //                 let pos = RENDERER.lock().unwrap().get_hit_position_at(
-            //                     *coord,
-            //                     region,
-            //                     &mut server.get_instance_draw_settings(server_ctx.curr_region),
-            //                     dim.width as usize,
-            //                     dim.height as usize,
-            //                 );
-
-            //                 if let Some(pos) = pos {
-            //                     redraw = self.action_at(
-            //                         vec2i(pos.x, pos.z),
-            //                         ui,
-            //                         ctx,
-            //                         project,
-            //                         server,
-            //                         server_ctx,
-            //                         true,
-            //                     );
-            //                 }
-            //             }
-            //         }
-            //     }
-            // }
-            // TheEvent::RenderViewDragged(id, coord) => {
-            //     if id.name == "RenderView" {
-            //         if let Some(render_view) = ui.get_render_view("RenderView") {
-            //             let dim = render_view.dim();
-            //             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-            //                 let pos = RENDERER.lock().unwrap().get_hit_position_at(
-            //                     *coord,
-            //                     region,
-            //                     &mut server.get_instance_draw_settings(server_ctx.curr_region),
-            //                     dim.width as usize,
-            //                     dim.height as usize,
-            //                 );
-
-            //                 if let Some(pos) = pos {
-            //                     redraw = self.action_at(
-            //                         vec2i(pos.x, pos.z),
-            //                         ui,
-            //                         ctx,
-            //                         project,
-            //                         server,
-            //                         server_ctx,
-            //                         true,
-            //                     );
-            //                 }
-            //             }
-            //         }
-            //     }
-            // }
-            // TheEvent::TileEditorClicked(id, coord) => {
-            //     if id.name == "Region Editor View" {
-            //         self.processed_coords.clear();
-            //         redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx, false);
-            //     }
-            // }
-            // TheEvent::TileEditorDragged(id, coord) => {
-            //     if id.name == "Region Editor View" {
-            //         redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx, false);
-            //     }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Map Editor Camera" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -578,27 +452,7 @@ impl MapEditor {
                             }
                         }
                     }
-                }
-                // else if id.name == "linedefRowItemInstance" {
-                //     if let Some(value) = value.to_string() {
-                //         if let Some(map) = project.get_map_mut(server_ctx) {
-                //             let prev = map.clone();
-                //             for linedef_id in map.selected_linedefs.clone() {
-                //                 if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                //                     if let Some(row) = server_ctx.selected_wall_row {
-                //                         let i = row + 1;
-                //                         let property_name = format!("row{}_item_instance", i);
-                //                         linedef
-                //                             .properties
-                //                             .set(&property_name, Value::Str(value.clone()));
-                //                     }
-                //                 }
-                //             }
-                //             self.add_map_undo(map, prev, ctx, server_ctx);
-                //         }
-                //     }
-                // }
-                else if id.name == "lightIntensity"
+                } else if id.name == "lightIntensity"
                     || id.name == "lightStartDistance"
                     || id.name == "lightEndDistance"
                 {
@@ -706,12 +560,7 @@ impl MapEditor {
                             }
                         }
                     }
-                } else if id.name == "linedefWallHeight"
-                    || id.name == "linedefWallWidth"
-                    || id.name == "linedefMaterialWidth"
-                    || id.name == "linedefMaterialAA"
-                    || id.name == "linedefNoiseIntensity"
-                {
+                } else if id.name == "linedefWallHeight" || id.name == "linedefWallWidth" {
                     if let Some(value) = value.to_f32() {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             for linedef_id in &map.selected_linedefs.clone() {
@@ -734,11 +583,7 @@ impl MapEditor {
                             }
                         }
                     }
-                } else if id.name == "linedefPixelization"
-                    || id.name == "linedefNoiseTarget"
-                    || id.name == "linedefSourceRepeat"
-                    || id.name == "linedefCastsShadows"
-                {
+                } else if id.name == "linedefSourceRepeat" || id.name == "linedefCastsShadows" {
                     if let Some(value) = value.to_i32() {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             for linedef_id in &map.selected_linedefs.clone() {
@@ -801,8 +646,7 @@ impl MapEditor {
                         }
                     }
                     redraw = true;
-                } else if id.name == "sectorNoiseIntensity"
-                    || id.name == "sectorFloorHeight"
+                } else if id.name == "sectorFloorHeight"
                     || id.name == "sectorCeilingHeight"
                     || id.name == "sectorOcclusion"
                 {
@@ -825,9 +669,7 @@ impl MapEditor {
                         }
                     }
                     redraw = true;
-                } else if id.name == "sectorPixelization"
-                    || id.name == "sectorNoiseTarget"
-                    || id.name == "sectorCeilingInIso"
+                } else if id.name == "sectorCeilingInIso"
                     || id.name == "sectorRectRendering"
                     || id.name == "sectorTileMode"
                 {
@@ -1403,65 +1245,7 @@ impl MapEditor {
                     "Split Line".into(),
                 );
                 nodeui.add_item(item);
-
-                // Show the settings for the selected linedef row
-                // if let Some(row) = server_ctx.selected_wall_row {
-                //     let i = row + 1;
-                //     let light_name = format!("row{}_light", i);
-
-                //     // Add a separator for the selected linedef row
-                //     let item = TheNodeUIItem::Separator(format!("Row {}", i));
-                //     nodeui.add_item(item);
-
-                // let item = TheNodeUIItem::Text(
-                //     "linedefRowItemInstance".into(),
-                //     "Item Instance".into(),
-                //     "Row is an item instance".into(),
-                //     linedef
-                //         .properties
-                //         .get_str_default(&format!("row{}_item_instance", i), "".to_string()),
-                //     None,
-                //     false,
-                // );
-                // nodeui.add_item(item);
-
-                // if let Some(Value::Light(light)) = linedef.properties.get(&light_name) {
-                //     let light_ui = EffectWrapper::create_light_ui(light);
-                //     let item =
-                //         TheNodeUIItem::Separator(format!("{} Light", light.light_type.name()));
-                //     nodeui.add_item(item);
-                //     for (_, item) in light_ui.list_items() {
-                //         nodeui.add_item(item.clone());
-                //     }
-                // }
-                // }
             }
-
-            /*
-            if server_ctx.get_map_context() == MapContext::Material
-                || server_ctx.get_map_context() == MapContext::Character
-                || server_ctx.get_map_context() == MapContext::Item
-            {
-                let item = TheNodeUIItem::FloatEditSlider(
-                    "linedefMaterialWidth".into(),
-                    "Width".into(),
-                    "Set the width.".into(),
-                    linedef.properties.get_float_default("material_width", 1.0),
-                    1.0..=20.0,
-                    false,
-                );
-                nodeui.add_item(item);
-
-                let item = TheNodeUIItem::FloatEditSlider(
-                    "linedefMaterialAA".into(),
-                    "Anti-Aliasing".into(),
-                    "Amount of Anti-Aliasing.".into(),
-                    linedef.properties.get_float_default("material_a_a", 1.0),
-                    0.0..=2.0,
-                    false,
-                );
-                nodeui.add_item(item);
-            }*/
         }
 
         if let Some(layout) = ui.get_text_layout("Node Settings") {
