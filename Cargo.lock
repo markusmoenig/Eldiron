@@ -4648,6 +4648,7 @@ dependencies = [
  "rust-embed",
  "rustc-hash 2.1.1",
  "strum",
+ "theframework",
  "vek",
  "web-sys",
 ]

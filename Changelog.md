@@ -2,6 +2,11 @@
 
 ## New Features
 
+### Creator
+
+- New visual real time shading language for sectors.
+- Wall profiles. Build layered geometry to decorate walls, including realtime shaders and dynamic opacity.
+
 ### CI
 
 - Build clients for all platforms at release.

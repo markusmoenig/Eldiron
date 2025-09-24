@@ -2519,8 +2519,17 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-        project: &Project,
+        project: &mut Project,
     ) {
+        // If no colors we load the duel palette: https://lospec.com/palette-list/duel
+        if project.palette.is_empty() {
+            if let Some(bytes) = crate::Embedded::get("duel.txt") {
+                if let Ok(txt) = std::str::from_utf8(bytes.data.as_ref()) {
+                    project.palette.load_from_txt(txt.to_string());
+                }
+            }
+        }
+
         if let Some(list_layout) = ui.get_list_layout("Region List") {
             list_layout.clear();
             for region in &project.regions {

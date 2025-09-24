@@ -1804,7 +1804,7 @@ impl TheTrait for Editor {
                                             ui,
                                             ctx,
                                             &mut self.server_ctx,
-                                            &self.project,
+                                            &mut self.project,
                                         );
                                         self.mapeditor.load_from_project(ui, ctx, &self.project);
                                         update_server_icons = true;
@@ -1900,7 +1900,7 @@ impl TheTrait for Editor {
                                 ui,
                                 ctx,
                                 &mut self.server_ctx,
-                                &self.project,
+                                &mut self.project,
                             );
                             self.mapeditor.load_from_project(ui, ctx, &self.project);
                             update_server_icons = true;

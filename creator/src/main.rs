@@ -30,7 +30,6 @@ pub mod worldeditor;
 use rust_embed::RustEmbed;
 #[derive(RustEmbed)]
 #[folder = "embedded/"]
-#[exclude = "*.txt"]
 #[exclude = "*.DS_Store"]
 pub struct Embedded;
 

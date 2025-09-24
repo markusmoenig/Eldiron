@@ -141,7 +141,10 @@ impl Tool for CodeTool {
         let mut redraw = false;
 
         if !self.use_python {
-            CODEGRIDFX.write().unwrap().handle_event(event, ui, ctx);
+            CODEGRIDFX
+                .write()
+                .unwrap()
+                .handle_event(event, ui, ctx, &project.palette);
         }
 
         match event {

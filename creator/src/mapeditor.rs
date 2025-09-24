@@ -1413,6 +1413,15 @@ impl MapEditor {
                 nodeui.add_item(item);
             }
 
+            let item = TheNodeUIItem::Selector(
+                "sectorTileMode".into(),
+                "Tile Mode".into(),
+                "Set the tile mode of the sector.".into(),
+                vec!["Scale".to_string(), "Repeat".to_string()],
+                sector.properties.get_int_default("tile_mode", 1),
+            );
+            nodeui.add_item(item);
+
             /*
             if server_ctx.get_map_context() == MapContext::Material
                 || server_ctx.get_map_context() == MapContext::Character
@@ -1486,15 +1495,6 @@ impl MapEditor {
                     sector.name.clone(),
                     None,
                     false,
-                );
-                nodeui.add_item(item);
-
-                let item = TheNodeUIItem::Selector(
-                    "sectorTileMode".into(),
-                    "Tile Mode".into(),
-                    "Set the tile mode of the sector.".into(),
-                    vec!["Scale".to_string(), "Repeat".to_string()],
-                    sector.properties.get_int_default("tile_mode", 1),
                 );
                 nodeui.add_item(item);
             }

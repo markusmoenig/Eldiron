@@ -215,7 +215,10 @@ impl Panels {
         if server_ctx.curr_map_tool_helper == MapToolHelper::ShaderEditor
             && CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Shade
         {
-            SHADEGRIDFX.write().unwrap().handle_event(event, ui, ctx);
+            SHADEGRIDFX
+                .write()
+                .unwrap()
+                .handle_event(event, ui, ctx, &project.palette);
         }
 
         // Nodes
