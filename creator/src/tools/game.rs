@@ -28,7 +28,7 @@ impl Tool for GameTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Game Tool (Shift + G). If the server is running input events are send to the game.")
+        str!("Game Tool (G). If the server is running input events are send to the game.")
     }
     fn icon_name(&self) -> String {
         str!("joystick")

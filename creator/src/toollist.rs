@@ -298,7 +298,7 @@ impl ToolList {
                     acc = false;
                 }
 
-                if acc && ui.shift {
+                if acc {
                     /*
                     if (*c == '-' || *c == '=' || *c == '+') && (ui.ctrl || ui.logo) {
                         // Global Zoom In / Zoom Out
@@ -322,14 +322,16 @@ impl ToolList {
 
                     let mut tool_uuid = None;
                     for tool in self.game_tools.iter() {
-                        if tool.accel() == Some(*c) {
-                            tool_uuid = Some(tool.id().uuid);
-                            ctx.ui.set_widget_state(
-                                self.game_tools[self.curr_game_tool].id().name,
-                                TheWidgetState::None,
-                            );
-                            ctx.ui
-                                .set_widget_state(tool.id().name, TheWidgetState::Selected);
+                        if let Some(acc) = tool.accel() {
+                            if acc.to_ascii_lowercase() == *c {
+                                tool_uuid = Some(tool.id().uuid);
+                                ctx.ui.set_widget_state(
+                                    self.game_tools[self.curr_game_tool].id().name,
+                                    TheWidgetState::None,
+                                );
+                                ctx.ui
+                                    .set_widget_state(tool.id().name, TheWidgetState::Selected);
+                            }
                         }
                     }
                     if let Some(uuid) = tool_uuid {

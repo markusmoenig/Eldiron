@@ -20,7 +20,7 @@ impl Tool for RenderTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Render Tool (Shift + N). Setup rendering for the global and local render graphs.")
+        str!("Render Tool (N). Setup rendering for the global and local render graphs.")
     }
     fn icon_name(&self) -> String {
         str!("perspective")

@@ -26,11 +26,11 @@ impl Tool for SelectionTool {
     fn info(&self) -> String {
         if cfg!(target_os = "macos") {
             str!(
-                "Selection Tool (Shift + S). Hold 'Shift' to add. 'Option' to subtract. Click and drag for multi-selection."
+                "Selection Tool (S). Hold 'Shift' to add. 'Option' to subtract. Click and drag for multi-selection."
             )
         } else {
             str!(
-                "Selection Tool (Shift + S). Hold 'Shift' to add. 'Alt' to subtract. Click and drag for multi-selection."
+                "Selection Tool (S). Hold 'Shift' to add. 'Alt' to subtract. Click and drag for multi-selection."
             )
         }
     }

@@ -24,7 +24,7 @@ impl Tool for CodeTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Code Tool (Shift + C).")
+        str!("Code Tool (C).")
     }
     fn icon_name(&self) -> String {
         str!("code")

@@ -38,7 +38,7 @@ impl Tool for VertexTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Vertex Tool (Shit + V).")
+        str!("Vertex Tool (V).")
     }
     fn icon_name(&self) -> String {
         str!("dot-outline")

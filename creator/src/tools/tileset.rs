@@ -19,7 +19,7 @@ impl Tool for TilesetTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Tileset Tool (Shift + T). Manage the tiles in your tilesets.")
+        str!("Tileset Tool (T). Manage the tiles in your tilesets.")
     }
     fn icon_name(&self) -> String {
         str!("bricks")
