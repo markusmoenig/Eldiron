@@ -1216,7 +1216,25 @@ impl TheTrait for Editor {
                 match event {
                     TheEvent::CustomUndo(id, p, n) => {
                         if id.name == "ModuleUndo" {
-                            if CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Code {
+                            if CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Shade {
+                                if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                    if let Some(sector) = map.selected_sectors.first() {
+                                        let prev = Module::from_json(&p);
+                                        let next = Module::from_json(&n);
+
+                                        let atom = RegionUndoAtom::SectorShaderEdit(
+                                            map.id, *sector, prev, next,
+                                        );
+                                        UNDOMANAGER.write().unwrap().add_region_undo(
+                                            &self.server_ctx.curr_region,
+                                            atom,
+                                            ctx,
+                                        );
+                                    }
+                                }
+                            } else if CODEEDITOR.read().unwrap().active_panel
+                                == VisibleCodePanel::Code
+                            {
                                 let prev = Module::from_json(&p);
                                 let next = Module::from_json(&n);
                                 match CODEEDITOR.read().unwrap().code_content {

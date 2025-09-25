@@ -1,9 +1,10 @@
-use crate::editor::SCENEMANAGER;
+use crate::editor::{SCENEMANAGER, SHADEGRIDFX};
 use crate::prelude::*;
 use crate::undo::character_undo::CharacterUndoAtom;
 use crate::undo::item_undo::ItemUndoAtom;
 use crate::undo::material_undo::MaterialUndoAtom;
 use crate::undo::screen_undo::ScreenUndoAtom;
+use codegridfx::Module;
 use rusterix::TerrainChunk;
 use theframework::prelude::*;
 
@@ -11,6 +12,7 @@ use theframework::prelude::*;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum RegionUndoAtom {
     MapEdit(Box<Map>, Box<Map>),
+    SectorShaderEdit(Uuid, u32, Module, Module),
     TerrainEdit(
         Box<FxHashMap<(i32, i32), TerrainChunk>>,
         Box<FxHashMap<(i32, i32), TerrainChunk>>,
@@ -75,55 +77,142 @@ impl RegionUndoAtom {
         }
     }
 
-    pub fn undo(&self, region: &mut Region, _ui: &mut TheUI, ctx: &mut TheContext) {
+    pub fn undo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             RegionUndoAtom::MapEdit(prev, _) => {
-                region.map = *prev.clone();
-                region.map.clear_temp();
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Update Minimaps"),
-                    TheValue::Empty,
-                ));
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Map Selection Changed"),
-                    TheValue::Empty,
-                ));
+                let region_map_id = region.map.id;
+                let map = if region.map.id == prev.id {
+                    Some(&mut region.map)
+                } else {
+                    let mut rc = None;
+                    for linedef in &mut region.map.linedefs {
+                        if linedef.profile.id == prev.id {
+                            rc = Some(&mut linedef.profile);
+                            break;
+                        }
+                    }
+                    rc
+                };
+                if let Some(map) = map {
+                    *map = *prev.clone();
+                    map.clear_temp();
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Minimaps"),
+                        TheValue::Empty,
+                    ));
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
 
-                if !self.only_selection_changed() {
-                    SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+                    if !self.only_selection_changed() && region_map_id == map.id {
+                        SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+                    }
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                 }
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             RegionUndoAtom::TerrainEdit(prev, _) => {
                 let array = prev.values().cloned().collect();
                 SCENEMANAGER.read().unwrap().set_dirty_terrain_chunks(array);
                 region.map.terrain.chunks = *prev.clone();
             }
+            RegionUndoAtom::SectorShaderEdit(map_id, sector_id, prev, _) => {
+                let region_map_id = region.map.id;
+                let map = if region.map.id == *map_id {
+                    Some(&mut region.map)
+                } else {
+                    let mut rc = None;
+                    for linedef in &mut region.map.linedefs {
+                        if linedef.profile.id == *map_id {
+                            rc = Some(&mut linedef.profile);
+                            break;
+                        }
+                    }
+                    rc
+                };
+                if let Some(map) = map {
+                    if let Some(sector) = map.find_sector_mut(*sector_id) {
+                        sector.module = prev.clone();
+                        let mut shadergridfx = SHADEGRIDFX.write().unwrap();
+                        *shadergridfx = prev.clone();
+                        shadergridfx.redraw(ui, ctx);
+                        shadergridfx.show_settings(ui, ctx);
+                        if !self.only_selection_changed() && region_map_id == *map_id {
+                            SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+                        }
+                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    }
+                }
+            }
         }
     }
-    pub fn redo(&self, region: &mut Region, _ui: &mut TheUI, ctx: &mut TheContext) {
+    pub fn redo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             RegionUndoAtom::MapEdit(_, next) => {
-                region.map = *next.clone();
-                region.map.clear_temp();
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Update Minimaps"),
-                    TheValue::Empty,
-                ));
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Map Selection Changed"),
-                    TheValue::Empty,
-                ));
+                let region_map_id = region.map.id;
+                let map = if region.map.id == next.id {
+                    Some(&mut region.map)
+                } else {
+                    let mut rc = None;
+                    for linedef in &mut region.map.linedefs {
+                        if linedef.profile.id == next.id {
+                            rc = Some(&mut linedef.profile);
+                            break;
+                        }
+                    }
+                    rc
+                };
 
-                if !self.only_selection_changed() {
-                    SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+                if let Some(map) = map {
+                    *map = *next.clone();
+                    map.clear_temp();
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Minimaps"),
+                        TheValue::Empty,
+                    ));
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
+
+                    if !self.only_selection_changed() && region_map_id == map.id {
+                        SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+                    }
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                 }
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             RegionUndoAtom::TerrainEdit(_, next) => {
                 let array = next.values().cloned().collect();
                 SCENEMANAGER.read().unwrap().set_dirty_terrain_chunks(array);
                 region.map.terrain.chunks = *next.clone();
+            }
+            RegionUndoAtom::SectorShaderEdit(map_id, sector_id, _, next) => {
+                let region_map_id = region.map.id;
+                let map = if region.map.id == *map_id {
+                    Some(&mut region.map)
+                } else {
+                    let mut rc = None;
+                    for linedef in &mut region.map.linedefs {
+                        if linedef.profile.id == *map_id {
+                            rc = Some(&mut linedef.profile);
+                            break;
+                        }
+                    }
+                    rc
+                };
+                if let Some(map) = map {
+                    if let Some(sector) = map.find_sector_mut(*sector_id) {
+                        sector.module = next.clone();
+                        let mut shadergridfx = SHADEGRIDFX.write().unwrap();
+                        *shadergridfx = next.clone();
+                        shadergridfx.redraw(ui, ctx);
+                        shadergridfx.show_settings(ui, ctx);
+                        if !self.only_selection_changed() && region_map_id == map.id {
+                            SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+                        }
+                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    }
+                }
             }
         }
     }
