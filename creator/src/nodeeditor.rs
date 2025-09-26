@@ -121,7 +121,8 @@ impl NodeEditor {
                     SCENEMANAGER.write().unwrap().set_map(map.clone());
                 }
             }
-        } else if self.context == NodeContext::Material {
+        }
+        /*else if self.context == NodeContext::Material {
             if let Some(map) = project.get_map_mut(server_ctx) {
                 let prev = map.clone();
                 map.changed += 1;
@@ -135,7 +136,8 @@ impl NodeEditor {
                     TheValue::Empty,
                 ));
             }
-        } else if self.context == NodeContext::Shape {
+        }*/
+        else if self.context == NodeContext::Shape {
             if let Some(map) = project.get_map_mut(server_ctx) {
                 let prev = map.clone();
                 map.changed += 1;

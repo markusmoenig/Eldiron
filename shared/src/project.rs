@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use codegridfx::Module;
 use indexmap::IndexMap;
 pub use rusterix::map::*;
 use rusterix::{ShapeFX, ShapeFXGraph, ShapeFXRole};
@@ -49,10 +50,10 @@ pub struct Project {
     pub palette: ThePalette,
 
     #[serde(default)]
-    pub materials: IndexMap<Uuid, Map>,
+    pub models: IndexMap<Uuid, Map>,
 
     #[serde(default)]
-    pub models: IndexMap<Uuid, Map>,
+    pub shaders: IndexMap<Uuid, Module>,
 
     #[serde(default = "default_target_fps")]
     pub target_fps: u32,
@@ -83,12 +84,16 @@ impl Project {
             ..Default::default()
         };
 
-        let mut materials = IndexMap::default();
+        let mut models = IndexMap::default();
         let map = Map {
-            name: "Unnamed Material".to_string(),
+            name: "Unnamed Model".to_string(),
             ..Default::default()
         };
-        materials.insert(map.id, map);
+        models.insert(map.id, map);
+
+        let mut shaders = IndexMap::default();
+        let module = Module::as_type(codegridfx::ModuleType::Material);
+        shaders.insert(module.id, module);
 
         Self {
             name: String::new(),
@@ -106,8 +111,8 @@ impl Project {
             assets: IndexMap::default(),
 
             palette: ThePalette::default(),
-            materials,
-            models: IndexMap::default(),
+            models,
+            shaders,
 
             target_fps: default_target_fps(),
             tick_ms: default_tick_ms(),
@@ -230,13 +235,15 @@ impl Project {
             } else if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
                 return Some(&region.map);
             }
-        } else if ctx.get_map_context() == MapContext::Material {
-            if let Some(material_id) = ctx.curr_material {
-                if let Some(material) = self.materials.get(&material_id) {
-                    return Some(material);
-                }
-            }
-        } else if ctx.get_map_context() == MapContext::Screen {
+        }
+        // else if ctx.get_map_context() == MapContext::Model {
+        //     if let Some(model_id) = ctx.curr_model_id {
+        //         if let Some(model) = self.models.get(&model_id) {
+        //             return Some(model);
+        //         }
+        //     }
+        // }
+        else if ctx.get_map_context() == MapContext::Screen {
             if let Some(screen) = self.screens.get(&ctx.curr_screen) {
                 return Some(&screen.map);
             }
@@ -269,13 +276,15 @@ impl Project {
             } else if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
                 return Some(&mut region.map);
             }
-        } else if ctx.get_map_context() == MapContext::Material {
-            if let Some(material_id) = ctx.curr_material {
-                if let Some(material) = self.materials.get_mut(&material_id) {
-                    return Some(material);
-                }
-            }
-        } else if ctx.get_map_context() == MapContext::Screen {
+        }
+        // else if ctx.get_map_context() == MapContext::Model {
+        //     if let Some(model_id) = ctx.curr_model_id {
+        //         if let Some(model) = self.models.get_mut(&model_id) {
+        //             return Some(model);
+        //         }
+        //     }
+        // }
+        else if ctx.get_map_context() == MapContext::Screen {
             if let Some(screen) = self.screens.get_mut(&ctx.curr_screen) {
                 return Some(&mut screen.map);
             }

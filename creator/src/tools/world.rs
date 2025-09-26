@@ -95,12 +95,16 @@ impl Tool for WorldTool {
                             TheId::named("Main Stack"),
                             PanelIndices::TilePicker as usize,
                         ));
-                    } else if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
+                    }
+                    /* else
+
+                    if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::MaterialPicker as usize,
                         ));
-                    } else if server_ctx.curr_world_tool_helper == WorldToolHelper::GlobalRender {
+                    } */
+                    else if server_ctx.curr_world_tool_helper == WorldToolHelper::GlobalRender {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::NodeEditor as usize,
@@ -191,7 +195,9 @@ impl Tool for WorldTool {
                             .write()
                             .unwrap()
                             .set_tile_rules_ui(ui, ctx, true);
-                    } else if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
+                    }
+                    /* else
+                    if server_ctx.curr_world_tool_helper == WorldToolHelper::MaterialPicker {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::MaterialPicker as usize,
@@ -200,7 +206,8 @@ impl Tool for WorldTool {
                             .write()
                             .unwrap()
                             .set_tile_rules_ui(ui, ctx, true);
-                    } else if server_ctx.curr_world_tool_helper == WorldToolHelper::GlobalRender {
+                    }*/
+                    else if server_ctx.curr_world_tool_helper == WorldToolHelper::GlobalRender {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::NodeEditor as usize,

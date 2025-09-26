@@ -10,7 +10,6 @@ pub mod effectpicker;
 pub mod hud;
 pub mod infoviewer;
 pub mod mapeditor;
-pub mod materialpicker;
 pub mod minimap;
 pub mod misc;
 pub mod nodeeditor;
@@ -45,9 +44,8 @@ pub mod prelude {
     pub use theframework::prelude::*;
 
     pub use crate::codeeditor::*;
-    pub use crate::effectpicker::*;
+    // pub use crate::effectpicker::*;
     pub use crate::mapeditor::*;
-    pub use crate::materialpicker::*;
     pub use crate::misc::*;
     pub use crate::panels::*;
     // pub use crate::previewview::*;

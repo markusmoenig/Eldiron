@@ -4,7 +4,7 @@ use crate::editor::{
 };
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
-use rusterix::Value;
+use codegridfx::Module;
 
 #[derive(PartialEq, Debug)]
 pub enum SidebarMode {
@@ -16,7 +16,7 @@ pub enum SidebarMode {
     Screen,
     Asset,
     Model,
-    Material,
+    Shader,
     Node,
     Debug,
     Palette,
@@ -99,8 +99,8 @@ impl Sidebar {
 
         let mut material_sectionbar_button =
             TheSectionbarButton::new(TheId::named("Material Section"));
-        material_sectionbar_button.set_text("Material".to_string());
-        material_sectionbar_button.set_status_text("Currently available Materials.");
+        material_sectionbar_button.set_text("Shader".to_string());
+        material_sectionbar_button.set_status_text("Currently available shaders.");
 
         let mut node_sectionbar_button = TheSectionbarButton::new(TheId::named("Node Section"));
         node_sectionbar_button.set_text("Node".to_string());
@@ -656,7 +656,7 @@ impl Sidebar {
         model_canvas.set_center(model_list_canvas);
         stack_layout.add_canvas(model_canvas);
 
-        // Material UI
+        // Shader UI
 
         let mut material_canvas = TheCanvas::default();
         let mut material_list_canvas = TheCanvas::default();
@@ -673,11 +673,11 @@ impl Sidebar {
 
         let mut material_add_button = TheTraybarButton::new(TheId::named("Material Add"));
         material_add_button.set_icon_name("icon_role_add".to_string());
-        material_add_button.set_status_text("Add a new material.");
+        material_add_button.set_status_text("Add a new shader.");
 
         let mut material_remove_button = TheTraybarButton::new(TheId::named("Material Remove"));
         material_remove_button.set_icon_name("icon_role_remove".to_string());
-        material_remove_button.set_status_text("Remove the current material.");
+        material_remove_button.set_status_text("Remove the current shader.");
         material_remove_button.set_disabled(true);
 
         let mut filter_edit = TheTextLineEdit::new(TheId::named("Material Filter Edit"));
@@ -685,7 +685,7 @@ impl Sidebar {
         filter_edit.limiter_mut().set_max_size(Vec2::new(120, 18));
         filter_edit.set_font_size(12.5);
         filter_edit.set_embedded(true);
-        filter_edit.set_status_text("Show materials containing the given text.");
+        filter_edit.set_status_text("Show shaders containing the given text.");
         filter_edit.set_continuous(true);
         material_list_header_canvas_hlayout.add_widget(Box::new(material_add_button));
         material_list_header_canvas_hlayout.add_widget(Box::new(material_remove_button));
@@ -1027,7 +1027,9 @@ impl Sidebar {
                     if let Some(map) = project.get_map(server_ctx) {
                         SCENEMANAGER.write().unwrap().set_map(map.clone());
                     }
-                } else if id.name == "Update Materialpicker" {
+                } else
+                /*
+                if id.name == "Update Materialpicker" {
                     self.show_filtered_materials(ui, ctx, project, server_ctx);
                     // Set the materials in the RUSTERIX assets
                     let mut rusterix = RUSTERIX.write().unwrap();
@@ -1043,7 +1045,9 @@ impl Sidebar {
                         rusterix.assets.tile_indices.clone(),
                     );
                     rusterix.set_dirty();
-                } else if id.name == "Update Model List" {
+                } else
+                 */
+                if id.name == "Update Model List" {
                     self.show_filtered_models(ui, ctx, project, server_ctx);
 
                     self.deselect_sections_buttons(ctx, ui, "Model Section".to_string());
@@ -1199,8 +1203,8 @@ impl Sidebar {
                         model.name = value.describe();
                         ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
                     }
-                } else if name == "Rename Material" && *role == TheDialogButtonRole::Accept {
-                    if let Some(material) = project.materials.get_mut(uuid) {
+                } else if name == "Rename Shader" && *role == TheDialogButtonRole::Accept {
+                    if let Some(material) = project.shaders.get_mut(uuid) {
                         material.name = value.describe();
                         ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
                     }
@@ -1388,7 +1392,7 @@ impl Sidebar {
                         );
                     }
                 } else if item_id.name == "Rename Material" {
-                    if let Some(material) = project.materials.get(&widget_id.uuid) {
+                    if let Some(material) = project.shaders.get(&widget_id.uuid) {
                         open_text_dialog(
                             "Rename Material",
                             "Material Name",
@@ -1704,8 +1708,14 @@ impl Sidebar {
             }
             TheEvent::StateChanged(id, state) => {
                 if id.name == "Material Item" {
-                    let material_id = id.uuid;
-                    server_ctx.curr_material = Some(material_id);
+                    let shader_id = id.uuid;
+                    server_ctx.curr_shader_id = Some(shader_id);
+                    if let Some(shader) = project.shaders.get(&id.uuid) {
+                        CODEEDITOR
+                            .write()
+                            .unwrap()
+                            .set_shader_material(ui, ctx, shader);
+                    }
                     RUSTERIX.write().unwrap().set_dirty();
                 } else if id.name == "Palette Clear" {
                     let prev = project.palette.clone();
@@ -2013,13 +2023,19 @@ impl Sidebar {
                             self.apply_item(ui, ctx, None);
                         }
                     }
-                } else if id.name == "Material Add" {
+                } else if id.name == "Model Add" {
                     let map = Map {
-                        name: "Unnamed Material".to_string(),
+                        name: "Unnamed Model".to_string(),
                         ..Default::default()
                     };
-                    server_ctx.curr_material = Some(map.id);
-                    project.materials.insert(map.id, map);
+                    server_ctx.curr_shader_id = Some(map.id);
+                    project.models.insert(map.id, map);
+                    self.show_filtered_materials(ui, ctx, project, server_ctx);
+                    RUSTERIX.write().unwrap().set_dirty();
+                } else if id.name == "Material Add" {
+                    let module: Module = Module::as_type(codegridfx::ModuleType::Material);
+                    server_ctx.curr_shader_id = Some(module.id);
+                    project.shaders.insert(module.id, module);
                     self.show_filtered_materials(ui, ctx, project, server_ctx);
                     RUSTERIX.write().unwrap().set_dirty();
                 }
@@ -2438,17 +2454,17 @@ impl Sidebar {
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
                     {
-                        widget.set_value(TheValue::Text("Materials".to_string()));
+                        widget.set_value(TheValue::Text("Shaders".to_string()));
                     }
 
-                    *SIDEBARMODE.write().unwrap() = SidebarMode::Material;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Shader;
                     server_ctx.set_map_context(MapContext::Material);
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Material;
                     RUSTERIX.write().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
-                        SidebarMode::Material as usize,
+                        SidebarMode::Shader as usize,
                     ));
                     redraw = true;
                 } else if id.name == "Node Section" && *state == TheWidgetState::Selected {
@@ -2699,19 +2715,20 @@ impl Sidebar {
             TheValue::Empty,
         ));
 
-        // Set the current material
-        let selected_material = if project.materials.is_empty() {
+        // Set the current shader
+        let selected_material = if project.shaders.is_empty() {
             None
-        } else if let Some((id, _)) = project.materials.get_index(0) {
+        } else if let Some((id, _)) = project.shaders.get_index(0) {
             Some(*id)
         } else {
             None
         };
 
-        server_ctx.curr_material = selected_material;
+        server_ctx.curr_shader_id = selected_material;
 
         self.show_filtered_models(ui, ctx, project, server_ctx);
         self.show_filtered_materials(ui, ctx, project, server_ctx);
+        self.update_tiles(ui, ctx, project);
     }
 
     /// Apply the given character to the UI
@@ -3418,7 +3435,7 @@ impl Sidebar {
             if let Some(list_layout) = layout.as_list_layout() {
                 list_layout.clear();
 
-                for (index, material) in project.materials.values().enumerate() {
+                for (index, material) in project.shaders.values().enumerate() {
                     if filter_text.is_empty() || material.name.to_lowercase().contains(&filter_text)
                     //&& (filter_role == 0
                     //    || tile.role == TileRole::from_index(filter_role as u8 - 1).unwrap())
@@ -3429,10 +3446,11 @@ impl Sidebar {
                         let sub_text = format!("Index: {index}");
                         item.set_sub_text(sub_text);
                         item.set_size(42);
-                        if Some(material.id) == server_ctx.curr_material {
+                        if Some(material.id) == server_ctx.curr_shader_id {
                             item.set_state(TheWidgetState::Selected);
                         }
 
+                        /*
                         if let Some(Value::Texture(texture)) = material.properties.get("material") {
                             let resized = texture.resized(36, 36);
                             let rgba = TheRGBABuffer::from(
@@ -3441,7 +3459,7 @@ impl Sidebar {
                                 resized.height as u32,
                             );
                             item.set_icon(rgba);
-                        }
+                        }*/
 
                         item.set_context_menu(Some(TheContextMenu {
                             items: vec![TheContextMenuItem::new(

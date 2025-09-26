@@ -2,7 +2,6 @@ use crate::editor::{SCENEMANAGER, SHADEGRIDFX};
 use crate::prelude::*;
 use crate::undo::character_undo::CharacterUndoAtom;
 use crate::undo::item_undo::ItemUndoAtom;
-use crate::undo::material_undo::MaterialUndoAtom;
 use crate::undo::screen_undo::ScreenUndoAtom;
 use codegridfx::Module;
 use rusterix::TerrainChunk;
@@ -52,12 +51,12 @@ impl RegionUndoAtom {
         }
     }
 
-    pub fn to_material_atom(self) -> Option<MaterialUndoAtom> {
-        match self {
-            RegionUndoAtom::MapEdit(map1, map2) => Some(MaterialUndoAtom::MapEdit(map1, map2)),
-            _ => None,
-        }
-    }
+    // pub fn to_material_atom(self) -> Option<MaterialUndoAtom> {
+    //     match self {
+    //         RegionUndoAtom::MapEdit(map1, map2) => Some(MaterialUndoAtom::MapEdit(map1, map2)),
+    //         _ => None,
+    //     }
+    // }
     pub fn to_character_atom(self) -> Option<CharacterUndoAtom> {
         match self {
             RegionUndoAtom::MapEdit(map1, map2) => Some(CharacterUndoAtom::MapEdit(map1, map2)),

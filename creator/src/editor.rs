@@ -22,10 +22,6 @@ pub static PREVIEW_ICON: LazyLock<RwLock<(TheRGBATile, i32)>> =
 
 pub static TILEPICKER: LazyLock<RwLock<TilePicker>> =
     LazyLock::new(|| RwLock::new(TilePicker::new("Main Tile Picker".to_string())));
-pub static MATERIALPICKER: LazyLock<RwLock<MaterialPicker>> =
-    LazyLock::new(|| RwLock::new(MaterialPicker::new("Main Material Picker".to_string())));
-pub static EFFECTPICKER: LazyLock<RwLock<EffectPicker>> =
-    LazyLock::new(|| RwLock::new(EffectPicker::new("Main Effect Picker".to_string())));
 pub static SHAPEPICKER: LazyLock<RwLock<ShapePicker>> =
     LazyLock::new(|| RwLock::new(ShapePicker::new("Main Shape Picker".to_string())));
 pub static TILEMAPEDITOR: LazyLock<RwLock<TilemapEditor>> =
@@ -64,6 +60,8 @@ pub static CODEGRIDFX: LazyLock<RwLock<Module>> =
     LazyLock::new(|| RwLock::new(Module::as_type(codegridfx::ModuleType::CharacterTemplate)));
 pub static SHADEGRIDFX: LazyLock<RwLock<Module>> =
     LazyLock::new(|| RwLock::new(Module::as_type(codegridfx::ModuleType::Sector)));
+pub static SHADERBUFFER: LazyLock<RwLock<TheRGBABuffer>> =
+    LazyLock::new(|| RwLock::new(TheRGBABuffer::new(TheDim::sized(380, 200))));
 
 pub struct Editor {
     project: Project,
@@ -962,8 +960,7 @@ impl TheTrait for Editor {
                                 }
                             } else
                             // Draw the material / character / item map
-                            if self.server_ctx.get_map_context() == MapContext::Material
-                                || self.server_ctx.get_map_context() == MapContext::Character
+                            if self.server_ctx.get_map_context() == MapContext::Character
                                 || self.server_ctx.get_map_context() == MapContext::Item
                                 || self.server_ctx.get_map_context() == MapContext::Screen
                             {
@@ -1053,92 +1050,29 @@ impl TheTrait for Editor {
                                     }
                                 }
                             } else
-                            // Draw the screen map
-                            if self.server_ctx.get_map_context() == MapContext::Screen {
-                                b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
-                                if let Some(screen) =
-                                    self.project.get_screen_ctx_mut(&self.server_ctx)
-                                {
-                                    if let Some(hover_cursor) = self.server_ctx.hover_cursor {
-                                        b.set_map_hover_info(
-                                            self.server_ctx.hover,
-                                            Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
-                                        );
-                                    } else {
-                                        b.set_map_hover_info(self.server_ctx.hover, None);
-                                    }
+                            // Draw the shader map
+                            if self.server_ctx.get_map_context() == MapContext::Material {
+                                let render_buffer = render_view.render_buffer_mut();
+                                let dest_width = render_buffer.dim().width;
+                                let dest_height = render_buffer.dim().height;
 
-                                    let screen_width = CONFIGEDITOR
-                                        .read()
-                                        .unwrap()
-                                        .get_i32_default("viewport", "width", 1280);
+                                let shader_buffer = SHADERBUFFER.write().unwrap();
+                                let source_width = shader_buffer.dim().width;
+                                let source_height = shader_buffer.dim().height;
 
-                                    let screen_height = CONFIGEDITOR
-                                        .read()
-                                        .unwrap()
-                                        .get_i32_default("viewport", "height", 720);
-
-                                    let grid_size = CONFIGEDITOR.read().unwrap().get_i32_default(
-                                        "viewport",
-                                        "grid_size",
-                                        32,
-                                    );
-
-                                    let grid_width = screen_width as f32 / grid_size as f32;
-                                    let grid_height = screen_height as f32 / grid_size as f32;
-
-                                    let (x, y) = rusterix::utils::align_screen_to_grid(
-                                        screen_width as f32,
-                                        screen_height as f32,
-                                        grid_size as f32,
-                                    );
-
-                                    b.set_clip_rect(Some(rusterix::Rect {
-                                        x,
-                                        y,
-                                        width: grid_width,
-                                        height: grid_height,
-                                    }));
-
-                                    if let Some(clipboard) = &self.server_ctx.paste_clipboard {
-                                        // During a paste operation we use a merged map
-                                        let mut map = screen.map.clone();
-                                        if let Some(hover) = self.server_ctx.hover_cursor {
-                                            map.paste_at_position(clipboard, hover);
-                                        }
-                                        rusterix.set_dirty();
-                                        rusterix.build_custom_scene_d2(
-                                            Vec2::new(dim.width as f32, dim.height as f32),
-                                            &map,
-                                            &self.build_values,
-                                            true,
-                                        );
-                                        rusterix.draw_custom_d2(
-                                            &map,
-                                            render_view.render_buffer_mut().pixels_mut(),
-                                            dim.width as usize,
-                                            dim.height as usize,
-                                        );
-                                    } else {
-                                        rusterix.build_custom_scene_d2(
-                                            Vec2::new(dim.width as f32, dim.height as f32),
-                                            &screen.map,
-                                            &self.build_values,
-                                            true,
-                                        );
-                                        rusterix.draw_custom_d2(
-                                            &screen.map,
-                                            render_view.render_buffer_mut().pixels_mut(),
-                                            dim.width as usize,
-                                            dim.height as usize,
-                                        );
+                                // Tile the shader_buffer across the entire destination buffer
+                                for y in (0..dest_height).step_by(source_height as usize) {
+                                    for x in (0..dest_width).step_by(source_width as usize) {
+                                        render_buffer.copy_into(x, y, &*shader_buffer);
                                     }
                                 }
                             }
                         }
                     }
 
-                    if !self.server_ctx.game_mode {
+                    if !self.server_ctx.game_mode
+                        && self.server_ctx.get_map_context() != MapContext::Material
+                    {
                         if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
                             TOOLLIST.write().unwrap().draw_hud(
                                 render_view.render_buffer_mut(),
@@ -1217,20 +1151,32 @@ impl TheTrait for Editor {
                     TheEvent::CustomUndo(id, p, n) => {
                         if id.name == "ModuleUndo" {
                             if CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Shade {
-                                if let Some(map) = self.project.get_map(&self.server_ctx) {
-                                    if let Some(sector) = map.selected_sectors.first() {
+                                match CODEEDITOR.read().unwrap().shader_content {
+                                    ContentContext::Sector(_) => {
+                                        if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                            if let Some(sector) = map.selected_sectors.first() {
+                                                let prev = Module::from_json(&p);
+                                                let next = Module::from_json(&n);
+
+                                                let atom = RegionUndoAtom::SectorShaderEdit(
+                                                    map.id, *sector, prev, next,
+                                                );
+                                                UNDOMANAGER.write().unwrap().add_region_undo(
+                                                    &self.server_ctx.curr_region,
+                                                    atom,
+                                                    ctx,
+                                                );
+                                            }
+                                        }
+                                    }
+                                    ContentContext::Shader(_) => {
                                         let prev = Module::from_json(&p);
                                         let next = Module::from_json(&n);
 
-                                        let atom = RegionUndoAtom::SectorShaderEdit(
-                                            map.id, *sector, prev, next,
-                                        );
-                                        UNDOMANAGER.write().unwrap().add_region_undo(
-                                            &self.server_ctx.curr_region,
-                                            atom,
-                                            ctx,
-                                        );
+                                        let atom = MaterialUndoAtom::ShaderEdit(prev, next);
+                                        UNDOMANAGER.write().unwrap().add_material_undo(atom, ctx);
                                     }
+                                    _ => {}
                                 }
                             } else if CODEEDITOR.read().unwrap().active_panel
                                 == VisibleCodePanel::Code

@@ -120,10 +120,10 @@ pub trait Tool: Send + Sync {
 
             let mut source_switch = TheGroupButton::new(TheId::named("Map Helper Switch"));
             source_switch.add_text_status("Tiles".to_string(), "Pick and place tiles.".to_string());
-            source_switch.add_text_status(
-                "Materials".to_string(),
-                "Pick and place procedural materials.".to_string(),
-            );
+            // source_switch.add_text_status(
+            //     "Materials".to_string(),
+            //     "Pick and place procedural materials.".to_string(),
+            // );
             source_switch.add_text_status(
                 "Nodes".to_string(),
                 "Work with nodes in the render graph.".to_string(),
@@ -141,7 +141,7 @@ pub trait Tool: Send + Sync {
             layout.add_widget(Box::new(source_switch));
 
             let mut spacer = TheSpacer::new(TheId::empty());
-            spacer.limiter_mut().set_max_width(40);
+            spacer.limiter_mut().set_max_width(80);
             layout.add_widget(Box::new(spacer));
 
             let mut preview_switch = TheGroupButton::new(TheId::named("Preview Switch"));
@@ -155,12 +155,14 @@ pub trait Tool: Send + Sync {
                     TheId::named("Main Stack"),
                     PanelIndices::TilePicker as usize,
                 ));
-            } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                ctx.ui.send(TheEvent::SetStackIndex(
-                    TheId::named("Main Stack"),
-                    PanelIndices::MaterialPicker as usize,
-                ));
-            } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+            } else
+            // if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+            //     ctx.ui.send(TheEvent::SetStackIndex(
+            //         TheId::named("Main Stack"),
+            //         PanelIndices::MaterialPicker as usize,
+            //     ));
+            // }
+            if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
                 ctx.ui.send(TheEvent::SetStackIndex(
                     TheId::named("Main Stack"),
                     PanelIndices::NodeEditor as usize,

@@ -143,7 +143,8 @@ impl ToolList {
                     }
                 }
             }
-        } else if server_ctx.get_map_context() == MapContext::Material {
+        } else if server_ctx.get_map_context() == MapContext::Model {
+            /*
             if let Some(undo_atom) = undo_atom {
                 let only_selection_changed = undo_atom.only_selection_changed();
                 if let Some(material_undo_atom) = undo_atom.to_material_atom() {
@@ -168,7 +169,7 @@ impl ToolList {
                         ));
                     }
                 }
-            }
+            }*/
         } else if server_ctx.get_map_context() == MapContext::Screen {
             if let Some(undo_atom) = undo_atom {
                 if let Some(screen_undo_atom) = undo_atom.to_screen_atom() {
@@ -227,12 +228,14 @@ impl ToolList {
                             TheId::named("Main Stack"),
                             PanelIndices::TilePicker as usize,
                         ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                        ctx.ui.send(TheEvent::SetStackIndex(
-                            TheId::named("Main Stack"),
-                            PanelIndices::MaterialPicker as usize,
-                        ));
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                    }
+                    // else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+                    //     ctx.ui.send(TheEvent::SetStackIndex(
+                    //         TheId::named("Main Stack"),
+                    //         PanelIndices::MaterialPicker as usize,
+                    //     ));
+                    // }
+                    else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::NodeEditor as usize,
@@ -478,6 +481,7 @@ impl ToolList {
                                             Box::new(map.clone()),
                                         );
 
+                                        /*
                                         if server_ctx.get_map_context() == MapContext::Material {
                                             if let Some(material_undo_atom) =
                                                 undo_atom.to_material_atom()
@@ -487,9 +491,9 @@ impl ToolList {
                                                     .unwrap()
                                                     .add_material_undo(material_undo_atom, ctx);
                                             }
-                                        } else if server_ctx.get_map_context()
-                                            == MapContext::Character
-                                        {
+                                        } else */
+
+                                        if server_ctx.get_map_context() == MapContext::Character {
                                             if let Some(character_undo_atom) =
                                                 undo_atom.to_character_atom()
                                             {

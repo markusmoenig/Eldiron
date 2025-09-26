@@ -1,7 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, CODEGRIDFX, CONFIGEDITOR, EFFECTPICKER, INFOVIEWER, MATERIALPICKER, NODEEDITOR,
-    RENDEREDITOR, RUSTERIX, SCENEMANAGER, SHADEGRIDFX, SHAPEPICKER, TILEMAPEDITOR, TILEPICKER,
-    WORLDEDITOR,
+    CODEEDITOR, CODEGRIDFX, CONFIGEDITOR, INFOVIEWER, NODEEDITOR, RENDEREDITOR, RUSTERIX,
+    SCENEMANAGER, SHADEGRIDFX, SHADERBUFFER, SHAPEPICKER, TILEMAPEDITOR, TILEPICKER, WORLDEDITOR,
 };
 use crate::prelude::*;
 
@@ -11,7 +10,7 @@ pub enum PanelIndices {
     ColorPicker,
     CodeEditor,
     DataEditor,
-    MaterialPicker,
+    // MaterialPicker,
     ShapePicker,
     ConfigEditor,
     InfoViewer,
@@ -74,7 +73,6 @@ impl Panels {
 
         main_stack.add_canvas(CODEEDITOR.write().unwrap().build());
         main_stack.add_canvas(CODEEDITOR.write().unwrap().build_data());
-        main_stack.add_canvas(MATERIALPICKER.write().unwrap().build(false));
         main_stack.add_canvas(SHAPEPICKER.write().unwrap().build(false));
         main_stack.add_canvas(CONFIGEDITOR.write().unwrap().build());
         main_stack.add_canvas(INFOVIEWER.write().unwrap().build());
@@ -189,20 +187,20 @@ impl Panels {
         {
             redraw = true;
         }
-        if MATERIALPICKER
-            .write()
-            .unwrap()
-            .handle_event(event, ui, ctx, project, server_ctx)
-        {
-            redraw = true;
-        }
-        if EFFECTPICKER
-            .write()
-            .unwrap()
-            .handle_event(event, ui, ctx, project, server_ctx)
-        {
-            redraw = true;
-        }
+        // if MATERIALPICKER
+        //     .write()
+        //     .unwrap()
+        //     .handle_event(event, ui, ctx, project, server_ctx)
+        // {
+        //     redraw = true;
+        // }
+        // if EFFECTPICKER
+        //     .write()
+        //     .unwrap()
+        //     .handle_event(event, ui, ctx, project, server_ctx)
+        // {
+        //     redraw = true;
+        // }
         if SHAPEPICKER
             .write()
             .unwrap()
@@ -245,6 +243,7 @@ impl Panels {
                 if id.name == "ModuleChanged"
                     && CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Shade
                 {
+                    println!("111 {:?}", CODEEDITOR.read().unwrap().shader_content);
                     // Update the current shader
                     match CODEEDITOR.read().unwrap().shader_content {
                         ContentContext::Sector(sector_id) => {
@@ -260,6 +259,17 @@ impl Panels {
                                         break;
                                     }
                                 }
+                            }
+                        }
+                        ContentContext::Shader(id) => {
+                            println!("shader changed");
+                            if let Some(shader) = project.shaders.get_mut(&id) {
+                                println!("1");
+                                *shader = SHADEGRIDFX.read().unwrap().clone();
+                                crate::utils::draw_shader_into(
+                                    shader,
+                                    &mut SHADERBUFFER.write().unwrap(),
+                                );
                             }
                         }
                         _ => {}

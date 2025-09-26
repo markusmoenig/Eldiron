@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use crate::editor::{CODEGRIDFX, SHADEGRIDFX};
+use crate::editor::{CODEGRIDFX, SHADEGRIDFX, SHADERBUFFER};
 use codegridfx::{Module, ModuleType};
 
 #[derive(Debug, PartialEq)]
@@ -45,27 +45,36 @@ impl CodeEditor {
     ) {
         self.active_panel = VisibleCodePanel::Shade;
 
-        let mut has_sector = false;
-        if let Some(map) = project.get_map_mut(server_ctx) {
-            if let Some(sector_id) = map.selected_sectors.first() {
-                if let Some(sector) = map.find_sector(*sector_id) {
-                    has_sector = true;
-
-                    *SHADEGRIDFX.write().unwrap() = sector.module.clone();
-                    self.shader_content = ContentContext::Sector(sector.creator_id);
+        if server_ctx.get_map_context() == MapContext::Material {
+            if let Some(curr_shader_id) = server_ctx.curr_shader_id {
+                if let Some(shader) = project.shaders.get(&curr_shader_id) {
+                    self.shader_content = ContentContext::Shader(curr_shader_id);
+                    crate::utils::draw_shader_into(shader, &mut SHADERBUFFER.write().unwrap());
                 }
             }
-        }
+        } else {
+            let mut has_sector = false;
+            if let Some(map) = project.get_map_mut(server_ctx) {
+                if let Some(sector_id) = map.selected_sectors.first() {
+                    if let Some(sector) = map.find_sector(*sector_id) {
+                        has_sector = true;
 
-        if !has_sector {
-            *SHADEGRIDFX.write().unwrap() = Module::as_type(ModuleType::Sector);
-            self.shader_content = ContentContext::Unknown
-        }
+                        *SHADEGRIDFX.write().unwrap() = sector.module.clone();
+                        self.shader_content = ContentContext::Sector(sector.creator_id);
+                    }
+                }
+            }
 
-        SHADEGRIDFX
-            .write()
-            .unwrap()
-            .set_module_type(ModuleType::Sector);
+            if !has_sector {
+                *SHADEGRIDFX.write().unwrap() = Module::as_type(ModuleType::Sector);
+                self.shader_content = ContentContext::Unknown
+            }
+
+            SHADEGRIDFX
+                .write()
+                .unwrap()
+                .set_module_type(ModuleType::Sector);
+        }
         SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
     }
 
@@ -79,6 +88,21 @@ impl CodeEditor {
         *SHADEGRIDFX.write().unwrap() = sector.module.clone();
         self.shader_content = ContentContext::Sector(sector.creator_id);
 
+        SHADEGRIDFX
+            .write()
+            .unwrap()
+            .set_module_type(ModuleType::Sector);
+        SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
+    }
+
+    /// Set the shader to the given material.
+    pub fn set_shader_material(&mut self, ui: &mut TheUI, ctx: &mut TheContext, material: &Module) {
+        *SHADEGRIDFX.write().unwrap() = material.clone();
+        self.shader_content = ContentContext::Shader(material.id);
+
+        println!("set_shader_material");
+
+        crate::utils::draw_shader_into(material, &mut SHADERBUFFER.write().unwrap());
         SHADEGRIDFX
             .write()
             .unwrap()

@@ -400,11 +400,13 @@ impl Tool for SectorTool {
                         if let Some(id) = server_ctx.curr_tile_id {
                             source = Some(Value::Source(PixelSource::TileId(id)));
                         }
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+                    }
+                    /*else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
                         if let Some(id) = server_ctx.curr_material_id {
                             source = Some(Value::Source(PixelSource::MaterialId(id)));
                         }
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                    }*/
+                    else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
                         let node_editor = NODEEDITOR.read().unwrap();
                         if !node_editor.graph.nodes.is_empty() {
                             source = Some(Value::Source(PixelSource::ShapeFXGraphId(
@@ -455,7 +457,8 @@ impl Tool for SectorTool {
                                     undo_atom,
                                     ctx,
                                 );
-                            } else if server_ctx.get_map_context() == MapContext::Material {
+                            } else if server_ctx.get_map_context() == MapContext::Model {
+                                /*
                                 if let Some(material_undo_atom) = undo_atom.to_material_atom() {
                                     crate::editor::UNDOMANAGER
                                         .write()
@@ -465,7 +468,7 @@ impl Tool for SectorTool {
                                         TheId::named("Update Materialpicker"),
                                         TheValue::Empty,
                                     ));
-                                }
+                                }*/
                             }
 
                             if server_ctx.get_map_context() == MapContext::Region {
@@ -525,7 +528,8 @@ impl Tool for SectorTool {
                                 undo_atom,
                                 ctx,
                             );
-                        } else if server_ctx.get_map_context() == MapContext::Material {
+                        } else if server_ctx.get_map_context() == MapContext::Model {
+                            /*
                             if let Some(material_undo_atom) = undo_atom.to_material_atom() {
                                 crate::editor::UNDOMANAGER
                                     .write()
@@ -535,7 +539,7 @@ impl Tool for SectorTool {
                                     TheId::named("Update Materialpicker"),
                                     TheValue::Empty,
                                 ));
-                            }
+                            }*/
                         }
 
                         if server_ctx.get_map_context() == MapContext::Region {

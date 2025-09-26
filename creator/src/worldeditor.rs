@@ -305,9 +305,10 @@ impl WorldEditor {
 
                     if server_ctx.curr_world_tool_helper == WorldToolHelper::Brushes {
                         self.apply_brush = true;
-                    } else {
-                        self.apply_action(map, ui, server_ctx);
                     }
+                    // else {
+                    //     self.apply_action(map, ui, server_ctx);
+                    // }
                 }
             }
             MapEvent::MapUp(_coord) => {
@@ -351,9 +352,10 @@ impl WorldEditor {
                 } else if ui.logo || ui.ctrl {
                     self.orbit_camera
                         .rotate((*coord - self.drag_coord).map(|v| v as f32 * 5.0));
-                } else if server_ctx.curr_world_tool_helper != WorldToolHelper::Brushes {
-                    self.apply_action(map, ui, server_ctx);
                 }
+                // else if server_ctx.curr_world_tool_helper != WorldToolHelper::Brushes {
+                //     self.apply_action(map, ui, server_ctx);
+                // }
 
                 self.drag_coord = *coord;
             }
@@ -364,6 +366,7 @@ impl WorldEditor {
         None
     }
 
+    /*
     /// Applies the given action
     pub fn apply_action(&mut self, map: &mut Map, _ui: &TheUI, server_ctx: &mut ServerContext) {
         if let Some(hit) = self.terrain_hit {
@@ -398,7 +401,7 @@ impl WorldEditor {
             }
             map.terrain.mark_clean();
         }
-    }
+    }*/
 
     pub fn apply_source_rules(&mut self, x: i32, z: i32, map: &mut Map, source: PixelSource) {
         let world = Vec2::new(x as f32, z as f32);

@@ -11,13 +11,14 @@ pub enum ContentContext {
     Sector(Uuid),
     CharacterTemplate(Uuid),
     ItemTemplate(Uuid),
+    Shader(Uuid),
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum MapContext {
     Region,
-    Model,
     Screen,
+    Model,
     Material,
     Character,
     Item,
@@ -26,7 +27,6 @@ pub enum MapContext {
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum MapToolHelper {
     TilePicker,
-    MaterialPicker,
     NodeEditor,
     ShaderEditor,
     ShapePicker,
@@ -35,10 +35,9 @@ pub enum MapToolHelper {
 impl MapToolHelper {
     pub fn set_from_index(&mut self, index: usize) {
         match index {
-            1 => *self = MapToolHelper::MaterialPicker,
-            2 => *self = MapToolHelper::NodeEditor,
-            3 => *self = MapToolHelper::ShaderEditor,
-            4 => *self = MapToolHelper::ShapePicker,
+            1 => *self = MapToolHelper::NodeEditor,
+            2 => *self = MapToolHelper::ShaderEditor,
+            3 => *self = MapToolHelper::ShapePicker,
             _ => *self = MapToolHelper::TilePicker,
         }
     }
@@ -147,14 +146,11 @@ pub struct ServerContext {
     /// The currently selected tile
     pub curr_tile_id: Option<Uuid>,
 
-    /// The currently selected Material
-    pub curr_material_id: Option<Uuid>,
+    /// The currently selected model
+    pub curr_model_id: Option<Uuid>,
 
-    /// The conceptual display range [0..1] of the 2D preview.
-    /// Only relevent in Model view. 0 is full conceptual display. 1 is full detail.
-    pub conceptual_display: Option<f32>,
-
-    pub curr_material: Option<Uuid>,
+    /// The currently selected shader
+    pub curr_shader_id: Option<Uuid>,
 
     pub curr_effect: Option<EffectWrapper>,
 
@@ -258,12 +254,10 @@ impl ServerContext {
 
             curr_tile_id: None,
 
-            curr_material_id: None,
+            curr_model_id: None,
+            curr_shader_id: None,
+
             curr_effect: None,
-
-            conceptual_display: None,
-
-            curr_material: None,
 
             screen_editor_mode_foreground: false,
 

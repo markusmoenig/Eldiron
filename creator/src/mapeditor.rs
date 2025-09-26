@@ -1004,12 +1004,14 @@ impl MapEditor {
                 .write()
                 .unwrap()
                 .add_region_undo(&server_ctx.curr_region, undo_atom, ctx);
-        } else if server_ctx.get_map_context() == MapContext::Material {
+        } else if server_ctx.get_map_context() == MapContext::Model {
+            /*
             let undo_atom = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
             UNDOMANAGER
                 .write()
                 .unwrap()
                 .add_material_undo(undo_atom, ctx);
+            */
         }
         RUSTERIX.write().unwrap().set_dirty();
     }

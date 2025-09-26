@@ -469,11 +469,13 @@ impl Tool for LinedefTool {
                         if let Some(id) = server_ctx.curr_tile_id {
                             source = Some(Value::Source(PixelSource::TileId(id)));
                         }
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+                    }
+                    /*else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
                         if let Some(id) = server_ctx.curr_material_id {
                             source = Some(Value::Source(PixelSource::MaterialId(id)));
                         }
-                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                    } */
+                    else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
                         let node_editor = NODEEDITOR.read().unwrap();
                         if !node_editor.graph.nodes.is_empty() {
                             source = Some(Value::Source(PixelSource::ShapeFXGraphId(

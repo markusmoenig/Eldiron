@@ -1,76 +1,38 @@
-use crate::editor::NODEEDITOR;
+use crate::editor::SHADEGRIDFX;
 use crate::prelude::*;
-use rusterix::{PixelSource, Value};
+use codegridfx::Module;
 use theframework::prelude::*;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum MaterialUndoAtom {
-    MapEdit(Box<Map>, Box<Map>),
+    ShaderEdit(Module, Module),
 }
 
 impl MaterialUndoAtom {
     pub fn undo(&self, project: &mut Project, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
-            MaterialUndoAtom::MapEdit(prev, _) => {
-                if let Some(material) = project.materials.get_mut(&prev.id) {
-                    *material = *prev.clone();
-                    material.clear_temp();
-                    NODEEDITOR.write().unwrap().force_update(ctx, material);
-                    for s in &material.selected_sectors {
-                        if let Some(sector) = material.find_sector(*s) {
-                            if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
-                                sector.properties.get("floor_source")
-                            {
-                                if let Some(graph) = material.shapefx_graphs.get(id) {
-                                    NODEEDITOR.write().unwrap().apply_graph(
-                                        NodeContext::Material,
-                                        graph,
-                                        ui,
-                                        ctx,
-                                    );
-                                    break;
-                                }
-                            }
-                        }
-                    }
+            MaterialUndoAtom::ShaderEdit(prev, _) => {
+                if let Some(material) = project.shaders.get_mut(&prev.id) {
+                    *material = prev.clone();
+                    let mut shadergridfx = SHADEGRIDFX.write().unwrap();
+                    *shadergridfx = prev.clone();
+                    shadergridfx.redraw(ui, ctx);
+                    shadergridfx.show_settings(ui, ctx);
                 }
-                NODEEDITOR
-                    .write()
-                    .unwrap()
-                    .set_selected_node_ui(project, ui, ctx, false);
             }
         }
     }
     pub fn redo(&self, project: &mut Project, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
-            MaterialUndoAtom::MapEdit(_, next) => {
-                if let Some(material) = project.materials.get_mut(&next.id) {
-                    *material = *next.clone();
-                    material.clear_temp();
-                    NODEEDITOR.write().unwrap().force_update(ctx, material);
-                    for s in &material.selected_sectors {
-                        if let Some(sector) = material.find_sector(*s) {
-                            if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
-                                sector.properties.get("floor_source")
-                            {
-                                if let Some(graph) = material.shapefx_graphs.get(id) {
-                                    NODEEDITOR.write().unwrap().apply_graph(
-                                        NodeContext::Material,
-                                        graph,
-                                        ui,
-                                        ctx,
-                                    );
-                                    break;
-                                }
-                            }
-                        }
-                    }
+            MaterialUndoAtom::ShaderEdit(_, next) => {
+                if let Some(material) = project.shaders.get_mut(&next.id) {
+                    *material = next.clone();
+                    let mut shadergridfx = SHADEGRIDFX.write().unwrap();
+                    *shadergridfx = next.clone();
+                    shadergridfx.redraw(ui, ctx);
+                    shadergridfx.show_settings(ui, ctx);
                 }
-                NODEEDITOR
-                    .write()
-                    .unwrap()
-                    .set_selected_node_ui(project, ui, ctx, false);
             }
         }
     }

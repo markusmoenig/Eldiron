@@ -1,6 +1,7 @@
-use crate::editor::{CODEEDITOR, CONFIGEDITOR};
+use crate::editor::{CODEEDITOR, CONFIGEDITOR, PALETTE};
 use crate::prelude::*;
-use codegridfx::ModuleType;
+use codegridfx::{Module, ModuleType};
+use rusteria::{RenderBuffer, Rusteria};
 use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
 use toml::*;
 
@@ -140,11 +141,11 @@ pub fn get_source(_ui: &mut TheUI, server_ctx: &ServerContext) -> Option<Value> 
         if let Some(id) = server_ctx.curr_tile_id {
             source = Some(Value::Source(PixelSource::TileId(id)));
         }
-    } else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-        if let Some(id) = server_ctx.curr_material {
-            source = Some(Value::Source(PixelSource::MaterialId(id)));
-        }
-    } /*
+    } /*else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
+    if let Some(id) = server_ctx.curr_material {
+    source = Some(Value::Source(PixelSource::MaterialId(id)));
+    }
+    }
     else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
     if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker") {
     if let Some(color) = &PALETTE.read().unwrap().colors[palette_picker.index()] {
@@ -266,5 +267,43 @@ pub fn is_valid_python_variable(name: &str) -> bool {
         !PYTHON_KEYWORDS.contains(&name)
     } else {
         false
+    }
+}
+
+/// Draws the shader into the given buffer
+pub fn draw_shader_into(module: &Module, buffer: &mut TheRGBABuffer) {
+    use std::sync::{Arc, Mutex};
+
+    let mut rs = Rusteria::default();
+    let code = module.build_shader();
+
+    let _module = match rs.parse_str(&code) {
+        Ok(module) => match rs.compile(&module) {
+            Ok(()) => {
+                println!("Module '{}' compiled successfully.", module.name);
+            }
+            Err(e) => {
+                eprintln!("Error compiling module: {e}");
+                return;
+            }
+        },
+        Err(e) => {
+            eprintln!("Error parsing module: {e}");
+            return;
+        }
+    };
+
+    let width = buffer.dim().width as usize;
+    let height = buffer.dim().height as usize;
+
+    if let Some(shade_index) = rs.context.program.shade_index {
+        let mut rbuffer = Arc::new(Mutex::new(RenderBuffer::new(width, height)));
+        let t0 = rs.get_time();
+        rs.shade(&mut rbuffer, shade_index, &PALETTE.read().unwrap());
+        let t1 = rs.get_time();
+        println!("Rendered in {}ms", t1 - t0);
+
+        let b = rbuffer.lock().unwrap().as_rgba_bytes();
+        *buffer = TheRGBABuffer::from(b, width as u32, height as u32)
     }
 }

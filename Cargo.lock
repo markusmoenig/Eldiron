@@ -1067,6 +1067,7 @@ dependencies = [
  "rayon",
  "regex",
  "rust-embed",
+ "rusteria",
  "rusterix",
  "self_update",
  "serde",
