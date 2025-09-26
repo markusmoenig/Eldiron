@@ -852,6 +852,7 @@ dependencies = [
 [[package]]
 name = "codegridfx"
 version = "0.1.0"
+source = "git+https://github.com/markusmoenig/Rusterix#90d21b852b64c8e60dc7be8fa66cc7d2472dac79"
 dependencies = [
  "indexmap 2.11.3",
  "rusteria",
@@ -4641,6 +4642,7 @@ dependencies = [
 [[package]]
 name = "rusteria"
 version = "0.1.0"
+source = "git+https://github.com/markusmoenig/Rusterix#90d21b852b64c8e60dc7be8fa66cc7d2472dac79"
 dependencies = [
  "image",
  "indexmap 2.11.3",
@@ -4657,6 +4659,7 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
+source = "git+https://github.com/markusmoenig/Rusterix#90d21b852b64c8e60dc7be8fa66cc7d2472dac79"
 dependencies = [
  "bincode",
  "bvh",
@@ -5723,6 +5726,7 @@ checksum = "c13547615a44dc9c452a8a534638acdf07120d4b6847c8178705da06306a3057"
 [[package]]
 name = "theframework"
 version = "0.1.40"
+source = "git+https://github.com/markusmoenig/TheFramework#d2c578f8bf746a0e811918eb958fd7e056da8e52"
 dependencies = [
  "arboard",
  "console_error_panic_hook",

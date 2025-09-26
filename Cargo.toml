@@ -13,9 +13,11 @@ theframework = { version = "0.1.40", git = "https://github.com/markusmoenig/TheF
 
 rusterix = { version = "0.2.8", git = "https://github.com/markusmoenig/Rusterix" }
 codegridfx = { git = "https://github.com/markusmoenig/Rusterix", package = "codegridfx" }
+rusteria = { git = "https://github.com/markusmoenig/Rusterix", package = "rusteria" }
 
 # rusterix = { path = "../Rusterix" }
 # codegridfx = { path = "../Rusterix/codegridfx/lib", package = "codegridfx" }
+# rusteria = { path = "../Rusterix/rusteria", package = "rusteria" }
 
 [workspace.package]
 edition = "2024"
