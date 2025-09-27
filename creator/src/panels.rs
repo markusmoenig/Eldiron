@@ -230,6 +230,18 @@ impl Panels {
         }
 
         match event {
+            TheEvent::StateChanged(id, _) => {
+                if id.name == "cgfxAddToShaderLibrary" {
+                    open_text_dialog(
+                        "Add Shader To Project Library",
+                        "Shader Name",
+                        "Shader",
+                        id.uuid,
+                        ui,
+                        ctx,
+                    );
+                }
+            }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Details Stack Group" {
                     if let Some(stack) = ui.get_stack_layout("Details Stack") {
@@ -243,7 +255,6 @@ impl Panels {
                 if id.name == "ModuleChanged"
                     && CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Shade
                 {
-                    println!("111 {:?}", CODEEDITOR.read().unwrap().shader_content);
                     // Update the current shader
                     match CODEEDITOR.read().unwrap().shader_content {
                         ContentContext::Sector(sector_id) => {
@@ -262,9 +273,7 @@ impl Panels {
                             }
                         }
                         ContentContext::Shader(id) => {
-                            println!("shader changed");
                             if let Some(shader) = project.shaders.get_mut(&id) {
-                                println!("1");
                                 *shader = SHADEGRIDFX.read().unwrap().clone();
                                 crate::utils::draw_shader_into(
                                     shader,

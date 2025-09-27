@@ -226,6 +226,9 @@ pub struct ServerContext {
     /// Item Region Override
     pub item_region_override: bool,
 
+    /// Material Region Override
+    pub material_region_override: bool,
+
     /// Tile Preview Mode
     pub tile_preview_mode: bool,
 }
@@ -291,6 +294,7 @@ impl ServerContext {
 
             character_region_override: true,
             item_region_override: true,
+            material_region_override: true,
 
             tile_preview_mode: false,
         }
@@ -310,6 +314,7 @@ impl ServerContext {
     pub fn get_map_context(&self) -> MapContext {
         if (self.curr_map_context == MapContext::Character && self.character_region_override)
             || (self.curr_map_context == MapContext::Item && self.item_region_override)
+            || (self.curr_map_context == MapContext::Material && self.material_region_override)
         {
             MapContext::Region
         } else {

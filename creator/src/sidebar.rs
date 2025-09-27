@@ -1,6 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, SIDEBARMODE, TILEMAPEDITOR,
-    UNDOMANAGER,
+    CODEEDITOR, CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, SHADEGRIDFX, SIDEBARMODE,
+    TILEMAPEDITOR, UNDOMANAGER,
 };
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
@@ -661,15 +661,36 @@ impl Sidebar {
         let mut material_canvas = TheCanvas::default();
         let mut material_list_canvas = TheCanvas::default();
 
+        // -- Filter
+
+        let mut material_filter_canvas = TheCanvas::default();
+        material_filter_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        let mut material_list_header_canvas_hlayout = TheHLayout::new(TheId::empty());
+        material_list_header_canvas_hlayout.set_background_color(None);
+
+        let mut filter_text = TheText::new(TheId::empty());
+        filter_text.set_text("Filter".to_string());
+
+        let mut filter_edit = TheTextLineEdit::new(TheId::named("Material Filter Edit"));
+        filter_edit.set_text("".to_string());
+        filter_edit.limiter_mut().set_max_size(Vec2::new(180, 18));
+        filter_edit.set_font_size(12.5);
+        filter_edit.set_embedded(true);
+        filter_edit.set_status_text("Show shaders containing the given text.");
+        filter_edit.set_continuous(true);
+
+        material_list_header_canvas_hlayout.add_widget(Box::new(filter_text));
+        material_list_header_canvas_hlayout.add_widget(Box::new(filter_edit));
+        material_filter_canvas.set_layout(material_list_header_canvas_hlayout);
+
+        // -- Panel
+
         let mut material_list_header_canvas = TheCanvas::default();
         material_list_header_canvas.set_widget(TheTraybar::new(TheId::empty()));
         let mut material_list_header_canvas_hlayout = TheHLayout::new(TheId::empty());
         material_list_header_canvas_hlayout.set_background_color(None);
-        let mut filter_text = TheText::new(TheId::empty());
-        filter_text.set_text("Filter".to_string());
 
-        material_list_header_canvas_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
-        material_list_header_canvas_hlayout.set_padding(3);
+        material_list_header_canvas_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
 
         let mut material_add_button = TheTraybarButton::new(TheId::named("Material Add"));
         material_add_button.set_icon_name("icon_role_add".to_string());
@@ -680,18 +701,23 @@ impl Sidebar {
         material_remove_button.set_status_text("Remove the current shader.");
         material_remove_button.set_disabled(true);
 
-        let mut filter_edit = TheTextLineEdit::new(TheId::named("Material Filter Edit"));
-        filter_edit.set_text("".to_string());
-        filter_edit.limiter_mut().set_max_size(Vec2::new(120, 18));
-        filter_edit.set_font_size(12.5);
-        filter_edit.set_embedded(true);
-        filter_edit.set_status_text("Show shaders containing the given text.");
-        filter_edit.set_continuous(true);
+        let mut material_region_override =
+            TheGroupButton::new(TheId::named("Material Region Override"));
+        material_region_override
+            .add_text_status("Shader".to_string(), "Show the shader preview.".to_string());
+        material_region_override
+            .add_text_status("Region".to_string(), "Show the region map.".to_string());
+        material_region_override.set_item_width(80);
+        material_region_override.set_index(1);
+
         material_list_header_canvas_hlayout.add_widget(Box::new(material_add_button));
         material_list_header_canvas_hlayout.add_widget(Box::new(material_remove_button));
-        material_list_header_canvas_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
-        material_list_header_canvas_hlayout.add_widget(Box::new(filter_text));
-        material_list_header_canvas_hlayout.add_widget(Box::new(filter_edit));
+        material_list_header_canvas_hlayout.add_widget(Box::new(material_region_override));
+        material_list_header_canvas_hlayout.set_reverse_index(Some(1));
+
+        //material_list_header_canvas_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+        // material_list_header_canvas_hlayout.add_widget(Box::new(filter_text));
+        // material_list_header_canvas_hlayout.add_widget(Box::new(filter_edit));
 
         // let mut drop_down = TheDropdownMenu::new(TheId::named("Material Filter Role"));
         // drop_down.add_option("All".to_string());
@@ -702,8 +728,8 @@ impl Sidebar {
 
         material_list_header_canvas.set_layout(material_list_header_canvas_hlayout);
 
-        let mut material_list_layout = TheListLayout::new(TheId::named("Material List"));
-        material_list_layout.set_item_size(42);
+        let material_list_layout = TheListLayout::new(TheId::named("Material List"));
+        material_list_canvas.set_top(material_filter_canvas);
         material_list_canvas.set_bottom(material_list_header_canvas);
         material_list_canvas.set_layout(material_list_layout);
 
@@ -833,6 +859,8 @@ impl Sidebar {
                     server_ctx.character_region_override = *index == 1;
                 } else if id.name == "Item Region Override" {
                     server_ctx.item_region_override = *index == 1;
+                } else if id.name == "Material Region Override" {
+                    server_ctx.material_region_override = *index == 1;
                 }
             }
             TheEvent::RenderViewClicked(id, coord)
@@ -1149,7 +1177,31 @@ impl Sidebar {
                 }
             }
             TheEvent::DialogValueOnClose(role, name, uuid, value) => {
-                if name == "Rename Region" && *role == TheDialogButtonRole::Accept {
+                if name == "Add Shader To Project Library" && *role == TheDialogButtonRole::Accept {
+                    let mut shader = SHADEGRIDFX.read().unwrap().clone();
+                    if let Some(routine) = shader.get_selected_routine_mut() {
+                        let mut routine_clone = routine.clone();
+                        routine.id = Uuid::new_v4();
+                        routine_clone.name = "shader".to_string();
+                        let mut module: Module = Module::as_type(codegridfx::ModuleType::Material);
+                        if let Some(name) = value.to_string() {
+                            module.name = name;
+                            module.routines.insert(routine.id, routine_clone);
+                            server_ctx.curr_shader_id = Some(module.id);
+                            project.shaders.insert(module.id, module);
+                            self.show_filtered_materials(ui, ctx, project, server_ctx);
+                            RUSTERIX.write().unwrap().set_dirty();
+
+                            ctx.ui.send(TheEvent::StateChanged(
+                                TheId::named_with_id(
+                                    "Material Item",
+                                    server_ctx.curr_shader_id.unwrap(),
+                                ),
+                                TheWidgetState::Selected,
+                            ));
+                        }
+                    }
+                } else if name == "Rename Region" && *role == TheDialogButtonRole::Accept {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         region.name = value.describe();
                         region.map.name = value.describe();
@@ -1391,12 +1443,12 @@ impl Sidebar {
                             ctx,
                         );
                     }
-                } else if item_id.name == "Rename Material" {
-                    if let Some(material) = project.shaders.get(&widget_id.uuid) {
+                } else if item_id.name == "Rename Shader" {
+                    if let Some(shader) = project.shaders.get(&widget_id.uuid) {
                         open_text_dialog(
-                            "Rename Material",
-                            "Material Name",
-                            &material.name,
+                            "Rename Shader",
+                            "Shader Name",
+                            &shader.name,
                             widget_id.uuid,
                             ui,
                             ctx,
@@ -1405,7 +1457,14 @@ impl Sidebar {
                 }
             }
             TheEvent::DragStarted(id, text, offset) => {
-                if id.name == "Character Item" {
+                if id.name == "Material Item" {
+                    let mut drop = TheDrop::new(id.clone());
+                    drop.set_title(format!("Material: {text}"));
+                    drop.set_text(text.clone());
+                    drop.set_offset(*offset);
+                    ui.style.create_drop_image(&mut drop, ctx);
+                    ctx.ui.set_drop(drop);
+                } else if id.name == "Character Item" {
                     let mut drop = TheDrop::new(id.clone());
                     drop.set_title(format!("Character: {text}"));
                     drop.set_text(text.clone());
@@ -1710,13 +1769,15 @@ impl Sidebar {
                 if id.name == "Material Item" {
                     let shader_id = id.uuid;
                     server_ctx.curr_shader_id = Some(shader_id);
-                    if let Some(shader) = project.shaders.get(&id.uuid) {
-                        CODEEDITOR
-                            .write()
-                            .unwrap()
-                            .set_shader_material(ui, ctx, shader);
+                    if server_ctx.get_map_context() == MapContext::Material {
+                        if let Some(shader) = project.shaders.get(&id.uuid) {
+                            CODEEDITOR
+                                .write()
+                                .unwrap()
+                                .set_shader_material(ui, ctx, shader);
+                        }
+                        RUSTERIX.write().unwrap().set_dirty();
                     }
-                    RUSTERIX.write().unwrap().set_dirty();
                 } else if id.name == "Palette Clear" {
                     let prev = project.palette.clone();
                     project.palette.clear();
@@ -2033,11 +2094,18 @@ impl Sidebar {
                     self.show_filtered_materials(ui, ctx, project, server_ctx);
                     RUSTERIX.write().unwrap().set_dirty();
                 } else if id.name == "Material Add" {
-                    let module: Module = Module::as_type(codegridfx::ModuleType::Material);
+                    let mut module: Module = Module::as_type(codegridfx::ModuleType::Material);
+                    module.update_routines();
+                    module.name = "New Shader".into();
                     server_ctx.curr_shader_id = Some(module.id);
                     project.shaders.insert(module.id, module);
                     self.show_filtered_materials(ui, ctx, project, server_ctx);
                     RUSTERIX.write().unwrap().set_dirty();
+
+                    ctx.ui.send(TheEvent::StateChanged(
+                        TheId::named_with_id("Material Item", server_ctx.curr_shader_id.unwrap()),
+                        TheWidgetState::Selected,
+                    ));
                 }
                 /*else if id.name == "Module Add" {
                     if let Some(list_layout) = ui.get_list_layout("Module List") {
@@ -3435,7 +3503,7 @@ impl Sidebar {
             if let Some(list_layout) = layout.as_list_layout() {
                 list_layout.clear();
 
-                for (index, material) in project.shaders.values().enumerate() {
+                for material in project.shaders.values() {
                     if filter_text.is_empty() || material.name.to_lowercase().contains(&filter_text)
                     //&& (filter_role == 0
                     //    || tile.role == TileRole::from_index(filter_role as u8 - 1).unwrap())
@@ -3443,9 +3511,9 @@ impl Sidebar {
                         let mut item =
                             TheListItem::new(TheId::named_with_id("Material Item", material.id));
                         item.set_text(material.name.clone());
-                        let sub_text = format!("Index: {index}");
-                        item.set_sub_text(sub_text);
-                        item.set_size(42);
+                        //let sub_text = format!("Index: {index}");
+                        // item.set_sub_text(sub_text);
+                        // item.set_size(42);
                         if Some(material.id) == server_ctx.curr_shader_id {
                             item.set_state(TheWidgetState::Selected);
                         }
@@ -3463,8 +3531,8 @@ impl Sidebar {
 
                         item.set_context_menu(Some(TheContextMenu {
                             items: vec![TheContextMenuItem::new(
-                                "Rename Material...".to_string(),
-                                TheId::named("Rename Material"),
+                                "Rename Shader...".to_string(),
+                                TheId::named("Rename Shader"),
                             )],
                             ..Default::default()
                         }));

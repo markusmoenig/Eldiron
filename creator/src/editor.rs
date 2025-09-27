@@ -982,7 +982,9 @@ impl TheTrait for Editor {
                                             width: 10.0,
                                             height: 10.0,
                                         }));
-                                    } else {
+                                    } else if self.server_ctx.get_map_context()
+                                        == MapContext::Material
+                                    {
                                         let screen_width = CONFIGEDITOR
                                             .read()
                                             .unwrap()
@@ -1355,6 +1357,39 @@ impl TheTrait for Editor {
                         }
                     }
                     TheEvent::RenderViewDrop(_id, location, drop) => {
+                        if drop.id.name.starts_with("Material") {
+                            if self.server_ctx.curr_map_tool_helper == MapToolHelper::ShaderEditor
+                                && CODEEDITOR.read().unwrap().active_panel
+                                    == VisibleCodePanel::Shade
+                            {
+                                if matches!(
+                                    CODEEDITOR.read().unwrap().shader_content,
+                                    ContentContext::Sector(_)
+                                ) {
+                                    if let Some(shader) = self.project.shaders.get(&drop.id.uuid) {
+                                        let prev = SHADEGRIDFX.read().unwrap().clone();
+                                        if SHADEGRIDFX
+                                            .write()
+                                            .unwrap()
+                                            .insert_module(shader, location)
+                                        {
+                                            ctx.ui.send(TheEvent::Custom(
+                                                TheId::named("ModuleChanged"),
+                                                TheValue::Empty,
+                                            ));
+                                            ctx.ui.send(TheEvent::CustomUndo(
+                                                TheId::named("ModuleUndo"),
+                                                prev.to_json(),
+                                                SHADEGRIDFX.read().unwrap().to_json(),
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+
+                            return true;
+                        }
+
                         let mut grid_pos = Vec2::zero();
 
                         if let Some(map) = self.project.get_map(&self.server_ctx) {
