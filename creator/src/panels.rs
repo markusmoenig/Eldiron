@@ -233,9 +233,9 @@ impl Panels {
             TheEvent::StateChanged(id, _) => {
                 if id.name == "cgfxAddToShaderLibrary" {
                     open_text_dialog(
-                        "Add Shader To Project Library",
-                        "Shader Name",
-                        "Shader",
+                        "Add Shader To Materials",
+                        "Material Name",
+                        "Material",
                         id.uuid,
                         ui,
                         ctx,

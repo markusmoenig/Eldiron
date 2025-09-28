@@ -149,8 +149,8 @@ pub struct ServerContext {
     /// The currently selected model
     pub curr_model_id: Option<Uuid>,
 
-    /// The currently selected shader
-    pub curr_shader_id: Option<Uuid>,
+    /// The currently selected material
+    pub curr_material_id: Option<Uuid>,
 
     pub curr_effect: Option<EffectWrapper>,
 
@@ -258,7 +258,7 @@ impl ServerContext {
             curr_tile_id: None,
 
             curr_model_id: None,
-            curr_shader_id: None,
+            curr_material_id: None,
 
             curr_effect: None,
 
@@ -294,7 +294,7 @@ impl ServerContext {
 
             character_region_override: true,
             item_region_override: true,
-            material_region_override: true,
+            material_region_override: false,
 
             tile_preview_mode: false,
         }
