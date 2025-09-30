@@ -230,6 +230,9 @@ pub struct ServerContext {
 
     /// Tile Preview Mode
     pub tile_preview_mode: bool,
+
+    /// The sector id of the current 3D editing geometry
+    pub curr_editing_geometry_sector_id: Option<u32>,
 }
 
 impl Default for ServerContext {
@@ -296,6 +299,8 @@ impl ServerContext {
             material_region_override: false,
 
             tile_preview_mode: false,
+
+            curr_editing_geometry_sector_id: None,
         }
     }
 

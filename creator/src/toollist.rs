@@ -636,6 +636,17 @@ impl ToolList {
                                     }
                                 }
                                 self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
+
+                                // In 3D mode redraw the selection geometry
+                                if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                    if let Some(sector_id) =
+                                        server_ctx.curr_editing_geometry_sector_id
+                                    {
+                                        self.sector_hover_changed_3d(
+                                            sector_id, project, server_ctx,
+                                        );
+                                    }
+                                }
                             }
                             redraw = true;
                         }
@@ -820,23 +831,30 @@ impl ToolList {
                                 1.0 - coord.y as f32 / dim.height as f32,
                             );
                             let screen_size = Vec2::new(dim.width as f32, dim.height as f32);
-
-                            let rusterix = RUSTERIX.read().unwrap();
-
-                            let ray = rusterix.client.camera_d3.create_ray(
+                            let ray = RUSTERIX.read().unwrap().client.camera_d3.create_ray(
                                 screen_uv,
                                 screen_size,
                                 Vec2::one(),
                             );
 
-                            let hit = rusterix.client.scene.intersect(&ray);
+                            let hit = RUSTERIX.read().unwrap().client.scene.intersect(&ray);
                             if hit.has_hit() {
                                 match hit.geometry_source {
+                                    GeometrySource::Linedef(id) => {
+                                        server_ctx.hover = (None, Some(id), None);
+                                        println!("lineselected {}", id);
+                                    }
                                     GeometrySource::Sector(id) => {
                                         server_ctx.hover = (None, None, Some(id));
+                                        if Some(id) != server_ctx.curr_editing_geometry_sector_id {
+                                            self.sector_hover_changed_3d(id, project, server_ctx);
+                                        }
                                     }
                                     _ => {}
                                 }
+                            } else {
+                                server_ctx.curr_editing_geometry_sector_id = None;
+                                RUSTERIX.write().unwrap().client.scene.d3_overlay.clear();
                             }
 
                             // println!("{:?}", hit);
@@ -1195,5 +1213,65 @@ impl ToolList {
             }
         }
         None
+    }
+
+    /// The sector hovered over in 3D has changed, build the editing geometry.
+    pub fn sector_hover_changed_3d(
+        &mut self,
+        sector_id: u32,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        let mut rusterix = RUSTERIX.write().unwrap();
+
+        println!("update");
+
+        rusterix.client.scene.d3_overlay.clear();
+
+        if let Some(map) = project.get_map(&server_ctx) {
+            let sector_is_selected = map.selected_sectors.contains(&sector_id);
+
+            if let Some(sector) = map.find_sector(sector_id) {
+                for linedef_id in &sector.linedefs {
+                    if let Some(linedef) = map.find_linedef(*linedef_id) {
+                        if let Some(start) = map.find_vertex(linedef.start_vertex) {
+                            if let Some(end) = map.find_vertex(linedef.end_vertex) {
+                                if sector_is_selected || map.selected_linedefs.contains(linedef_id)
+                                {
+                                    let mut selected_batch: rusterix::Batch3D =
+                                        rusterix::Batch3D::empty()
+                                            .source(rusterix::PixelSource::Pixel([
+                                                187, 122, 208, 255,
+                                            ]))
+                                            .geometry_source(GeometrySource::Linedef(*linedef_id));
+
+                                    selected_batch.add_line(
+                                        Vec3::new(start.x, 0.0, start.y),
+                                        Vec3::new(end.x, 0.0, end.y),
+                                        0.1,
+                                        Vec3::unit_y(),
+                                    );
+                                    rusterix.client.scene.d3_overlay.push(selected_batch);
+                                } else {
+                                    let mut batch: rusterix::Batch3D = rusterix::Batch3D::empty()
+                                        .source(rusterix::PixelSource::Pixel(WHITE))
+                                        .geometry_source(GeometrySource::Linedef(*linedef_id));
+
+                                    batch.add_line(
+                                        Vec3::new(start.x, 0.0, start.y),
+                                        Vec3::new(end.x, 0.0, end.y),
+                                        0.1,
+                                        Vec3::unit_y(),
+                                    );
+                                    rusterix.client.scene.d3_overlay.push(batch);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        server_ctx.curr_editing_geometry_sector_id = Some(sector_id);
     }
 }
