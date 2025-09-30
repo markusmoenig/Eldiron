@@ -27,7 +27,7 @@ pub fn draw_camera_marker(region: &Region, buffer: &mut TheRGBABuffer, server_ct
         &vek::Rgba::red().into_array(),
     );
 
-    if server_ctx.render_mode {
+    if server_ctx.editor_view_mode == EditorViewMode::FirstP {
         let look_at_pos = Vec2::new(region.editing_look_at_3d.x, region.editing_look_at_3d.z);
 
         let pos = world_to_minimap_pixel(

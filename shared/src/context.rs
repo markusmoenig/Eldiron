@@ -4,6 +4,23 @@ pub use rusterix::{Value, map::*};
 use theframework::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
+pub enum EditorViewMode {
+    D2,
+    Iso,
+    FirstP,
+}
+
+impl EditorViewMode {
+    pub fn from_index(idx: i32) -> Self {
+        match idx {
+            1 => EditorViewMode::Iso,
+            2 => EditorViewMode::FirstP,
+            _ => EditorViewMode::D2,
+        }
+    }
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum ContentContext {
     Unknown,
     CharacterInstance(Uuid),
@@ -75,21 +92,6 @@ impl WorldToolHelper {
             2 => *self = WorldToolHelper::MaterialPicker,
             3 => *self = WorldToolHelper::GlobalRender,
             _ => *self = WorldToolHelper::Brushes,
-        }
-    }
-}
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-pub enum CustomToolCamera {
-    FirstP,
-    Isometric,
-}
-
-impl CustomToolCamera {
-    pub fn set_from_index(&mut self, index: usize) {
-        match index {
-            1 => *self = CustomToolCamera::Isometric,
-            _ => *self = CustomToolCamera::FirstP,
         }
     }
 }
@@ -178,9 +180,6 @@ pub struct ServerContext {
     /// For render tools, indicates which helper is active
     pub curr_render_tool_helper: RenderToolHelper,
 
-    /// For custom tools, indicates which camera is active
-    pub curr_custom_tool_camera: CustomToolCamera,
-
     /// For world tools, indicates which helper is active
     pub curr_world_tool_helper: WorldToolHelper,
 
@@ -202,8 +201,8 @@ pub struct ServerContext {
     /// Selected wall row, set by the linedef Hud
     pub selected_wall_row: Option<i32>,
 
-    /// Render mode is active
-    pub render_mode: bool,
+    /// View mode of the editor
+    pub editor_view_mode: EditorViewMode,
 
     /// World mode is active
     pub world_mode: bool,
@@ -272,7 +271,6 @@ impl ServerContext {
             curr_map_context: MapContext::Region,
             curr_map_tool_helper: MapToolHelper::TilePicker,
             curr_render_tool_helper: RenderToolHelper::GlobalRender,
-            curr_custom_tool_camera: CustomToolCamera::FirstP,
             curr_world_tool_helper: WorldToolHelper::Brushes,
             curr_world_tool_camera: WorldToolCamera::Orbit,
             curr_texture_mode: MapTextureMode::Floor,
@@ -283,7 +281,8 @@ impl ServerContext {
 
             selected_wall_row: Some(0),
 
-            render_mode: false,
+            editor_view_mode: EditorViewMode::D2,
+
             world_mode: false,
             game_mode: false,
 

@@ -1,10 +1,12 @@
-use crate::editor::{CODEEDITOR, NODEEDITOR, RUSTERIX, SCENEMANAGER, SHAPEPICKER, UNDOMANAGER};
+use crate::editor::{
+    CODEEDITOR, CUSTOMCAMERA, NODEEDITOR, RUSTERIX, SCENEMANAGER, SHAPEPICKER, UNDOMANAGER,
+};
 use crate::prelude::*;
 pub use crate::tools::{
     config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, render::RenderTool,
     world::WorldTool,
 };
-use rusterix::Assets;
+use rusterix::{Assets, GeometrySource};
 
 pub struct ToolList {
     pub server_time: TheTime,
@@ -210,8 +212,8 @@ impl ToolList {
         let mut redraw = false;
         match event {
             TheEvent::IndexChanged(id, index) => {
-                if id.name == "Preview Switch" {
-                    server_ctx.render_mode = *index != 0;
+                if id.name == "Editor View Switch" {
+                    server_ctx.editor_view_mode = EditorViewMode::from_index(*index as i32)
                 } else if id.name == "Map Helper Switch" {
                     let was_shape_picker =
                         server_ctx.curr_map_tool_helper == MapToolHelper::ShapePicker;
@@ -654,7 +656,7 @@ impl ToolList {
                 }
             }
             TheEvent::RenderViewDragged(id, coord) => {
-                if id.name == "PolyView" && !server_ctx.render_mode {
+                if id.name == "PolyView" && server_ctx.editor_view_mode == EditorViewMode::D2 {
                     let mut changed_entities: FxHashMap<Uuid, Vec3<f32>> = FxHashMap::default();
                     let mut changed_items: FxHashMap<Uuid, Vec3<f32>> = FxHashMap::default();
 
@@ -809,7 +811,37 @@ impl ToolList {
             }
             TheEvent::RenderViewHoverChanged(id, coord) => {
                 if id.name == "PolyView" {
-                    if let Some(map) = project.get_map_mut(server_ctx) {
+                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                            let dim = *render_view.dim();
+
+                            let screen_uv = Vec2::new(
+                                coord.x as f32 / dim.width as f32,
+                                1.0 - coord.y as f32 / dim.height as f32,
+                            );
+                            let screen_size = Vec2::new(dim.width as f32, dim.height as f32);
+
+                            let rusterix = RUSTERIX.read().unwrap();
+
+                            let ray = rusterix.client.camera_d3.create_ray(
+                                screen_uv,
+                                screen_size,
+                                Vec2::one(),
+                            );
+
+                            let hit = rusterix.client.scene.intersect(&ray);
+                            if hit.has_hit() {
+                                match hit.geometry_source {
+                                    GeometrySource::Sector(id) => {
+                                        server_ctx.hover = (None, None, Some(id));
+                                    }
+                                    _ => {}
+                                }
+                            }
+
+                            // println!("{:?}", hit);
+                        }
+                    } else if let Some(map) = project.get_map_mut(server_ctx) {
                         let undo_atom = self.get_current_tool().map_event(
                             MapEvent::MapHover(*coord),
                             ui,
@@ -826,6 +858,15 @@ impl ToolList {
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                     }
                     redraw = true;
+                }
+            }
+            TheEvent::RenderViewScrollBy(id, coord) => {
+                if id.name == "PolyView" {
+                    if server_ctx.editor_view_mode == EditorViewMode::Iso {
+                        if ui.ctrl || ui.logo {
+                            CUSTOMCAMERA.write().unwrap().scroll_by(coord.y as f32);
+                        }
+                    }
                 }
             }
             /*

@@ -97,6 +97,15 @@ impl RenderEditor {
                     rusterix.trace_scene(&mut self.accum_buffer);
                     self.accum_buffer.convert_to_u8(buffer.pixels_mut());
                 }
+
+                /*
+                TOOLLIST.write().unwrap().draw_hud(
+                    buffer,
+                    &mut region.map,
+                    ctx,
+                    server_ctx,
+                    &rusterix.assets,
+                );*/
             }
         }
     }

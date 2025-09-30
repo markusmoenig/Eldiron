@@ -81,7 +81,7 @@ impl Tool for RenderTool {
 
                 // WORLDEDITOR.write().unwrap().first_draw = true;
 
-                server_ctx.render_mode = true;
+                // server_ctx.render_mode = true;
                 return true;
             }
             DeActivate => {
@@ -93,7 +93,7 @@ impl Tool for RenderTool {
                 if let Some(map) = project.get_map_mut(server_ctx) {
                     map.terrain.mark_dirty();
                 }
-                server_ctx.render_mode = false;
+                // server_ctx.render_mode = false;
                 return true;
             }
             _ => {}
@@ -191,13 +191,13 @@ impl Tool for RenderTool {
                         RENDEREDITOR.write().unwrap().start_trace();
                     }
                 }
-                if id.name == "Custom Camera Helper Switch" {
-                    if *index == 0 {
-                        server_ctx.curr_custom_tool_camera = CustomToolCamera::FirstP;
-                    } else if *index == 1 {
-                        server_ctx.curr_custom_tool_camera = CustomToolCamera::Isometric;
-                    }
-                }
+                // if id.name == "Custom Camera Helper Switch" {
+                //     if *index == 0 {
+                //         server_ctx.curr_custom_tool_camera = CustomToolCamera::FirstP;
+                //     } else if *index == 1 {
+                //         server_ctx.curr_custom_tool_camera = CustomToolCamera::Isometric;
+                //     }
+                // }
             }
             // TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
             //     if id.name == "Trace Button" {

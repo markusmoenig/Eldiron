@@ -752,7 +752,7 @@ impl TheTrait for Editor {
                     &mut self.server_ctx,
                     &mut self.build_values,
                 );
-            } else if self.server_ctx.render_mode {
+            } else if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
                 // Draw Render Editor
                 RENDEREDITOR.write().unwrap().draw(
                     ui,
@@ -1071,7 +1071,6 @@ impl TheTrait for Editor {
                             }
                         }
                     }
-
                     if !self.server_ctx.game_mode
                         && self.server_ctx.get_map_context() != MapContext::Material
                     {

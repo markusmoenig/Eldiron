@@ -111,13 +111,6 @@ pub trait Tool: Send + Sync {
         if let Some(layout) = ui.get_hlayout("Game Tool Params") {
             layout.clear();
 
-            if server_ctx.render_mode {
-                server_ctx.render_mode = false;
-                if let Some(map) = project.get_map_mut(server_ctx) {
-                    map.terrain.mark_dirty();
-                }
-            }
-
             let mut source_switch = TheGroupButton::new(TheId::named("Map Helper Switch"));
             source_switch.add_text_status("Tiles".to_string(), "Pick and place tiles.".to_string());
             // source_switch.add_text_status(
@@ -141,14 +134,20 @@ pub trait Tool: Send + Sync {
             layout.add_widget(Box::new(source_switch));
 
             let mut spacer = TheSpacer::new(TheId::empty());
-            spacer.limiter_mut().set_max_width(80);
+            spacer.limiter_mut().set_max_width(40);
             layout.add_widget(Box::new(spacer));
 
-            let mut preview_switch = TheGroupButton::new(TheId::named("Preview Switch"));
-            preview_switch.add_text_status("Edit".to_string(), "Edit the map.".to_string());
-            preview_switch
-                .add_text_status("Preview".to_string(), "Preview the map in 3D.".to_string());
-            layout.add_widget(Box::new(preview_switch));
+            let mut view_switch = TheGroupButton::new(TheId::named("Editor View Switch"));
+            view_switch.add_text_status("2D".to_string(), "Edit the map in 2D.".to_string());
+            view_switch.add_text_status(
+                "Iso".to_string(),
+                "Edit the map in isometric view.".to_string(),
+            );
+            view_switch.add_text_status(
+                "FirstP".to_string(),
+                "Edit the map in first person view.".to_string(),
+            );
+            layout.add_widget(Box::new(view_switch));
 
             if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
                 ctx.ui.send(TheEvent::SetStackIndex(

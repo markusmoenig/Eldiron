@@ -36,12 +36,12 @@ impl CustomCamera {
         layout: &mut dyn TheHLayoutTrait,
         _ctx: &mut TheContext,
         _project: &mut Project,
-        server_ctx: &mut ServerContext,
+        _server_ctx: &mut ServerContext,
     ) {
         let mut camera_switch = TheGroupButton::new(TheId::named("Custom Camera Helper Switch"));
         camera_switch.add_text_status("FirstP".to_string(), str!("First Person camera."));
         camera_switch.add_text_status("Iso".to_string(), "Isometric camera.".to_string());
-        camera_switch.set_index(server_ctx.curr_custom_tool_camera as i32);
+        // camera_switch.set_index(server_ctx.curr_custom_tool_camera as i32);
         layout.add_widget(Box::new(camera_switch));
 
         layout.set_reverse_index(Some(1));
@@ -50,7 +50,7 @@ impl CustomCamera {
     /// Update client camera
     pub fn update_camera(&mut self, region: &mut Region, server_ctx: &mut ServerContext) {
         let mut rusterix = RUSTERIX.write().unwrap();
-        if server_ctx.curr_custom_tool_camera == CustomToolCamera::FirstP {
+        if server_ctx.editor_view_mode == EditorViewMode::FirstP {
             rusterix.client.camera_d3 = Box::new(self.firstp_camera.clone());
 
             let height = region
@@ -77,7 +77,7 @@ impl CustomCamera {
                 .client
                 .camera_d3
                 .set_parameter_vec3("center", center);
-        } else if server_ctx.curr_custom_tool_camera == CustomToolCamera::Isometric {
+        } else if server_ctx.editor_view_mode == EditorViewMode::Iso {
             rusterix.client.camera_d3 = Box::new(self.iso_camera.clone());
 
             rusterix
@@ -95,7 +95,7 @@ impl CustomCamera {
     pub fn update_action(&mut self, region: &mut Region, server_ctx: &mut ServerContext) {
         let speed = 0.2;
         let yaw_step = 4.0;
-        if server_ctx.curr_custom_tool_camera == CustomToolCamera::FirstP {
+        if server_ctx.editor_view_mode == EditorViewMode::FirstP {
             match &self.move_action {
                 Some(CustomMoveAction::Forward) => {
                     let (mut np, mut nl) = self.move_camera(
@@ -148,7 +148,7 @@ impl CustomCamera {
         server_ctx: &mut ServerContext,
         coord: &Vec2<i32>,
     ) {
-        if server_ctx.curr_custom_tool_camera == CustomToolCamera::FirstP {
+        if server_ctx.editor_view_mode == EditorViewMode::FirstP {
             let sens_yaw = 0.15; // deg per pixel horizontally
             let sens_pitch = 0.15; // deg per pixel vertically
             let max_pitch = 85.0; // don’t let camera flip
@@ -247,5 +247,9 @@ impl CustomCamera {
         } else {
             self.rotate_camera_pitch(old_pos, new_look, clamped - pitch)
         }
+    }
+
+    pub fn scroll_by(&mut self, coord: f32) {
+        self.iso_camera.zoom(coord);
     }
 }

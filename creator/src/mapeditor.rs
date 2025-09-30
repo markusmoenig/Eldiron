@@ -3,13 +3,6 @@ use crate::prelude::*;
 use rusterix::{PixelSource, Value};
 use vek::Vec2;
 
-#[derive(PartialEq, Clone, Copy, Debug)]
-pub enum EditorDrawMode {
-    Draw2D,
-    DrawMixed,
-    Draw3D,
-}
-
 pub struct MapEditor {
     curr_tile_uuid: Option<Uuid>,
 
