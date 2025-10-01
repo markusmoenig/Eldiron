@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use rusterix::Vertex;
+use rusterix::{HitInfo, Vertex};
 pub use rusterix::{Value, map::*};
 use theframework::prelude::*;
 
@@ -11,6 +11,13 @@ pub enum EditorViewMode {
 }
 
 impl EditorViewMode {
+    pub fn to_index(&self) -> i32 {
+        match self {
+            EditorViewMode::D2 => 0,
+            EditorViewMode::Iso => 1,
+            EditorViewMode::FirstP => 2,
+        }
+    }
     pub fn from_index(idx: i32) -> Self {
         match idx {
             1 => EditorViewMode::Iso,
@@ -231,8 +238,11 @@ pub struct ServerContext {
     /// Tile Preview Mode
     pub tile_preview_mode: bool,
 
-    /// The sector id of the current 3D editing geometry
-    pub curr_editing_geometry_sector_id: Option<u32>,
+    /// The map id of the current 3D geometry
+    pub curr_geometry_map_id: Option<Uuid>,
+
+    /// The current 3D hover hit on the overlay geometry
+    pub hitinfo: HitInfo,
 }
 
 impl Default for ServerContext {
@@ -300,7 +310,9 @@ impl ServerContext {
 
             tile_preview_mode: false,
 
-            curr_editing_geometry_sector_id: None,
+            curr_geometry_map_id: None,
+
+            hitinfo: HitInfo::default(),
         }
     }
 
@@ -814,5 +826,49 @@ impl ServerContext {
                 }
             }
         }
+    }
+
+    pub fn get_region_map_meta_data(
+        &self,
+        region: &Region,
+        map_id: Uuid,
+    ) -> (Vec3<f32>, Option<(Vec2<f32>, Vec2<f32>)>) {
+        // Default: treat as a regular (non-profile) map with Y-up normal.
+        let mut rc = (Vec3::unit_y(), None);
+
+        // If we're on the region's main map, keep Y-up and return.
+        if region.map.id == map_id {
+            return rc;
+        }
+
+        // Otherwise, check if this map_id matches a linedef's profile map.
+        for linedef in &region.map.linedefs {
+            if linedef.profile.id == map_id {
+                // Use the linedef's base vertices (in region/map space) as the 2D points spanning the wall.
+                if let (Some(start_v), Some(end_v)) = (
+                    region.map.find_vertex(linedef.start_vertex),
+                    region.map.find_vertex(linedef.end_vertex),
+                ) {
+                    let p0 = start_v.as_vec2();
+                    let p1 = end_v.as_vec2();
+
+                    // Direction along the wall in XZ-plane (map uses X/Y → world X/Z).
+                    let dir = p1 - p0;
+                    let len = dir.magnitude();
+                    if len > 0.0 {
+                        // Perpendicular (right-hand) in map plane becomes world-space horizontal normal.
+                        let perp = Vec2::new(dir.y, -dir.x) / len; // normalized perpendicular
+                        rc.0 = Vec3::new(perp.x, 0.0, perp.y);
+                    }
+
+                    // Also return the 2D points spanning the wall as metadata.
+                    rc.1 = Some((p0, p1));
+                }
+
+                return rc;
+            }
+        }
+
+        rc
     }
 }

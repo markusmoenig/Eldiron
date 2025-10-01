@@ -1,5 +1,7 @@
+use crate::editor::RUSTERIX;
 pub use crate::prelude::*;
 use rusterix::Assets;
+use rusterix::HitInfo;
 
 pub mod code;
 pub mod config;
@@ -147,6 +149,7 @@ pub trait Tool: Send + Sync {
                 "FirstP".to_string(),
                 "Edit the map in first person view.".to_string(),
             );
+            view_switch.set_index(server_ctx.editor_view_mode.to_index());
             layout.add_widget(Box::new(view_switch));
 
             if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
@@ -191,5 +194,23 @@ pub trait Tool: Send + Sync {
 
             layout.set_reverse_index(Some(2));
         }
+    }
+
+    /// Get the geometry hit at the given screen position.
+    fn get_geometry_hit(&self, render_view: &dyn TheRenderViewTrait, coord: Vec2<i32>) -> HitInfo {
+        let dim = *render_view.dim();
+
+        let screen_uv = Vec2::new(
+            coord.x as f32 / dim.width as f32,
+            1.0 - coord.y as f32 / dim.height as f32,
+        );
+        let screen_size = Vec2::new(dim.width as f32, dim.height as f32);
+        let ray = RUSTERIX.read().unwrap().client.camera_d3.create_ray(
+            screen_uv,
+            screen_size,
+            Vec2::one(),
+        );
+
+        RUSTERIX.read().unwrap().client.scene.intersect(&ray)
     }
 }

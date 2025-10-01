@@ -1,4 +1,4 @@
-use crate::editor::{CUSTOMCAMERA, RUSTERIX};
+use crate::editor::{CUSTOMCAMERA, RUSTERIX, TOOLLIST};
 use crate::prelude::*;
 use shared::prelude::*;
 
@@ -55,7 +55,7 @@ impl RenderEditor {
     pub fn draw(
         &mut self,
         ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
         _build_values: &mut ValueContainer,
@@ -98,14 +98,13 @@ impl RenderEditor {
                     self.accum_buffer.convert_to_u8(buffer.pixels_mut());
                 }
 
-                /*
                 TOOLLIST.write().unwrap().draw_hud(
                     buffer,
                     &mut region.map,
                     ctx,
                     server_ctx,
                     &rusterix.assets,
-                );*/
+                );
             }
         }
     }

@@ -359,36 +359,56 @@ impl Tool for LinedefTool {
                 }
 
                 if let Some(render_view) = ui.get_render_view("PolyView") {
-                    let dim = *render_view.dim();
-                    if !self.rectangle_mode {
-                        //map.curr_mouse_pos = Some(Vec2::new(coord.x as f32, coord.y as f32));
-                        map.curr_mouse_pos = Some(server_ctx.local_to_map_grid(
+                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                        let dim = *render_view.dim();
+                        if !self.rectangle_mode {
+                            //map.curr_mouse_pos = Some(Vec2::new(coord.x as f32, coord.y as f32));
+                            map.curr_mouse_pos = Some(server_ctx.local_to_map_grid(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                Vec2::new(coord.x as f32, coord.y as f32),
+                                map,
+                                map.subdivisions,
+                            ));
+                        }
+                        let mut hover = server_ctx.geometry_at(
+                            Vec2::new(dim.width as f32, dim.height as f32),
+                            Vec2::new(coord.x as f32, coord.y as f32),
+                            map,
+                        );
+                        hover.0 = None;
+                        hover.2 = None;
+
+                        server_ctx.hover = hover;
+                        let cp = server_ctx.local_to_map_grid(
                             Vec2::new(dim.width as f32, dim.height as f32),
                             Vec2::new(coord.x as f32, coord.y as f32),
                             map,
                             map.subdivisions,
+                        );
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Cursor Pos Changed"),
+                            TheValue::Float2(cp),
                         ));
-                    }
-                    let mut hover = server_ctx.geometry_at(
-                        Vec2::new(dim.width as f32, dim.height as f32),
-                        Vec2::new(coord.x as f32, coord.y as f32),
-                        map,
-                    );
-                    hover.0 = None;
-                    hover.2 = None;
+                        server_ctx.hover_cursor = Some(cp);
+                    } else {
+                        if server_ctx.hitinfo.has_hit() {
+                            match server_ctx.hitinfo.geometry_source {
+                                GeometrySource::Linedef(id) => {
+                                    server_ctx.hover = (None, Some(id), None);
+                                }
+                                _ => {
+                                    server_ctx.hover = (None, None, None);
+                                }
+                            }
+                        }
 
-                    server_ctx.hover = hover;
-                    let cp = server_ctx.local_to_map_grid(
-                        Vec2::new(dim.width as f32, dim.height as f32),
-                        Vec2::new(coord.x as f32, coord.y as f32),
-                        map,
-                        map.subdivisions,
-                    );
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Cursor Pos Changed"),
-                        TheValue::Float2(cp),
-                    ));
-                    server_ctx.hover_cursor = Some(cp);
+                        if let Some(cp) = server_ctx.hover_cursor {
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Cursor Pos Changed"),
+                                TheValue::Float2(cp),
+                            ));
+                        }
+                    }
                 }
             }
             MapDelete => {

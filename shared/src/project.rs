@@ -235,15 +235,7 @@ impl Project {
             } else if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
                 return Some(&region.map);
             }
-        }
-        // else if ctx.get_map_context() == MapContext::Model {
-        //     if let Some(model_id) = ctx.curr_model_id {
-        //         if let Some(model) = self.models.get(&model_id) {
-        //             return Some(model);
-        //         }
-        //     }
-        // }
-        else if ctx.get_map_context() == MapContext::Screen {
+        } else if ctx.get_map_context() == MapContext::Screen {
             if let Some(screen) = self.screens.get(&ctx.curr_screen) {
                 return Some(&screen.map);
             }
@@ -276,15 +268,100 @@ impl Project {
             } else if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
                 return Some(&mut region.map);
             }
+        } else if ctx.get_map_context() == MapContext::Screen {
+            if let Some(screen) = self.screens.get_mut(&ctx.curr_screen) {
+                return Some(&mut screen.map);
+            }
+        } else if ctx.get_map_context() == MapContext::Character {
+            if let ContentContext::CharacterTemplate(id) = ctx.curr_character {
+                if let Some(character) = self.characters.get_mut(&id) {
+                    return Some(&mut character.map);
+                }
+            }
+        } else if ctx.get_map_context() == MapContext::Item {
+            if let ContentContext::ItemTemplate(id) = ctx.curr_item {
+                if let Some(item) = self.items.get_mut(&id) {
+                    return Some(&mut item.map);
+                }
+            }
         }
-        // else if ctx.get_map_context() == MapContext::Model {
-        //     if let Some(model_id) = ctx.curr_model_id {
-        //         if let Some(model) = self.models.get_mut(&model_id) {
-        //             return Some(model);
-        //         }
-        //     }
-        // }
-        else if ctx.get_map_context() == MapContext::Screen {
+        None
+    }
+
+    /// Get the map of the current context.
+    pub fn get_map_hover(&self, ctx: &ServerContext) -> Option<&Map> {
+        if ctx.get_map_context() == MapContext::Region {
+            if ctx.editor_view_mode != EditorViewMode::D2 {
+                if let Some(map_id) = ctx.curr_geometry_map_id {
+                    if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
+                        if map_id == region.map.id {
+                            return Some(&region.map);
+                        }
+                        for linedef in &region.map.linedefs {
+                            if linedef.profile.id == map_id {
+                                return Some(&linedef.profile);
+                            }
+                        }
+                    }
+                }
+            } else if let Some(profile_id) = ctx.profile_view {
+                if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
+                    if let Some(linedef) = region.map.find_linedef(profile_id) {
+                        return Some(&linedef.profile);
+                    }
+                }
+                return None;
+            } else if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
+                return Some(&region.map);
+            }
+        } else if ctx.get_map_context() == MapContext::Screen {
+            if let Some(screen) = self.screens.get(&ctx.curr_screen) {
+                return Some(&screen.map);
+            }
+        } else if ctx.get_map_context() == MapContext::Character {
+            if let ContentContext::CharacterTemplate(id) = ctx.curr_character {
+                if let Some(character) = self.characters.get(&id) {
+                    return Some(&character.map);
+                }
+            }
+        } else if ctx.get_map_context() == MapContext::Item {
+            if let ContentContext::ItemTemplate(id) = ctx.curr_item {
+                if let Some(item) = self.items.get(&id) {
+                    return Some(&item.map);
+                }
+            }
+        }
+        None
+    }
+
+    /// Get the mutable map of the current context.
+    pub fn get_map_hover_mut(&mut self, ctx: &ServerContext) -> Option<&mut Map> {
+        if ctx.get_map_context() == MapContext::Region {
+            if ctx.editor_view_mode != EditorViewMode::D2 {
+                if let Some(map_id) = ctx.curr_geometry_map_id {
+                    if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region)
+                    {
+                        if map_id == region.map.id {
+                            return Some(&mut region.map);
+                        }
+                        for linedef in &mut region.map.linedefs {
+                            if linedef.profile.id == map_id {
+                                return Some(&mut linedef.profile);
+                            }
+                        }
+                    }
+                }
+            } else if let Some(profile_id) = ctx.profile_view {
+                if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
+                    if let Some(linedef) = region.map.find_linedef_mut(profile_id) {
+                        return Some(&mut linedef.profile);
+                    }
+                }
+                return None;
+            } else if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
+                return Some(&mut region.map);
+            }
+        } else if ctx.get_map_context() == MapContext::Screen {
             if let Some(screen) = self.screens.get_mut(&ctx.curr_screen) {
                 return Some(&mut screen.map);
             }
