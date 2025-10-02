@@ -105,7 +105,10 @@ impl RegionUndoAtom {
                     ));
 
                     if !self.only_selection_changed() && region_map_id == map.id {
-                        SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Render SceneManager Map"),
+                            TheValue::Empty,
+                        ));
                     }
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
                 }
@@ -137,7 +140,10 @@ impl RegionUndoAtom {
                         shadergridfx.redraw(ui, ctx);
                         shadergridfx.show_settings(ui, ctx);
                         if !self.only_selection_changed() && region_map_id == *map_id {
-                            SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Render SceneManager Map"),
+                                TheValue::Empty,
+                            ));
                         }
                         crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     }
@@ -175,7 +181,10 @@ impl RegionUndoAtom {
                     ));
 
                     if !self.only_selection_changed() && region_map_id == map.id {
-                        SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Render SceneManager Map"),
+                            TheValue::Empty,
+                        ));
                     }
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
                 }
@@ -207,7 +216,10 @@ impl RegionUndoAtom {
                         shadergridfx.redraw(ui, ctx);
                         shadergridfx.show_settings(ui, ctx);
                         if !self.only_selection_changed() && region_map_id == map.id {
-                            SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Render SceneManager Map"),
+                                TheValue::Empty,
+                            ));
                         }
                         crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     }

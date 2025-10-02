@@ -288,19 +288,20 @@ impl Project {
         None
     }
 
+    /*
     /// Get the map of the current context.
     pub fn get_map_hover(&self, ctx: &ServerContext) -> Option<&Map> {
         if ctx.get_map_context() == MapContext::Region {
             if ctx.editor_view_mode != EditorViewMode::D2 {
-                if let Some(map_id) = ctx.curr_geometry_map_id {
-                    if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
-                        if map_id == region.map.id {
-                            return Some(&region.map);
-                        }
-                        for linedef in &region.map.linedefs {
-                            if linedef.profile.id == map_id {
-                                return Some(&linedef.profile);
-                            }
+                if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
+                    if ctx.curr_geometry_map_id.is_none()
+                        || ctx.curr_geometry_map_id == Some(region.map.id)
+                    {
+                        return Some(&region.map);
+                    }
+                    for linedef in &region.map.linedefs {
+                        if Some(linedef.profile.id) == ctx.curr_geometry_map_id {
+                            return Some(&linedef.profile);
                         }
                     }
                 }
@@ -338,16 +339,15 @@ impl Project {
     pub fn get_map_hover_mut(&mut self, ctx: &ServerContext) -> Option<&mut Map> {
         if ctx.get_map_context() == MapContext::Region {
             if ctx.editor_view_mode != EditorViewMode::D2 {
-                if let Some(map_id) = ctx.curr_geometry_map_id {
-                    if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region)
+                if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
+                    if ctx.curr_geometry_map_id.is_none()
+                        || ctx.curr_geometry_map_id == Some(region.map.id)
                     {
-                        if map_id == region.map.id {
-                            return Some(&mut region.map);
-                        }
-                        for linedef in &mut region.map.linedefs {
-                            if linedef.profile.id == map_id {
-                                return Some(&mut linedef.profile);
-                            }
+                        return Some(&mut region.map);
+                    }
+                    for linedef in &mut region.map.linedefs {
+                        if Some(linedef.profile.id) == ctx.curr_geometry_map_id {
+                            return Some(&mut linedef.profile);
                         }
                     }
                 }
@@ -379,7 +379,7 @@ impl Project {
             }
         }
         None
-    }
+    }*/
 
     /// Add Screen
     pub fn add_screen(&mut self, screen: Screen) {

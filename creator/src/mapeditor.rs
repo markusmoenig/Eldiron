@@ -1,4 +1,4 @@
-use crate::editor::{CODEEDITOR, NODEEDITOR, RUSTERIX, SCENEMANAGER, SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{CODEEDITOR, NODEEDITOR, RUSTERIX, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::{PixelSource, Value};
 use vek::Vec2;
@@ -440,7 +440,10 @@ impl MapEditor {
                             if changed {
                                 self.add_map_undo(map, prev, ctx, server_ctx);
                                 if server_ctx.get_map_context() == MapContext::Region {
-                                    SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Render SceneManager Map"),
+                                        TheValue::Empty,
+                                    ));
                                 }
                             }
                         }
@@ -510,7 +513,10 @@ impl MapEditor {
                             if changed {
                                 self.add_map_undo(map, prev, ctx, server_ctx);
                                 if server_ctx.get_map_context() == MapContext::Region {
-                                    SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Render SceneManager Map"),
+                                        TheValue::Empty,
+                                    ));
                                 }
                             }
                         }
@@ -547,7 +553,10 @@ impl MapEditor {
                                     );
                                     self.add_map_undo(map, prev, ctx, server_ctx);
                                     if server_ctx.get_map_context() == MapContext::Region {
-                                        SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Render SceneManager Map"),
+                                            TheValue::Empty,
+                                        ));
                                     }
                                 }
                             }
@@ -570,7 +579,10 @@ impl MapEditor {
                                     );
                                     self.add_map_undo(map, prev, ctx, server_ctx);
                                     if server_ctx.get_map_context() == MapContext::Region {
-                                        SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Render SceneManager Map"),
+                                            TheValue::Empty,
+                                        ));
                                     }
                                 }
                             }
@@ -655,7 +667,10 @@ impl MapEditor {
                                     );
                                     self.add_map_undo(map, prev, ctx, server_ctx);
                                     if server_ctx.get_map_context() == MapContext::Region {
-                                        SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Render SceneManager Map"),
+                                            TheValue::Empty,
+                                        ));
                                     }
                                 }
                             }
@@ -677,7 +692,10 @@ impl MapEditor {
                                     );
                                     self.add_map_undo(map, prev, ctx, server_ctx);
                                     if server_ctx.get_map_context() == MapContext::Region {
-                                        SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Render SceneManager Map"),
+                                            TheValue::Empty,
+                                        ));
                                     }
                                 }
                             }

@@ -1,6 +1,4 @@
-use crate::editor::{
-    CODEEDITOR, CUSTOMCAMERA, NODEEDITOR, RUSTERIX, SCENEMANAGER, SHAPEPICKER, UNDOMANAGER,
-};
+use crate::editor::{CODEEDITOR, CUSTOMCAMERA, NODEEDITOR, RUSTERIX, SHAPEPICKER, UNDOMANAGER};
 use crate::prelude::*;
 pub use crate::tools::{
     config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, render::RenderTool,
@@ -98,10 +96,7 @@ impl ToolList {
                     ctx,
                 );
                 if !only_selection_changed {
-                    // Reset the background renderer
-                    if let Some(map) = project.get_map(server_ctx) {
-                        SCENEMANAGER.write().unwrap().set_map(map.clone());
-                    }
+                    crate::utils::scenemanager_render_map(project, server_ctx);
                 }
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
@@ -213,7 +208,21 @@ impl ToolList {
         match event {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Editor View Switch" {
-                    server_ctx.editor_view_mode = EditorViewMode::from_index(*index as i32)
+                    server_ctx.editor_view_mode = EditorViewMode::from_index(*index as i32);
+                    // if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    // Set the wall profile to the selected map
+                    // if let Some(curr_geometry_map_id) = server_ctx.curr_geometry_map_id {
+                    //     if let Some(region) = project.get_region_ctx(&server_ctx) {
+                    //         for linedef in &region.map.linedefs {
+                    //             if linedef.profile.id == curr_geometry_map_id {
+                    //                 server_ctx.profile_view = Some(linedef.id);
+                    //             }
+                    //         }
+                    //     }
+                    // } else {
+                    //     server_ctx.profile_view = None;
+                    // }
+                    // }
                 } else if id.name == "Map Helper Switch" {
                     let was_shape_picker =
                         server_ctx.curr_map_tool_helper == MapToolHelper::ShapePicker;
@@ -266,7 +275,7 @@ impl ToolList {
             TheEvent::KeyDown(TheValue::Char(c)) => {
                 if let Some(id) = &ctx.ui.focus {
                     if id.name == "PolyView" {
-                        if let Some(map) = project.get_map_hover_mut(server_ctx) {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
                             if *c == ',' {
                                 map.grid_size -= 2.0;
                                 return false;
@@ -377,7 +386,7 @@ impl ToolList {
                             return false;
                         }
                         if *code == TheKeyCode::Escape {
-                            if let Some(map) = project.get_map_hover_mut(server_ctx) {
+                            if let Some(map) = project.get_map_mut(server_ctx) {
                                 if server_ctx.paste_clipboard.is_some() {
                                     server_ctx.paste_clipboard = None;
                                     return true;
@@ -398,7 +407,7 @@ impl ToolList {
                                 }
                                 self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                                 if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                    self.update_hover_geometry_3d(project, server_ctx);
+                                    self.update_geometry_overlay_3d(project, server_ctx);
                                 }
                             }
                         } else if *code == TheKeyCode::Delete {
@@ -428,7 +437,7 @@ impl ToolList {
                                     return false;
                                 }
                             }
-                            if let Some(map) = project.get_map_hover_mut(server_ctx) {
+                            if let Some(map) = project.get_map_mut(server_ctx) {
                                 let undo_atom = self.get_current_tool().map_event(
                                     MapEvent::MapDelete,
                                     ui,
@@ -444,7 +453,7 @@ impl ToolList {
                                 }
                                 self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                                 if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                    self.update_hover_geometry_3d(project, server_ctx);
+                                    self.update_geometry_overlay_3d(project, server_ctx);
                                 }
                             }
                         }
@@ -632,7 +641,7 @@ impl ToolList {
                             }
                         }
 
-                        if let Some(map) = project.get_map_hover_mut(server_ctx) {
+                        if let Some(map) = project.get_map_mut(server_ctx) {
                             if coord.y > 20 {
                                 let undo_atom = self.get_current_tool().map_event(
                                     MapEvent::MapClicked(*coord),
@@ -650,7 +659,7 @@ impl ToolList {
                                 self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
 
                                 if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                    self.update_hover_geometry_3d(project, server_ctx);
+                                    self.update_geometry_overlay_3d(project, server_ctx);
                                 }
                             }
                             redraw = true;
@@ -788,7 +797,7 @@ impl ToolList {
             }
             TheEvent::RenderViewUp(id, coord) => {
                 if id.name == "PolyView" {
-                    if let Some(map) = project.get_map_hover_mut(server_ctx) {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
                         if (self.item_click_selected || self.char_click_selected)
                             && self.drag_changed
                         {
@@ -822,7 +831,7 @@ impl ToolList {
                         }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                         if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                            self.update_hover_geometry_3d(project, server_ctx);
+                            self.update_geometry_overlay_3d(project, server_ctx);
                         }
                     }
                     redraw = true;
@@ -835,7 +844,6 @@ impl ToolList {
                             server_ctx.hitinfo = self
                                 .get_current_tool()
                                 .get_geometry_hit(render_view, *coord);
-                            server_ctx.curr_geometry_map_id = Some(server_ctx.hitinfo.map_id);
                             // println!(
                             //     "{} {:?}",
                             //     server_ctx.hitinfo.map_id, server_ctx.hitinfo.geometry_source
@@ -848,7 +856,7 @@ impl ToolList {
                             server_ctx.hover_cursor = pt;
                         }
                     }
-                    if let Some(map) = project.get_map_hover_mut(server_ctx) {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
                         let undo_atom = self.get_current_tool().map_event(
                             MapEvent::MapHover(*coord),
                             ui,
@@ -865,7 +873,7 @@ impl ToolList {
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
 
                         if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                            self.update_hover_geometry_3d(project, server_ctx);
+                            self.update_geometry_overlay_3d(project, server_ctx);
                         }
                     }
                     redraw = true;
@@ -1208,219 +1216,218 @@ impl ToolList {
         None
     }
 
-    /// The sector hovered over in 3D has changed, build the editing geometry.
-    pub fn update_hover_geometry_3d(
+    /// Update the overlay geometry.
+    pub fn update_geometry_overlay_3d(
         &mut self,
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
+        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+            return;
+        }
+
         let mut rusterix = RUSTERIX.write().unwrap();
         rusterix.client.scene.d3_overlay.clear();
         let thickness = 0.15;
 
-        if let Some(map_id) = server_ctx.curr_geometry_map_id {
-            if let Some(region) = project.get_region_ctx(&server_ctx) {
-                let (normal, span) = server_ctx.get_region_map_meta_data(region, map_id);
+        if let Some(region) = project.get_region_ctx(&server_ctx) {
+            let (normal, span) = server_ctx.get_region_map_meta_data(region);
 
-                // Meta provides world-space normal and the span (region 2D) for wall profiles
-                let nudge = normal * 0.01; // avoid z-fighting
+            // Meta provides world-space normal and the span (region 2D) for wall profiles
+            let nudge = normal * 0.01; // avoid z-fighting
 
-                // Helper to draw a single world-space line into the overlay
-                let mut push_line = |geom_src: GeometrySource,
-                                     a: Vec3<f32>,
-                                     b: Vec3<f32>,
-                                     map_id: Uuid,
-                                     selected: bool| {
-                    if selected {
-                        let mut batch: rusterix::Batch3D = rusterix::Batch3D::empty()
-                            .source(rusterix::PixelSource::Pixel([187, 122, 208, 255]))
-                            .map_id(map_id)
-                            .geometry_source(geom_src);
-                        batch.add_line(a, b, thickness, normal);
-                        rusterix.client.scene.d3_overlay.push(batch);
-                    } else {
-                        let mut batch: rusterix::Batch3D = rusterix::Batch3D::empty()
-                            .source(rusterix::PixelSource::Pixel(WHITE))
-                            .map_id(map_id)
-                            .geometry_source(geom_src);
-                        batch.add_line(a, b, thickness, normal);
-                        rusterix.client.scene.d3_overlay.push(batch);
-                    }
-                };
-
-                // If meta has no span, this is a floor map: draw on the floor using the provided normal.
-                if span.is_none() {
-                    let map = &region.map;
-                    for sector in &map.sectors {
-                        let sector_is_selected = map.selected_sectors.contains(&sector.id);
-                        for linedef_id in &sector.linedefs {
-                            if let Some(linedef) = map.find_linedef(*linedef_id) {
-                                if let (Some(start), Some(end)) = (
-                                    map.find_vertex(linedef.start_vertex),
-                                    map.find_vertex(linedef.end_vertex),
-                                ) {
-                                    let mut line_is_selected = false;
-                                    if server_ctx.curr_map_tool_type == MapToolType::Linedef
-                                        || server_ctx.curr_map_tool_type == MapToolType::Selection
-                                    {
-                                        if map.selected_linedefs.contains(linedef_id)
-                                            || server_ctx.hover.1 == Some(*linedef_id)
-                                        {
-                                            line_is_selected = true;
-                                        }
-                                    } else if server_ctx.curr_map_tool_type == MapToolType::Sector
-                                        || server_ctx.curr_map_tool_type == MapToolType::Selection
-                                    {
-                                        if sector_is_selected
-                                            || server_ctx.hover.2 == Some(sector.id)
-                                        {
-                                            line_is_selected = true;
-                                        }
-                                    }
-                                    let a = Vec3::new(start.x, 0.0, start.y) + nudge;
-                                    let b = Vec3::new(end.x, 0.0, end.y) + nudge;
-                                    push_line(
-                                        GeometrySource::Linedef(*linedef_id),
-                                        a,
-                                        b,
-                                        map.id,
-                                        line_is_selected,
-                                    );
-                                }
-                            }
-                        }
-                    }
-                    return;
-                }
-
-                // Otherwise, we're in a PROFILE map context. Find the owning linedef.
-                let mut owner_linedef_opt = None;
-                for ld in &region.map.linedefs {
-                    if ld.profile.id == map_id {
-                        owner_linedef_opt = Some(ld);
-                        break;
-                    }
-                }
-                if owner_linedef_opt.is_none() {
-                    return;
-                }
-                let linedef = owner_linedef_opt.unwrap();
-
-                // Span and basis on the region map (XZ plane)
-                let (p0, p1) = span.unwrap();
-
-                let delta = p1 - p0;
-                let len = delta.magnitude();
-                if len <= 1e-6 {
-                    return;
-                }
-                let dir = delta / len; // along wall (world XZ)
-
-                // Base elevation from the front sector (if any)
-                let base_elevation = if let Some(front_id) = linedef.front_sector {
-                    if let Some(front) = region.map.sectors.get(front_id as usize) {
-                        front.properties.get_float_default("floor_height", 0.0)
-                    } else {
-                        0.0
-                    }
+            // Helper to draw a single world-space line into the overlay
+            let mut push_line = |geom_src: GeometrySource,
+                                 a: Vec3<f32>,
+                                 b: Vec3<f32>,
+                                 profile_id: Option<u32>,
+                                 selected: bool| {
+                if selected {
+                    let mut batch: rusterix::Batch3D = rusterix::Batch3D::empty()
+                        .source(rusterix::PixelSource::Pixel([187, 122, 208, 255]))
+                        .geometry_source(geom_src);
+                    batch.profile_id = profile_id;
+                    batch.add_line(a, b, thickness, normal);
+                    rusterix.client.scene.d3_overlay.push(batch);
                 } else {
-                    0.0
-                };
-
-                // Optional slight inward offset to prefer front
-                let inward = Vec2::new(-dir.y, dir.x);
-                let eps = linedef
-                    .properties
-                    .get_float("profile_wall_epsilon")
-                    .unwrap_or(0.001);
-                let offset2 = if linedef.front_sector.is_some() {
-                    inward * eps
-                } else if linedef.back_sector.is_some() {
-                    inward * -eps
-                } else {
-                    Vec2::new(0.0, 0.0)
-                };
-
-                // Determine profile left/right anchors from profile vertices
-                let profile = &linedef.profile;
-                let mut left_x = f32::INFINITY;
-                let mut right_x = f32::NEG_INFINITY;
-                for v in &profile.vertices {
-                    if let Some(id) = v.properties.get_int("profile_id") {
-                        match id {
-                            1 | 2 => {
-                                left_x = left_x.min(v.x);
-                            } // left
-                            0 | 3 => {
-                                right_x = right_x.max(v.x);
-                            } // right
-                            _ => {}
-                        }
-                    }
+                    let mut batch: rusterix::Batch3D = rusterix::Batch3D::empty()
+                        .source(rusterix::PixelSource::Pixel(WHITE))
+                        .geometry_source(geom_src);
+                    batch.profile_id = profile_id;
+                    batch.add_line(a, b, thickness, normal);
+                    rusterix.client.scene.d3_overlay.push(batch);
                 }
-                if !left_x.is_finite() || !right_x.is_finite() {
-                    left_x = f32::INFINITY;
-                    right_x = f32::NEG_INFINITY;
-                    for v in &profile.vertices {
-                        left_x = left_x.min(v.x);
-                        right_x = right_x.max(v.x);
-                    }
-                }
-                let denom = (right_x - left_x).max(1e-6);
+            };
 
-                // Mapper: profile (x,y) -> world Vec3 on wall plane
-                let map_profile_point = |x: f32, y: f32| -> Vec3<f32> {
-                    let mut t = (x - left_x) / denom; // 0..1 across width
-                    if t < 0.0 {
-                        t = 0.0;
-                    } else if t > 1.0 {
-                        t = 1.0;
-                    }
-                    let along = t * len;
-                    let pos2 = p0 + dir * along + offset2; // world XZ
-                    Vec3::new(pos2.x, base_elevation + y, pos2.y) + nudge
-                };
-
-                // Build overlay from the **profile** sector geometry (lines on wall plane)
-                // if let Some(psector) = profile.find_sector(sector.id) {
-                for psector in &profile.sectors {
-                    let sector_is_selected = profile.selected_sectors.contains(&psector.id);
-                    for plinedef_id in &psector.linedefs {
-                        if let Some(plinedef) = profile.find_linedef(*plinedef_id) {
-                            if let (Some(pv0), Some(pv1)) = (
-                                profile.find_vertex(plinedef.start_vertex),
-                                profile.find_vertex(plinedef.end_vertex),
+            // If meta has no span, this is a floor map: draw on the floor using the provided normal.
+            if span.is_none() {
+                let map = &region.map;
+                for sector in &map.sectors {
+                    let sector_is_selected = map.selected_sectors.contains(&sector.id);
+                    for linedef_id in &sector.linedefs {
+                        if let Some(linedef) = map.find_linedef(*linedef_id) {
+                            if let (Some(start), Some(end)) = (
+                                map.find_vertex(linedef.start_vertex),
+                                map.find_vertex(linedef.end_vertex),
                             ) {
-                                let start3 = map_profile_point(pv0.x, pv0.y);
-                                let end3 = map_profile_point(pv1.x, pv1.y);
-
                                 let mut line_is_selected = false;
                                 if server_ctx.curr_map_tool_type == MapToolType::Linedef
                                     || server_ctx.curr_map_tool_type == MapToolType::Selection
                                 {
-                                    if profile.selected_linedefs.contains(plinedef_id)
-                                        || server_ctx.hover.1 == Some(*plinedef_id)
+                                    if map.selected_linedefs.contains(linedef_id)
+                                        || server_ctx.hover.1 == Some(*linedef_id)
                                     {
                                         line_is_selected = true;
                                     }
                                 } else if server_ctx.curr_map_tool_type == MapToolType::Sector
                                     || server_ctx.curr_map_tool_type == MapToolType::Selection
                                 {
-                                    if sector_is_selected || server_ctx.hover.2 == Some(psector.id)
-                                    {
+                                    if sector_is_selected || server_ctx.hover.2 == Some(sector.id) {
                                         line_is_selected = true;
                                     }
                                 }
-
-                                // Tag geometry source with the profile linedef id
+                                let a = Vec3::new(start.x, 0.0, start.y) + nudge;
+                                let b = Vec3::new(end.x, 0.0, end.y) + nudge;
                                 push_line(
-                                    GeometrySource::Linedef(*plinedef_id),
-                                    start3,
-                                    end3,
-                                    profile.id,
+                                    GeometrySource::Linedef(*linedef_id),
+                                    a,
+                                    b,
+                                    None,
                                     line_is_selected,
                                 );
                             }
+                        }
+                    }
+                }
+                return;
+            }
+
+            // Otherwise, we're in a PROFILE map context. Find the owning linedef.
+            let mut owner_linedef_opt = None;
+            for ld in &region.map.linedefs {
+                if Some(ld.id) == server_ctx.profile_view {
+                    owner_linedef_opt = Some(ld);
+                    break;
+                }
+            }
+            if owner_linedef_opt.is_none() {
+                return;
+            }
+            let linedef = owner_linedef_opt.unwrap();
+
+            // Span and basis on the region map (XZ plane)
+            let (p0, p1) = span.unwrap();
+
+            let delta = p1 - p0;
+            let len = delta.magnitude();
+            if len <= 1e-6 {
+                return;
+            }
+            let dir = delta / len; // along wall (world XZ)
+
+            // Base elevation from the front sector (if any)
+            let base_elevation = if let Some(front_id) = linedef.front_sector {
+                if let Some(front) = region.map.sectors.get(front_id as usize) {
+                    front.properties.get_float_default("floor_height", 0.0)
+                } else {
+                    0.0
+                }
+            } else {
+                0.0
+            };
+
+            // Optional slight inward offset to prefer front
+            let inward = Vec2::new(-dir.y, dir.x);
+            let eps = linedef
+                .properties
+                .get_float("profile_wall_epsilon")
+                .unwrap_or(0.001);
+            let offset2 = if linedef.front_sector.is_some() {
+                inward * eps
+            } else if linedef.back_sector.is_some() {
+                inward * -eps
+            } else {
+                Vec2::new(0.0, 0.0)
+            };
+
+            // Determine profile left/right anchors from profile vertices
+            let profile = &linedef.profile;
+            let mut left_x = f32::INFINITY;
+            let mut right_x = f32::NEG_INFINITY;
+            for v in &profile.vertices {
+                if let Some(id) = v.properties.get_int("profile_id") {
+                    match id {
+                        1 | 2 => {
+                            left_x = left_x.min(v.x);
+                        } // left
+                        0 | 3 => {
+                            right_x = right_x.max(v.x);
+                        } // right
+                        _ => {}
+                    }
+                }
+            }
+            if !left_x.is_finite() || !right_x.is_finite() {
+                left_x = f32::INFINITY;
+                right_x = f32::NEG_INFINITY;
+                for v in &profile.vertices {
+                    left_x = left_x.min(v.x);
+                    right_x = right_x.max(v.x);
+                }
+            }
+            let denom = (right_x - left_x).max(1e-6);
+
+            // Mapper: profile (x,y) -> world Vec3 on wall plane
+            let map_profile_point = |x: f32, y: f32| -> Vec3<f32> {
+                let mut t = (x - left_x) / denom; // 0..1 across width
+                if t < 0.0 {
+                    t = 0.0;
+                } else if t > 1.0 {
+                    t = 1.0;
+                }
+                let along = t * len;
+                let pos2 = p0 + dir * along + offset2; // world XZ
+                Vec3::new(pos2.x, base_elevation + y, pos2.y) + nudge
+            };
+
+            // Build overlay from the **profile** sector geometry (lines on wall plane)
+            // if let Some(psector) = profile.find_sector(sector.id) {
+            for psector in &profile.sectors {
+                let sector_is_selected = profile.selected_sectors.contains(&psector.id);
+                for plinedef_id in &psector.linedefs {
+                    if let Some(plinedef) = profile.find_linedef(*plinedef_id) {
+                        if let (Some(pv0), Some(pv1)) = (
+                            profile.find_vertex(plinedef.start_vertex),
+                            profile.find_vertex(plinedef.end_vertex),
+                        ) {
+                            let start3 = map_profile_point(pv0.x, pv0.y);
+                            let end3 = map_profile_point(pv1.x, pv1.y);
+
+                            let mut line_is_selected = false;
+                            if server_ctx.curr_map_tool_type == MapToolType::Linedef
+                                || server_ctx.curr_map_tool_type == MapToolType::Selection
+                            {
+                                if profile.selected_linedefs.contains(plinedef_id)
+                                    || server_ctx.hover.1 == Some(*plinedef_id)
+                                {
+                                    line_is_selected = true;
+                                }
+                            } else if server_ctx.curr_map_tool_type == MapToolType::Sector
+                                || server_ctx.curr_map_tool_type == MapToolType::Selection
+                            {
+                                if sector_is_selected || server_ctx.hover.2 == Some(psector.id) {
+                                    line_is_selected = true;
+                                }
+                            }
+
+                            // Tag geometry source with the profile linedef id
+                            push_line(
+                                GeometrySource::Linedef(*plinedef_id),
+                                start3,
+                                end3,
+                                Some(*plinedef_id),
+                                line_is_selected,
+                            );
                         }
                     }
                 }
@@ -1440,95 +1447,93 @@ impl ToolList {
         let mut rusterix = RUSTERIX.write().unwrap();
         rusterix.client.scene.d3_overlay.clear();
 
-        if let Some(map_id) = server_ctx.curr_geometry_map_id {
-            if let Some(region) = project.get_region_ctx(&server_ctx) {
-                // Meta provides world-space normal and the span (region 2D) for wall profiles
-                let (_, span) = server_ctx.get_region_map_meta_data(region, map_id);
+        if let Some(region) = project.get_region_ctx(&server_ctx) {
+            // Meta provides world-space normal and the span (region 2D) for wall profiles
+            let (_, span) = server_ctx.get_region_map_meta_data(region);
 
-                if span.is_none() {
-                    rc = Some(Vec2::new(hp.x, hp.z));
-                } else {
-                    // PROFILE MAP: convert world hitpoint to (x,y) in profile space
-                    // 1) Find owning linedef
-                    let mut owner_linedef_opt = None;
-                    for ld in &region.map.linedefs {
-                        if ld.profile.id == map_id {
-                            owner_linedef_opt = Some(ld);
-                            break;
-                        }
+            if span.is_none() {
+                rc = Some(Vec2::new(hp.x, hp.z));
+            } else {
+                // PROFILE MAP: convert world hitpoint to (x,y) in profile space
+                // 1) Find owning linedef
+                let mut owner_linedef_opt = None;
+                for ld in &region.map.linedefs {
+                    if Some(ld.id) == server_ctx.profile_view {
+                        owner_linedef_opt = Some(ld);
+                        break;
                     }
-                    if owner_linedef_opt.is_none() {
-                        return rc;
-                    }
-                    let linedef = owner_linedef_opt.unwrap();
+                }
+                if owner_linedef_opt.is_none() {
+                    return rc;
+                }
+                let linedef = owner_linedef_opt.unwrap();
 
-                    // 2) Span basis
-                    let (p0, p1) = span.unwrap();
-                    let delta = p1 - p0;
-                    let len = delta.magnitude();
-                    if len <= 1e-6 {
-                        return rc;
-                    }
-                    let dir = delta / len; // along wall (world XZ)
+                // 2) Span basis
+                let (p0, p1) = span.unwrap();
+                let delta = p1 - p0;
+                let len = delta.magnitude();
+                if len <= 1e-6 {
+                    return rc;
+                }
+                let dir = delta / len; // along wall (world XZ)
 
-                    // 3) Base elevation from front sector (default 0.0)
-                    let base_elevation = if let Some(front_id) = linedef.front_sector {
-                        if let Some(front) = region.map.sectors.get(front_id as usize) {
-                            front.properties.get_float_default("floor_height", 0.0)
-                        } else {
-                            0.0
-                        }
+                // 3) Base elevation from front sector (default 0.0)
+                let base_elevation = if let Some(front_id) = linedef.front_sector {
+                    if let Some(front) = region.map.sectors.get(front_id as usize) {
+                        front.properties.get_float_default("floor_height", 0.0)
                     } else {
                         0.0
-                    };
+                    }
+                } else {
+                    0.0
+                };
 
-                    // 4) Inward offset used during placement; subtract before projecting
-                    let inward = Vec2::new(-dir.y, dir.x);
-                    let eps = linedef
-                        .properties
-                        .get_float("profile_wall_epsilon")
-                        .unwrap_or(0.001);
-                    let offset2 = if linedef.front_sector.is_some() {
-                        inward * eps
-                    } else if linedef.back_sector.is_some() {
-                        inward * -eps
-                    } else {
-                        Vec2::new(0.0, 0.0)
-                    };
+                // 4) Inward offset used during placement; subtract before projecting
+                let inward = Vec2::new(-dir.y, dir.x);
+                let eps = linedef
+                    .properties
+                    .get_float("profile_wall_epsilon")
+                    .unwrap_or(0.001);
+                let offset2 = if linedef.front_sector.is_some() {
+                    inward * eps
+                } else if linedef.back_sector.is_some() {
+                    inward * -eps
+                } else {
+                    Vec2::new(0.0, 0.0)
+                };
 
-                    // 5) Determine profile left/right anchors
-                    let profile = &linedef.profile;
-                    let mut left_x = f32::INFINITY;
-                    let mut right_x = f32::NEG_INFINITY;
-                    for v in &profile.vertices {
-                        if let Some(id) = v.properties.get_int("profile_id") {
-                            match id {
-                                1 | 2 => left_x = left_x.min(v.x),
-                                0 | 3 => right_x = right_x.max(v.x),
-                                _ => {}
-                            }
+                // 5) Determine profile left/right anchors
+                let profile = &linedef.profile;
+                let mut left_x = f32::INFINITY;
+                let mut right_x = f32::NEG_INFINITY;
+                for v in &profile.vertices {
+                    if let Some(id) = v.properties.get_int("profile_id") {
+                        match id {
+                            1 | 2 => left_x = left_x.min(v.x),
+                            0 | 3 => right_x = right_x.max(v.x),
+                            _ => {}
                         }
                     }
-                    if !left_x.is_finite() || !right_x.is_finite() {
-                        left_x = f32::INFINITY;
-                        right_x = f32::NEG_INFINITY;
-                        for v in &profile.vertices {
-                            left_x = left_x.min(v.x);
-                            right_x = right_x.max(v.x);
-                        }
-                    }
-                    let width = (right_x - left_x).max(1e-6);
-
-                    // 6) Project hitpoint onto span to get t in [0,1]
-                    let pos2 = Vec2::new(hp.x, hp.z) - offset2; // undo inward offset
-                    let t = ((pos2 - p0).dot(dir) / len).clamp(0.0, 1.0);
-                    let x2d = left_x + t * width;
-
-                    // 7) Y in profile space
-                    let y2d = hp.y - base_elevation;
-
-                    rc = Some(Vec2::new(x2d, y2d));
                 }
+                if !left_x.is_finite() || !right_x.is_finite() {
+                    left_x = f32::INFINITY;
+                    right_x = f32::NEG_INFINITY;
+                    for v in &profile.vertices {
+                        left_x = left_x.min(v.x);
+                        right_x = right_x.max(v.x);
+                    }
+                }
+                let width = (right_x - left_x).max(1e-6);
+
+                // 6) Project hitpoint onto span to get t in [0,1]
+                let pos2 = Vec2::new(hp.x, hp.z) - offset2; // undo inward offset
+                let t = ((pos2 - p0).dot(dir) / len).clamp(0.0, 1.0);
+                let x2d = left_x + t * width;
+
+                // 7) Y in profile space
+                let y2d = hp.y - base_elevation;
+
+                rc = Some(Vec2::new(x2d, y2d));
             }
         }
 

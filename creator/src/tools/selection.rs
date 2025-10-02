@@ -90,90 +90,99 @@ impl Tool for SelectionTool {
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             MapClicked(coord) => {
-                if !server_ctx.hover_is_empty() {
-                    let prev = map.clone();
-                    let arrays = server_ctx.hover_to_arrays();
-                    if ui.shift {
-                        // Add
-                        map.add_to_selection(arrays.0, arrays.1, arrays.2);
-                    } else if ui.alt {
-                        // Remove
-                        map.remove_from_selection(arrays.0, arrays.1, arrays.2);
-                    } else {
-                        // Replace
-                        map.selected_vertices = arrays.0;
-                        map.selected_linedefs = arrays.1;
-                        map.selected_sectors = arrays.2;
+                if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                    server_ctx.profile_view = server_ctx.hitinfo.profile_id;
+                } else {
+                    if !server_ctx.hover_is_empty() {
+                        let prev = map.clone();
+                        let arrays = server_ctx.hover_to_arrays();
+                        if ui.shift {
+                            // Add
+                            map.add_to_selection(arrays.0, arrays.1, arrays.2);
+                        } else if ui.alt {
+                            // Remove
+                            map.remove_from_selection(arrays.0, arrays.1, arrays.2);
+                        } else {
+                            // Replace
+                            map.selected_vertices = arrays.0;
+                            map.selected_linedefs = arrays.1;
+                            map.selected_sectors = arrays.2;
+                        }
+
+                        undo_atom = Some(RegionUndoAtom::MapEdit(
+                            Box::new(prev),
+                            Box::new(map.clone()),
+                        ));
+
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
                     }
 
-                    undo_atom = Some(RegionUndoAtom::MapEdit(
-                        Box::new(prev),
-                        Box::new(map.clone()),
-                    ));
-
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Map Selection Changed"),
-                        TheValue::Empty,
-                    ));
+                    self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);
+                    self.rectangle_undo_map = map.clone();
                 }
-
-                self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);
-                self.rectangle_undo_map = map.clone();
             }
             MapDragged(coord) => {
-                if let Some(render_view) = ui.get_render_view("PolyView") {
-                    let dim = *render_view.dim();
-                    let click_pos = server_ctx.local_to_map_grid(
-                        Vec2::new(dim.width as f32, dim.height as f32),
-                        self.click_pos,
-                        map,
-                        map.subdivisions,
-                    );
-                    let drag_pos = server_ctx.local_to_map_grid(
-                        Vec2::new(dim.width as f32, dim.height as f32),
-                        Vec2::new(coord.x as f32, coord.y as f32),
-                        map,
-                        map.subdivisions,
-                    );
+                if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                        let dim = *render_view.dim();
+                        let click_pos = server_ctx.local_to_map_grid(
+                            Vec2::new(dim.width as f32, dim.height as f32),
+                            self.click_pos,
+                            map,
+                            map.subdivisions,
+                        );
+                        let drag_pos = server_ctx.local_to_map_grid(
+                            Vec2::new(dim.width as f32, dim.height as f32),
+                            Vec2::new(coord.x as f32, coord.y as f32),
+                            map,
+                            map.subdivisions,
+                        );
 
-                    let top_left =
-                        Vec2::new(click_pos.x.min(drag_pos.x), click_pos.y.min(drag_pos.y));
-                    let bottom_right =
-                        Vec2::new(click_pos.x.max(drag_pos.x), click_pos.y.max(drag_pos.y));
+                        let top_left =
+                            Vec2::new(click_pos.x.min(drag_pos.x), click_pos.y.min(drag_pos.y));
+                        let bottom_right =
+                            Vec2::new(click_pos.x.max(drag_pos.x), click_pos.y.max(drag_pos.y));
 
-                    let selection = server_ctx.geometry_in_rectangle(top_left, bottom_right, map);
+                        let selection =
+                            server_ctx.geometry_in_rectangle(top_left, bottom_right, map);
 
-                    *map = self.rectangle_undo_map.clone();
-                    map.curr_rectangle = Some((click_pos, drag_pos));
+                        *map = self.rectangle_undo_map.clone();
+                        map.curr_rectangle = Some((click_pos, drag_pos));
 
-                    if ui.shift {
-                        // Add
-                        map.add_to_selection(selection.0, selection.1, selection.2);
-                    } else if ui.alt {
-                        // Remove
-                        map.remove_from_selection(selection.0, selection.1, selection.2);
-                    } else {
-                        // Replace
-                        map.selected_vertices = selection.0;
-                        map.selected_linedefs = selection.1;
-                        map.selected_sectors = selection.2;
+                        if ui.shift {
+                            // Add
+                            map.add_to_selection(selection.0, selection.1, selection.2);
+                        } else if ui.alt {
+                            // Remove
+                            map.remove_from_selection(selection.0, selection.1, selection.2);
+                        } else {
+                            // Replace
+                            map.selected_vertices = selection.0;
+                            map.selected_linedefs = selection.1;
+                            map.selected_sectors = selection.2;
+                        }
                     }
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
                 }
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             MapUp(_) => {
-                if map.curr_rectangle.is_some() {
-                    map.curr_rectangle = None;
+                if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                    if map.curr_rectangle.is_some() {
+                        map.curr_rectangle = None;
 
-                    undo_atom = Some(RegionUndoAtom::MapEdit(
-                        Box::new(self.rectangle_undo_map.clone()),
-                        Box::new(map.clone()),
-                    ));
+                        undo_atom = Some(RegionUndoAtom::MapEdit(
+                            Box::new(self.rectangle_undo_map.clone()),
+                            Box::new(map.clone()),
+                        ));
 
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Map Selection Changed"),
-                        TheValue::Empty,
-                    ));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
+                    }
                 }
             }
             MapHover(coord) => {
@@ -247,6 +256,7 @@ impl Tool for SelectionTool {
                         TheValue::Empty,
                     ));
                 }
+                server_ctx.profile_view = None;
             }
         }
 

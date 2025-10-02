@@ -1,4 +1,4 @@
-use crate::editor::{NODEEDITOR, SCENEMANAGER};
+use crate::editor::NODEEDITOR;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -472,9 +472,10 @@ impl Tool for SectorTool {
                             }
 
                             if server_ctx.get_map_context() == MapContext::Region {
-                                if let Some(map) = project.get_map(server_ctx) {
-                                    SCENEMANAGER.write().unwrap().set_map(map.clone());
-                                }
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Render SceneManager Map"),
+                                    TheValue::Empty,
+                                ));
                             }
 
                             crate::editor::RUSTERIX.write().unwrap().set_dirty();
@@ -543,9 +544,10 @@ impl Tool for SectorTool {
                         }
 
                         if server_ctx.get_map_context() == MapContext::Region {
-                            if let Some(map) = project.get_map(server_ctx) {
-                                SCENEMANAGER.write().unwrap().set_map(map.clone());
-                            }
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Render SceneManager Map"),
+                                TheValue::Empty,
+                            ));
                         }
 
                         crate::editor::RUSTERIX.write().unwrap().set_dirty();

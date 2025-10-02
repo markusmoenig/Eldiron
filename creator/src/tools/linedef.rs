@@ -1,4 +1,4 @@
-use crate::editor::{NODEEDITOR, SCENEMANAGER};
+use crate::editor::NODEEDITOR;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -166,7 +166,7 @@ impl Tool for LinedefTool {
                             TheValue::Empty,
                         ));
                     }
-                } else {
+                } else if server_ctx.editor_view_mode == EditorViewMode::D2 {
                     // Line mode
                     let mut set_current_gid_pos = true;
                     if let Some(render_view) = ui.get_render_view("PolyView") {
@@ -544,9 +544,10 @@ impl Tool for LinedefTool {
                             );
 
                             if server_ctx.get_map_context() == MapContext::Region {
-                                if let Some(map) = project.get_map(server_ctx) {
-                                    SCENEMANAGER.write().unwrap().set_map(map.clone());
-                                }
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Render SceneManager Map"),
+                                    TheValue::Empty,
+                                ));
                             }
 
                             crate::editor::RUSTERIX.write().unwrap().set_dirty();
@@ -623,9 +624,10 @@ impl Tool for LinedefTool {
                         ));
 
                         if server_ctx.get_map_context() == MapContext::Region {
-                            if let Some(map) = project.get_map(server_ctx) {
-                                SCENEMANAGER.write().unwrap().set_map(map.clone());
-                            }
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Render SceneManager Map"),
+                                TheValue::Empty,
+                            ));
                         }
                     }
                 }

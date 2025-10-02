@@ -1,6 +1,6 @@
 use crate::editor::{
     CODEEDITOR, CODEGRIDFX, CONFIGEDITOR, INFOVIEWER, NODEEDITOR, RENDEREDITOR, RUSTERIX,
-    SCENEMANAGER, SHADEGRIDFX, SHADERBUFFER, SHAPEPICKER, TILEMAPEDITOR, TILEPICKER, WORLDEDITOR,
+    SHADEGRIDFX, SHADERBUFFER, SHAPEPICKER, TILEMAPEDITOR, TILEPICKER, WORLDEDITOR,
 };
 use crate::prelude::*;
 
@@ -264,7 +264,10 @@ impl Panels {
                                         s.module = SHADEGRIDFX.read().unwrap().clone();
                                         SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
 
-                                        SCENEMANAGER.write().unwrap().set_map(map.clone());
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Render SceneManager Map"),
+                                            TheValue::Empty,
+                                        ));
 
                                         RUSTERIX.write().unwrap().set_dirty();
                                         break;

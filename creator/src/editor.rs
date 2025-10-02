@@ -1240,7 +1240,14 @@ impl TheTrait for Editor {
                         }
                     }
                     TheEvent::Custom(id, _) => {
-                        if id.name == "Update Client Properties" {
+                        if id.name == "Render SceneManager Map" {
+                            if self.server_ctx.get_map_context() == MapContext::Region {
+                                crate::utils::scenemanager_render_map(
+                                    &self.project,
+                                    &self.server_ctx,
+                                );
+                            }
+                        } else if id.name == "Update Client Properties" {
                             let mut rusterix = RUSTERIX.write().unwrap();
                             self.build_values.set(
                                 "no_rect_geo",

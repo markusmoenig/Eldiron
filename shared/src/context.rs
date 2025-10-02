@@ -238,9 +238,6 @@ pub struct ServerContext {
     /// Tile Preview Mode
     pub tile_preview_mode: bool,
 
-    /// The map id of the current 3D geometry
-    pub curr_geometry_map_id: Option<Uuid>,
-
     /// The current 3D hover hit on the overlay geometry
     pub hitinfo: HitInfo,
 }
@@ -309,8 +306,6 @@ impl ServerContext {
             material_region_override: false,
 
             tile_preview_mode: false,
-
-            curr_geometry_map_id: None,
 
             hitinfo: HitInfo::default(),
         }
@@ -828,22 +823,22 @@ impl ServerContext {
         }
     }
 
+    /// Get the meta data of the current map
     pub fn get_region_map_meta_data(
         &self,
         region: &Region,
-        map_id: Uuid,
     ) -> (Vec3<f32>, Option<(Vec2<f32>, Vec2<f32>)>) {
         // Default: treat as a regular (non-profile) map with Y-up normal.
         let mut rc = (Vec3::unit_y(), None);
 
         // If we're on the region's main map, keep Y-up and return.
-        if region.map.id == map_id {
+        if self.profile_view.is_none() {
             return rc;
         }
 
         // Otherwise, check if this map_id matches a linedef's profile map.
         for linedef in &region.map.linedefs {
-            if linedef.profile.id == map_id {
+            if Some(linedef.id) == self.profile_view {
                 // Use the linedef's base vertices (in region/map space) as the 2D points spanning the wall.
                 if let (Some(start_v), Some(end_v)) = (
                     region.map.find_vertex(linedef.start_vertex),

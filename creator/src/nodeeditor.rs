@@ -1,4 +1,4 @@
-use crate::editor::{CONFIGEDITOR, RUSTERIX, SCENEMANAGER, UNDOMANAGER};
+use crate::editor::{CONFIGEDITOR, RUSTERIX, UNDOMANAGER};
 use crate::prelude::*;
 use shared::prelude::*;
 
@@ -117,9 +117,10 @@ impl NodeEditor {
                 RUSTERIX.write().unwrap().set_dirty();
 
                 // Reset the background renderer
-                if let Some(map) = project.get_map(server_ctx) {
-                    SCENEMANAGER.write().unwrap().set_map(map.clone());
-                }
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Render SceneManager Map"),
+                    TheValue::Empty,
+                ));
             }
         }
         /*else if self.context == NodeContext::Material {

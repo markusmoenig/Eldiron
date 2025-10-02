@@ -1055,9 +1055,10 @@ impl Sidebar {
             }
             TheEvent::Custom(id, value) => {
                 if id.name == "Profile View Deselected" {
-                    if let Some(map) = project.get_map(server_ctx) {
-                        SCENEMANAGER.write().unwrap().set_map(map.clone());
-                    }
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Render SceneManager Map"),
+                        TheValue::Empty,
+                    ));
                 } else
                 /*
                 if id.name == "Update Materialpicker" {
@@ -3251,9 +3252,11 @@ impl Sidebar {
         RUSTERIX.write().unwrap().set_dirty();
 
         if let Some(region_id) = region_id {
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Render SceneManager Map"),
+                TheValue::Empty,
+            ));
             if let Some(region) = project.get_region(&region_id) {
-                SCENEMANAGER.write().unwrap().set_map(region.map.clone());
-
                 ui.set_widget_value(
                     "RegionConfigEdit",
                     ctx,

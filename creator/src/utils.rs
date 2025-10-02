@@ -1,4 +1,4 @@
-use crate::editor::{CODEEDITOR, CONFIGEDITOR, PALETTE};
+use crate::editor::{CODEEDITOR, CONFIGEDITOR, PALETTE, SCENEMANAGER};
 use crate::prelude::*;
 use codegridfx::{Module, ModuleType};
 use rusteria::{RenderBuffer, Rusteria};
@@ -305,5 +305,20 @@ pub fn draw_shader_into(module: &Module, buffer: &mut TheRGBABuffer) {
 
         let b = rbuffer.lock().unwrap().as_rgba_bytes();
         *buffer = TheRGBABuffer::from(b, width as u32, height as u32)
+    }
+}
+
+/// Renders the current map in the scenemanager depending on the current viewmode.
+pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
+    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+        // In 2D we render the current map, profile or base
+        if let Some(map) = project.get_map(server_ctx) {
+            SCENEMANAGER.write().unwrap().set_map(map.clone());
+        }
+    } else {
+        // In 3D we always only render the base map
+        if let Some(region) = project.get_region_ctx(server_ctx) {
+            SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+        }
     }
 }
