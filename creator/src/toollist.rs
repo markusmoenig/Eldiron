@@ -4,7 +4,7 @@ pub use crate::tools::{
     config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, render::RenderTool,
     world::WorldTool,
 };
-use rusterix::{Assets, GeometrySource};
+use rusterix::{Assets, GeometrySource, HitInfo};
 
 pub struct ToolList {
     pub server_time: TheTime,
@@ -841,12 +841,10 @@ impl ToolList {
                 if id.name == "PolyView" {
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
                         if let Some(render_view) = ui.get_render_view("PolyView") {
-                            server_ctx.hitinfo = self
-                                .get_current_tool()
-                                .get_geometry_hit(render_view, *coord);
+                            server_ctx.hitinfo = self.get_geometry_hit(render_view, *coord);
                             // println!(
-                            //     "{} {:?}",
-                            //     server_ctx.hitinfo.map_id, server_ctx.hitinfo.geometry_source
+                            //     "{:?} {:?}",
+                            //     server_ctx.hitinfo.profile_id, server_ctx.hitinfo.geometry_source
                             // );
                             let pt = self.hitpoint_to_editing_coord(
                                 project,
@@ -1538,5 +1536,23 @@ impl ToolList {
         }
 
         rc
+    }
+
+    /// Get the geometry hit at the given screen position.
+    fn get_geometry_hit(&self, render_view: &dyn TheRenderViewTrait, coord: Vec2<i32>) -> HitInfo {
+        let dim = *render_view.dim();
+
+        let screen_uv = Vec2::new(
+            coord.x as f32 / dim.width as f32,
+            1.0 - coord.y as f32 / dim.height as f32,
+        );
+        let screen_size = Vec2::new(dim.width as f32, dim.height as f32);
+        let ray = RUSTERIX.read().unwrap().client.camera_d3.create_ray(
+            screen_uv,
+            screen_size,
+            Vec2::one(),
+        );
+
+        RUSTERIX.read().unwrap().client.scene.intersect(&ray)
     }
 }

@@ -76,35 +76,39 @@ impl RenderEditor {
                     .unwrap()
                     .update_camera(region, server_ctx);
 
-                let mut rusterix = RUSTERIX.write().unwrap();
-                rusterix.client.scene.dynamic_lights = vec![];
-                rusterix.build_entities_items_d3(&region.map);
+                {
+                    let mut rusterix = RUSTERIX.write().unwrap();
+                    rusterix.client.scene.dynamic_lights = vec![];
+                    rusterix.build_entities_items_d3(&region.map);
 
-                if server_ctx.curr_render_tool_helper != RenderToolHelper::Tracer {
-                    rusterix.draw_d3(
-                        &region.map,
-                        buffer.pixels_mut(),
-                        dim.width as usize,
-                        dim.height as usize,
-                    );
-                } else {
-                    if dim.width as usize != self.accum_buffer.width
-                        || dim.height as usize != self.accum_buffer.height
-                    {
-                        self.accum_buffer =
-                            AccumBuffer::new(dim.width as usize, dim.height as usize);
+                    if server_ctx.curr_render_tool_helper != RenderToolHelper::Tracer {
+                        rusterix.draw_d3(
+                            &region.map,
+                            buffer.pixels_mut(),
+                            dim.width as usize,
+                            dim.height as usize,
+                        );
+                    } else {
+                        if dim.width as usize != self.accum_buffer.width
+                            || dim.height as usize != self.accum_buffer.height
+                        {
+                            self.accum_buffer =
+                                AccumBuffer::new(dim.width as usize, dim.height as usize);
+                        }
+                        rusterix.trace_scene(&mut self.accum_buffer);
+                        self.accum_buffer.convert_to_u8(buffer.pixels_mut());
                     }
-                    rusterix.trace_scene(&mut self.accum_buffer);
-                    self.accum_buffer.convert_to_u8(buffer.pixels_mut());
                 }
 
-                TOOLLIST.write().unwrap().draw_hud(
-                    buffer,
-                    &mut region.map,
-                    ctx,
-                    server_ctx,
-                    &rusterix.assets,
-                );
+                if let Ok(mut toollist) = TOOLLIST.try_write() {
+                    toollist.draw_hud(
+                        buffer,
+                        &mut region.map,
+                        ctx,
+                        server_ctx,
+                        &RUSTERIX.read().unwrap().assets,
+                    );
+                }
             }
         }
     }
