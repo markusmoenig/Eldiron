@@ -24,7 +24,7 @@ impl Tool for InfoTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Info Tool (Shift + I). Play the game while retrieving info about entites and items.")
+        str!("Info Tool (I). Play the game while retrieving info about entites and items.")
     }
     fn icon_name(&self) -> String {
         str!("info")

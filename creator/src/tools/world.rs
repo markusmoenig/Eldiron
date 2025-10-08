@@ -21,7 +21,7 @@ impl Tool for WorldTool {
     }
     fn info(&self) -> String {
         str!(
-            "Terrain Tool (Shift + W). Use brushes to edit terrain, paint with tiles, materials and rules."
+            "Terrain Tool (W). Use brushes to edit terrain, paint with tiles, materials and rules."
         )
     }
     fn icon_name(&self) -> String {

@@ -95,6 +95,18 @@ impl CodeEditor {
         SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
     }
 
+    /// Clear the current shader
+    pub fn clear_shader(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        *SHADEGRIDFX.write().unwrap() = Module::default();
+        self.shader_content = ContentContext::Unknown;
+
+        SHADEGRIDFX
+            .write()
+            .unwrap()
+            .set_module_type(ModuleType::Unknown);
+        SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
+    }
+
     /// Set the shader to the given material.
     pub fn set_shader_material(&mut self, ui: &mut TheUI, ctx: &mut TheContext, material: &Module) {
         *SHADEGRIDFX.write().unwrap() = material.clone();

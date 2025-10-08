@@ -1,8 +1,7 @@
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use theframework::prelude::*;
 
-use rusterix::{D3Camera, D3FirstPCamera, D3IsoCamera};
+use rusterix::{D3Camera, D3FirstPCamera, D3IsoCamera, Rusterix};
 
 pub enum CustomMoveAction {
     Forward,
@@ -48,8 +47,12 @@ impl CustomCamera {
     }
 
     /// Update client camera
-    pub fn update_camera(&mut self, region: &mut Region, server_ctx: &mut ServerContext) {
-        let mut rusterix = RUSTERIX.write().unwrap();
+    pub fn update_camera(
+        &mut self,
+        region: &mut Region,
+        server_ctx: &mut ServerContext,
+        rusterix: &mut Rusterix,
+    ) {
         if server_ctx.editor_view_mode == EditorViewMode::FirstP {
             rusterix.client.camera_d3 = Box::new(self.firstp_camera.clone());
 

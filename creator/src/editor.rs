@@ -752,15 +752,6 @@ impl TheTrait for Editor {
                     &mut self.server_ctx,
                     &mut self.build_values,
                 );
-            } else if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
-                // Draw Render Editor
-                RENDEREDITOR.write().unwrap().draw(
-                    ui,
-                    ctx,
-                    &mut self.project,
-                    &mut self.server_ctx,
-                    &mut self.build_values,
-                );
             } else {
                 // Draw Map
                 if let Some(render_view) = ui.get_render_view("PolyView") {
@@ -786,6 +777,17 @@ impl TheTrait for Editor {
                                 .client
                                 .insert_game_buffer(render_view.render_buffer_mut());
                         } else {
+                            if self.server_ctx.editor_view_mode != EditorViewMode::D2
+                                && self.server_ctx.get_map_context() == MapContext::Region
+                            {
+                                RENDEREDITOR.write().unwrap().draw(
+                                    render_view,
+                                    ctx,
+                                    &mut self.project,
+                                    &mut self.server_ctx,
+                                    rusterix,
+                                );
+                            } else
                             // Draw the region map
                             if self.server_ctx.get_map_context() == MapContext::Region
                                 && self.server_ctx.profile_view.is_none()

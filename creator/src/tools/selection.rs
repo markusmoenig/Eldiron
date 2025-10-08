@@ -1,11 +1,14 @@
+use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
+use rusterix::Assets;
 
 pub struct SelectionTool {
     id: TheId,
     click_pos: Vec2<f32>,
     rectangle_undo_map: Map,
+    hud: Hud,
 }
 
 impl Tool for SelectionTool {
@@ -17,6 +20,7 @@ impl Tool for SelectionTool {
             id: TheId::named("Select Tool"),
             click_pos: Vec2::zero(),
             rectangle_undo_map: Map::default(),
+            hud: Hud::new(HudMode::Selection),
         }
     }
 
@@ -263,6 +267,16 @@ impl Tool for SelectionTool {
         undo_atom
     }
 
+    fn draw_hud(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        map: &mut Map,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        assets: &Assets,
+    ) {
+        self.hud.draw(buffer, map, ctx, server_ctx, None, assets);
+    }
     /*
     fn handle_event(
         &mut self,

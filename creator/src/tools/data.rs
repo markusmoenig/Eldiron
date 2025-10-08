@@ -22,7 +22,7 @@ impl Tool for DataTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Data Tool ( Shift + D).")
+        str!("Data Tool (D).")
     }
     fn icon_name(&self) -> String {
         str!("database")

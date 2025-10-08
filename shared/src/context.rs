@@ -712,13 +712,13 @@ impl ServerContext {
 
     /// When the user switches to profile view, check if we need to setup the default wall sector
     pub fn setup_default_wall_profile(&self, map: &mut Map) {
-        let mut pt1: Vertex = Vertex::default();
-        let mut pt2: Vertex = Vertex::default();
-
-        let mut add_mode = true;
-
         // Get the two wall defining base vertices of the source
-        if let Some(linedef_id) = self.profile_view {
+        for linedef_id in map.selected_linedefs.clone() {
+            let mut pt1: Vertex = Vertex::default();
+            let mut pt2: Vertex = Vertex::default();
+
+            let mut add_mode = true;
+
             if let Some(linedef) = map.find_linedef(linedef_id) {
                 if !linedef.profile.is_empty() {
                     // The wall already has geometry
@@ -737,12 +737,10 @@ impl ServerContext {
                     return;
                 }
             }
-        }
 
-        if add_mode {
-            // Add the outline sector for the profile
-            let distance = pt1.as_vec2().distance(pt2.as_vec2());
-            if let Some(linedef_id) = self.profile_view {
+            if add_mode {
+                // Add the outline sector for the profile
+                let distance = pt1.as_vec2().distance(pt2.as_vec2());
                 if let Some(linedef) = map.find_linedef_mut(linedef_id) {
                     let v0 = linedef.profile.add_vertex_at(distance / 2.0, 0.0);
                     let v1 = linedef.profile.add_vertex_at(-distance / 2.0, 0.0);
@@ -793,9 +791,7 @@ impl ServerContext {
                         }
                     }
                 }
-            }
-        } else {
-            if let Some(linedef_id) = self.profile_view {
+            } else {
                 if let Some(linedef) = map.find_linedef_mut(linedef_id) {
                     let new_len = pt1.as_vec2().distance(pt2.as_vec2());
                     let new_half = new_len * 0.5;

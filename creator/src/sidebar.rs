@@ -1458,6 +1458,13 @@ impl Sidebar {
                             ctx,
                         );
                     }
+                } else if item_id.name == "Duplicate Material" {
+                    if let Some(mut material) = project.shaders.get(&widget_id.uuid).cloned() {
+                        material.name = format!("Duplicate of {}", material.name);
+                        material.id = Uuid::new_v4();
+                        project.shaders.insert(material.id, material);
+                        self.show_filtered_materials(ui, ctx, project, server_ctx);
+                    }
                 }
             }
             TheEvent::DragStarted(id, text, offset) => {
@@ -1817,17 +1824,6 @@ impl Sidebar {
                                 .set_shader_material(ui, ctx, material);
                         }
                         RUSTERIX.write().unwrap().set_dirty();
-
-                        // if let Some(shader) = project.shaders.get(&material_id) {
-                        //     crate::utils::draw_shader_into(
-                        //         shader,
-                        //         &mut SHADERBUFFER.write().unwrap(),
-                        //     );
-                        // }
-                        // ctx.ui.send(TheEvent::Custom(
-                        //     TheId::named("Soft Update Minimap"),
-                        //     TheValue::Empty,
-                        // ));
                     }
                 } else if id.name == "Palette Clear" {
                     let prev = project.palette.clone();
@@ -3620,10 +3616,16 @@ impl Sidebar {
                         }*/
 
                         item.set_context_menu(Some(TheContextMenu {
-                            items: vec![TheContextMenuItem::new(
-                                "Rename Material...".to_string(),
-                                TheId::named("Rename Material"),
-                            )],
+                            items: vec![
+                                TheContextMenuItem::new(
+                                    "Rename Material...".to_string(),
+                                    TheId::named("Rename Material"),
+                                ),
+                                TheContextMenuItem::new(
+                                    "Duplicate Material".to_string(),
+                                    TheId::named("Duplicate Material"),
+                                ),
+                            ],
                             ..Default::default()
                         }));
                         list_layout.add_item(item, ctx);

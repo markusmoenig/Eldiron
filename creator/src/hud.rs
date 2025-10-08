@@ -6,6 +6,7 @@ use theframework::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum HudMode {
+    Selection,
     Vertex,
     Linedef,
     Sector,
@@ -32,8 +33,6 @@ pub struct Hud {
 
     rect_geo_rect: TheDim,
 
-    profile_rect: TheDim,
-
     mouse_pos: Vec2<i32>,
 
     is_playing: bool,
@@ -58,7 +57,6 @@ impl Hud {
             timeline_rect: TheDim::rect(0, 0, 0, 0),
 
             rect_geo_rect: TheDim::zero(),
-            profile_rect: TheDim::zero(),
 
             mouse_pos: Vec2::zero(),
 
@@ -480,39 +478,6 @@ impl Hud {
             }
         }
 
-        // Show profile
-        if map.camera == MapCamera::TwoD && self.mode == HudMode::Linedef
-            || server_ctx.profile_view.is_some()
-        {
-            let x = 450;
-            let size = 20;
-            self.profile_rect = TheDim::rect(x, 0, 60, size);
-
-            if let Some(font) = &ctx.ui.font {
-                let mut selected = server_ctx.profile_view.is_some();
-
-                if !selected && self.profile_rect.contains(self.mouse_pos)
-                // && !map.selected_linedefs.is_empty()
-                {
-                    selected = true;
-                }
-
-                let r = self.profile_rect.to_buffer_utuple();
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
-                    &(r.0, 1, r.2, 19),
-                    stride,
-                    font,
-                    13.0,
-                    "PROFILE",
-                    &if selected { sel_text_color } else { text_color },
-                    &bg_color,
-                    TheHorizontalAlign::Center,
-                    TheVerticalAlign::Center,
-                );
-            }
-        }
-
         // Terrain: Height
 
         if self.mode == HudMode::Terrain {
@@ -754,25 +719,6 @@ impl Hud {
             return true;
         }
 
-        if self.profile_rect.contains(Vec2::new(x, y)) {
-            if server_ctx.profile_view.is_some() {
-                server_ctx.profile_view = None;
-
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Profile View Deselected"),
-                    TheValue::Empty,
-                ));
-            } else if let Some(linedef_id) = map.selected_linedefs.first() {
-                server_ctx.profile_view = Some(*linedef_id);
-            }
-
-            if server_ctx.profile_view.is_some() {
-                server_ctx.setup_default_wall_profile(map);
-            }
-
-            return true;
-        }
-
         if map.camera == MapCamera::TwoD && y < 20 {
             return true;
         }
@@ -815,11 +761,6 @@ impl Hud {
             ctx.ui.send(TheEvent::SetStatusText(
                 TheId::empty(),
                 "Show or hide geometry created with the Rect tool.".to_string(),
-            ));
-        } else if self.profile_rect.contains(self.mouse_pos) && self.mode == HudMode::Linedef {
-            ctx.ui.send(TheEvent::SetStatusText(
-                TheId::empty(),
-                "Show the profile view of the linedef to edit wall geometry.".to_string(),
             ));
         } else {
             ctx.ui

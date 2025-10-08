@@ -738,6 +738,32 @@ impl MapEditor {
                         }
                     }
                 }
+                if id.name == "linedefCreateWall" && *state == TheWidgetState::Clicked {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        let prev = map.clone();
+                        server_ctx.setup_default_wall_profile(map);
+                        self.add_map_undo(map, prev, ctx, server_ctx);
+                    }
+                    crate::utils::scenemanager_render_map(project, server_ctx);
+                }
+                if id.name == "linedefDeleteWall" && *state == TheWidgetState::Clicked {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        let prev = map.clone();
+                        let mut changed = false;
+                        for linedef in &map.selected_linedefs.clone() {
+                            if let Some(linedef) = map.find_linedef_mut(*linedef) {
+                                if !linedef.profile.is_empty() {
+                                    linedef.profile = Map::default();
+                                    changed = true;
+                                }
+                            }
+                        }
+                        if changed {
+                            self.add_map_undo(map, prev, ctx, server_ctx);
+                        }
+                    }
+                    crate::utils::scenemanager_render_map(project, server_ctx);
+                }
                 // Region Content List Selection
                 if id.name == "Screen Content List Item" {
                     /*
@@ -950,7 +976,7 @@ impl MapEditor {
         redraw
     }
 
-    /// Sets the node settings for the map selection.
+    /// Sets the settings for the map selection.
     fn apply_map_settings(
         &mut self,
         ui: &mut TheUI,
@@ -961,6 +987,10 @@ impl MapEditor {
         // Create Node Settings if necessary
         if let Some(layout) = ui.get_text_layout("Node Settings") {
             layout.clear();
+        }
+
+        if server_ctx.curr_map_tool_type != MapToolType::Sector {
+            CODEEDITOR.write().unwrap().clear_shader(ui, ctx);
         }
 
         if let Some(map) = project.get_map_mut(server_ctx) {
@@ -1258,6 +1288,24 @@ impl MapEditor {
                     "Split Line".into(),
                 );
                 nodeui.add_item(item);
+
+                if linedef.profile.vertices.is_empty() {
+                    let item = TheNodeUIItem::Button(
+                        "linedefCreateWall".into(),
+                        "Create Wall".into(),
+                        "Create a wall profile for the linedef.".into(),
+                        "Wall Profile".into(),
+                    );
+                    nodeui.add_item(item);
+                } else {
+                    let item = TheNodeUIItem::Button(
+                        "linedefDeleteWall".into(),
+                        "Delete Wall".into(),
+                        "Delete the wall profile for the linedef.".into(),
+                        "Wall Profile".into(),
+                    );
+                    nodeui.add_item(item);
+                }
             }
         }
 
