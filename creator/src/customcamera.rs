@@ -35,14 +35,20 @@ impl CustomCamera {
         layout: &mut dyn TheHLayoutTrait,
         _ctx: &mut TheContext,
         _project: &mut Project,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) {
-        let mut camera_switch = TheGroupButton::new(TheId::named("Custom Camera Helper Switch"));
-        camera_switch.add_text_status("FirstP".to_string(), str!("First Person camera."));
-        camera_switch.add_text_status("Iso".to_string(), "Isometric camera.".to_string());
-        // camera_switch.set_index(server_ctx.curr_custom_tool_camera as i32);
-        layout.add_widget(Box::new(camera_switch));
-
+        let mut view_switch = TheGroupButton::new(TheId::named("Editor View Switch"));
+        view_switch.add_text_status("2D".to_string(), "Edit the map in 2D.".to_string());
+        view_switch.add_text_status(
+            "Iso".to_string(),
+            "Edit the map in isometric view.".to_string(),
+        );
+        view_switch.add_text_status(
+            "FirstP".to_string(),
+            "Edit the map in first person view.".to_string(),
+        );
+        view_switch.set_index(server_ctx.editor_view_mode.to_index());
+        layout.add_widget(Box::new(view_switch));
         layout.set_reverse_index(Some(1));
     }
 

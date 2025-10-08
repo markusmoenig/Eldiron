@@ -1,4 +1,4 @@
-use crate::editor::{CUSTOMCAMERA, NODEEDITOR, RENDEREDITOR};
+use crate::editor::{CUSTOMCAMERA, NODEEDITOR, RENDEREDITOR, RUSTERIX};
 use crate::prelude::*;
 use ToolEvent::*;
 
@@ -20,7 +20,7 @@ impl Tool for RenderTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Render Tool (N). Setup rendering for the global and local render graphs.")
+        str!("Render Tool (N). Setup cameras, environment and rendering.")
     }
     fn icon_name(&self) -> String {
         str!("perspective")
@@ -41,6 +41,8 @@ impl Tool for RenderTool {
         match tool_event {
             Activate => {
                 //server_ctx.curr_map_tool_type = MapToolType::World;
+
+                RUSTERIX.write().unwrap().client.scene.d3_overlay.clear();
 
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
                     layout.clear();

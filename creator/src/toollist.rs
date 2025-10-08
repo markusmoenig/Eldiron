@@ -209,20 +209,13 @@ impl ToolList {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Editor View Switch" {
                     server_ctx.editor_view_mode = EditorViewMode::from_index(*index as i32);
-                    // if server_ctx.editor_view_mode == EditorViewMode::D2 {
-                    // Set the wall profile to the selected map
-                    // if let Some(curr_geometry_map_id) = server_ctx.curr_geometry_map_id {
-                    //     if let Some(region) = project.get_region_ctx(&server_ctx) {
-                    //         for linedef in &region.map.linedefs {
-                    //             if linedef.profile.id == curr_geometry_map_id {
-                    //                 server_ctx.profile_view = Some(linedef.id);
-                    //             }
-                    //         }
-                    //     }
-                    // } else {
-                    //     server_ctx.profile_view = None;
-                    // }
-                    // }
+                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                        if let Some(profile_view) = server_ctx.profile_view {
+                            if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+                                server_ctx.update_wall_profile(&mut region.map, profile_view);
+                            }
+                        }
+                    }
                 } else if id.name == "Map Helper Switch" {
                     let was_shape_picker =
                         server_ctx.curr_map_tool_helper == MapToolHelper::ShapePicker;
@@ -1227,6 +1220,10 @@ impl ToolList {
         let mut rusterix = RUSTERIX.write().unwrap();
         rusterix.client.scene.d3_overlay.clear();
         let thickness = 0.15;
+
+        if self.get_current_tool().id().name == "Render Tool" {
+            return;
+        }
 
         if let Some(region) = project.get_region_ctx(&server_ctx) {
             let (normal, span) = server_ctx.get_region_map_meta_data(region);

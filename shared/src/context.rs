@@ -711,7 +711,9 @@ impl ServerContext {
     }
 
     /// When the user switches to profile view, check if we need to setup the default wall sector
-    pub fn setup_default_wall_profile(&self, map: &mut Map) {
+    pub fn create_wall_profile(&self, map: &mut Map) -> bool {
+        let mut changed = false;
+
         // Get the two wall defining base vertices of the source
         for linedef_id in map.selected_linedefs.clone() {
             let mut pt1: Vertex = Vertex::default();
@@ -728,13 +730,13 @@ impl ServerContext {
                 if let Some(p) = map.find_vertex(linedef.start_vertex) {
                     pt1 = p.clone();
                 } else {
-                    return;
+                    continue;
                 }
 
                 if let Some(p) = map.find_vertex(linedef.end_vertex) {
                     pt2 = p.clone();
                 } else {
-                    return;
+                    continue;
                 }
             }
 
@@ -791,27 +793,59 @@ impl ServerContext {
                         }
                     }
                 }
+                changed = true;
+            }
+        }
+        changed
+    }
+
+    /// When the user switches to profile view, check if we need to setup the default wall sector
+    pub fn update_wall_profile(&self, map: &mut Map, linedef_id: u32) {
+        // Get the two wall defining base vertices of the source
+        let mut pt1: Vertex = Vertex::default();
+        let mut pt2: Vertex = Vertex::default();
+
+        let mut add_mode = true;
+
+        if let Some(linedef) = map.find_linedef(linedef_id) {
+            if !linedef.profile.is_empty() {
+                // The wall already has geometry
+                add_mode = false;
+            }
+
+            if let Some(p) = map.find_vertex(linedef.start_vertex) {
+                pt1 = p.clone();
             } else {
-                if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                    let new_len = pt1.as_vec2().distance(pt2.as_vec2());
-                    let new_half = new_len * 0.5;
+                return;
+            }
 
-                    let profile = &mut linedef.profile;
+            if let Some(p) = map.find_vertex(linedef.end_vertex) {
+                pt2 = p.clone();
+            } else {
+                return;
+            }
+        }
 
-                    // Move each vertex to its exact target X based on its stable profile_id
-                    for v in &mut profile.vertices {
-                        if let Some(id) = v.properties.get_int("profile_id") {
-                            match id {
-                                0 | 3 => {
-                                    // right side vertices
-                                    v.x = new_half;
-                                }
-                                1 | 2 => {
-                                    // left side vertices
-                                    v.x = -new_half;
-                                }
-                                _ => {}
+        if !add_mode {
+            if let Some(linedef) = map.find_linedef_mut(linedef_id) {
+                let new_len = pt1.as_vec2().distance(pt2.as_vec2());
+                let new_half = new_len * 0.5;
+
+                let profile = &mut linedef.profile;
+
+                // Move each vertex to its exact target X based on its stable profile_id
+                for v in &mut profile.vertices {
+                    if let Some(id) = v.properties.get_int("profile_id") {
+                        match id {
+                            0 | 3 => {
+                                // right side vertices
+                                v.x = new_half;
                             }
+                            1 | 2 => {
+                                // left side vertices
+                                v.x = -new_half;
+                            }
+                            _ => {}
                         }
                     }
                 }
