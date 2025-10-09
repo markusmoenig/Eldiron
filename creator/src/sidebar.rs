@@ -1104,7 +1104,7 @@ impl Sidebar {
                     }
                 } else if id.name == "Update Minimap" {
                     // Rerenders the minimap
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
                         if let Some(render_view) = ui.get_render_view("MiniMap") {
                             let dim = *render_view.dim();
                             let buffer = render_view.render_buffer_mut();
@@ -1117,7 +1117,7 @@ impl Sidebar {
                 } else if id.name == "Soft Update Minimap" {
                     // Uses the currently rendered minimap and only updates the
                     // camera markers
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
                         if let Some(render_view) = ui.get_render_view("MiniMap") {
                             let dim = *render_view.dim();
                             let buffer = render_view.render_buffer_mut();

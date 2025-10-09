@@ -1244,10 +1244,19 @@ impl TheTrait for Editor {
                     TheEvent::Custom(id, _) => {
                         if id.name == "Render SceneManager Map" {
                             if self.server_ctx.get_map_context() == MapContext::Region {
-                                crate::utils::scenemanager_render_map(
-                                    &self.project,
-                                    &self.server_ctx,
-                                );
+                                if self.server_ctx.editor_view_mode == EditorViewMode::D2
+                                    && self.server_ctx.profile_view.is_some()
+                                {
+                                } else {
+                                    crate::utils::scenemanager_render_map(
+                                        &self.project,
+                                        &self.server_ctx,
+                                    );
+                                    TOOLLIST.write().unwrap().update_geometry_overlay_3d(
+                                        &mut self.project,
+                                        &mut self.server_ctx,
+                                    );
+                                }
                             }
                         } else if id.name == "Update Client Properties" {
                             let mut rusterix = RUSTERIX.write().unwrap();

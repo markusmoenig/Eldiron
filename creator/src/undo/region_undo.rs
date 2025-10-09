@@ -18,6 +18,7 @@ pub enum RegionUndoAtom {
     ),
 }
 
+/// Checks if the two maps are equal to detect selection only changes which dont need rerendering of the map.
 fn has_geometry_changed(map1: &Map, map2: &Map) -> bool {
     let mut v1 = map1.vertices.clone();
     let mut v2 = map2.vertices.clone();
@@ -79,7 +80,6 @@ impl RegionUndoAtom {
     pub fn undo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             RegionUndoAtom::MapEdit(prev, _) => {
-                let region_map_id = region.map.id;
                 let map = if region.map.id == prev.id {
                     Some(&mut region.map)
                 } else {
@@ -104,7 +104,7 @@ impl RegionUndoAtom {
                         TheValue::Empty,
                     ));
 
-                    if !self.only_selection_changed() && region_map_id == map.id {
+                    if !self.only_selection_changed() {
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Render SceneManager Map"),
                             TheValue::Empty,
@@ -119,7 +119,6 @@ impl RegionUndoAtom {
                 region.map.terrain.chunks = *prev.clone();
             }
             RegionUndoAtom::SectorShaderEdit(map_id, sector_id, prev, _) => {
-                let region_map_id = region.map.id;
                 let map = if region.map.id == *map_id {
                     Some(&mut region.map)
                 } else {
@@ -139,7 +138,7 @@ impl RegionUndoAtom {
                         *shadergridfx = prev.clone();
                         shadergridfx.redraw(ui, ctx);
                         shadergridfx.show_settings(ui, ctx);
-                        if !self.only_selection_changed() && region_map_id == *map_id {
+                        if !self.only_selection_changed() {
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Render SceneManager Map"),
                                 TheValue::Empty,
@@ -154,7 +153,6 @@ impl RegionUndoAtom {
     pub fn redo(&self, region: &mut Region, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             RegionUndoAtom::MapEdit(_, next) => {
-                let region_map_id = region.map.id;
                 let map = if region.map.id == next.id {
                     Some(&mut region.map)
                 } else {
@@ -180,7 +178,7 @@ impl RegionUndoAtom {
                         TheValue::Empty,
                     ));
 
-                    if !self.only_selection_changed() && region_map_id == map.id {
+                    if !self.only_selection_changed() {
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Render SceneManager Map"),
                             TheValue::Empty,
@@ -195,7 +193,6 @@ impl RegionUndoAtom {
                 region.map.terrain.chunks = *next.clone();
             }
             RegionUndoAtom::SectorShaderEdit(map_id, sector_id, _, next) => {
-                let region_map_id = region.map.id;
                 let map = if region.map.id == *map_id {
                     Some(&mut region.map)
                 } else {
@@ -215,7 +212,7 @@ impl RegionUndoAtom {
                         *shadergridfx = next.clone();
                         shadergridfx.redraw(ui, ctx);
                         shadergridfx.show_settings(ui, ctx);
-                        if !self.only_selection_changed() && region_map_id == map.id {
+                        if !self.only_selection_changed() {
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Render SceneManager Map"),
                                 TheValue::Empty,

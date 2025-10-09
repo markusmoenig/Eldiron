@@ -347,19 +347,24 @@ impl MapEditor {
                         }
 
                         if server_ctx.get_map_context() == MapContext::Region {
-                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                                region.editing_position_3d.x +=
-                                    coord.x as f32 / region.map.grid_size;
-                                region.editing_position_3d.z +=
-                                    coord.y as f32 / region.map.grid_size;
-                                redraw = true;
-
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Soft Update Minimap"),
-                                    TheValue::Empty,
-                                ));
-                                //crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            if server_ctx.editor_view_mode == EditorViewMode::D2
+                                && server_ctx.profile_view.is_some()
+                            {
+                            } else {
+                                if let Some(region) =
+                                    project.get_region_mut(&server_ctx.curr_region)
+                                {
+                                    region.editing_position_3d.x +=
+                                        coord.x as f32 / region.map.grid_size;
+                                    region.editing_position_3d.z +=
+                                        coord.y as f32 / region.map.grid_size;
+                                    redraw = true;
+                                }
                             }
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Soft Update Minimap"),
+                                TheValue::Empty,
+                            ));
                         }
                     }
                 }
