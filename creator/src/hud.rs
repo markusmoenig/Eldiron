@@ -450,7 +450,7 @@ impl Hud {
         }
 
         // Show rect
-        if map.camera == MapCamera::TwoD && self.mode != HudMode::Terrain {
+        if self.mode != HudMode::Terrain {
             let x = 370;
             let size = 20;
             self.rect_geo_rect = TheDim::rect(x, 0, 60, size);

@@ -746,8 +746,9 @@ impl ServerContext {
                 if let Some(linedef) = map.find_linedef_mut(linedef_id) {
                     let v0 = linedef.profile.add_vertex_at(distance / 2.0, 0.0);
                     let v1 = linedef.profile.add_vertex_at(-distance / 2.0, 0.0);
-                    let v2 = linedef.profile.add_vertex_at(-distance / 2.0, 2.0);
-                    let v3 = linedef.profile.add_vertex_at(distance / 2.0, 2.0);
+                    // Define height as 2 rows going downward: y = -2.0 (so rows are 0, -1, -2, ...)
+                    let v2 = linedef.profile.add_vertex_at(-distance / 2.0, -2.0);
+                    let v3 = linedef.profile.add_vertex_at(distance / 2.0, -2.0);
 
                     // Tag profile vertices with stable IDs so we can reposition later by ID
                     if let Some(v) = linedef.profile.find_vertex_mut(v0) {

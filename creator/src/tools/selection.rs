@@ -94,6 +94,11 @@ impl Tool for SelectionTool {
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             MapClicked(coord) => {
+                if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    return None;
+                }
+
                 if server_ctx.editor_view_mode != EditorViewMode::D2 {
                     server_ctx.profile_view = server_ctx.hitinfo.profile_id;
                 } else {
@@ -190,6 +195,11 @@ impl Tool for SelectionTool {
                 }
             }
             MapHover(coord) => {
+                if self.hud.hovered(coord.x, coord.y, map, ui, ctx, server_ctx) {
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    return None;
+                }
+
                 if let Some(render_view) = ui.get_render_view("PolyView") {
                     let dim = *render_view.dim();
                     server_ctx.hover = server_ctx.geometry_at(

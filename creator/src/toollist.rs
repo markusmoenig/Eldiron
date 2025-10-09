@@ -650,25 +650,23 @@ impl ToolList {
                         }
 
                         if let Some(map) = project.get_map_mut(server_ctx) {
-                            if coord.y > 20 {
-                                let undo_atom = self.get_current_tool().map_event(
-                                    MapEvent::MapClicked(*coord),
-                                    ui,
-                                    ctx,
-                                    map,
-                                    server_ctx,
-                                );
-                                if undo_atom.is_some() {
-                                    map.changed += 1;
-                                    if server_ctx.get_map_context() == MapContext::Material {
-                                        NODEEDITOR.read().unwrap().force_update(ctx, map);
-                                    }
+                            let undo_atom = self.get_current_tool().map_event(
+                                MapEvent::MapClicked(*coord),
+                                ui,
+                                ctx,
+                                map,
+                                server_ctx,
+                            );
+                            if undo_atom.is_some() {
+                                map.changed += 1;
+                                if server_ctx.get_map_context() == MapContext::Material {
+                                    NODEEDITOR.read().unwrap().force_update(ctx, map);
                                 }
-                                self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
+                            }
+                            self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
 
-                                if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                    self.update_geometry_overlay_3d(project, server_ctx);
-                                }
+                            if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                self.update_geometry_overlay_3d(project, server_ctx);
                             }
                             redraw = true;
                         }
@@ -1274,6 +1272,13 @@ impl ToolList {
                 let map = &region.map;
                 for sector in &map.sectors {
                     let sector_is_selected = map.selected_sectors.contains(&sector.id);
+
+                    if sector.properties.contains("rect_rendering") {
+                        if server_ctx.no_rect_geo_on_map {
+                            continue;
+                        }
+                    }
+
                     for linedef_id in &sector.linedefs {
                         if let Some(linedef) = map.find_linedef(*linedef_id) {
                             if let (Some(start), Some(end)) = (
@@ -1397,12 +1402,18 @@ impl ToolList {
                 }
                 let along = t * len;
                 let pos2 = p0 + dir * along + offset2; // world XZ
-                Vec3::new(pos2.x, base_elevation + y, pos2.y) + nudge
+                Vec3::new(pos2.x, base_elevation - y, pos2.y) + nudge
             };
 
             // Build overlay from the **profile** sector geometry (lines on wall plane)
             // if let Some(psector) = profile.find_sector(sector.id) {
             for psector in &profile.sectors {
+                if psector.properties.contains("rect_rendering") {
+                    if server_ctx.no_rect_geo_on_map {
+                        continue;
+                    }
+                }
+
                 let sector_is_selected = profile.selected_sectors.contains(&psector.id);
                 for plinedef_id in &psector.linedefs {
                     if let Some(plinedef) = profile.find_linedef(*plinedef_id) {
