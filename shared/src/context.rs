@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use rusterix::{HitInfo, Vertex};
+use rusterix::{HitInfo, Surface};
 pub use rusterix::{Value, map::*};
 use theframework::prelude::*;
 
@@ -205,6 +205,9 @@ pub struct ServerContext {
     /// Show wall profile in linedef mode.
     pub profile_view: Option<u32>,
 
+    /// The current editing surface
+    pub editing_surface: Option<Surface>,
+
     /// Selected wall row, set by the linedef Hud
     pub selected_wall_row: Option<i32>,
 
@@ -288,6 +291,7 @@ impl ServerContext {
             content_click_from_map: false,
             no_rect_geo_on_map: true,
             profile_view: None,
+            editing_surface: None,
 
             selected_wall_row: Some(0),
 
@@ -710,191 +714,43 @@ impl ServerContext {
         }
     }
 
+    pub fn create_wall_sector_from_linedef(&self, map: &mut Map, ld_id: u32) -> Option<u32> {
+        // Find the source linedef and its endpoints
+        let ld = map.find_linedef(ld_id)?;
+        let v0 = ld.start_vertex;
+        let v1 = ld.end_vertex;
+
+        let p0 = map.find_vertex(v0)?.clone();
+        let p1 = map.find_vertex(v1)?.clone();
+
+        // Height: fixed 2.0 for now (could be read from a property later)
+        let h = 2.0;
+
+        // Create (or reuse) top vertices exactly h units above each endpoint
+        let v2 = map.add_vertex_at_3d(p1.x, p1.y, p1.z + h); // top at end
+        let v3 = map.add_vertex_at_3d(p0.x, p0.y, p0.z + h); // top at start
+
+        let _ = map.create_linedef(v0, v1);
+        let _ = map.create_linedef(v1, v2);
+        let _ = map.create_linedef(v2, v3);
+        let (_, sid) = map.create_linedef(v3, v0);
+
+        sid
+    }
+
     /// When the user switches to profile view, check if we need to setup the default wall sector
     pub fn create_wall_profile(&self, map: &mut Map) -> bool {
         let mut changed = false;
 
-        // Get the two wall defining base vertices of the source
         for linedef_id in map.selected_linedefs.clone() {
-            let mut pt1: Vertex = Vertex::default();
-            let mut pt2: Vertex = Vertex::default();
+            if let Some(sector_id) = self.create_wall_sector_from_linedef(map, linedef_id) {
+                let mut surface = Surface::new(sector_id);
+                surface.calculate_geometry(map);
+                map.surfaces.insert(surface.id, surface);
 
-            let mut add_mode = true;
-
-            if let Some(linedef) = map.find_linedef(linedef_id) {
-                if !linedef.profile.is_empty() {
-                    // The wall already has geometry
-                    add_mode = false;
-                }
-
-                if let Some(p) = map.find_vertex(linedef.start_vertex) {
-                    pt1 = p.clone();
-                } else {
-                    continue;
-                }
-
-                if let Some(p) = map.find_vertex(linedef.end_vertex) {
-                    pt2 = p.clone();
-                } else {
-                    continue;
-                }
-            }
-
-            if add_mode {
-                // Add the outline sector for the profile
-                let distance = pt1.as_vec2().distance(pt2.as_vec2());
-                if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                    let v0 = linedef.profile.add_vertex_at(distance / 2.0, 0.0);
-                    let v1 = linedef.profile.add_vertex_at(-distance / 2.0, 0.0);
-                    // Define height as 2 rows going downward: y = -2.0 (so rows are 0, -1, -2, ...)
-                    let v2 = linedef.profile.add_vertex_at(-distance / 2.0, -2.0);
-                    let v3 = linedef.profile.add_vertex_at(distance / 2.0, -2.0);
-
-                    // Tag profile vertices with stable IDs so we can reposition later by ID
-                    if let Some(v) = linedef.profile.find_vertex_mut(v0) {
-                        v.properties.set("profile_id", Value::Int(0)); // right-bottom
-                        v.properties.set("lock_x", Value::Bool(true));
-                    }
-                    if let Some(v) = linedef.profile.find_vertex_mut(v1) {
-                        v.properties.set("profile_id", Value::Int(1)); // left-bottom
-                        v.properties.set("lock_x", Value::Bool(true));
-                    }
-                    if let Some(v) = linedef.profile.find_vertex_mut(v2) {
-                        v.properties.set("profile_id", Value::Int(2)); // left-top
-                        v.properties.set("lock_x", Value::Bool(true));
-                    }
-                    if let Some(v) = linedef.profile.find_vertex_mut(v3) {
-                        v.properties.set("profile_id", Value::Int(3)); // right-top
-                        v.properties.set("lock_x", Value::Bool(true));
-                    }
-
-                    linedef.profile.possible_polygon = vec![];
-                    let l0 = linedef.profile.create_linedef(v0, v1);
-                    let l1 = linedef.profile.create_linedef(v1, v2);
-                    let l2 = linedef.profile.create_linedef(v2, v3);
-                    let id = linedef.profile.create_linedef(v3, v0);
-
-                    if let Some(sector_id) = id.1 {
-                        // Add the profile tag so that we can easily identify the outline geometry
-                        if let Some(l) = linedef.profile.find_linedef_mut(l0.0) {
-                            l.properties.set("profile", Value::Int(0));
-                        }
-                        if let Some(l) = linedef.profile.find_linedef_mut(l1.0) {
-                            l.properties.set("profile", Value::Int(1));
-                        }
-                        if let Some(l) = linedef.profile.find_linedef_mut(l2.0) {
-                            l.properties.set("profile", Value::Int(2));
-                        }
-                        if let Some(l) = linedef.profile.find_linedef_mut(id.0) {
-                            l.properties.set("profile", Value::Int(3));
-                        }
-
-                        if let Some(sector) = linedef.profile.find_sector_mut(sector_id) {
-                            sector.properties.set("profile", Value::Bool(true));
-                        }
-                    }
-                }
                 changed = true;
             }
         }
         changed
-    }
-
-    /// When the user switches to profile view, check if we need to setup the default wall sector
-    pub fn update_wall_profile(&self, map: &mut Map, linedef_id: u32) {
-        // Get the two wall defining base vertices of the source
-        let mut pt1: Vertex = Vertex::default();
-        let mut pt2: Vertex = Vertex::default();
-
-        let mut add_mode = true;
-
-        if let Some(linedef) = map.find_linedef(linedef_id) {
-            if !linedef.profile.is_empty() {
-                // The wall already has geometry
-                add_mode = false;
-            }
-
-            if let Some(p) = map.find_vertex(linedef.start_vertex) {
-                pt1 = p.clone();
-            } else {
-                return;
-            }
-
-            if let Some(p) = map.find_vertex(linedef.end_vertex) {
-                pt2 = p.clone();
-            } else {
-                return;
-            }
-        }
-
-        if !add_mode {
-            if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                let new_len = pt1.as_vec2().distance(pt2.as_vec2());
-                let new_half = new_len * 0.5;
-
-                let profile = &mut linedef.profile;
-
-                // Move each vertex to its exact target X based on its stable profile_id
-                for v in &mut profile.vertices {
-                    if let Some(id) = v.properties.get_int("profile_id") {
-                        match id {
-                            0 | 3 => {
-                                // right side vertices
-                                v.x = new_half;
-                            }
-                            1 | 2 => {
-                                // left side vertices
-                                v.x = -new_half;
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// Get the meta data of the current map
-    pub fn get_region_map_meta_data(
-        &self,
-        region: &Region,
-    ) -> (Vec3<f32>, Option<(Vec2<f32>, Vec2<f32>)>) {
-        // Default: treat as a regular (non-profile) map with Y-up normal.
-        let mut rc = (Vec3::unit_y(), None);
-
-        // If we're on the region's main map, keep Y-up and return.
-        if self.profile_view.is_none() {
-            return rc;
-        }
-
-        // Otherwise, check if this map_id matches a linedef's profile map.
-        for linedef in &region.map.linedefs {
-            if Some(linedef.id) == self.profile_view {
-                // Use the linedef's base vertices (in region/map space) as the 2D points spanning the wall.
-                if let (Some(start_v), Some(end_v)) = (
-                    region.map.find_vertex(linedef.start_vertex),
-                    region.map.find_vertex(linedef.end_vertex),
-                ) {
-                    let p0 = start_v.as_vec2();
-                    let p1 = end_v.as_vec2();
-
-                    // Direction along the wall in XZ-plane (map uses X/Y → world X/Z).
-                    let dir = p1 - p0;
-                    let len = dir.magnitude();
-                    if len > 0.0 {
-                        // Perpendicular (right-hand) in map plane becomes world-space horizontal normal.
-                        let perp = Vec2::new(dir.y, -dir.x) / len; // normalized perpendicular
-                        rc.0 = Vec3::new(perp.x, 0.0, perp.y);
-                    }
-
-                    // Also return the 2D points spanning the wall as metadata.
-                    rc.1 = Some((p0, p1));
-                }
-
-                return rc;
-            }
-        }
-
-        rc
     }
 }

@@ -3,7 +3,7 @@ use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
-use rusterix::prelude::*;
+use rusterix::{Surface, prelude::*};
 use vek::Vec2;
 
 pub struct LinedefTool {
@@ -189,8 +189,13 @@ impl Tool for LinedefTool {
                                 // Returns id of linedef and optional id of new sector if polygon closes
                                 let ids = map.create_linedef(start_vertex, end_vertex);
 
-                                if ids.1.is_some() {
-                                    // When we close a polygon delete the temporary data
+                                if let Some(sector_id) = ids.1 {
+                                    // When we close a polygon add a surface
+                                    let mut surface = Surface::new(sector_id);
+                                    surface.calculate_geometry(map);
+                                    map.surfaces.insert(surface.id, surface);
+
+                                    // and delete the temporary data
                                     map.clear_temp();
                                     set_current_gid_pos = false;
                                 }

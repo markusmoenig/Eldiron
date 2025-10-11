@@ -7,6 +7,7 @@
 - New visual real time shading language for sectors.
 - Wall profiles. Build layered geometry to decorate walls, including realtime shaders and dynamic opacity.
 - New default 256 color palette.
+- 3D views (Isometric / First Person) are now first class citizen.
 
 ### CI
 

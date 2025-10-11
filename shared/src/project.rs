@@ -225,10 +225,12 @@ impl Project {
     /// Get the map of the current context.
     pub fn get_map(&self, ctx: &ServerContext) -> Option<&Map> {
         if ctx.get_map_context() == MapContext::Region {
-            if let Some(profile_id) = ctx.profile_view {
+            if let Some(surface) = &ctx.editing_surface {
                 if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
-                    if let Some(linedef) = region.map.find_linedef(profile_id) {
-                        return Some(&linedef.profile);
+                    if let Some(surface) = region.map.surfaces.get(&surface.id) {
+                        if let Some(profile_id) = surface.profile {
+                            return region.map.profiles.get(&profile_id);
+                        }
                     }
                 }
                 return None;
@@ -258,10 +260,17 @@ impl Project {
     /// Get the mutable map of the current context.
     pub fn get_map_mut(&mut self, ctx: &ServerContext) -> Option<&mut Map> {
         if ctx.get_map_context() == MapContext::Region {
-            if let Some(profile_id) = ctx.profile_view {
+            if let Some(surface) = &ctx.editing_surface {
                 if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
-                    if let Some(linedef) = region.map.find_linedef_mut(profile_id) {
-                        return Some(&mut linedef.profile);
+                    if let Some(surface) = region.map.surfaces.get_mut(&surface.id) {
+                        if surface.profile.is_none() {
+                            let profile = Map::default();
+                            surface.profile = Some(profile.id);
+                            region.map.profiles.insert(profile.id, profile);
+                        }
+                        if let Some(profile_id) = surface.profile {
+                            return region.map.profiles.get_mut(&profile_id);
+                        }
                     }
                 }
                 return None;

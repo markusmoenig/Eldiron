@@ -872,6 +872,7 @@ impl TheTrait for Editor {
                                         rusterix.apply_entities_items(
                                             Vec2::new(dim.width as f32, dim.height as f32),
                                             &map,
+                                            &self.server_ctx.editing_surface,
                                         );
                                     } else {
                                         // rusterix.build_scene(
@@ -885,6 +886,7 @@ impl TheTrait for Editor {
                                             rusterix.apply_entities_items(
                                                 Vec2::new(dim.width as f32, dim.height as f32),
                                                 map,
+                                                &self.server_ctx.editing_surface,
                                             );
                                         }
                                     }
@@ -938,6 +940,7 @@ impl TheTrait for Editor {
                                             &map,
                                             &self.build_values,
                                             false,
+                                            &self.server_ctx.editing_surface,
                                         );
                                         rusterix.draw_custom_d2(
                                             &map,
@@ -951,6 +954,7 @@ impl TheTrait for Editor {
                                             profile,
                                             &self.build_values,
                                             false,
+                                            &None,
                                         );
                                         rusterix.draw_custom_d2(
                                             profile,
@@ -1031,6 +1035,7 @@ impl TheTrait for Editor {
                                             &map,
                                             &self.build_values,
                                             true,
+                                            &self.server_ctx.editing_surface,
                                         );
                                         rusterix.draw_custom_d2(
                                             &map,
@@ -1044,6 +1049,7 @@ impl TheTrait for Editor {
                                             material,
                                             &self.build_values,
                                             true,
+                                            &None,
                                         );
                                         rusterix.draw_custom_d2(
                                             material,

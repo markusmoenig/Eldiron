@@ -99,39 +99,35 @@ impl Tool for SelectionTool {
                     return None;
                 }
 
-                if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                    server_ctx.profile_view = server_ctx.hitinfo.profile_id;
-                } else {
-                    if !server_ctx.hover_is_empty() {
-                        let prev = map.clone();
-                        let arrays = server_ctx.hover_to_arrays();
-                        if ui.shift {
-                            // Add
-                            map.add_to_selection(arrays.0, arrays.1, arrays.2);
-                        } else if ui.alt {
-                            // Remove
-                            map.remove_from_selection(arrays.0, arrays.1, arrays.2);
-                        } else {
-                            // Replace
-                            map.selected_vertices = arrays.0;
-                            map.selected_linedefs = arrays.1;
-                            map.selected_sectors = arrays.2;
-                        }
-
-                        undo_atom = Some(RegionUndoAtom::MapEdit(
-                            Box::new(prev),
-                            Box::new(map.clone()),
-                        ));
-
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Map Selection Changed"),
-                            TheValue::Empty,
-                        ));
+                if !server_ctx.hover_is_empty() {
+                    let prev = map.clone();
+                    let arrays = server_ctx.hover_to_arrays();
+                    if ui.shift {
+                        // Add
+                        map.add_to_selection(arrays.0, arrays.1, arrays.2);
+                    } else if ui.alt {
+                        // Remove
+                        map.remove_from_selection(arrays.0, arrays.1, arrays.2);
+                    } else {
+                        // Replace
+                        map.selected_vertices = arrays.0;
+                        map.selected_linedefs = arrays.1;
+                        map.selected_sectors = arrays.2;
                     }
 
-                    self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);
-                    self.rectangle_undo_map = map.clone();
+                    undo_atom = Some(RegionUndoAtom::MapEdit(
+                        Box::new(prev),
+                        Box::new(map.clone()),
+                    ));
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
                 }
+
+                self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);
+                self.rectangle_undo_map = map.clone();
             }
             MapDragged(coord) => {
                 if server_ctx.editor_view_mode != EditorViewMode::D2 {
