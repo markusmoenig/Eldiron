@@ -267,7 +267,7 @@ impl MapEditor {
                     }
                 } else if id.name == "SoftRig Selected" {
                     if let TheValue::Id(id) = value {
-                        let mut nodeui = TheNodeUI::default();
+                        let mut nodeui: TheNodeUI = TheNodeUI::default();
 
                         if let Some(map) = project.get_map(server_ctx) {
                             let name = if let Some(softrig) = map.softrigs.get(id) {
@@ -308,6 +308,11 @@ impl MapEditor {
                 } else if id.name == "Map Selection Changed" {
                     set_code(ui, ctx, project, server_ctx);
                     self.apply_map_settings(ui, ctx, project, server_ctx);
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Action List"),
+                        TheValue::Empty,
+                    ));
                 }
                 // else if id.name == "Cursor Pos Changed" {
                 //     if let Some(text) = ui.get_text("Cursor Position") {
@@ -752,6 +757,7 @@ impl MapEditor {
                     }
                     crate::utils::scenemanager_render_map(project, server_ctx);
                 }
+                /*
                 if id.name == "linedefDeleteWall" && *state == TheWidgetState::Clicked {
                     if let Some(map) = project.get_map_mut(server_ctx) {
                         let prev = map.clone();
@@ -769,7 +775,7 @@ impl MapEditor {
                         }
                     }
                     crate::utils::scenemanager_render_map(project, server_ctx);
-                }
+                }*/
                 // Region Content List Selection
                 if id.name == "Screen Content List Item" {
                     /*
@@ -1197,8 +1203,8 @@ impl MapEditor {
                 }
             }
             if let Some(linedef) = map.find_linedef(linedef_id) {
-                if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
-                    linedef.properties.get("floor_source")
+                if let Some(PixelSource::ShapeFXGraphId(id)) =
+                    linedef.properties.get_default_source()
                 {
                     if let Some(graph) = map.shapefx_graphs.get(id) {
                         NODEEDITOR.write().unwrap().apply_graph(
@@ -1295,14 +1301,14 @@ impl MapEditor {
                 );
                 nodeui.add_item(item);
 
-                if linedef.profile.vertices.is_empty() {
-                    let item = TheNodeUIItem::Button(
-                        "linedefCreateWall".into(),
-                        "Create Wall".into(),
-                        "Create a wall profile for the linedef.".into(),
-                        "Wall Profile".into(),
-                    );
-                    nodeui.add_item(item);
+                let item = TheNodeUIItem::Button(
+                    "linedefCreateWall".into(),
+                    "Create Wall".into(),
+                    "Create a wall profile for the linedef.".into(),
+                    "Wall Profile".into(),
+                );
+                nodeui.add_item(item);
+                /*
                 } else {
                     let item = TheNodeUIItem::Button(
                         "linedefDeleteWall".into(),
@@ -1311,7 +1317,7 @@ impl MapEditor {
                         "Wall Profile".into(),
                     );
                     nodeui.add_item(item);
-                }
+                }*/
             }
         }
 
@@ -1393,8 +1399,8 @@ impl MapEditor {
                 }
             }
             if let Some(sector) = map.find_sector(sector_id) {
-                if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
-                    sector.properties.get("floor_source")
+                if let Some(PixelSource::ShapeFXGraphId(id)) =
+                    sector.properties.get_default_source()
                 {
                     if let Some(graph) = map.shapefx_graphs.get(id) {
                         NODEEDITOR.write().unwrap().apply_graph(

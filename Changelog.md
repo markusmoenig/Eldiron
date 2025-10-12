@@ -5,9 +5,9 @@
 ### Creator
 
 - New visual real time shading language for sectors.
-- Wall profiles. Build layered geometry to decorate walls, including realtime shaders and dynamic opacity.
+- New 3D editing functionality. Create surfaces and their profiles.
 - New default 256 color palette.
-- 3D views (Isometric / First Person) are now first class citizen.
+- The project format changed a bit. If your project does not show tiles anymore, load it into a text editor and replace "floor_source" with "source".
 
 ### CI
 

@@ -107,7 +107,7 @@ impl Tool for RectTool {
             mode: i32,
         ) -> Option<RegionUndoAtom> {
             let mut undo_atom: Option<RegionUndoAtom> = None;
-            let size = 1.0 / map.subdivisions;
+            // let size = 1.0 / map.subdivisions;
 
             let prev = map.clone();
             if let Some(vertices) = hovered_vertices {
@@ -153,7 +153,7 @@ impl Tool for RectTool {
                                     for sector_id in sectors {
                                         if let Some(sector) = map.find_sector_mut(sector_id) {
                                             if let Some(sector_floor_source) =
-                                                sector.properties.get("floor_source")
+                                                sector.properties.get_default_source()
                                             {
                                                 // Assign id to the higher current layer id (+1).
                                                 if let Some(l) = &sector.layer {
@@ -167,9 +167,10 @@ impl Tool for RectTool {
                                                     add_it = false;
                                                 } else if mode == 0 {
                                                     // In overlay mode we just overwrite the source
-                                                    sector
-                                                        .properties
-                                                        .set("floor_source", source.clone());
+                                                    sector.properties.set(
+                                                        "source",
+                                                        Value::Source(source.clone()),
+                                                    );
                                                     add_it = false;
                                                 }
                                             }
@@ -195,32 +196,32 @@ impl Tool for RectTool {
                         let v3 = map.add_vertex_at(vertices[3].x, vertices[3].y);
 
                         map.possible_polygon = vec![];
-                        let l0 = map.create_linedef(v0, v1);
-                        let l1 = map.create_linedef(v1, v2);
-                        let l2 = map.create_linedef(v2, v3);
+                        let _ = map.create_linedef(v0, v1);
+                        let _ = map.create_linedef(v1, v2);
+                        let _ = map.create_linedef(v2, v3);
                         let id = map.create_linedef(v3, v0);
 
                         if let Some(sector_id) = id.1 {
                             // Add the info for correct box rendering
-                            if let Some(l) = map.find_linedef_mut(l0.0) {
-                                l.properties.set("row1_source", source.clone());
-                                l.properties.set("wall_height", Value::Float(size));
-                            }
-                            if let Some(l) = map.find_linedef_mut(l1.0) {
-                                l.properties.set("row1_source", source.clone());
-                                l.properties.set("wall_height", Value::Float(size));
-                            }
-                            if let Some(l) = map.find_linedef_mut(l2.0) {
-                                l.properties.set("row1_source", source.clone());
-                                l.properties.set("wall_height", Value::Float(size));
-                            }
-                            if let Some(l) = map.find_linedef_mut(id.0) {
-                                l.properties.set("row1_source", source.clone());
-                                l.properties.set("wall_height", Value::Float(size));
-                            }
+                            // if let Some(l) = map.find_linedef_mut(l0.0) {
+                            //     l.properties.set("row1_source", source.clone());
+                            //     l.properties.set("wall_height", Value::Float(size));
+                            // }
+                            // if let Some(l) = map.find_linedef_mut(l1.0) {
+                            //     l.properties.set("row1_source", source.clone());
+                            //     l.properties.set("wall_height", Value::Float(size));
+                            // }
+                            // if let Some(l) = map.find_linedef_mut(l2.0) {
+                            //     l.properties.set("row1_source", source.clone());
+                            //     l.properties.set("wall_height", Value::Float(size));
+                            // }
+                            // if let Some(l) = map.find_linedef_mut(id.0) {
+                            //     l.properties.set("row1_source", source.clone());
+                            //     l.properties.set("wall_height", Value::Float(size));
+                            // }
 
                             if let Some(sector) = map.find_sector_mut(sector_id) {
-                                if let Value::Source(PixelSource::TileId(id)) = source {
+                                if let PixelSource::TileId(id) = source {
                                     if let Some(tile) =
                                         RUSTERIX.read().unwrap().assets.tiles.get(&id)
                                     {
@@ -231,8 +232,8 @@ impl Tool for RectTool {
                                     }
                                 }
 
-                                sector.properties.set("floor_source", source);
-                                sector.properties.set("ceiling_height", Value::Float(size));
+                                sector.properties.set("source", Value::Source(source));
+                                // sector.properties.set("ceiling_height", Value::Float(size));
                                 sector.layer = Some(layer + 1);
 
                                 undo_atom = Some(RegionUndoAtom::MapEdit(

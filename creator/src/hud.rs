@@ -877,8 +877,7 @@ impl Hud {
             if let Some(sector) = map.find_sector(id) {
                 if index == 0 {
                     let has_light = sector.properties.get("floor_light").is_some();
-                    if let Some(Value::Source(pixelsource)) = &sector.properties.get("floor_source")
-                    {
+                    if let Some(pixelsource) = sector.properties.get_default_source() {
                         if let Some(tile) = pixelsource.to_tile(
                             &RUSTERIX.read().unwrap().assets,
                             icon_size,

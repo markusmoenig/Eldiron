@@ -1,6 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, SHADEGRIDFX, SIDEBARMODE,
-    TILEMAPEDITOR, UNDOMANAGER,
+    ACTIONLIST, CODEEDITOR, CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, SHADEGRIDFX,
+    SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER,
 };
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
@@ -15,9 +15,9 @@ pub enum SidebarMode {
     Module,
     Screen,
     Asset,
-    Model,
     Material,
-    Node,
+    Action,
+    // Node,
     Debug,
     Palette,
 }
@@ -59,7 +59,7 @@ impl Sidebar {
 
         let mut character_sectionbar_button =
             TheSectionbarButton::new(TheId::named("Character Section"));
-        character_sectionbar_button.set_text("Character".to_string());
+        character_sectionbar_button.set_text("Entity".to_string());
         character_sectionbar_button.set_status_text(
             "Edit and manage the characers (and their behavior) available in the game.",
         );
@@ -93,18 +93,21 @@ impl Sidebar {
             "Manage assets in the asset library, such as images, sounds, and fonts.",
         );
 
-        let mut model_sectionbar_button = TheSectionbarButton::new(TheId::named("Model Section"));
-        model_sectionbar_button.set_text("Model".to_string());
-        model_sectionbar_button.set_status_text("Models");
-
         let mut material_sectionbar_button =
             TheSectionbarButton::new(TheId::named("Material Section"));
         material_sectionbar_button.set_text("Material".to_string());
         material_sectionbar_button.set_status_text("Currently available materials.");
 
-        let mut node_sectionbar_button = TheSectionbarButton::new(TheId::named("Node Section"));
-        node_sectionbar_button.set_text("Node".to_string());
-        node_sectionbar_button.set_status_text("The UI of the currently selected node.");
+        let mut action_sectionbar_button = TheSectionbarButton::new(TheId::named("Action Section"));
+        action_sectionbar_button.set_text("Action".to_string());
+        action_sectionbar_button.set_status_text("Actions");
+        action_sectionbar_button.set_status_text(
+            "Apply the applicable actions to the current 2D and 3D geometry selection.",
+        );
+
+        // let mut node_sectionbar_button = TheSectionbarButton::new(TheId::named("Node Section"));
+        // node_sectionbar_button.set_text("Node".to_string());
+        // node_sectionbar_button.set_status_text("The UI of the currently selected node.");
 
         let mut debug_sectionbar_button = TheSectionbarButton::new(TheId::named("Debug Section"));
         debug_sectionbar_button.set_text("Log".to_string());
@@ -126,16 +129,16 @@ impl Sidebar {
         vlayout.add_widget(Box::new(module_sectionbar_button));
         vlayout.add_widget(Box::new(screen_sectionbar_button));
         vlayout.add_widget(Box::new(asset_sectionbar_button));
-        vlayout.add_widget(Box::new(model_sectionbar_button));
         vlayout.add_widget(Box::new(material_sectionbar_button));
-        vlayout.add_widget(Box::new(node_sectionbar_button));
+        vlayout.add_widget(Box::new(action_sectionbar_button));
+        // vlayout.add_widget(Box::new(node_sectionbar_button));
         vlayout.add_widget(Box::new(debug_sectionbar_button));
         vlayout.add_widget(Box::new(palette_sectionbar_button));
         vlayout.set_margin(Vec4::new(5, 10, 5, 5));
         vlayout.set_padding(4);
         vlayout.set_background_color(Some(SectionbarBackground));
         vlayout.limiter_mut().set_max_width(90);
-        vlayout.set_reverse_index(Some(2));
+        vlayout.set_reverse_index(Some(3));
         sectionbar_canvas.set_layout(vlayout);
 
         //
@@ -470,7 +473,7 @@ impl Sidebar {
         module_canvas.set_top(list_canvas);
         stack_layout.add_canvas(module_canvas);
 
-        // Screens
+        // Screen UI
 
         let mut screens_canvas = TheCanvas::default();
 
@@ -602,60 +605,6 @@ impl Sidebar {
 
         stack_layout.add_canvas(asset_canvas);
 
-        // Model UI
-
-        let mut model_canvas = TheCanvas::default();
-        let mut model_list_canvas = TheCanvas::default();
-
-        let mut model_list_header_canvas = TheCanvas::default();
-        model_list_header_canvas.set_widget(TheTraybar::new(TheId::empty()));
-        let mut model_list_header_canvas_hlayout = TheHLayout::new(TheId::empty());
-        model_list_header_canvas_hlayout.set_background_color(None);
-
-        let mut model_add_button = TheTraybarButton::new(TheId::named("Model Add"));
-        model_add_button.set_icon_name("icon_role_add".to_string());
-        model_add_button.set_status_text("Add a new model.");
-
-        let mut model_remove_button = TheTraybarButton::new(TheId::named("Model Remove"));
-        model_remove_button.set_icon_name("icon_role_remove".to_string());
-        model_remove_button.set_status_text("Remove the current asset.");
-        model_remove_button.set_disabled(true);
-
-        let mut filter_text = TheText::new(TheId::empty());
-        filter_text.set_text("Filter".to_string());
-
-        model_list_header_canvas_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
-        model_list_header_canvas_hlayout.set_padding(3);
-        model_list_header_canvas_hlayout.add_widget(Box::new(model_add_button));
-        model_list_header_canvas_hlayout.add_widget(Box::new(model_remove_button));
-        model_list_header_canvas_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
-        model_list_header_canvas_hlayout.add_widget(Box::new(filter_text));
-        let mut filter_edit = TheTextLineEdit::new(TheId::named("Model Filter Edit"));
-        filter_edit.set_text("".to_string());
-        filter_edit.limiter_mut().set_max_size(Vec2::new(120, 18));
-        filter_edit.set_font_size(12.5);
-        filter_edit.set_embedded(true);
-        filter_edit.set_status_text("Show models containing the given text.");
-        filter_edit.set_continuous(true);
-        model_list_header_canvas_hlayout.add_widget(Box::new(filter_edit));
-
-        // let mut drop_down = TheDropdownMenu::new(TheId::named("Material Filter Role"));
-        // drop_down.add_option("All".to_string());
-        // for dir in TileRole::iterator() {
-        //     drop_down.add_option(dir.to_string().to_string());
-        // }
-        // material_list_header_canvas_hlayout.add_widget(Box::new(drop_down));
-
-        model_list_header_canvas.set_layout(model_list_header_canvas_hlayout);
-
-        let mut model_list_layout = TheListLayout::new(TheId::named("Model List"));
-        model_list_layout.set_item_size(42);
-        model_list_canvas.set_bottom(model_list_header_canvas);
-        model_list_canvas.set_layout(model_list_layout);
-
-        model_canvas.set_center(model_list_canvas);
-        stack_layout.add_canvas(model_canvas);
-
         // Material UI
 
         let mut material_canvas = TheCanvas::default();
@@ -738,6 +687,55 @@ impl Sidebar {
         material_canvas.set_center(material_list_canvas);
         stack_layout.add_canvas(material_canvas);
 
+        // Action UI
+
+        let mut action_canvas = TheCanvas::default();
+        let mut shared_layout = TheSharedVLayout::new(TheId::named("Screen Shared Layout"));
+
+        let mut action_list_canvas = TheCanvas::default();
+
+        let mut action_list_header_canvas = TheCanvas::default();
+        action_list_header_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        let mut action_list_header_canvas_hlayout = TheHLayout::new(TheId::empty());
+        action_list_header_canvas_hlayout.set_background_color(None);
+
+        let mut action_apply_button = TheTraybarButton::new(TheId::named("Action Apply"));
+        action_apply_button.set_text("Apply".to_string());
+        action_apply_button.set_status_text("Apply the current action.");
+
+        action_list_header_canvas_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
+        action_list_header_canvas_hlayout.set_padding(3);
+        action_list_header_canvas_hlayout.add_widget(Box::new(action_apply_button));
+
+        action_list_header_canvas.set_layout(action_list_header_canvas_hlayout);
+
+        let mut action_settings_canvas = TheCanvas::default();
+        let mut text_layout = TheTextLayout::new(TheId::named("Action Settings"));
+        text_layout.limiter_mut().set_max_width(self.width);
+        text_layout.set_text_margin(20);
+        text_layout.set_text_align(TheHorizontalAlign::Right);
+        action_settings_canvas.set_layout(text_layout);
+
+        let mut action_settings_header = TheCanvas::new();
+        let mut switchbar = TheSwitchbar::new(TheId::named("Action Settings Section Header"));
+        switchbar.set_text("Action Settings".to_string());
+        action_settings_header.set_widget(switchbar);
+        action_settings_canvas.set_top(action_settings_header);
+
+        let action_list_layout = TheListLayout::new(TheId::named("Action List"));
+        action_list_canvas.set_layout(action_list_layout);
+        action_list_canvas.set_bottom(action_list_header_canvas);
+
+        shared_layout.add_canvas(action_list_canvas);
+        shared_layout.add_canvas(action_settings_canvas);
+
+        shared_layout.set_mode(TheSharedVLayoutMode::Shared);
+        shared_layout.set_shared_ratio(0.5);
+
+        action_canvas.set_layout(shared_layout);
+        stack_layout.add_canvas(action_canvas);
+
+        /*
         // Node UI
 
         let mut node_ui_canvas = TheCanvas::default();
@@ -750,6 +748,7 @@ impl Sidebar {
         node_ui_canvas.set_layout(text_layout);
 
         stack_layout.add_canvas(node_ui_canvas);
+        */
 
         // Debug
 
@@ -816,26 +815,53 @@ impl Sidebar {
 
         let mut canvas = TheCanvas::new();
 
-        canvas.set_top(header);
-        canvas.set_right(sectionbar_canvas);
-        canvas.top_is_expanding = false;
+        // canvas.set_top(header);
+        // canvas.set_right(sectionbar_canvas);
+        // canvas.top_is_expanding = false;
         canvas.set_layout(stack_layout);
 
-        // Mini Map
+        // Multi functional footer canvas
+
+        let mut footer_canvas = TheCanvas::new();
+
+        let mut shared_layout = TheSharedVLayout::new(TheId::named("Multi Shared"));
+
+        let mut tab_canvas: TheCanvas = TheCanvas::default();
+        let mut tab = TheTabLayout::new(TheId::named("Multi Tab"));
 
         let mut minimap_canvas = TheCanvas::default();
         let mut minimap = TheRenderView::new(TheId::named("MiniMap"));
-
-        minimap
-            .limiter_mut()
-            .set_max_size(Vec2::new(self.width, 200));
+        minimap.limiter_mut().set_max_width(self.width);
         minimap_canvas.set_widget(minimap);
 
-        canvas.set_bottom(minimap_canvas);
+        let mut node_settings_canvas = TheCanvas::default();
+        let mut text_layout = TheTextLayout::new(TheId::named("Node Settings"));
+        text_layout.limiter_mut().set_max_width(self.width);
+        //text_layout.set_fixed_text_width(110);
+        text_layout.set_text_margin(20);
+        text_layout.set_text_align(TheHorizontalAlign::Right);
+        node_settings_canvas.set_layout(text_layout);
+
+        tab.add_canvas("Minimap".to_string(), minimap_canvas);
+        tab.add_canvas("Node Settings".to_string(), node_settings_canvas);
+        tab_canvas.set_layout(tab);
+
+        shared_layout.add_canvas(canvas);
+        shared_layout.add_canvas(tab_canvas);
+        shared_layout.set_mode(TheSharedVLayoutMode::Shared);
+        shared_layout.set_shared_ratio(0.65);
+        shared_layout.limiter_mut().set_max_width(self.width);
+
+        footer_canvas.set_top(header);
+        footer_canvas.set_layout(shared_layout);
+        footer_canvas.set_right(sectionbar_canvas);
+        footer_canvas.top_is_expanding = false;
+
+        // canvas.set_bottom(minimap_canvas);
 
         // --
 
-        ui.canvas.set_right(canvas);
+        ui.canvas.set_right(footer_canvas);
 
         self.apply_region(ui, ctx, None, &mut Project::default());
         self.apply_character(ui, ctx, None);
@@ -1079,18 +1105,18 @@ impl Sidebar {
                     rusterix.set_dirty();
                 } else
                  */
-                if id.name == "Update Model List" {
-                    self.show_filtered_models(ui, ctx, project, server_ctx);
+                if id.name == "Update Action List" {
+                    self.show_actions(ui, ctx, project, server_ctx);
 
-                    self.deselect_sections_buttons(ctx, ui, "Model Section".to_string());
-                    self.select_section_button(ui, "Model Section".to_string());
+                    // self.deselect_sections_buttons(ctx, ui, "Action Section".to_string());
+                    // self.select_section_button(ui, "Action Section".to_string());
 
-                    *SIDEBARMODE.write().unwrap() = SidebarMode::Model;
+                    // *SIDEBARMODE.write().unwrap() = SidebarMode::Action;
 
-                    ctx.ui.send(TheEvent::SetStackIndex(
-                        self.stack_layout_id.clone(),
-                        SidebarMode::Model as usize,
-                    ));
+                    // ctx.ui.send(TheEvent::SetStackIndex(
+                    //     self.stack_layout_id.clone(),
+                    //     SidebarMode::Action as usize,
+                    // ));
                 } else if id.name == "Nodegraph Id Changed" {
                     if let Some(map) = project.get_map(server_ctx) {
                         if let Some(widget) = ui.get_widget("Graph Id Text") {
@@ -1130,24 +1156,11 @@ impl Sidebar {
                 } else if id.name == "Update Tiles" {
                     self.update_tiles(ui, ctx, project);
                 } else if id.name == "Show Node Settings" {
-                    self.deselect_sections_buttons(ctx, ui, "Node Section".to_string());
-                    self.select_section_button(ui, "Node Section".to_string());
-
-                    if let TheValue::Text(text) = value {
-                        if let Some(widget) = ui
-                            .canvas
-                            .get_widget(Some(&"Switchbar Section Header".into()), None)
-                        {
-                            widget.set_value(TheValue::Text(text.clone()));
+                    if let Some(tab) = ui.get_layout("Multi Tab") {
+                        if let Some(tab) = tab.as_tab_layout() {
+                            tab.set_index(1);
                         }
                     }
-
-                    *SIDEBARMODE.write().unwrap() = SidebarMode::Node;
-
-                    ctx.ui.send(TheEvent::SetStackIndex(
-                        self.stack_layout_id.clone(),
-                        SidebarMode::Node as usize,
-                    ));
                 } else if id.name == "Update Content List" {
                     if server_ctx.get_map_context() == MapContext::Region {
                         self.apply_region(ui, ctx, Some(server_ctx.curr_region), project);
@@ -1436,17 +1449,6 @@ impl Sidebar {
                             ctx,
                         );
                     }
-                } else if item_id.name == "Rename Model" {
-                    if let Some(model) = project.models.get(&widget_id.uuid) {
-                        open_text_dialog(
-                            "Rename Model",
-                            "Model Name",
-                            &model.name,
-                            widget_id.uuid,
-                            ui,
-                            ctx,
-                        );
-                    }
                 } else if item_id.name == "Rename Material" {
                     if let Some(material) = project.shaders.get(&widget_id.uuid) {
                         open_text_dialog(
@@ -1485,13 +1487,6 @@ impl Sidebar {
                 } else if id.name == "Item Item" {
                     let mut drop = TheDrop::new(id.clone());
                     drop.set_title(format!("Item: {text}"));
-                    drop.set_text(text.clone());
-                    drop.set_offset(*offset);
-                    ui.style.create_drop_image(&mut drop, ctx);
-                    ctx.ui.set_drop(drop);
-                } else if id.name == "Model Item" {
-                    let mut drop = TheDrop::new(id.clone());
-                    drop.set_title(format!("Model: {text}"));
                     drop.set_text(text.clone());
                     drop.set_offset(*offset);
                     ui.style.create_drop_image(&mut drop, ctx);
@@ -1813,7 +1808,15 @@ impl Sidebar {
                 }
             }
             TheEvent::StateChanged(id, state) => {
-                if id.name == "Material Item" {
+                // Iterate actions first
+                if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(id.uuid) {
+                    let nodeui = action.params();
+
+                    if let Some(layout) = ui.get_text_layout("Action Settings") {
+                        nodeui.apply_to_text_layout(layout);
+                        ctx.ui.relayout = true;
+                    }
+                } else if id.name == "Material Item" {
                     let material_id = id.uuid;
                     server_ctx.curr_material_id = Some(material_id);
                     if server_ctx.get_map_context() == MapContext::Material {
@@ -1932,104 +1935,8 @@ impl Sidebar {
                     self.apply_region(ui, ctx, Some(id.uuid), project);
                     redraw = true;
                 }
-                // Regions Add
-                else if id.name == "Model Add" {
-                    if let Some(list_layout) = ui.get_list_layout("Model List") {
-                        let map = Map::default();
-
-                        let mut item = TheListItem::new(TheId::named_with_id("Model Item", map.id));
-                        item.set_text(map.name.clone());
-                        item.set_state(TheWidgetState::Selected);
-                        item.set_context_menu(Some(TheContextMenu {
-                            items: vec![TheContextMenuItem::new(
-                                "Rename Model...".to_string(),
-                                TheId::named("Rename Model"),
-                            )],
-                            ..Default::default()
-                        }));
-                        list_layout.deselect_all();
-                        let id = item.id().clone();
-                        list_layout.add_item(item, ctx);
-                        ctx.ui
-                            .send_widget_state_changed(&id, TheWidgetState::Selected);
-
-                        server_ctx.clear();
-                        server_ctx.curr_region = map.id;
-                        project.models.insert(map.id, map);
-                    }
-                } else if id.name == "Model Remove" {
-                    if let Some(list_layout) = ui.get_list_layout("Model List") {
-                        if let Some(selected) = list_layout.selected() {
-                            list_layout.remove(selected.clone());
-                            project.remove_model(&selected.uuid);
-                            //self.apply_region(ui, ctx, None, server, &project.palette);
-                        }
-                    }
-                } else if id.name == "Model Item" {
-                    for r in &project.regions {
-                        if r.id == id.uuid {
-                            //self.apply_region(ui, ctx, Some(r), server, &project.palette);
-                            redraw = true;
-                        }
-                    }
-                } else if id.name == "Character Add" {
-                    /*
-                    if let Some(list_layout) = ui.get_list_layout("Character List") {
-                        let mut bundle = TheCodeBundle::new();
-
-                        let mut init = TheCodeGrid {
-                            name: "init".into(),
-                            ..Default::default()
-                        };
-                        init.insert_atom(
-                            (0, 0),
-                            TheCodeAtom::Set("@self.name".to_string(), TheValueAssignment::Assign),
-                        );
-                        init.insert_atom(
-                            (1, 0),
-                            TheCodeAtom::Assignment(TheValueAssignment::Assign),
-                        );
-                        init.insert_atom(
-                            (2, 0),
-                            TheCodeAtom::Value(TheValue::Text("Unnamed".to_string())),
-                        );
-
-                        init.insert_atom(
-                            (0, 2),
-                            TheCodeAtom::Set("@self.tile".to_string(), TheValueAssignment::Assign),
-                        );
-                        init.insert_atom(
-                            (1, 2),
-                            TheCodeAtom::Assignment(TheValueAssignment::Assign),
-                        );
-                        init.insert_atom(
-                            (2, 2),
-                            TheCodeAtom::Value(TheValue::Tile("Name".to_string(), Uuid::nil())),
-                        );
-
-                        bundle.insert_grid(init);
-
-                        let main = TheCodeGrid {
-                            name: "main".into(),
-                            ..Default::default()
-                        };
-                        bundle.insert_grid(main);
-
-                        let mut item =
-                            TheListItem::new(TheId::named_with_id("Character Item", bundle.id));
-                        item.set_text(bundle.name.clone());
-                        item.set_state(TheWidgetState::Selected);
-                        list_layout.deselect_all();
-                        let id = item.id().clone();
-                        list_layout.add_item(item, ctx);
-                        ctx.ui
-                            .send_widget_state_changed(&id, TheWidgetState::Selected);
-
-                        self.apply_character(ui, ctx, Some(&bundle));
-                        server.insert_character(bundle.clone());
-                        project.add_character(bundle);
-                    }*/
-
+                // Character Add
+                else if id.name == "Character Add" {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         let mut character = Character::default();
 
@@ -2131,15 +2038,6 @@ impl Sidebar {
                             self.apply_item(ui, ctx, None);
                         }
                     }
-                } else if id.name == "Model Add" {
-                    let map = Map {
-                        name: "Unnamed Model".to_string(),
-                        ..Default::default()
-                    };
-                    server_ctx.curr_material_id = Some(map.id);
-                    project.models.insert(map.id, map);
-                    self.show_filtered_materials(ui, ctx, project, server_ctx);
-                    RUSTERIX.write().unwrap().set_dirty();
                 } else if id.name == "Material Add" {
                     let mut module: Module = Module::as_type(codegridfx::ModuleType::Material);
                     module.update_routines();
@@ -2582,21 +2480,21 @@ impl Sidebar {
                         SidebarMode::Asset as usize,
                     ));
                     redraw = true;
-                } else if id.name == "Model Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Action Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
                     {
-                        widget.set_value(TheValue::Text("Models".to_string()));
+                        widget.set_value(TheValue::Text("Actions".to_string()));
                     }
 
-                    *SIDEBARMODE.write().unwrap() = SidebarMode::Model;
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Action;
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
-                        SidebarMode::Model as usize,
+                        SidebarMode::Action as usize,
                     ));
                     redraw = true;
                 } else if id.name == "Material Section" && *state == TheWidgetState::Selected {
@@ -2619,14 +2517,15 @@ impl Sidebar {
                         SidebarMode::Material as usize,
                     ));
                     redraw = true;
-                } else if id.name == "Node Section" && *state == TheWidgetState::Selected {
+                }
+                /*else if id.name == "Node Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
                     {
-                        widget.set_value(TheValue::Text("Node".to_string()));
+                        widget.set_value(TheValue::Text("Node UI".to_string()));
                     }
 
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Node;
@@ -2637,7 +2536,8 @@ impl Sidebar {
                     ));
 
                     redraw = true;
-                } else if id.name == "Debug Section" && *state == TheWidgetState::Selected {
+                } */
+                else if id.name == "Debug Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
@@ -2878,7 +2778,7 @@ impl Sidebar {
 
         server_ctx.curr_material_id = selected_material;
 
-        self.show_filtered_models(ui, ctx, project, server_ctx);
+        self.show_actions(ui, ctx, project, server_ctx);
         self.show_filtered_materials(ui, ctx, project, server_ctx);
         self.update_tiles(ui, ctx, project);
     }
@@ -3477,77 +3377,32 @@ impl Sidebar {
         ui.select_first_list_item("Tilemap Tile List", ctx);
     }
 
-    /// Shows the filtered models of the project.
-    pub fn show_filtered_models(
+    /// Shows the filtered actions for the current selection.
+    pub fn show_actions(
         &mut self,
-        _ui: &mut TheUI,
-        _ctx: &mut TheContext,
-        _project: &Project,
-        _server_ctx: &ServerContext,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &ServerContext,
     ) {
-        // let mut filter_text = if let Some(widget) = ui
-        //     .canvas
-        //     .get_widget(Some(&"Model Filter Edit".to_string()), None)
-        // {
-        //     widget.value().to_string().unwrap_or_default()
-        // } else {
-        //     "".to_string()
-        // };
-
-        // let _filter_role = if let Some(widget) = ui
-        //     .canvas
-        //     .get_widget(Some(&"Model Filter Role".to_string()), None)
-        // {
-        //     if let Some(drop_down_menu) = widget.as_drop_down_menu() {
-        //         drop_down_menu.selected_index()
-        //     } else {
-        //         0
-        //     }
-        // } else {
-        //     0
-        // };
-
-        //filter_text = filter_text.to_lowercase();
-        /*
-
-        if let Some(layout) = ui.canvas.get_layout(Some(&"Model List".to_string()), None) {
+        if let Some(layout) = ui.canvas.get_layout(Some(&"Action List".to_string()), None) {
             if let Some(list_layout) = layout.as_list_layout() {
                 list_layout.clear();
-                for model in project.models.values() {
-                    if filter_text.is_empty() || model.name.to_lowercase().contains(&filter_text)
-                    //&& (filter_role == 0
-                    //    || tile.role == TileRole::from_index(filter_role as u8 - 1).unwrap())
-                    {
-                        let mut item =
-                            TheListItem::new(TheId::named_with_id("Model Item", model.id));
-                        item.set_text(model.name.clone());
-                        let sub_text =
-                            format!("{}. {} Nodes", model.nodes[0].name(), model.nodes.len());
-                        item.set_sub_text(sub_text);
-                        item.set_size(42);
-                        if Some(model.id) == server_ctx.curr_material_object {
-                            item.set_state(TheWidgetState::Selected);
+
+                let actions = ACTIONLIST.read().unwrap();
+
+                if let Some(map) = project.get_map(server_ctx) {
+                    for action in &actions.actions {
+                        if action.is_applicable(map, ctx, server_ctx) {
+                            let mut item = TheListItem::new(action.id().clone());
+                            item.set_text(action.id().name.clone());
+
+                            list_layout.add_item(item, ctx);
                         }
-                        let mut buffer = TheRGBABuffer::new(TheDim::sized(36, 36));
-                        model.preview_2d(
-                            &mut buffer,
-                            &project.palette,
-                            &TILEDRAWER.lock().unwrap().tiles,
-                        );
-                        item.set_icon(buffer);
-                        item.set_context_menu(Some(TheContextMenu {
-                            items: vec![TheContextMenuItem::new(
-                                "Rename Model...".to_string(),
-                                TheId::named("Rename Model"),
-                            )],
-                            ..Default::default()
-                        }));
-                        list_layout.add_item(item, ctx);
                     }
                 }
             }
-        }*/
-        //ui.select_first_list_item("Material List", ctx);
+        }
     }
 
     /// Shows the filtered materials of the project.

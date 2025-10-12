@@ -134,12 +134,12 @@ pub fn set_code(
 }
 
 /// Returns the currently active source
-pub fn get_source(_ui: &mut TheUI, server_ctx: &ServerContext) -> Option<Value> {
-    let mut source: Option<Value> = None;
+pub fn get_source(_ui: &mut TheUI, server_ctx: &ServerContext) -> Option<PixelSource> {
+    let mut source: Option<PixelSource> = None;
 
     if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
         if let Some(id) = server_ctx.curr_tile_id {
-            source = Some(Value::Source(PixelSource::TileId(id)));
+            source = Some(PixelSource::TileId(id));
         }
     } /*else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
     if let Some(id) = server_ctx.curr_material {

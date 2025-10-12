@@ -482,7 +482,7 @@ impl Tool for SectorTool {
                                     } else if self.hud.selected_icon_index == 0
                                         || context == NodeContext::Material
                                     {
-                                        sector.properties.set("floor_source", source.clone());
+                                        sector.properties.set("source", source.clone());
                                     } else if self.hud.selected_icon_index == 1 {
                                         sector.properties.set("ceiling_source", source.clone());
                                     }
@@ -547,7 +547,7 @@ impl Tool for SectorTool {
                                     } else {
                                         sector
                                             .properties
-                                            .set("floor_source", Value::Source(PixelSource::Off));
+                                            .set("source", Value::Source(PixelSource::Off));
                                     }
                                 } else if self.hud.selected_icon_index == 1 {
                                     if sector.properties.contains("ceiling_light") {

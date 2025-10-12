@@ -32,6 +32,8 @@ pub static UNDOMANAGER: LazyLock<RwLock<UndoManager>> =
     LazyLock::new(|| RwLock::new(UndoManager::default()));
 pub static TOOLLIST: LazyLock<RwLock<ToolList>> =
     LazyLock::new(|| RwLock::new(ToolList::default()));
+pub static ACTIONLIST: LazyLock<RwLock<ActionList>> =
+    LazyLock::new(|| RwLock::new(ActionList::default()));
 pub static PANELS: LazyLock<RwLock<Panels>> = LazyLock::new(|| RwLock::new(Panels::new()));
 pub static CODEEDITOR: LazyLock<RwLock<CodeEditor>> =
     LazyLock::new(|| RwLock::new(CodeEditor::new()));

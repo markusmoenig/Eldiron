@@ -2,6 +2,8 @@
 
 use theframework::*;
 
+pub mod actionlist;
+pub mod actions;
 pub mod codeeditor;
 pub mod configeditor;
 pub mod customcamera;
@@ -49,6 +51,7 @@ pub mod prelude {
     pub use crate::misc::*;
     pub use crate::panels::*;
     // pub use crate::previewview::*;
+    pub use crate::actionlist::*;
     pub use crate::shapepicker::*;
     pub use crate::sidebar::*;
     pub use crate::tilemapeditor::*;
@@ -68,6 +71,7 @@ pub mod prelude {
     pub use crate::tools::tileset::TilesetTool;
     pub use crate::tools::vertex::VertexTool;
 
+    pub use crate::actions::*;
     pub use crate::tools::*;
 
     pub use crate::configeditor::ConfigEditor;
@@ -84,9 +88,9 @@ use crate::editor::Editor;
 fn main() {
     let args: Vec<_> = std::env::args().collect();
 
-    // unsafe {
-    //     std::env::set_var("RUST_BACKTRACE", "1");
-    // }
+    unsafe {
+        std::env::set_var("RUST_BACKTRACE", "1");
+    }
 
     let editor = Editor::new();
     let mut app = TheApp::new();

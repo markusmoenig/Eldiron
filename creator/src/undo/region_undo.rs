@@ -83,14 +83,7 @@ impl RegionUndoAtom {
                 let map = if region.map.id == prev.id {
                     Some(&mut region.map)
                 } else {
-                    let mut rc = None;
-                    for linedef in &mut region.map.linedefs {
-                        if linedef.profile.id == prev.id {
-                            rc = Some(&mut linedef.profile);
-                            break;
-                        }
-                    }
-                    rc
+                    region.map.profiles.get_mut(&prev.id)
                 };
                 if let Some(map) = map {
                     *map = *prev.clone();
@@ -122,14 +115,7 @@ impl RegionUndoAtom {
                 let map = if region.map.id == *map_id {
                     Some(&mut region.map)
                 } else {
-                    let mut rc = None;
-                    for linedef in &mut region.map.linedefs {
-                        if linedef.profile.id == *map_id {
-                            rc = Some(&mut linedef.profile);
-                            break;
-                        }
-                    }
-                    rc
+                    region.map.profiles.get_mut(&prev.id)
                 };
                 if let Some(map) = map {
                     if let Some(sector) = map.find_sector_mut(*sector_id) {
@@ -156,14 +142,7 @@ impl RegionUndoAtom {
                 let map = if region.map.id == next.id {
                     Some(&mut region.map)
                 } else {
-                    let mut rc = None;
-                    for linedef in &mut region.map.linedefs {
-                        if linedef.profile.id == next.id {
-                            rc = Some(&mut linedef.profile);
-                            break;
-                        }
-                    }
-                    rc
+                    region.map.profiles.get_mut(&next.id)
                 };
 
                 if let Some(map) = map {
@@ -196,14 +175,7 @@ impl RegionUndoAtom {
                 let map = if region.map.id == *map_id {
                     Some(&mut region.map)
                 } else {
-                    let mut rc = None;
-                    for linedef in &mut region.map.linedefs {
-                        if linedef.profile.id == *map_id {
-                            rc = Some(&mut linedef.profile);
-                            break;
-                        }
-                    }
-                    rc
+                    region.map.profiles.get_mut(&next.id)
                 };
                 if let Some(map) = map {
                     if let Some(sector) = map.find_sector_mut(*sector_id) {
