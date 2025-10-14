@@ -261,7 +261,7 @@ impl Panels {
                             if let Some(map) = project.get_map_mut(server_ctx) {
                                 for s in &mut map.sectors {
                                     if s.creator_id == sector_id {
-                                        s.module = SHADEGRIDFX.read().unwrap().clone();
+                                        //s.module = SHADEGRIDFX.read().unwrap().clone();
                                         SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
 
                                         ctx.ui.send(TheEvent::Custom(

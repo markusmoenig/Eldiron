@@ -50,7 +50,6 @@ impl Tool for VertexTool {
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,
-        _tool_context: ToolContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
@@ -61,10 +60,15 @@ impl Tool for VertexTool {
                 self.activate_map_tool_helper(ui, ctx, project, server_ctx);
                 server_ctx.curr_map_tool_type = MapToolType::Vertex;
 
-                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                    region.map.selected_linedefs.clear();
-                    region.map.selected_sectors.clear();
+                if let Some(map) = project.get_map_mut(server_ctx) {
+                    map.selected_linedefs.clear();
+                    map.selected_sectors.clear();
                 }
+
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Map Selection Changed"),
+                    TheValue::Empty,
+                ));
 
                 return true;
             }
@@ -111,7 +115,6 @@ impl Tool for VertexTool {
                     let mut changed = false;
 
                     map.selected_entity_item = None;
-                    map.selected_light = None;
 
                     if ui.shift {
                         // Add

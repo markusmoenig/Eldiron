@@ -43,6 +43,18 @@ pub fn draw_camera_marker(region: &Region, buffer: &mut TheRGBABuffer, server_ct
     }
 }
 
+pub fn draw_material_minimap(
+    buffer: &mut TheRGBABuffer,
+    project: &Project,
+    server_ctx: &ServerContext,
+) {
+    if let Some(shader_id) = server_ctx.curr_material_id {
+        if let Some(shader) = project.shaders.get(&shader_id) {
+            crate::utils::draw_shader_into(shader, buffer);
+        }
+    }
+}
+
 pub fn draw_minimap(
     orig_region: &Region,
     buffer: &mut TheRGBABuffer,

@@ -1006,11 +1006,7 @@ impl MapEditor {
         }
 
         if let Some(map) = project.get_map_mut(server_ctx) {
-            if server_ctx.curr_map_tool_type == MapToolType::Effects {
-                if let Some(index) = map.selected_light {
-                    self.create_light_settings(map, index, ui, ctx, server_ctx);
-                }
-            } else if server_ctx.curr_map_tool_type == MapToolType::Linedef
+            if server_ctx.curr_map_tool_type == MapToolType::Linedef
                 && !map.selected_linedefs.is_empty()
             {
                 self.create_linedef_settings(map, map.selected_linedefs[0], ui, ctx, server_ctx);
@@ -1069,6 +1065,7 @@ impl MapEditor {
         RUSTERIX.write().unwrap().set_dirty();
     }
 
+    /*
     fn create_light_settings(
         &self,
         map: &Map,
@@ -1087,7 +1084,7 @@ impl MapEditor {
                 TheValue::Text("Light Settings".to_string()),
             ));
         }
-    }
+    }*/
 
     fn create_vertex_settings(
         &self,
@@ -1430,10 +1427,12 @@ impl MapEditor {
         let mut nodeui = TheNodeUI::default();
 
         if let Some(sector) = map.find_sector(sector_id) {
-            CODEEDITOR
-                .write()
-                .unwrap()
-                .set_shader_sector(ui, ctx, sector);
+            /*
+                CODEEDITOR
+                    .write()
+                    .unwrap()
+                    .set_shader_sector(ui, ctx, sector);
+            */
 
             let item = TheNodeUIItem::Text(
                 "sectorName".into(),

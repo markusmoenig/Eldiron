@@ -59,7 +59,7 @@ impl CodeEditor {
                     if let Some(sector) = map.find_sector(*sector_id) {
                         has_sector = true;
 
-                        *SHADEGRIDFX.write().unwrap() = sector.module.clone();
+                        // *SHADEGRIDFX.write().unwrap() = sector.module.clone();
                         self.shader_content = ContentContext::Sector(sector.creator_id);
                     }
                 }
@@ -78,6 +78,7 @@ impl CodeEditor {
         SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
     }
 
+    /*
     /// Set the shader to the given sector.
     pub fn set_shader_sector(
         &mut self,
@@ -93,7 +94,7 @@ impl CodeEditor {
             .unwrap()
             .set_module_type(ModuleType::Sector);
         SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
-    }
+    }*/
 
     /// Clear the current shader
     pub fn clear_shader(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {

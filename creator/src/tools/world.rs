@@ -34,7 +34,6 @@ impl Tool for WorldTool {
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,
-        _tool_context: ToolContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,

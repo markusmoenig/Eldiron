@@ -34,7 +34,6 @@ impl Tool for DataTool {
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,
-        _tool_context: ToolContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
         _project: &mut Project,
@@ -77,7 +76,6 @@ impl Tool for DataTool {
                     let mut changed = false;
 
                     map.selected_entity_item = None;
-                    map.selected_light = None;
 
                     if ui.shift {
                         // Add

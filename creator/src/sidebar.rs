@@ -1,6 +1,6 @@
 use crate::editor::{
     ACTIONLIST, CODEEDITOR, CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, SHADEGRIDFX,
-    SIDEBARMODE, TILEMAPEDITOR, UNDOMANAGER,
+    SIDEBARMODE, TILEMAPEDITOR, TOOLLIST, UNDOMANAGER,
 };
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
@@ -649,17 +649,6 @@ impl Sidebar {
         material_remove_button.set_icon_name("icon_role_remove".to_string());
         material_remove_button.set_status_text("Remove the current material.");
 
-        let mut material_region_override =
-            TheGroupButton::new(TheId::named("Material Region Override"));
-        material_region_override.add_text_status(
-            "Material".to_string(),
-            "Show the material preview.".to_string(),
-        );
-        material_region_override
-            .add_text_status("Region".to_string(), "Show the region map.".to_string());
-        material_region_override.set_item_width(70);
-        material_region_override.set_index(0);
-
         let mut import_button: TheTraybarButton =
             TheTraybarButton::new(TheId::named("Material Import"));
         import_button.set_icon_name("import".to_string());
@@ -674,7 +663,6 @@ impl Sidebar {
         material_list_header_canvas_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
         material_list_header_canvas_hlayout.add_widget(Box::new(import_button));
         material_list_header_canvas_hlayout.add_widget(Box::new(export_button));
-        material_list_header_canvas_hlayout.add_widget(Box::new(material_region_override));
         material_list_header_canvas_hlayout.set_reverse_index(Some(1));
 
         material_list_header_canvas.set_layout(material_list_header_canvas_hlayout);
@@ -700,7 +688,7 @@ impl Sidebar {
         action_list_header_canvas_hlayout.set_background_color(None);
 
         let mut action_apply_button = TheTraybarButton::new(TheId::named("Action Apply"));
-        action_apply_button.set_text("Apply".to_string());
+        action_apply_button.set_text("Apply Action".to_string());
         action_apply_button.set_status_text("Apply the current action.");
 
         action_list_header_canvas_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
@@ -716,11 +704,11 @@ impl Sidebar {
         text_layout.set_text_align(TheHorizontalAlign::Right);
         action_settings_canvas.set_layout(text_layout);
 
-        let mut action_settings_header = TheCanvas::new();
-        let mut switchbar = TheSwitchbar::new(TheId::named("Action Settings Section Header"));
-        switchbar.set_text("Action Settings".to_string());
-        action_settings_header.set_widget(switchbar);
-        action_settings_canvas.set_top(action_settings_header);
+        // let mut action_settings_header = TheCanvas::new();
+        // let mut switchbar = TheSwitchbar::new(TheId::named("Action Settings Section Header"));
+        // switchbar.set_text("Action Settings".to_string());
+        // action_settings_header.set_widget(switchbar);
+        // action_settings_canvas.set_top(action_settings_header);
 
         let action_list_layout = TheListLayout::new(TheId::named("Action List"));
         action_list_canvas.set_layout(action_list_layout);
@@ -887,8 +875,6 @@ impl Sidebar {
                     server_ctx.character_region_override = *index == 1;
                 } else if id.name == "Item Region Override" {
                     server_ctx.item_region_override = *index == 1;
-                } else if id.name == "Material Region Override" {
-                    server_ctx.material_region_override = *index == 1;
                 }
             }
             TheEvent::RenderViewClicked(id, coord)
@@ -1059,7 +1045,10 @@ impl Sidebar {
             TheEvent::Resize => {
                 ctx.ui.redraw_all = true;
                 self.show_filtered_materials(ui, ctx, project, server_ctx);
-                // self.show_filtered_models(ui, ctx, project, server_ctx);
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Minimap"),
+                    TheValue::Empty,
+                ));
             }
             TheEvent::WidgetResized(id, dim) => {
                 if project.regions.is_empty() && id.name == "PolyView" {
@@ -1079,7 +1068,7 @@ impl Sidebar {
                     }
                 }
             }
-            TheEvent::Custom(id, value) => {
+            TheEvent::Custom(id, _value) => {
                 if id.name == "Profile View Deselected" {
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Render SceneManager Map"),
@@ -1130,27 +1119,32 @@ impl Sidebar {
                     }
                 } else if id.name == "Update Minimap" {
                     // Rerenders the minimap
-                    if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
-                        if let Some(render_view) = ui.get_render_view("MiniMap") {
-                            let dim = *render_view.dim();
-                            let buffer = render_view.render_buffer_mut();
-                            buffer.resize(dim.width, dim.height);
-                            //let time = ctx.get_time();
-                            draw_minimap(region, buffer, server_ctx, true);
-                            //println!("{}", ctx.get_time() - time);
+                    if let Some(render_view) = ui.get_render_view("MiniMap") {
+                        let dim = *render_view.dim();
+                        let buffer = render_view.render_buffer_mut();
+                        buffer.resize(dim.width, dim.height);
+                        if *SIDEBARMODE.read().unwrap() != SidebarMode::Material {
+                            if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
+                                draw_minimap(region, buffer, server_ctx, true);
+                            }
+                        } else {
+                            crate::minimap::draw_material_minimap(buffer, project, server_ctx);
                         }
+                    } else {
                     }
                 } else if id.name == "Soft Update Minimap" {
                     // Uses the currently rendered minimap and only updates the
                     // camera markers
-                    if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
-                        if let Some(render_view) = ui.get_render_view("MiniMap") {
-                            let dim = *render_view.dim();
-                            let buffer = render_view.render_buffer_mut();
-                            buffer.resize(dim.width, dim.height);
-                            //let time = ctx.get_time();
-                            draw_minimap(region, buffer, server_ctx, false);
-                            //println!("{}", ctx.get_time() - time);
+                    if let Some(render_view) = ui.get_render_view("MiniMap") {
+                        let dim = *render_view.dim();
+                        let buffer = render_view.render_buffer_mut();
+                        buffer.resize(dim.width, dim.height);
+                        if *SIDEBARMODE.read().unwrap() != SidebarMode::Material {
+                            if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
+                                draw_minimap(region, buffer, server_ctx, false);
+                            }
+                        } else {
+                            crate::minimap::draw_material_minimap(buffer, project, server_ctx);
                         }
                     }
                 } else if id.name == "Update Tiles" {
@@ -1494,6 +1488,18 @@ impl Sidebar {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
+                if let Some(action_id) = server_ctx.curr_action_id
+                    && id.name.starts_with("action")
+                {
+                    if let Some(action) =
+                        ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
+                    {
+                        if action.handle_event(event) {
+                            return true;
+                        }
+                    }
+                }
+
                 if id.name == "RegionConfigEdit" {
                     if let Some(code) = value.to_string() {
                         if let Some(region) = project.get_region_ctx_mut(server_ctx) {
@@ -1810,23 +1816,106 @@ impl Sidebar {
             TheEvent::StateChanged(id, state) => {
                 // Iterate actions first
                 if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(id.uuid) {
-                    let nodeui = action.params();
+                    server_ctx.curr_action_id = Some(action.id().uuid);
 
+                    let nodeui = action.params();
                     if let Some(layout) = ui.get_text_layout("Action Settings") {
                         nodeui.apply_to_text_layout(layout);
                         ctx.ui.relayout = true;
                     }
+                } else if id.name == "Action Apply" {
+                    if let Some(action_id) = server_ctx.curr_action_id {
+                        if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id)
+                        {
+                            // let map = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                            //     project.get_map_mut(&server_ctx)
+                            // } else {
+                            //     if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+                            //         Some(&mut region.map)
+                            //     } else {
+                            //         None
+                            //     }
+                            // };
+
+                            if let Some(map) = project.get_map_mut(&server_ctx) {
+                                if let Some(undo_atom) = action.apply(map, ctx, server_ctx) {
+                                    if server_ctx.get_map_context() == MapContext::Region {
+                                        UNDOMANAGER.write().unwrap().add_region_undo(
+                                            &server_ctx.curr_region,
+                                            undo_atom,
+                                            ctx,
+                                        );
+                                        if server_ctx.editor_view_mode == EditorViewMode::D2
+                                            && server_ctx.profile_view.is_some()
+                                        {
+                                        } else {
+                                            crate::utils::scenemanager_render_map(
+                                                project, server_ctx,
+                                            );
+                                            TOOLLIST
+                                                .write()
+                                                .unwrap()
+                                                .update_geometry_overlay_3d(project, server_ctx);
+                                        }
+                                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                    } else if server_ctx.get_map_context() == MapContext::Character
+                                    {
+                                        if let Some(character_undo_atom) =
+                                            undo_atom.to_character_atom()
+                                        {
+                                            UNDOMANAGER
+                                                .write()
+                                                .unwrap()
+                                                .add_character_undo(character_undo_atom, ctx);
+
+                                            /*
+                                            NODEEDITOR.write().unwrap().create_shape_preview(
+                                                map,
+                                                &RUSTERIX.read().unwrap().assets,
+                                            );*/
+                                        }
+                                    } else if server_ctx.get_map_context() == MapContext::Item {
+                                        if let Some(item_undo_atom) = undo_atom.to_item_atom() {
+                                            UNDOMANAGER
+                                                .write()
+                                                .unwrap()
+                                                .add_item_undo(item_undo_atom, ctx);
+
+                                            /*
+                                            NODEEDITOR
+                                                .write()
+                                                .unwrap()
+                                                .create_shape_preview(
+                                                    map,
+                                                    &RUSTERIX.read().unwrap().assets,
+                                                );
+                                            */
+                                        }
+                                    } else if server_ctx.get_map_context() == MapContext::Screen {
+                                        if let Some(screen_undo_atom) = undo_atom.to_screen_atom() {
+                                            UNDOMANAGER
+                                                .write()
+                                                .unwrap()
+                                                .add_screen_undo(screen_undo_atom, ctx);
+                                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                            ctx.ui.send(TheEvent::Custom(
+                                                TheId::named("Update Materialpicker"),
+                                                TheValue::Empty,
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 } else if id.name == "Material Item" {
                     let material_id = id.uuid;
                     server_ctx.curr_material_id = Some(material_id);
-                    if server_ctx.get_map_context() == MapContext::Material {
-                        if let Some(material) = project.shaders.get(&id.uuid) {
-                            CODEEDITOR
-                                .write()
-                                .unwrap()
-                                .set_shader_material(ui, ctx, material);
-                        }
-                        RUSTERIX.write().unwrap().set_dirty();
+                    if let Some(material) = project.shaders.get(&id.uuid) {
+                        CODEEDITOR
+                            .write()
+                            .unwrap()
+                            .set_shader_material(ui, ctx, material);
                     }
                 } else if id.name == "Palette Clear" {
                     let prev = project.palette.clone();
@@ -2490,6 +2579,7 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Actions".to_string()));
                     }
 
+                    self.show_actions(ui, ctx, project, server_ctx);
                     *SIDEBARMODE.write().unwrap() = SidebarMode::Action;
 
                     ctx.ui.send(TheEvent::SetStackIndex(
@@ -2781,6 +2871,14 @@ impl Sidebar {
         self.show_actions(ui, ctx, project, server_ctx);
         self.show_filtered_materials(ui, ctx, project, server_ctx);
         self.update_tiles(ui, ctx, project);
+
+        TOOLLIST.write().unwrap().get_current_tool().tool_event(
+            ToolEvent::Activate,
+            ui,
+            ctx,
+            project,
+            server_ctx,
+        );
     }
 
     /// Apply the given character to the UI
@@ -3383,23 +3481,46 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &mut ServerContext,
     ) {
         if let Some(layout) = ui.canvas.get_layout(Some(&"Action List".to_string()), None) {
             if let Some(list_layout) = layout.as_list_layout() {
                 list_layout.clear();
 
                 let actions = ACTIONLIST.read().unwrap();
+                let mut found_current = false;
 
                 if let Some(map) = project.get_map(server_ctx) {
                     for action in &actions.actions {
                         if action.is_applicable(map, ctx, server_ctx) {
                             let mut item = TheListItem::new(action.id().clone());
                             item.set_text(action.id().name.clone());
+                            item.add_value_column(120, TheValue::Text(action.role().to_string()));
+
+                            if Some(action.id().uuid) == server_ctx.curr_action_id {
+                                found_current = true;
+                                item.set_state(TheWidgetState::Selected);
+                            }
 
                             list_layout.add_item(item, ctx);
                         }
                     }
+                }
+
+                if !found_current {
+                    server_ctx.curr_action_id = None;
+                }
+            }
+        }
+
+        if let Some(layout) = ui.get_text_layout("Action Settings") {
+            layout.clear();
+
+            if let Some(action_id) = server_ctx.curr_action_id {
+                if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id) {
+                    let nodeui = action.params();
+                    nodeui.apply_to_text_layout(layout);
+                    ctx.ui.relayout = true;
                 }
             }
         }

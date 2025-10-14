@@ -104,7 +104,7 @@ impl SettingsContainer {
 
     pub fn handle_event(&mut self, event: TheEvent) -> bool {
         for ui in self.settings.values_mut() {
-            if ui.handle_event(event.clone()) {
+            if ui.handle_event(&event) {
                 return true;
             }
         }

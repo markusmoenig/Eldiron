@@ -52,7 +52,6 @@ impl Tool for LinedefTool {
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,
-        _tool_context: ToolContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
@@ -67,10 +66,15 @@ impl Tool for LinedefTool {
 
                 server_ctx.curr_map_tool_type = MapToolType::Linedef;
 
-                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                    region.map.selected_vertices.clear();
-                    region.map.selected_sectors.clear();
+                if let Some(map) = project.get_map_mut(server_ctx) {
+                    map.selected_vertices.clear();
+                    map.selected_sectors.clear();
                 }
+
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Map Selection Changed"),
+                    TheValue::Empty,
+                ));
 
                 self.activate_map_tool_helper(ui, ctx, project, server_ctx);
 
@@ -122,19 +126,13 @@ impl Tool for LinedefTool {
 
                 self.click_selected = false;
                 if map.curr_grid_pos.is_none() && server_ctx.hover.1.is_some() {
-                    // Selected hovered line
-                    let prev = map.clone();
-                    let mut changed = false;
-
                     map.selected_entity_item = None;
-                    map.selected_light = None;
 
                     if ui.shift {
                         // Add
                         if let Some(l) = server_ctx.hover.1 {
                             if !map.selected_linedefs.contains(&l) {
                                 map.selected_linedefs.push(l);
-                                changed = true;
                             }
                             self.click_selected = true;
                         }
@@ -142,29 +140,15 @@ impl Tool for LinedefTool {
                         // Subtract
                         if let Some(l) = server_ctx.hover.1 {
                             map.selected_linedefs.retain(|&selected| selected != l);
-                            changed = true;
                         }
                     } else {
                         // Replace
                         if let Some(v) = server_ctx.hover.1 {
                             map.selected_linedefs = vec![v];
-                            changed = true;
                         } else {
                             map.selected_linedefs.clear();
-                            changed = true;
                         }
                         self.click_selected = true;
-                    }
-
-                    if changed {
-                        undo_atom = Some(RegionUndoAtom::MapEdit(
-                            Box::new(prev),
-                            Box::new(map.clone()),
-                        ));
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Map Selection Changed"),
-                            TheValue::Empty,
-                        ));
                     }
                 } else if server_ctx.editor_view_mode == EditorViewMode::D2 {
                     // Line mode
@@ -344,15 +328,6 @@ impl Tool for LinedefTool {
                 } else if self.rectangle_mode && map.curr_rectangle.is_some() {
                     map.clear_temp();
                     self.rectangle_mode = false;
-
-                    undo_atom = Some(RegionUndoAtom::MapEdit(
-                        Box::new(self.rectangle_undo_map.clone()),
-                        Box::new(map.clone()),
-                    ));
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Map Selection Changed"),
-                        TheValue::Empty,
-                    ));
                 }
                 self.drag_changed = false;
                 self.click_selected = false;

@@ -89,18 +89,15 @@ impl ToolList {
     ) {
         if server_ctx.get_map_context() == MapContext::Region {
             if let Some(undo_atom) = undo_atom {
-                let only_selection_changed = undo_atom.only_selection_changed();
-                if !only_selection_changed {
-                    UNDOMANAGER.write().unwrap().add_region_undo(
-                        &server_ctx.curr_region,
-                        undo_atom,
-                        ctx,
-                    );
-                }
+                UNDOMANAGER.write().unwrap().add_region_undo(
+                    &server_ctx.curr_region,
+                    undo_atom,
+                    ctx,
+                );
                 if server_ctx.editor_view_mode == EditorViewMode::D2
-                    && server_ctx.profile_view.is_some()
+                    && server_ctx.editing_surface.is_some()
                 {
-                } else if !only_selection_changed {
+                } else {
                     crate::utils::scenemanager_render_map(project, server_ctx);
                     self.update_geometry_overlay_3d(project, server_ctx);
                 }
@@ -108,37 +105,31 @@ impl ToolList {
             }
         } else if server_ctx.get_map_context() == MapContext::Character {
             if let Some(undo_atom) = undo_atom {
-                let only_selection_changed = undo_atom.only_selection_changed();
                 if let Some(character_undo_atom) = undo_atom.to_character_atom() {
-                    if !only_selection_changed {
-                        UNDOMANAGER
+                    UNDOMANAGER
+                        .write()
+                        .unwrap()
+                        .add_character_undo(character_undo_atom, ctx);
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        NODEEDITOR
                             .write()
                             .unwrap()
-                            .add_character_undo(character_undo_atom, ctx);
-                        if let Some(map) = project.get_map_mut(server_ctx) {
-                            NODEEDITOR
-                                .write()
-                                .unwrap()
-                                .create_shape_preview(map, &RUSTERIX.read().unwrap().assets);
-                        }
+                            .create_shape_preview(map, &RUSTERIX.read().unwrap().assets);
                     }
                 }
             }
         } else if server_ctx.get_map_context() == MapContext::Item {
             if let Some(undo_atom) = undo_atom {
-                let only_selection_changed = undo_atom.only_selection_changed();
                 if let Some(item_undo_atom) = undo_atom.to_item_atom() {
-                    if !only_selection_changed {
-                        UNDOMANAGER
+                    UNDOMANAGER
+                        .write()
+                        .unwrap()
+                        .add_item_undo(item_undo_atom, ctx);
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        NODEEDITOR
                             .write()
                             .unwrap()
-                            .add_item_undo(item_undo_atom, ctx);
-                        if let Some(map) = project.get_map_mut(server_ctx) {
-                            NODEEDITOR
-                                .write()
-                                .unwrap()
-                                .create_shape_preview(map, &RUSTERIX.read().unwrap().assets);
-                        }
+                            .create_shape_preview(map, &RUSTERIX.read().unwrap().assets);
                     }
                 }
             }
@@ -171,19 +162,16 @@ impl ToolList {
             }*/
         } else if server_ctx.get_map_context() == MapContext::Screen {
             if let Some(undo_atom) = undo_atom {
-                let only_selection_changed = undo_atom.only_selection_changed();
-                if !only_selection_changed {
-                    if let Some(screen_undo_atom) = undo_atom.to_screen_atom() {
-                        UNDOMANAGER
-                            .write()
-                            .unwrap()
-                            .add_screen_undo(screen_undo_atom, ctx);
-                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Materialpicker"),
-                            TheValue::Empty,
-                        ));
-                    }
+                if let Some(screen_undo_atom) = undo_atom.to_screen_atom() {
+                    UNDOMANAGER
+                        .write()
+                        .unwrap()
+                        .add_screen_undo(screen_undo_atom, ctx);
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Materialpicker"),
+                        TheValue::Empty,
+                    ));
                 }
             }
         }
@@ -226,6 +214,7 @@ impl ToolList {
                         crate::utils::scenemanager_render_map(project, server_ctx);
                         self.update_geometry_overlay_3d(project, server_ctx);
                     }
+                    RUSTERIX.write().unwrap().set_dirty();
                 } else if id.name == "Map Helper Switch" {
                     let was_shape_picker =
                         server_ctx.curr_map_tool_helper == MapToolHelper::ShapePicker;
@@ -1081,7 +1070,6 @@ impl ToolList {
     ) {
         self.game_tools[self.curr_game_tool].tool_event(
             ToolEvent::DeActivate,
-            ToolContext::TwoD,
             ui,
             ctx,
             project,
@@ -1119,7 +1107,6 @@ impl ToolList {
             }
             self.game_tools[old_tool_index].tool_event(
                 ToolEvent::DeActivate,
-                ToolContext::TwoD,
                 ui,
                 ctx,
                 project,
@@ -1133,14 +1120,8 @@ impl ToolList {
             ctx.ui.redraw_all = true;
         }
 
-        self.get_current_tool().tool_event(
-            ToolEvent::Activate,
-            ToolContext::TwoD,
-            ui,
-            ctx,
-            project,
-            server_ctx,
-        );
+        self.get_current_tool()
+            .tool_event(ToolEvent::Activate, ui, ctx, project, server_ctx);
 
         crate::editor::RUSTERIX.write().unwrap().set_dirty();
 

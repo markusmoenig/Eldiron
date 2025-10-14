@@ -792,66 +792,27 @@ impl TheTrait for Editor {
                             } else
                             // Draw the region map
                             if self.server_ctx.get_map_context() == MapContext::Region
-                                && self.server_ctx.profile_view.is_none()
+                            // && self.server_ctx.editing_surface.is_none()
                             {
                                 if let Some(region) =
                                     self.project.get_region(&self.server_ctx.curr_region)
                                 {
-                                    if region.map.camera == MapCamera::TwoD {
-                                        b.set_clip_rect(None);
-                                        b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
-                                        if let Some(hover_cursor) = self.server_ctx.hover_cursor {
-                                            b.set_map_hover_info(
-                                                self.server_ctx.hover,
-                                                Some(vek::Vec2::new(
-                                                    hover_cursor.x,
-                                                    hover_cursor.y,
-                                                )),
-                                            );
-                                        } else {
-                                            b.set_map_hover_info(self.server_ctx.hover, None);
-                                        }
+                                    b.set_clip_rect(None);
+                                    b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                                    if let Some(hover_cursor) = self.server_ctx.hover_cursor {
+                                        b.set_map_hover_info(
+                                            self.server_ctx.hover,
+                                            Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
+                                        );
+                                    } else {
+                                        b.set_map_hover_info(self.server_ctx.hover, None);
+                                    }
 
-                                        if let Some(camera_pos) = region.map.camera_xz {
-                                            b.set_camera_info(
-                                                Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
-                                                None,
-                                            );
-                                        }
-                                    } else if region.map.camera == MapCamera::ThreeDIso {
-                                        if !is_running || !self.server_ctx.game_mode {
-                                            let p = vek::Vec3::new(
-                                                region.editing_position_3d.x,
-                                                0.0,
-                                                region.editing_position_3d.z,
-                                            );
-
-                                            rusterix
-                                                .client
-                                                .camera_d3
-                                                .set_parameter_vec3("center", p);
-                                            rusterix.client.camera_d3.set_parameter_vec3(
-                                                "position",
-                                                p + vek::Vec3::new(-10.0, 10.0, 10.0),
-                                            );
-                                        }
-                                    } else if region.map.camera == MapCamera::ThreeDFirstPerson {
-                                        #[allow(clippy::collapsible_if)]
-                                        if !is_running || !self.server_ctx.game_mode {
-                                            let p = vek::Vec3::new(
-                                                region.editing_position_3d.x,
-                                                1.5,
-                                                region.editing_position_3d.z,
-                                            );
-                                            rusterix
-                                                .client
-                                                .camera_d3
-                                                .set_parameter_vec3("position", p);
-                                            rusterix.client.camera_d3.set_parameter_vec3(
-                                                "center",
-                                                p + vek::Vec3::new(0.0, 0.0, -1.0),
-                                            );
-                                        }
+                                    if let Some(camera_pos) = region.map.camera_xz {
+                                        b.set_camera_info(
+                                            Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
+                                            None,
+                                        );
                                     }
 
                                     // let start_time = ctx.get_time();
@@ -909,7 +870,7 @@ impl TheTrait for Editor {
                                     );
                                 }
                             } else if self.server_ctx.get_map_context() == MapContext::Region
-                                && self.server_ctx.profile_view.is_some()
+                                && self.server_ctx.editing_surface.is_some()
                             {
                                 // Draw the wall profile
 
@@ -941,7 +902,6 @@ impl TheTrait for Editor {
                                             Vec2::new(dim.width as f32, dim.height as f32),
                                             &map,
                                             &self.build_values,
-                                            false,
                                             &self.server_ctx.editing_surface,
                                         );
                                         rusterix.draw_custom_d2(
@@ -955,7 +915,6 @@ impl TheTrait for Editor {
                                             Vec2::new(dim.width as f32, dim.height as f32),
                                             profile,
                                             &self.build_values,
-                                            false,
                                             &None,
                                         );
                                         rusterix.draw_custom_d2(
@@ -971,6 +930,7 @@ impl TheTrait for Editor {
                             if self.server_ctx.get_map_context() == MapContext::Character
                                 || self.server_ctx.get_map_context() == MapContext::Item
                                 || self.server_ctx.get_map_context() == MapContext::Screen
+                                || self.server_ctx.get_map_context() == MapContext::Material
                             {
                                 b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
                                 if let Some(material) = self.project.get_map_mut(&self.server_ctx) {
@@ -990,39 +950,6 @@ impl TheTrait for Editor {
                                             width: 10.0,
                                             height: 10.0,
                                         }));
-                                    } else if self.server_ctx.get_map_context()
-                                        == MapContext::Material
-                                    {
-                                        let screen_width = CONFIGEDITOR
-                                            .read()
-                                            .unwrap()
-                                            .get_i32_default("viewport", "width", 1280);
-
-                                        let screen_height = CONFIGEDITOR
-                                            .read()
-                                            .unwrap()
-                                            .get_i32_default("viewport", "height", 720);
-
-                                        let grid_size = CONFIGEDITOR
-                                            .read()
-                                            .unwrap()
-                                            .get_i32_default("viewport", "grid_size", 32);
-
-                                        let grid_width = screen_width as f32 / grid_size as f32;
-                                        let grid_height = screen_height as f32 / grid_size as f32;
-
-                                        let (x, y) = rusterix::utils::align_screen_to_grid(
-                                            screen_width as f32,
-                                            screen_height as f32,
-                                            grid_size as f32,
-                                        );
-
-                                        b.set_clip_rect(Some(rusterix::Rect {
-                                            x,
-                                            y,
-                                            width: grid_width,
-                                            height: grid_height,
-                                        }));
                                     }
 
                                     if let Some(clipboard) = &self.server_ctx.paste_clipboard {
@@ -1036,7 +963,6 @@ impl TheTrait for Editor {
                                             Vec2::new(dim.width as f32, dim.height as f32),
                                             &map,
                                             &self.build_values,
-                                            true,
                                             &self.server_ctx.editing_surface,
                                         );
                                         rusterix.draw_custom_d2(
@@ -1050,7 +976,6 @@ impl TheTrait for Editor {
                                             Vec2::new(dim.width as f32, dim.height as f32),
                                             material,
                                             &self.build_values,
-                                            true,
                                             &None,
                                         );
                                         rusterix.draw_custom_d2(
@@ -1061,7 +986,8 @@ impl TheTrait for Editor {
                                         );
                                     }
                                 }
-                            } else
+                            }
+                            /*else
                             // Draw the shader map
                             if self.server_ctx.get_map_context() == MapContext::Material {
                                 let render_buffer = render_view.render_buffer_mut();
@@ -1078,12 +1004,10 @@ impl TheTrait for Editor {
                                         render_buffer.copy_into(x, y, &*shader_buffer);
                                     }
                                 }
-                            }
+                            }*/
                         }
                     }
-                    if !self.server_ctx.game_mode
-                        && self.server_ctx.get_map_context() != MapContext::Material
-                    {
+                    if !self.server_ctx.game_mode {
                         if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
                             TOOLLIST.write().unwrap().draw_hud(
                                 render_view.render_buffer_mut(),
@@ -1817,6 +1741,11 @@ impl TheTrait for Editor {
                                             }
                                         }
 
+                                        self.server_ctx.clear();
+                                        if let Some(first) = self.project.regions.first() {
+                                            self.server_ctx.curr_region = first.id;
+                                        }
+
                                         self.sidebar.load_from_project(
                                             ui,
                                             ctx,
@@ -1826,7 +1755,6 @@ impl TheTrait for Editor {
                                         self.mapeditor.load_from_project(ui, ctx, &self.project);
                                         update_server_icons = true;
                                         redraw = true;
-                                        self.server_ctx.clear();
 
                                         // Set palette and textures
                                         *PALETTE.write().unwrap() = self.project.palette.clone();
@@ -1913,6 +1841,7 @@ impl TheTrait for Editor {
                                 }
                             }
 
+                            self.server_ctx.clear();
                             self.sidebar.load_from_project(
                                 ui,
                                 ctx,
@@ -1922,7 +1851,6 @@ impl TheTrait for Editor {
                             self.mapeditor.load_from_project(ui, ctx, &self.project);
                             update_server_icons = true;
                             redraw = true;
-                            self.server_ctx.clear();
 
                             // Set palette and textures
                             *PALETTE.write().unwrap() = self.project.palette.clone();

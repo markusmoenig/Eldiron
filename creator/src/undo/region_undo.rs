@@ -18,40 +18,7 @@ pub enum RegionUndoAtom {
     ),
 }
 
-/// Checks if the two maps are equal to detect selection only changes which dont need rerendering of the map.
-fn has_geometry_changed(map1: &Map, map2: &Map) -> bool {
-    let mut v1 = map1.vertices.clone();
-    let mut v2 = map2.vertices.clone();
-    v1.sort_by_key(|v| v.id);
-    v2.sort_by_key(|v| v.id);
-
-    let mut l1 = map1.linedefs.clone();
-    let mut l2 = map2.linedefs.clone();
-    l1.sort_by_key(|l| l.id);
-    l2.sort_by_key(|l| l.id);
-
-    let mut s1 = map1.sectors.clone();
-    let mut s2 = map2.sectors.clone();
-    s1.sort_by_key(|s| s.id);
-    s2.sort_by_key(|s| s.id);
-
-    v1 != v2 || l1 != l2 || s1 != s2
-}
-
 impl RegionUndoAtom {
-    /// Used after a Map tool was executed to check if the geometry of the map changed and if
-    /// we need to rerender (in contrast to selection changes).
-    pub fn only_selection_changed(&self) -> bool {
-        match self {
-            RegionUndoAtom::MapEdit(map1, map2) => {
-                let changed = has_geometry_changed(map1, map2);
-                // println!("{}", changed);
-                !changed
-            }
-            _ => false,
-        }
-    }
-
     // pub fn to_material_atom(self) -> Option<MaterialUndoAtom> {
     //     match self {
     //         RegionUndoAtom::MapEdit(map1, map2) => Some(MaterialUndoAtom::MapEdit(map1, map2)),
@@ -97,12 +64,10 @@ impl RegionUndoAtom {
                         TheValue::Empty,
                     ));
 
-                    if !self.only_selection_changed() {
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Render SceneManager Map"),
-                            TheValue::Empty,
-                        ));
-                    }
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Render SceneManager Map"),
+                        TheValue::Empty,
+                    ));
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
                 }
             }
@@ -111,25 +76,23 @@ impl RegionUndoAtom {
                 SCENEMANAGER.read().unwrap().set_dirty_terrain_chunks(array);
                 region.map.terrain.chunks = *prev.clone();
             }
-            RegionUndoAtom::SectorShaderEdit(map_id, sector_id, prev, _) => {
+            RegionUndoAtom::SectorShaderEdit(map_id, _, prev, _) => {
                 let map = if region.map.id == *map_id {
                     Some(&mut region.map)
                 } else {
                     region.map.profiles.get_mut(&prev.id)
                 };
                 if let Some(map) = map {
-                    if let Some(sector) = map.find_sector_mut(*sector_id) {
-                        sector.module = prev.clone();
+                    if let Some(module) = map.shaders.get_mut(&prev.id) {
+                        *module = prev.clone();
                         let mut shadergridfx = SHADEGRIDFX.write().unwrap();
                         *shadergridfx = prev.clone();
                         shadergridfx.redraw(ui, ctx);
                         shadergridfx.show_settings(ui, ctx);
-                        if !self.only_selection_changed() {
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Render SceneManager Map"),
-                                TheValue::Empty,
-                            ));
-                        }
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Render SceneManager Map"),
+                            TheValue::Empty,
+                        ));
                         crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     }
                 }
@@ -157,12 +120,10 @@ impl RegionUndoAtom {
                         TheValue::Empty,
                     ));
 
-                    if !self.only_selection_changed() {
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Render SceneManager Map"),
-                            TheValue::Empty,
-                        ));
-                    }
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Render SceneManager Map"),
+                        TheValue::Empty,
+                    ));
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
                 }
             }
@@ -171,25 +132,23 @@ impl RegionUndoAtom {
                 SCENEMANAGER.read().unwrap().set_dirty_terrain_chunks(array);
                 region.map.terrain.chunks = *next.clone();
             }
-            RegionUndoAtom::SectorShaderEdit(map_id, sector_id, _, next) => {
+            RegionUndoAtom::SectorShaderEdit(map_id, _, _, next) => {
                 let map = if region.map.id == *map_id {
                     Some(&mut region.map)
                 } else {
                     region.map.profiles.get_mut(&next.id)
                 };
                 if let Some(map) = map {
-                    if let Some(sector) = map.find_sector_mut(*sector_id) {
-                        sector.module = next.clone();
+                    if let Some(module) = map.shaders.get_mut(&next.id) {
+                        *module = next.clone();
                         let mut shadergridfx = SHADEGRIDFX.write().unwrap();
                         *shadergridfx = next.clone();
                         shadergridfx.redraw(ui, ctx);
                         shadergridfx.show_settings(ui, ctx);
-                        if !self.only_selection_changed() {
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Render SceneManager Map"),
-                                TheValue::Empty,
-                            ));
-                        }
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Render SceneManager Map"),
+                            TheValue::Empty,
+                        ));
                         crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     }
                 }

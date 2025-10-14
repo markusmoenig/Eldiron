@@ -1,30 +1,20 @@
+use crate::editor::SHADEGRIDFX;
 use crate::prelude::*;
-use rusterix::PixelSource;
 
-pub struct ApplyTile {
+pub struct ApplyShader {
     id: TheId,
     nodeui: TheNodeUI,
 }
 
-impl Action for ApplyTile {
+impl Action for ApplyShader {
     fn new() -> Self
     where
         Self: Sized,
     {
         let nodeui: TheNodeUI = TheNodeUI::default();
 
-        // let item = TheNodeUIItem::Text(
-        //     "actionName".into(),
-        //     "Rig Name".into(),
-        //     "Set the name of the soft rig keyframe.".into(),
-        //     "wdew".into(),
-        //     None,
-        //     false,
-        // );
-        // nodeui.add_item(item);
-
         Self {
-            id: TheId::named("Apply Tile"),
+            id: TheId::named("Apply Shader"),
             nodeui,
         }
     }
@@ -34,7 +24,7 @@ impl Action for ApplyTile {
     }
 
     fn info(&self) -> String {
-        str!("Apply Tile (Ctrl + A). Applies the current tile to the selected geometry.")
+        str!("Apply Shader (Ctrl + S). Applies the current shader to the selected sector.")
     }
 
     fn role(&self) -> &'static str {
@@ -42,7 +32,7 @@ impl Action for ApplyTile {
     }
 
     fn accel(&self) -> Option<char> {
-        Some('A')
+        Some('S')
     }
 
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
@@ -53,19 +43,19 @@ impl Action for ApplyTile {
         &self,
         map: &mut Map,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        _server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         let mut changed = false;
         let prev = map.clone();
 
-        if let Some(tile_id) = server_ctx.curr_tile_id {
-            for sector_id in &map.selected_sectors.clone() {
-                if let Some(sector) = map.find_sector_mut(*sector_id) {
-                    sector
-                        .properties
-                        .set("source", Value::Source(PixelSource::TileId(tile_id)));
-                    changed = true;
-                }
+        let mut module = SHADEGRIDFX.read().unwrap().clone();
+        let id = Uuid::new_v4();
+        module.id = id;
+        map.shaders.insert(id, module);
+        for sector_id in &map.selected_sectors.clone() {
+            if let Some(sector) = map.find_sector_mut(*sector_id) {
+                sector.shader = Some(id);
+                changed = true;
             }
         }
 

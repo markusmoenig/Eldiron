@@ -36,12 +36,6 @@ pub enum MapEvent {
     MapKey(char),
 }
 
-#[derive(PartialEq, Clone, Debug, Copy)]
-pub enum ToolContext {
-    TwoD,
-    ThreeD,
-}
-
 #[allow(unused)]
 pub trait Tool: Send + Sync {
     fn new() -> Self
@@ -60,7 +54,6 @@ pub trait Tool: Send + Sync {
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,
-        tool_context: ToolContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,

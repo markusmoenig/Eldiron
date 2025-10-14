@@ -50,7 +50,6 @@ impl Tool for SectorTool {
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,
-        _tool_context: ToolContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
@@ -69,10 +68,15 @@ impl Tool for SectorTool {
 
                 server_ctx.curr_map_tool_type = MapToolType::Sector;
 
-                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                    region.map.selected_vertices.clear();
-                    region.map.selected_linedefs.clear();
+                if let Some(map) = project.get_map_mut(server_ctx) {
+                    map.selected_vertices.clear();
+                    map.selected_linedefs.clear();
                 }
+
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Map Selection Changed"),
+                    TheValue::Empty,
+                ));
 
                 self.activate_map_tool_helper(ui, ctx, project, server_ctx);
 
@@ -114,18 +118,13 @@ impl Tool for SectorTool {
 
                 self.click_selected = false;
                 if server_ctx.hover.2.is_some() {
-                    let prev = map.clone();
-                    let mut changed = false;
-
                     map.selected_entity_item = None;
-                    map.selected_light = None;
 
                     if ui.shift {
                         // Add
                         if let Some(s) = server_ctx.hover.2 {
                             if !map.selected_sectors.contains(&s) {
                                 map.selected_sectors.push(s);
-                                changed = true;
                             }
                             self.click_selected = true;
                         }
@@ -133,21 +132,18 @@ impl Tool for SectorTool {
                         // Subtract
                         if let Some(v) = server_ctx.hover.2 {
                             map.selected_sectors.retain(|&selected| selected != v);
-                            changed = true;
                         }
                     } else {
                         // Replace
                         if let Some(v) = server_ctx.hover.2 {
                             map.selected_sectors = vec![v];
-                            changed = true;
                         } else {
                             map.selected_sectors.clear();
-                            changed = true;
                         }
                         self.click_selected = true;
                     }
 
-                    //  Make the selected sector the editing plane if in 3D
+                    //  Make the selected sector the editing surface if in 3D
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
                         if let Some(s) = server_ctx.hover.2 {
                             if map.selected_sectors.contains(&s) {
@@ -168,18 +164,7 @@ impl Tool for SectorTool {
                             }
                         }
                     }
-
-                    if changed {
-                        undo_atom = Some(RegionUndoAtom::MapEdit(
-                            Box::new(prev),
-                            Box::new(map.clone()),
-                        ));
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Map Selection Changed"),
-                            TheValue::Empty,
-                        ));
-                    }
-                } else {
+                } else if server_ctx.editor_view_mode != EditorViewMode::D2 {
                     server_ctx.editing_surface = None;
                 }
 
@@ -230,10 +215,6 @@ impl Tool for SectorTool {
                             if let Some(original_vertex) =
                                 self.rectangle_undo_map.find_vertex_mut(*vertex_id)
                             {
-                                // if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
-                                //     vertex.x = original_vertex.x - drag_delta.x;
-                                //     vertex.y = original_vertex.y - drag_delta.y;
-                                // }
                                 let new_pos = Vec2::new(
                                     original_vertex.x - drag_delta.x,
                                     original_vertex.y - drag_delta.y,
@@ -307,15 +288,6 @@ impl Tool for SectorTool {
                     }
                 } else if map.curr_rectangle.is_some() {
                     map.curr_rectangle = None;
-
-                    undo_atom = Some(RegionUndoAtom::MapEdit(
-                        Box::new(self.rectangle_undo_map.clone()),
-                        Box::new(map.clone()),
-                    ));
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Map Selection Changed"),
-                        TheValue::Empty,
-                    ));
                 }
                 self.drag_changed = false;
                 self.click_selected = false;
@@ -392,18 +364,7 @@ impl Tool for SectorTool {
             }
             MapEscape => {
                 // Hover is empty, check if we need to clear selection
-                if !map.selected_sectors.is_empty() {
-                    let prev = map.clone();
-                    map.selected_sectors.clear();
-                    undo_atom = Some(RegionUndoAtom::MapEdit(
-                        Box::new(prev),
-                        Box::new(map.clone()),
-                    ));
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Map Selection Changed"),
-                        TheValue::Empty,
-                    ));
-                }
+                map.selected_sectors.clear();
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
         }

@@ -91,10 +91,6 @@ impl Project {
         };
         models.insert(map.id, map);
 
-        let mut shaders = IndexMap::default();
-        let module = Module::as_type(codegridfx::ModuleType::Material);
-        shaders.insert(module.id, module);
-
         Self {
             name: String::new(),
 
@@ -112,7 +108,7 @@ impl Project {
 
             palette: ThePalette::default(),
             models,
-            shaders,
+            shaders: IndexMap::default(),
 
             target_fps: default_target_fps(),
             tick_ms: default_tick_ms(),
@@ -224,7 +220,11 @@ impl Project {
 
     /// Get the map of the current context.
     pub fn get_map(&self, ctx: &ServerContext) -> Option<&Map> {
-        if ctx.get_map_context() == MapContext::Region {
+        if ctx.editor_view_mode != EditorViewMode::D2 {
+            if let Some(region) = self.get_region_ctx(ctx) {
+                return Some(&region.map);
+            }
+        } else if ctx.get_map_context() == MapContext::Region {
             if let Some(surface) = &ctx.editing_surface {
                 if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
                     if let Some(surface) = region.map.surfaces.get(&surface.id) {
@@ -260,7 +260,11 @@ impl Project {
     /// Get the mutable map of the current context.
     pub fn get_map_mut(&mut self, ctx: &ServerContext) -> Option<&mut Map> {
         if ctx.get_map_context() == MapContext::Region {
-            if let Some(surface) = &ctx.editing_surface {
+            if ctx.editor_view_mode != EditorViewMode::D2 {
+                if let Some(region) = self.get_region_ctx_mut(ctx) {
+                    return Some(&mut region.map);
+                }
+            } else if let Some(surface) = &ctx.editing_surface {
                 if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
                     if let Some(surface) = region.map.surfaces.get_mut(&surface.id) {
                         if surface.profile.is_none() {
