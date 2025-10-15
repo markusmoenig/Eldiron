@@ -255,9 +255,17 @@ impl Panels {
                 if id.name == "ModuleChanged"
                     && CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Shade
                 {
-                    // Update the current shader
+                    {
+                        let mut module = SHADEGRIDFX.write().unwrap();
+                        crate::utils::draw_shader_into(&module, &mut SHADERBUFFER.write().unwrap());
+
+                        module.set_shader_background(SHADERBUFFER.read().unwrap().clone(), ui, ctx);
+                    }
+
                     match CODEEDITOR.read().unwrap().shader_content {
                         ContentContext::Sector(sector_id) => {
+                            println!("sector");
+
                             if let Some(map) = project.get_map_mut(server_ctx) {
                                 for s in &mut map.sectors {
                                     if s.creator_id == sector_id {
@@ -276,11 +284,18 @@ impl Panels {
                             }
                         }
                         ContentContext::Shader(id) => {
+                            println!("shader");
                             if let Some(shader) = project.shaders.get_mut(&id) {
                                 *shader = SHADEGRIDFX.read().unwrap().clone();
                                 crate::utils::draw_shader_into(
                                     shader,
                                     &mut SHADERBUFFER.write().unwrap(),
+                                );
+
+                                shader.set_shader_background(
+                                    SHADERBUFFER.read().unwrap().clone(),
+                                    ui,
+                                    ctx,
                                 );
                             }
                         }

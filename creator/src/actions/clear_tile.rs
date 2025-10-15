@@ -1,12 +1,11 @@
-use crate::editor::SHADEGRIDFX;
 use crate::prelude::*;
 
-pub struct ApplyShader {
+pub struct ClearTile {
     id: TheId,
     nodeui: TheNodeUI,
 }
 
-impl Action for ApplyShader {
+impl Action for ClearTile {
     fn new() -> Self
     where
         Self: Sized,
@@ -14,7 +13,7 @@ impl Action for ApplyShader {
         let nodeui: TheNodeUI = TheNodeUI::default();
 
         Self {
-            id: TheId::named("Apply Shader"),
+            id: TheId::named("Clear Tile"),
             nodeui,
         }
     }
@@ -24,7 +23,7 @@ impl Action for ApplyShader {
     }
 
     fn info(&self) -> &'static str {
-        "Apply Shader (Ctrl + S). Applies the current shader to the selected sector."
+        "Clear Tile (Ctrl + A). Clears the tiles of the selected sectors."
     }
 
     fn role(&self) -> &'static str {
@@ -32,7 +31,7 @@ impl Action for ApplyShader {
     }
 
     fn accel(&self) -> Option<char> {
-        Some('S')
+        Some('A')
     }
 
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
@@ -48,14 +47,12 @@ impl Action for ApplyShader {
         let mut changed = false;
         let prev = map.clone();
 
-        let mut module = SHADEGRIDFX.read().unwrap().clone();
-        let id = Uuid::new_v4();
-        module.id = id;
-        map.shaders.insert(id, module);
         for sector_id in &map.selected_sectors.clone() {
             if let Some(sector) = map.find_sector_mut(*sector_id) {
-                sector.shader = Some(id);
-                changed = true;
+                if sector.properties.contains("source") {
+                    sector.properties.remove("source");
+                    changed = true;
+                }
             }
         }
 

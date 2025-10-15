@@ -107,8 +107,8 @@ impl Action for Extrude {
         self.id.clone()
     }
 
-    fn info(&self) -> String {
-        str!("Extrude(Ctrl + E). Extrudes the current linedef or sector.")
+    fn info(&self) -> &'static str {
+        "Extrude(Ctrl + E). Extrudes the current linedef or sector."
     }
 
     fn role(&self) -> &'static str {

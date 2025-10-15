@@ -215,6 +215,11 @@ impl ToolList {
                         self.update_geometry_overlay_3d(project, server_ctx);
                     }
                     RUSTERIX.write().unwrap().set_dirty();
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Action List"),
+                        TheValue::Empty,
+                    ));
                 } else if id.name == "Map Helper Switch" {
                     let was_shape_picker =
                         server_ctx.curr_map_tool_helper == MapToolHelper::ShapePicker;

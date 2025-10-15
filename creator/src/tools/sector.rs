@@ -115,6 +115,7 @@ impl Tool for SectorTool {
                     return None;
                 }
                 self.was_clicked = true;
+                let mut changed = false;
 
                 self.click_selected = false;
                 if server_ctx.hover.2.is_some() {
@@ -125,6 +126,7 @@ impl Tool for SectorTool {
                         if let Some(s) = server_ctx.hover.2 {
                             if !map.selected_sectors.contains(&s) {
                                 map.selected_sectors.push(s);
+                                changed = true;
                             }
                             self.click_selected = true;
                         }
@@ -132,17 +134,28 @@ impl Tool for SectorTool {
                         // Subtract
                         if let Some(v) = server_ctx.hover.2 {
                             map.selected_sectors.retain(|&selected| selected != v);
+                            changed = true;
                         }
                     } else {
                         // Replace
                         if let Some(v) = server_ctx.hover.2 {
                             map.selected_sectors = vec![v];
+                            changed = true;
                         } else {
                             map.selected_sectors.clear();
+                            changed = true;
                         }
                         self.click_selected = true;
                     }
 
+                    if changed {
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
+                    }
+
+                    /*
                     //  Make the selected sector the editing surface if in 3D
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
                         if let Some(s) = server_ctx.hover.2 {
@@ -163,7 +176,7 @@ impl Tool for SectorTool {
                                 }
                             }
                         }
-                    }
+                    }*/
                 } else if server_ctx.editor_view_mode != EditorViewMode::D2 {
                     server_ctx.editing_surface = None;
                 }
@@ -363,9 +376,14 @@ impl Tool for SectorTool {
                 }
             }
             MapEscape => {
-                // Hover is empty, check if we need to clear selection
-                map.selected_sectors.clear();
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                if !map.selected_sectors.is_empty() {
+                    map.selected_sectors.clear();
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                }
             }
         }
         undo_atom

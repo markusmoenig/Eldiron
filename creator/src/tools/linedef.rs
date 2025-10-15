@@ -127,12 +127,14 @@ impl Tool for LinedefTool {
                 self.click_selected = false;
                 if map.curr_grid_pos.is_none() && server_ctx.hover.1.is_some() {
                     map.selected_entity_item = None;
+                    let mut changed = false;
 
                     if ui.shift {
                         // Add
                         if let Some(l) = server_ctx.hover.1 {
                             if !map.selected_linedefs.contains(&l) {
                                 map.selected_linedefs.push(l);
+                                changed = true;
                             }
                             self.click_selected = true;
                         }
@@ -140,15 +142,25 @@ impl Tool for LinedefTool {
                         // Subtract
                         if let Some(l) = server_ctx.hover.1 {
                             map.selected_linedefs.retain(|&selected| selected != l);
+                            changed = true;
                         }
                     } else {
                         // Replace
                         if let Some(v) = server_ctx.hover.1 {
                             map.selected_linedefs = vec![v];
+                            changed = true;
                         } else {
                             map.selected_linedefs.clear();
+                            changed = true;
                         }
                         self.click_selected = true;
+                    }
+
+                    if changed {
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
                     }
                 } else if server_ctx.editor_view_mode == EditorViewMode::D2 {
                     // Line mode
@@ -412,16 +424,9 @@ impl Tool for LinedefTool {
             }
             MapEscape => {
                 map.clear_temp();
-                // Hover is empty, check if we need to clear selection
                 if !map.selected_linedefs.is_empty() {
-                    let prev = map.clone();
-
                     map.selected_linedefs.clear();
 
-                    undo_atom = Some(RegionUndoAtom::MapEdit(
-                        Box::new(prev),
-                        Box::new(map.clone()),
-                    ));
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Map Selection Changed"),
                         TheValue::Empty,

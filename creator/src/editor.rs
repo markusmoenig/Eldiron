@@ -61,9 +61,9 @@ pub static SCENEMANAGER: LazyLock<RwLock<SceneManager>> =
 pub static CODEGRIDFX: LazyLock<RwLock<Module>> =
     LazyLock::new(|| RwLock::new(Module::as_type(codegridfx::ModuleType::CharacterTemplate)));
 pub static SHADEGRIDFX: LazyLock<RwLock<Module>> =
-    LazyLock::new(|| RwLock::new(Module::as_type(codegridfx::ModuleType::Sector)));
+    LazyLock::new(|| RwLock::new(Module::as_type(codegridfx::ModuleType::Shader)));
 pub static SHADERBUFFER: LazyLock<RwLock<TheRGBABuffer>> =
-    LazyLock::new(|| RwLock::new(TheRGBABuffer::new(TheDim::sized(380, 200))));
+    LazyLock::new(|| RwLock::new(TheRGBABuffer::new(TheDim::sized(200, 200))));
 
 pub struct Editor {
     project: Project,

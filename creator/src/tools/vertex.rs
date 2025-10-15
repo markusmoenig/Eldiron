@@ -111,7 +111,6 @@ impl Tool for VertexTool {
 
                 self.click_selected = false;
                 if server_ctx.hover.0.is_some() {
-                    let prev = map.clone();
                     let mut changed = false;
 
                     map.selected_entity_item = None;
@@ -144,11 +143,6 @@ impl Tool for VertexTool {
                     }
 
                     if changed {
-                        undo_atom = Some(RegionUndoAtom::MapEdit(
-                            Box::new(prev),
-                            Box::new(map.clone()),
-                        ));
-
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,
@@ -268,11 +262,6 @@ impl Tool for VertexTool {
                 } else if map.curr_rectangle.is_some() {
                     map.curr_rectangle = None;
 
-                    undo_atom = Some(RegionUndoAtom::MapEdit(
-                        Box::new(self.rectangle_undo_map.clone()),
-                        Box::new(map.clone()),
-                    ));
-
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Map Selection Changed"),
                         TheValue::Empty,
@@ -330,16 +319,8 @@ impl Tool for VertexTool {
                 }
             }
             MapEscape => {
-                // Hover is empty, check if we need to clear selection
                 if !map.selected_vertices.is_empty() {
-                    let prev = map.clone();
-
                     map.selected_vertices.clear();
-
-                    undo_atom = Some(RegionUndoAtom::MapEdit(
-                        Box::new(prev),
-                        Box::new(map.clone()),
-                    ));
 
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Map Selection Changed"),

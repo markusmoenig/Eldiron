@@ -13,16 +13,6 @@ impl Action for ApplyTile {
     {
         let nodeui: TheNodeUI = TheNodeUI::default();
 
-        // let item = TheNodeUIItem::Text(
-        //     "actionName".into(),
-        //     "Rig Name".into(),
-        //     "Set the name of the soft rig keyframe.".into(),
-        //     "wdew".into(),
-        //     None,
-        //     false,
-        // );
-        // nodeui.add_item(item);
-
         Self {
             id: TheId::named("Apply Tile"),
             nodeui,
@@ -33,8 +23,8 @@ impl Action for ApplyTile {
         self.id.clone()
     }
 
-    fn info(&self) -> String {
-        str!("Apply Tile (Ctrl + A). Applies the current tile to the selected geometry.")
+    fn info(&self) -> &'static str {
+        "Apply Tile (Ctrl + A). Applies the current tile to the selected sectors."
     }
 
     fn role(&self) -> &'static str {

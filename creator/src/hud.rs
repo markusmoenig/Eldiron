@@ -31,8 +31,6 @@ pub struct Hud {
     play_button_rect: TheDim,
     timeline_rect: TheDim,
 
-    rect_geo_rect: TheDim,
-
     mouse_pos: Vec2<i32>,
 
     is_playing: bool,
@@ -55,8 +53,6 @@ impl Hud {
 
             play_button_rect: TheDim::rect(0, 0, 0, 0),
             timeline_rect: TheDim::rect(0, 0, 0, 0),
-
-            rect_geo_rect: TheDim::zero(),
 
             mouse_pos: Vec2::zero(),
 
@@ -322,9 +318,9 @@ impl Hud {
             icons = if self.mode == HudMode::Vertex {
                 0
             } else if self.mode == HudMode::Linedef {
-                4
+                0
             } else {
-                2
+                1
             };
         } else if server_ctx.get_map_context() == MapContext::Material {
             icons = 1;
@@ -449,37 +445,7 @@ impl Hud {
             }
         }
 
-        // Show rect
-        if self.mode != HudMode::Terrain {
-            let x = 370;
-            let size = 20;
-            self.rect_geo_rect = TheDim::rect(x, 0, 60, size);
-
-            if let Some(font) = &ctx.ui.font {
-                let r = self.rect_geo_rect.to_buffer_utuple();
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
-                    &(r.0, 1, r.2, 19),
-                    stride,
-                    font,
-                    13.0,
-                    "RECTS",
-                    &if self.rect_geo_rect.contains(self.mouse_pos)
-                        || !server_ctx.no_rect_geo_on_map
-                    {
-                        sel_text_color
-                    } else {
-                        text_color
-                    },
-                    &bg_color,
-                    TheHorizontalAlign::Center,
-                    TheVerticalAlign::Center,
-                );
-            }
-        }
-
         // Terrain: Height
-
         if self.mode == HudMode::Terrain {
             if let Some(font) = &ctx.ui.font {
                 if let Some(v) = server_ctx.hover_height {
@@ -708,17 +674,6 @@ impl Hud {
             }
         }
 
-        if self.rect_geo_rect.contains(Vec2::new(x, y)) {
-            server_ctx.no_rect_geo_on_map = !server_ctx.no_rect_geo_on_map;
-
-            ctx.ui.send(TheEvent::Custom(
-                TheId::named("Update Client Properties"),
-                TheValue::Empty,
-            ));
-
-            return true;
-        }
-
         if map.camera == MapCamera::TwoD && y < 20 {
             return true;
         }
@@ -752,11 +707,12 @@ impl Hud {
         y: i32,
         _map: &mut Map,
         _ui: &mut TheUI,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
         _server_ctx: &mut ServerContext,
     ) -> bool {
         self.mouse_pos = Vec2::new(x, y);
 
+        /*
         if self.rect_geo_rect.contains(self.mouse_pos) {
             ctx.ui.send(TheEvent::SetStatusText(
                 TheId::empty(),
@@ -765,7 +721,7 @@ impl Hud {
         } else {
             ctx.ui
                 .send(TheEvent::SetStatusText(TheId::empty(), "".into()));
-        }
+        }*/
         false
     }
 
@@ -773,21 +729,9 @@ impl Hud {
     pub fn get_icon_text(&self, index: i32, server_ctx: &mut ServerContext) -> String {
         let mut text: String = "".into();
         if server_ctx.get_map_context() == MapContext::Region {
-            if self.mode == HudMode::Linedef {
+            if self.mode == HudMode::Sector {
                 if index == 0 {
-                    text = "WALL".into();
-                } else if index == 1 {
-                    text = "ROW2".into();
-                } else if index == 2 {
-                    text = "ROW3".into();
-                } else if index == 3 {
-                    text = "ROW4".into();
-                }
-            } else if self.mode == HudMode::Sector {
-                if index == 0 {
-                    text = "FLOOR".into();
-                } else if index == 1 {
-                    text = "CEIL".into();
+                    text = "TILE".into();
                 }
             }
         } else if server_ctx.get_map_context() == MapContext::Material {
@@ -813,67 +757,7 @@ impl Hud {
         id: u32,
         icon_size: usize,
     ) -> (Option<rusterix::Tile>, bool) {
-        if self.mode == HudMode::Linedef {
-            if let Some(linedef) = map.find_linedef(id) {
-                if index == 0 {
-                    let has_light = linedef.properties.get("row1_light").is_some();
-                    if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row1_source")
-                    {
-                        if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.read().unwrap().assets,
-                            icon_size,
-                            &linedef.properties,
-                            map,
-                        ) {
-                            return (Some(tile), has_light);
-                        }
-                    }
-                    return (None, has_light);
-                } else if index == 1 {
-                    let has_light = linedef.properties.get("row2_light").is_some();
-                    if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row2_source")
-                    {
-                        if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.read().unwrap().assets,
-                            icon_size,
-                            &linedef.properties,
-                            map,
-                        ) {
-                            return (Some(tile), has_light);
-                        }
-                    }
-                    return (None, has_light);
-                } else if index == 2 {
-                    let has_light = linedef.properties.get("row3_light").is_some();
-                    if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row3_source")
-                    {
-                        if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.read().unwrap().assets,
-                            icon_size,
-                            &linedef.properties,
-                            map,
-                        ) {
-                            return (Some(tile), has_light);
-                        }
-                    }
-                    return (None, has_light);
-                } else if index == 3 {
-                    let has_light = linedef.properties.get("row4_light").is_some();
-                    if let Some(Value::Source(pixelsource)) = &linedef.properties.get("row4_source")
-                    {
-                        if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.read().unwrap().assets,
-                            icon_size,
-                            &linedef.properties,
-                            map,
-                        ) {
-                            return (Some(tile), has_light);
-                        }
-                    }
-                    return (None, has_light);
-                }
-            }
-        } else if self.mode == HudMode::Sector {
+        if self.mode == HudMode::Sector {
             if let Some(sector) = map.find_sector(id) {
                 if index == 0 {
                     let has_light = sector.properties.get("floor_light").is_some();

@@ -53,7 +53,8 @@ impl CodeEditor {
                 }
             }
         } else {
-            let mut has_sector = false;
+            // let mut has_sector = false;
+            /*
             if let Some(map) = project.get_map_mut(server_ctx) {
                 if let Some(sector_id) = map.selected_sectors.first() {
                     if let Some(sector) = map.find_sector(*sector_id) {
@@ -63,17 +64,19 @@ impl CodeEditor {
                         self.shader_content = ContentContext::Sector(sector.creator_id);
                     }
                 }
-            }
+            }*/
 
-            if !has_sector {
-                *SHADEGRIDFX.write().unwrap() = Module::as_type(ModuleType::Sector);
-                self.shader_content = ContentContext::Unknown
-            }
+            // if !has_sector {
+            //*SHADEGRIDFX.write().unwrap() = Module::as_type(ModuleType::Sector);
+            //self.shader_content = ContentContext::Unknown;
+            // }
+
+            //self.shader_content = ContentContext::Sh;
 
             SHADEGRIDFX
                 .write()
                 .unwrap()
-                .set_module_type(ModuleType::Sector);
+                .set_module_type(ModuleType::Shader);
         }
         SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
     }
@@ -119,8 +122,13 @@ impl CodeEditor {
         SHADEGRIDFX
             .write()
             .unwrap()
-            .set_module_type(ModuleType::Sector);
+            .set_module_type(ModuleType::Shader);
         SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
+
+        let mut module = SHADEGRIDFX.write().unwrap();
+        crate::utils::draw_shader_into(&module, &mut SHADERBUFFER.write().unwrap());
+
+        module.set_shader_background(SHADERBUFFER.read().unwrap().clone(), ui, ctx);
     }
 
     /// Set the module based on the given context and template mode.

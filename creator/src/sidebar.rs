@@ -663,7 +663,7 @@ impl Sidebar {
         material_list_header_canvas_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
         material_list_header_canvas_hlayout.add_widget(Box::new(import_button));
         material_list_header_canvas_hlayout.add_widget(Box::new(export_button));
-        material_list_header_canvas_hlayout.set_reverse_index(Some(1));
+        // material_list_header_canvas_hlayout.set_reverse_index(Some(1));
 
         material_list_header_canvas.set_layout(material_list_header_canvas_hlayout);
 
@@ -1123,13 +1123,13 @@ impl Sidebar {
                         let dim = *render_view.dim();
                         let buffer = render_view.render_buffer_mut();
                         buffer.resize(dim.width, dim.height);
-                        if *SIDEBARMODE.read().unwrap() != SidebarMode::Material {
-                            if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
-                                draw_minimap(region, buffer, server_ctx, true);
-                            }
-                        } else {
-                            crate::minimap::draw_material_minimap(buffer, project, server_ctx);
+                        // if *SIDEBARMODE.read().unwrap() != SidebarMode::Material {
+                        if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
+                            draw_minimap(region, buffer, server_ctx, true);
                         }
+                        // } else {
+                        // crate::minimap::draw_material_minimap(buffer, project, server_ctx);
+                        // }
                     } else {
                     }
                 } else if id.name == "Soft Update Minimap" {
@@ -1194,7 +1194,7 @@ impl Sidebar {
                         let mut routine_clone = routine.clone();
                         routine.id = Uuid::new_v4();
                         routine_clone.name = "shader".to_string();
-                        let mut module: Module = Module::as_type(codegridfx::ModuleType::Material);
+                        let mut module: Module = Module::as_type(codegridfx::ModuleType::Shader);
                         if let Some(name) = value.to_string() {
                             module.name = name;
                             module.routines.insert(routine.id, routine_clone);
@@ -1707,6 +1707,9 @@ impl Sidebar {
                         let mut module: Module =
                             serde_json::from_str(&contents).unwrap_or(Module::default());
                         module.id = Uuid::new_v4();
+                        if module.name.is_empty() {
+                            module.name = "Unnamed".into();
+                        }
 
                         project.shaders.insert(module.id, module);
                         self.show_filtered_materials(ui, ctx, project, server_ctx);
@@ -2128,7 +2131,7 @@ impl Sidebar {
                         }
                     }
                 } else if id.name == "Material Add" {
-                    let mut module: Module = Module::as_type(codegridfx::ModuleType::Material);
+                    let mut module: Module = Module::as_type(codegridfx::ModuleType::Shader);
                     module.update_routines();
                     module.name = "New Material".into();
                     server_ctx.curr_material_id = Some(module.id);
@@ -3496,6 +3499,7 @@ impl Sidebar {
                             let mut item = TheListItem::new(action.id().clone());
                             item.set_text(action.id().name.clone());
                             item.add_value_column(120, TheValue::Text(action.role().to_string()));
+                            item.set_status_text(action.info());
 
                             if Some(action.id().uuid) == server_ctx.curr_action_id {
                                 found_current = true;

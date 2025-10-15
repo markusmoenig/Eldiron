@@ -3,7 +3,10 @@ pub use crate::prelude::*;
 
 pub mod apply_shader;
 pub mod apply_tile;
+pub mod clear_shader;
+pub mod clear_tile;
 pub mod extrude;
+pub mod toggle_rect_geo;
 
 #[allow(unused)]
 pub trait Action: Send + Sync {
@@ -12,7 +15,7 @@ pub trait Action: Send + Sync {
         Self: Sized;
 
     fn id(&self) -> TheId;
-    fn info(&self) -> String;
+    fn info(&self) -> &'static str;
     fn role(&self) -> &'static str;
 
     fn accel(&self) -> Option<char> {

@@ -1166,6 +1166,7 @@ impl MapEditor {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
+        println!("here");
         // Check if we need to apply the shape graph to the node editor
         if server_ctx.get_map_context() == MapContext::Character
             || server_ctx.get_map_context() == MapContext::Item
