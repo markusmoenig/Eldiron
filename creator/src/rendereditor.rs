@@ -1,4 +1,4 @@
-use crate::editor::CUSTOMCAMERA;
+use crate::editor::{CUSTOMCAMERA, TOOLLIST};
 use crate::prelude::*;
 use shared::prelude::*;
 

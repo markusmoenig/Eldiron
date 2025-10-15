@@ -276,27 +276,49 @@ impl Tool for VertexTool {
                     return None;
                 }
 
-                if let Some(render_view) = ui.get_render_view("PolyView") {
-                    let dim = *render_view.dim();
-                    let h = server_ctx.geometry_at(
-                        Vec2::new(dim.width as f32, dim.height as f32),
-                        Vec2::new(coord.x as f32, coord.y as f32),
-                        map,
-                    );
-                    server_ctx.hover.0 = h.0;
+                if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                        let dim = *render_view.dim();
+                        let h = server_ctx.geometry_at(
+                            Vec2::new(dim.width as f32, dim.height as f32),
+                            Vec2::new(coord.x as f32, coord.y as f32),
+                            map,
+                        );
+                        server_ctx.hover.0 = h.0;
 
-                    let cp = server_ctx.local_to_map_grid(
-                        Vec2::new(dim.width as f32, dim.height as f32),
-                        Vec2::new(coord.x as f32, coord.y as f32),
-                        map,
-                        map.subdivisions,
-                    );
+                        let cp = server_ctx.local_to_map_grid(
+                            Vec2::new(dim.width as f32, dim.height as f32),
+                            Vec2::new(coord.x as f32, coord.y as f32),
+                            map,
+                            map.subdivisions,
+                        );
 
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Cursor Pos Changed"),
-                        TheValue::Float2(cp),
-                    ));
-                    server_ctx.hover_cursor = Some(cp);
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Cursor Pos Changed"),
+                            TheValue::Float2(cp),
+                        ));
+                        server_ctx.hover_cursor = Some(cp);
+                    }
+                } else {
+                    if server_ctx.hitinfo.has_hit() {
+                        match server_ctx.hitinfo.geometry_source {
+                            GeometrySource::Vertex(id) => {
+                                server_ctx.hover = (Some(id), None, None);
+                            }
+                            _ => {
+                                server_ctx.hover = (None, None, None);
+                            }
+                        }
+                    } else {
+                        server_ctx.hover = (None, None, None);
+                    }
+
+                    if let Some(cp) = server_ctx.hover_cursor {
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Cursor Pos Changed"),
+                            TheValue::Float2(cp),
+                        ));
+                    }
                 }
             }
             MapDelete => {

@@ -763,6 +763,17 @@ impl TheTrait for Editor {
                     buffer.resize(dim.width, dim.height);
 
                     {
+                        // If we are drawing billboard vertices in the geometry overlay, update them.
+                        if !self.server_ctx.game_mode
+                            && self.server_ctx.editor_view_mode != EditorViewMode::D2
+                            && self.server_ctx.curr_map_tool_type == MapToolType::Vertex
+                        {
+                            TOOLLIST.write().unwrap().update_geometry_overlay_3d(
+                                &mut self.project,
+                                &mut self.server_ctx,
+                            );
+                        }
+
                         let rusterix = &mut RUSTERIX.write().unwrap();
                         let is_running = rusterix.server.state == rusterix::ServerState::Running;
                         let b = &mut rusterix.client.builder_d2;
@@ -1190,6 +1201,11 @@ impl TheTrait for Editor {
                                     );
                                 }
                             }
+                        } else if id.name == "Tool Changed" {
+                            TOOLLIST.write().unwrap().update_geometry_overlay_3d(
+                                &mut self.project,
+                                &mut self.server_ctx,
+                            );
                         } else if id.name == "Update Client Properties" {
                             let mut rusterix = RUSTERIX.write().unwrap();
                             self.build_values.set(

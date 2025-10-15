@@ -392,6 +392,8 @@ impl Tool for LinedefTool {
                                     server_ctx.hover = (None, None, None);
                                 }
                             }
+                        } else {
+                            server_ctx.hover = (None, None, None);
                         }
 
                         if let Some(cp) = server_ctx.hover_cursor {
