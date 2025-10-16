@@ -305,6 +305,7 @@ impl ToolList {
                     || self.get_current_tool().id().name == "Info Tool"
                     || ui.ctrl
                     || ui.logo
+                    || ui.alt
                 {
                     acc = false;
                 }

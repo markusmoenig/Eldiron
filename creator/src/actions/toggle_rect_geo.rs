@@ -10,7 +10,12 @@ impl Action for ToggleRectGeo {
     where
         Self: Sized,
     {
-        let nodeui: TheNodeUI = TheNodeUI::default();
+        let mut nodeui: TheNodeUI = TheNodeUI::default();
+        let item = TheNodeUIItem::Markdown(
+            "desc".into(),
+            "Geometry created by the Rect tool is by default not shown in the 2D editor. This action toggles visibilty.".into(),
+        );
+        nodeui.add_item(item);
 
         Self {
             id: TheId::named("Toggle Rect Geometry"),
@@ -23,15 +28,15 @@ impl Action for ToggleRectGeo {
     }
 
     fn info(&self) -> &'static str {
-        "Toggle Rect Geometry (Ctrl + S). Toggle the visibility of geometry created by the Rect tool in the 2D editor."
+        "Toggle the visibility of geometry created by the Rect tool in the 2D editor."
     }
 
-    fn role(&self) -> &'static str {
-        "2D Editor UI"
+    fn role(&self) -> ActionRole {
+        ActionRole::UI
     }
 
-    fn accel(&self) -> Option<char> {
-        Some('S')
+    fn accel(&self) -> Option<TheAccelerator> {
+        None
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {

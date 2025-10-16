@@ -11,7 +11,12 @@ impl Action for ApplyTile {
     where
         Self: Sized,
     {
-        let nodeui: TheNodeUI = TheNodeUI::default();
+        let mut nodeui: TheNodeUI = TheNodeUI::default();
+        let item = TheNodeUIItem::Markdown(
+            "desc".into(),
+            "Applies the current tile to the selected sectors.".into(),
+        );
+        nodeui.add_item(item);
 
         Self {
             id: TheId::named("Apply Tile"),
@@ -24,15 +29,15 @@ impl Action for ApplyTile {
     }
 
     fn info(&self) -> &'static str {
-        "Apply Tile (Ctrl + A). Applies the current tile to the selected sectors."
+        "Applies the current tile to the selected sectors."
     }
 
-    fn role(&self) -> &'static str {
-        "Property"
+    fn role(&self) -> ActionRole {
+        ActionRole::Property
     }
 
-    fn accel(&self) -> Option<char> {
-        Some('A')
+    fn accel(&self) -> Option<TheAccelerator> {
+        Some(TheAccelerator::new(TheAcceleratorKey::ALT, 'a'))
     }
 
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {

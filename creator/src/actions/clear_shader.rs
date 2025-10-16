@@ -10,7 +10,12 @@ impl Action for ClearShader {
     where
         Self: Sized,
     {
-        let nodeui: TheNodeUI = TheNodeUI::default();
+        let mut nodeui: TheNodeUI = TheNodeUI::default();
+        let item = TheNodeUIItem::Markdown(
+            "desc".into(),
+            "Clears the shaders from the selected sectors.".into(),
+        );
+        nodeui.add_item(item);
 
         Self {
             id: TheId::named("Clear Shader"),
@@ -23,15 +28,15 @@ impl Action for ClearShader {
     }
 
     fn info(&self) -> &'static str {
-        "Clear Shader (Ctrl + S). Clears the shader from the selected sectors."
+        "Clears the shader from the selected sectors."
     }
 
-    fn role(&self) -> &'static str {
-        "Property"
+    fn role(&self) -> ActionRole {
+        ActionRole::Property
     }
 
-    fn accel(&self) -> Option<char> {
-        Some('S')
+    fn accel(&self) -> Option<TheAccelerator> {
+        None
     }
 
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {

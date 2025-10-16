@@ -1816,6 +1816,30 @@ impl Sidebar {
                     project.add_tilemap(tilemap);
                 }
             }
+            TheEvent::KeyDown(TheValue::Char(c)) => {
+                let action_list = ACTIONLIST.write().unwrap();
+                let mut needs_scene_redraw: bool = false;
+                if let Some(map) = project.get_map_mut(&server_ctx) {
+                    for action in &action_list.actions {
+                        if let Some(accel) = action.accel() {
+                            if action.is_applicable(map, ctx, server_ctx) {
+                                if accel.matches(ui.shift, ui.ctrl, ui.alt, ui.logo, *c) {
+                                    println!("{}", action.id().name);
+                                    needs_scene_redraw =
+                                        self.apply_action(action, map, ctx, server_ctx);
+                                }
+                            }
+                        }
+                    }
+                }
+                if needs_scene_redraw {
+                    crate::utils::scenemanager_render_map(project, server_ctx);
+                    TOOLLIST
+                        .write()
+                        .unwrap()
+                        .update_geometry_overlay_3d(project, server_ctx);
+                }
+            }
             TheEvent::StateChanged(id, state) => {
                 // Iterate actions first
                 if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(id.uuid) {
@@ -1840,74 +1864,18 @@ impl Sidebar {
                             //     }
                             // };
 
+                            let mut needs_scene_redraw = false;
                             if let Some(map) = project.get_map_mut(&server_ctx) {
-                                if let Some(undo_atom) = action.apply(map, ctx, server_ctx) {
-                                    if server_ctx.get_map_context() == MapContext::Region {
-                                        UNDOMANAGER.write().unwrap().add_region_undo(
-                                            &server_ctx.curr_region,
-                                            undo_atom,
-                                            ctx,
-                                        );
-                                        if server_ctx.editor_view_mode == EditorViewMode::D2
-                                            && server_ctx.profile_view.is_some()
-                                        {
-                                        } else {
-                                            crate::utils::scenemanager_render_map(
-                                                project, server_ctx,
-                                            );
-                                            TOOLLIST
-                                                .write()
-                                                .unwrap()
-                                                .update_geometry_overlay_3d(project, server_ctx);
-                                        }
-                                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                                    } else if server_ctx.get_map_context() == MapContext::Character
-                                    {
-                                        if let Some(character_undo_atom) =
-                                            undo_atom.to_character_atom()
-                                        {
-                                            UNDOMANAGER
-                                                .write()
-                                                .unwrap()
-                                                .add_character_undo(character_undo_atom, ctx);
+                                needs_scene_redraw =
+                                    self.apply_action(action, map, ctx, server_ctx);
+                            }
 
-                                            /*
-                                            NODEEDITOR.write().unwrap().create_shape_preview(
-                                                map,
-                                                &RUSTERIX.read().unwrap().assets,
-                                            );*/
-                                        }
-                                    } else if server_ctx.get_map_context() == MapContext::Item {
-                                        if let Some(item_undo_atom) = undo_atom.to_item_atom() {
-                                            UNDOMANAGER
-                                                .write()
-                                                .unwrap()
-                                                .add_item_undo(item_undo_atom, ctx);
-
-                                            /*
-                                            NODEEDITOR
-                                                .write()
-                                                .unwrap()
-                                                .create_shape_preview(
-                                                    map,
-                                                    &RUSTERIX.read().unwrap().assets,
-                                                );
-                                            */
-                                        }
-                                    } else if server_ctx.get_map_context() == MapContext::Screen {
-                                        if let Some(screen_undo_atom) = undo_atom.to_screen_atom() {
-                                            UNDOMANAGER
-                                                .write()
-                                                .unwrap()
-                                                .add_screen_undo(screen_undo_atom, ctx);
-                                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                                            ctx.ui.send(TheEvent::Custom(
-                                                TheId::named("Update Materialpicker"),
-                                                TheValue::Empty,
-                                            ));
-                                        }
-                                    }
-                                }
+                            if needs_scene_redraw {
+                                crate::utils::scenemanager_render_map(project, server_ctx);
+                                TOOLLIST
+                                    .write()
+                                    .unwrap()
+                                    .update_geometry_overlay_3d(project, server_ctx);
                             }
                         }
                     }
@@ -3498,8 +3466,14 @@ impl Sidebar {
                         if action.is_applicable(map, ctx, server_ctx) {
                             let mut item = TheListItem::new(action.id().clone());
                             item.set_text(action.id().name.clone());
-                            item.add_value_column(120, TheValue::Text(action.role().to_string()));
+
+                            let mut accel_text = String::new();
+                            if let Some(accel) = action.accel() {
+                                accel_text = accel.description();
+                            }
+                            item.add_value_column(120, TheValue::Text(accel_text));
                             item.set_status_text(action.info());
+                            item.set_background_color(TheColor::from(action.role().to_color()));
 
                             if Some(action.id().uuid) == server_ctx.curr_action_id {
                                 found_current = true;
@@ -3702,6 +3676,74 @@ impl Sidebar {
             }
         }
     }*/
+
+    pub fn apply_action(
+        &self,
+        action: &Box<dyn Action>,
+        map: &mut Map,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        if let Some(undo_atom) = action.apply(map, ctx, server_ctx) {
+            if server_ctx.get_map_context() == MapContext::Region {
+                UNDOMANAGER.write().unwrap().add_region_undo(
+                    &server_ctx.curr_region,
+                    undo_atom,
+                    ctx,
+                );
+                if server_ctx.editor_view_mode == EditorViewMode::D2
+                    && server_ctx.profile_view.is_some()
+                {
+                } else {
+                    return true;
+                }
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+            } else if server_ctx.get_map_context() == MapContext::Character {
+                if let Some(character_undo_atom) = undo_atom.to_character_atom() {
+                    UNDOMANAGER
+                        .write()
+                        .unwrap()
+                        .add_character_undo(character_undo_atom, ctx);
+
+                    /*
+                    NODEEDITOR.write().unwrap().create_shape_preview(
+                        map,
+                        &RUSTERIX.read().unwrap().assets,
+                    );*/
+                }
+            } else if server_ctx.get_map_context() == MapContext::Item {
+                if let Some(item_undo_atom) = undo_atom.to_item_atom() {
+                    UNDOMANAGER
+                        .write()
+                        .unwrap()
+                        .add_item_undo(item_undo_atom, ctx);
+
+                    /*
+                    NODEEDITOR
+                        .write()
+                        .unwrap()
+                        .create_shape_preview(
+                            map,
+                            &RUSTERIX.read().unwrap().assets,
+                        );
+                    */
+                }
+            } else if server_ctx.get_map_context() == MapContext::Screen {
+                if let Some(screen_undo_atom) = undo_atom.to_screen_atom() {
+                    UNDOMANAGER
+                        .write()
+                        .unwrap()
+                        .add_screen_undo(screen_undo_atom, ctx);
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Materialpicker"),
+                        TheValue::Empty,
+                    ));
+                }
+            }
+        }
+        false
+    }
 
     /// Tilemaps in the project have been updated, propagate the change to all relevant parties.
     pub fn update_tiles(&mut self, _ui: &mut TheUI, ctx: &mut TheContext, project: &mut Project) {

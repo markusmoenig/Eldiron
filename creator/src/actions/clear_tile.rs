@@ -10,7 +10,12 @@ impl Action for ClearTile {
     where
         Self: Sized,
     {
-        let nodeui: TheNodeUI = TheNodeUI::default();
+        let mut nodeui: TheNodeUI = TheNodeUI::default();
+        let item = TheNodeUIItem::Markdown(
+            "desc".into(),
+            "Clears the tiles from the selected sectors.".into(),
+        );
+        nodeui.add_item(item);
 
         Self {
             id: TheId::named("Clear Tile"),
@@ -23,15 +28,15 @@ impl Action for ClearTile {
     }
 
     fn info(&self) -> &'static str {
-        "Clear Tile (Ctrl + A). Clears the tiles of the selected sectors."
+        "Clears the tiles of the selected sectors."
     }
 
-    fn role(&self) -> &'static str {
-        "Property"
+    fn role(&self) -> ActionRole {
+        ActionRole::Property
     }
 
-    fn accel(&self) -> Option<char> {
-        Some('A')
+    fn accel(&self) -> Option<TheAccelerator> {
+        None
     }
 
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {

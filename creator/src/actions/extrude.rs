@@ -59,12 +59,13 @@ impl Extrude {
         let v2 = map.add_vertex_at_3d(p1_top.x, p1_top.y, p1_top.z);
         let v3 = map.add_vertex_at_3d(p0_top.x, p0_top.y, p0_top.z);
 
+        map.possible_polygon = vec![];
         let _ = map.create_linedef(v0, v1); // bottom
         let _ = map.create_linedef(v1, v2); // side
         let _ = map.create_linedef(v2, v3); // top
         let (_, sid) = map.create_linedef(v3, v0); // side + try close sector
 
-        println!("{} {} {:?}", p0_top, p1_top, sid);
+        println!("{} {} {:?}", v2, v3, sid);
 
         sid
     }
@@ -97,6 +98,13 @@ impl Action for Extrude {
         );
         nodeui.add_item(item);
 
+        let item = TheNodeUIItem::Markdown(
+            "desc".into(),
+            "Extrudes the linedef or sector by the given distance and creates new sectors. The angle applies an optional rotation around the linedef axis or sector normal."
+                .into(),
+        );
+        nodeui.add_item(item);
+
         Self {
             id: TheId::named("Extrude"),
             nodeui,
@@ -108,15 +116,15 @@ impl Action for Extrude {
     }
 
     fn info(&self) -> &'static str {
-        "Extrude(Ctrl + E). Extrudes the current linedef or sector."
+        "Extrudes the current linedef or sector."
     }
 
-    fn role(&self) -> &'static str {
-        "Geometry"
+    fn role(&self) -> ActionRole {
+        ActionRole::Geometry
     }
 
-    fn accel(&self) -> Option<char> {
-        Some('E')
+    fn accel(&self) -> Option<TheAccelerator> {
+        Some(TheAccelerator::new(TheAcceleratorKey::ALT, 'e'))
     }
 
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {

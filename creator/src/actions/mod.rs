@@ -8,6 +8,22 @@ pub mod clear_tile;
 pub mod extrude;
 pub mod toggle_rect_geo;
 
+pub enum ActionRole {
+    Geometry,
+    Property,
+    UI,
+}
+
+impl ActionRole {
+    pub fn to_color(&self) -> [u8; 4] {
+        match self {
+            ActionRole::Geometry => [200, 120, 120, 255],
+            ActionRole::Property => [120, 160, 200, 255],
+            ActionRole::UI => [200, 200, 160, 255],
+        }
+    }
+}
+
 #[allow(unused)]
 pub trait Action: Send + Sync {
     fn new() -> Self
@@ -16,9 +32,9 @@ pub trait Action: Send + Sync {
 
     fn id(&self) -> TheId;
     fn info(&self) -> &'static str;
-    fn role(&self) -> &'static str;
+    fn role(&self) -> ActionRole;
 
-    fn accel(&self) -> Option<char> {
+    fn accel(&self) -> Option<TheAccelerator> {
         None
     }
 
