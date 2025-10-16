@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use theframework::prelude::*;
 
-use rusterix::{D3Camera, D3FirstPCamera, D3IsoCamera, Rusterix};
+use rusterix::{D3Camera, D3FirstPCamera, D3IsoCamera, D3OrbitCamera, Rusterix};
 
 pub enum CustomMoveAction {
     Forward,
@@ -10,20 +10,22 @@ pub enum CustomMoveAction {
     Right,
 }
 
-pub struct CustomCamera {
+pub struct EditCamera {
+    orbit_camera: D3OrbitCamera,
+    pub iso_camera: D3IsoCamera,
     firstp_camera: D3FirstPCamera,
-    iso_camera: D3IsoCamera,
 
     pub move_action: Option<CustomMoveAction>,
     last_mouse: Option<Vec2<i32>>,
 }
 
 #[allow(clippy::new_without_default)]
-impl CustomCamera {
+impl EditCamera {
     pub fn new() -> Self {
         Self {
-            firstp_camera: D3FirstPCamera::new(),
+            orbit_camera: D3OrbitCamera::new(),
             iso_camera: D3IsoCamera::new(),
+            firstp_camera: D3FirstPCamera::new(),
 
             move_action: None,
             last_mouse: None,
@@ -39,13 +41,33 @@ impl CustomCamera {
     ) {
         let mut view_switch = TheGroupButton::new(TheId::named("Editor View Switch"));
         view_switch.add_text_status("2D".to_string(), "Edit the map in 2D.".to_string());
-        view_switch.add_text_status(
-            "Iso".to_string(),
-            "Edit the map in isometric view.".to_string(),
-        );
+        if cfg!(target_os = "macos") {
+            view_switch.add_text_status(
+                    "Orbit".to_string(),
+                    "Edit the map with a 3D orbit camera. Scroll to move. Cmd + Scroll to zoom. Alt + Scroll to rotate.".to_string(),
+                );
+        } else {
+            view_switch.add_text_status(
+                    "Orbit".to_string(),
+                    "Edit the map with a 3D orbit camera. Scroll to move. Ctrl + Scroll to zoom. Alt + Scroll to rotate.".to_string(),
+                );
+        }
+        if cfg!(target_os = "macos") {
+            view_switch.add_text_status(
+                "Iso".to_string(),
+                "Edit the map in 3D isometric view. Scroll to move. Cmd + Scroll to zoom. "
+                    .to_string(),
+            );
+        } else {
+            view_switch.add_text_status(
+                "Iso".to_string(),
+                "Edit the map in 3D isometric view. Scroll to move. Ctrl + Scroll to zoom."
+                    .to_string(),
+            );
+        }
         view_switch.add_text_status(
             "FirstP".to_string(),
-            "Edit the map in first person view.".to_string(),
+            "Edit the map in 3D first person view.".to_string(),
         );
         view_switch.set_index(server_ctx.editor_view_mode.to_index());
         layout.add_widget(Box::new(view_switch));
@@ -97,6 +119,13 @@ impl CustomCamera {
                 "position",
                 region.editing_position_3d + vek::Vec3::new(-20.0, 20.0, 20.0),
             );
+        } else if server_ctx.editor_view_mode == EditorViewMode::Orbit {
+            rusterix.client.camera_d3 = Box::new(self.orbit_camera.clone());
+
+            rusterix
+                .client
+                .camera_d3
+                .set_parameter_vec3("center", region.editing_position_3d);
         }
     }
 
@@ -260,5 +289,13 @@ impl CustomCamera {
 
     pub fn scroll_by(&mut self, coord: f32) {
         self.iso_camera.zoom(coord);
+        self.orbit_camera.zoom(coord);
+        self.firstp_camera.zoom(coord);
+    }
+
+    pub fn rotate(&mut self, delta: Vec2<f32>, server_ctx: &mut ServerContext) {
+        if server_ctx.editor_view_mode == EditorViewMode::Orbit {
+            self.orbit_camera.rotate(delta);
+        }
     }
 }

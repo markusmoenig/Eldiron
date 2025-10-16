@@ -1,4 +1,4 @@
-use crate::editor::{CUSTOMCAMERA, NODEEDITOR, RENDEREDITOR, RUSTERIX};
+use crate::editor::{EDITCAMERA, NODEEDITOR, RENDEREDITOR, RUSTERIX};
 use crate::prelude::*;
 use ToolEvent::*;
 
@@ -59,7 +59,7 @@ impl Tool for RenderTool {
                     switch.set_index(server_ctx.curr_render_tool_helper as i32);
                     layout.add_widget(Box::new(switch));
 
-                    CUSTOMCAMERA
+                    EDITCAMERA
                         .write()
                         .unwrap()
                         .setup_toolbar(layout, ctx, project, server_ctx);
@@ -127,23 +127,23 @@ impl Tool for RenderTool {
         let mut redraw = false;
         match event {
             TheEvent::KeyUp(_) => {
-                CUSTOMCAMERA.write().unwrap().move_action = None;
+                EDITCAMERA.write().unwrap().move_action = None;
             }
             TheEvent::KeyDown(TheValue::Char(c)) => {
                 if *c == 'w' {
-                    CUSTOMCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Forward);
+                    EDITCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Forward);
                     RENDEREDITOR.write().unwrap().reset_trace();
                 }
                 if *c == 's' {
-                    CUSTOMCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Backward);
+                    EDITCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Backward);
                     RENDEREDITOR.write().unwrap().reset_trace();
                 }
                 if *c == 'a' {
-                    CUSTOMCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Left);
+                    EDITCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Left);
                     RENDEREDITOR.write().unwrap().reset_trace();
                 }
                 if *c == 'd' {
-                    CUSTOMCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Right);
+                    EDITCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Right);
                     RENDEREDITOR.write().unwrap().reset_trace();
                 }
                 redraw = true;
@@ -151,7 +151,7 @@ impl Tool for RenderTool {
             TheEvent::RenderViewDragged(id, coord) => {
                 if id.name == "PolyView" {
                     if let Some(region) = project.get_region_ctx_mut(server_ctx) {
-                        CUSTOMCAMERA
+                        EDITCAMERA
                             .write()
                             .unwrap()
                             .mouse_dragged(region, server_ctx, coord);

@@ -1,4 +1,4 @@
-use crate::editor::CUSTOMCAMERA;
+use crate::editor::EDITCAMERA;
 use crate::prelude::*;
 use shared::prelude::*;
 
@@ -66,11 +66,11 @@ impl RenderEditor {
         buffer.resize(dim.width, dim.height);
 
         if let Some(region) = project.get_region_ctx_mut(server_ctx) {
-            CUSTOMCAMERA
+            EDITCAMERA
                 .write()
                 .unwrap()
                 .update_action(region, server_ctx);
-            CUSTOMCAMERA
+            EDITCAMERA
                 .write()
                 .unwrap()
                 .update_camera(region, server_ctx, rusterix);

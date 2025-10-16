@@ -353,9 +353,6 @@ impl WorldEditor {
                     self.orbit_camera
                         .rotate((*coord - self.drag_coord).map(|v| v as f32 * 5.0));
                 }
-                // else if server_ctx.curr_world_tool_helper != WorldToolHelper::Brushes {
-                //     self.apply_action(map, ui, server_ctx);
-                // }
 
                 self.drag_coord = *coord;
             }

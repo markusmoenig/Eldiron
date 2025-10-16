@@ -6,6 +6,7 @@ use theframework::prelude::*;
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum EditorViewMode {
     D2,
+    Orbit,
     Iso,
     FirstP,
 }
@@ -14,14 +15,16 @@ impl EditorViewMode {
     pub fn to_index(&self) -> i32 {
         match self {
             EditorViewMode::D2 => 0,
-            EditorViewMode::Iso => 1,
-            EditorViewMode::FirstP => 2,
+            EditorViewMode::Orbit => 1,
+            EditorViewMode::Iso => 2,
+            EditorViewMode::FirstP => 3,
         }
     }
     pub fn from_index(idx: i32) -> Self {
         match idx {
-            1 => EditorViewMode::Iso,
-            2 => EditorViewMode::FirstP,
+            1 => EditorViewMode::Orbit,
+            2 => EditorViewMode::Iso,
+            3 => EditorViewMode::FirstP,
             _ => EditorViewMode::D2,
         }
     }

@@ -1,6 +1,6 @@
-use crate::editor::{CODEEDITOR, NODEEDITOR, RUSTERIX, SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{CODEEDITOR, EDITCAMERA, NODEEDITOR, RUSTERIX, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
-use rusterix::{PixelSource, Value};
+use rusterix::{D3Camera, PixelSource, Value};
 use vek::Vec2;
 
 pub struct MapEditor {
@@ -202,6 +202,35 @@ impl MapEditor {
         let mut redraw = false;
 
         match event {
+            TheEvent::KeyCodeDown(TheValue::KeyCode(key)) => match key {
+                TheKeyCode::Up => {
+                    if server_ctx.editor_view_mode == EditorViewMode::FirstP {
+                        EDITCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Forward);
+                    }
+                }
+                TheKeyCode::Down => {
+                    if server_ctx.editor_view_mode == EditorViewMode::FirstP {
+                        EDITCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Backward);
+                    }
+                }
+                TheKeyCode::Left => {
+                    if server_ctx.editor_view_mode == EditorViewMode::FirstP {
+                        EDITCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Left);
+                    }
+                }
+                TheKeyCode::Right => {
+                    if server_ctx.editor_view_mode == EditorViewMode::FirstP {
+                        EDITCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Right);
+                    }
+                }
+                _ => {}
+            },
+            TheEvent::KeyCodeUp(TheValue::KeyCode(_)) => {
+                if server_ctx.editor_view_mode == EditorViewMode::FirstP {
+                    EDITCAMERA.write().unwrap().move_action = None;
+                }
+            }
+
             TheEvent::Copy => {
                 if let Some(map) = project.get_map_mut(server_ctx) {
                     if map.has_selection() {
@@ -356,13 +385,48 @@ impl MapEditor {
                                 && server_ctx.profile_view.is_some()
                             {
                             } else {
-                                if let Some(region) =
+                                if ui.logo || ui.ctrl {
+                                    EDITCAMERA.write().unwrap().scroll_by(coord.y as f32);
+                                } else if ui.alt {
+                                    EDITCAMERA
+                                        .write()
+                                        .unwrap()
+                                        .rotate(coord.map(|v| v as f32), server_ctx);
+                                } else if let Some(region) =
                                     project.get_region_mut(&server_ctx.curr_region)
                                 {
-                                    region.editing_position_3d.x +=
-                                        coord.x as f32 / region.map.grid_size;
-                                    region.editing_position_3d.z +=
-                                        coord.y as f32 / region.map.grid_size;
+                                    if server_ctx.editor_view_mode == EditorViewMode::Iso {
+                                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                                            let dim = *render_view.dim();
+                                            let viewport_h = dim.y as f32;
+
+                                            let (_fwd, right, up) = EDITCAMERA
+                                                .read()
+                                                .unwrap()
+                                                .iso_camera
+                                                .basis_vectors();
+                                            let ortho_h =
+                                                EDITCAMERA.read().unwrap().iso_camera.scale();
+                                            let world_per_pixel = (ortho_h) / viewport_h;
+
+                                            let right_xz: Vec3<f32> =
+                                                vek::Vec3::new(right.x, 0.0, right.z).normalized();
+                                            let up_xz =
+                                                vek::Vec3::new(up.x, 0.0, up.z).normalized();
+
+                                            let mut coord = coord.clone();
+                                            coord.x = -coord.x;
+                                            let delta = right_xz * coord.x as f32 * world_per_pixel
+                                                - up_xz * coord.y as f32 * world_per_pixel;
+
+                                            region.editing_position_3d += delta;
+                                        }
+                                    } else {
+                                        region.editing_position_3d.x +=
+                                            coord.x as f32 / region.map.grid_size;
+                                        region.editing_position_3d.z +=
+                                            coord.y as f32 / region.map.grid_size;
+                                    }
                                     redraw = true;
                                 }
                             }

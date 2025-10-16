@@ -1,8 +1,8 @@
-use crate::editor::{CODEEDITOR, CUSTOMCAMERA, NODEEDITOR, RUSTERIX, SHAPEPICKER, UNDOMANAGER};
+use crate::editor::{CODEEDITOR, NODEEDITOR, RUSTERIX, SHAPEPICKER, UNDOMANAGER};
 use crate::prelude::*;
 pub use crate::tools::{
     config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, render::RenderTool,
-    world::WorldTool,
+    terrain::TerrainTool,
 };
 use rusterix::{Assets, GeometrySource, HitInfo};
 
@@ -36,7 +36,7 @@ impl ToolList {
             Box::new(SectorTool::new()),
             Box::new(RectTool::new()),
             Box::new(RenderTool::new()),
-            Box::new(WorldTool::new()),
+            Box::new(TerrainTool::new()),
             Box::new(CodeTool::new()),
             Box::new(DataTool::new()),
             Box::new(TilesetTool::new()),
@@ -677,6 +677,20 @@ impl ToolList {
                 }
             }
             TheEvent::RenderViewDragged(id, coord) => {
+                /*
+                if id.name == "PolyView" {
+                    if let Some(drag_coord) = &self.camera_drag_coord {
+                        if ui.logo || ui.ctrl {
+                            EDITCAMERA
+                                .write()
+                                .unwrap()
+                                .click_drag((*coord - *drag_coord).map(|v| v as f32 * 5.0));
+                            self.camera_drag_coord = Some(*coord);
+                        }
+                        return true;
+                    }
+                }*/
+
                 if id.name == "PolyView" && server_ctx.editor_view_mode == EditorViewMode::D2 {
                     let mut changed_entities: FxHashMap<Uuid, Vec3<f32>> = FxHashMap::default();
                     let mut changed_items: FxHashMap<Uuid, Vec3<f32>> = FxHashMap::default();
@@ -873,15 +887,15 @@ impl ToolList {
                     redraw = true;
                 }
             }
-            TheEvent::RenderViewScrollBy(id, coord) => {
-                if id.name == "PolyView" {
-                    if server_ctx.editor_view_mode == EditorViewMode::Iso {
-                        if ui.ctrl || ui.logo {
-                            CUSTOMCAMERA.write().unwrap().scroll_by(coord.y as f32);
-                        }
-                    }
-                }
-            }
+            // TheEvent::RenderViewScrollBy(id, coord) => { TODO
+            //     if id.name == "PolyView" {
+            //         if server_ctx.editor_view_mode == EditorViewMode::Iso {
+            //             if ui.ctrl || ui.logo {
+            //                 EDITCAMERA.write().unwrap().scroll_by(coord.y as f32);
+            //             }
+            //         }
+            //     }
+            // }
             /*
             TheEvent::TileEditorClicked(id, coord) => {
                 if id.name == "Region Editor View"

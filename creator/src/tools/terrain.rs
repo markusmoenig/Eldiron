@@ -2,11 +2,11 @@ use crate::editor::{NODEEDITOR, WORLDEDITOR};
 use crate::prelude::*;
 use ToolEvent::*;
 
-pub struct WorldTool {
+pub struct TerrainTool {
     id: TheId,
 }
 
-impl Tool for WorldTool {
+impl Tool for TerrainTool {
     fn new() -> Self
     where
         Self: Sized,

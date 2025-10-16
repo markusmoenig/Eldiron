@@ -65,8 +65,6 @@ impl Extrude {
         let _ = map.create_linedef(v2, v3); // top
         let (_, sid) = map.create_linedef(v3, v0); // side + try close sector
 
-        println!("{} {} {:?}", v2, v3, sid);
-
         sid
     }
 }

@@ -11,9 +11,9 @@ pub mod rect;
 pub mod render;
 pub mod sector;
 pub mod selection;
+pub mod terrain;
 pub mod tileset;
 pub mod vertex;
-pub mod world;
 
 #[derive(PartialEq, Clone, Debug, Copy)]
 pub enum ToolEvent {
@@ -132,13 +132,33 @@ pub trait Tool: Send + Sync {
 
             let mut view_switch = TheGroupButton::new(TheId::named("Editor View Switch"));
             view_switch.add_text_status("2D".to_string(), "Edit the map in 2D.".to_string());
-            view_switch.add_text_status(
-                "Iso".to_string(),
-                "Edit the map in isometric view.".to_string(),
-            );
+            if cfg!(target_os = "macos") {
+                view_switch.add_text_status(
+                    "Orbit".to_string(),
+                    "Edit the map with a 3D orbit camera. Scroll to move. Cmd + Scroll to zoom. Alt + Scroll to rotate.".to_string(),
+                );
+            } else {
+                view_switch.add_text_status(
+                    "Orbit".to_string(),
+                    "Edit the map with a 3D orbit camera. Scroll to move. Ctrl + Scroll to zoom. Alt + Scroll to rotate.".to_string(),
+                );
+            }
+            if cfg!(target_os = "macos") {
+                view_switch.add_text_status(
+                    "Iso".to_string(),
+                    "Edit the map in 3D isometric view. Scroll to move. Cmd + Scroll to zoom. "
+                        .to_string(),
+                );
+            } else {
+                view_switch.add_text_status(
+                    "Iso".to_string(),
+                    "Edit the map in 3D isometric view. Scroll to move. Ctrl + Scroll to zoom."
+                        .to_string(),
+                );
+            }
             view_switch.add_text_status(
                 "FirstP".to_string(),
-                "Edit the map in first person view.".to_string(),
+                "Edit the map in 3D first person view. Scroll to move. Arrow keys for first person controls.".to_string(),
             );
             view_switch.set_index(server_ctx.editor_view_mode.to_index());
             layout.add_widget(Box::new(view_switch));
@@ -172,6 +192,7 @@ pub trait Tool: Send + Sync {
                 ));
             }
 
+            /*
             let mut set_source_button = TheTraybarButton::new(TheId::named("Apply Map Properties"));
             set_source_button.set_status_text("Apply the source to the selected geometry.");
             set_source_button.set_text("Apply".to_string());
@@ -184,6 +205,8 @@ pub trait Tool: Send + Sync {
             layout.add_widget(Box::new(rem_source_button));
 
             layout.set_reverse_index(Some(2));
+            */
+            layout.set_reverse_index(Some(1));
         }
     }
 }
