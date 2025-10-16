@@ -11,9 +11,9 @@ pub enum CustomMoveAction {
 }
 
 pub struct EditCamera {
-    orbit_camera: D3OrbitCamera,
+    pub orbit_camera: D3OrbitCamera,
     pub iso_camera: D3IsoCamera,
-    firstp_camera: D3FirstPCamera,
+    pub firstp_camera: D3FirstPCamera,
 
     pub move_action: Option<CustomMoveAction>,
     last_mouse: Option<Vec2<i32>>,

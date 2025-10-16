@@ -395,7 +395,36 @@ impl MapEditor {
                                 } else if let Some(region) =
                                     project.get_region_mut(&server_ctx.curr_region)
                                 {
+                                    // Move camera
+                                    if server_ctx.editor_view_mode == EditorViewMode::Orbit {
+                                        // Orbit move
+                                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                                            let dim = *render_view.dim();
+                                            let viewport_h = dim.y as f32;
+
+                                            let orbit = &EDITCAMERA.read().unwrap().orbit_camera;
+
+                                            let (_fwd, right, up) = orbit.basis_vectors();
+
+                                            let distance = orbit.distance();
+                                            let world_per_pixel =
+                                                2.0 * distance * (orbit.fov * 0.5).tan()
+                                                    / viewport_h;
+
+                                            let right_xz =
+                                                vek::Vec3::new(right.x, 0.0, right.z).normalized();
+                                            let up_xz =
+                                                vek::Vec3::new(up.x, 0.0, up.z).normalized();
+
+                                            let coord = -coord.clone();
+                                            let delta = right_xz * coord.x as f32 * world_per_pixel
+                                                - up_xz * coord.y as f32 * world_per_pixel;
+
+                                            region.editing_position_3d += delta;
+                                        }
+                                    }
                                     if server_ctx.editor_view_mode == EditorViewMode::Iso {
+                                        // Iso move
                                         if let Some(render_view) = ui.get_render_view("PolyView") {
                                             let dim = *render_view.dim();
                                             let viewport_h = dim.y as f32;
@@ -422,10 +451,16 @@ impl MapEditor {
                                             region.editing_position_3d += delta;
                                         }
                                     } else {
-                                        region.editing_position_3d.x +=
-                                            coord.x as f32 / region.map.grid_size;
-                                        region.editing_position_3d.z +=
-                                            coord.y as f32 / region.map.grid_size;
+                                        // Firstp move
+                                        let firstp = &EDITCAMERA.read().unwrap().firstp_camera;
+                                        let (forward, right, _up) = firstp.basis_vectors();
+
+                                        let speed = 0.1;
+                                        let dx = coord.x as f32;
+                                        let dy = coord.y as f32;
+                                        let delta = forward * (dy) * speed + right * (dx) * speed;
+
+                                        region.editing_position_3d += delta;
                                     }
                                     redraw = true;
                                 }
