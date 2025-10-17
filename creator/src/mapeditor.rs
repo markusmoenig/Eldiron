@@ -336,7 +336,7 @@ impl MapEditor {
                     }
                 } else if id.name == "Map Selection Changed" {
                     set_code(ui, ctx, project, server_ctx);
-                    self.apply_map_settings(ui, ctx, project, server_ctx);
+                    //self.apply_map_settings(ui, ctx, project, server_ctx);
 
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Update Action List"),
@@ -491,7 +491,7 @@ impl MapEditor {
                     || id.name == "RenderView"
                     || id.name == "PolyView"
                 {
-                    if server_ctx.get_map_context() == MapContext::Material {
+                    if server_ctx.get_map_context() == MapContext::Shader {
                         UNDOMANAGER.write().unwrap().context = UndoManagerContext::Material;
                     } else if server_ctx.get_map_context() == MapContext::Screen {
                         UNDOMANAGER.write().unwrap().context = UndoManagerContext::Screen;
@@ -1088,7 +1088,7 @@ impl MapEditor {
     }
 
     /// Sets the settings for the map selection.
-    fn apply_map_settings(
+    pub fn apply_map_settings(
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
@@ -1290,7 +1290,7 @@ impl MapEditor {
             }
         } else
         // Check if we need to apply the material graph to the node editor
-        if server_ctx.get_map_context() == MapContext::Material {
+        if server_ctx.get_map_context() == MapContext::Shader {
             if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor {
                 ctx.ui
                     .send(TheEvent::IndexChanged(TheId::named("Map Helper Switch"), 2));
@@ -1486,7 +1486,7 @@ impl MapEditor {
             }
         } else
         // Check if we need to apply the material graph to the node editor
-        if server_ctx.get_map_context() == MapContext::Material {
+        if server_ctx.get_map_context() == MapContext::Shader {
             if server_ctx.curr_map_tool_helper != MapToolHelper::NodeEditor {
                 ctx.ui
                     .send(TheEvent::IndexChanged(TheId::named("Map Helper Switch"), 2));

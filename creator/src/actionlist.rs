@@ -14,13 +14,17 @@ impl ActionList {
     pub fn new() -> Self {
         let actions: Vec<Box<dyn Action>> = vec![
             Box::new(crate::tools::apply_shader::ApplyShader::new()),
+            Box::new(crate::tools::add_shader_library::AddShaderLibrary::new()),
             Box::new(crate::tools::apply_tile::ApplyTile::new()),
             Box::new(crate::tools::clear_shader::ClearShader::new()),
             Box::new(crate::tools::clear_tile::ClearTile::new()),
+            Box::new(crate::tools::edit_linedef::EditLinedef::new()),
+            Box::new(crate::tools::edit_sector::EditSector::new()),
             Box::new(crate::tools::edit_vertex::EditVertex::new()),
             Box::new(crate::tools::extrude::Extrude::new()),
             Box::new(crate::tools::load_shader::LoadShader::new()),
             Box::new(crate::tools::new_shader::NewShader::new()),
+            Box::new(crate::tools::split::Split::new()),
             Box::new(crate::tools::toggle_rect_geo::ToggleRectGeo::new()),
         ];
         Self { actions }

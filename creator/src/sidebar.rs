@@ -15,7 +15,7 @@ pub enum SidebarMode {
     Module,
     Screen,
     Asset,
-    Material,
+    Shader,
     Action,
     // Node,
     Debug,
@@ -94,9 +94,9 @@ impl Sidebar {
         );
 
         let mut material_sectionbar_button =
-            TheSectionbarButton::new(TheId::named("Material Section"));
-        material_sectionbar_button.set_text("Material".to_string());
-        material_sectionbar_button.set_status_text("Currently available materials.");
+            TheSectionbarButton::new(TheId::named("Shader Section"));
+        material_sectionbar_button.set_text("Shader".to_string());
+        material_sectionbar_button.set_status_text("Currently available shaders.");
 
         let mut action_sectionbar_button = TheSectionbarButton::new(TheId::named("Action Section"));
         action_sectionbar_button.set_text("Action".to_string());
@@ -652,11 +652,11 @@ impl Sidebar {
         let mut import_button: TheTraybarButton =
             TheTraybarButton::new(TheId::named("Material Import"));
         import_button.set_icon_name("import".to_string());
-        import_button.set_status_text("Import an Eldiron material from a file.");
+        import_button.set_status_text("Import an Eldiron shader from a file.");
         let mut export_button: TheTraybarButton =
             TheTraybarButton::new(TheId::named("Material Export"));
         export_button.set_icon_name("export".to_string());
-        export_button.set_status_text("Export an Eldiron material to a file.");
+        export_button.set_status_text("Export an Eldiron shader to a file.");
 
         material_list_header_canvas_hlayout.add_widget(Box::new(material_add_button));
         material_list_header_canvas_hlayout.add_widget(Box::new(material_remove_button));
@@ -1135,7 +1135,7 @@ impl Sidebar {
                         let dim = *render_view.dim();
                         let buffer = render_view.render_buffer_mut();
                         buffer.resize(dim.width, dim.height);
-                        if *SIDEBARMODE.read().unwrap() != SidebarMode::Material {
+                        if *SIDEBARMODE.read().unwrap() != SidebarMode::Shader {
                             if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
                                 draw_minimap(region, buffer, server_ctx, true);
                             }
@@ -1151,7 +1151,7 @@ impl Sidebar {
                         let dim = *render_view.dim();
                         let buffer = render_view.render_buffer_mut();
                         buffer.resize(dim.width, dim.height);
-                        if *SIDEBARMODE.read().unwrap() != SidebarMode::Material {
+                        if *SIDEBARMODE.read().unwrap() != SidebarMode::Shader {
                             if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
                                 draw_minimap(region, buffer, server_ctx, false);
                             }
@@ -1200,7 +1200,7 @@ impl Sidebar {
                 }
             }
             TheEvent::DialogValueOnClose(role, name, uuid, value) => {
-                if name == "Add Shader To Materials" && *role == TheDialogButtonRole::Accept {
+                if name == "Add Shader To Library" && *role == TheDialogButtonRole::Accept {
                     let mut material = SHADEGRIDFX.read().unwrap().clone();
                     if let Some(routine) = material.get_selected_routine_mut() {
                         let mut routine_clone = routine.clone();
@@ -1278,7 +1278,7 @@ impl Sidebar {
                         model.name = value.describe();
                         ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
                     }
-                } else if name == "Rename Material" && *role == TheDialogButtonRole::Accept {
+                } else if name == "Rename Shader" && *role == TheDialogButtonRole::Accept {
                     if let Some(material) = project.shaders.get_mut(uuid) {
                         material.name = value.describe();
                         ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
@@ -1455,18 +1455,18 @@ impl Sidebar {
                             ctx,
                         );
                     }
-                } else if item_id.name == "Rename Material" {
+                } else if item_id.name == "Rename Shader" {
                     if let Some(material) = project.shaders.get(&widget_id.uuid) {
                         open_text_dialog(
-                            "Rename Material",
-                            "Material Name",
+                            "Rename Shader",
+                            "Shader Name",
                             &material.name,
                             widget_id.uuid,
                             ui,
                             ctx,
                         );
                     }
-                } else if item_id.name == "Duplicate Material" {
+                } else if item_id.name == "Duplicate Shader" {
                     if let Some(mut material) = project.shaders.get(&widget_id.uuid).cloned() {
                         material.name = format!("Duplicate of {}", material.name);
                         material.id = Uuid::new_v4();
@@ -1899,10 +1899,15 @@ impl Sidebar {
                     let material_id = id.uuid;
                     server_ctx.curr_material_id = Some(material_id);
                     if let Some(material) = project.shaders.get(&id.uuid) {
+                        let prev = SHADEGRIDFX.read().unwrap().clone();
+
                         CODEEDITOR
                             .write()
                             .unwrap()
                             .set_shader_material(ui, ctx, material);
+
+                        let atom = MaterialUndoAtom::ShaderEdit(prev, material.clone());
+                        UNDOMANAGER.write().unwrap().add_material_undo(atom, ctx);
                     }
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Update Minimap"),
@@ -2578,24 +2583,24 @@ impl Sidebar {
                         SidebarMode::Action as usize,
                     ));
                     redraw = true;
-                } else if id.name == "Material Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Shader Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ctx, ui, id.name.clone());
 
                     if let Some(widget) = ui
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
                     {
-                        widget.set_value(TheValue::Text("Materials".to_string()));
+                        widget.set_value(TheValue::Text("Shaders".to_string()));
                     }
 
-                    *SIDEBARMODE.write().unwrap() = SidebarMode::Material;
-                    server_ctx.set_map_context(MapContext::Material);
+                    *SIDEBARMODE.write().unwrap() = SidebarMode::Shader;
+                    server_ctx.set_map_context(MapContext::Shader);
                     UNDOMANAGER.write().unwrap().context = UndoManagerContext::Material;
                     RUSTERIX.write().unwrap().set_dirty();
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
-                        SidebarMode::Material as usize,
+                        SidebarMode::Shader as usize,
                     ));
                     redraw = true;
                 }
@@ -3592,12 +3597,12 @@ impl Sidebar {
                         item.set_context_menu(Some(TheContextMenu {
                             items: vec![
                                 TheContextMenuItem::new(
-                                    "Rename Material...".to_string(),
-                                    TheId::named("Rename Material"),
+                                    "Rename Shader...".to_string(),
+                                    TheId::named("Rename Shader"),
                                 ),
                                 TheContextMenuItem::new(
-                                    "Duplicate Material".to_string(),
-                                    TheId::named("Duplicate Material"),
+                                    "Duplicate Shader".to_string(),
+                                    TheId::named("Duplicate Shader"),
                                 ),
                             ],
                             ..Default::default()
@@ -3756,10 +3761,6 @@ impl Sidebar {
                         .unwrap()
                         .add_screen_undo(screen_undo_atom, ctx);
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Update Materialpicker"),
-                        TheValue::Empty,
-                    ));
                 }
             }
         }

@@ -126,7 +126,7 @@ impl Hud {
             }
         }
 
-        self.show_softrigs = server_ctx.get_map_context() == MapContext::Material
+        self.show_softrigs = server_ctx.get_map_context() == MapContext::Shader
             || server_ctx.get_map_context() == MapContext::Character
             || server_ctx.get_map_context() == MapContext::Item;
 
@@ -322,7 +322,7 @@ impl Hud {
             } else {
                 1
             };
-        } else if server_ctx.get_map_context() == MapContext::Material {
+        } else if server_ctx.get_map_context() == MapContext::Shader {
             icons = 1;
         } else if server_ctx.get_map_context() == MapContext::Screen {
             icons = if self.mode == HudMode::Sector { 2 } else { 0 };
@@ -412,7 +412,7 @@ impl Hud {
 
         // Show Subdivs
         if (map.camera == MapCamera::TwoD
-            || server_ctx.get_map_context() == MapContext::Material
+            || server_ctx.get_map_context() == MapContext::Shader
             || server_ctx.get_map_context() == MapContext::Screen)
             && self.mode != HudMode::Terrain
         {
@@ -489,7 +489,7 @@ impl Hud {
                     stride,
                 );
             }
-        } else if server_ctx.get_map_context() == MapContext::Material {
+        } else if server_ctx.get_map_context() == MapContext::Shader {
             if let Some(Value::Texture(texture)) = map.properties.get("material") {
                 let w = texture.width as i32;
                 let h = texture.height as i32;
@@ -558,7 +558,7 @@ impl Hud {
         server_ctx: &mut ServerContext,
     ) -> bool {
         if server_ctx.get_map_context() != MapContext::Region
-            && server_ctx.get_map_context() != MapContext::Material
+            && server_ctx.get_map_context() != MapContext::Shader
             && server_ctx.get_map_context() != MapContext::Screen
             && server_ctx.get_map_context() != MapContext::Character
             && server_ctx.get_map_context() != MapContext::Item
@@ -734,7 +734,7 @@ impl Hud {
                     text = "TILE".into();
                 }
             }
-        } else if server_ctx.get_map_context() == MapContext::Material {
+        } else if server_ctx.get_map_context() == MapContext::Shader {
             if index == 0 {
                 text = "GRAPH".into();
             }

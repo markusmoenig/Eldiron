@@ -46,7 +46,7 @@ pub enum MapContext {
     Region,
     Screen,
     Model,
-    Material,
+    Shader,
     Character,
     Item,
 }
@@ -333,7 +333,7 @@ impl ServerContext {
     pub fn get_map_context(&self) -> MapContext {
         if (self.curr_map_context == MapContext::Character && self.character_region_override)
             || (self.curr_map_context == MapContext::Item && self.item_region_override)
-            || (self.curr_map_context == MapContext::Material)
+            || (self.curr_map_context == MapContext::Shader)
         {
             MapContext::Region
         } else {

@@ -1,4 +1,4 @@
-use crate::editor::SHADEGRIDFX;
+use crate::editor::{SHADEGRIDFX, SHADERBUFFER};
 use crate::prelude::*;
 use codegridfx::Module;
 use theframework::prelude::*;
@@ -10,29 +10,29 @@ pub enum MaterialUndoAtom {
 }
 
 impl MaterialUndoAtom {
-    pub fn undo(&self, project: &mut Project, ui: &mut TheUI, ctx: &mut TheContext) {
+    pub fn undo(&self, _project: &mut Project, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             MaterialUndoAtom::ShaderEdit(prev, _) => {
-                if let Some(material) = project.shaders.get_mut(&prev.id) {
-                    *material = prev.clone();
-                    let mut shadergridfx = SHADEGRIDFX.write().unwrap();
-                    *shadergridfx = prev.clone();
-                    shadergridfx.redraw(ui, ctx);
-                    shadergridfx.show_settings(ui, ctx);
-                }
+                let mut shadergridfx = SHADEGRIDFX.write().unwrap();
+                *shadergridfx = prev.clone();
+                shadergridfx.redraw(ui, ctx);
+                shadergridfx.show_settings(ui, ctx);
+
+                crate::utils::draw_shader_into(&shadergridfx, &mut SHADERBUFFER.write().unwrap());
+                shadergridfx.set_shader_background(SHADERBUFFER.read().unwrap().clone(), ui, ctx);
             }
         }
     }
-    pub fn redo(&self, project: &mut Project, ui: &mut TheUI, ctx: &mut TheContext) {
+    pub fn redo(&self, _project: &mut Project, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             MaterialUndoAtom::ShaderEdit(_, next) => {
-                if let Some(material) = project.shaders.get_mut(&next.id) {
-                    *material = next.clone();
-                    let mut shadergridfx = SHADEGRIDFX.write().unwrap();
-                    *shadergridfx = next.clone();
-                    shadergridfx.redraw(ui, ctx);
-                    shadergridfx.show_settings(ui, ctx);
-                }
+                let mut shadergridfx = SHADEGRIDFX.write().unwrap();
+                *shadergridfx = next.clone();
+                shadergridfx.redraw(ui, ctx);
+                shadergridfx.show_settings(ui, ctx);
+
+                crate::utils::draw_shader_into(&shadergridfx, &mut SHADERBUFFER.write().unwrap());
+                shadergridfx.set_shader_background(SHADERBUFFER.read().unwrap().clone(), ui, ctx);
             }
         }
     }

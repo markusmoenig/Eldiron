@@ -45,7 +45,7 @@ impl CodeEditor {
     ) {
         self.active_panel = VisibleCodePanel::Shade;
 
-        if server_ctx.get_map_context() == MapContext::Material {
+        if server_ctx.get_map_context() == MapContext::Shader {
             if let Some(curr_shader_id) = server_ctx.curr_material_id {
                 if let Some(shader) = project.shaders.get(&curr_shader_id) {
                     self.shader_content = ContentContext::Shader(curr_shader_id);

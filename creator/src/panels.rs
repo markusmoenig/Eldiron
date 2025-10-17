@@ -230,18 +230,19 @@ impl Panels {
         }
 
         match event {
+            /*
             TheEvent::StateChanged(id, _) => {
                 if id.name == "cgfxAddToShaderLibrary" {
                     open_text_dialog(
-                        "Add Shader To Materials",
-                        "Material Name",
-                        "Material",
+                        "Add Shader To Library",
+                        "Shader Name",
+                        "Shader",
                         id.uuid,
                         ui,
                         ctx,
                     );
                 }
-            }
+            }*/
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Details Stack Group" {
                     if let Some(stack) = ui.get_stack_layout("Details Stack") {
@@ -262,6 +263,7 @@ impl Panels {
                         module.set_shader_background(SHADERBUFFER.read().unwrap().clone(), ui, ctx);
                     }
 
+                    /*
                     match CODEEDITOR.read().unwrap().shader_content {
                         ContentContext::Sector(sector_id) => {
                             println!("sector");
@@ -300,7 +302,7 @@ impl Panels {
                             }
                         }
                         _ => {}
-                    }
+                    }*/
                 } else if id.name == "Set Region Modeler" {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 4));

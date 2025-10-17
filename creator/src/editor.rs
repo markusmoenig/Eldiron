@@ -941,7 +941,7 @@ impl TheTrait for Editor {
                             if self.server_ctx.get_map_context() == MapContext::Character
                                 || self.server_ctx.get_map_context() == MapContext::Item
                                 || self.server_ctx.get_map_context() == MapContext::Screen
-                                || self.server_ctx.get_map_context() == MapContext::Material
+                                || self.server_ctx.get_map_context() == MapContext::Shader
                             {
                                 b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
                                 if let Some(material) = self.project.get_map_mut(&self.server_ctx) {
@@ -1092,38 +1092,15 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
-                // println!("event: {:?}", event);
                 match event {
                     TheEvent::CustomUndo(id, p, n) => {
                         if id.name == "ModuleUndo" {
                             if CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Shade {
-                                match CODEEDITOR.read().unwrap().shader_content {
-                                    ContentContext::Sector(_) => {
-                                        if let Some(map) = self.project.get_map(&self.server_ctx) {
-                                            if let Some(sector) = map.selected_sectors.first() {
-                                                let prev = Module::from_json(&p);
-                                                let next = Module::from_json(&n);
+                                let prev = Module::from_json(&p);
+                                let next = Module::from_json(&n);
 
-                                                let atom = RegionUndoAtom::SectorShaderEdit(
-                                                    map.id, *sector, prev, next,
-                                                );
-                                                UNDOMANAGER.write().unwrap().add_region_undo(
-                                                    &self.server_ctx.curr_region,
-                                                    atom,
-                                                    ctx,
-                                                );
-                                            }
-                                        }
-                                    }
-                                    ContentContext::Shader(_) => {
-                                        let prev = Module::from_json(&p);
-                                        let next = Module::from_json(&n);
-
-                                        let atom = MaterialUndoAtom::ShaderEdit(prev, next);
-                                        UNDOMANAGER.write().unwrap().add_material_undo(atom, ctx);
-                                    }
-                                    _ => {}
-                                }
+                                let atom = MaterialUndoAtom::ShaderEdit(prev, next);
+                                UNDOMANAGER.write().unwrap().add_material_undo(atom, ctx);
                             } else if CODEEDITOR.read().unwrap().active_panel
                                 == VisibleCodePanel::Code
                             {

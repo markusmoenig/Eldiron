@@ -287,7 +287,7 @@ impl ToolList {
                             );
                             if undo_atom.is_some() {
                                 map.changed += 1;
-                                if server_ctx.get_map_context() == MapContext::Material {
+                                if server_ctx.get_map_context() == MapContext::Shader {
                                     NODEEDITOR.read().unwrap().force_update(ctx, map);
                                 }
                             }
@@ -396,7 +396,7 @@ impl ToolList {
                                 );
                                 if undo_atom.is_some() {
                                     map.changed += 1;
-                                    if server_ctx.get_map_context() == MapContext::Material {
+                                    if server_ctx.get_map_context() == MapContext::Shader {
                                         NODEEDITOR.read().unwrap().force_update(ctx, map);
                                     }
                                 }
@@ -442,7 +442,7 @@ impl ToolList {
                                 );
                                 if undo_atom.is_some() {
                                     map.changed += 1;
-                                    if server_ctx.get_map_context() == MapContext::Material {
+                                    if server_ctx.get_map_context() == MapContext::Shader {
                                         NODEEDITOR.read().unwrap().force_update(ctx, map);
                                     }
                                 }
@@ -646,7 +646,7 @@ impl ToolList {
                             );
                             if undo_atom.is_some() {
                                 map.changed += 1;
-                                if server_ctx.get_map_context() == MapContext::Material {
+                                if server_ctx.get_map_context() == MapContext::Shader {
                                     NODEEDITOR.read().unwrap().force_update(ctx, map);
                                 }
                             }
@@ -792,7 +792,7 @@ impl ToolList {
                         );
                         if undo_atom.is_some() {
                             map.changed += 1;
-                            if server_ctx.get_map_context() == MapContext::Material {
+                            if server_ctx.get_map_context() == MapContext::Shader {
                                 NODEEDITOR.read().unwrap().force_update(ctx, map);
                             }
                         }
@@ -832,7 +832,7 @@ impl ToolList {
                         );
                         if undo_atom.is_some() {
                             map.changed += 1;
-                            if server_ctx.get_map_context() == MapContext::Material {
+                            if server_ctx.get_map_context() == MapContext::Shader {
                                 NODEEDITOR.read().unwrap().force_update(ctx, map);
                             }
                         }
@@ -871,7 +871,7 @@ impl ToolList {
                         );
                         if undo_atom.is_some() {
                             map.changed += 1;
-                            if server_ctx.get_map_context() == MapContext::Material {
+                            if server_ctx.get_map_context() == MapContext::Shader {
                                 NODEEDITOR.read().unwrap().force_update(ctx, map);
                             }
                         }

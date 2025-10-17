@@ -87,6 +87,8 @@ impl Action for EditVertex {
     fn load_params(&mut self, map: &Map) {
         if let Some(vertex_id) = map.selected_vertices.first() {
             if let Some(vertex) = map.find_vertex(*vertex_id) {
+                self.nodeui
+                    .set_text_value("actionVertexName", vertex.name.clone());
                 self.nodeui.set_f32_value("actionVertexX", vertex.x);
                 self.nodeui.set_f32_value("actionVertexY", vertex.z);
                 self.nodeui.set_f32_value("actionVertexZ", vertex.y);
@@ -104,12 +106,20 @@ impl Action for EditVertex {
         let mut changed = false;
         let prev = map.clone();
 
+        let name = self
+            .nodeui
+            .get_text_value("actionVertexName")
+            .unwrap_or(String::new());
         let x = self.nodeui.get_f32_value("actionVertexX").unwrap_or(0.0);
         let y = self.nodeui.get_f32_value("actionVertexY").unwrap_or(0.0);
         let z = self.nodeui.get_f32_value("actionVertexZ").unwrap_or(0.0);
 
         if let Some(vertex_id) = map.selected_vertices.first() {
             if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
+                if name != vertex.name {
+                    vertex.name = name;
+                    changed = true;
+                }
                 if x != vertex.x {
                     vertex.x = x;
                     changed = true;
@@ -125,27 +135,7 @@ impl Action for EditVertex {
                 }
             }
         }
-        /*
-        let distance = self.nodeui.get_f32_value("actionDistance").unwrap_or(2.0);
-        let angle = self.nodeui.get_f32_value("actionAngle").unwrap_or(0.0);
 
-        for linedef_id in &map.selected_linedefs.clone() {
-            if let Some(sector_id) = self.extrude_linedef(map, *linedef_id, distance, angle) {
-                let mut surface = Surface::new(sector_id);
-                surface.calculate_geometry(map);
-                map.surfaces.insert(surface.id, surface);
-
-                changed = true;
-            }
-        }
-
-        for sector_id in &map.selected_sectors.clone() {
-            if let Some(sector) = map.find_sector_mut(*sector_id) {
-                changed = true;
-            }
-        }
-
-        */
         if changed {
             Some(RegionUndoAtom::MapEdit(
                 Box::new(prev),

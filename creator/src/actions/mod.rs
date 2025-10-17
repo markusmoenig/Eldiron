@@ -1,14 +1,18 @@
 pub use crate::prelude::*;
 // use rusterix::Assets;
 
+pub mod add_shader_library;
 pub mod apply_shader;
 pub mod apply_tile;
 pub mod clear_shader;
 pub mod clear_tile;
+pub mod edit_linedef;
+pub mod edit_sector;
 pub mod edit_vertex;
 pub mod extrude;
 pub mod load_shader;
 pub mod new_shader;
+pub mod split;
 pub mod toggle_rect_geo;
 
 pub enum ActionRole {
@@ -20,9 +24,9 @@ pub enum ActionRole {
 impl ActionRole {
     pub fn to_color(&self) -> [u8; 4] {
         match self {
-            ActionRole::Geometry => [200, 120, 120, 255],
-            ActionRole::Property => [120, 160, 200, 255],
-            ActionRole::UI => [200, 200, 160, 255],
+            ActionRole::Geometry => [195, 170, 150, 255],
+            ActionRole::Property => [160, 175, 190, 255],
+            ActionRole::UI => [200, 195, 150, 255],
         }
     }
 }

@@ -346,7 +346,7 @@ impl NodeEditor {
                             };
                             self.context = NodeContext::Screen;
                         }
-                    } else if server_ctx.get_map_context() == MapContext::Material
+                    } else if server_ctx.get_map_context() == MapContext::Shader
                         || server_ctx.profile_view.is_some()
                     {
                         {
