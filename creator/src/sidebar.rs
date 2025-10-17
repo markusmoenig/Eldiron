@@ -1095,6 +1095,18 @@ impl Sidebar {
                 } else
                  */
                 if id.name == "Update Action List" {
+                    // Update the current action params (if any)
+                    if let Some(curr_action_id) = server_ctx.curr_action_id {
+                        if let Some(action) = ACTIONLIST
+                            .write()
+                            .unwrap()
+                            .get_action_by_id_mut(curr_action_id)
+                        {
+                            if let Some(map) = project.get_map_mut(&server_ctx) {
+                                action.load_params(map);
+                            }
+                        }
+                    }
                     self.show_actions(ui, ctx, project, server_ctx);
 
                     // self.deselect_sections_buttons(ctx, ui, "Action Section".to_string());
@@ -1123,13 +1135,13 @@ impl Sidebar {
                         let dim = *render_view.dim();
                         let buffer = render_view.render_buffer_mut();
                         buffer.resize(dim.width, dim.height);
-                        // if *SIDEBARMODE.read().unwrap() != SidebarMode::Material {
-                        if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
-                            draw_minimap(region, buffer, server_ctx, true);
+                        if *SIDEBARMODE.read().unwrap() != SidebarMode::Material {
+                            if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
+                                draw_minimap(region, buffer, server_ctx, true);
+                            }
+                        } else {
+                            crate::minimap::draw_material_minimap(buffer, project, server_ctx);
                         }
-                        // } else {
-                        // crate::minimap::draw_material_minimap(buffer, project, server_ctx);
-                        // }
                     } else {
                     }
                 } else if id.name == "Soft Update Minimap" {
@@ -1826,7 +1838,7 @@ impl Sidebar {
                                 if accel.matches(ui.shift, ui.ctrl, ui.alt, ui.logo, *c) {
                                     println!("{}", action.id().name);
                                     needs_scene_redraw =
-                                        self.apply_action(action, map, ctx, server_ctx);
+                                        self.apply_action(action, map, ui, ctx, server_ctx);
                                 }
                             }
                         }
@@ -1842,11 +1854,15 @@ impl Sidebar {
             }
             TheEvent::StateChanged(id, state) => {
                 // Iterate actions first
-                if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(id.uuid) {
+                if let Some(action) = ACTIONLIST.write().unwrap().get_action_by_id_mut(id.uuid) {
                     server_ctx.curr_action_id = Some(action.id().uuid);
 
-                    let nodeui = action.params();
                     if let Some(layout) = ui.get_text_layout("Action Settings") {
+                        if let Some(map) = project.get_map_mut(&server_ctx) {
+                            action.load_params(map);
+                        }
+
+                        let nodeui = action.params();
                         nodeui.apply_to_text_layout(layout);
                         ctx.ui.relayout = true;
                     }
@@ -1867,7 +1883,7 @@ impl Sidebar {
                             let mut needs_scene_redraw = false;
                             if let Some(map) = project.get_map_mut(&server_ctx) {
                                 needs_scene_redraw =
-                                    self.apply_action(action, map, ctx, server_ctx);
+                                    self.apply_action(action, map, ui, ctx, server_ctx);
                             }
 
                             if needs_scene_redraw {
@@ -1888,6 +1904,10 @@ impl Sidebar {
                             .unwrap()
                             .set_shader_material(ui, ctx, material);
                     }
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Minimap"),
+                        TheValue::Empty,
+                    ));
                 } else if id.name == "Palette Clear" {
                     let prev = project.palette.clone();
                     project.palette.clear();
@@ -3681,10 +3701,11 @@ impl Sidebar {
         &self,
         action: &Box<dyn Action>,
         map: &mut Map,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        if let Some(undo_atom) = action.apply(map, ctx, server_ctx) {
+        if let Some(undo_atom) = action.apply(map, ui, ctx, server_ctx) {
             if server_ctx.get_map_context() == MapContext::Region {
                 UNDOMANAGER.write().unwrap().add_region_undo(
                     &server_ctx.curr_region,

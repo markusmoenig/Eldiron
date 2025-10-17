@@ -236,14 +236,7 @@ impl ToolList {
                             TheId::named("Main Stack"),
                             PanelIndices::TilePicker as usize,
                         ));
-                    }
-                    // else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                    //     ctx.ui.send(TheEvent::SetStackIndex(
-                    //         TheId::named("Main Stack"),
-                    //         PanelIndices::MaterialPicker as usize,
-                    //     ));
-                    // }
-                    else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
+                    } else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
                         ctx.ui.send(TheEvent::SetStackIndex(
                             TheId::named("Main Stack"),
                             PanelIndices::NodeEditor as usize,
@@ -266,6 +259,10 @@ impl ToolList {
                         ));
                         SHAPEPICKER.read().unwrap().activate_shape_paste(server_ctx);
                     }
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Action List"),
+                        TheValue::Empty,
+                    ));
                     redraw = true;
                 }
             }

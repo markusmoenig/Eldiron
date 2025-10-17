@@ -47,6 +47,7 @@ impl Action for ApplyTile {
     fn apply(
         &self,
         map: &mut Map,
+        _ui: &mut TheUI,
         _ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {

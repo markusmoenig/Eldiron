@@ -47,6 +47,7 @@ impl Action for ApplyShader {
     fn apply(
         &self,
         map: &mut Map,
+        _ui: &mut TheUI,
         _ctx: &mut TheContext,
         _server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {

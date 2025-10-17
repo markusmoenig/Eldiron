@@ -5,7 +5,10 @@ pub mod apply_shader;
 pub mod apply_tile;
 pub mod clear_shader;
 pub mod clear_tile;
+pub mod edit_vertex;
 pub mod extrude;
+pub mod load_shader;
+pub mod new_shader;
 pub mod toggle_rect_geo;
 
 pub enum ActionRole {
@@ -40,9 +43,12 @@ pub trait Action: Send + Sync {
 
     fn is_applicable(&self, map: &Map, ctx: &mut TheContext, server_ctx: &ServerContext) -> bool;
 
+    fn load_params(&mut self, map: &Map) {}
+
     fn apply(
         &self,
         map: &mut Map,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom>;

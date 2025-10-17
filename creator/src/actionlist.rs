@@ -17,7 +17,10 @@ impl ActionList {
             Box::new(crate::tools::apply_tile::ApplyTile::new()),
             Box::new(crate::tools::clear_shader::ClearShader::new()),
             Box::new(crate::tools::clear_tile::ClearTile::new()),
+            Box::new(crate::tools::edit_vertex::EditVertex::new()),
             Box::new(crate::tools::extrude::Extrude::new()),
+            Box::new(crate::tools::load_shader::LoadShader::new()),
+            Box::new(crate::tools::new_shader::NewShader::new()),
             Box::new(crate::tools::toggle_rect_geo::ToggleRectGeo::new()),
         ];
         Self { actions }

@@ -1,11 +1,12 @@
+use crate::editor::{CODEEDITOR, SHADEGRIDFX};
 use crate::prelude::*;
-
-pub struct ToggleRectGeo {
+use codegridfx::{Module, ModuleType};
+pub struct NewShader {
     id: TheId,
     nodeui: TheNodeUI,
 }
 
-impl Action for ToggleRectGeo {
+impl Action for NewShader {
     fn new() -> Self
     where
         Self: Sized,
@@ -13,12 +14,12 @@ impl Action for ToggleRectGeo {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
         let item = TheNodeUIItem::Markdown(
             "desc".into(),
-            "Geometry created by the Rect tool is by default not shown in the 2D editor. This action toggles visibilty.".into(),
+            "Clears the shader editor and creates a new, empty shader.".into(),
         );
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Toggle Rect Geometry"),
+            id: TheId::named("New Shader"),
             nodeui,
         }
     }
@@ -28,7 +29,7 @@ impl Action for ToggleRectGeo {
     }
 
     fn info(&self) -> &'static str {
-        "Toggle the visibility of geometry created by the Rect tool in the 2D editor."
+        "Creates a new shader in the shader editor."
     }
 
     fn role(&self) -> ActionRole {
@@ -40,22 +41,24 @@ impl Action for ToggleRectGeo {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.editor_view_mode == EditorViewMode::D2
+        server_ctx.curr_map_tool_helper == MapToolHelper::ShaderEditor
     }
 
     fn apply(
         &self,
         _map: &mut Map,
-        _ui: &mut TheUI,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        _server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
-        server_ctx.no_rect_geo_on_map = !server_ctx.no_rect_geo_on_map;
+        *SHADEGRIDFX.write().unwrap() = Module::as_type(codegridfx::ModuleType::Shader);
+        CODEEDITOR.write().unwrap().shader_content = ContentContext::Unknown;
 
-        ctx.ui.send(TheEvent::Custom(
-            TheId::named("Update Client Properties"),
-            TheValue::Empty,
-        ));
+        SHADEGRIDFX
+            .write()
+            .unwrap()
+            .set_module_type(ModuleType::Shader);
+        SHADEGRIDFX.write().unwrap().redraw(ui, ctx);
 
         None
     }
