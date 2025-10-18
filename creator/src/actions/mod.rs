@@ -12,6 +12,9 @@ pub mod edit_vertex;
 pub mod extrude;
 pub mod load_shader;
 pub mod new_shader;
+pub mod recess;
+pub mod relief;
+pub mod set_editing_surface;
 pub mod split;
 pub mod toggle_rect_geo;
 
@@ -19,6 +22,7 @@ pub enum ActionRole {
     Geometry,
     Property,
     UI,
+    Profile,
 }
 
 impl ActionRole {
@@ -27,6 +31,7 @@ impl ActionRole {
             ActionRole::Geometry => [195, 170, 150, 255],
             ActionRole::Property => [160, 175, 190, 255],
             ActionRole::UI => [200, 195, 150, 255],
+            ActionRole::Profile => [160, 185, 160, 255],
         }
     }
 }

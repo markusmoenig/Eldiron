@@ -24,6 +24,9 @@ impl ActionList {
             Box::new(crate::tools::extrude::Extrude::new()),
             Box::new(crate::tools::load_shader::LoadShader::new()),
             Box::new(crate::tools::new_shader::NewShader::new()),
+            Box::new(crate::tools::recess::Recess::new()),
+            Box::new(crate::tools::relief::Relief::new()),
+            Box::new(crate::tools::set_editing_surface::SetEditingSurface::new()),
             Box::new(crate::tools::split::Split::new()),
             Box::new(crate::tools::toggle_rect_geo::ToggleRectGeo::new()),
         ];

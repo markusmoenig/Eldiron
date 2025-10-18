@@ -31,6 +31,8 @@ pub struct Hud {
     play_button_rect: TheDim,
     timeline_rect: TheDim,
 
+    profile2d_rect: TheDim,
+
     mouse_pos: Vec2<i32>,
 
     is_playing: bool,
@@ -53,6 +55,8 @@ impl Hud {
 
             play_button_rect: TheDim::rect(0, 0, 0, 0),
             timeline_rect: TheDim::rect(0, 0, 0, 0),
+
+            profile2d_rect: TheDim::rect(0, 0, 0, 0),
 
             mouse_pos: Vec2::zero(),
 
@@ -410,6 +414,56 @@ impl Hud {
             self.icon_rects.push(rect);
         }
 
+        // Show Profile
+        if server_ctx.get_map_context() == MapContext::Region {
+            let x = 390;
+            let size = 20;
+            self.profile2d_rect = TheDim::rect(x, 0, 100, size);
+
+            let txt = "Region Profile";
+
+            if let Some(font) = &ctx.ui.font {
+                let r = self.profile2d_rect.to_buffer_utuple();
+                ctx.draw.text_rect(
+                    buffer.pixels_mut(),
+                    &(r.0, 1, r.2, 19),
+                    stride,
+                    font,
+                    13.0,
+                    txt,
+                    &if self.profile2d_rect.contains(self.mouse_pos)
+                        || !server_ctx.no_rect_geo_on_map
+                    {
+                        sel_text_color
+                    } else {
+                        text_color
+                    },
+                    &bg_color,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
+            }
+
+            if let Some(_editing_surface) = &server_ctx.editing_surface {
+                let txt = "> Surface";
+                if let Some(font) = &ctx.ui.font {
+                    let r = self.profile2d_rect.to_buffer_utuple();
+                    ctx.draw.text_rect(
+                        buffer.pixels_mut(),
+                        &(r.0 + 80, 1, r.2, 19),
+                        stride,
+                        font,
+                        13.0,
+                        txt,
+                        &text_color,
+                        &bg_color,
+                        TheHorizontalAlign::Center,
+                        TheVerticalAlign::Center,
+                    );
+                }
+            }
+        }
+
         // Show Subdivs
         if (map.camera == MapCamera::TwoD
             || server_ctx.get_map_context() == MapContext::Shader
@@ -584,6 +638,12 @@ impl Hud {
                 map.subdivisions = (i + 1) as f32;
                 return true;
             }
+        }
+
+        if self.profile2d_rect.contains(Vec2::new(x, y)) && server_ctx.editing_surface.is_some() {
+            server_ctx.editing_surface = None;
+            RUSTERIX.write().unwrap().set_dirty();
+            return true;
         }
 
         // Parse Softrigs
