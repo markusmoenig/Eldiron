@@ -125,7 +125,12 @@ impl Action for Extrude {
         Some(TheAccelerator::new(TheAcceleratorKey::ALT, 'e'))
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+        if server_ctx.editor_view_mode == EditorViewMode::D2 && server_ctx.editing_surface.is_some()
+        {
+            return false;
+        }
+
         !map.selected_sectors.is_empty() || !map.selected_linedefs.is_empty()
     }
 

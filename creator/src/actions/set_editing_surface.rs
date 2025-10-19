@@ -13,7 +13,7 @@ impl Action for SetEditingSurface {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
         let item = TheNodeUIItem::Markdown(
             "desc".into(),
-            "Set the currently selected surface the active editing surface for the 2D profile editor. Click on \"Region Profile\" in the toolbar to undo.".into(),
+            "Make the selected surface the active 2D Profil for editing. Eldiron will switch to the 2D view and, if no profile exists yet, create one for this surface. To return to the Region map, click **Region** in the toolbar.".into(),
         );
         nodeui.add_item(item);
 
@@ -39,15 +39,15 @@ impl Action for SetEditingSurface {
         Some(TheAccelerator::new(TheAcceleratorKey::ALT, 'u'))
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
-        map.selected_sectors.len() == 1
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+        map.selected_sectors.len() == 1 && server_ctx.editor_view_mode != EditorViewMode::D2
     }
 
     fn apply(
         &self,
         map: &mut Map,
-        _ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         if let Some(sector_id) = map.selected_sectors.first().cloned() {
@@ -69,11 +69,21 @@ impl Action for SetEditingSurface {
                 }
 
                 server_ctx.editing_surface = Some(surface.clone());
+
+                if let Some(widget) = ui.get_group_button("Editor View Switch") {
+                    server_ctx.editor_view_mode = EditorViewMode::D2;
+                    widget.set_index(0);
+                }
             }
 
             if let Some(profile_to_add) = profile_to_add {
                 map.profiles.insert(profile_to_add.id, profile_to_add);
             }
+
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Update Action List"),
+                TheValue::Empty,
+            ));
         }
 
         None

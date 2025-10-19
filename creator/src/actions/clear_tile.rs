@@ -39,8 +39,14 @@ impl Action for ClearTile {
         None
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
-        !map.selected_sectors.is_empty()
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+        if map.selected_sectors.is_empty() {
+            return false;
+        }
+        match server_ctx.editor_view_mode {
+            EditorViewMode::D2 => server_ctx.editing_surface.is_none(),
+            _ => true,
+        }
     }
 
     fn apply(

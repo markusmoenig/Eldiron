@@ -1299,7 +1299,7 @@ impl TheTrait for Editor {
                         }
                     }
                     TheEvent::RenderViewDrop(_id, location, drop) => {
-                        if drop.id.name.starts_with("Material") {
+                        if drop.id.name.starts_with("Shader") {
                             if self.server_ctx.curr_map_tool_helper == MapToolHelper::ShaderEditor
                                 && CODEEDITOR.read().unwrap().active_panel
                                     == VisibleCodePanel::Shade

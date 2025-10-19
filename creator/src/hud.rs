@@ -418,9 +418,9 @@ impl Hud {
         if server_ctx.get_map_context() == MapContext::Region {
             let x = 390;
             let size = 20;
-            self.profile2d_rect = TheDim::rect(x, 0, 100, size);
+            self.profile2d_rect = TheDim::rect(x, 0, 60, size);
 
-            let txt = "Region Profile";
+            let txt = "Region";
 
             if let Some(font) = &ctx.ui.font {
                 let r = self.profile2d_rect.to_buffer_utuple();
@@ -445,12 +445,12 @@ impl Hud {
             }
 
             if let Some(_editing_surface) = &server_ctx.editing_surface {
-                let txt = "> Surface";
+                let txt = ">  Surface Profile";
                 if let Some(font) = &ctx.ui.font {
                     let r = self.profile2d_rect.to_buffer_utuple();
                     ctx.draw.text_rect(
                         buffer.pixels_mut(),
-                        &(r.0 + 80, 1, r.2, 19),
+                        &(r.0 + 55, 1, r.2 + 60, 19),
                         stride,
                         font,
                         13.0,
