@@ -56,7 +56,7 @@ impl Action for CreateCenterVertex {
         for sector_id in &map.selected_sectors.clone() {
             if let Some(sector) = map.find_sector(*sector_id) {
                 if let Some(pos) = sector.center_3d(map) {
-                    _ = map.add_vertex_at_3d(pos.x, pos.y, pos.z);
+                    _ = map.add_vertex_at_3d(pos.x, pos.y, pos.z, false);
                     changed = true;
                 }
             }

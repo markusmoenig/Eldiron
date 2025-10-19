@@ -13,6 +13,7 @@ impl Default for ActionList {
 impl ActionList {
     pub fn new() -> Self {
         let actions: Vec<Box<dyn Action>> = vec![
+            Box::new(crate::tools::add_arch::AddArch::new()),
             Box::new(crate::tools::apply_shader::ApplyShader::new()),
             Box::new(crate::tools::add_shader_library::AddShaderLibrary::new()),
             Box::new(crate::tools::apply_tile::ApplyTile::new()),
@@ -25,6 +26,7 @@ impl ActionList {
             Box::new(crate::tools::edit_sector::EditSector::new()),
             Box::new(crate::tools::edit_vertex::EditVertex::new()),
             Box::new(crate::tools::extrude::Extrude::new()),
+            Box::new(crate::tools::gen_stone_trim::GenerateStoneTrim::new()),
             Box::new(crate::tools::load_shader::LoadShader::new()),
             Box::new(crate::tools::new_shader::NewShader::new()),
             Box::new(crate::tools::recess::Recess::new()),

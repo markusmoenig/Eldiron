@@ -731,8 +731,8 @@ impl ServerContext {
         let h = 2.0;
 
         // Create (or reuse) top vertices exactly h units above each endpoint
-        let v2 = map.add_vertex_at_3d(p1.x, p1.y, p1.z + h); // top at end
-        let v3 = map.add_vertex_at_3d(p0.x, p0.y, p0.z + h); // top at start
+        let v2 = map.add_vertex_at_3d(p1.x, p1.y, p1.z + h, false); // top at end
+        let v3 = map.add_vertex_at_3d(p0.x, p0.y, p0.z + h, false); // top at start
 
         let _ = map.create_linedef(v0, v1);
         let _ = map.create_linedef(v1, v2);

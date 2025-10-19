@@ -56,8 +56,8 @@ impl Extrude {
         let p0_top = p0 + offset;
 
         // Create (or reuse) the new top vertices
-        let v2 = map.add_vertex_at_3d(p1_top.x, p1_top.y, p1_top.z);
-        let v3 = map.add_vertex_at_3d(p0_top.x, p0_top.y, p0_top.z);
+        let v2 = map.add_vertex_at_3d(p1_top.x, p1_top.y, p1_top.z, false);
+        let v3 = map.add_vertex_at_3d(p0_top.x, p0_top.y, p0_top.z, false);
 
         map.possible_polygon = vec![];
         let _ = map.create_linedef(v0, v1); // bottom

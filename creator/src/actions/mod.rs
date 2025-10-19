@@ -1,6 +1,7 @@
 pub use crate::prelude::*;
 // use rusterix::Assets;
 
+pub mod add_arch;
 pub mod add_shader_library;
 pub mod apply_shader;
 pub mod apply_tile;
@@ -13,6 +14,7 @@ pub mod edit_linedef;
 pub mod edit_sector;
 pub mod edit_vertex;
 pub mod extrude;
+pub mod gen_stone_trim;
 pub mod load_shader;
 pub mod new_shader;
 pub mod recess;
