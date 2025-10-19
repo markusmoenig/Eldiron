@@ -3761,6 +3761,7 @@ impl Sidebar {
                 }
             }
         }
+        map.update_surfaces();
         false
     }
 

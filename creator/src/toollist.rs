@@ -1235,6 +1235,7 @@ impl ToolList {
         let thickness = 0.15;
         // Collect overlay batches locally to avoid multiple mutable borrows of `rusterix` in closures
         let mut overlay_batches: Vec<rusterix::Batch3D> = Vec::new();
+        let mut overlay_batches_front: Vec<rusterix::Batch3D> = Vec::new();
 
         if self.get_current_tool().id().name == "Render Tool" {
             return;
@@ -1244,22 +1245,35 @@ impl ToolList {
             let map = &region.map;
 
             // Helper to draw a single world-space line into the overlay
-            let push_line = |overlay_batches: &mut Vec<rusterix::Batch3D>,
-                             geom_src: GeometrySource,
-                             a: Vec3<f32>,
-                             b: Vec3<f32>,
-                             normal: Vec3<f32>,
-                             selected: bool| {
-                let color = if selected {
+            let mut push_line = |overlay_batches: &mut Vec<rusterix::Batch3D>,
+                                 geom_src: GeometrySource,
+                                 mut a: Vec3<f32>,
+                                 mut b: Vec3<f32>,
+                                 normal: Vec3<f32>,
+                                 selected: bool,
+                                 hovered: bool| {
+                // Visual: selected OR hovered gets highlight color
+                let highlight = selected || hovered;
+                let color = if highlight {
                     rusterix::PixelSource::Pixel([187, 122, 208, 255])
                 } else {
                     rusterix::PixelSource::Pixel(WHITE)
                 };
+                // Z-fight mitigation: nudge along CAMERA FORWARD, not the line normal
+                if selected {
+                    let extra_nudge = cam_forward * -0.004; // toward camera
+                    a += extra_nudge;
+                    b += extra_nudge;
+                }
                 let mut batch: rusterix::Batch3D = rusterix::Batch3D::empty()
                     .source(color)
                     .geometry_source(geom_src);
                 batch.add_line(a, b, thickness, normal);
-                overlay_batches.push(batch);
+                if highlight {
+                    overlay_batches_front.push(batch);
+                } else {
+                    overlay_batches.push(batch);
+                }
             };
 
             // Helper to draw a single vertex as a camera-facing billboard in the overlay
@@ -1282,9 +1296,8 @@ impl ToolList {
 
             if server_ctx.curr_map_tool_type == MapToolType::Vertex {
                 for (idx, v) in map.vertices.iter().enumerate() {
-                    // Map space uses X/Y as ground plane and Z as up → convert to world (X, Y-up, Z)
                     let mut pos = Vec3::new(v.x, v.z, v.y);
-                    pos += view_nudge; // avoid depth fighting with coplanar geometry
+                    pos += view_nudge;
                     let vid = idx as u32;
                     let selected =
                         map.selected_vertices.contains(&vid) || server_ctx.hover.0 == Some(vid);
@@ -1296,14 +1309,66 @@ impl ToolList {
                     );
                 }
             } else {
-                // Draw all sector-backed surfaces as edge overlays in 3D.
+                // Linedefs
+                if server_ctx.curr_map_tool_type == MapToolType::Linedef {
+                    for linedef in &map.linedefs {
+                        if linedef.front_sector.is_none() && linedef.back_sector.is_none() {
+                            if let (Some(vs), Some(ve)) = (
+                                map.get_vertex_3d(linedef.start_vertex),
+                                map.get_vertex_3d(linedef.end_vertex),
+                            ) {
+                                let a = Vec3::new(vs.x, vs.y, vs.z) + view_nudge;
+                                let b = Vec3::new(ve.x, ve.y, ve.z) + view_nudge;
+                                let normal = cam_forward;
+
+                                let is_selected = map.selected_linedefs.contains(&linedef.id);
+                                let is_hovered = server_ctx.hover.1 == Some(linedef.id);
+
+                                push_line(
+                                    &mut overlay_batches,
+                                    GeometrySource::Linedef(linedef.id),
+                                    a,
+                                    b,
+                                    normal,
+                                    is_selected,
+                                    is_hovered,
+                                );
+                            }
+                        }
+                    }
+                }
+
+                // Sectors
+                use std::collections::HashMap;
+                #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+                struct EdgeKey {
+                    v0: u32,
+                    v1: u32,
+                }
+                impl EdgeKey {
+                    fn from_vertices(a: u32, b: u32) -> Self {
+                        if a < b {
+                            EdgeKey { v0: a, v1: b }
+                        } else {
+                            EdgeKey { v0: b, v1: a }
+                        }
+                    }
+                }
+                #[derive(Clone)]
+                struct EdgeInfo {
+                    a: Vec3<f32>,
+                    b: Vec3<f32>,
+                    selected: bool,
+                    hovered: bool,
+                    rep_ld_id: u32, // representative linedef id for picking/hit-testing
+                }
+                let mut edge_accum: HashMap<EdgeKey, EdgeInfo> = HashMap::new();
+
                 for surface in map.surfaces.values() {
-                    // Owner sector is required for the base polygon
                     let sector_id = surface.sector_id;
                     let Some(sector) = map.find_sector(sector_id) else {
                         continue;
                     };
-
                     let sector_is_selected = map.selected_sectors.contains(&sector_id);
 
                     if sector.properties.contains("rect_rendering") && server_ctx.no_rect_geo_on_map
@@ -1311,13 +1376,7 @@ impl ToolList {
                         continue;
                     }
 
-                    // Ensure geometry basis is up-to-date; compute a tiny nudge to avoid z-fighting
-                    let normal = if surface.plane.normal.magnitude() > 1e-6 {
-                        surface.plane.normal
-                    } else {
-                        Vec3::new(0.0, 1.0, 0.0)
-                    };
-                    let nudge = normal * 0.01;
+                    let nudge = view_nudge; // consistent camera-side nudge avoids opposite-face z-fight
 
                     if let Some(points3) = sector.vertices_world(map) {
                         let n_pts = points3.len();
@@ -1341,26 +1400,57 @@ impl ToolList {
                                         sector_is_selected || server_ctx.hover.2 == Some(sector_id);
                                 };
 
-                                push_line(
-                                    &mut overlay_batches,
-                                    GeometrySource::Linedef(ld_id),
-                                    a,
-                                    b,
-                                    normal,
-                                    line_is_selected,
-                                );
+                                // Build unordered edge key from linedef vertices, fallback if not found
+                                let key = if let Some(ld_ref) = map.find_linedef(ld_id) {
+                                    EdgeKey::from_vertices(ld_ref.start_vertex, ld_ref.end_vertex)
+                                } else {
+                                    // Fallback: build a key from the nearest map vertices to a/b (should be rare)
+                                    continue;
+                                };
+
+                                edge_accum
+                                    .entry(key)
+                                    .and_modify(|e| {
+                                        e.selected |= line_is_selected;
+                                        e.hovered |= server_ctx.hover.1 == Some(ld_id);
+                                        e.a = a;
+                                        e.b = b; // keep latest endpoints
+                                    })
+                                    .or_insert(EdgeInfo {
+                                        a,
+                                        b,
+                                        selected: line_is_selected,
+                                        hovered: server_ctx.hover.1 == Some(ld_id),
+                                        rep_ld_id: ld_id,
+                                    });
                             }
                         }
                     }
                 }
+
+                // Emit deduplicated edges
+                for (_key, e) in edge_accum.into_iter() {
+                    push_line(
+                        &mut overlay_batches,
+                        GeometrySource::Linedef(e.rep_ld_id), // keep picking by linedef id
+                        e.a,
+                        e.b,
+                        cam_forward,
+                        e.selected,
+                        e.hovered,
+                    );
+                }
             }
-            // After drawing logic, flush the collected batches to the overlay
+
+            // Flush final overlay batches: draw normal overlays first, then highlighted front overlays last
             for batch in overlay_batches.drain(..) {
+                rusterix.client.scene.d3_overlay.push(batch);
+            }
+            for batch in overlay_batches_front.drain(..) {
                 rusterix.client.scene.d3_overlay.push(batch);
             }
         }
     }
-
     /*
     pub fn hitpoint_to_editing_coord(
         &mut self,
