@@ -202,29 +202,37 @@ impl MapEditor {
         let mut redraw = false;
 
         match event {
-            TheEvent::KeyCodeDown(TheValue::KeyCode(key)) => match key {
-                TheKeyCode::Up => {
-                    if server_ctx.editor_view_mode == EditorViewMode::FirstP {
-                        EDITCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Forward);
+            TheEvent::KeyCodeDown(TheValue::KeyCode(key)) => {
+                if !ui.focus_widget_supports_text_input(ctx) {
+                    match key {
+                        TheKeyCode::Up => {
+                            if server_ctx.editor_view_mode == EditorViewMode::FirstP {
+                                EDITCAMERA.write().unwrap().move_action =
+                                    Some(CustomMoveAction::Forward);
+                            }
+                        }
+                        TheKeyCode::Down => {
+                            if server_ctx.editor_view_mode == EditorViewMode::FirstP {
+                                EDITCAMERA.write().unwrap().move_action =
+                                    Some(CustomMoveAction::Backward);
+                            }
+                        }
+                        TheKeyCode::Left => {
+                            if server_ctx.editor_view_mode == EditorViewMode::FirstP {
+                                EDITCAMERA.write().unwrap().move_action =
+                                    Some(CustomMoveAction::Left);
+                            }
+                        }
+                        TheKeyCode::Right => {
+                            if server_ctx.editor_view_mode == EditorViewMode::FirstP {
+                                EDITCAMERA.write().unwrap().move_action =
+                                    Some(CustomMoveAction::Right);
+                            }
+                        }
+                        _ => {}
                     }
                 }
-                TheKeyCode::Down => {
-                    if server_ctx.editor_view_mode == EditorViewMode::FirstP {
-                        EDITCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Backward);
-                    }
-                }
-                TheKeyCode::Left => {
-                    if server_ctx.editor_view_mode == EditorViewMode::FirstP {
-                        EDITCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Left);
-                    }
-                }
-                TheKeyCode::Right => {
-                    if server_ctx.editor_view_mode == EditorViewMode::FirstP {
-                        EDITCAMERA.write().unwrap().move_action = Some(CustomMoveAction::Right);
-                    }
-                }
-                _ => {}
-            },
+            }
             TheEvent::KeyCodeUp(TheValue::KeyCode(_)) => {
                 if server_ctx.editor_view_mode == EditorViewMode::FirstP {
                     EDITCAMERA.write().unwrap().move_action = None;
