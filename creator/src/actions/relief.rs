@@ -13,7 +13,6 @@ impl Action for Relief {
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
 
-        // Height slider (outward along surface normal)
         let item = TheNodeUIItem::FloatEditSlider(
             "actionReliefHeight".into(),
             "Height".into(),
@@ -24,7 +23,6 @@ impl Action for Relief {
         );
         nodeui.add_item(item);
 
-        // Height slider (outward along surface normal)
         let item = TheNodeUIItem::Checkbox(
             "actionReliefTile".into(),
             "Apply Tile".into(),
@@ -98,6 +96,8 @@ impl Action for Relief {
                 sector
                     .properties
                     .set("profile_height", Value::Float(height));
+
+                sector.properties.set("profile_target", Value::Int(1));
 
                 if let Some(tile_id) = server_ctx.curr_tile_id
                     && apply_tile

@@ -2,12 +2,12 @@ use crate::prelude::*;
 use rusterix::Surface;
 use vek::Vec3;
 
-pub struct Extrude {
+pub struct ExtrudeLinedef {
     id: TheId,
     nodeui: TheNodeUI,
 }
 
-impl Extrude {
+impl ExtrudeLinedef {
     pub fn extrude_linedef(
         &self,
         map: &mut Map,
@@ -69,7 +69,7 @@ impl Extrude {
     }
 }
 
-impl Action for Extrude {
+impl Action for ExtrudeLinedef {
     fn new() -> Self
     where
         Self: Sized,
@@ -79,9 +79,9 @@ impl Action for Extrude {
         let item = TheNodeUIItem::FloatEditSlider(
             "actionDistance".into(),
             "Distance".into(),
-            "The extrusion distance.".into(),
+            "The extrusion distance (sign sets direction).".into(),
             2.0,
-            2.0..=20.0,
+            -20.0..=20.0,
             false,
         );
         nodeui.add_item(item);
@@ -98,13 +98,12 @@ impl Action for Extrude {
 
         let item = TheNodeUIItem::Markdown(
             "desc".into(),
-            "Extrudes the linedef or sector by the given distance and creates new sectors. The angle applies an optional rotation around the linedef axis or sector normal."
-                .into(),
+            "Extrudes the linedef by the given distance and creates a new sector. The angle applies an optional rotation around the linedef axis.".into(),
         );
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Extrude"),
+            id: TheId::named("Extrude Linedef"),
             nodeui,
         }
     }
@@ -114,7 +113,7 @@ impl Action for Extrude {
     }
 
     fn info(&self) -> &'static str {
-        "Extrudes the current linedef or sector."
+        "Extrudes the selected linedef(s)."
     }
 
     fn role(&self) -> ActionRole {
@@ -131,7 +130,7 @@ impl Action for Extrude {
             return false;
         }
 
-        !map.selected_sectors.is_empty() || !map.selected_linedefs.is_empty()
+        map.selected_sectors.is_empty() && !map.selected_linedefs.is_empty()
     }
 
     fn apply(
@@ -153,12 +152,6 @@ impl Action for Extrude {
                 surface.calculate_geometry(map);
                 map.surfaces.insert(surface.id, surface);
 
-                changed = true;
-            }
-        }
-
-        for sector_id in &map.selected_sectors.clone() {
-            if let Some(sector) = map.find_sector_mut(*sector_id) {
                 changed = true;
             }
         }
