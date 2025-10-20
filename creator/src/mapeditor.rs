@@ -386,7 +386,10 @@ impl MapEditor {
                             {
                             } else {
                                 if ui.logo || ui.ctrl {
-                                    EDITCAMERA.write().unwrap().scroll_by(coord.y as f32);
+                                    EDITCAMERA
+                                        .write()
+                                        .unwrap()
+                                        .scroll_by(coord.y as f32, server_ctx);
                                 } else if ui.alt {
                                     EDITCAMERA
                                         .write()

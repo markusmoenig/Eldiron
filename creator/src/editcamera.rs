@@ -287,10 +287,14 @@ impl EditCamera {
         }
     }
 
-    pub fn scroll_by(&mut self, coord: f32) {
-        self.iso_camera.zoom(coord);
-        self.orbit_camera.zoom(coord);
-        self.firstp_camera.zoom(coord);
+    pub fn scroll_by(&mut self, coord: f32, server_ctx: &mut ServerContext) {
+        if server_ctx.editor_view_mode == EditorViewMode::Iso {
+            self.iso_camera.zoom(coord);
+        } else if server_ctx.editor_view_mode == EditorViewMode::Orbit {
+            self.orbit_camera.zoom(coord);
+        } else if server_ctx.editor_view_mode == EditorViewMode::FirstP {
+            self.firstp_camera.zoom(coord);
+        }
     }
 
     pub fn rotate(&mut self, delta: Vec2<f32>, server_ctx: &mut ServerContext) {

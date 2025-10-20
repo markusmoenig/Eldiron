@@ -983,14 +983,14 @@ impl Sidebar {
                                         &mut region.map,
                                     );
 
-                                    let old_editing_pos = region.editing_position_3d;
+                                    // let old_editing_pos = region.editing_position_3d;
                                     region.editing_position_3d = Vec3::new(
                                         grid_x,
                                         region.map.terrain.sample_height_bilinear(grid_x, grid_y),
                                         grid_y,
                                     );
-                                    region.editing_look_at_3d +=
-                                        region.editing_position_3d - old_editing_pos;
+                                    //region.editing_look_at_3d +=
+                                    //    region.editing_position_3d - old_editing_pos;
                                 }
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Soft Update Minimap"),
