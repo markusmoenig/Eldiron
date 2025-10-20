@@ -397,30 +397,64 @@ impl MapEditor {
                                 {
                                     // Move camera
                                     if server_ctx.editor_view_mode == EditorViewMode::Orbit {
-                                        // Orbit move
+                                        // Orbit move — screen-space pan using ray/plane intersections
                                         if let Some(render_view) = ui.get_render_view("PolyView") {
                                             let dim = *render_view.dim();
+                                            let viewport_w = dim.x as f32;
                                             let viewport_h = dim.y as f32;
+                                            if viewport_w > 0.0 && viewport_h > 0.0 {
+                                                let orbit =
+                                                    &EDITCAMERA.read().unwrap().orbit_camera;
 
-                                            let orbit = &EDITCAMERA.read().unwrap().orbit_camera;
+                                                // Camera basis and parameters
+                                                let (fwd, right, up) = orbit.basis_vectors();
+                                                let distance = orbit.distance();
+                                                let fov = orbit.fov; // vertical fov (radians)
+                                                let aspect = viewport_w / viewport_h;
+                                                let tan_half_fov = (fov * 0.5).tan();
 
-                                            let (_fwd, right, up) = orbit.basis_vectors();
+                                                // Orbit target (pivot) is the editing position
+                                                let target = region.editing_position_3d;
+                                                // Reconstruct camera position from target, forward and distance
+                                                let cam_pos = target - fwd * distance;
 
-                                            let distance = orbit.distance();
-                                            let world_per_pixel =
-                                                2.0 * distance * (orbit.fov * 0.5).tan()
-                                                    / viewport_h;
+                                                // Ground plane at target.y (y-up world)
+                                                let plane_y = target.y;
+                                                let eps = 1e-6f32;
 
-                                            let right_xz =
-                                                vek::Vec3::new(right.x, 0.0, right.z).normalized();
-                                            let up_xz =
-                                                vek::Vec3::new(up.x, 0.0, up.z).normalized();
+                                                // Helper: build world-space ray dir from pixel offset relative to screen center
+                                                let ray_dir = |dx_pixels: f32, dy_pixels: f32| -> vek::Vec3<f32> {
+                                                    // Convert to NDC offsets (center = 0,0). Note: screen y grows downward
+                                                    let x_ndc = (dx_pixels) / (viewport_w * 0.5);
+                                                    let y_ndc = (-dy_pixels) / (viewport_h * 0.5);
+                                                    // Camera-space scale along right/up for given pixel offset
+                                                    let sx = x_ndc * tan_half_fov * aspect;
+                                                    let sy = y_ndc * tan_half_fov;
+                                                    (fwd + right * sx + up * sy).normalized()
+                                                };
 
-                                            let coord = -coord.clone();
-                                            let delta = right_xz * coord.x as f32 * world_per_pixel
-                                                - up_xz * coord.y as f32 * world_per_pixel;
+                                                let intersect_plane = |orig: vek::Vec3<f32>, dir: vek::Vec3<f32>| -> Option<vek::Vec3<f32>> {
+                                                    if dir.y.abs() < eps { return None; }
+                                                    let t = (plane_y - orig.y) / dir.y;
+                                                    if t.is_finite() { Some(orig + dir * t) } else { None }
+                                                };
 
-                                            region.editing_position_3d += delta;
+                                                let dir0 = ray_dir(0.0, 0.0);
+                                                let dir1 = ray_dir(coord.x as f32, coord.y as f32);
+
+                                                if let (Some(p0), Some(p1)) = (
+                                                    intersect_plane(cam_pos, dir0),
+                                                    intersect_plane(cam_pos, dir1),
+                                                ) {
+                                                    let delta = p0 - p1;
+                                                    if delta.x.is_finite()
+                                                        && delta.y.is_finite()
+                                                        && delta.z.is_finite()
+                                                    {
+                                                        region.editing_position_3d += delta;
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                     if server_ctx.editor_view_mode == EditorViewMode::Iso {
