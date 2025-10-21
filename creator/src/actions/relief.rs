@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use rusterix::PixelSource;
 
 pub struct Relief {
     id: TheId,
@@ -17,17 +16,18 @@ impl Action for Relief {
             "actionReliefHeight".into(),
             "Height".into(),
             "The height of the relief (emboss).".into(),
-            0.1,       // default
+            0.2,       // default
             0.0..=1.0, // range
             false,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Checkbox(
-            "actionReliefTile".into(),
-            "Apply Tile".into(),
-            "Applies the current tile to the relief.".into(),
-            false,
+        let item = TheNodeUIItem::Selector(
+            "actionReliefTarget".into(),
+            "Target".into(),
+            "The relief can be attached to the front or back face.".into(),
+            vec!["Front".to_string(), "Back".to_string()],
+            1,
         );
         nodeui.add_item(item);
 
@@ -72,7 +72,7 @@ impl Action for Relief {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        _server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         let mut changed = false;
         let prev = map.clone();
@@ -85,10 +85,7 @@ impl Action for Relief {
             height = 0.0;
         }
 
-        let apply_tile = self
-            .nodeui
-            .get_bool_value("actionReliefTile")
-            .unwrap_or(false);
+        let target = self.nodeui.get_i32_value("actionReliefTarget").unwrap_or(1);
 
         for sector_id in &map.selected_sectors.clone() {
             if let Some(sector) = map.find_sector_mut(*sector_id) {
@@ -97,19 +94,11 @@ impl Action for Relief {
                     .properties
                     .set("profile_height", Value::Float(height));
 
-                sector.properties.set("profile_target", Value::Int(1));
+                sector.properties.set("profile_target", Value::Int(target));
 
-                if let Some(tile_id) = server_ctx.curr_tile_id
-                    && apply_tile
-                {
-                    sector
-                        .properties
-                        .set("relief_source", Value::Source(PixelSource::TileId(tile_id)));
-                    sector.properties.set(
-                        "relief_jamb_source",
-                        Value::Source(PixelSource::TileId(tile_id)),
-                    );
-                }
+                sector.properties.remove("relief_source");
+                sector.properties.remove("relief_jamb_source");
+
                 changed = true;
             }
         }

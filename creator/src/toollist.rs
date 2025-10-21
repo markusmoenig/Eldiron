@@ -201,7 +201,10 @@ impl ToolList {
         match event {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Editor View Switch" {
+                    let old = server_ctx.editor_view_mode.is_3d();
                     server_ctx.editor_view_mode = EditorViewMode::from_index(*index as i32);
+                    let new = server_ctx.editor_view_mode.is_3d();
+
                     if server_ctx.editor_view_mode == EditorViewMode::D2 {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             server_ctx.center_map_at_grid_pos(
@@ -210,8 +213,25 @@ impl ToolList {
                                 map,
                             );
                         }
-                    } else {
-                        crate::utils::scenemanager_render_map(project, server_ctx);
+                    }
+
+                    if let Some(editing_pos_buffer) = server_ctx.editing_pos_buffer {
+                        if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+                            region.editing_position_3d = editing_pos_buffer;
+                        }
+                        server_ctx.editing_pos_buffer = None;
+                    }
+                    server_ctx.editing_surface = None;
+
+                    RUSTERIX.write().unwrap().client.scene.d2_static.clear();
+                    RUSTERIX.write().unwrap().client.scene.d2_dynamic.clear();
+
+                    if old != new {
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Render SceneManager Map"),
+                            TheValue::Empty,
+                        ));
+                    } else if new {
                         self.update_geometry_overlay_3d(project, server_ctx);
                     }
                     RUSTERIX.write().unwrap().set_dirty();

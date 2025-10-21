@@ -28,6 +28,13 @@ impl EditorViewMode {
             _ => EditorViewMode::D2,
         }
     }
+
+    pub fn is_3d(&self) -> bool {
+        match self {
+            EditorViewMode::D2 => false,
+            _ => true,
+        }
+    }
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -246,6 +253,9 @@ pub struct ServerContext {
 
     /// The current 3D hover hit on the overlay geometry
     pub hitinfo: HitInfo,
+
+    /// Temporary storage for the editing positon
+    pub editing_pos_buffer: Option<Vec3<f32>>,
 }
 
 impl Default for ServerContext {
@@ -316,6 +326,8 @@ impl ServerContext {
             tile_preview_mode: false,
 
             hitinfo: HitInfo::default(),
+
+            editing_pos_buffer: None,
         }
     }
 

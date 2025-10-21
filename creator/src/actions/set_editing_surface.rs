@@ -84,6 +84,16 @@ impl Action for SetEditingSurface {
                 TheId::named("Update Action List"),
                 TheValue::Empty,
             ));
+
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Render SceneManager Map"),
+                TheValue::Empty,
+            ));
+
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Backup Editing Position"),
+                TheValue::Empty,
+            ));
         }
 
         None

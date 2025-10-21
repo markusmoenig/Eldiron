@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use rusterix::PixelSource;
 
 pub struct Recess {
     id: TheId,
@@ -23,11 +22,12 @@ impl Action for Recess {
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Checkbox(
-            "actionRecessTile".into(),
-            "Apply Tile".into(),
-            "Applies the current tile to the recess.".into(),
-            false,
+        let item = TheNodeUIItem::Selector(
+            "actionRecessTarget".into(),
+            "Target".into(),
+            "The recess can be attached to the front or back face.".into(),
+            vec!["Front".to_string(), "Back".to_string()],
+            1,
         );
         nodeui.add_item(item);
 
@@ -71,7 +71,7 @@ impl Action for Recess {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        _server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         let mut changed = false;
         let prev = map.clone();
@@ -81,10 +81,7 @@ impl Action for Recess {
             .get_f32_value("actionRecessDepth")
             .unwrap_or(0.0);
 
-        let apply_tile = self
-            .nodeui
-            .get_bool_value("actionRecessTile")
-            .unwrap_or(false);
+        let target = self.nodeui.get_i32_value("actionRecessTarget").unwrap_or(1);
 
         for sector_id in &map.selected_sectors.clone() {
             if let Some(sector) = map.find_sector_mut(*sector_id) {
@@ -92,6 +89,11 @@ impl Action for Recess {
                 sector.properties.set("profile_depth", Value::Float(depth));
                 sector.properties.set("profile_target", Value::Int(1));
 
+                sector.properties.set("profile_target", Value::Int(target));
+
+                sector.properties.remove("recess_source");
+                sector.properties.remove("recess_jamb_source");
+                /*
                 if let Some(tile_id) = server_ctx.curr_tile_id
                     && apply_tile
                 {
@@ -102,7 +104,7 @@ impl Action for Recess {
                         "recess_jamb_source",
                         Value::Source(PixelSource::TileId(tile_id)),
                     );
-                }
+                }*/
 
                 changed = true;
             }

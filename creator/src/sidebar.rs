@@ -1069,11 +1069,10 @@ impl Sidebar {
                 }
             }
             TheEvent::Custom(id, _value) => {
-                if id.name == "Profile View Deselected" {
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Render SceneManager Map"),
-                        TheValue::Empty,
-                    ));
+                if id.name == "Backup Editing Position" {
+                    if let Some(region) = project.get_region_ctx(server_ctx) {
+                        server_ctx.editing_pos_buffer = Some(region.editing_position_3d);
+                    }
                 } else
                 /*
                 if id.name == "Update Materialpicker" {
@@ -2017,6 +2016,7 @@ impl Sidebar {
                         }
                     }
                 } else if id.name == "Region Item" {
+                    server_ctx.editing_pos_buffer = None;
                     self.apply_region(ui, ctx, Some(id.uuid), project);
                     redraw = true;
                 }
@@ -3496,7 +3496,7 @@ impl Sidebar {
                             if let Some(accel) = action.accel() {
                                 accel_text = accel.description();
                             }
-                            item.add_value_column(120, TheValue::Text(accel_text));
+                            item.add_value_column(110, TheValue::Text(accel_text));
                             item.set_status_text(action.info());
                             item.set_background_color(TheColor::from(action.role().to_color()));
 

@@ -148,6 +148,9 @@ pub fn draw_minimap(
         let transform = translation_matrix * scale_matrix;
         let assets = rusterix.assets.clone();
 
+        let old_grid_pos = region.map.curr_grid_pos;
+        region.map.curr_grid_pos = None;
+
         let anim_frame = rusterix.client.scene.animation_frame;
         rusterix.client.scene.animation_frame = 0;
         Rasterizer::setup(Some(transform), Mat4::identity(), Mat4::identity())
@@ -170,6 +173,8 @@ pub fn draw_minimap(
 
         MINIMAPBUFFER.write().unwrap().copy_into(0, 0, buffer);
         draw_camera_marker(orig_region, buffer, server_ctx);
+
+        region.map.curr_grid_pos = old_grid_pos;
     } else {
         buffer.fill(background);
     }
