@@ -4,8 +4,9 @@
 
 ### Creator
 
-- New visual real time shading language for sectors.
-- New 3D editing functionality. Create surfaces and their profiles.
+- New visual real time shading language for materials and more.
+- New 3D editing functionality. 3D views are now integrated into the editing workflow.
+- New "Action" system. Apply actions based on geometry and UI selections.
 - New default 256 color palette.
 - The project format changed a bit. If your project does not show tiles anymore, load it into a text editor and replace "floor_source" with "source".
 

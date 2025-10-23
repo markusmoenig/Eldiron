@@ -15,7 +15,7 @@ pub mod edit_sector;
 pub mod edit_vertex;
 pub mod extrude_linedef;
 pub mod extrude_sector;
-pub mod gen_stone_trim;
+// pub mod gen_stone_trim;
 pub mod load_shader;
 pub mod new_shader;
 pub mod recess;

@@ -238,6 +238,10 @@ pub trait ClientTrait {
 impl ClientTrait for Client {
     /// Returns the path to the game data
     fn get_data_path(&self) -> Option<PathBuf> {
+        // On WASM just return an empty path.
+        #[cfg(target_arch = "wasm32")]
+        return Some(PathBuf::new());
+
         // For now, return only the command line path
         // We will need to adjust this based on platform specific features
         // to hardcode the path
@@ -250,12 +254,39 @@ impl ClientTrait for Client {
 
     /// Load project
     fn load_project(&mut self, path: PathBuf) -> Project {
-        if let Ok(contents) = std::fs::read_to_string(path) {
-            if let Ok(project) = serde_json::from_str::<Project>(&contents) {
-                return project;
+        // On WASM, do a network request to "game.eldiron" in the same dir as the served page
+        #[cfg(target_arch = "wasm32")]
+        {
+            use wasm_bindgen::JsCast;
+            use web_sys::XmlHttpRequest;
+
+            // Try to fetch from the same directory as the served page.
+            let xhr = XmlHttpRequest::new().expect("XmlHttpRequest not available");
+            xhr.open_with_async("GET", "game.eldiron", false)
+                .expect("failed to open XHR");
+            xhr.send().expect("failed to send XHR");
+
+            // 200..299 considered success
+            let status = xhr.status().unwrap_or(0);
+            if (200..300).contains(&status) {
+                if let Ok(Some(text)) = xhr.response_text() {
+                    if let Ok(project) = serde_json::from_str::<Project>(&text) {
+                        return project;
+                    }
+                }
             }
+
+            return Project::default();
         }
 
-        Project::default()
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if let Ok(contents) = std::fs::read_to_string(path) {
+                if let Ok(project) = serde_json::from_str::<Project>(&contents) {
+                    return project;
+                }
+            }
+            Project::default()
+        }
     }
 }

@@ -3718,6 +3718,7 @@ impl Sidebar {
                     && server_ctx.profile_view.is_some()
                 {
                 } else {
+                    map.update_surfaces();
                     return true;
                 }
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
@@ -3761,7 +3762,6 @@ impl Sidebar {
                 }
             }
         }
-        map.update_surfaces();
         false
     }
 

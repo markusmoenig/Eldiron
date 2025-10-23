@@ -41,6 +41,7 @@ impl Tool for RenderTool {
             Activate => {
                 //server_ctx.curr_map_tool_type = MapToolType::World;
 
+                server_ctx.curr_map_tool_helper = MapToolHelper::NodeEditor;
                 RUSTERIX.write().unwrap().client.scene.d3_overlay.clear();
 
                 if let Some(layout) = ui.get_hlayout("Game Tool Params") {
@@ -48,14 +49,11 @@ impl Tool for RenderTool {
 
                     let mut switch = TheGroupButton::new(TheId::named("Render Helper Switch"));
                     switch.add_text_status(
-                        "Global".to_string(),
+                        "Render Graph".to_string(),
                         "Edit the global render graph.".to_string(),
                     );
-                    switch.add_text_status(
-                        "Trace".to_string(),
-                        "Enable / Disable ray-tracing.".to_string(),
-                    );
-                    switch.set_item_width(80);
+                    switch.add_text_status("Trace".to_string(), "Raytrace the scene.".to_string());
+                    switch.set_item_width(100);
                     switch.set_index(server_ctx.curr_render_tool_helper as i32);
                     layout.add_widget(Box::new(switch));
 
@@ -65,20 +63,20 @@ impl Tool for RenderTool {
                         .setup_toolbar(layout, ctx, project, server_ctx);
                 }
 
-                if server_ctx.curr_render_tool_helper == RenderToolHelper::GlobalRender {
-                    ctx.ui.send(TheEvent::SetStackIndex(
-                        TheId::named("Main Stack"),
-                        PanelIndices::NodeEditor as usize,
-                    ));
+                // if server_ctx.curr_render_tool_helper == RenderToolHelper::GlobalRender {
+                ctx.ui.send(TheEvent::SetStackIndex(
+                    TheId::named("Main Stack"),
+                    PanelIndices::NodeEditor as usize,
+                ));
 
-                    NODEEDITOR.write().unwrap().set_context(
-                        NodeContext::GlobalRender,
-                        ui,
-                        ctx,
-                        project,
-                        server_ctx,
-                    );
-                }
+                NODEEDITOR.write().unwrap().set_context(
+                    NodeContext::GlobalRender,
+                    ui,
+                    ctx,
+                    project,
+                    server_ctx,
+                );
+                // }
 
                 // WORLDEDITOR.write().unwrap().first_draw = true;
 

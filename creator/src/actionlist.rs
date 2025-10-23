@@ -27,7 +27,7 @@ impl ActionList {
             Box::new(crate::tools::edit_vertex::EditVertex::new()),
             Box::new(crate::tools::extrude_linedef::ExtrudeLinedef::new()),
             Box::new(crate::tools::extrude_sector::ExtrudeSector::new()),
-            Box::new(crate::tools::gen_stone_trim::GenerateStoneTrim::new()),
+            // Box::new(crate::tools::gen_stone_trim::GenerateStoneTrim::new()),
             Box::new(crate::tools::load_shader::LoadShader::new()),
             Box::new(crate::tools::new_shader::NewShader::new()),
             Box::new(crate::tools::recess::Recess::new()),
