@@ -843,7 +843,7 @@ dependencies = [
 
 [[package]]
 name = "client"
-version = "0.8.90"
+version = "0.8.80"
 dependencies = [
  "console_error_panic_hook",
  "fontdue",
@@ -5417,7 +5417,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.8.90"
+version = "0.8.80"
 dependencies = [
  "codegridfx",
  "earcutr",
