@@ -146,13 +146,15 @@ pub fn draw_minimap(
         );
 
         let transform = translation_matrix * scale_matrix;
-        let assets = rusterix.assets.clone();
+        // let assets = rusterix.assets.clone();
 
-        let old_grid_pos = region.map.curr_grid_pos;
-        region.map.curr_grid_pos = None;
+        // let old_grid_pos = region.map.curr_grid_pos;
+        // region.map.curr_grid_pos = None;
 
-        let anim_frame = rusterix.client.scene.animation_frame;
-        rusterix.client.scene.animation_frame = 0;
+        // let anim_frame = rusterix.client.scene.animation_frame;
+        // rusterix.client.scene.animation_frame = 0;
+
+        /*
         Rasterizer::setup(Some(transform), Mat4::identity(), Mat4::identity())
             .background(background)
             .ambient(Vec4::one())
@@ -165,7 +167,29 @@ pub fn draw_minimap(
                 40,
                 &assets,
             );
-        rusterix.client.scene.animation_frame = anim_frame;
+        */
+
+        let scene_handler = &mut rusterix.scene_handler;
+
+        scene_handler.vm.execute(scenevm::Atom::SetGP1(Vec4::one()));
+
+        scene_handler
+            .vm
+            .execute(scenevm::Atom::SetTransform2D(transform));
+
+        scene_handler
+            .vm
+            .execute(scenevm::Atom::SetAnimationCounter(0));
+
+        scene_handler.vm.execute(scenevm::Atom::SetBackground(
+            TheColor::from(background).to_vec4(),
+        ));
+
+        scene_handler
+            .vm
+            .render_frame(buffer.pixels_mut(), width as u32, height as u32);
+
+        // rusterix.client.scene.animation_frame = anim_frame;
         MINIMAPBUFFER
             .write()
             .unwrap()
@@ -174,7 +198,7 @@ pub fn draw_minimap(
         MINIMAPBUFFER.write().unwrap().copy_into(0, 0, buffer);
         draw_camera_marker(orig_region, buffer, server_ctx);
 
-        region.map.curr_grid_pos = old_grid_pos;
+        // region.map.curr_grid_pos = old_grid_pos;
     } else {
         buffer.fill(background);
     }

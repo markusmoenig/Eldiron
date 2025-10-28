@@ -52,7 +52,7 @@ impl TheTrait for Client {
         if let Some(path) = self.get_data_path() {
             let mut project = self.load_project(path);
             let tiles = project.extract_tiles();
-            self.rusterix.assets.set_rgba_tiles(tiles.clone());
+            self.rusterix.set_rgba_tiles(tiles.clone(), false);
 
             // Init server / client
 

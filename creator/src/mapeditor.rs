@@ -186,8 +186,7 @@ impl MapEditor {
         RUSTERIX
             .write()
             .unwrap()
-            .assets
-            .set_rgba_tiles(project.extract_tiles());
+            .set_rgba_tiles(project.extract_tiles(), true);
     }
 
     #[allow(clippy::suspicious_else_formatting)]

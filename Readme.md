@@ -31,7 +31,7 @@ Eldiron is open-source and licensed under the **MIT License**.
 - Program character and item behaviors, as well as **advanced shaders**, with intuitive **visual node editors**.
 - Eldiron Creator is **cross-platform**, available for **Windows**, **Linux**, and **macOS** in the download section of the [GitHub repo](https://github.com/markusmoenig/Eldiron/releases). Each release includes builds for all clients, including the **Web**. An **Xcode project** is also provided for specialized **iOS**, **macOS**, and **iPadOS** builds.
 
-Eldiron is free and open source under the MIT license — your [support](sponsor) is greatly appreciated.
+Eldiron is free and open source under the MIT license — your [support](https://eldiron.com/sponsor) is greatly appreciated.
 
 # 3D Features
 
@@ -68,8 +68,6 @@ Make sure these dependencies are installed: `libasound2-dev` `libatk1.0-dev` `li
 The source and all assets I commissioned for Eldiron are licensed under the MIT.
 
 Unless explicitly stated otherwise, any contribution intentionally submitted for inclusion in Eldiron, shall be MIT licensed as above, without any additional terms or conditions.
-
-<!-- - The starter project uses the great [resurrect-64-palette](https://lospec.com/palette-list/resurrect-64). -->
 
 ---
 

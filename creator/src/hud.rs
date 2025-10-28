@@ -431,9 +431,7 @@ impl Hud {
                     font,
                     13.0,
                     txt,
-                    &if self.profile2d_rect.contains(self.mouse_pos)
-                        || !server_ctx.no_rect_geo_on_map
-                    {
+                    &if self.profile2d_rect.contains(self.mouse_pos) {
                         sel_text_color
                     } else {
                         text_color

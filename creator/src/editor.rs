@@ -562,6 +562,21 @@ impl TheTrait for Editor {
                     } else {
                         self.server_ctx.background_progress = Some(format!("{togo}/{total}"));
                     }
+
+                    let mut rusterix = RUSTERIX.write().unwrap();
+
+                    rusterix
+                        .scene_handler
+                        .vm
+                        .execute(scenevm::Atom::RemoveChunkAt {
+                            origin: chunk.origin,
+                        });
+
+                    rusterix.scene_handler.vm.execute(scenevm::Atom::AddChunk {
+                        id: Uuid::new_v4(),
+                        chunk: chunk,
+                    });
+                    /*
                     RUSTERIX
                         .write()
                         .unwrap()
@@ -569,6 +584,7 @@ impl TheTrait for Editor {
                         .scene
                         .chunks
                         .insert((chunk.origin.x, chunk.origin.y), chunk);
+                    */
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Update Minimap"),
                         TheValue::Empty,
@@ -582,7 +598,12 @@ impl TheTrait for Editor {
                 }
                 SceneManagerResult::Clear => {
                     let mut rusterix = RUSTERIX.write().unwrap();
-                    rusterix.client.scene.chunks.clear();
+                    rusterix
+                        .scene_handler
+                        .vm
+                        .execute(scenevm::Atom::ClearGeometry);
+
+                    //rusterix.client.scene.chunks.clear();
                 }
                 SceneManagerResult::Quit => {
                     println!("Scene manager has shutdown.");

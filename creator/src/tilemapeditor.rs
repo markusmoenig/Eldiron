@@ -473,7 +473,7 @@ impl TilemapEditor {
 
                                     let mut rusterix = RUSTERIX.write().unwrap();
                                     let tiles = project.extract_tiles();
-                                    rusterix.assets.set_rgba_tiles(tiles.clone());
+                                    rusterix.set_rgba_tiles(tiles.clone(), true);
                                     SCENEMANAGER.write().unwrap().set_tile_list(
                                         rusterix.assets.tile_list.clone(),
                                         rusterix.assets.tile_indices.clone(),

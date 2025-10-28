@@ -453,8 +453,7 @@ impl ServerContext {
                 let vertex_pos = Self::map_grid_to_local(screen_size, vertex_pos, map);
                 if (screen_pos - vertex_pos).magnitude() <= hover_threshold {
                     selection.0 = Some(vertex.id);
-                    //break;
-                    return selection;
+                    break;
                 }
             }
         }
@@ -483,8 +482,7 @@ impl ServerContext {
 
                     if distance <= hover_threshold {
                         selection.1 = Some(linedef.id);
-                        //break;
-                        return selection;
+                        break;
                     }
                 }
             }

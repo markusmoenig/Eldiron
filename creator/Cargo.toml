@@ -20,6 +20,7 @@ theframework.workspace = true
 rusterix.workspace = true
 codegridfx.workspace = true
 rusteria.workspace = true
+scenevm.workspace = true
 
 shared = { path = "../shared" }
 serde = { version = "1.0", features = ["derive"] }
