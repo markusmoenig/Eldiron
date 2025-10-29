@@ -1,20 +1,20 @@
 // Lib file needed when compiled for Xcode to a static library
 
 // use theframework::*;
+pub mod actionlist;
+pub mod actions;
 pub mod codeeditor;
 pub mod configeditor;
-pub mod customcamera;
+pub mod editcamera;
 pub mod editor;
 pub mod effectpicker;
 pub mod hud;
 pub mod infoviewer;
 pub mod mapeditor;
-pub mod materialpicker;
 pub mod minimap;
 pub mod misc;
 pub mod nodeeditor;
 pub mod panels;
-// pub mod previewview;
 pub mod rendereditor;
 pub mod self_update;
 pub mod shapepicker;
@@ -44,10 +44,10 @@ pub mod prelude {
     pub use std::sync::{LazyLock, RwLock};
     pub use theframework::prelude::*;
 
+    pub use crate::actionlist::*;
     pub use crate::codeeditor::*;
     pub use crate::effectpicker::*;
     pub use crate::mapeditor::*;
-    pub use crate::materialpicker::*;
     pub use crate::misc::*;
     pub use crate::panels::*;
     pub use crate::shapepicker::*;
@@ -72,9 +72,10 @@ pub mod prelude {
     pub use crate::tools::vertex::VertexTool;
 
     //pub use crate::tools::*;
+    pub use crate::actions::*;
 
     pub use crate::configeditor::ConfigEditor;
-    pub use crate::customcamera::{CustomCamera, CustomMoveAction};
+    pub use crate::editcamera::{CustomMoveAction, EditCamera};
     pub use crate::infoviewer::InfoViewer;
     pub use crate::nodeeditor::{NodeContext, NodeEditor};
     pub use crate::rendereditor::{RenderEditor, RenderMoveAction};
@@ -259,6 +260,9 @@ pub extern "C" fn rust_key_modifier_changed(
     alt: bool,
     logo: bool,
 ) -> bool {
+    UI.lock()
+        .unwrap()
+        .modifier_changed(shift, ctrl, alt, logo, &mut CTX.lock().unwrap());
     APP.lock().unwrap().modifier_changed(shift, ctrl, alt, logo)
 }
 

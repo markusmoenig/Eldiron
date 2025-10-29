@@ -37,7 +37,9 @@ public class RMTKView       : MTKView
     // --- Key States
     var shiftIsDown     : Bool = false
     var commandIsDown   : Bool = false
-        
+    var controlIsDown   : Bool = false
+    var altIsDown       : Bool = false
+
     override public var acceptsFirstResponder: Bool { return true }
     
     /// To get continuous mouse events on macOS
@@ -157,30 +159,37 @@ public class RMTKView       : MTKView
     }
     
     override public func flagsChanged(with event: NSEvent) {
-        /*
         //https://stackoverflow.com/questions/9268045/how-can-i-detect-that-the-shift-key-has-been-pressed
-        if game.state == .Idle {
-            if event.modifierFlags.contains(.shift) {
-                shiftIsDown = true
-            } else {
-                shiftIsDown = false
-            }
-            if event.modifierFlags.contains(.command) {
-                commandIsDown = true
-            } else {
-                commandIsDown = false
-            }
-        }*/
+        if event.modifierFlags.contains(.shift) {
+            shiftIsDown = true
+        } else {
+            shiftIsDown = false
+        }
+        if event.modifierFlags.contains(.option) {
+            altIsDown = true
+        } else {
+            altIsDown = false
+        }
+        if event.modifierFlags.contains(.control) {
+            controlIsDown = true
+        } else {
+            controlIsDown = false
+        }
+        if event.modifierFlags.contains(.command) {
+            commandIsDown = true
+        } else {
+            commandIsDown = false
+        }
+        
+        if rust_key_modifier_changed(shiftIsDown, controlIsDown, altIsDown, commandIsDown) {
+            renderer.needsUpdate()
+        }
     }
     
     override public func scrollWheel(with event: NSEvent) {
         if rust_touch_wheel(Float(event.scrollingDeltaX), Float(event.scrollingDeltaY)) {
             renderer.needsUpdate()
         }
-        /*
-        if game.state == .Idle {
-            game.mapBuilder.mapPreview.scrollWheel(with: event)
-        }*/
     }
     #elseif os(iOS)
     

@@ -1,4 +1,3 @@
-use crate::editor::RUSTERIX;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -220,16 +219,7 @@ impl Tool for RectTool {
                             // }
 
                             if let Some(sector) = map.find_sector_mut(sector_id) {
-                                if let PixelSource::TileId(id) = source {
-                                    if let Some(tile) =
-                                        RUSTERIX.read().unwrap().assets.tiles.get(&id)
-                                    {
-                                        sector.properties.set(
-                                            "rect_rendering",
-                                            Value::Int(tile.render_mode as i32),
-                                        );
-                                    }
-                                }
+                                sector.properties.set("rect", Value::Bool(true));
 
                                 sector.properties.set("source", Value::Source(source));
                                 sector.layer = Some(layer + 1);

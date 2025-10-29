@@ -48,6 +48,7 @@ bool rust_touch_wheel(float x, float y);
 bool rust_key_down(const char *);
 bool rust_key_up(const char *);
 bool rust_special_key_down(uint32_t key);
+bool rust_key_modifier_changed(bool, bool, bool, bool);
 
 void rust_open();
 

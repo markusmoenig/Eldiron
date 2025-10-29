@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use rusterix::prelude::*;
 use vek::Vec2;
 
 use crate::editor::{PALETTE, RUSTERIX, SIDEBARMODE};

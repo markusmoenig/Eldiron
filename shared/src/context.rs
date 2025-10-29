@@ -513,7 +513,7 @@ impl ServerContext {
         // Reverse on sorted sectors by area (to allow to pick small sectors first)
         let ordered = map.sorted_sectors_by_area();
         for sector in ordered.iter().rev() {
-            if self.no_rect_geo_on_map && sector.properties.contains("rect_rendering") {
+            if self.no_rect_geo_on_map && sector.properties.contains("rect") {
                 continue;
             }
             let mut vertices = Vec::new();

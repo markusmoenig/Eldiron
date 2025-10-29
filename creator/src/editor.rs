@@ -260,6 +260,12 @@ impl TheTrait for Editor {
             TheId::named("Paste"),
             TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'v'),
         ));
+        edit_menu.add_separator();
+        edit_menu.add(TheContextMenuItem::new_with_accel(
+            str!("Apply Action"),
+            TheId::named("Action Apply"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'p'),
+        ));
         // let mut view_menu = TheContextMenu::named(str!("View"));
         // view_menu.add(TheContextMenuItem::new_with_accel(
         //     str!("2D Map"),

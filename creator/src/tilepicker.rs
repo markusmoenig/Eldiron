@@ -68,6 +68,7 @@ impl TilePicker {
         //     toolbar_hlayout.add_widget(Box::new(color_button));
         // }
 
+        /*
         let mut drop_down = TheDropdownMenu::new(TheId::named(&self.make_id(" Filter Role")));
         drop_down.add_option("All".to_string());
         for dir in TileRole::iterator() {
@@ -99,6 +100,7 @@ impl TilePicker {
         scale.set_status_text("Defines the tile scale (for billboards).");
         scale.set_disabled(true);
         toolbar_hlayout.add_widget(Box::new(scale));
+        */
 
         if !minimal {
             let mut zoom = TheSlider::new(TheId::named(&self.make_id(" Zoom")));
@@ -127,6 +129,8 @@ impl TilePicker {
             c[3] = 128;
             rgba_view.set_hover_color(Some(c));
         }
+
+        /*
 
         // Details
         let mut details_canvas = TheCanvas::new();
@@ -191,11 +195,11 @@ impl TilePicker {
 
         details_canvas.set_layout(vlayout);
 
-        //
+        */
 
         canvas.set_top(toolbar_canvas);
         canvas.set_layout(rgba_layout);
-        canvas.set_right(details_canvas);
+        //canvas.set_right(details_canvas);
 
         canvas
     }
