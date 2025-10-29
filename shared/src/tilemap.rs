@@ -134,6 +134,11 @@ pub struct Tile {
     pub blocking: bool,
     #[serde(default)]
     pub render_mode: u8,
+
+    #[serde(default)]
+    pub module: Option<codegridfx::Module>,
+    #[serde(default)]
+    pub data: Vec<rusterix::Texture>,
 }
 
 impl Default for Tile {
@@ -153,6 +158,9 @@ impl Tile {
             sequence: TheRGBARegionSequence::new(),
             blocking: false,
             render_mode: 0,
+
+            module: None,
+            data: vec![],
         }
     }
 }

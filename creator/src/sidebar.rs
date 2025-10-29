@@ -1104,6 +1104,7 @@ impl Sidebar {
                             if let Some(map) = project.get_map_mut(&server_ctx) {
                                 action.load_params(map);
                             }
+                            action.load_params_project(project, server_ctx);
                         }
                     }
                     self.show_actions(ui, ctx, project, server_ctx);
@@ -1830,16 +1831,17 @@ impl Sidebar {
             TheEvent::KeyDown(TheValue::Char(c)) => {
                 let action_list = ACTIONLIST.write().unwrap();
                 let mut needs_scene_redraw: bool = false;
-                if let Some(map) = project.get_map_mut(&server_ctx) {
-                    for action in &action_list.actions {
-                        if let Some(accel) = action.accel() {
-                            if action.is_applicable(map, ctx, server_ctx) {
-                                if accel.matches(ui.shift, ui.ctrl, ui.alt, ui.logo, *c) {
+                for action in &action_list.actions {
+                    if let Some(accel) = action.accel() {
+                        if accel.matches(ui.shift, ui.ctrl, ui.alt, ui.logo, *c) {
+                            if let Some(map) = project.get_map_mut(&server_ctx) {
+                                if action.is_applicable(map, ctx, server_ctx) {
                                     println!("{}", action.id().name);
                                     needs_scene_redraw =
                                         self.apply_action(action, map, ui, ctx, server_ctx);
                                 }
                             }
+                            action.apply_project(project, ui, ctx, server_ctx);
                         }
                     }
                 }
@@ -1860,6 +1862,7 @@ impl Sidebar {
                         if let Some(map) = project.get_map_mut(&server_ctx) {
                             action.load_params(map);
                         }
+                        action.load_params_project(project, server_ctx);
 
                         let nodeui = action.params();
                         nodeui.apply_to_text_layout(layout);
@@ -1884,6 +1887,7 @@ impl Sidebar {
                                 needs_scene_redraw =
                                     self.apply_action(action, map, ui, ctx, server_ctx);
                             }
+                            action.apply_project(project, ui, ctx, server_ctx);
 
                             if needs_scene_redraw {
                                 crate::utils::scenemanager_render_map(project, server_ctx);

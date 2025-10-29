@@ -4,7 +4,6 @@ pub struct TilePicker {
     pub id: String,
 
     pub tile_ids: FxHashMap<(i32, i32), Uuid>,
-    pub tile_text: FxHashMap<(i32, i32), String>,
 
     pub filter: String,
     pub filter_role: u8,
@@ -19,7 +18,6 @@ impl TilePicker {
         Self {
             id,
             tile_ids: FxHashMap::default(),
-            tile_text: FxHashMap::default(),
             filter: "".to_string(),
             filter_role: 0,
             zoom: 1.5,
@@ -205,7 +203,6 @@ impl TilePicker {
     /// Set the tiles for the picker.
     pub fn set_tiles(&mut self, tiles: Vec<TheRGBATile>, ui: &mut TheUI, ctx: &mut TheContext) {
         self.tile_ids.clear();
-        self.tile_text.clear();
         if let Some(editor) = ui.get_rgba_layout(&self.make_id(" RGBA Layout")) {
             //println!("{}", editor.dim().width);
             let width = editor.dim().width - 16;
@@ -237,16 +234,6 @@ impl TilePicker {
                     let y = i as i32 / tiles_per_row;
 
                     self.tile_ids.insert((x, y), tile.id);
-                    #[allow(clippy::useless_format)]
-                    self.tile_text.insert(
-                        (x, y),
-                        format!(
-                            "{}",
-                            TileRole::from_index(tile.role)
-                                .unwrap_or(TileRole::ManMade)
-                                .to_string()
-                        ),
-                    );
                     if !tile.buffer.is_empty() {
                         buffer.copy_into(x * grid, y * grid, &tile.buffer[0].scaled(grid, grid));
                     }
@@ -285,14 +272,14 @@ impl TilePicker {
             TheEvent::TilePicked(id, pos) => {
                 if id.name == self.make_id(" RGBA Layout View") {
                     if let Some(tile_id) = self.tile_ids.get(&(pos.x, pos.y)) {
-                        // ctx.ui.send(TheEvent::StateChanged(
-                        //     TheId::named_with_id("Tilemap Tile", *tile_id),
-                        //     TheWidgetState::Selected,
-                        // ));
                         server_ctx.curr_tile_id = Some(*tile_id);
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Tile Picked"),
                             TheValue::Id(*tile_id),
+                        ));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Action List"),
+                            TheValue::Empty,
                         ));
                         self.curr_tile = Some(*tile_id);
                         self.apply_tile(ui, ctx, project);
@@ -302,13 +289,26 @@ impl TilePicker {
             }
             TheEvent::TileEditorHoverChanged(id, pos) => {
                 if id.name == self.make_id(" RGBA Layout View") {
-                    ctx.ui.send(TheEvent::SetStatusText(
-                        id.clone(),
-                        self.tile_text
-                            .get(&(pos.x, pos.y))
-                            .unwrap_or(&"".to_string())
-                            .to_string(),
-                    ));
+                    if let Some(tile_id) = self.tile_ids.get(&(pos.x, pos.y)) {
+                        if let Some(tile) = project.get_tile(tile_id) {
+                            if tile.name.is_empty() {
+                                let text = format!(
+                                    "{}, Blocking: {}",
+                                    tile.role.to_string(),
+                                    if tile.blocking { "Yes" } else { "No" },
+                                );
+                                ctx.ui.send(TheEvent::SetStatusText(id.clone(), text));
+                            } else {
+                                let text = format!(
+                                    "{}, Blocking: {}, Tags: \"{}\"",
+                                    tile.role.to_string(),
+                                    if tile.blocking { "Yes" } else { "No" },
+                                    tile.name
+                                );
+                                ctx.ui.send(TheEvent::SetStatusText(id.clone(), text));
+                            }
+                        }
+                    }
                 }
             }
             TheEvent::TileEditorDelete(id, selected) => {

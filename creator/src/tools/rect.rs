@@ -232,7 +232,6 @@ impl Tool for RectTool {
                                 }
 
                                 sector.properties.set("source", Value::Source(source));
-                                // sector.properties.set("ceiling_height", Value::Float(size));
                                 sector.layer = Some(layer + 1);
 
                                 undo_atom = Some(RegionUndoAtom::MapEdit(

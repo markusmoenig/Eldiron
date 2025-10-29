@@ -16,6 +16,8 @@ pub mod edit_vertex;
 pub mod extrude_linedef;
 pub mod extrude_sector;
 // pub mod gen_stone_trim;
+pub mod copy_tile_id;
+pub mod edit_tile_meta;
 pub mod load_shader;
 pub mod new_shader;
 pub mod recess;
@@ -59,6 +61,7 @@ pub trait Action: Send + Sync {
     fn is_applicable(&self, map: &Map, ctx: &mut TheContext, server_ctx: &ServerContext) -> bool;
 
     fn load_params(&mut self, map: &Map) {}
+    fn load_params_project(&mut self, project: &Project, server_ctx: &mut ServerContext) {}
 
     fn apply(
         &self,
@@ -66,7 +69,18 @@ pub trait Action: Send + Sync {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom>;
+    ) -> Option<RegionUndoAtom> {
+        None
+    }
+
+    fn apply_project(
+        &self,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+    }
 
     fn params(&self) -> TheNodeUI;
     fn handle_event(&mut self, event: &TheEvent) -> bool;

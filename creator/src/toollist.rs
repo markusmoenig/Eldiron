@@ -1391,8 +1391,7 @@ impl ToolList {
                     };
                     let sector_is_selected = map.selected_sectors.contains(&sector_id);
 
-                    if sector.properties.contains("rect_rendering") && server_ctx.no_rect_geo_on_map
-                    {
+                    if sector.properties.contains("rect") && server_ctx.no_rect_geo_on_map {
                         continue;
                     }
 

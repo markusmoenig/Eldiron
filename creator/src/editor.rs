@@ -1725,11 +1725,25 @@ impl TheTrait for Editor {
                                         self.project = project;
 
                                         insert_content_into_maps(&mut self.project);
-                                        // for r in &mut self.project.regions {
-                                        //     r.map.terrain.mark_dirty();
-                                        //     r.editing_position_3d = Vec3::zero();
-                                        //     r.editing_look_at_3d = Vec3::new(0.0, 0.0, -1.0);
-                                        // }
+
+                                        // Rename and remove legacy attributes
+                                        for r in &mut self.project.regions {
+                                            for s in &mut r.map.sectors {
+                                                if let Some(floor) =
+                                                    s.properties.get("floor_source")
+                                                {
+                                                    s.properties.set("source", floor.clone());
+                                                }
+
+                                                if s.properties.contains("rect_rendering") {
+                                                    s.properties.set("rect", Value::Bool(true));
+                                                }
+
+                                                s.properties.remove("floor_source");
+                                                s.properties.remove("rect_rendering");
+                                                s.properties.remove("ceiling_source");
+                                            }
+                                        }
 
                                         // Set the project time to the server time slider widget
                                         if let Some(widget) = ui.get_widget("Server Time Slider") {
