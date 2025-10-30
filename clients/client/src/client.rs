@@ -51,8 +51,7 @@ impl TheTrait for Client {
         // Load the game data path
         if let Some(path) = self.get_data_path() {
             let mut project = self.load_project(path);
-            let tiles = project.extract_tiles();
-            self.rusterix.set_rgba_tiles(tiles.clone(), false);
+            self.rusterix.set_tiles(project.tiles.clone(), false);
 
             // Init server / client
 

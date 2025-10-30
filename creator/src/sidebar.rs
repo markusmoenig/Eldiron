@@ -5,6 +5,7 @@ use crate::editor::{
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
 use codegridfx::Module;
+use rusterix::TileRole;
 
 #[derive(PartialEq, Debug)]
 pub enum SidebarMode {
@@ -3449,8 +3450,7 @@ impl Sidebar {
                         if (filter_text.is_empty()
                             || tile.name.to_lowercase().contains(&filter_text))
                             && (filter_role == 0
-                                || tile.role
-                                    == TileRole::from_index(filter_role as u8 - 1).unwrap())
+                                || tile.role == TileRole::from_index(filter_role as u8 - 1))
                         {
                             let mut item =
                                 TheListItem::new(TheId::named_with_id("Tilemap Tile", tile.id));
@@ -3771,10 +3771,8 @@ impl Sidebar {
 
     /// Tilemaps in the project have been updated, propagate the change to all relevant parties.
     pub fn update_tiles(&mut self, _ui: &mut TheUI, ctx: &mut TheContext, project: &mut Project) {
-        let tiles = project.extract_tiles();
-
         let mut rusterix = RUSTERIX.write().unwrap();
-        rusterix.set_rgba_tiles(tiles.clone(), true);
+        rusterix.set_tiles(project.tiles.clone(), true);
         SCENEMANAGER.write().unwrap().set_tile_list(
             rusterix.assets.tile_list.clone(),
             rusterix.assets.tile_indices.clone(),

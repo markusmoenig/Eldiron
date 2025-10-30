@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use rusterix::TileRole;
 
 pub struct TilePicker {
     pub id: String,
@@ -122,6 +123,7 @@ impl TilePicker {
         // Canvas
         let mut rgba_layout = TheRGBALayout::new(TheId::named(&self.make_id(" RGBA Layout")));
         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+            rgba_view.set_supports_external_zoom(true);
             rgba_view.set_background([116, 116, 116, 255]);
             rgba_view.set_grid(Some(24));
             rgba_view.set_mode(TheRGBAViewMode::TilePicker);
@@ -205,7 +207,12 @@ impl TilePicker {
     }
 
     /// Set the tiles for the picker.
-    pub fn set_tiles(&mut self, tiles: Vec<TheRGBATile>, ui: &mut TheUI, ctx: &mut TheContext) {
+    pub fn set_tiles(
+        &mut self,
+        tiles: &IndexMap<Uuid, rusterix::Tile>,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
         self.tile_ids.clear();
         if let Some(editor) = ui.get_rgba_layout(&self.make_id(" RGBA Layout")) {
             //println!("{}", editor.dim().width);
@@ -219,9 +226,10 @@ impl TilePicker {
 
                 let mut filtered_tiles = vec![];
 
-                for t in tiles {
-                    if t.name.to_lowercase().contains(&self.filter)
-                        && (self.filter_role == 0 || t.role == self.filter_role - 1)
+                for (_, t) in tiles {
+                    if t.tags.to_lowercase().contains(&self.filter)
+                        && (self.filter_role == 0
+                            || t.role == TileRole::from_index(self.filter_role - 1))
                     {
                         filtered_tiles.push(t);
                     }
@@ -238,8 +246,12 @@ impl TilePicker {
                     let y = i as i32 / tiles_per_row;
 
                     self.tile_ids.insert((x, y), tile.id);
-                    if !tile.buffer.is_empty() {
-                        buffer.copy_into(x * grid, y * grid, &tile.buffer[0].scaled(grid, grid));
+                    if !tile.textures.is_empty() {
+                        buffer.copy_into(
+                            x * grid,
+                            y * grid,
+                            &tile.textures[0].to_rgba().scaled(grid, grid),
+                        );
                     }
                 }
 
@@ -271,7 +283,7 @@ impl TilePicker {
                 }
             }
             TheEvent::Resize => {
-                self.set_tiles(project.extract_tiles_vec(), ui, ctx);
+                self.set_tiles(&project.tiles, ui, ctx);
             }
             TheEvent::TilePicked(id, pos) => {
                 if id.name == self.make_id(" RGBA Layout View") {
@@ -322,12 +334,12 @@ impl TilePicker {
                             project.remove_tile(tile_id);
                         }
                     }
-                    self.set_tiles(project.extract_tiles_vec(), ui, ctx);
+                    self.set_tiles(&project.tiles, ui, ctx);
                 }
             }
             TheEvent::Custom(id, _value) => {
                 if id.name == "Update Tilepicker" {
-                    self.set_tiles(project.extract_tiles_vec(), ui, ctx);
+                    self.set_tiles(&project.tiles, ui, ctx);
                 }
             }
             TheEvent::IndexChanged(id, index) => {
@@ -360,13 +372,20 @@ impl TilePicker {
             //         ));
             //     }
             //}
+            TheEvent::TileZoomBy(id, delta) => {
+                if id.name == self.make_id(" RGBA Layout View") {
+                    self.zoom += *delta * 0.05;
+                    self.zoom = self.zoom.clamp(1.0, 3.0);
+                    self.set_tiles(&project.tiles, ui, ctx);
+                    ui.set_widget_value(&self.make_id(" Zoom"), ctx, TheValue::Float(self.zoom));
+                }
+            }
             TheEvent::ValueChanged(id, value) => {
                 if id.name == self.make_id(" Tile Role") {
                     if let Some(tile_id) = self.curr_tile {
                         if let Some(tile) = project.get_tile_mut(&tile_id) {
                             if let TheValue::Int(role) = value {
-                                tile.role =
-                                    TileRole::from_index(*role as u8).unwrap_or(TileRole::ManMade);
+                                tile.role = TileRole::from_index(*role as u8);
                             }
                         }
                     }
@@ -405,17 +424,17 @@ impl TilePicker {
                 } else if id.name == self.make_id(" Filter Edit") {
                     if let TheValue::Text(filter) = value {
                         self.filter = filter.to_lowercase();
-                        self.set_tiles(project.extract_tiles_vec(), ui, ctx);
+                        self.set_tiles(&project.tiles, ui, ctx);
                     }
                 } else if id.name == self.make_id(" Filter Role") {
                     if let TheValue::Int(filter) = value {
                         self.filter_role = *filter as u8;
-                        self.set_tiles(project.extract_tiles_vec(), ui, ctx);
+                        self.set_tiles(&project.tiles, ui, ctx);
                     }
                 } else if id.name == self.make_id(" Zoom") {
                     if let TheValue::Float(zoom) = value {
                         self.zoom = *zoom;
-                        self.set_tiles(project.extract_tiles_vec(), ui, ctx);
+                        self.set_tiles(&project.tiles, ui, ctx);
                     }
                 }
             }

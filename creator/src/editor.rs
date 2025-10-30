@@ -164,11 +164,15 @@ impl TheTrait for Editor {
 
             let decoder = png::Decoder::new(data);
             if let Ok(mut reader) = decoder.read_info() {
-                let mut buf = vec![0; reader.output_buffer_size()];
-                let info = reader.next_frame(&mut buf).unwrap();
-                let bytes = &buf[..info.buffer_size()];
+                if let Some(buffer_size) = reader.output_buffer_size() {
+                    let mut buf = vec![0; buffer_size];
+                    let info = reader.next_frame(&mut buf).unwrap();
+                    let bytes = &buf[..info.buffer_size()];
 
-                Some((bytes.to_vec(), info.width, info.height))
+                    Some((bytes.to_vec(), info.width, info.height))
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -190,17 +194,19 @@ impl TheTrait for Editor {
 
                     let decoder = png::Decoder::new(data);
                     if let Ok(mut reader) = decoder.read_info() {
-                        let mut buf = vec![0; reader.output_buffer_size()];
-                        let info = reader.next_frame(&mut buf).unwrap();
-                        let bytes = &buf[..info.buffer_size()];
+                        if let Some(buffer_size) = reader.output_buffer_size() {
+                            let mut buf = vec![0; buffer_size];
+                            let info = reader.next_frame(&mut buf).unwrap();
+                            let bytes = &buf[..info.buffer_size()];
 
-                        let mut cut_name = name.replace("icons/", "");
-                        cut_name = cut_name.replace(".png", "");
+                            let mut cut_name = name.replace("icons/", "");
+                            cut_name = cut_name.replace(".png", "");
 
-                        ctx.ui.add_icon(
-                            cut_name.to_string(),
-                            TheRGBABuffer::from(bytes.to_vec(), info.width, info.height),
-                        );
+                            ctx.ui.add_icon(
+                                cut_name.to_string(),
+                                TheRGBABuffer::from(bytes.to_vec(), info.width, info.height),
+                            );
+                        }
                     }
                 }
             }
@@ -1748,6 +1754,34 @@ impl TheTrait for Editor {
                                                 s.properties.remove("floor_source");
                                                 s.properties.remove("rect_rendering");
                                                 s.properties.remove("ceiling_source");
+                                            }
+                                        }
+
+                                        // Convert old tile refs to new tiles
+                                        if self.project.tiles.is_empty() {
+                                            let tiles = self.project.extract_tiles();
+
+                                            for (id, t) in tiles.iter() {
+                                                let mut texture_array: Vec<Texture> = vec![];
+                                                for b in &t.buffer {
+                                                    let mut texture = Texture::new(
+                                                        b.pixels().to_vec(),
+                                                        b.dim().width as usize,
+                                                        b.dim().height as usize,
+                                                    );
+                                                    texture.generate_normals(true);
+                                                    texture_array.push(texture);
+                                                }
+                                                let tile = rusterix::Tile {
+                                                    id: t.id,
+                                                    role: rusterix::TileRole::from_index(t.role),
+                                                    textures: texture_array.clone(),
+                                                    module: None,
+                                                    blocking: t.blocking,
+                                                    scale: t.scale,
+                                                    tags: t.name.clone(),
+                                                };
+                                                self.project.tiles.insert(*id, tile);
                                             }
                                         }
 

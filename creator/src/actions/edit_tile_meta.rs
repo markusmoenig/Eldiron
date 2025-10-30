@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use rusterix::TileRole;
 
 pub struct EditTileMeta {
     id: TheId,
@@ -106,7 +107,7 @@ impl Action for EditTileMeta {
 
         if let Some(tile_id) = server_ctx.curr_tile_id {
             if let Some(tile) = project.get_tile_mut(&tile_id) {
-                tile.role = TileRole::from_index(role as u8).unwrap_or(TileRole::ManMade);
+                tile.role = TileRole::from_index(role as u8);
                 tile.blocking = blocking == 1;
                 tile.name = name;
             }

@@ -2,7 +2,7 @@ use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use ShapeFXParam::*;
 use rusterix::ShapeFXParam;
-use rusterix::{Light, LightType, Shape, ShapeType};
+use rusterix::{Light, LightType, Shape, ShapeType, TileRole};
 use theframework::prelude::*;
 
 pub struct ShapePicker {

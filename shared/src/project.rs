@@ -29,6 +29,10 @@ pub struct Project {
     pub regions: Vec<Region>,
     pub tilemaps: Vec<Tilemap>,
 
+    /// Tiles in the project
+    #[serde(default)]
+    pub tiles: IndexMap<Uuid, rusterix::Tile>,
+
     #[serde(default)]
     pub time: TheTime,
 
@@ -96,6 +100,8 @@ impl Project {
 
             regions: vec![],
             tilemaps: vec![],
+
+            tiles: IndexMap::default(),
 
             time: TheTime::default(),
             map_mode: MapMode::default(),
@@ -296,99 +302,6 @@ impl Project {
         None
     }
 
-    /*
-    /// Get the map of the current context.
-    pub fn get_map_hover(&self, ctx: &ServerContext) -> Option<&Map> {
-        if ctx.get_map_context() == MapContext::Region {
-            if ctx.editor_view_mode != EditorViewMode::D2 {
-                if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
-                    if ctx.curr_geometry_map_id.is_none()
-                        || ctx.curr_geometry_map_id == Some(region.map.id)
-                    {
-                        return Some(&region.map);
-                    }
-                    for linedef in &region.map.linedefs {
-                        if Some(linedef.profile.id) == ctx.curr_geometry_map_id {
-                            return Some(&linedef.profile);
-                        }
-                    }
-                }
-            } else if let Some(profile_id) = ctx.profile_view {
-                if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
-                    if let Some(linedef) = region.map.find_linedef(profile_id) {
-                        return Some(&linedef.profile);
-                    }
-                }
-                return None;
-            } else if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
-                return Some(&region.map);
-            }
-        } else if ctx.get_map_context() == MapContext::Screen {
-            if let Some(screen) = self.screens.get(&ctx.curr_screen) {
-                return Some(&screen.map);
-            }
-        } else if ctx.get_map_context() == MapContext::Character {
-            if let ContentContext::CharacterTemplate(id) = ctx.curr_character {
-                if let Some(character) = self.characters.get(&id) {
-                    return Some(&character.map);
-                }
-            }
-        } else if ctx.get_map_context() == MapContext::Item {
-            if let ContentContext::ItemTemplate(id) = ctx.curr_item {
-                if let Some(item) = self.items.get(&id) {
-                    return Some(&item.map);
-                }
-            }
-        }
-        None
-    }
-
-    /// Get the mutable map of the current context.
-    pub fn get_map_hover_mut(&mut self, ctx: &ServerContext) -> Option<&mut Map> {
-        if ctx.get_map_context() == MapContext::Region {
-            if ctx.editor_view_mode != EditorViewMode::D2 {
-                if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
-                    if ctx.curr_geometry_map_id.is_none()
-                        || ctx.curr_geometry_map_id == Some(region.map.id)
-                    {
-                        return Some(&mut region.map);
-                    }
-                    for linedef in &mut region.map.linedefs {
-                        if Some(linedef.profile.id) == ctx.curr_geometry_map_id {
-                            return Some(&mut linedef.profile);
-                        }
-                    }
-                }
-            } else if let Some(profile_id) = ctx.profile_view {
-                if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
-                    if let Some(linedef) = region.map.find_linedef_mut(profile_id) {
-                        return Some(&mut linedef.profile);
-                    }
-                }
-                return None;
-            } else if let Some(region) = self.regions.iter_mut().find(|t| t.id == ctx.curr_region) {
-                return Some(&mut region.map);
-            }
-        } else if ctx.get_map_context() == MapContext::Screen {
-            if let Some(screen) = self.screens.get_mut(&ctx.curr_screen) {
-                return Some(&mut screen.map);
-            }
-        } else if ctx.get_map_context() == MapContext::Character {
-            if let ContentContext::CharacterTemplate(id) = ctx.curr_character {
-                if let Some(character) = self.characters.get_mut(&id) {
-                    return Some(&mut character.map);
-                }
-            }
-        } else if ctx.get_map_context() == MapContext::Item {
-            if let ContentContext::ItemTemplate(id) = ctx.curr_item {
-                if let Some(item) = self.items.get_mut(&id) {
-                    return Some(&mut item.map);
-                }
-            }
-        }
-        None
-    }*/
-
     /// Add Screen
     pub fn add_screen(&mut self, screen: Screen) {
         self.screens.insert(screen.id, screen);
@@ -465,8 +378,8 @@ impl Project {
     }
 
     /// Extract all tiles from all tilemaps and store them in a hash.
-    pub fn extract_tiles(&self) -> FxHashMap<Uuid, TheRGBATile> {
-        let mut tiles = FxHashMap::default();
+    pub fn extract_tiles(&self) -> IndexMap<Uuid, TheRGBATile> {
+        let mut tiles = IndexMap::default();
         for tilemap in &self.tilemaps {
             for tile in &tilemap.tiles {
                 let mut rgba_tile = TheRGBATile::new();

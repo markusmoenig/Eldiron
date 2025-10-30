@@ -1,6 +1,7 @@
 use crate::editor::RUSTERIX;
 use crate::editor::{PREVIEW_ICON, SCENEMANAGER, UNDOMANAGER};
 use crate::prelude::*;
+use rusterix::TileRole;
 use shared::tilemap;
 
 #[derive(PartialEq)]
@@ -100,6 +101,7 @@ impl TilemapEditor {
         add_button.set_status_text("Adds the current tile selection.");
 
         toolbar_hlayout.add_widget(Box::new(add_button));
+        toolbar_hlayout.add_widget(Box::new(clear_button));
 
         // let mut hdivider = TheHDivider::new(TheId::empty());
         // hdivider.limiter_mut().set_max_width(15);
@@ -111,8 +113,7 @@ impl TilemapEditor {
         zoom.set_continuous(true);
         zoom.limiter_mut().set_max_width(120);
         toolbar_hlayout.add_widget(Box::new(zoom));
-        toolbar_hlayout.add_widget(Box::new(clear_button));
-        toolbar_hlayout.set_reverse_index(Some(2));
+        toolbar_hlayout.set_reverse_index(Some(1));
 
         // Details
         let mut details_canvas = TheCanvas::new();
@@ -159,6 +160,7 @@ impl TilemapEditor {
             rgba_layout.set_buffer(tilemap.buffer.clone());
             rgba_layout.set_scroll_offset(tilemap.scroll_offset);
             if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                rgba_view.set_supports_external_zoom(true);
                 rgba_view.set_grid(Some(tilemap.grid_size));
                 rgba_view.set_mode(TheRGBAViewMode::TileSelection);
                 rgba_view.set_background([116, 116, 116, 255]);
@@ -263,6 +265,20 @@ impl TilemapEditor {
         let mut redraw = false;
 
         match event {
+            TheEvent::TileZoomBy(id, delta) => {
+                if id.name == "Tilemap Editor View" {
+                    if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
+                        tilemap.zoom += *delta * 0.05;
+                        tilemap.zoom = tilemap.zoom.clamp(0.5, 5.0);
+                        self.set_tilemap(tilemap, ui, ctx);
+                        ui.set_widget_value(
+                            "Tilemap Editor Zoom",
+                            ctx,
+                            TheValue::Float(tilemap.zoom),
+                        );
+                    }
+                }
+            }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Tilemap Editor Switch" {
                     if *index == 0 {
@@ -417,7 +433,7 @@ impl TilemapEditor {
                                     ui.get_drop_down_menu("Tilemap Editor Role")
                                 {
                                     let index = role_widget.selected_index();
-                                    tile.role = TileRole::from_index(index as u8).unwrap();
+                                    tile.role = TileRole::from_index(index as u8);
                                 }
 
                                 // Only add if non-empty
@@ -465,15 +481,40 @@ impl TilemapEditor {
                                         }
                                     }
 
+                                    let id = tile.id;
+                                    // Add the local tile to the bitmmap
                                     if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id)
                                     {
                                         tilemap.tiles.push(tile);
                                         self.set_tilemap(tilemap, ui, ctx);
                                     }
 
+                                    if let Some(t) = project.extract_tile(&id) {
+                                        // Add it to the project
+                                        let mut texture_array: Vec<rusterix::Texture> = vec![];
+                                        for b in &t.buffer {
+                                            let mut texture = rusterix::Texture::new(
+                                                b.pixels().to_vec(),
+                                                b.dim().width as usize,
+                                                b.dim().height as usize,
+                                            );
+                                            texture.generate_normals(true);
+                                            texture_array.push(texture);
+                                        }
+                                        let tile = rusterix::Tile {
+                                            id: t.id,
+                                            role: rusterix::TileRole::from_index(t.role),
+                                            textures: texture_array.clone(),
+                                            module: None,
+                                            blocking: t.blocking,
+                                            scale: t.scale,
+                                            tags: t.name.clone(),
+                                        };
+                                        project.tiles.insert(id, tile);
+                                    }
+
                                     let mut rusterix = RUSTERIX.write().unwrap();
-                                    let tiles = project.extract_tiles();
-                                    rusterix.set_rgba_tiles(tiles.clone(), true);
+                                    rusterix.set_tiles(project.tiles.clone(), true);
                                     SCENEMANAGER.write().unwrap().set_tile_list(
                                         rusterix.assets.tile_list.clone(),
                                         rusterix.assets.tile_indices.clone(),

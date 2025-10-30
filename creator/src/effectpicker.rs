@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use rusterix::{Light, LightType};
+use rusterix::{Light, LightType, TileRole};
 use theframework::prelude::*;
 
 pub struct EffectPicker {
@@ -225,8 +225,7 @@ impl EffectPicker {
                     if let Some(tile_id) = self.curr_material {
                         if let Some(tile) = project.get_tile_mut(&tile_id) {
                             if let TheValue::Int(role) = value {
-                                tile.role =
-                                    TileRole::from_index(*role as u8).unwrap_or(TileRole::ManMade);
+                                tile.role = TileRole::from_index(*role as u8);
                             }
                         }
                     }
