@@ -180,6 +180,10 @@ pub fn draw_minimap(
             .vm
             .execute(scenevm::Atom::SetAnimationCounter(0));
 
+        scene_handler
+            .vm
+            .execute(scenevm::Atom::SetRenderMode(scenevm::RenderMode::Compute2D));
+
         scene_handler.vm.execute(scenevm::Atom::SetBackground(
             TheColor::from(background).to_vec4(),
         ));

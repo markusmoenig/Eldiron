@@ -5,6 +5,7 @@ pub use crate::tools::{
     terrain::TerrainTool,
 };
 use rusterix::{Assets, GeometrySource, HitInfo};
+use scenevm::GeoId;
 
 pub struct ToolList {
     pub server_time: TheTime,
@@ -1246,6 +1247,9 @@ impl ToolList {
         }
 
         let mut rusterix = RUSTERIX.write().unwrap();
+
+        rusterix.scene_handler.clear_overlay_2d();
+
         // basis_vectors returns (forward, right, up)
         let (cam_forward, cam_right, cam_up) = rusterix.client.camera_d3.basis_vectors();
         let view_right = cam_right;
@@ -1267,6 +1271,7 @@ impl ToolList {
             // Helper to draw a single world-space line into the overlay
             let mut push_line = |overlay_batches: &mut Vec<rusterix::Batch3D>,
                                  geom_src: GeometrySource,
+                                 id: GeoId,
                                  mut a: Vec3<f32>,
                                  mut b: Vec3<f32>,
                                  normal: Vec3<f32>,
@@ -1294,6 +1299,25 @@ impl ToolList {
                 } else {
                     overlay_batches.push(batch);
                 }
+
+                let tile_id = if selected || hovered {
+                    rusterix.scene_handler.selected
+                } else {
+                    rusterix.scene_handler.white
+                };
+
+                let mat_id = rusterix.scene_handler.flat_material;
+
+                rusterix.scene_handler.overlay_2d.add_line_3d(
+                    id,
+                    tile_id,
+                    a,
+                    b,
+                    thickness,
+                    normal,
+                    100,
+                    Some(mat_id),
+                );
             };
 
             // Helper to draw a single vertex as a camera-facing billboard in the overlay
@@ -1347,6 +1371,7 @@ impl ToolList {
                                 push_line(
                                     &mut overlay_batches,
                                     GeometrySource::Linedef(linedef.id),
+                                    GeoId::Linedef(linedef.id),
                                     a,
                                     b,
                                     normal,
@@ -1451,7 +1476,8 @@ impl ToolList {
                 for (_key, e) in edge_accum.into_iter() {
                     push_line(
                         &mut overlay_batches,
-                        GeometrySource::Linedef(e.rep_ld_id), // keep picking by linedef id
+                        GeometrySource::Linedef(e.rep_ld_id),
+                        GeoId::Linedef(e.rep_ld_id),
                         e.a,
                         e.b,
                         cam_forward,
@@ -1469,6 +1495,8 @@ impl ToolList {
                 rusterix.client.scene.d3_overlay.push(batch);
             }
         }
+
+        rusterix.scene_handler.set_overlay_2d();
     }
     /*
     pub fn hitpoint_to_editing_coord(

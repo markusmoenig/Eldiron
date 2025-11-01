@@ -488,8 +488,6 @@ impl MapEditor {
                                             let up_xz =
                                                 vek::Vec3::new(up.x, 0.0, up.z).normalized();
 
-                                            let mut coord = coord.clone();
-                                            coord.x = -coord.x;
                                             let delta = right_xz * coord.x as f32 * world_per_pixel
                                                 - up_xz * coord.y as f32 * world_per_pixel;
 
