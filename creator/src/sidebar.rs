@@ -29,6 +29,8 @@ pub struct Sidebar {
     stack_layout_id: TheId,
     curr_tilemap_uuid: Option<Uuid>,
 
+    regions_id: Uuid,
+
     pub startup: bool,
 }
 
@@ -40,6 +42,9 @@ impl Sidebar {
 
             stack_layout_id: TheId::empty(),
             curr_tilemap_uuid: None,
+
+            regions_id: Uuid::new_v4(),
+
             startup: true,
         }
     }
@@ -144,10 +149,10 @@ impl Sidebar {
 
         //
 
-        let mut header = TheCanvas::new();
-        let mut switchbar = TheSwitchbar::new(TheId::named("Switchbar Section Header"));
-        switchbar.set_text("Region".to_string());
-        header.set_widget(switchbar);
+        // let mut header = TheCanvas::new();
+        // let mut switchbar = TheSwitchbar::new(TheId::named("Switchbar Section Header"));
+        // switchbar.set_text("Project".to_string());
+        // header.set_widget(switchbar);
 
         let mut stack_layout = TheStackLayout::new(TheId::named("List Stack Layout"));
 
@@ -802,11 +807,69 @@ impl Sidebar {
 
         // - End of Sections
 
-        let mut canvas = TheCanvas::new();
+        // Tree View
+
+        let mut canvas: TheCanvas = TheCanvas::new();
+
+        let mut project_canvas: TheCanvas = TheCanvas::new();
+        let mut project_tree_layout = TheTreeLayout::new(TheId::named("Project Tree"));
+        let root = project_tree_layout.get_root();
+
+        let mut regions_node: TheTreeNode =
+            TheTreeNode::new(TheId::named_with_id("Regions", self.regions_id));
+        regions_node.set_open(true);
+
+        root.add_child(regions_node);
+        project_canvas.set_layout(project_tree_layout);
+
+        // Toolbar
+
+        let mut regions_add_button = TheTraybarButton::new(TheId::named("Tilemap Add"));
+        regions_add_button.set_icon_name("icon_role_add".to_string());
+        regions_add_button.set_status_text("Add a new tilemap from an existing PNG image.");
+        let mut regions_remove_button = TheTraybarButton::new(TheId::named("Tilemap Remove"));
+        regions_remove_button.set_icon_name("icon_role_remove".to_string());
+        regions_remove_button.set_status_text("Remove the current tilemap.");
+
+        let mut grid_text = TheText::new(TheId::named("Project Context"));
+        grid_text.set_text("Grid Size".to_string());
+
+        let mut import_button: TheTraybarButton =
+            TheTraybarButton::new(TheId::named("Tilemap Import"));
+        import_button.set_icon_name("import".to_string());
+        import_button.set_status_text("Import a previously exported Eldiron Tilemap from file.");
+        let mut export_button: TheTraybarButton =
+            TheTraybarButton::new(TheId::named("Tilemap Export"));
+        export_button.set_icon_name("export".to_string());
+        export_button.set_status_text("Export an Eldiron Tilemap with all tile metadata.");
+
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
+        toolbar_hlayout.add_widget(Box::new(regions_add_button));
+        toolbar_hlayout.add_widget(Box::new(regions_remove_button));
+        toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+        toolbar_hlayout.add_widget(Box::new(grid_text));
+        toolbar_hlayout.add_widget(Box::new(import_button));
+        toolbar_hlayout.add_widget(Box::new(export_button));
+
+        toolbar_hlayout.set_reverse_index(Some(2));
+
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        toolbar_canvas.set_layout(toolbar_hlayout);
+        project_canvas.set_bottom(toolbar_canvas);
+
+        // ---
+
+        let mut stack_layout = TheStackLayout::new(TheId::named("Tree Stack Layout"));
+        stack_layout.add_canvas(project_canvas);
 
         // canvas.set_top(header);
         // canvas.set_right(sectionbar_canvas);
         // canvas.top_is_expanding = false;
+        // canvas.set_layout(stack_layout);
+
         canvas.set_layout(stack_layout);
 
         // Multi functional footer canvas
@@ -841,9 +904,9 @@ impl Sidebar {
         shared_layout.set_shared_ratio(0.65);
         shared_layout.limiter_mut().set_max_width(self.width);
 
-        footer_canvas.set_top(header);
+        //footer_canvas.set_top(header);
         footer_canvas.set_layout(shared_layout);
-        footer_canvas.set_right(sectionbar_canvas);
+        // footer_canvas.set_right(sectionbar_canvas);
         footer_canvas.top_is_expanding = false;
 
         // canvas.set_bottom(minimap_canvas);
@@ -871,6 +934,14 @@ impl Sidebar {
         let mut redraw = false;
 
         match event {
+            TheEvent::SnapperStateChanged(id, _layout_id, open) => {
+                if *open {
+                    if project.contains_region(&id.uuid) {
+                        server_ctx.curr_region = id.uuid;
+                        self.apply_region(ui, ctx, Some(id.uuid), project);
+                    }
+                }
+            }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Character Region Override" {
                     server_ctx.character_region_override = *index == 1;
@@ -1501,7 +1572,21 @@ impl Sidebar {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if let Some(action_id) = server_ctx.curr_action_id
+                if id.name.starts_with("Region Item Name Edit") {
+                    // Rename a region
+                    if let Some(region) = project.get_region_mut(&id.uuid) {
+                        if let Some(name) = value.to_string() {
+                            region.name = name.clone();
+                            if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                                if let Some(region_node) =
+                                    tree_layout.get_node_by_id_mut(&region.id)
+                                {
+                                    region_node.widget.set_value(TheValue::Text(name));
+                                }
+                            }
+                        }
+                    }
+                } else if let Some(action_id) = server_ctx.curr_action_id
                     && id.name.starts_with("action")
                 {
                     if let Some(action) =
@@ -2022,6 +2107,7 @@ impl Sidebar {
                     }
                 } else if id.name == "Region Item" {
                     server_ctx.editing_pos_buffer = None;
+                    println!("Region Item");
                     self.apply_region(ui, ctx, Some(id.uuid), project);
                     redraw = true;
                 }
@@ -2689,6 +2775,8 @@ impl Sidebar {
             }
         }
 
+        self.apply_regions(ui, ctx, server_ctx, project);
+
         if let Some(list_layout) = ui.get_list_layout("Region List") {
             list_layout.clear();
             for region in &project.regions {
@@ -3070,6 +3158,90 @@ impl Sidebar {
         ctx.ui.relayout = true;
     }
 
+    pub fn apply_regions(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+    ) {
+        let mut id: Option<Uuid> = None;
+
+        if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+            if let Some(region_node) = tree_layout.get_node_by_id_mut(&self.regions_id) {
+                region_node.widgets.clear();
+                region_node.childs.clear();
+
+                for (index, region) in project.regions.iter().enumerate() {
+                    let mut node: TheTreeNode =
+                        TheTreeNode::new(TheId::named_with_id(&region.name, region.id));
+                    if index == 0 {
+                        id = Some(region.id);
+                        node.set_open(true);
+                    }
+
+                    let name = format!("Region Item Name Edit: {}", region.name);
+                    let mut item = TheTreeItem::new(TheId::named(&name));
+                    item.set_text("Name".into());
+
+                    // let name = format!("Region Item Name Edit: {}", region.name);
+                    let mut edit = TheTextLineEdit::new(TheId::named_with_id(&name, region.id));
+                    edit.set_text(region.name.clone());
+                    item.add_widget_column(200, Box::new(edit));
+
+                    node.add_widget(Box::new(item));
+
+                    region_node.add_child(node);
+                }
+
+                // Select the first item
+                /*
+                let mut id = None;
+                if let Some(first) = region_node.widgets.first() {
+                    id = Some(first.id().clone());
+                }
+
+                if let Some(id) = id {
+                    server_ctx.curr_region = id.uuid;
+                    region_node.new_item_selected(&id);
+                    ctx.ui
+                        .send_widget_state_changed(&id, TheWidgetState::Selected);
+                }*/
+            }
+        }
+
+        if let Some(id) = id {
+            server_ctx.curr_region = id;
+            // region_node.new_item_selected(&id);
+            // ctx.ui
+            //     .send_widget_state_changed(&id, TheWidgetState::Selected);
+            self.apply_region(ui, ctx, Some(id), project);
+        }
+
+        /*
+
+
+        list_layout.clear();
+        for region in &project.regions {
+            let mut item = TheListItem::new(TheId::named_with_id("Region Item", region.id));
+            item.set_text(region.name.clone());
+            item.set_context_menu(Some(TheContextMenu {
+                items: vec![
+                    TheContextMenuItem::new(
+                        "Rename Region...".to_string(),
+                        TheId::named("Rename Region"),
+                    ),
+                    // TheContextMenuItem::new(
+                    //     "Copy Prerendered...".to_string(),
+                    //     TheId::named("Copy Prerendered"),
+                    // ),
+                ],
+                ..Default::default()
+            }));
+            list_layout.add_item(item, ctx);
+        }*/
+    }
+
     /// Apply the given item to the UI
     pub fn apply_region(
         &mut self,
@@ -3121,6 +3293,7 @@ impl Sidebar {
             }
         }
 
+        /*
         // Show the filter region content.
 
         let mut filter_text = if let Some(widget) = ui
@@ -3237,7 +3410,7 @@ impl Sidebar {
                     }
                 }
             }
-        }
+        }*/
 
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Minimap"),

@@ -37,7 +37,7 @@ impl ToolList {
             Box::new(SectorTool::new()),
             Box::new(RectTool::new()),
             Box::new(RenderTool::new()),
-            Box::new(TerrainTool::new()),
+            // Box::new(TerrainTool::new()),
             Box::new(CodeTool::new()),
             Box::new(DataTool::new()),
             Box::new(TilesetTool::new()),
@@ -318,7 +318,6 @@ impl ToolList {
                 }
 
                 let mut acc = !ui.focus_widget_supports_text_input(ctx);
-
                 if self.get_current_tool().id().name == "Game Tool"
                     || self.get_current_tool().id().name == "Info Tool"
                     || ui.ctrl
@@ -870,10 +869,10 @@ impl ToolList {
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
                         if let Some(render_view) = ui.get_render_view("PolyView") {
                             server_ctx.hitinfo = self.get_geometry_hit(render_view, *coord);
-                            // println!(
-                            //     "{:?} {:?}",
-                            //     server_ctx.hitinfo.profile_id, server_ctx.hitinfo.geometry_source
-                            // );
+                            println!(
+                                "{:?} {:?}",
+                                server_ctx.hitinfo.profile_id, server_ctx.hitinfo.geometry_source
+                            );
                             // let pt = self.hitpoint_to_editing_coord(
                             //     project,
                             //     server_ctx,

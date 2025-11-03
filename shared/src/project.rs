@@ -183,6 +183,11 @@ impl Project {
         self.tilemaps.retain(|item| item.id != id.uuid);
     }
 
+    /// Contains the region of the given uuid.
+    pub fn contains_region(&self, uuid: &Uuid) -> bool {
+        self.regions.iter().find(|t| t.id == *uuid).is_some()
+    }
+
     /// Get the region of the given uuid.
     pub fn get_region(&self, uuid: &Uuid) -> Option<&Region> {
         self.regions.iter().find(|t| t.id == *uuid)
