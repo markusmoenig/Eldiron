@@ -34,7 +34,7 @@ pub static TOOLLIST: LazyLock<RwLock<ToolList>> =
     LazyLock::new(|| RwLock::new(ToolList::default()));
 pub static ACTIONLIST: LazyLock<RwLock<ActionList>> =
     LazyLock::new(|| RwLock::new(ActionList::default()));
-pub static PANELS: LazyLock<RwLock<Panels>> = LazyLock::new(|| RwLock::new(Panels::new()));
+// pub static PANELS: LazyLock<RwLock<Panels>> = LazyLock::new(|| RwLock::new(Panels::new()));
 pub static CODEEDITOR: LazyLock<RwLock<CodeEditor>> =
     LazyLock::new(|| RwLock::new(CodeEditor::new()));
 pub static PALETTE: LazyLock<RwLock<ThePalette>> =
@@ -57,6 +57,8 @@ pub static EDITCAMERA: LazyLock<RwLock<EditCamera>> =
     LazyLock::new(|| RwLock::new(EditCamera::new()));
 pub static SCENEMANAGER: LazyLock<RwLock<SceneManager>> =
     LazyLock::new(|| RwLock::new(SceneManager::default()));
+pub static DOCKMANAGER: LazyLock<RwLock<DockManager>> =
+    LazyLock::new(|| RwLock::new(DockManager::default()));
 
 pub static CODEGRIDFX: LazyLock<RwLock<Module>> =
     LazyLock::new(|| RwLock::new(Module::as_type(codegridfx::ModuleType::CharacterTemplate)));
@@ -398,11 +400,7 @@ impl TheTrait for Editor {
         self.sidebar.init_ui(ui, ctx, &mut self.project);
 
         // Panels
-        let bottom_panels =
-            PANELS
-                .write()
-                .unwrap()
-                .init_ui(ui, ctx, &mut self.project, &mut self.server_ctx);
+        let bottom_panels = DOCKMANAGER.write().unwrap().init();
 
         // Editor
         //let mut tab_canvas: TheCanvas = TheCanvas::new();
@@ -1098,7 +1096,7 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
-                if PANELS.write().unwrap().handle_event(
+                if DOCKMANAGER.write().unwrap().handle_event(
                     &event,
                     ui,
                     ctx,

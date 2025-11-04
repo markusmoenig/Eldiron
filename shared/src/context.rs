@@ -49,6 +49,18 @@ pub enum ContentContext {
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
+pub enum ProjectContext {
+    Unknown,
+    Region(Uuid),
+    CharacterInstance(Uuid),
+    ItemInstance(Uuid),
+    Sector(Uuid),
+    CharacterTemplate(Uuid),
+    ItemTemplate(Uuid),
+    Shader(Uuid),
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum MapContext {
     Region,
     Screen,
@@ -152,6 +164,9 @@ pub struct ServerContext {
 
     /// The current content context.
     pub cc: ContentContext,
+
+    /// The current project context.
+    pub pc: ProjectContext,
 
     /// The currently selected codegrid in the code editor.
     pub curr_grid_id: Option<Uuid>,
@@ -273,6 +288,8 @@ impl ServerContext {
             curr_character: ContentContext::Unknown,
             curr_item: ContentContext::Unknown,
             cc: ContentContext::Unknown,
+
+            pc: ProjectContext::Unknown,
 
             curr_grid_id: None,
 
