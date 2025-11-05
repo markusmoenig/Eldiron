@@ -169,16 +169,16 @@ impl MapEditor {
         //center.set_left(tile_picker);
 
         // Tool Params
-        let mut toolbar_hlayout = TheHLayout::new(TheId::named("Game Tool Params"));
-        toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(Vec4::new(10, 2, 5, 2));
+        // let mut toolbar_hlayout = TheHLayout::new(TheId::named("Game Tool Params"));
+        // toolbar_hlayout.set_background_color(None);
+        // toolbar_hlayout.set_margin(Vec4::new(10, 2, 5, 2));
 
-        let mut toolbar_canvas = TheCanvas::default();
-        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
-        toolbar_canvas.set_layout(toolbar_hlayout);
+        // let mut toolbar_canvas = TheCanvas::default();
+        // toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        // toolbar_canvas.set_layout(toolbar_hlayout);
 
         center.bottom_is_expanding = true;
-        center.set_bottom(toolbar_canvas);
+        // center.set_bottom(toolbar_canvas);
 
         center
     }

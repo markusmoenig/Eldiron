@@ -56,8 +56,9 @@ impl DockManager {
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
 
-        let mut text = TheText::new(TheId::empty());
+        let mut text = TheText::new(TheId::named("Action Text"));
         text.set_text("Action List".to_string());
+        text.set_text_size(12.0);
 
         let mut action_apply_button = TheTraybarButton::new(TheId::named("Action Apply"));
         action_apply_button.set_text("Apply".to_string());

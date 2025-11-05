@@ -837,7 +837,7 @@ impl Sidebar {
 
         project_canvas.set_layout(project_tree_layout);
 
-        // Toolbar
+        // Tree View Toolbar
 
         let mut add_button = TheTraybarButton::new(TheId::named("Project Add"));
         add_button.set_icon_name("icon_role_add".to_string());
@@ -875,7 +875,7 @@ impl Sidebar {
         toolbar_canvas.set_layout(toolbar_hlayout);
         project_canvas.set_bottom(toolbar_canvas);
 
-        // ---
+        // Shared Layout
 
         let mut stack_layout = TheStackLayout::new(TheId::named("Tree Stack Layout"));
         stack_layout.add_canvas(project_canvas);
@@ -889,12 +889,14 @@ impl Sidebar {
 
         // Multi functional footer canvas
 
-        let mut footer_canvas = TheCanvas::new();
+        let mut right_canvas = TheCanvas::new();
 
         let mut shared_layout = TheSharedVLayout::new(TheId::named("Multi Shared"));
 
-        let mut tab_canvas: TheCanvas = TheCanvas::default();
-        let mut tab = TheTabLayout::new(TheId::named("Multi Tab"));
+        let mut nodes_minimap_canvas: TheCanvas = TheCanvas::default();
+        let mut nodes_minimap_shared = TheSharedVLayout::new(TheId::named("Multi Tab"));
+        nodes_minimap_shared.set_shared_ratio(0.5);
+        nodes_minimap_shared.set_mode(TheSharedVLayoutMode::Shared);
 
         let mut minimap_canvas = TheCanvas::default();
         let mut minimap = TheRenderView::new(TheId::named("MiniMap"));
@@ -909,26 +911,29 @@ impl Sidebar {
         text_layout.set_text_align(TheHorizontalAlign::Right);
         node_settings_canvas.set_layout(text_layout);
 
-        tab.add_canvas("Minimap".to_string(), minimap_canvas);
-        tab.add_canvas("Node Settings".to_string(), node_settings_canvas);
-        tab_canvas.set_layout(tab);
+        let mut header = TheCanvas::new();
+        let mut switchbar = TheSwitchbar::new(TheId::named("Action Header"));
+        switchbar.set_text("Action Settings".to_string());
+        header.set_widget(switchbar);
+
+        node_settings_canvas.set_top(header);
+
+        nodes_minimap_shared.add_canvas(node_settings_canvas);
+        nodes_minimap_shared.add_canvas(minimap_canvas);
+        nodes_minimap_canvas.set_layout(nodes_minimap_shared);
 
         shared_layout.add_canvas(canvas);
-        shared_layout.add_canvas(tab_canvas);
+        shared_layout.add_canvas(nodes_minimap_canvas);
         shared_layout.set_mode(TheSharedVLayoutMode::Shared);
-        shared_layout.set_shared_ratio(0.65);
+        shared_layout.set_shared_ratio(0.5);
         shared_layout.limiter_mut().set_max_width(self.width);
 
-        //footer_canvas.set_top(header);
-        footer_canvas.set_layout(shared_layout);
-        // footer_canvas.set_right(sectionbar_canvas);
-        footer_canvas.top_is_expanding = false;
-
-        // canvas.set_bottom(minimap_canvas);
+        right_canvas.set_layout(shared_layout);
+        right_canvas.top_is_expanding = false;
 
         // --
 
-        ui.canvas.set_right(footer_canvas);
+        ui.canvas.set_right(right_canvas);
 
         self.apply_region(ui, ctx, None, &mut Project::default());
         self.apply_character(ui, ctx, None);
@@ -951,11 +956,27 @@ impl Sidebar {
         match event {
             TheEvent::SnapperStateChanged(id, _layout_id, open) => {
                 if *open {
+                    // Region
                     if project.contains_region(&id.uuid) {
-                        server_ctx.curr_region = id.uuid;
-                        server_ctx.pc = ProjectContext::Region(id.uuid);
-                        self.set_project_context(ctx, ui, project, server_ctx, server_ctx.pc);
+                        self.set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Region(id.uuid),
+                        );
                         self.apply_region(ui, ctx, Some(id.uuid), project);
+                    } else
+                    // Character
+                    if let Some(character) = project.characters.get(&id.uuid) {
+                        self.set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Character(id.uuid),
+                        );
+                        self.apply_character(ui, ctx, Some(character));
                     }
                 }
             }
@@ -1045,16 +1066,14 @@ impl Sidebar {
                                 let scale_x = width / bbox.z;
                                 let scale_y = height / bbox.w;
 
-                                let grid_size = scale_x.min(scale_y);
-
                                 let bbox_center_x = bbox.x + bbox.z / 2.0;
                                 let bbox_center_y = bbox.y + bbox.w / 2.0;
 
-                                let offset_x = -bbox_center_x * grid_size;
-                                let offset_y = bbox_center_y * grid_size;
+                                let offset_x = -bbox_center_x * scale_x;
+                                let offset_y = bbox_center_y * scale_y;
 
-                                let grid_x = (coord.x as f32 - width / 2.0 - offset_x) / grid_size;
-                                let grid_y = (coord.y as f32 - height / 2.0 + offset_y) / grid_size;
+                                let grid_x = (coord.x as f32 - width / 2.0 - offset_x) / scale_x;
+                                let grid_y = (coord.y as f32 - height / 2.0 + offset_y) / scale_y;
 
                                 // If shift is pressed we move the look_at position
                                 if ui.shift && server_ctx.editor_view_mode == EditorViewMode::FirstP
@@ -1604,6 +1623,18 @@ impl Sidebar {
                             }
                         }
                     }
+                } else if id.name.starts_with("Character Item Name Edit") {
+                    // Rename a character
+                    if let Some(character) = project.characters.get_mut(&id.uuid) {
+                        if let Some(name) = value.to_string() {
+                            character.name = name.clone();
+                            if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                                if let Some(node) = tree_layout.get_node_by_id_mut(&character.id) {
+                                    node.widget.set_value(TheValue::Text(name));
+                                }
+                            }
+                        }
+                    }
                 } else if let Some(action_id) = server_ctx.curr_action_id
                     && id.name.starts_with("action")
                 {
@@ -1962,7 +1993,7 @@ impl Sidebar {
                 if let Some(action) = ACTIONLIST.write().unwrap().get_action_by_id_mut(id.uuid) {
                     server_ctx.curr_action_id = Some(action.id().uuid);
 
-                    if let Some(layout) = ui.get_text_layout("Action Settings") {
+                    if let Some(layout) = ui.get_text_layout("Node Settings") {
                         if let Some(map) = project.get_map_mut(&server_ctx) {
                             action.load_params(map);
                         }
@@ -1971,6 +2002,13 @@ impl Sidebar {
                         let nodeui = action.params();
                         nodeui.apply_to_text_layout(layout);
                         ctx.ui.relayout = true;
+
+                        let mut text = action.id().name.clone();
+                        if let Some(accel) = action.accel() {
+                            text += &format!(" ({})", accel.description());
+                        }
+
+                        ui.set_widget_value("Action Header", ctx, TheValue::Text(text));
                     }
                 } else if id.name == "Action Apply" {
                     if let Some(action_id) = server_ctx.curr_action_id {
@@ -2098,8 +2136,13 @@ impl Sidebar {
                             project.regions.push(region);
 
                             server_ctx.curr_region = region_id;
-                            server_ctx.pc = ProjectContext::Region(region_id);
-                            self.set_project_context(ctx, ui, project, server_ctx, server_ctx.pc);
+                            self.set_project_context(
+                                ctx,
+                                ui,
+                                project,
+                                server_ctx,
+                                ProjectContext::Region(region_id),
+                            );
                             self.apply_region(ui, ctx, Some(region_id), project);
                             ctx.ui.relayout = true;
                         }
@@ -2117,13 +2160,12 @@ impl Sidebar {
 
                             if let Some(region) = project.regions.first() {
                                 server_ctx.curr_region = region.id;
-                                server_ctx.pc = ProjectContext::Region(region.id);
                                 self.set_project_context(
                                     ctx,
                                     ui,
                                     project,
                                     server_ctx,
-                                    server_ctx.pc,
+                                    ProjectContext::Region(region.id),
                                 );
                                 self.apply_region(ui, ctx, Some(region.id), project);
                             }
@@ -2163,8 +2205,13 @@ impl Sidebar {
 
                         server_ctx.clear();
                         server_ctx.curr_region = region.id;
-                        server_ctx.pc = ProjectContext::Region(region.id);
-                        self.set_project_context(ctx, ui, project, server_ctx, server_ctx.pc);
+                        self.set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Region(region.id),
+                        );
                         project.regions.push(region);
                     }
                 } else if id.name == "Region Remove" {
@@ -2178,8 +2225,13 @@ impl Sidebar {
                 } else if id.name == "Region Item" {
                     server_ctx.editing_pos_buffer = None;
                     server_ctx.curr_region = id.references;
-                    server_ctx.pc = ProjectContext::Region(id.references);
-                    self.set_project_context(ctx, ui, project, server_ctx, server_ctx.pc);
+                    self.set_project_context(
+                        ctx,
+                        ui,
+                        project,
+                        server_ctx,
+                        ProjectContext::Region(id.references),
+                    );
 
                     self.apply_region(ui, ctx, Some(id.references), project);
                     redraw = true;
@@ -2231,8 +2283,16 @@ impl Sidebar {
                     }
                 } else if id.name == "Character Item" {
                     if let Some(c) = project.characters.get(&id.uuid) {
-                        server_ctx.curr_character = ContentContext::CharacterTemplate(id.uuid);
+                        server_ctx.curr_character =
+                            ContentContext::CharacterTemplate(id.references);
                         server_ctx.cc = ContentContext::CharacterTemplate(id.uuid);
+                        self.set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Character(id.references),
+                        );
                         self.apply_character(ui, ctx, Some(c));
                         redraw = true;
                     }
@@ -3254,21 +3314,28 @@ impl Sidebar {
         let mut node: TheTreeNode =
             TheTreeNode::new(TheId::named_with_id(&character.name, character.id));
 
-        let mut item = TheTreeItem::new(TheId::named_with_reference("Region Item", character.id));
+        let mut item =
+            TheTreeItem::new(TheId::named_with_reference("Character Item", character.id));
         item.set_text("Name".into());
 
-        let name = format!("Region Item Name Edit: {}", character.name);
+        let name = format!("Character Item Name Edit: {}", character.name);
         let mut edit = TheTextLineEdit::new(TheId::named_with_id(&name, character.id));
         edit.set_text(character.name.clone());
         item.add_widget_column(200, Box::new(edit));
 
         node.add_widget(Box::new(item));
 
-        let mut item = TheTreeItem::new(TheId::named_with_reference("Code", character.id));
+        let mut item = TheTreeItem::new(TheId::named_with_reference(
+            "Character Item Code Edit",
+            character.id,
+        ));
         item.set_text("Code".into());
         node.add_widget(Box::new(item));
 
-        let mut item = TheTreeItem::new(TheId::named_with_reference("Data", character.id));
+        let mut item = TheTreeItem::new(TheId::named_with_reference(
+            "Character Item Data Edit",
+            character.id,
+        ));
         item.set_text("Data".into());
         node.add_widget(Box::new(item));
 
@@ -3304,12 +3371,7 @@ impl Sidebar {
 
         if let Some(id) = id {
             server_ctx.curr_region = id;
-            server_ctx.pc = ProjectContext::Region(id);
-            self.set_project_context(ctx, ui, project, server_ctx, server_ctx.pc);
-
-            // region_node.new_item_selected(&id);
-            // ctx.ui
-            //     .send_widget_state_changed(&id, TheWidgetState::Selected);
+            self.set_project_context(ctx, ui, project, server_ctx, ProjectContext::Region(id));
             self.apply_region(ui, ctx, Some(id), project);
         }
     }
@@ -3318,12 +3380,10 @@ impl Sidebar {
     pub fn apply_characters(
         &mut self,
         ui: &mut TheUI,
-        ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        _ctx: &mut TheContext,
+        _server_ctx: &mut ServerContext,
         project: &mut Project,
     ) {
-        let mut id: Option<Uuid> = None;
-
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
             if let Some(characters_node) = tree_layout.get_node_by_id_mut(&self.characters_id) {
                 characters_node.widgets.clear();
@@ -3797,6 +3857,13 @@ impl Sidebar {
                     let nodeui = action.params();
                     nodeui.apply_to_text_layout(layout);
                     ctx.ui.relayout = true;
+
+                    let mut text = action.id().name.clone();
+                    if let Some(accel) = action.accel() {
+                        text += &format!(" ({})", accel.description());
+                    }
+
+                    ui.set_widget_value("Action Header", ctx, TheValue::Text(text));
                 }
             }
         }
@@ -4061,6 +4128,16 @@ impl Sidebar {
         server_ctx: &mut ServerContext,
         pc: ProjectContext,
     ) {
+        if let Some(old_id) = server_ctx.pc.id() {
+            if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                if let Some(node) = tree_layout.get_node_by_id_mut(&old_id) {
+                    if let Some(snapper) = node.widget.as_any().downcast_mut::<TheSnapperbar>() {
+                        snapper.set_selected(false);
+                    }
+                }
+            }
+        }
+
         match pc {
             ProjectContext::Region(id) => {
                 if let Some(region) = project.get_region(&id) {
@@ -4075,8 +4152,32 @@ impl Sidebar {
                     .unwrap()
                     .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
             }
+            ProjectContext::Character(id) => {
+                if let Some(region) = project.characters.get(&id) {
+                    ui.set_widget_value(
+                        "Project Context",
+                        ctx,
+                        TheValue::Text(format!("Character: {}", region.name)),
+                    );
+                }
+                DOCKMANAGER
+                    .write()
+                    .unwrap()
+                    .set_dock("Code".into(), ui, ctx, project, server_ctx);
+            }
             _ => {}
         }
+
+        if let Some(new_id) = pc.id() {
+            if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                if let Some(node) = tree_layout.get_node_by_id_mut(&new_id) {
+                    if let Some(snapper) = node.widget.as_any().downcast_mut::<TheSnapperbar>() {
+                        snapper.set_selected(true);
+                    }
+                }
+            }
+        }
+
         ctx.ui.relayout = true;
         server_ctx.pc = pc;
     }

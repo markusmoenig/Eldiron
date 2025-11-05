@@ -535,8 +535,14 @@ impl TheTrait for Editor {
                     TheId::named("Open"),
                     vec![path],
                 ));
+                return;
             }
         }
+
+        ctx.ui.send(TheEvent::StateChanged(
+            TheId::named("New"),
+            TheWidgetState::Clicked,
+        ));
     }
 
     /// Handle UI events and UI state

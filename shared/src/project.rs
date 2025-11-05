@@ -80,6 +80,8 @@ impl Default for Project {
 
 impl Project {
     pub fn new() -> Self {
+        let region = Region::default();
+
         let mut sky = ShapeFX::new(ShapeFXRole::Sky);
         sky.position.x = 200;
         let render_graph = ShapeFXGraph {
@@ -98,7 +100,7 @@ impl Project {
         Self {
             name: String::new(),
 
-            regions: vec![],
+            regions: vec![region],
             tilemaps: vec![],
 
             tiles: IndexMap::default(),

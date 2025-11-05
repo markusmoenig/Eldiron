@@ -124,20 +124,22 @@ pub fn draw_minimap(
         let bbox_center_y = bbox.y + bbox.w / 2.0;
 
         // Compute the offset to center the map
-        region.map.offset.x = -bbox_center_x * region.map.grid_size;
-        region.map.offset.y = bbox_center_y * region.map.grid_size;
+        let offset_x = -bbox_center_x * scale_x;
+        let offset_y = bbox_center_y * scale_y;
+        region.map.offset.x = offset_x;
+        region.map.offset.y = offset_y;
 
         let mut rusterix = RUSTERIX.write().unwrap();
         let translation_matrix = Mat3::<f32>::translation_2d(Vec2::new(
-            region.map.offset.x + width / 2.0,
-            -region.map.offset.y + height / 2.0,
+            offset_x + width / 2.0,
+            -offset_y + height / 2.0,
         ));
         let scale_matrix = Mat3::new(
-            region.map.grid_size,
+            scale_x,
             0.0,
             0.0,
             0.0,
-            region.map.grid_size,
+            scale_y,
             0.0,
             0.0,
             0.0,
@@ -217,16 +219,15 @@ fn world_to_minimap_pixel(
 
     let scale_x = width / bbox.z;
     let scale_y = height / bbox.w;
-    let grid_size = scale_x.min(scale_y);
 
     let bbox_center_x = bbox.x + bbox.z / 2.0;
     let bbox_center_y = bbox.y + bbox.w / 2.0;
 
-    let offset_x = -bbox_center_x * grid_size;
-    let offset_y = bbox_center_y * grid_size;
+    let offset_x = -bbox_center_x * scale_x;
+    let offset_y = bbox_center_y * scale_y;
 
-    let pixel_x = (world_pos.x * grid_size) + offset_x + (width / 2.0);
-    let pixel_y = (-world_pos.y * grid_size) + offset_y + (height / 2.0);
+    let pixel_x = (world_pos.x * scale_x) + offset_x + (width / 2.0);
+    let pixel_y = (-world_pos.y * scale_y) + offset_y + (height / 2.0);
 
     Vec2::new(pixel_x, render_dim.y - pixel_y)
 }

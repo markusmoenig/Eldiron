@@ -52,12 +52,19 @@ pub enum ContentContext {
 pub enum ProjectContext {
     Unknown,
     Region(Uuid),
-    CharacterInstance(Uuid),
-    ItemInstance(Uuid),
-    Sector(Uuid),
-    CharacterTemplate(Uuid),
-    ItemTemplate(Uuid),
-    Shader(Uuid),
+    Character(Uuid),
+    Item(Uuid),
+}
+
+impl ProjectContext {
+    pub fn id(self) -> Option<Uuid> {
+        match self {
+            ProjectContext::Unknown => None,
+            ProjectContext::Region(id)
+            | ProjectContext::Character(id)
+            | ProjectContext::Item(id) => Some(id),
+        }
+    }
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
