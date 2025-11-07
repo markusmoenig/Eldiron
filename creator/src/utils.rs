@@ -12,6 +12,7 @@ pub fn set_code(
     project: &mut Project,
     server_ctx: &ServerContext,
 ) {
+    return;
     let mut success = false;
 
     match server_ctx.cc {

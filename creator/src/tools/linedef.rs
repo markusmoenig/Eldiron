@@ -4,6 +4,7 @@ use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
 use rusterix::{Surface, prelude::*};
+use scenevm::GeoId;
 use vek::Vec2;
 
 pub struct LinedefTool {
@@ -383,9 +384,9 @@ impl Tool for LinedefTool {
                         ));
                         server_ctx.hover_cursor = Some(cp);
                     } else {
-                        if server_ctx.hitinfo.has_hit() {
-                            match server_ctx.hitinfo.geometry_source {
-                                GeometrySource::Linedef(id) => {
+                        if let Some(geo_id) = server_ctx.geo_hit {
+                            match geo_id {
+                                GeoId::Linedef(id) => {
                                     server_ctx.hover = (None, Some(id), None);
                                 }
                                 _ => {

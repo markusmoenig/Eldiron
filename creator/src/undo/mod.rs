@@ -2,6 +2,9 @@ pub mod character_undo;
 pub mod item_undo;
 pub mod material_undo;
 pub mod palette_undo;
+pub mod project_atoms;
+pub mod project_helper;
+pub mod project_undo;
 pub mod region_undo;
 pub mod screen_undo;
 
@@ -9,6 +12,7 @@ use crate::prelude::*;
 use character_undo::*;
 use item_undo::*;
 use material_undo::*;
+use project_undo::*;
 use screen_undo::*;
 
 #[derive(PartialEq, Clone, Debug)]
@@ -26,6 +30,8 @@ pub enum UndoManagerContext {
 pub struct UndoManager {
     pub context: UndoManagerContext,
     pub max_undo: usize,
+
+    project: ProjectUndo,
 
     regions: FxHashMap<Uuid, RegionUndo>,
     material: MaterialUndo,
@@ -47,6 +53,8 @@ impl UndoManager {
             context: UndoManagerContext::None,
             max_undo: 30,
 
+            project: ProjectUndo::default(),
+
             regions: FxHashMap::default(),
             material: MaterialUndo::default(),
             screen: ScreenUndo::default(),
@@ -58,6 +66,13 @@ impl UndoManager {
 
     pub fn set_context(mut self, context: UndoManagerContext, _ctx: &mut TheContext) {
         self.context = context;
+    }
+
+    pub fn add_undo(&mut self, atom: ProjectUndoAtom, ctx: &mut TheContext) {
+        self.project.add(atom);
+        self.project.truncate_to_limit(self.max_undo);
+        ctx.ui.set_enabled("Undo");
+        self.can_save(ctx);
     }
 
     pub fn add_region_undo(&mut self, region: &Uuid, atom: RegionUndoAtom, ctx: &mut TheContext) {
@@ -111,12 +126,27 @@ impl UndoManager {
 
     pub fn undo(
         &mut self,
-        context_id: Uuid,
         server_ctx: &mut ServerContext,
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) {
+        if self.project.has_undo() {
+            self.project.undo(project, ui, ctx, server_ctx);
+        }
+
+        if !self.project.has_undo() {
+            ctx.ui.set_disabled("Undo");
+        } else {
+            ctx.ui.set_enabled("Undo");
+        }
+
+        if !self.project.has_redo() {
+            ctx.ui.set_disabled("Redo");
+        } else {
+            ctx.ui.set_enabled("Redo");
+        }
+        /*
         match &self.context {
             UndoManagerContext::None => {}
             UndoManagerContext::Region => {
@@ -215,18 +245,33 @@ impl UndoManager {
                     ctx.ui.set_enabled("Redo");
                 }
             }
-        }
+        }*/
         self.can_save(ctx);
     }
 
     pub fn redo(
         &mut self,
-        context_id: Uuid,
         server_ctx: &mut ServerContext,
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) {
+        if self.project.has_redo() {
+            self.project.redo(project, ui, ctx, server_ctx);
+        }
+
+        if !self.project.has_undo() {
+            ctx.ui.set_disabled("Undo");
+        } else {
+            ctx.ui.set_enabled("Undo");
+        }
+
+        if !self.project.has_redo() {
+            ctx.ui.set_disabled("Redo");
+        } else {
+            ctx.ui.set_enabled("Redo");
+        }
+        /*
         match &self.context {
             UndoManagerContext::None => {}
             UndoManagerContext::Region => {
@@ -325,7 +370,7 @@ impl UndoManager {
                     ctx.ui.set_enabled("Redo");
                 }
             }
-        }
+        }*/
         self.can_save(ctx);
     }
 
@@ -342,24 +387,7 @@ impl UndoManager {
 
     /// Checks if the undo manager has any undoable actions.
     pub fn has_undo(&self) -> bool {
-        for region_undo in self.regions.values() {
-            if region_undo.has_undo() {
-                return true;
-            }
-        }
-        if self.material.has_undo() {
-            return true;
-        }
-        if self.screen.has_undo() {
-            return true;
-        }
-        if self.character.has_undo() {
-            return true;
-        }
-        if self.item.has_undo() {
-            return true;
-        }
-        if self.palette.has_undo() {
+        if self.project.has_undo() {
             return true;
         }
         false

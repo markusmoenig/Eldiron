@@ -5,6 +5,7 @@ use MapEvent::*;
 use ToolEvent::*;
 use rusterix::Assets;
 use rusterix::prelude::*;
+use scenevm::GeoId;
 
 pub struct VertexTool {
     id: TheId,
@@ -300,9 +301,9 @@ impl Tool for VertexTool {
                         server_ctx.hover_cursor = Some(cp);
                     }
                 } else {
-                    if server_ctx.hitinfo.has_hit() {
-                        match server_ctx.hitinfo.geometry_source {
-                            GeometrySource::Vertex(id) => {
+                    if let Some(geo_id) = server_ctx.geo_hit {
+                        match geo_id {
+                            GeoId::Vertex(id) => {
                                 server_ctx.hover = (Some(id), None, None);
                             }
                             _ => {

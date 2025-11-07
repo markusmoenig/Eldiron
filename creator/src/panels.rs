@@ -179,6 +179,7 @@ impl Panels {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        return false;
         let mut redraw = false;
         if TILEPICKER
             .write()

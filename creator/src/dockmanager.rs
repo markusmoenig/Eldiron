@@ -17,8 +17,14 @@ impl DockManager {
     pub fn new() -> Self {
         let mut docks = IndexMap::default();
 
-        let dock: Box<dyn Dock> = Box::new(TilesDock::new());
+        let dock: Box<dyn Dock> = Box::new(crate::docks::tiles::TilesDock::new());
         docks.insert("Tiles".into(), dock);
+
+        let dock: Box<dyn Dock> = Box::new(crate::docks::code::CodeDock::new());
+        docks.insert("Code".into(), dock);
+
+        let dock: Box<dyn Dock> = Box::new(crate::docks::data::DataDock::new());
+        docks.insert("Data".into(), dock);
 
         Self {
             docks,
@@ -27,7 +33,7 @@ impl DockManager {
         }
     }
 
-    pub fn init(&mut self) -> TheCanvas {
+    pub fn init(&mut self, ctx: &mut TheContext) -> TheCanvas {
         let mut canvas: TheCanvas = TheCanvas::new();
 
         let mut shared_layout = TheSharedHLayout::new(TheId::named("Dock Shared Layout"));
@@ -40,7 +46,7 @@ impl DockManager {
         let mut dock_stack = TheStackLayout::new(TheId::named("Dock Stack"));
 
         for dock in &mut self.docks.values_mut() {
-            let canvas = dock.setup();
+            let canvas = dock.setup(ctx);
             dock_stack.add_canvas(canvas);
         }
 
@@ -97,11 +103,15 @@ impl DockManager {
                 self.index = index;
                 self.dock = dock;
 
-                self.docks[index].activate(ui, ctx, project, server_ctx);
+                if let Some(stack) = ui.get_stack_layout("Dock Stack") {
+                    stack.set_index(index);
+                }
             } else {
                 eprint!("Dock \"{}\" not found!", self.dock);
+                return;
             }
         }
+        self.docks[self.index].activate(ui, ctx, project, server_ctx);
     }
 
     pub fn handle_event(

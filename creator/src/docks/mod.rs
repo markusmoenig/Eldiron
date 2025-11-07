@@ -1,3 +1,5 @@
+pub mod code;
+pub mod data;
 pub mod tiles;
 
 pub use crate::prelude::*;
@@ -8,7 +10,7 @@ pub trait Dock: Send + Sync {
     where
         Self: Sized;
 
-    fn setup(&mut self) -> TheCanvas;
+    fn setup(&mut self, ctx: &mut TheContext) -> TheCanvas;
 
     fn activate(
         &mut self,

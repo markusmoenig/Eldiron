@@ -1,3 +1,5 @@
+use std::ops::Index;
+
 use crate::editor::{
     ACTIONLIST, CODEEDITOR, CONFIG, CONFIGEDITOR, DOCKMANAGER, PALETTE, RUSTERIX, SCENEMANAGER,
     SHADEGRIDFX, SIDEBARMODE, TILEMAPEDITOR, TOOLLIST, UNDOMANAGER,
@@ -29,10 +31,6 @@ pub struct Sidebar {
     stack_layout_id: TheId,
     curr_tilemap_uuid: Option<Uuid>,
 
-    regions_id: Uuid,
-    characters_id: Uuid,
-    items_id: Uuid,
-
     pub startup: bool,
 }
 
@@ -45,15 +43,16 @@ impl Sidebar {
             stack_layout_id: TheId::empty(),
             curr_tilemap_uuid: None,
 
-            regions_id: Uuid::new_v4(),
-            characters_id: Uuid::new_v4(),
-            items_id: Uuid::new_v4(),
-
             startup: true,
         }
     }
 
-    pub fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext, _project: &mut Project) {
+    pub fn init_ui(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
         let mut sectionbar_canvas = TheCanvas::new();
 
         let mut section_bar_canvas = TheCanvas::new();
@@ -820,18 +819,20 @@ impl Sidebar {
         let root = project_tree_layout.get_root();
 
         let mut regions_node: TheTreeNode =
-            TheTreeNode::new(TheId::named_with_id("Regions", self.regions_id));
+            TheTreeNode::new(TheId::named_with_id("Regions", server_ctx.tree_regions_id));
         regions_node.set_open(true);
 
         root.add_child(regions_node);
 
-        let mut characters_node: TheTreeNode =
-            TheTreeNode::new(TheId::named_with_id("Characters", self.characters_id));
+        let mut characters_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
+            "Characters",
+            server_ctx.tree_characters_id,
+        ));
         characters_node.set_open(true);
         root.add_child(characters_node);
 
         let mut items_node: TheTreeNode =
-            TheTreeNode::new(TheId::named_with_id("Items", self.items_id));
+            TheTreeNode::new(TheId::named_with_id("Items", server_ctx.tree_items_id));
         items_node.set_open(true);
         root.add_child(items_node);
 
@@ -916,7 +917,7 @@ impl Sidebar {
         switchbar.set_text("Action Settings".to_string());
         header.set_widget(switchbar);
 
-        node_settings_canvas.set_top(header);
+        nodes_minimap_canvas.set_top(header);
 
         nodes_minimap_shared.add_canvas(node_settings_canvas);
         nodes_minimap_shared.add_canvas(minimap_canvas);
@@ -2121,105 +2122,23 @@ impl Sidebar {
                 } else if id.name == "Project Add" {
                     if matches!(server_ctx.pc, ProjectContext::Region(_)) {
                         // Add Region
-                        if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-                            let mut region = Region::new();
-                            region.map.name = region.name.clone();
-
-                            let mut node = self.gen_region_tree_node(&region);
-                            node.set_open(true);
-                            if let Some(region_node) =
-                                tree_layout.get_node_by_id_mut(&self.regions_id)
-                            {
-                                region_node.add_child(node);
-                            }
-                            let region_id: Uuid = region.id;
-                            project.regions.push(region);
-
-                            server_ctx.curr_region = region_id;
-                            self.set_project_context(
-                                ctx,
-                                ui,
-                                project,
-                                server_ctx,
-                                ProjectContext::Region(region_id),
-                            );
-                            self.apply_region(ui, ctx, Some(region_id), project);
-                            ctx.ui.relayout = true;
-                        }
+                        let atom = ProjectUndoAtom::AddRegion(Uuid::new_v4());
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                     }
                 } else if id.name == "Project Remove" {
                     if matches!(server_ctx.pc, ProjectContext::Region(_)) {
                         // Remove Region
-                        let region_id = server_ctx.curr_region;
-                        if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-                            if let Some(region_node) =
-                                tree_layout.get_node_by_id_mut(&self.regions_id)
-                            {
-                                region_node.remove_child_by_uuid(&region_id);
-                            }
-
-                            if let Some(region) = project.regions.first() {
-                                server_ctx.curr_region = region.id;
-                                self.set_project_context(
-                                    ctx,
-                                    ui,
-                                    project,
-                                    server_ctx,
-                                    ProjectContext::Region(region.id),
-                                );
-                                self.apply_region(ui, ctx, Some(region.id), project);
-                            }
-                            ctx.ui.relayout = true;
-                        }
-                    }
-                }
-                // Regions Add
-                else if id.name == "Region Add" {
-                    if let Some(list_layout) = ui.get_list_layout("Region List") {
-                        let mut region = Region::new();
-                        region.map.name = region.name.clone();
-
-                        if let Some(bytes) = crate::Embedded::get("toml/region.toml") {
-                            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
-                                region.config = source.to_string();
-                                apply_region_config(&mut region.map, region.config.clone());
-                            }
+                        let mut region = Region::default();
+                        if let Some(r) = project.get_region_ctx(server_ctx) {
+                            region = r.clone();
                         }
 
-                        let mut item =
-                            TheListItem::new(TheId::named_with_id("Region Item", region.id));
-                        item.set_text(region.name.clone());
-                        item.set_state(TheWidgetState::Selected);
-                        item.set_context_menu(Some(TheContextMenu {
-                            items: vec![TheContextMenuItem::new(
-                                "Rename Region...".to_string(),
-                                TheId::named("Rename Region"),
-                            )],
-                            ..Default::default()
-                        }));
-                        list_layout.deselect_all();
-                        let id = item.id().clone();
-                        list_layout.add_item(item, ctx);
-                        ctx.ui
-                            .send_widget_state_changed(&id, TheWidgetState::Selected);
-
-                        server_ctx.clear();
-                        server_ctx.curr_region = region.id;
-                        self.set_project_context(
-                            ctx,
-                            ui,
-                            project,
-                            server_ctx,
-                            ProjectContext::Region(region.id),
-                        );
-                        project.regions.push(region);
-                    }
-                } else if id.name == "Region Remove" {
-                    if let Some(list_layout) = ui.get_list_layout("Region List") {
-                        if let Some(selected) = list_layout.selected() {
-                            list_layout.remove(selected.clone());
-                            project.remove_region(&selected.uuid);
-                            self.apply_region(ui, ctx, None, project);
+                        if let Some(index) = project.regions.iter().position(|r| r.id == region.id)
+                        {
+                            let atom = ProjectUndoAtom::RemoveRegion(index, region);
+                            atom.redo(project, ui, ctx, server_ctx);
+                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                         }
                     }
                 } else if id.name == "Region Item" {
@@ -2282,7 +2201,7 @@ impl Sidebar {
                         }
                     }
                 } else if id.name == "Character Item" {
-                    if let Some(c) = project.characters.get(&id.uuid) {
+                    if let Some(c) = project.characters.get(&id.references) {
                         server_ctx.curr_character =
                             ContentContext::CharacterTemplate(id.references);
                         server_ctx.cc = ContentContext::CharacterTemplate(id.uuid);
@@ -2292,6 +2211,51 @@ impl Sidebar {
                             project,
                             server_ctx,
                             ProjectContext::Character(id.references),
+                        );
+                        self.apply_character(ui, ctx, Some(c));
+                        redraw = true;
+                    }
+                } else if id.name == "Character Item Name Edit" {
+                    if let Some(c) = project.characters.get(&id.references) {
+                        server_ctx.curr_character =
+                            ContentContext::CharacterTemplate(id.references);
+                        server_ctx.cc = ContentContext::CharacterTemplate(id.references);
+                        self.set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Character(id.references),
+                        );
+                        self.apply_character(ui, ctx, Some(c));
+                        redraw = true;
+                    }
+                } else if id.name == "Character Item Code Edit" {
+                    if let Some(c) = project.characters.get(&id.references) {
+                        server_ctx.curr_character =
+                            ContentContext::CharacterTemplate(id.references);
+                        server_ctx.cc = ContentContext::CharacterTemplate(id.references);
+                        self.set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::CharacterCode(id.references),
+                        );
+                        self.apply_character(ui, ctx, Some(c));
+                        redraw = true;
+                    }
+                } else if id.name == "Character Item Data Edit" {
+                    if let Some(c) = project.characters.get(&id.references) {
+                        server_ctx.curr_character =
+                            ContentContext::CharacterTemplate(id.references);
+                        server_ctx.cc = ContentContext::CharacterTemplate(id.references);
+                        self.set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::CharacterData(id.references),
                         );
                         self.apply_character(ui, ctx, Some(c));
                         redraw = true;
@@ -3111,6 +3075,7 @@ impl Sidebar {
         ctx: &mut TheContext,
         character: Option<&Character>,
     ) {
+        /*
         ui.set_widget_disabled_state("Character Remove", ctx, character.is_none());
 
         if let Some(character) = character {
@@ -3126,6 +3091,7 @@ impl Sidebar {
         }
 
         ctx.ui.relayout = true;
+        */
     }
 
     /// Apply the given item to the UI
@@ -3293,7 +3259,7 @@ impl Sidebar {
     }
 
     /// Returns a TheTreeNode for the region.
-    pub fn gen_region_tree_node(&self, region: &Region) -> TheTreeNode {
+    fn gen_region_tree_node(&self, region: &Region) -> TheTreeNode {
         let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&region.name, region.id));
 
         let mut item = TheTreeItem::new(TheId::named_with_reference("Region Item", region.id));
@@ -3303,8 +3269,14 @@ impl Sidebar {
         let mut edit = TheTextLineEdit::new(TheId::named_with_id(&name, region.id));
         edit.set_text(region.name.clone());
         item.add_widget_column(200, Box::new(edit));
-
         node.add_widget(Box::new(item));
+
+        for (id, character) in &region.characters {
+            let mut item = TheTreeItem::new(TheId::named_with_id("Region Content List Item", *id));
+            item.add_value_column(200, TheValue::Text("Character Instance".to_string()));
+            item.set_text(character.name.clone());
+            node.add_widget(Box::new(item));
+        }
 
         node
     }
@@ -3318,8 +3290,10 @@ impl Sidebar {
             TheTreeItem::new(TheId::named_with_reference("Character Item", character.id));
         item.set_text("Name".into());
 
-        let name = format!("Character Item Name Edit: {}", character.name);
-        let mut edit = TheTextLineEdit::new(TheId::named_with_id(&name, character.id));
+        let mut edit = TheTextLineEdit::new(TheId::named_with_id(
+            "Character Item Name Edit",
+            character.id,
+        ));
         edit.set_text(character.name.clone());
         item.add_widget_column(200, Box::new(edit));
 
@@ -3353,7 +3327,7 @@ impl Sidebar {
         let mut id: Option<Uuid> = None;
 
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-            if let Some(region_node) = tree_layout.get_node_by_id_mut(&self.regions_id) {
+            if let Some(region_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id) {
                 region_node.widgets.clear();
                 region_node.childs.clear();
 
@@ -3381,11 +3355,13 @@ impl Sidebar {
         &mut self,
         ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
         project: &mut Project,
     ) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-            if let Some(characters_node) = tree_layout.get_node_by_id_mut(&self.characters_id) {
+            if let Some(characters_node) =
+                tree_layout.get_node_by_id_mut(&server_ctx.tree_characters_id)
+            {
                 characters_node.widgets.clear();
                 characters_node.childs.clear();
 
@@ -4128,6 +4104,7 @@ impl Sidebar {
         server_ctx: &mut ServerContext,
         pc: ProjectContext,
     ) {
+        // println!("set_project_context {:?}", pc);
         if let Some(old_id) = server_ctx.pc.id() {
             if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                 if let Some(node) = tree_layout.get_node_by_id_mut(&old_id) {
@@ -4137,6 +4114,8 @@ impl Sidebar {
                 }
             }
         }
+
+        server_ctx.pc = pc;
 
         match pc {
             ProjectContext::Region(id) => {
@@ -4163,7 +4142,33 @@ impl Sidebar {
                 DOCKMANAGER
                     .write()
                     .unwrap()
+                    .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+            }
+            ProjectContext::CharacterCode(id) => {
+                if let Some(region) = project.characters.get(&id) {
+                    ui.set_widget_value(
+                        "Project Context",
+                        ctx,
+                        TheValue::Text(format!("Character: {}", region.name)),
+                    );
+                }
+                DOCKMANAGER
+                    .write()
+                    .unwrap()
                     .set_dock("Code".into(), ui, ctx, project, server_ctx);
+            }
+            ProjectContext::CharacterData(id) => {
+                if let Some(region) = project.characters.get(&id) {
+                    ui.set_widget_value(
+                        "Project Context",
+                        ctx,
+                        TheValue::Text(format!("Character: {}", region.name)),
+                    );
+                }
+                DOCKMANAGER
+                    .write()
+                    .unwrap()
+                    .set_dock("Data".into(), ui, ctx, project, server_ctx);
             }
             _ => {}
         }
@@ -4179,6 +4184,5 @@ impl Sidebar {
         }
 
         ctx.ui.relayout = true;
-        server_ctx.pc = pc;
     }
 }

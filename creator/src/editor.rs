@@ -397,10 +397,10 @@ impl TheTrait for Editor {
         ui.canvas.set_top(top_canvas);
 
         // Sidebar
-        self.sidebar.init_ui(ui, ctx, &mut self.project);
+        self.sidebar.init_ui(ui, ctx, &mut self.server_ctx);
 
         // Panels
-        let bottom_panels = DOCKMANAGER.write().unwrap().init();
+        let bottom_panels = DOCKMANAGER.write().unwrap().init(ctx);
 
         // Editor
         //let mut tab_canvas: TheCanvas = TheCanvas::new();
@@ -1761,6 +1761,19 @@ impl TheTrait for Editor {
                                             }
                                         }
 
+                                        // Map names of characters to instances
+                                        let mut hash = FxHashMap::default();
+                                        for c in &self.project.characters {
+                                            hash.insert(c.0, c.1.name.clone());
+                                        }
+                                        for r in &mut self.project.regions {
+                                            for c in &mut r.characters {
+                                                if let Some(n) = hash.get(&c.1.character_id) {
+                                                    c.1.name = n.clone();
+                                                }
+                                            }
+                                        }
+
                                         // Convert old tile refs to new tiles
                                         if self.project.tiles.is_empty() {
                                             let tiles = self.project.extract_tiles();
@@ -2124,10 +2137,15 @@ impl TheTrait for Editor {
                             } else {
                                 let mut manager = UNDOMANAGER.write().unwrap();
 
+                                if id.name == "Undo" {
+                                    manager.undo(&mut self.server_ctx, &mut self.project, ui, ctx);
+                                } else {
+                                    manager.redo(&mut self.server_ctx, &mut self.project, ui, ctx);
+                                }
+                                /*
                                 if manager.context == UndoManagerContext::Region {
                                     if id.name == "Undo" {
                                         manager.undo(
-                                            self.server_ctx.curr_region,
                                             &mut self.server_ctx,
                                             &mut self.project,
                                             ui,
@@ -2135,7 +2153,6 @@ impl TheTrait for Editor {
                                         );
                                     } else {
                                         manager.redo(
-                                            self.server_ctx.curr_region,
                                             &mut self.server_ctx,
                                             &mut self.project,
                                             ui,
@@ -2154,7 +2171,6 @@ impl TheTrait for Editor {
                                 {
                                     if id.name == "Undo" {
                                         manager.undo(
-                                            Uuid::nil(),
                                             &mut self.server_ctx,
                                             &mut self.project,
                                             ui,
@@ -2162,14 +2178,13 @@ impl TheTrait for Editor {
                                         );
                                     } else {
                                         manager.redo(
-                                            Uuid::nil(),
                                             &mut self.server_ctx,
                                             &mut self.project,
                                             ui,
                                             ctx,
                                         );
                                     }
-                                }
+                                }*/
                             }
                         } else if id.name == "Cut" {
                             if ui.focus_widget_supports_clipboard(ctx) {

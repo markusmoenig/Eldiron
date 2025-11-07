@@ -61,6 +61,9 @@ pub mod prelude {
     pub use crate::toollist::*;
     pub use crate::undo::material_undo::*;
     pub use crate::undo::palette_undo::*;
+    pub use crate::undo::project_atoms::*;
+    pub use crate::undo::project_helper::*;
+    pub use crate::undo::project_undo::*;
     pub use crate::undo::region_undo::*;
     pub use crate::undo::*;
     pub use crate::utils::*;

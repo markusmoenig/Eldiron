@@ -4,7 +4,7 @@ pub use crate::tools::{
     config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, render::RenderTool,
     terrain::TerrainTool,
 };
-use rusterix::{Assets, GeometrySource, HitInfo};
+use rusterix::Assets;
 use scenevm::GeoId;
 
 pub struct ToolList {
@@ -38,8 +38,8 @@ impl ToolList {
             Box::new(RectTool::new()),
             Box::new(RenderTool::new()),
             // Box::new(TerrainTool::new()),
-            Box::new(CodeTool::new()),
-            Box::new(DataTool::new()),
+            // Box::new(CodeTool::new()),
+            // Box::new(DataTool::new()),
             Box::new(TilesetTool::new()),
             Box::new(ConfigTool::new()),
             Box::new(InfoTool::new()),
@@ -592,15 +592,29 @@ impl ToolList {
                                                     undo_atom,
                                                     ctx,
                                                 );
-                                                if let Some(layout) =
-                                                    ui.get_list_layout("Region Content List")
+                                                // if let Some(layout) =
+                                                //     ui.get_list_layout("Region Content List")
+                                                // {
+                                                //     server_ctx.content_click_from_map = true;
+                                                //     layout.select_item(
+                                                //         entity.creator_id,
+                                                //         ctx,
+                                                //         true,
+                                                //     );
+                                                // }
+                                                if let Some(tree_layout) =
+                                                    ui.get_tree_layout("Project Tree")
                                                 {
-                                                    server_ctx.content_click_from_map = true;
-                                                    layout.select_item(
-                                                        entity.creator_id,
-                                                        ctx,
-                                                        true,
-                                                    );
+                                                    if let Some(node) = tree_layout
+                                                        .get_node_by_id_mut(&server_ctx.curr_region)
+                                                    {
+                                                        node.new_item_selected(
+                                                            &TheId::named_with_id(
+                                                                "Region Content List Item",
+                                                                entity.creator_id,
+                                                            ),
+                                                        );
+                                                    }
                                                 }
                                                 ctx.ui.send(TheEvent::Custom(
                                                     TheId::named("Map Selection Changed"),
@@ -634,11 +648,25 @@ impl ToolList {
                                                     undo_atom,
                                                     ctx,
                                                 );
-                                                if let Some(layout) =
-                                                    ui.get_list_layout("Region Content List")
+                                                // if let Some(layout) =
+                                                //     ui.get_list_layout("Region Content List")
+                                                // {
+                                                //     server_ctx.content_click_from_map = true;
+                                                //     layout.select_item(item.creator_id, ctx, true);
+                                                // }
+                                                if let Some(tree_layout) =
+                                                    ui.get_tree_layout("Project Tree")
                                                 {
-                                                    server_ctx.content_click_from_map = true;
-                                                    layout.select_item(item.creator_id, ctx, true);
+                                                    if let Some(node) = tree_layout
+                                                        .get_node_by_id_mut(&server_ctx.curr_region)
+                                                    {
+                                                        node.new_item_selected(
+                                                            &TheId::named_with_id(
+                                                                "Region Content List Item",
+                                                                item.creator_id,
+                                                            ),
+                                                        );
+                                                    }
                                                 }
                                                 ctx.ui.send(TheEvent::Custom(
                                                     TheId::named("Map Selection Changed"),
@@ -868,11 +896,9 @@ impl ToolList {
                 if id.name == "PolyView" {
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
                         if let Some(render_view) = ui.get_render_view("PolyView") {
-                            server_ctx.hitinfo = self.get_geometry_hit(render_view, *coord);
-                            println!(
-                                "{:?} {:?}",
-                                server_ctx.hitinfo.profile_id, server_ctx.hitinfo.geometry_source
-                            );
+                            server_ctx.geo_hit = self.get_geometry_hit(render_view, *coord);
+
+                            // println!("{:?}", geo_id);
                             // let pt = self.hitpoint_to_editing_coord(
                             //     project,
                             //     server_ctx,
@@ -1246,8 +1272,7 @@ impl ToolList {
         }
 
         let mut rusterix = RUSTERIX.write().unwrap();
-
-        rusterix.scene_handler.clear_overlay_2d();
+        rusterix.scene_handler.clear_overlay();
 
         // basis_vectors returns (forward, right, up)
         let (cam_forward, cam_right, cam_up) = rusterix.client.camera_d3.basis_vectors();
@@ -1256,9 +1281,6 @@ impl ToolList {
         let view_nudge = cam_forward * -0.002; // small toward-camera nudge to avoid z-fighting
         rusterix.client.scene.d3_overlay.clear();
         let thickness = 0.15;
-        // Collect overlay batches locally to avoid multiple mutable borrows of `rusterix` in closures
-        let mut overlay_batches: Vec<rusterix::Batch3D> = Vec::new();
-        let mut overlay_batches_front: Vec<rusterix::Batch3D> = Vec::new();
 
         if self.get_current_tool().id().name == "Render Tool" {
             return;
@@ -1268,35 +1290,17 @@ impl ToolList {
             let map = &region.map;
 
             // Helper to draw a single world-space line into the overlay
-            let mut push_line = |overlay_batches: &mut Vec<rusterix::Batch3D>,
-                                 geom_src: GeometrySource,
-                                 id: GeoId,
+            let mut push_line = |id: GeoId,
                                  mut a: Vec3<f32>,
                                  mut b: Vec3<f32>,
                                  normal: Vec3<f32>,
                                  selected: bool,
                                  hovered: bool| {
-                // Visual: selected OR hovered gets highlight color
-                let highlight = selected || hovered;
-                let color = if highlight {
-                    rusterix::PixelSource::Pixel([187, 122, 208, 255])
-                } else {
-                    rusterix::PixelSource::Pixel(WHITE)
-                };
                 // Z-fight mitigation: nudge along CAMERA FORWARD, not the line normal
                 if selected {
                     let extra_nudge = cam_forward * -0.004; // toward camera
                     a += extra_nudge;
                     b += extra_nudge;
-                }
-                let mut batch: rusterix::Batch3D = rusterix::Batch3D::empty()
-                    .source(color)
-                    .geometry_source(geom_src);
-                batch.add_line(a, b, thickness, normal);
-                if highlight {
-                    overlay_batches_front.push(batch);
-                } else {
-                    overlay_batches.push(batch);
                 }
 
                 let tile_id = if selected || hovered {
@@ -1305,37 +1309,31 @@ impl ToolList {
                     rusterix.scene_handler.white
                 };
 
-                let mat_id = rusterix.scene_handler.flat_material;
-
-                rusterix.scene_handler.overlay_2d.add_line_3d(
-                    id,
-                    tile_id,
-                    a,
-                    b,
-                    thickness,
-                    normal,
-                    100,
-                    Some(mat_id),
-                );
+                rusterix
+                    .scene_handler
+                    .overlay
+                    .add_line_3d(id, tile_id, a, b, thickness, normal, 100);
             };
 
             // Helper to draw a single vertex as a camera-facing billboard in the overlay
             let vertex_size_world = 0.24_f32; // slightly larger for visibility
-            let push_vertex = |overlay_batches: &mut Vec<rusterix::Batch3D>,
-                               geom_src: GeometrySource,
-                               p: Vec3<f32>,
-                               selected: bool| {
-                let color = if selected {
-                    rusterix::PixelSource::Pixel([187, 122, 208, 255]) // selected tint
-                } else {
-                    rusterix::PixelSource::Pixel(WHITE)
+            let push_vertex =
+                |id: GeoId, p: Vec3<f32>, selected: bool, rusterix: &mut rusterix::Rusterix| {
+                    let tile_id = if selected {
+                        rusterix.scene_handler.selected
+                    } else {
+                        rusterix.scene_handler.white
+                    };
+                    rusterix.scene_handler.overlay.add_billboard_3d(
+                        id,
+                        tile_id,
+                        p,
+                        view_right,
+                        view_up,
+                        vertex_size_world,
+                        true,
+                    );
                 };
-                let mut batch: rusterix::Batch3D = rusterix::Batch3D::empty()
-                    .source(color)
-                    .geometry_source(geom_src);
-                batch.add_vertex_billboard(p, view_right, view_up, vertex_size_world);
-                overlay_batches.push(batch);
-            };
 
             if server_ctx.curr_map_tool_type == MapToolType::Vertex {
                 for (idx, v) in map.vertices.iter().enumerate() {
@@ -1344,12 +1342,7 @@ impl ToolList {
                     let vid = idx as u32;
                     let selected =
                         map.selected_vertices.contains(&vid) || server_ctx.hover.0 == Some(vid);
-                    push_vertex(
-                        &mut overlay_batches,
-                        GeometrySource::Vertex(vid),
-                        pos,
-                        selected,
-                    );
+                    push_vertex(GeoId::Vertex(vid), pos, selected, &mut rusterix);
                 }
             } else {
                 // Linedefs
@@ -1368,8 +1361,6 @@ impl ToolList {
                                 let is_hovered = server_ctx.hover.1 == Some(linedef.id);
 
                                 push_line(
-                                    &mut overlay_batches,
-                                    GeometrySource::Linedef(linedef.id),
                                     GeoId::Linedef(linedef.id),
                                     a,
                                     b,
@@ -1474,8 +1465,8 @@ impl ToolList {
                 // Emit deduplicated edges
                 for (_key, e) in edge_accum.into_iter() {
                     push_line(
-                        &mut overlay_batches,
-                        GeometrySource::Linedef(e.rep_ld_id),
+                        // &mut overlay_batches,
+                        // GeometrySource::Linedef(e.rep_ld_id),
                         GeoId::Linedef(e.rep_ld_id),
                         e.a,
                         e.b,
@@ -1487,15 +1478,15 @@ impl ToolList {
             }
 
             // Flush final overlay batches: draw normal overlays first, then highlighted front overlays last
-            for batch in overlay_batches.drain(..) {
-                rusterix.client.scene.d3_overlay.push(batch);
-            }
-            for batch in overlay_batches_front.drain(..) {
-                rusterix.client.scene.d3_overlay.push(batch);
-            }
+            // for batch in overlay_batches.drain(..) {
+            //     rusterix.client.scene.d3_overlay.push(batch);
+            // }
+            // for batch in overlay_batches_front.drain(..) {
+            //     rusterix.client.scene.d3_overlay.push(batch);
+            // }
         }
 
-        rusterix.scene_handler.set_overlay_2d();
+        rusterix.scene_handler.set_overlay();
     }
     /*
     pub fn hitpoint_to_editing_coord(
@@ -1603,20 +1594,29 @@ impl ToolList {
     }*/
 
     /// Get the geometry hit at the given screen position.
-    fn get_geometry_hit(&self, render_view: &dyn TheRenderViewTrait, coord: Vec2<i32>) -> HitInfo {
+    fn get_geometry_hit(
+        &self,
+        render_view: &dyn TheRenderViewTrait,
+        coord: Vec2<i32>,
+    ) -> Option<GeoId> {
         let dim = *render_view.dim();
 
-        let screen_uv = Vec2::new(
+        let screen_uv = [
             coord.x as f32 / dim.width as f32,
-            1.0 - coord.y as f32 / dim.height as f32,
-        );
-        let screen_size = Vec2::new(dim.width as f32, dim.height as f32);
-        let ray = RUSTERIX.read().unwrap().client.camera_d3.create_ray(
+            coord.y as f32 / dim.height as f32,
+        ];
+
+        let rusterix = RUSTERIX.read().unwrap();
+        let rc = rusterix.scene_handler.vm.vm.pick_geo_id_at_uv(
+            dim.width as u32,
+            dim.height as u32,
             screen_uv,
-            screen_size,
-            Vec2::one(),
         );
 
-        RUSTERIX.read().unwrap().client.scene.intersect(&ray)
+        if let Some(rc) = rc {
+            return Some(rc.0);
+        }
+
+        None
     }
 }

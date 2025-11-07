@@ -3,7 +3,8 @@ use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
-use rusterix::{Assets, GeometrySource, PixelSource, Value};
+use rusterix::{Assets, PixelSource, Value};
+use scenevm::GeoId;
 use vek::Vec2;
 
 pub struct SectorTool {
@@ -333,9 +334,9 @@ impl Tool for SectorTool {
                         ));
                         server_ctx.hover_cursor = Some(cp);
                     } else {
-                        if server_ctx.hitinfo.has_hit() {
-                            match server_ctx.hitinfo.geometry_source {
-                                GeometrySource::Sector(id) => {
+                        if let Some(geo_id) = server_ctx.geo_hit {
+                            match geo_id {
+                                GeoId::Sector(id) => {
                                     server_ctx.hover = (None, None, Some(id));
                                 }
                                 _ => {

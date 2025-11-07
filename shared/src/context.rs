@@ -1,6 +1,7 @@
 use crate::prelude::*;
-use rusterix::{HitInfo, Surface};
+use rusterix::Surface;
 pub use rusterix::{Value, map::*};
+use scenevm::GeoId;
 use theframework::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -53,6 +54,8 @@ pub enum ProjectContext {
     Unknown,
     Region(Uuid),
     Character(Uuid),
+    CharacterCode(Uuid),
+    CharacterData(Uuid),
     Item(Uuid),
 }
 
@@ -62,7 +65,18 @@ impl ProjectContext {
             ProjectContext::Unknown => None,
             ProjectContext::Region(id)
             | ProjectContext::Character(id)
+            | ProjectContext::CharacterCode(id)
+            | ProjectContext::CharacterData(id)
             | ProjectContext::Item(id) => Some(id),
+        }
+    }
+
+    pub fn is_character(&self) -> bool {
+        match self {
+            ProjectContext::Character(_)
+            | ProjectContext::CharacterCode(_)
+            | ProjectContext::CharacterData(_) => true,
+            _ => false,
         }
     }
 }
@@ -157,6 +171,11 @@ pub enum MapTextureMode {
 
 /// This gives context to the server of the editing state for live highlighting.
 pub struct ServerContext {
+    // Tree Ids
+    pub tree_regions_id: Uuid,
+    pub tree_characters_id: Uuid,
+    pub tree_items_id: Uuid,
+
     /// The currently selected region in the editor.
     pub curr_region: Uuid,
 
@@ -273,8 +292,8 @@ pub struct ServerContext {
     /// Tile Preview Mode
     pub tile_preview_mode: bool,
 
-    /// The current 3D hover hit on the overlay geometry
-    pub hitinfo: HitInfo,
+    /// The current 3D hover hit
+    pub geo_hit: Option<GeoId>,
 
     /// Temporary storage for the editing positon
     pub editing_pos_buffer: Option<Vec3<f32>>,
@@ -290,6 +309,10 @@ impl ServerContext {
     pub fn new() -> Self {
         Self {
             curr_region: Uuid::nil(),
+
+            tree_regions_id: Uuid::new_v4(),
+            tree_characters_id: Uuid::new_v4(),
+            tree_items_id: Uuid::new_v4(),
 
             curr_region_content: ContentContext::Unknown,
             curr_character: ContentContext::Unknown,
@@ -349,7 +372,7 @@ impl ServerContext {
 
             tile_preview_mode: false,
 
-            hitinfo: HitInfo::default(),
+            geo_hit: None,
 
             editing_pos_buffer: None,
         }

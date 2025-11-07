@@ -25,7 +25,7 @@ impl Dock for TilesDock {
         }
     }
 
-    fn setup(&mut self) -> TheCanvas {
+    fn setup(&mut self, _ctx: &mut TheContext) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
         // Toolbar
@@ -49,6 +49,22 @@ impl Dock for TilesDock {
         filter_edit.set_status_text("Show tiles containing the given tags.");
         filter_edit.set_continuous(true);
         toolbar_hlayout.add_widget(Box::new(filter_edit));
+
+        // for dir in TileRole::iterator() {
+        //     let mut color_button = TheColorButton::new(TheId::named("Tilemap Filter Character"));
+        //     color_button.limiter_mut().set_max_size(vec2i(17, 17));
+        //     color_button.set_color(dir.to_color().to_u8_array());
+        //     color_button.set_state(TheWidgetState::Selected);
+        //     color_button.set_status_text(format!("Show \"{}\" tiles.", dir.to_string()).as_str());
+        //     toolbar_hlayout.add_widget(Box::new(color_button));
+        // }
+
+        let mut drop_down = TheDropdownMenu::new(TheId::named("Tiles Dock Filter Role"));
+        drop_down.add_option("All".to_string());
+        for dir in TileRole::iterator() {
+            drop_down.add_option(dir.to_string().to_string());
+        }
+        toolbar_hlayout.add_widget(Box::new(drop_down));
 
         let mut spacer = TheSpacer::new(TheId::empty());
         spacer.limiter_mut().set_max_width(10);
@@ -158,6 +174,7 @@ impl Dock for TilesDock {
                             }
                         }
                     }
+                    redraw = true;
                 }
             }
             TheEvent::TileEditorDelete(id, selected) => {

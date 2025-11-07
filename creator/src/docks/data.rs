@@ -1,0 +1,80 @@
+use crate::prelude::*;
+use theframework::prelude::*;
+
+pub struct DataDock {}
+
+impl Dock for DataDock {
+    fn new() -> Self
+    where
+        Self: Sized,
+    {
+        Self {}
+    }
+
+    fn setup(&mut self, _ctx: &mut TheContext) -> TheCanvas {
+        let mut center = TheCanvas::new();
+
+        let mut textedit = TheTextAreaEdit::new(TheId::named("DockCharacterDataEditor"));
+        if let Some(bytes) = crate::Embedded::get("parser/TOML.sublime-syntax") {
+            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                textedit.add_syntax_from_string(source);
+                textedit.set_code_type("TOML");
+            }
+        }
+        textedit.set_continuous(true);
+        textedit.display_line_number(true);
+        textedit.set_code_theme("base16-eighties.dark");
+        textedit.use_global_statusbar(true);
+        textedit.set_font_size(14.0);
+        center.set_widget(textedit);
+
+        center
+    }
+
+    fn activate(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        if let Some(id) = server_ctx.pc.id() {
+            if let Some(character) = project.characters.get(&id) {
+                // println!("{}", character.data);
+                ui.set_widget_value(
+                    "DockCharacterDataEditor",
+                    ctx,
+                    TheValue::Text(character.data.clone()),
+                );
+            }
+        }
+    }
+
+    fn handle_event(
+        &mut self,
+        event: &TheEvent,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        let mut redraw = false;
+
+        match event {
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == "DockCharacterDataEditor" {
+                    if let Some(id) = server_ctx.pc.id() {
+                        if let Some(code) = value.to_string() {
+                            if let Some(character) = project.characters.get_mut(&id) {
+                                character.data = code;
+                                redraw = true;
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        redraw
+    }
+}

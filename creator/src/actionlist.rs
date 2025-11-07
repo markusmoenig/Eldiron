@@ -13,11 +13,14 @@ impl Default for ActionList {
 impl ActionList {
     pub fn new() -> Self {
         let actions: Vec<Box<dyn Action>> = vec![
+            Box::new(crate::tools::firstp_camera::FirstPCamera::new()),
+            Box::new(crate::tools::iso_camera::IsoCamera::new()),
+            Box::new(crate::tools::orbit_camera::OrbitCamera::new()),
             Box::new(crate::tools::add_arch::AddArch::new()),
-            Box::new(crate::tools::apply_shader::ApplyShader::new()),
-            Box::new(crate::tools::add_shader_library::AddShaderLibrary::new()),
+            // Box::new(crate::tools::apply_shader::ApplyShader::new()),
+            // Box::new(crate::tools::add_shader_library::AddShaderLibrary::new()),
             Box::new(crate::tools::apply_tile::ApplyTile::new()),
-            Box::new(crate::tools::clear_shader::ClearShader::new()),
+            // Box::new(crate::tools::clear_shader::ClearShader::new()),
             Box::new(crate::tools::clear_tile::ClearTile::new()),
             Box::new(crate::tools::copy_tile_id::CopyTileID::new()),
             Box::new(crate::tools::create_center_vertex::CreateCenterVertex::new()),
@@ -30,8 +33,8 @@ impl ActionList {
             Box::new(crate::tools::extrude_linedef::ExtrudeLinedef::new()),
             Box::new(crate::tools::extrude_sector::ExtrudeSector::new()),
             // Box::new(crate::tools::gen_stone_trim::GenerateStoneTrim::new()),
-            Box::new(crate::tools::load_shader::LoadShader::new()),
-            Box::new(crate::tools::new_shader::NewShader::new()),
+            // Box::new(crate::tools::load_shader::LoadShader::new()),
+            // Box::new(crate::tools::new_shader::NewShader::new()),
             Box::new(crate::tools::recess::Recess::new()),
             Box::new(crate::tools::relief::Relief::new()),
             Box::new(crate::tools::set_editing_surface::SetEditingSurface::new()),
