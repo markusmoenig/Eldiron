@@ -1,5 +1,3 @@
-use std::ops::Index;
-
 use crate::editor::{
     ACTIONLIST, CODEEDITOR, CONFIG, CONFIGEDITOR, DOCKMANAGER, PALETTE, RUSTERIX, SCENEMANAGER,
     SHADEGRIDFX, SIDEBARMODE, TILEMAPEDITOR, TOOLLIST, UNDOMANAGER,
@@ -843,6 +841,15 @@ impl Sidebar {
         let mut add_button = TheTraybarButton::new(TheId::named("Project Add"));
         add_button.set_icon_name("icon_role_add".to_string());
         add_button.set_status_text("Add to the project.");
+
+        add_button.set_context_menu(Some(TheContextMenu {
+            items: vec![
+                TheContextMenuItem::new("Add Region".to_string(), TheId::named("Add Region")),
+                TheContextMenuItem::new("Add Character".to_string(), TheId::named("Add Character")),
+            ],
+            ..Default::default()
+        }));
+
         let mut remove_button = TheTraybarButton::new(TheId::named("Project Remove"));
         remove_button.set_icon_name("icon_role_remove".to_string());
         remove_button.set_status_text("Remove an item from the project.");
@@ -1611,18 +1618,15 @@ impl Sidebar {
             TheEvent::ValueChanged(id, value) => {
                 if id.name.starts_with("Region Item Name Edit") {
                     // Rename a region
+                    let mut old = String::new();
                     if let Some(region) = project.get_region_mut(&id.uuid) {
-                        if let Some(name) = value.to_string() {
-                            region.name = name.clone();
-                            region.map.name = name.clone();
-                            if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-                                if let Some(region_node) =
-                                    tree_layout.get_node_by_id_mut(&region.id)
-                                {
-                                    region_node.widget.set_value(TheValue::Text(name));
-                                }
-                            }
-                        }
+                        old = region.name.clone();
+                    }
+
+                    if let Some(name) = value.to_string() {
+                        let atom = ProjectUndoAtom::RenameRegion(id.uuid, old, name);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                     }
                 } else if id.name.starts_with("Character Item Name Edit") {
                     // Rename a character
@@ -2119,15 +2123,18 @@ impl Sidebar {
                             redraw = true;
                         }
                     }
-                } else if id.name == "Project Add" {
-                    if matches!(server_ctx.pc, ProjectContext::Region(_)) {
-                        // Add Region
-                        let atom = ProjectUndoAtom::AddRegion(Uuid::new_v4());
-                        atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
-                    }
+                } else if id.name == "Add Region" {
+                    // Add Region
+                    let atom = ProjectUndoAtom::AddRegion(Uuid::new_v4());
+                    atom.redo(project, ui, ctx, server_ctx);
+                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                } else if id.name == "Add Character" {
+                    // Add Character
+                    let atom = ProjectUndoAtom::AddCharacter(Uuid::new_v4());
+                    atom.redo(project, ui, ctx, server_ctx);
+                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                 } else if id.name == "Project Remove" {
-                    if matches!(server_ctx.pc, ProjectContext::Region(_)) {
+                    if server_ctx.pc.is_region() {
                         // Remove Region
                         let mut region = Region::default();
                         if let Some(r) = project.get_region_ctx(server_ctx) {
@@ -2139,6 +2146,20 @@ impl Sidebar {
                             let atom = ProjectUndoAtom::RemoveRegion(index, region);
                             atom.redo(project, ui, ctx, server_ctx);
                             UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        }
+                    } else if server_ctx.pc.is_character() {
+                        // Remove Character
+                        let mut character: Character = Character::default();
+                        if let Some(id) = server_ctx.pc.id() {
+                            if let Some(c) = project.characters.get(&id) {
+                                character = c.clone();
+                            }
+
+                            if let Some(index) = project.characters.get_index_of(&id) {
+                                let atom = ProjectUndoAtom::RemoveCharacter(index, character);
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            }
                         }
                     }
                 } else if id.name == "Region Item" {
@@ -3071,9 +3092,9 @@ impl Sidebar {
     /// Apply the given character to the UI
     pub fn apply_character(
         &mut self,
-        ui: &mut TheUI,
-        ctx: &mut TheContext,
-        character: Option<&Character>,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _character: Option<&Character>,
     ) {
         /*
         ui.set_widget_disabled_state("Character Remove", ctx, character.is_none());

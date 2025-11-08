@@ -71,6 +71,13 @@ impl ProjectContext {
         }
     }
 
+    pub fn is_region(&self) -> bool {
+        match self {
+            ProjectContext::Region(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn is_character(&self) -> bool {
         match self {
             ProjectContext::Character(_)

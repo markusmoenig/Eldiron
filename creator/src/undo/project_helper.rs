@@ -25,6 +25,40 @@ pub fn gen_region_tree_node(region: &Region) -> TheTreeNode {
     node
 }
 
+/// Returns a TheTreeNode for the character.
+pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
+    let mut node: TheTreeNode =
+        TheTreeNode::new(TheId::named_with_id(&character.name, character.id));
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Character Item", character.id));
+    item.set_text("Name".into());
+
+    let mut edit = TheTextLineEdit::new(TheId::named_with_id(
+        "Character Item Name Edit",
+        character.id,
+    ));
+    edit.set_text(character.name.clone());
+    item.add_widget_column(200, Box::new(edit));
+
+    node.add_widget(Box::new(item));
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference(
+        "Character Item Code Edit",
+        character.id,
+    ));
+    item.set_text("Code".into());
+    node.add_widget(Box::new(item));
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference(
+        "Character Item Data Edit",
+        character.id,
+    ));
+    item.set_text("Data".into());
+    node.add_widget(Box::new(item));
+
+    node
+}
+
 /// Rerender the current region.
 pub fn update_region(ctx: &mut TheContext) {
     ctx.ui.send(TheEvent::Custom(
