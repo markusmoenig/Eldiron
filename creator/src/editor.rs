@@ -2335,6 +2335,11 @@ impl TheTrait for Editor {
         }
         redraw
     }
+
+    /// Returns true if there are changes
+    fn has_changes(&self) -> bool {
+        UNDOMANAGER.read().unwrap().has_undo()
+    }
 }
 
 pub trait EldironEditor {

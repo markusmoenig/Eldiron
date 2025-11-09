@@ -10,6 +10,7 @@ pub enum ProjectUndoAtom {
     RenameRegion(Uuid, String, String),
     AddCharacter(Uuid),
     RemoveCharacter(usize, Character),
+    RenameCharacter(Uuid, String, String),
 }
 
 use ProjectUndoAtom::*;
@@ -106,8 +107,20 @@ impl ProjectUndoAtom {
                     update_region(ctx);
                 }
             }
+            RenameCharacter(id, old, _new) => {
+                if let Some(character) = project.characters.get_mut(id) {
+                    character.name = old.clone();
+                    character.map.name = old.clone();
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(region_node) = tree_layout.get_node_by_id_mut(&character.id) {
+                            region_node.widget.set_value(TheValue::Text(old.clone()));
+                        }
+                    }
+                }
+            }
         }
     }
+
     pub fn redo(
         &self,
         project: &mut Project,
@@ -240,6 +253,17 @@ impl ProjectUndoAtom {
                             server_ctx,
                             ProjectContext::Character(*character.0),
                         );
+                    }
+                }
+            }
+            RenameCharacter(id, _old, new) => {
+                if let Some(character) = project.characters.get_mut(id) {
+                    character.name = new.clone();
+                    character.map.name = new.clone();
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(region_node) = tree_layout.get_node_by_id_mut(&character.id) {
+                            region_node.widget.set_value(TheValue::Text(new.clone()));
+                        }
                     }
                 }
             }

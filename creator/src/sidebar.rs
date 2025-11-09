@@ -1623,22 +1623,26 @@ impl Sidebar {
                         old = region.name.clone();
                     }
 
-                    if let Some(name) = value.to_string() {
+                    if let Some(name) = value.to_string()
+                        && old != name
+                    {
                         let atom = ProjectUndoAtom::RenameRegion(id.uuid, old, name);
                         atom.redo(project, ui, ctx, server_ctx);
                         UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                     }
                 } else if id.name.starts_with("Character Item Name Edit") {
-                    // Rename a character
-                    if let Some(character) = project.characters.get_mut(&id.uuid) {
-                        if let Some(name) = value.to_string() {
-                            character.name = name.clone();
-                            if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-                                if let Some(node) = tree_layout.get_node_by_id_mut(&character.id) {
-                                    node.widget.set_value(TheValue::Text(name));
-                                }
-                            }
-                        }
+                    // Rename a Character
+                    let mut old = String::new();
+                    if let Some(character) = project.characters.get(&id.uuid) {
+                        old = character.name.clone();
+                    }
+
+                    if let Some(name) = value.to_string()
+                        && old != name
+                    {
+                        let atom = ProjectUndoAtom::RenameCharacter(id.uuid, old, name);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                     }
                 } else if let Some(action_id) = server_ctx.curr_action_id
                     && id.name.starts_with("action")

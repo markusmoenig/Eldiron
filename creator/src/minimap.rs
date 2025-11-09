@@ -134,17 +134,7 @@ pub fn draw_minimap(
             offset_x + width / 2.0,
             -offset_y + height / 2.0,
         ));
-        let scale_matrix = Mat3::new(
-            scale_x,
-            0.0,
-            0.0,
-            0.0,
-            scale_y,
-            0.0,
-            0.0,
-            0.0,
-            1.0,
-        );
+        let scale_matrix = Mat3::new(scale_x, 0.0, 0.0, 0.0, scale_y, 0.0, 0.0, 0.0, 1.0);
 
         let transform = translation_matrix * scale_matrix;
         // let assets = rusterix.assets.clone();
@@ -172,6 +162,7 @@ pub fn draw_minimap(
 
         let scene_handler = &mut rusterix.scene_handler;
 
+        // Ambient light
         scene_handler.vm.execute(scenevm::Atom::SetGP1(Vec4::one()));
 
         scene_handler
@@ -190,9 +181,13 @@ pub fn draw_minimap(
             TheColor::from(background).to_vec4(),
         ));
 
+        scene_handler.vm.set_layer_enabled(1, false);
+
         scene_handler
             .vm
             .render_frame(buffer.pixels_mut(), width as u32, height as u32);
+
+        scene_handler.vm.set_layer_enabled(1, true);
 
         // rusterix.client.scene.animation_frame = anim_frame;
         MINIMAPBUFFER

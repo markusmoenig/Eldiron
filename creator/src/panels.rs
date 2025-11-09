@@ -1,6 +1,6 @@
 use crate::editor::{
     CODEEDITOR, CODEGRIDFX, CONFIGEDITOR, INFOVIEWER, NODEEDITOR, RENDEREDITOR, SHADEGRIDFX,
-    SHADERBUFFER, SHAPEPICKER, TILEMAPEDITOR, TILEPICKER, WORLDEDITOR,
+    SHAPEPICKER, TILEMAPEDITOR, TILEPICKER, WORLDEDITOR,
 };
 use crate::prelude::*;
 
@@ -171,6 +171,7 @@ impl Panels {
         canvas
     }
 
+    /*
     pub fn handle_event(
         &mut self,
         event: &TheEvent,
@@ -358,7 +359,7 @@ impl Panels {
         }
 
         redraw
-    }
+    }*/
 
     /// Sets the brush panel.
     pub fn set_brush_panel(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {

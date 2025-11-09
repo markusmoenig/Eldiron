@@ -69,59 +69,66 @@ impl UndoManager {
     }
 
     pub fn add_undo(&mut self, atom: ProjectUndoAtom, ctx: &mut TheContext) {
+        println!("Undo: {:?}", atom);
         self.project.add(atom);
         self.project.truncate_to_limit(self.max_undo);
         ctx.ui.set_enabled("Undo");
         self.can_save(ctx);
     }
 
+    #[allow(unused_variables)]
     pub fn add_region_undo(&mut self, region: &Uuid, atom: RegionUndoAtom, ctx: &mut TheContext) {
-        self.context = UndoManagerContext::Region;
-        let region_undo = self.regions.entry(*region).or_default();
-        region_undo.add(atom);
-        region_undo.truncate_to_limit(self.max_undo);
-        ctx.ui.set_enabled("Undo");
-        self.can_save(ctx);
+        // self.context = UndoManagerContext::Region;
+        // let region_undo = self.regions.entry(*region).or_default();
+        // region_undo.add(atom);
+        // region_undo.truncate_to_limit(self.max_undo);
+        // ctx.ui.set_enabled("Undo");
+        // self.can_save(ctx);
     }
 
+    #[allow(unused_variables)]
     pub fn add_material_undo(&mut self, atom: MaterialUndoAtom, ctx: &mut TheContext) {
-        self.context = UndoManagerContext::Material;
-        self.material.add(atom);
-        self.material.truncate_to_limit(self.max_undo);
-        ctx.ui.set_enabled("Undo");
-        self.can_save(ctx);
+        // self.context = UndoManagerContext::Material;
+        // self.material.add(atom);
+        // self.material.truncate_to_limit(self.max_undo);
+        // ctx.ui.set_enabled("Undo");
+        // self.can_save(ctx);
     }
 
+    #[allow(unused_variables)]
     pub fn add_character_undo(&mut self, atom: CharacterUndoAtom, ctx: &mut TheContext) {
-        self.context = UndoManagerContext::Character;
-        self.character.add(atom);
-        self.character.truncate_to_limit(self.max_undo);
-        ctx.ui.set_enabled("Undo");
-        self.can_save(ctx);
+        // self.context = UndoManagerContext::Character;
+        // self.character.add(atom);
+        // self.character.truncate_to_limit(self.max_undo);
+        // ctx.ui.set_enabled("Undo");
+        // self.can_save(ctx);
     }
 
+    #[allow(unused_variables)]
     pub fn add_item_undo(&mut self, atom: ItemUndoAtom, ctx: &mut TheContext) {
-        self.context = UndoManagerContext::Item;
-        self.item.add(atom);
-        self.item.truncate_to_limit(self.max_undo);
-        ctx.ui.set_enabled("Undo");
-        self.can_save(ctx);
+        // self.context = UndoManagerContext::Item;
+        // self.item.add(atom);
+        // self.item.truncate_to_limit(self.max_undo);
+        // ctx.ui.set_enabled("Undo");
+        // self.can_save(ctx);
     }
 
+    #[allow(unused_variables)]
     pub fn add_screen_undo(&mut self, atom: ScreenUndoAtom, ctx: &mut TheContext) {
-        self.context = UndoManagerContext::Screen;
-        self.screen.add(atom);
-        self.screen.truncate_to_limit(self.max_undo);
-        ctx.ui.set_enabled("Undo");
-        self.can_save(ctx);
+        // self.context = UndoManagerContext::Screen;
+        // self.screen.add(atom);
+        // self.screen.truncate_to_limit(self.max_undo);
+        // ctx.ui.set_enabled("Undo");
+        // self.can_save(ctx);
     }
 
+    #[allow(unused_variables)]
     pub fn add_palette_undo(&mut self, atom: PaletteUndoAtom, ctx: &mut TheContext) {
-        self.context = UndoManagerContext::Palette;
-        self.palette.add(atom);
-        self.palette.truncate_to_limit(self.max_undo);
-        ctx.ui.set_enabled("Undo");
-        self.can_save(ctx);
+        // self.context = UndoManagerContext::Palette;
+        // self.palette.add(atom);
+        // self.palette.truncate_to_limit(self.max_undo);
+        // ctx.ui.set_enabled("Undo");
+        // self.can_save(ctx);
     }
 
     pub fn undo(

@@ -750,9 +750,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.43"
+version = "1.2.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "739eb0f94557554b3ca9a86d2d37bebd49c5e6d0c1d2bda35ba5bdac830befc2"
+checksum = "35900b6c8d709fb1d854671ae27aeaa9eec2f8b01b364e1619a40da3e6fe2afe"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -2592,22 +2592,22 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 
 [[package]]
 name = "jiff"
-version = "0.2.15"
+version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be1f93b8b1eb69c77f24bbb0afdf66f54b632ee39af40ca21c4365a1d7347e49"
+checksum = "49cce2b81f2098e7e3efc35bc2e0a6b7abec9d34128283d7a26fa8f32a6dbb35"
 dependencies = [
  "jiff-static",
  "log",
  "portable-atomic",
  "portable-atomic-util",
- "serde",
+ "serde_core",
 ]
 
 [[package]]
 name = "jiff-static"
-version = "0.2.15"
+version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03343451ff899767262ec32146f6d559dd759fdadf42ff0e227c7c48f72594b4"
+checksum = "980af8b43c3ad5d8d349ace167ec8170839f753a42d233ba19e08afe1850fa69"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3810,9 +3810,9 @@ dependencies = [
 
 [[package]]
 name = "openssl"
-version = "0.10.74"
+version = "0.10.75"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24ad14dd45412269e1a30f52ad8f0664f0f4f4a89ee8fe28c3b3527021ebb654"
+checksum = "08838db121398ad17ab8531ce9de97b244589089e290a384c900cb9ff7434328"
 dependencies = [
  "bitflags 2.10.0",
  "cfg-if",
@@ -3842,9 +3842,9 @@ checksum = "d05e27ee213611ffe7d6348b942e8f942b37114c00cc03cec254295a4a17852e"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.110"
+version = "0.9.111"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a9f0075ba3c21b09f8e8b2026584b1d18d49388648f2fbbf3c97ea8deced8e2"
+checksum = "82cab2d520aa75e3c58898289429321eb788c3106963d0dc886ec7a5f4adc321"
 dependencies = [
  "cc",
  "libc",
@@ -3860,9 +3860,9 @@ checksum = "978aa494585d3ca4ad74929863093e87cac9790d81fe7aba2b3dc2890643a0fc"
 
 [[package]]
 name = "orbclient"
-version = "0.3.48"
+version = "0.3.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba0b26cec2e24f08ed8bb31519a9333140a6599b867dac464bb150bdb796fd43"
+checksum = "247ad146e19b9437f8604c21f8652423595cf710ad108af40e77d3ae6e96b827"
 dependencies = [
  "libredox",
 ]
@@ -4308,9 +4308,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.41"
+version = "1.0.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce25767e7b499d1b604768e7cde645d14cc8584231ea6b295e9c9eb22c02e1d1"
+checksum = "a338cc41d27e6cc6dce6cefc13a0729dfbb81c262b1f519331575dd80ef3067f"
 dependencies = [
  "proc-macro2",
 ]
@@ -4746,9 +4746,9 @@ dependencies = [
 
 [[package]]
 name = "rust-embed"
-version = "8.8.0"
+version = "8.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb44e1917075637ee8c7bcb865cf8830e3a92b5b1189e44e3a0ab5a0d5be314b"
+checksum = "947d7f3fad52b283d261c4c99a084937e2fe492248cb9a68a8435a861b8798ca"
 dependencies = [
  "rust-embed-impl",
  "rust-embed-utils",
@@ -4757,9 +4757,9 @@ dependencies = [
 
 [[package]]
 name = "rust-embed-impl"
-version = "8.8.0"
+version = "8.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "382499b49db77a7c19abd2a574f85ada7e9dbe125d5d1160fa5cad7c4cf71fc9"
+checksum = "5fa2c8c9e8711e10f9c4fd2d64317ef13feaab820a4c51541f1a8c8e2e851ab2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4770,9 +4770,9 @@ dependencies = [
 
 [[package]]
 name = "rust-embed-utils"
-version = "8.8.0"
+version = "8.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21fcbee55c2458836bcdbfffb6ec9ba74bbc23ca7aa6816015a3dd2c4d8fc185"
+checksum = "60b161f275cb337fe0a44d924a5f4df0ed69c2c39519858f931ce61c779d3475"
 dependencies = [
  "globset",
  "sha2",
@@ -4901,7 +4901,7 @@ dependencies = [
 [[package]]
 name = "rustpython"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#9e7d291b63f4f2b3746146c3ed654d1b551490cb"
+source = "git+https://github.com/RustPython/RustPython#5cad66cebfc62a7912197ae299ac13e8629c560d"
 dependencies = [
  "cfg-if",
  "dirs-next",
@@ -4921,7 +4921,7 @@ dependencies = [
 [[package]]
 name = "rustpython-codegen"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#9e7d291b63f4f2b3746146c3ed654d1b551490cb"
+source = "git+https://github.com/RustPython/RustPython#5cad66cebfc62a7912197ae299ac13e8629c560d"
 dependencies = [
  "ahash",
  "bitflags 2.10.0",
@@ -4944,7 +4944,7 @@ dependencies = [
 [[package]]
 name = "rustpython-common"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#9e7d291b63f4f2b3746146c3ed654d1b551490cb"
+source = "git+https://github.com/RustPython/RustPython#5cad66cebfc62a7912197ae299ac13e8629c560d"
 dependencies = [
  "ascii",
  "bitflags 2.10.0",
@@ -4972,7 +4972,7 @@ dependencies = [
 [[package]]
 name = "rustpython-compiler"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#9e7d291b63f4f2b3746146c3ed654d1b551490cb"
+source = "git+https://github.com/RustPython/RustPython#5cad66cebfc62a7912197ae299ac13e8629c560d"
 dependencies = [
  "ruff_python_ast",
  "ruff_python_parser",
@@ -4986,7 +4986,7 @@ dependencies = [
 [[package]]
 name = "rustpython-compiler-core"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#9e7d291b63f4f2b3746146c3ed654d1b551490cb"
+source = "git+https://github.com/RustPython/RustPython#5cad66cebfc62a7912197ae299ac13e8629c560d"
 dependencies = [
  "bitflags 2.10.0",
  "itertools 0.14.0",
@@ -5000,7 +5000,7 @@ dependencies = [
 [[package]]
 name = "rustpython-derive"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#9e7d291b63f4f2b3746146c3ed654d1b551490cb"
+source = "git+https://github.com/RustPython/RustPython#5cad66cebfc62a7912197ae299ac13e8629c560d"
 dependencies = [
  "rustpython-compiler",
  "rustpython-derive-impl",
@@ -5010,7 +5010,7 @@ dependencies = [
 [[package]]
 name = "rustpython-derive-impl"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#9e7d291b63f4f2b3746146c3ed654d1b551490cb"
+source = "git+https://github.com/RustPython/RustPython#5cad66cebfc62a7912197ae299ac13e8629c560d"
 dependencies = [
  "itertools 0.14.0",
  "maplit",
@@ -5034,7 +5034,7 @@ dependencies = [
 [[package]]
 name = "rustpython-literal"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#9e7d291b63f4f2b3746146c3ed654d1b551490cb"
+source = "git+https://github.com/RustPython/RustPython#5cad66cebfc62a7912197ae299ac13e8629c560d"
 dependencies = [
  "hexf-parse",
  "is-macro",
@@ -5047,7 +5047,7 @@ dependencies = [
 [[package]]
 name = "rustpython-pylib"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#9e7d291b63f4f2b3746146c3ed654d1b551490cb"
+source = "git+https://github.com/RustPython/RustPython#5cad66cebfc62a7912197ae299ac13e8629c560d"
 dependencies = [
  "glob",
  "rustpython-compiler-core",
@@ -5057,7 +5057,7 @@ dependencies = [
 [[package]]
 name = "rustpython-sre_engine"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#9e7d291b63f4f2b3746146c3ed654d1b551490cb"
+source = "git+https://github.com/RustPython/RustPython#5cad66cebfc62a7912197ae299ac13e8629c560d"
 dependencies = [
  "bitflags 2.10.0",
  "num_enum",
@@ -5068,7 +5068,7 @@ dependencies = [
 [[package]]
 name = "rustpython-stdlib"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#9e7d291b63f4f2b3746146c3ed654d1b551490cb"
+source = "git+https://github.com/RustPython/RustPython#5cad66cebfc62a7912197ae299ac13e8629c560d"
 dependencies = [
  "adler32",
  "ahash",
@@ -5139,7 +5139,7 @@ dependencies = [
 [[package]]
 name = "rustpython-vm"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#9e7d291b63f4f2b3746146c3ed654d1b551490cb"
+source = "git+https://github.com/RustPython/RustPython#5cad66cebfc62a7912197ae299ac13e8629c560d"
 dependencies = [
  "ahash",
  "ascii",
@@ -5212,7 +5212,7 @@ dependencies = [
 [[package]]
 name = "rustpython-wtf8"
 version = "0.4.0"
-source = "git+https://github.com/RustPython/RustPython#9e7d291b63f4f2b3746146c3ed654d1b551490cb"
+source = "git+https://github.com/RustPython/RustPython#5cad66cebfc62a7912197ae299ac13e8629c560d"
 dependencies = [
  "ascii",
  "bstr",
@@ -5761,9 +5761,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "syn"
-version = "2.0.108"
+version = "2.0.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da58917d35242480a05c2897064da0a80589a2a0476c9a3f2fdc83b53502e917"
+checksum = "2f17c7e013e88258aa9543dcbe81aca68a667a9ac37cd69c9fbc07858bfe0e2f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6168,9 +6168,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.16"
+version = "0.7.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14307c986784f72ef81c89db7d9e28d6ac26d16213b109ea501696195e6e3ce5"
+checksum = "2efa149fe76073d6e8fd97ef4f4eca7b67f599660115591483572e406e165594"
 dependencies = [
  "bytes",
  "futures-core",
@@ -6659,9 +6659,9 @@ dependencies = [
 
 [[package]]
 name = "version-compare"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "852e951cb7832cb45cb1169900d19760cfa39b82bc0ea9c0e5a14ae88411c98b"
+checksum = "03c2856837ef78f57382f06b2b8563a2f512f7185d732608fd9176cb3b8edf0e"
 
 [[package]]
 name = "version_check"
@@ -6681,9 +6681,9 @@ dependencies = [
 
 [[package]]
 name = "walrus"
-version = "0.24.2"
+version = "0.24.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b5fbda74aece555fd16909d66141a934c9db314980a98800cf138a00c3e23a8"
+checksum = "ff282e73d21b86a9d397f42570d158eb9e5c521d0ead4d13cd049fd7cb45c467"
 dependencies = [
  "anyhow",
  "gimli",
@@ -6976,9 +6976,9 @@ dependencies = [
 
 [[package]]
 name = "weezl"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a751b3277700db47d3e574514de2eced5e54dc8a5436a3bf7a0b248b2cee16f3"
+checksum = "009936b22a61d342859b5f0ea64681cbb35a358ab548e2a44a8cf0dac2d980b8"
 
 [[package]]
 name = "wgpu"
@@ -7711,11 +7711,11 @@ dependencies = [
 
 [[package]]
 name = "winresource"
-version = "0.1.23"
+version = "0.1.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edcacf11b6f48dd21b9ba002f991bdd5de29b2da8cc2800412f4b80f677e4957"
+checksum = "f1ef04dd590e94ff7431a8eda99d5ca659e688d60e930bd0a330062acea4608f"
 dependencies = [
- "toml 0.8.23",
+ "toml 0.9.8",
  "version_check",
 ]
 

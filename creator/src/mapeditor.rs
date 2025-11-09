@@ -988,18 +988,19 @@ impl MapEditor {
 
                     let mut character_template_id: Option<Uuid> = None;
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        let prev = region.map.clone();
                         region.map.clear_selection();
                         let mut found = false;
+
                         if let Some(character) = region.characters.get(&id.uuid) {
                             found = true;
 
                             if *SIDEBARMODE.write().unwrap() == SidebarMode::Region {
+                                /*
                                 ui.set_widget_value(
                                     "CodeEdit",
                                     ctx,
                                     TheValue::Text(character.source.clone()),
-                                );
+                                );*/
                             } else if *SIDEBARMODE.write().unwrap() == SidebarMode::Character {
                                 character_template_id = Some(character.character_id);
                             }
@@ -1031,13 +1032,13 @@ impl MapEditor {
                             }
                         } else if let Some(item) = region.items.get(&id.uuid) {
                             found = true;
-                            if *SIDEBARMODE.write().unwrap() == SidebarMode::Region {
-                                ui.set_widget_value(
-                                    "CodeEdit",
-                                    ctx,
-                                    TheValue::Text(item.source.clone()),
-                                );
-                            }
+                            // if *SIDEBARMODE.write().unwrap() == SidebarMode::Region {
+                            //     ui.set_widget_value(
+                            //         "CodeEdit",
+                            //         ctx,
+                            //         TheValue::Text(item.source.clone()),
+                            //     );
+                            // }
 
                             region.map.selected_entity_item = Some(id.uuid);
                             server_ctx.curr_region_content = ContentContext::ItemInstance(id.uuid);
@@ -1055,6 +1056,7 @@ impl MapEditor {
                             }
                         }
 
+                        /*
                         let undo_atom =
                             RegionUndoAtom::MapEdit(Box::new(prev), Box::new(region.map.clone()));
                         UNDOMANAGER.write().unwrap().add_region_undo(
@@ -1065,7 +1067,7 @@ impl MapEditor {
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,
-                        ));
+                        ));*/
 
                         if !found {
                             // Test sectors
@@ -1103,7 +1105,7 @@ impl MapEditor {
                         server_ctx.curr_region_content =
                             ContentContext::CharacterTemplate(character_template_id);
                         server_ctx.cc = ContentContext::CharacterTemplate(character_template_id);
-                        set_code(ui, ctx, project, server_ctx);
+                        // set_code(ui, ctx, project, server_ctx);
                     }
                 }
                 // Region Selection
