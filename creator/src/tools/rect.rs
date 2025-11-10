@@ -11,6 +11,8 @@ pub struct RectTool {
     hovered_vertices: Option<[Vec2<f32>; 4]>,
     mode: i32,
     hud: Hud,
+
+    processed: FxHashSet<Vec2<i32>>,
 }
 
 impl Tool for RectTool {
@@ -24,6 +26,8 @@ impl Tool for RectTool {
             hovered_vertices: None,
             mode: 0,
             hud: Hud::new(HudMode::Rect),
+
+            processed: FxHashSet::default(),
         }
     }
 
@@ -98,7 +102,6 @@ impl Tool for RectTool {
             let mut undo_atom: Option<ProjectUndoAtom> = None;
             // let size = 1.0 / map.subdivisions;
 
-            let prev = map.clone();
             if let Some(vertices) = hovered_vertices {
                 let mut add_it = true;
                 let mut layer: u8 = 0;
@@ -114,6 +117,7 @@ impl Tool for RectTool {
                                         map.find_sectors_with_vertex_indices(&[ev0, ev1, ev2, ev3]);
 
                                     if let Some(sector_id) = sectors.last() {
+                                        let prev = map.clone();
                                         let mut lines = vec![];
                                         if let Some(s) = map.find_sector(*sector_id) {
                                             lines = s.linedefs.clone();
@@ -166,15 +170,6 @@ impl Tool for RectTool {
                                             }
                                         }
                                     }
-
-                                    if !add_it {
-                                        undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                            server_ctx.pc,
-                                            Box::new(prev.clone()),
-                                            Box::new(map.clone()),
-                                        ));
-                                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                                    }
                                 }
                             }
                         }
@@ -211,33 +206,28 @@ impl Tool for RectTool {
                             //     l.properties.set("wall_height", Value::Float(size));
                             // }
 
+                            let prev = map.clone();
                             if let Some(sector) = map.find_sector_mut(sector_id) {
                                 sector.properties.set("rect", Value::Bool(true));
 
                                 sector.properties.set("source", Value::Source(source));
                                 sector.layer = Some(layer + 1);
-
-                                undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                    server_ctx.pc,
-                                    Box::new(prev),
-                                    Box::new(map.clone()),
-                                ));
-
-                                map.selected_vertices.clear();
-                                map.selected_linedefs.clear();
-                                map.selected_sectors = vec![sector_id];
-                                // ctx.ui.send(TheEvent::Custom(
-                                //     TheId::named("Map Selection Changed"),
-                                //     TheValue::Empty,
-                                // ));
-                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
                             }
-                        } else {
-                            println!("rect polygon not created");
+
+                            undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                server_ctx.pc,
+                                Box::new(prev),
+                                Box::new(map.clone()),
+                            ));
+
+                            map.selected_vertices.clear();
+                            map.selected_linedefs.clear();
+                            map.selected_sectors = vec![sector_id];
                         }
                     }
                 }
             }
+
             undo_atom
         }
 
@@ -288,7 +278,15 @@ impl Tool for RectTool {
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     return None;
                 }
-                undo_atom = add_tile(ui, ctx, map, server_ctx, self.hovered_vertices, self.mode);
+                self.processed.clear();
+                if let Some(cp) = server_ctx.hover_cursor {
+                    let k = Vec2::new(cp.x as i32, cp.y as i32);
+                    if !self.processed.contains(&k) {
+                        undo_atom =
+                            add_tile(ui, ctx, map, server_ctx, self.hovered_vertices, self.mode);
+                        self.processed.insert(k);
+                    }
+                }
             }
             MapDragged(coord) => {
                 if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx) {
@@ -296,12 +294,13 @@ impl Tool for RectTool {
                     return None;
                 }
                 self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
-                undo_atom = add_tile(ui, ctx, map, server_ctx, self.hovered_vertices, self.mode);
-                if undo_atom.is_some() {
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Update Minimap"),
-                        TheValue::Empty,
-                    ));
+                if let Some(cp) = server_ctx.hover_cursor {
+                    let k = Vec2::new(cp.x as i32, cp.y as i32);
+                    if !self.processed.contains(&k) {
+                        undo_atom =
+                            add_tile(ui, ctx, map, server_ctx, self.hovered_vertices, self.mode);
+                        self.processed.insert(k);
+                    }
                 }
             }
             MapUp(_) => {}
