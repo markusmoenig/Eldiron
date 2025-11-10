@@ -144,7 +144,7 @@ impl Action for CreateSector {
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::Geometry
+        ActionRole::Editor
     }
 
     fn accel(&self) -> Option<TheAccelerator> {

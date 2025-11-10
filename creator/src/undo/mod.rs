@@ -32,13 +32,6 @@ pub struct UndoManager {
     pub max_undo: usize,
 
     project: ProjectUndo,
-
-    regions: FxHashMap<Uuid, RegionUndo>,
-    material: MaterialUndo,
-    screen: ScreenUndo,
-    character: CharacterUndo,
-    item: ItemUndo,
-    palette: PaletteUndo,
 }
 
 impl Default for UndoManager {
@@ -54,13 +47,6 @@ impl UndoManager {
             max_undo: 30,
 
             project: ProjectUndo::default(),
-
-            regions: FxHashMap::default(),
-            material: MaterialUndo::default(),
-            screen: ScreenUndo::default(),
-            character: CharacterUndo::default(),
-            item: ItemUndo::default(),
-            palette: PaletteUndo::default(),
         }
     }
 
@@ -69,7 +55,7 @@ impl UndoManager {
     }
 
     pub fn add_undo(&mut self, atom: ProjectUndoAtom, ctx: &mut TheContext) {
-        println!("Undo: {:?}", atom);
+        println!("Undo: {:?}", atom.to_string());
         self.project.add(atom);
         self.project.truncate_to_limit(self.max_undo);
         ctx.ui.set_enabled("Undo");

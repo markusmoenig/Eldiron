@@ -33,7 +33,7 @@ impl Action for ApplyTile {
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::Property
+        ActionRole::Dock
     }
 
     fn accel(&self) -> Option<TheAccelerator> {

@@ -1,10 +1,10 @@
 pub use crate::prelude::*;
 
 pub mod add_arch;
-pub mod add_shader_library;
-pub mod apply_shader;
+// pub mod add_shader_library;
+// pub mod apply_shader;
 pub mod apply_tile;
-pub mod clear_shader;
+// pub mod clear_shader;
 pub mod clear_tile;
 pub mod create_center_vertex;
 pub mod create_linedef;
@@ -19,8 +19,8 @@ pub mod copy_tile_id;
 pub mod edit_tile_meta;
 pub mod firstp_camera;
 pub mod iso_camera;
-pub mod load_shader;
-pub mod new_shader;
+// pub mod load_shader;
+// pub mod new_shader;
 pub mod orbit_camera;
 pub mod recess;
 pub mod relief;
@@ -28,20 +28,20 @@ pub mod set_editing_surface;
 pub mod split;
 pub mod toggle_rect_geo;
 
+#[derive(PartialEq)]
 pub enum ActionRole {
-    Geometry,
-    Property,
-    UI,
-    Profile,
+    Camera,
+    Editor,
+    Dock,
 }
 
 impl ActionRole {
     pub fn to_color(&self) -> [u8; 4] {
         match self {
-            ActionRole::Geometry => [195, 170, 150, 255],
-            ActionRole::Property => [160, 175, 190, 255],
-            ActionRole::UI => [200, 195, 150, 255],
-            ActionRole::Profile => [160, 185, 160, 255],
+            ActionRole::Camera => [160, 175, 190, 255],
+            ActionRole::Editor => [195, 170, 150, 255],
+            ActionRole::Dock => [200, 195, 150, 255],
+            // ActionRole::Profile => [160, 185, 160, 255],
         }
     }
 }

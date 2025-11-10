@@ -43,7 +43,7 @@ impl Action for EditSector {
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::Geometry
+        ActionRole::Editor
     }
 
     fn accel(&self) -> Option<TheAccelerator> {

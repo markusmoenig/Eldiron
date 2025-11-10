@@ -90,8 +90,8 @@ impl Tool for VertexTool {
         ctx: &mut TheContext,
         map: &mut Map,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
-        let mut undo_atom: Option<RegionUndoAtom> = None;
+    ) -> Option<ProjectUndoAtom> {
+        let mut undo_atom: Option<ProjectUndoAtom> = None;
 
         match map_event {
             MapKey(c) => {
@@ -250,7 +250,8 @@ impl Tool for VertexTool {
             MapUp(_) => {
                 if self.click_selected {
                     if self.drag_changed {
-                        undo_atom = Some(RegionUndoAtom::MapEdit(
+                        undo_atom = Some(ProjectUndoAtom::MapEdit(
+                            server_ctx.pc,
                             Box::new(self.rectangle_undo_map.clone()),
                             Box::new(map.clone()),
                         ));
@@ -331,7 +332,8 @@ impl Tool for VertexTool {
                     map.delete_elements(&vertices, &vec![], &vec![]);
                     map.selected_vertices.clear();
 
-                    undo_atom = Some(RegionUndoAtom::MapEdit(
+                    undo_atom = Some(ProjectUndoAtom::MapEdit(
+                        server_ctx.pc,
                         Box::new(prev),
                         Box::new(map.clone()),
                     ));

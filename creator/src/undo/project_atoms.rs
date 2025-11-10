@@ -3,12 +3,13 @@ use crate::prelude::*;
 use theframework::prelude::*;
 
 // #[allow(clippy::large_enum_variant)]
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum ProjectUndoAtom {
-    AddRegion(Uuid),
+    MapEdit(ProjectContext, Box<Map>, Box<Map>),
+    AddRegion(Region),
     RemoveRegion(usize, Region),
     RenameRegion(Uuid, String, String),
-    AddCharacter(Uuid),
+    AddCharacter(Character),
     RemoveCharacter(usize, Character),
     RenameCharacter(Uuid, String, String),
 }
@@ -16,6 +17,27 @@ pub enum ProjectUndoAtom {
 use ProjectUndoAtom::*;
 
 impl ProjectUndoAtom {
+    /// Returns the ProjectContext for the MapEdit
+    pub fn pc(&self) -> Option<ProjectContext> {
+        match self {
+            MapEdit(pc, _, _) => Some(*pc),
+            _ => None,
+        }
+    }
+
+    /// Descriptive text of the undo atom.
+    pub fn to_string(&self) -> String {
+        match self {
+            MapEdit(_, _, _) => "Map Edit".to_string(),
+            AddRegion(region) => format!("Add Region: {}", region.name),
+            RemoveRegion(_, region) => format!("Remove Region: {}", region.name),
+            RenameRegion(_, old, new) => format!("Rename Region: {} -> {}", old, new),
+            AddCharacter(character) => format!("Add Character: {}", character.name),
+            RemoveCharacter(_, character) => format!("Remove Character: {}", character.name),
+            RenameCharacter(_, old, new) => format!("Rename Character: {} -> {}", old, new),
+        }
+    }
+
     pub fn undo(
         &self,
         project: &mut Project,
@@ -24,13 +46,20 @@ impl ProjectUndoAtom {
         server_ctx: &mut ServerContext,
     ) {
         match self {
-            AddRegion(id) => {
+            MapEdit(pc, old, _new) => {
+                set_project_context(ctx, ui, project, server_ctx, *pc);
+                if let Some(map) = project.get_map_pc_mut(server_ctx) {
+                    *map = *old.clone();
+                    update_region(ctx);
+                }
+            }
+            AddRegion(region) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(region_node) =
                         tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id)
                     {
-                        project.remove_region(&id);
-                        region_node.remove_child_by_uuid(id);
+                        project.remove_region(&region.id);
+                        region_node.remove_child_by_uuid(&region.id);
                     }
                 }
             }
@@ -71,13 +100,13 @@ impl ProjectUndoAtom {
                     }
                 }
             }
-            AddCharacter(id) => {
+            AddCharacter(character) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(region_node) =
                         tree_layout.get_node_by_id_mut(&server_ctx.tree_characters_id)
                     {
-                        project.remove_character(id);
-                        region_node.remove_child_by_uuid(id);
+                        project.remove_character(&character.id);
+                        region_node.remove_child_by_uuid(&character.id);
                     }
                 }
             }
@@ -129,11 +158,17 @@ impl ProjectUndoAtom {
         server_ctx: &mut ServerContext,
     ) {
         match self {
-            AddRegion(id) => {
+            MapEdit(pc, _old, new) => {
+                set_project_context(ctx, ui, project, server_ctx, *pc);
+                if let Some(map) = project.get_map_pc_mut(server_ctx) {
+                    *map = *new.clone();
+                    update_region(ctx);
+                }
+            }
+            AddRegion(region) => {
                 // Add Region
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-                    let mut region = Region::new();
-                    region.id = *id;
+                    let mut region = region.clone();
                     region.map.name = region.name.clone();
 
                     let mut node = gen_region_tree_node(&region);
@@ -193,16 +228,12 @@ impl ProjectUndoAtom {
                     }
                 }
             }
-            AddCharacter(id) => {
+            AddCharacter(character) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(node) =
                         tree_layout.get_node_by_id_mut(&server_ctx.tree_characters_id)
                     {
-                        let mut character = Character::default();
-                        character
-                            .module
-                            .set_module_type(codegridfx::ModuleType::CharacterTemplate);
-                        character.id = *id;
+                        let mut character = character.clone();
 
                         if let Some(bytes) = crate::Embedded::get("python/basecharacter.py") {
                             if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
@@ -220,6 +251,7 @@ impl ProjectUndoAtom {
                         character_node.set_open(true);
                         node.add_child(character_node);
 
+                        let character_id = character.id;
                         project.add_character(character);
 
                         set_project_context(
@@ -227,7 +259,7 @@ impl ProjectUndoAtom {
                             ui,
                             project,
                             server_ctx,
-                            ProjectContext::Character(*id),
+                            ProjectContext::Character(character_id),
                         );
                         update_region(ctx);
                     }

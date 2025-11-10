@@ -103,7 +103,7 @@ impl Tool for GameTool {
         _ctx: &mut TheContext,
         map: &mut Map,
         _server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+    ) -> Option<ProjectUndoAtom> {
         match map_event {
             MapClicked(coord) => {
                 let mut rusterix = RUSTERIX.write().unwrap();

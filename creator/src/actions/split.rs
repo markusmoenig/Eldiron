@@ -33,7 +33,7 @@ impl Action for Split {
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::Geometry
+        ActionRole::Editor
     }
 
     fn accel(&self) -> Option<TheAccelerator> {

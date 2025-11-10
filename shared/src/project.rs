@@ -231,6 +231,93 @@ impl Project {
         self.models.remove(id);
     }
 
+    /// Get the map of the current project content.
+    // pub fn get_map_pc(&self, ctx: &ServerContext) -> Option<&Map> {
+    //     if ctx.pc.is_region() {
+    //         if ctx.editor_view_mode != EditorViewMode::D2 {
+    //             if let Some(region) = self.get_region(ctx.pc.id()) {}
+    //         }
+    //     }
+    // }
+
+    /// Get the map of the current context.
+    pub fn get_map_pc(&self, ctx: &ServerContext) -> Option<&Map> {
+        if let Some(id) = ctx.pc.id() {
+            if ctx.editor_view_mode != EditorViewMode::D2 {
+                if let Some(region) = self.get_region(&id) {
+                    return Some(&region.map);
+                }
+            } else if ctx.pc.is_region() {
+                if let Some(surface) = &ctx.editing_surface {
+                    if let Some(region) = self.regions.iter().find(|t| t.id == id) {
+                        if let Some(surface) = region.map.surfaces.get(&surface.id) {
+                            if let Some(profile_id) = surface.profile {
+                                return region.map.profiles.get(&profile_id);
+                            }
+                        }
+                    }
+                    return None;
+                } else if let Some(region) = self.regions.iter().find(|t| t.id == id) {
+                    return Some(&region.map);
+                }
+            } else if ctx.get_map_context() == MapContext::Screen {
+                if let Some(screen) = self.screens.get(&ctx.curr_screen) {
+                    return Some(&screen.map);
+                }
+            } else if ctx.pc.is_character() {
+                if let Some(character) = self.characters.get(&id) {
+                    return Some(&character.map);
+                }
+            } else if ctx.get_map_context() == MapContext::Item {
+                if let ContentContext::ItemTemplate(id) = ctx.curr_item {
+                    if let Some(item) = self.items.get(&id) {
+                        return Some(&item.map);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Get the mutable map of the current context.
+    pub fn get_map_pc_mut(&mut self, ctx: &ServerContext) -> Option<&mut Map> {
+        if let Some(id) = ctx.pc.id() {
+            if ctx.pc.is_region() {
+                if ctx.editor_view_mode != EditorViewMode::D2 {
+                    if let Some(region) = self.get_region_mut(&id) {
+                        return Some(&mut region.map);
+                    }
+                } else if let Some(surface) = &ctx.editing_surface {
+                    if let Some(region) = self.regions.iter_mut().find(|t| t.id == id) {
+                        if let Some(surface) = region.map.surfaces.get_mut(&surface.id) {
+                            if let Some(profile_id) = surface.profile {
+                                return region.map.profiles.get_mut(&profile_id);
+                            }
+                        }
+                    }
+                    return None;
+                } else if let Some(region) = self.regions.iter_mut().find(|t| t.id == id) {
+                    return Some(&mut region.map);
+                }
+            } else if ctx.get_map_context() == MapContext::Screen {
+                if let Some(screen) = self.screens.get_mut(&ctx.curr_screen) {
+                    return Some(&mut screen.map);
+                }
+            } else if ctx.pc.is_character() {
+                if let Some(character) = self.characters.get_mut(&id) {
+                    return Some(&mut character.map);
+                }
+            } else if ctx.get_map_context() == MapContext::Item {
+                if let ContentContext::ItemTemplate(id) = ctx.curr_item {
+                    if let Some(item) = self.items.get_mut(&id) {
+                        return Some(&mut item.map);
+                    }
+                }
+            }
+        }
+        None
+    }
+
     /// Get the map of the current context.
     pub fn get_map(&self, ctx: &ServerContext) -> Option<&Map> {
         if ctx.editor_view_mode != EditorViewMode::D2 {

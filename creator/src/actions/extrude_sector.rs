@@ -59,7 +59,7 @@ impl Action for ExtrudeSector {
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::Geometry
+        ActionRole::Editor
     }
 
     fn accel(&self) -> Option<TheAccelerator> {

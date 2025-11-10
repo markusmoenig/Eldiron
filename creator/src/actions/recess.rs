@@ -52,7 +52,7 @@ impl Action for Recess {
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::Profile
+        ActionRole::Editor
     }
 
     fn accel(&self) -> Option<TheAccelerator> {

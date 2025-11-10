@@ -3,7 +3,7 @@ use crate::prelude::*;
 use crate::undo::project_atoms::ProjectUndoAtom;
 use theframework::prelude::*;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct ProjectUndo {
     pub stack: Vec<ProjectUndoAtom>,
     pub index: isize,

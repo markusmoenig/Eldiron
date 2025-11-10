@@ -32,7 +32,7 @@ impl Action for ToggleRectGeo {
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::UI
+        ActionRole::Editor
     }
 
     fn accel(&self) -> Option<TheAccelerator> {

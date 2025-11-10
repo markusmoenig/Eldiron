@@ -66,7 +66,7 @@ impl Action for EditTileMeta {
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::UI
+        ActionRole::Dock
     }
 
     fn accel(&self) -> Option<TheAccelerator> {

@@ -32,7 +32,7 @@ impl Action for IsoCamera {
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::Property
+        ActionRole::Camera
     }
 
     fn accel(&self) -> Option<TheAccelerator> {

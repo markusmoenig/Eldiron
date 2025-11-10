@@ -102,8 +102,8 @@ impl Tool for LinedefTool {
         ctx: &mut TheContext,
         map: &mut Map,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
-        let mut undo_atom: Option<RegionUndoAtom> = None;
+    ) -> Option<ProjectUndoAtom> {
+        let mut undo_atom: Option<ProjectUndoAtom> = None;
 
         match map_event {
             MapKey(c) => {
@@ -197,7 +197,8 @@ impl Tool for LinedefTool {
                                     set_current_gid_pos = false;
                                 }
 
-                                undo_atom = Some(RegionUndoAtom::MapEdit(
+                                undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                    server_ctx.pc,
                                     Box::new(prev),
                                     Box::new(map.clone()),
                                 ));
@@ -328,7 +329,8 @@ impl Tool for LinedefTool {
             MapUp(_) => {
                 if self.click_selected {
                     if self.drag_changed {
-                        undo_atom = Some(RegionUndoAtom::MapEdit(
+                        undo_atom = Some(ProjectUndoAtom::MapEdit(
+                            server_ctx.pc,
                             Box::new(self.rectangle_undo_map.clone()),
                             Box::new(map.clone()),
                         ));
@@ -415,7 +417,8 @@ impl Tool for LinedefTool {
                     map.delete_elements(&vec![], &lines, &vec![]);
                     map.selected_linedefs.clear();
 
-                    undo_atom = Some(RegionUndoAtom::MapEdit(
+                    undo_atom = Some(ProjectUndoAtom::MapEdit(
+                        server_ctx.pc,
                         Box::new(prev),
                         Box::new(map.clone()),
                     ));

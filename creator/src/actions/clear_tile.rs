@@ -32,7 +32,7 @@ impl Action for ClearTile {
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::Property
+        ActionRole::Dock
     }
 
     fn accel(&self) -> Option<TheAccelerator> {

@@ -80,8 +80,8 @@ impl Tool for SelectionTool {
         ctx: &mut TheContext,
         map: &mut Map,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
-        let mut undo_atom: Option<RegionUndoAtom> = None;
+    ) -> Option<ProjectUndoAtom> {
+        let mut undo_atom: Option<ProjectUndoAtom> = None;
 
         match map_event {
             MapKey(c) => {
@@ -114,7 +114,8 @@ impl Tool for SelectionTool {
                         map.selected_sectors = arrays.2;
                     }
 
-                    undo_atom = Some(RegionUndoAtom::MapEdit(
+                    undo_atom = Some(ProjectUndoAtom::MapEdit(
+                        server_ctx.pc,
                         Box::new(prev),
                         Box::new(map.clone()),
                     ));
@@ -177,7 +178,8 @@ impl Tool for SelectionTool {
                     if map.curr_rectangle.is_some() {
                         map.curr_rectangle = None;
 
-                        undo_atom = Some(RegionUndoAtom::MapEdit(
+                        undo_atom = Some(ProjectUndoAtom::MapEdit(
+                            server_ctx.pc,
                             Box::new(self.rectangle_undo_map.clone()),
                             Box::new(map.clone()),
                         ));
@@ -232,7 +234,8 @@ impl Tool for SelectionTool {
                     map.selected_linedefs.clear();
                     map.selected_sectors.clear();
 
-                    undo_atom = Some(RegionUndoAtom::MapEdit(
+                    undo_atom = Some(ProjectUndoAtom::MapEdit(
+                        server_ctx.pc,
                         Box::new(prev),
                         Box::new(map.clone()),
                     ));
@@ -255,7 +258,8 @@ impl Tool for SelectionTool {
                     map.selected_linedefs.clear();
                     map.selected_sectors.clear();
 
-                    undo_atom = Some(RegionUndoAtom::MapEdit(
+                    undo_atom = Some(ProjectUndoAtom::MapEdit(
+                        server_ctx.pc,
                         Box::new(prev),
                         Box::new(map.clone()),
                     ));

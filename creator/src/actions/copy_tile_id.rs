@@ -32,7 +32,7 @@ impl Action for CopyTileID {
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::UI
+        ActionRole::Dock
     }
 
     fn accel(&self) -> Option<TheAccelerator> {

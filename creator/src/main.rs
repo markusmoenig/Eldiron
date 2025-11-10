@@ -68,7 +68,6 @@ pub mod prelude {
     pub use crate::undo::*;
     pub use crate::utils::*;
 
-    pub use crate::tools::code::CodeTool;
     pub use crate::tools::game::GameTool;
     pub use crate::tools::linedef::LinedefTool;
     pub use crate::tools::sector::SectorTool;

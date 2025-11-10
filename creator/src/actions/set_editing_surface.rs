@@ -32,7 +32,7 @@ impl Action for SetEditingSurface {
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::UI
+        ActionRole::Editor
     }
 
     fn accel(&self) -> Option<TheAccelerator> {

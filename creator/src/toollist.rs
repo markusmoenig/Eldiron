@@ -1,9 +1,6 @@
 use crate::editor::{CODEEDITOR, NODEEDITOR, RUSTERIX, SHAPEPICKER, UNDOMANAGER};
 use crate::prelude::*;
-pub use crate::tools::{
-    config::ConfigTool, data::DataTool, info::InfoTool, rect::RectTool, render::RenderTool,
-    terrain::TerrainTool,
-};
+pub use crate::tools::{config::ConfigTool, info::InfoTool, rect::RectTool};
 use rusterix::Assets;
 use scenevm::GeoId;
 
@@ -36,7 +33,7 @@ impl ToolList {
             Box::new(LinedefTool::new()),
             Box::new(SectorTool::new()),
             Box::new(RectTool::new()),
-            Box::new(RenderTool::new()),
+            // Box::new(RenderTool::new()),
             // Box::new(TerrainTool::new()),
             // Box::new(CodeTool::new()),
             // Box::new(DataTool::new()),
@@ -86,8 +83,24 @@ impl ToolList {
         ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
-        undo_atom: Option<RegionUndoAtom>,
+        undo_atom: Option<ProjectUndoAtom>,
     ) {
+        if let Some(undo_atom) = undo_atom {
+            if let Some(pc) = undo_atom.pc() {
+                if pc.is_region() {
+                    if server_ctx.editor_view_mode == EditorViewMode::D2
+                        && server_ctx.editing_surface.is_some()
+                    {
+                    } else {
+                        self.update_geometry_overlay_3d(project, server_ctx);
+                    }
+                    crate::utils::scenemanager_render_map(project, server_ctx);
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                }
+            }
+            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+        }
+        /*
         if server_ctx.get_map_context() == MapContext::Region {
             if let Some(undo_atom) = undo_atom {
                 UNDOMANAGER.write().unwrap().add_region_undo(
@@ -175,7 +188,7 @@ impl ToolList {
                     ));
                 }
             }
-        }
+        }*/
     }
 
     pub fn draw_hud(

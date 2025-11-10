@@ -43,31 +43,22 @@ impl Tool for RectTool {
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,
-        ui: &mut TheUI,
-        ctx: &mut TheContext,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
             Activate => {
-                ctx.ui.send(TheEvent::SetStackIndex(
-                    TheId::named("Main Stack"),
-                    PanelIndices::TilePicker as usize,
-                ));
-
-                if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
-                    layout.set_mode(TheSharedHLayoutMode::Right);
-                    ctx.ui.relayout = true;
-                }
-
                 server_ctx.curr_map_tool_type = MapToolType::Rect;
 
                 if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                     region.map.selected_vertices.clear();
+                    region.map.selected_linedefs.clear();
                     region.map.selected_sectors.clear();
                 }
 
-                self.activate_map_tool_helper(ui, ctx, project, server_ctx);
+                // self.activate_map_tool_helper(ui, ctx, project, server_ctx);
 
                 return true;
             }
@@ -92,8 +83,8 @@ impl Tool for RectTool {
         ctx: &mut TheContext,
         map: &mut Map,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
-        let mut undo_atom: Option<RegionUndoAtom> = None;
+    ) -> Option<ProjectUndoAtom> {
+        let mut undo_atom: Option<ProjectUndoAtom> = None;
 
         /// Add a tile at the current hover position
         fn add_tile(
@@ -103,8 +94,8 @@ impl Tool for RectTool {
             server_ctx: &mut ServerContext,
             hovered_vertices: Option<[Vec2<f32>; 4]>,
             mode: i32,
-        ) -> Option<RegionUndoAtom> {
-            let mut undo_atom: Option<RegionUndoAtom> = None;
+        ) -> Option<ProjectUndoAtom> {
+            let mut undo_atom: Option<ProjectUndoAtom> = None;
             // let size = 1.0 / map.subdivisions;
 
             let prev = map.clone();
@@ -128,7 +119,8 @@ impl Tool for RectTool {
                                             lines = s.linedefs.clone();
                                         }
                                         map.delete_elements(&[], &lines, &[*sector_id]);
-                                        undo_atom = Some(RegionUndoAtom::MapEdit(
+                                        undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                            server_ctx.pc,
                                             Box::new(prev),
                                             Box::new(map.clone()),
                                         ));
@@ -176,7 +168,8 @@ impl Tool for RectTool {
                                     }
 
                                     if !add_it {
-                                        undo_atom = Some(RegionUndoAtom::MapEdit(
+                                        undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                            server_ctx.pc,
                                             Box::new(prev.clone()),
                                             Box::new(map.clone()),
                                         ));
@@ -224,7 +217,8 @@ impl Tool for RectTool {
                                 sector.properties.set("source", Value::Source(source));
                                 sector.layer = Some(layer + 1);
 
-                                undo_atom = Some(RegionUndoAtom::MapEdit(
+                                undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                    server_ctx.pc,
                                     Box::new(prev),
                                     Box::new(map.clone()),
                                 ));
@@ -295,12 +289,6 @@ impl Tool for RectTool {
                     return None;
                 }
                 undo_atom = add_tile(ui, ctx, map, server_ctx, self.hovered_vertices, self.mode);
-                if undo_atom.is_some() {
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Update Minimap"),
-                        TheValue::Empty,
-                    ));
-                }
             }
             MapDragged(coord) => {
                 if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx) {

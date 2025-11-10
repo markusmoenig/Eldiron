@@ -1,17 +1,17 @@
 pub use crate::prelude::*;
 use rusterix::Assets;
 
-pub mod code;
+// pub mod code;
 pub mod config;
-pub mod data;
+// pub mod data;
 pub mod game;
 pub mod info;
 pub mod linedef;
 pub mod rect;
-pub mod render;
+// pub mod render;
 pub mod sector;
 pub mod selection;
-pub mod terrain;
+// pub mod terrain;
 pub mod tileset;
 pub mod vertex;
 
@@ -69,7 +69,7 @@ pub trait Tool: Send + Sync {
         ctx: &mut TheContext,
         map: &mut Map,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+    ) -> Option<ProjectUndoAtom> {
         None
     }
 
