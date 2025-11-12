@@ -147,7 +147,6 @@ impl Dock for TilesDock {
                             TheValue::Empty,
                         ));
                         self.curr_tile = Some(*tile_id);
-                        // self.apply_tile(ui, ctx, project);
                         redraw = true;
                     }
                 }

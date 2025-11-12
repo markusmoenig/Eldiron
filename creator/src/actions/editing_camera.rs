@@ -1,11 +1,11 @@
 use crate::prelude::*;
 
-pub struct FirstPCamera {
+pub struct EditingCamera {
     id: TheId,
     nodeui: TheNodeUI,
 }
 
-impl Action for FirstPCamera {
+impl Action for EditingCamera {
     fn new() -> Self
     where
         Self: Sized,
@@ -13,12 +13,12 @@ impl Action for FirstPCamera {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
         let item = TheNodeUIItem::Markdown(
             "desc".into(),
-            "Render the scene using a 3D first person camera.".into(),
+            "Render the scene using the 2D editing camera.".into(),
         );
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("3D First Person Camera"),
+            id: TheId::named("2D Camera"),
             nodeui,
         }
     }
@@ -28,7 +28,7 @@ impl Action for FirstPCamera {
     }
 
     fn info(&self) -> &'static str {
-        "Render the scene using a 3D first person camera."
+        "Render the scene using the 2D editing camera."
     }
 
     fn role(&self) -> ActionRole {
@@ -36,11 +36,11 @@ impl Action for FirstPCamera {
     }
 
     fn accel(&self) -> Option<TheAccelerator> {
-        Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '5'))
+        Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '2'))
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.editor_view_mode != EditorViewMode::FirstP
+        server_ctx.editor_view_mode != EditorViewMode::D2
     }
 
     fn apply(
@@ -50,7 +50,7 @@ impl Action for FirstPCamera {
         _ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
-        server_ctx.editor_view_mode = EditorViewMode::FirstP;
+        server_ctx.editor_view_mode = EditorViewMode::D2;
 
         None
     }

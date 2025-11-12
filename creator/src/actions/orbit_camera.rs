@@ -36,7 +36,7 @@ impl Action for OrbitCamera {
     }
 
     fn accel(&self) -> Option<TheAccelerator> {
-        None
+        Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '3'))
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {

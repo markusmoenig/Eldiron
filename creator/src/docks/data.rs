@@ -14,7 +14,7 @@ impl Dock for DataDock {
     fn setup(&mut self, _ctx: &mut TheContext) -> TheCanvas {
         let mut center = TheCanvas::new();
 
-        let mut textedit = TheTextAreaEdit::new(TheId::named("DockCharacterDataEditor"));
+        let mut textedit = TheTextAreaEdit::new(TheId::named("DockDataEditor"));
         if let Some(bytes) = crate::Embedded::get("parser/TOML.sublime-syntax") {
             if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
                 textedit.add_syntax_from_string(source);
@@ -39,13 +39,18 @@ impl Dock for DataDock {
         server_ctx: &mut ServerContext,
     ) {
         if let Some(id) = server_ctx.pc.id() {
-            if let Some(character) = project.characters.get(&id) {
-                // println!("{}", character.data);
-                ui.set_widget_value(
-                    "DockCharacterDataEditor",
-                    ctx,
-                    TheValue::Text(character.data.clone()),
-                );
+            if server_ctx.pc.is_character() {
+                if let Some(character) = project.characters.get(&id) {
+                    ui.set_widget_value(
+                        "DockDataEditor",
+                        ctx,
+                        TheValue::Text(character.data.clone()),
+                    );
+                }
+            } else if server_ctx.pc.is_item() {
+                if let Some(item) = project.items.get(&id) {
+                    ui.set_widget_value("DockDataEditor", ctx, TheValue::Text(item.data.clone()));
+                }
             }
         }
     }
@@ -62,12 +67,21 @@ impl Dock for DataDock {
 
         match event {
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "DockCharacterDataEditor" {
+                if id.name == "DockDataEditor" {
                     if let Some(id) = server_ctx.pc.id() {
-                        if let Some(code) = value.to_string() {
-                            if let Some(character) = project.characters.get_mut(&id) {
-                                character.data = code;
-                                redraw = true;
+                        if server_ctx.pc.is_character() {
+                            if let Some(code) = value.to_string() {
+                                if let Some(character) = project.characters.get_mut(&id) {
+                                    character.data = code;
+                                    redraw = true;
+                                }
+                            }
+                        } else if server_ctx.pc.is_item() {
+                            if let Some(code) = value.to_string() {
+                                if let Some(item) = project.items.get_mut(&id) {
+                                    item.data = code;
+                                    redraw = true;
+                                }
                             }
                         }
                     }

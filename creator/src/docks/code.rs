@@ -17,7 +17,7 @@ impl Dock for CodeDock {
     }
 
     fn setup(&mut self, ctx: &mut TheContext) -> TheCanvas {
-        self.module.build_canvas(ctx, "DockCharacterCodeEditor")
+        self.module.build_canvas(ctx, "DockCodeEditor")
     }
 
     fn activate(
@@ -28,10 +28,22 @@ impl Dock for CodeDock {
         server_ctx: &mut ServerContext,
     ) {
         if let Some(id) = server_ctx.pc.id() {
-            if let Some(character) = project.characters.get(&id) {
-                self.module = character.module.clone();
-                self.module.view_name = "DockCharacterCodeEditor".into();
-                self.module.redraw(ui, ctx);
+            if server_ctx.pc.is_character() {
+                if let Some(character) = project.characters.get(&id) {
+                    self.module = character.module.clone();
+                    self.module
+                        .set_module_type(codegridfx::ModuleType::CharacterTemplate);
+                    self.module.view_name = "DockCodeEditor".into();
+                    self.module.redraw(ui, ctx);
+                }
+            } else if server_ctx.pc.is_item() {
+                if let Some(item) = project.items.get(&id) {
+                    self.module = item.module.clone();
+                    self.module
+                        .set_module_type(codegridfx::ModuleType::ItemTemplate);
+                    self.module.view_name = "DockCodeEditor".into();
+                    self.module.redraw(ui, ctx);
+                }
             }
         }
     }
@@ -50,8 +62,14 @@ impl Dock for CodeDock {
             TheEvent::Custom(id, _) => {
                 if id.name == "ModuleChanged" {
                     if let Some(id) = server_ctx.pc.id() {
-                        if let Some(character) = project.characters.get_mut(&id) {
-                            character.module = self.module.clone();
+                        if server_ctx.pc.is_character() {
+                            if let Some(character) = project.characters.get_mut(&id) {
+                                character.module = self.module.clone();
+                            }
+                        } else if server_ctx.pc.is_item() {
+                            if let Some(item) = project.items.get_mut(&id) {
+                                item.module = self.module.clone();
+                            }
                         }
                     }
                 }

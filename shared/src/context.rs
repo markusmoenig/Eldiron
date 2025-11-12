@@ -57,6 +57,9 @@ pub enum ProjectContext {
     CharacterCode(Uuid),
     CharacterData(Uuid),
     Item(Uuid),
+    ItemCode(Uuid),
+    ItemData(Uuid),
+    Tilemap(Uuid),
 }
 
 impl ProjectContext {
@@ -67,7 +70,10 @@ impl ProjectContext {
             | ProjectContext::Character(id)
             | ProjectContext::CharacterCode(id)
             | ProjectContext::CharacterData(id)
-            | ProjectContext::Item(id) => Some(id),
+            | ProjectContext::Item(id)
+            | ProjectContext::ItemCode(id)
+            | ProjectContext::ItemData(id)
+            | ProjectContext::Tilemap(id) => Some(id),
         }
     }
 
@@ -83,6 +89,22 @@ impl ProjectContext {
             ProjectContext::Character(_)
             | ProjectContext::CharacterCode(_)
             | ProjectContext::CharacterData(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_item(&self) -> bool {
+        match self {
+            ProjectContext::Item(_) | ProjectContext::ItemCode(_) | ProjectContext::ItemData(_) => {
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_tilemap(&self) -> bool {
+        match self {
+            ProjectContext::Tilemap(_) => true,
             _ => false,
         }
     }
@@ -182,6 +204,10 @@ pub struct ServerContext {
     pub tree_regions_id: Uuid,
     pub tree_characters_id: Uuid,
     pub tree_items_id: Uuid,
+    pub tree_tilemaps_id: Uuid,
+    pub tree_screens_id: Uuid,
+    pub tree_assets_id: Uuid,
+    pub tree_palette_id: Uuid,
 
     /// The currently selected region in the editor.
     pub curr_region: Uuid,
@@ -320,6 +346,10 @@ impl ServerContext {
             tree_regions_id: Uuid::new_v4(),
             tree_characters_id: Uuid::new_v4(),
             tree_items_id: Uuid::new_v4(),
+            tree_tilemaps_id: Uuid::new_v4(),
+            tree_screens_id: Uuid::new_v4(),
+            tree_assets_id: Uuid::new_v4(),
+            tree_palette_id: Uuid::new_v4(),
 
             curr_region_content: ContentContext::Unknown,
             curr_character: ContentContext::Unknown,

@@ -21,6 +21,7 @@ pub mod firstp_camera;
 pub mod iso_camera;
 // pub mod load_shader;
 // pub mod new_shader;
+pub mod editing_camera;
 pub mod orbit_camera;
 pub mod recess;
 pub mod relief;

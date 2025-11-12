@@ -13,6 +13,7 @@ impl Default for ActionList {
 impl ActionList {
     pub fn new() -> Self {
         let actions: Vec<Box<dyn Action>> = vec![
+            Box::new(crate::tools::editing_camera::EditingCamera::new()),
             Box::new(crate::tools::firstp_camera::FirstPCamera::new()),
             Box::new(crate::tools::iso_camera::IsoCamera::new()),
             Box::new(crate::tools::orbit_camera::OrbitCamera::new()),

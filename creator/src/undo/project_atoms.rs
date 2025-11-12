@@ -12,6 +12,9 @@ pub enum ProjectUndoAtom {
     AddCharacter(Character),
     RemoveCharacter(usize, Character),
     RenameCharacter(Uuid, String, String),
+    AddItem(Item),
+    RemoveItem(usize, Item),
+    RenameItem(Uuid, String, String),
 }
 
 use ProjectUndoAtom::*;
@@ -35,6 +38,9 @@ impl ProjectUndoAtom {
             AddCharacter(character) => format!("Add Character: {}", character.name),
             RemoveCharacter(_, character) => format!("Remove Character: {}", character.name),
             RenameCharacter(_, old, new) => format!("Rename Character: {} -> {}", old, new),
+            AddItem(character) => format!("Add Item: {}", character.name),
+            RemoveItem(_, character) => format!("Remove Item: {}", character.name),
+            RenameItem(_, old, new) => format!("Rename Item: {} -> {}", old, new),
         }
     }
 
@@ -147,6 +153,51 @@ impl ProjectUndoAtom {
                     }
                 }
             }
+            AddItem(item) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(region_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
+                    {
+                        project.remove_item(&item.id);
+                        region_node.remove_child_by_uuid(&item.id);
+                    }
+                }
+            }
+            RemoveItem(index, item) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    let item = item.clone();
+
+                    let mut node = gen_item_tree_node(&item);
+                    node.set_open(true);
+                    if let Some(item_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
+                    {
+                        item_node.add_child_at(*index, node);
+                    }
+                    let item_id: Uuid = item.id;
+                    project.items.insert_before(*index, item_id, item);
+
+                    set_project_context(
+                        ctx,
+                        ui,
+                        project,
+                        server_ctx,
+                        ProjectContext::Item(item_id),
+                    );
+                    update_region(ctx);
+                }
+            }
+            RenameItem(id, old, _new) => {
+                if let Some(item) = project.items.get_mut(id) {
+                    item.name = old.clone();
+                    item.map.name = old.clone();
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(region_node) = tree_layout.get_node_by_id_mut(&item.id) {
+                            region_node.widget.set_value(TheValue::Text(old.clone()));
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -247,6 +298,10 @@ impl ProjectUndoAtom {
                             }
                         }
 
+                        character
+                            .module
+                            .set_module_type(codegridfx::ModuleType::CharacterTemplate);
+
                         let mut character_node = gen_character_tree_node(&character);
                         character_node.set_open(true);
                         node.add_child(character_node);
@@ -295,6 +350,78 @@ impl ProjectUndoAtom {
                     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                         if let Some(region_node) = tree_layout.get_node_by_id_mut(&character.id) {
                             region_node.widget.set_value(TheValue::Text(new.clone()));
+                        }
+                    }
+                }
+            }
+            AddItem(item) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id) {
+                        let mut item = item.clone();
+
+                        if let Some(bytes) = crate::Embedded::get("python/baseitem.py") {
+                            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                                item.source = source.to_string();
+                            }
+                        }
+
+                        if let Some(bytes) = crate::Embedded::get("toml/item.toml") {
+                            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                                item.data = source.to_string();
+                            }
+                        }
+
+                        item.module
+                            .set_module_type(codegridfx::ModuleType::ItemTemplate);
+
+                        let mut item_node = gen_item_tree_node(&item);
+                        item_node.set_open(true);
+                        node.add_child(item_node);
+
+                        let item_id = item.id;
+                        project.add_item(item);
+
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Character(item_id),
+                        );
+                        update_region(ctx);
+                    }
+                }
+            }
+            RemoveItem(_, item) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(character_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
+                    {
+                        character_node.remove_child_by_uuid(&item.id);
+                    }
+                    project.remove_character(&item.id);
+
+                    if let Some(item) = project.items.first() {
+                        if let Some(item_node) = tree_layout.get_node_by_id_mut(item.0) {
+                            item_node.set_open(true);
+                        }
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Item(*item.0),
+                        );
+                    }
+                }
+            }
+            RenameItem(id, _old, new) => {
+                if let Some(item) = project.items.get_mut(id) {
+                    item.name = new.clone();
+                    item.map.name = new.clone();
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(item_node) = tree_layout.get_node_by_id_mut(&item.id) {
+                            item_node.widget.set_value(TheValue::Text(new.clone()));
                         }
                     }
                 }

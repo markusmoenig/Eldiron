@@ -36,7 +36,7 @@ impl Action for IsoCamera {
     }
 
     fn accel(&self) -> Option<TheAccelerator> {
-        None
+        Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '4'))
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {

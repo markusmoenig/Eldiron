@@ -823,17 +823,33 @@ impl Sidebar {
 
         root.add_child(regions_node);
 
-        let mut characters_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
+        let characters_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             "Characters",
             server_ctx.tree_characters_id,
         ));
-        characters_node.set_open(true);
         root.add_child(characters_node);
 
-        let mut items_node: TheTreeNode =
+        let items_node: TheTreeNode =
             TheTreeNode::new(TheId::named_with_id("Items", server_ctx.tree_items_id));
-        items_node.set_open(true);
         root.add_child(items_node);
+
+        let tilemaps_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
+            "Tilemaps",
+            server_ctx.tree_tilemaps_id,
+        ));
+        root.add_child(tilemaps_node);
+
+        let screens_node: TheTreeNode =
+            TheTreeNode::new(TheId::named_with_id("Screens", server_ctx.tree_tilemaps_id));
+        root.add_child(screens_node);
+
+        let assets_node: TheTreeNode =
+            TheTreeNode::new(TheId::named_with_id("Assets", server_ctx.tree_assets_id));
+        root.add_child(assets_node);
+
+        let palette_node: TheTreeNode =
+            TheTreeNode::new(TheId::named_with_id("Palette", server_ctx.tree_palette_id));
+        root.add_child(palette_node);
 
         project_canvas.set_layout(project_tree_layout);
 
@@ -846,6 +862,7 @@ impl Sidebar {
             items: vec![
                 TheContextMenuItem::new("Add Region".to_string(), TheId::named("Add Region")),
                 TheContextMenuItem::new("Add Character".to_string(), TheId::named("Add Character")),
+                TheContextMenuItem::new("Add Item".to_string(), TheId::named("Add Item")),
             ],
             ..Default::default()
         }));
@@ -868,6 +885,7 @@ impl Sidebar {
                     "Import Character".to_string(),
                     TheId::named("Import Character"),
                 ),
+                TheContextMenuItem::new("Import Item".to_string(), TheId::named("Import Item")),
             ],
             ..Default::default()
         }));
@@ -932,7 +950,7 @@ impl Sidebar {
 
         let mut header = TheCanvas::new();
         let mut switchbar = TheSwitchbar::new(TheId::named("Action Header"));
-        switchbar.set_text("Action Settings".to_string());
+        switchbar.set_text("Settings".to_string());
         header.set_widget(switchbar);
 
         nodes_minimap_canvas.set_top(header);
@@ -955,8 +973,6 @@ impl Sidebar {
         ui.canvas.set_right(right_canvas);
 
         self.apply_region(ui, ctx, None, &mut Project::default());
-        self.apply_character(ui, ctx, None);
-        self.apply_item(ui, ctx, None);
         self.apply_tilemap(ui, ctx, None);
         self.apply_screen(ui, ctx, None);
     }
@@ -987,7 +1003,7 @@ impl Sidebar {
                         self.apply_region(ui, ctx, Some(id.uuid), project);
                     } else
                     // Character
-                    if let Some(character) = project.characters.get(&id.uuid) {
+                    if let Some(_character) = project.characters.get(&id.uuid) {
                         set_project_context(
                             ctx,
                             ui,
@@ -995,7 +1011,16 @@ impl Sidebar {
                             server_ctx,
                             ProjectContext::Character(id.uuid),
                         );
-                        self.apply_character(ui, ctx, Some(character));
+                    } else
+                    // Item
+                    if let Some(_item) = project.items.get(&id.uuid) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Item(id.uuid),
+                        );
                     }
                 }
             }
@@ -1655,6 +1680,20 @@ impl Sidebar {
                         atom.redo(project, ui, ctx, server_ctx);
                         UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                     }
+                } else if id.name.starts_with("Item Item Name Edit") {
+                    // Rename an item
+                    let mut old = String::new();
+                    if let Some(item) = project.items.get(&id.uuid) {
+                        old = item.name.clone();
+                    }
+
+                    if let Some(name) = value.to_string()
+                        && old != name
+                    {
+                        let atom = ProjectUndoAtom::RenameItem(id.uuid, old, name);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    }
                 } else if let Some(action_id) = server_ctx.curr_action_id
                     && id.name.starts_with("action")
                 {
@@ -1973,6 +2012,38 @@ impl Sidebar {
                             }
                         }
                     }
+                } else if id.name == "Item Import" {
+                    for p in paths {
+                        let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
+                        let mut item: Item =
+                            serde_json::from_str(&contents).unwrap_or(Item::default());
+
+                        item.id = Uuid::new_v4();
+
+                        let atom = ProjectUndoAtom::AddItem(item);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    }
+                } else if id.name == "Item Export" {
+                    if let Some(item) = project.items.get(&id.uuid) {
+                        let mut item = item.clone();
+                        for p in paths {
+                            item.id = Uuid::new_v4();
+                            if let Ok(json) = serde_json::to_string(&item) {
+                                if std::fs::write(p, json).is_ok() {
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Item saved successfully.".to_string(),
+                                    ))
+                                } else {
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Unable to save Item!".to_string(),
+                                    ))
+                                }
+                            }
+                        }
+                    }
                 }
             }
             TheEvent::ImageDecodeResult(id, name, buffer) => {
@@ -2238,6 +2309,22 @@ impl Sidebar {
                             ),
                         );
                     }
+                } else if id.name == "Add Item" {
+                    // Add Item
+                    let atom = ProjectUndoAtom::AddItem(Item::default());
+                    atom.redo(project, ui, ctx, server_ctx);
+                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                } else if id.name == "Import Item" {
+                    if let Some(id) = server_ctx.pc.id() {
+                        ctx.ui.open_file_requester(
+                            TheId::named_with_id("Item Import", id),
+                            "Import Item".into(),
+                            TheFileExtension::new(
+                                "Eldiron Item".into(),
+                                vec!["eldiron_item".to_string()],
+                            ),
+                        );
+                    }
                 } else if id.name == "Project Remove" {
                     if server_ctx.pc.is_region() {
                         // Remove Region
@@ -2266,6 +2353,20 @@ impl Sidebar {
                                 UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                             }
                         }
+                    } else if server_ctx.pc.is_item() {
+                        // Remove Item
+                        let mut item: Item = Item::default();
+                        if let Some(id) = server_ctx.pc.id() {
+                            if let Some(c) = project.items.get(&id) {
+                                item = c.clone();
+                            }
+
+                            if let Some(index) = project.items.get_index_of(&id) {
+                                let atom = ProjectUndoAtom::RemoveItem(index, item);
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            }
+                        }
                     }
                 } else if id.name == "Project Export" {
                     if let Some(id) = server_ctx.pc.id() {
@@ -2287,10 +2388,18 @@ impl Sidebar {
                                     vec!["eldiron_character".to_string()],
                                 ),
                             );
+                        } else if server_ctx.pc.is_item() {
+                            ctx.ui.save_file_requester(
+                                TheId::named_with_id("Character Import", id),
+                                "Export Item".into(),
+                                TheFileExtension::new(
+                                    "Eldiron Item".into(),
+                                    vec!["eldiron_item".to_string()],
+                                ),
+                            );
                         }
                     }
                 } else if id.name == "Region Item" {
-                    // Add Region
                     server_ctx.editing_pos_buffer = None;
                     server_ctx.curr_region = id.references;
                     set_project_context(
@@ -2303,7 +2412,8 @@ impl Sidebar {
 
                     self.apply_region(ui, ctx, Some(id.references), project);
                     redraw = true;
-                } else if id.name == "Character Add" {
+                } else
+                /*if id.name == "Character Add" {
                     // Add Character
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         let mut character = Character::default();
@@ -2340,8 +2450,9 @@ impl Sidebar {
                         self.apply_character(ui, ctx, Some(&character));
                         project.add_character(character);
                     }
-                } else if id.name == "Character Item" {
-                    if let Some(c) = project.characters.get(&id.references) {
+                } */
+                if id.name == "Character Item" {
+                    if let Some(_) = project.characters.get(&id.references) {
                         server_ctx.curr_character =
                             ContentContext::CharacterTemplate(id.references);
                         server_ctx.cc = ContentContext::CharacterTemplate(id.uuid);
@@ -2352,11 +2463,10 @@ impl Sidebar {
                             server_ctx,
                             ProjectContext::Character(id.references),
                         );
-                        self.apply_character(ui, ctx, Some(c));
                         redraw = true;
                     }
                 } else if id.name == "Character Item Name Edit" {
-                    if let Some(c) = project.characters.get(&id.references) {
+                    if let Some(_) = project.characters.get(&id.references) {
                         server_ctx.curr_character =
                             ContentContext::CharacterTemplate(id.references);
                         server_ctx.cc = ContentContext::CharacterTemplate(id.references);
@@ -2367,11 +2477,10 @@ impl Sidebar {
                             server_ctx,
                             ProjectContext::Character(id.references),
                         );
-                        self.apply_character(ui, ctx, Some(c));
                         redraw = true;
                     }
                 } else if id.name == "Character Item Code Edit" {
-                    if let Some(c) = project.characters.get(&id.references) {
+                    if let Some(_) = project.characters.get(&id.references) {
                         server_ctx.curr_character =
                             ContentContext::CharacterTemplate(id.references);
                         server_ctx.cc = ContentContext::CharacterTemplate(id.references);
@@ -2382,11 +2491,10 @@ impl Sidebar {
                             server_ctx,
                             ProjectContext::CharacterCode(id.references),
                         );
-                        self.apply_character(ui, ctx, Some(c));
                         redraw = true;
                     }
                 } else if id.name == "Character Item Data Edit" {
-                    if let Some(c) = project.characters.get(&id.references) {
+                    if let Some(_) = project.characters.get(&id.references) {
                         server_ctx.curr_character =
                             ContentContext::CharacterTemplate(id.references);
                         server_ctx.cc = ContentContext::CharacterTemplate(id.references);
@@ -2397,10 +2505,62 @@ impl Sidebar {
                             server_ctx,
                             ProjectContext::CharacterData(id.references),
                         );
-                        self.apply_character(ui, ctx, Some(c));
                         redraw = true;
                     }
                 } else if id.name == "Item Item" {
+                    if let Some(_) = project.items.get(&id.references) {
+                        server_ctx.curr_item = ContentContext::ItemTemplate(id.references);
+                        server_ctx.cc = ContentContext::ItemTemplate(id.uuid);
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Item(id.references),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Item Item Name Edit" {
+                    if let Some(_) = project.items.get(&id.references) {
+                        server_ctx.curr_item = ContentContext::ItemTemplate(id.references);
+                        server_ctx.cc = ContentContext::ItemTemplate(id.references);
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Item(id.references),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Item Item Code Edit" {
+                    if let Some(_) = project.items.get(&id.references) {
+                        server_ctx.curr_character = ContentContext::ItemTemplate(id.references);
+                        server_ctx.cc = ContentContext::ItemTemplate(id.references);
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::ItemCode(id.references),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Item Item Data Edit" {
+                    if let Some(_) = project.items.get(&id.references) {
+                        server_ctx.curr_character = ContentContext::ItemTemplate(id.references);
+                        server_ctx.cc = ContentContext::ItemTemplate(id.references);
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::ItemData(id.references),
+                        );
+                        redraw = true;
+                    }
+                }
+                /*else if id.name == "Item Item" {
                     if let Some(c) = project.items.get(&id.uuid) {
                         server_ctx.curr_item = ContentContext::ItemTemplate(id.uuid);
                         server_ctx.cc = ContentContext::ItemTemplate(id.uuid);
@@ -2451,7 +2611,8 @@ impl Sidebar {
                             self.apply_item(ui, ctx, None);
                         }
                     }
-                } else if id.name == "Shader Add" {
+                }*/
+                else if id.name == "Shader Add" {
                     let mut module: Module = Module::as_type(codegridfx::ModuleType::Shader);
                     module.update_routines();
                     module.name = "New Shader".into();
@@ -3014,101 +3175,30 @@ impl Sidebar {
 
         self.apply_regions(ui, ctx, server_ctx, project);
         self.apply_characters(ui, ctx, server_ctx, project);
+        self.apply_items(ui, ctx, server_ctx, project);
+        self.apply_tilemaps(ui, ctx, server_ctx, project);
 
-        if let Some(list_layout) = ui.get_list_layout("Region List") {
-            list_layout.clear();
-            for region in &project.regions {
-                let mut item = TheListItem::new(TheId::named_with_id("Region Item", region.id));
-                item.set_text(region.name.clone());
-                item.set_context_menu(Some(TheContextMenu {
-                    items: vec![
-                        TheContextMenuItem::new(
-                            "Rename Region...".to_string(),
-                            TheId::named("Rename Region"),
-                        ),
-                        // TheContextMenuItem::new(
-                        //     "Copy Prerendered...".to_string(),
-                        //     TheId::named("Copy Prerendered"),
-                        // ),
-                    ],
-                    ..Default::default()
-                }));
-                list_layout.add_item(item, ctx);
-            }
-        }
-        self.apply_character(ui, ctx, None);
-        if let Some(list_layout) = ui.get_list_layout("Character List") {
-            list_layout.clear();
-            let list = project.sorted_character_list();
-            for (id, name) in list {
-                let mut item = TheListItem::new(TheId::named_with_id("Character Item", id));
-                item.set_text(name);
-                item.set_context_menu(Some(TheContextMenu {
-                    items: vec![TheContextMenuItem::new(
-                        "Rename Character...".to_string(),
-                        TheId::named("Rename Character"),
-                    )],
-                    ..Default::default()
-                }));
-                list_layout.add_item(item, ctx);
-            }
-        }
-        self.apply_item(ui, ctx, None);
-        if let Some(list_layout) = ui.get_list_layout("Item List") {
-            list_layout.clear();
-            let list = project.sorted_item_list();
-            for (id, name) in list {
-                let mut item = TheListItem::new(TheId::named_with_id("Item Item", id));
-                item.set_text(name);
-                item.set_context_menu(Some(TheContextMenu {
-                    items: vec![TheContextMenuItem::new(
-                        "Rename Item...".to_string(),
-                        TheId::named("Rename Item"),
-                    )],
-                    ..Default::default()
-                }));
-                list_layout.add_item(item, ctx);
-            }
-        }
-        self.apply_tilemap(ui, ctx, None);
-        if let Some(list_layout) = ui.get_list_layout("Tilemap List") {
-            list_layout.clear();
-            for tilemap in &project.tilemaps {
-                let mut item = TheListItem::new(TheId::named_with_id("Tilemap Item", tilemap.id));
-                item.set_text(tilemap.name.clone());
-                item.set_context_menu(Some(TheContextMenu {
-                    items: vec![
-                        TheContextMenuItem::new(
-                            "Rename Tileset...".to_string(),
-                            TheId::named("Rename Tileset"),
-                        ),
-                        TheContextMenuItem::new(
-                            "Add Colors to Palette".to_string(),
-                            TheId::named("Add Tileset Colors"),
-                        ),
-                    ],
-                    ..Default::default()
-                }));
-                list_layout.add_item(item, ctx);
-            }
-        }
-        /*
-        if let Some(list_layout) = ui.get_list_layout("Module List") {
-            list_layout.clear();
-            let list = project.sorted_code_list();
-            for (id, name) in list {
-                let mut item = TheListItem::new(TheId::named_with_id("Module Item", id));
-                item.set_text(name);
-                item.set_context_menu(Some(TheContextMenu {
-                    items: vec![TheContextMenuItem::new(
-                        "Rename Module...".to_string(),
-                        TheId::named("Rename Module"),
-                    )],
-                    ..Default::default()
-                }));
-                list_layout.add_item(item, ctx);
-            }
-        }*/
+        // if let Some(list_layout) = ui.get_list_layout("Region List") {
+        //     list_layout.clear();
+        //     for region in &project.regions {
+        //         let mut item = TheListItem::new(TheId::named_with_id("Region Item", region.id));
+        //         item.set_text(region.name.clone());
+        //         item.set_context_menu(Some(TheContextMenu {
+        //             items: vec![
+        //                 TheContextMenuItem::new(
+        //                     "Rename Region...".to_string(),
+        //                     TheId::named("Rename Region"),
+        //                 ),
+        //                 // TheContextMenuItem::new(
+        //                 //     "Copy Prerendered...".to_string(),
+        //                 //     TheId::named("Copy Prerendered"),
+        //                 // ),
+        //             ],
+        //             ..Default::default()
+        //         }));
+        //         list_layout.add_item(item, ctx);
+        //     }
+        // }
         self.apply_screen(ui, ctx, None);
         if let Some(list_layout) = ui.get_list_layout("Screen List") {
             list_layout.clear();
@@ -3159,30 +3249,30 @@ impl Sidebar {
             }
         }
 
-        ui.select_first_list_item("Region List", ctx);
-        ui.select_first_list_item("Character List", ctx);
-        ui.select_first_list_item("Item List", ctx);
-        ui.select_first_list_item("Tilemap List", ctx);
-        ui.select_first_list_item("Module List", ctx);
-        ui.select_first_list_item("Screen List", ctx);
-        ui.select_first_list_item("Asset List", ctx);
+        // ui.select_first_list_item("Region List", ctx);
+        // ui.select_first_list_item("Character List", ctx);
+        // ui.select_first_list_item("Item List", ctx);
+        // ui.select_first_list_item("Tilemap List", ctx);
+        // ui.select_first_list_item("Module List", ctx);
+        // ui.select_first_list_item("Screen List", ctx);
+        // ui.select_first_list_item("Asset List", ctx);
 
-        ui.set_widget_value("ConfigEdit", ctx, TheValue::Text(project.config.clone()));
+        // ui.set_widget_value("ConfigEdit", ctx, TheValue::Text(project.config.clone()));
         if let Ok(toml) = project.config.parse::<Table>() {
             *CONFIG.write().unwrap() = toml;
         }
         CONFIGEDITOR.write().unwrap().read_defaults();
         RUSTERIX.write().unwrap().assets.palette = project.palette.clone();
 
-        ctx.ui.send(TheEvent::Custom(
-            TheId::named("Update Tilepicker"),
-            TheValue::Empty,
-        ));
+        // ctx.ui.send(TheEvent::Custom(
+        //     TheId::named("Update Tilepicker"),
+        //     TheValue::Empty,
+        // ));
 
-        ctx.ui.send(TheEvent::Custom(
-            TheId::named("Update Materialpicker"),
-            TheValue::Empty,
-        ));
+        // ctx.ui.send(TheEvent::Custom(
+        //     TheId::named("Update Materialpicker"),
+        //     TheValue::Empty,
+        // ));
 
         // Set the current material
         let selected_material = if project.shaders.is_empty() {
@@ -3196,7 +3286,7 @@ impl Sidebar {
         server_ctx.curr_material_id = selected_material;
 
         self.show_actions(ui, ctx, project, server_ctx);
-        self.show_filtered_materials(ui, ctx, project, server_ctx);
+        // self.show_filtered_materials(ui, ctx, project, server_ctx);
         self.update_tiles(ui, ctx, project);
 
         TOOLLIST.write().unwrap().get_current_tool().tool_event(
@@ -3206,59 +3296,6 @@ impl Sidebar {
             project,
             server_ctx,
         );
-    }
-
-    /// Apply the given character to the UI
-    pub fn apply_character(
-        &mut self,
-        _ui: &mut TheUI,
-        _ctx: &mut TheContext,
-        _character: Option<&Character>,
-    ) {
-        /*
-        ui.set_widget_disabled_state("Character Remove", ctx, character.is_none());
-
-        if let Some(character) = character {
-            ui.set_widget_value("CodeEdit", ctx, TheValue::Text(character.source.clone()));
-            ui.set_widget_value("DataEdit", ctx, TheValue::Text(character.data.clone()));
-
-            CODEEDITOR
-                .write()
-                .unwrap()
-                .set_module_character(ui, ctx, character);
-        } else {
-            CODEEDITOR.write().unwrap().clear_module(ui, ctx);
-        }
-
-        ctx.ui.relayout = true;
-        */
-    }
-
-    /// Apply the given item to the UI
-    pub fn apply_item(&mut self, ui: &mut TheUI, ctx: &mut TheContext, item: Option<&Item>) {
-        ui.set_widget_disabled_state("Item Remove", ctx, item.is_none());
-
-        if let Some(item) = item {
-            // if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
-            //     if let Some(canvas) = stack_layout.canvas_at_mut(2) {
-            //         canvas.set_bottom(item_list_canvas);
-            //     }
-            // }
-            //
-            ui.set_widget_value("CodeEdit", ctx, TheValue::Text(item.source.clone()));
-            ui.set_widget_value("DataEdit", ctx, TheValue::Text(item.data.clone()));
-
-            CODEEDITOR.write().unwrap().set_module_item(ui, ctx, item);
-        } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
-            if let Some(canvas) = stack_layout.canvas_at_mut(2) {
-                let mut empty = TheCanvas::new();
-                empty.set_layout(TheVLayout::new(TheId::empty()));
-                canvas.set_bottom(empty);
-            }
-            CODEEDITOR.write().unwrap().clear_module(ui, ctx);
-        }
-
-        ctx.ui.relayout = true;
     }
 
     /// Apply the given screen to the UI
@@ -3432,7 +3469,7 @@ impl Sidebar {
         }
     }
 
-    /// Apply the current regions to the tree.
+    /// Apply the current characters to the tree.
     pub fn apply_characters(
         &mut self,
         ui: &mut TheUI,
@@ -3451,6 +3488,52 @@ impl Sidebar {
                     let node = gen_character_tree_node(character);
 
                     characters_node.add_child(node);
+                }
+            }
+        }
+    }
+
+    /// Apply the current items to the tree.
+    pub fn apply_items(
+        &mut self,
+        ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+    ) {
+        if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+            if let Some(items_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id) {
+                items_node.widgets.clear();
+                items_node.childs.clear();
+
+                for (_, item) in project.items.iter() {
+                    let node = gen_item_tree_node(item);
+
+                    items_node.add_child(node);
+                }
+            }
+        }
+    }
+
+    /// Apply the current tilemaps to the tree.
+    pub fn apply_tilemaps(
+        &mut self,
+        ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+    ) {
+        if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+            if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_tilemaps_id) {
+                node.widgets.clear();
+                node.childs.clear();
+
+                for tilemap in project.tilemaps.iter() {
+                    let mut item =
+                        TheTreeItem::new(TheId::named_with_id("Tilemap Item", tilemap.id));
+                    item.set_text(tilemap.name.clone());
+
+                    node.add_widget(Box::new(item));
                 }
             }
         }
@@ -3927,7 +4010,7 @@ impl Sidebar {
             }
         }
 
-        if let Some(layout) = ui.get_text_layout("Action Settings") {
+        if let Some(layout) = ui.get_text_layout("Node Settings") {
             layout.clear();
 
             if let Some(action_id) = server_ctx.curr_action_id {
@@ -4180,6 +4263,11 @@ impl Sidebar {
                 }
             }
         }
+
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Action List"),
+            TheValue::Empty,
+        ));
         false
     }
 

@@ -5,6 +5,7 @@ use theframework::prelude::*;
 /// Generate a tree node for the given region
 pub fn gen_region_tree_node(region: &Region) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&region.name, region.id));
+    node.set_root_mode(false);
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Region Item", region.id));
     item.set_text("Name".into());
@@ -29,6 +30,7 @@ pub fn gen_region_tree_node(region: &Region) -> TheTreeNode {
 pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
     let mut node: TheTreeNode =
         TheTreeNode::new(TheId::named_with_id(&character.name, character.id));
+    node.set_root_mode(false);
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Character Item", character.id));
     item.set_text("Name".into());
@@ -53,6 +55,31 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
         "Character Item Data Edit",
         character.id,
     ));
+    item.set_text("Data".into());
+    node.add_widget(Box::new(item));
+
+    node
+}
+
+/// Returns a TheTreeNode for the item.
+pub fn gen_item_tree_node(item_: &Item) -> TheTreeNode {
+    let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&item_.name, item_.id));
+    node.set_root_mode(false);
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item", item_.id));
+    item.set_text("Name".into());
+
+    let mut edit = TheTextLineEdit::new(TheId::named_with_id("Item Item Name Edit", item_.id));
+    edit.set_text(item_.name.clone());
+    item.add_widget_column(200, Box::new(edit));
+
+    node.add_widget(Box::new(item));
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Code Edit", item_.id));
+    item.set_text("Code".into());
+    node.add_widget(Box::new(item));
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Data Edit", item_.id));
     item.set_text("Data".into());
     node.add_widget(Box::new(item));
 
@@ -141,6 +168,45 @@ pub fn set_project_context(
                     "Project Context",
                     ctx,
                     TheValue::Text(format!("Character: {}", region.name)),
+                );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Data".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::Item(id) => {
+            if let Some(item) = project.items.get(&id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Item: {}", item.name)),
+                );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::ItemCode(id) => {
+            if let Some(item) = project.items.get(&id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Item: {}", item.name)),
+                );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Code".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::ItemData(id) => {
+            if let Some(item) = project.items.get(&id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Item: {}", item.name)),
                 );
             }
             DOCKMANAGER
