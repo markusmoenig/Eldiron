@@ -1,6 +1,6 @@
 use crate::editor::{
     ACTIONLIST, CODEEDITOR, CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, SHADEGRIDFX,
-    SIDEBARMODE, TILEMAPEDITOR, TOOLLIST, UNDOMANAGER,
+    SIDEBARMODE, TOOLLIST, UNDOMANAGER,
 };
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
@@ -840,7 +840,7 @@ impl Sidebar {
         root.add_child(tilemaps_node);
 
         let screens_node: TheTreeNode =
-            TheTreeNode::new(TheId::named_with_id("Screens", server_ctx.tree_tilemaps_id));
+            TheTreeNode::new(TheId::named_with_id("Screens", server_ctx.tree_screens_id));
         root.add_child(screens_node);
 
         let assets_node: TheTreeNode =
@@ -863,6 +863,8 @@ impl Sidebar {
                 TheContextMenuItem::new("Add Region".to_string(), TheId::named("Add Region")),
                 TheContextMenuItem::new("Add Character".to_string(), TheId::named("Add Character")),
                 TheContextMenuItem::new("Add Item".to_string(), TheId::named("Add Item")),
+                TheContextMenuItem::new("Add Tilemap".to_string(), TheId::named("Add Tilemap")),
+                TheContextMenuItem::new("Add Screen".to_string(), TheId::named("Add Screen")),
             ],
             ..Default::default()
         }));
@@ -886,6 +888,11 @@ impl Sidebar {
                     TheId::named("Import Character"),
                 ),
                 TheContextMenuItem::new("Import Item".to_string(), TheId::named("Import Item")),
+                TheContextMenuItem::new(
+                    "Import Tilemap".to_string(),
+                    TheId::named("Import Tilemap"),
+                ),
+                TheContextMenuItem::new("Import Screen".to_string(), TheId::named("Import Screen")),
             ],
             ..Default::default()
         }));
@@ -1020,6 +1027,26 @@ impl Sidebar {
                             project,
                             server_ctx,
                             ProjectContext::Item(id.uuid),
+                        );
+                    } else
+                    // Tilemap
+                    if let Some(_item) = project.get_tilemap(id.uuid) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Tilemap(id.uuid),
+                        );
+                    } else
+                    // Screen
+                    if let Some(_item) = project.screens.get(&id.uuid) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Screen(id.uuid),
                         );
                     }
                 }
@@ -1694,6 +1721,48 @@ impl Sidebar {
                         atom.redo(project, ui, ctx, server_ctx);
                         UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                     }
+                } else if id.name.starts_with("Tilemap Item Name Edit") {
+                    // Rename a Tilemap
+                    let mut old = String::new();
+                    if let Some(tilemap) = project.get_tilemap(id.uuid) {
+                        old = tilemap.name.clone();
+                    }
+
+                    if let Some(name) = value.to_string()
+                        && old != name
+                    {
+                        let atom = ProjectUndoAtom::RenameTilemap(id.uuid, old, name);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    }
+                } else if id.name.starts_with("Tilemap Item Grid Edit") {
+                    // Edit Tilemap Grid Size
+                    let mut old = 0;
+                    if let Some(tilemap) = project.get_tilemap(id.uuid) {
+                        old = tilemap.grid_size;
+                    }
+
+                    if let Some(size) = value.to_i32()
+                        && old != size
+                    {
+                        let atom = ProjectUndoAtom::EditTilemapGridSize(id.uuid, old, size);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    }
+                } else if id.name.starts_with("Screen Item Name Edit") {
+                    // Rename a Screen
+                    let mut old = String::new();
+                    if let Some(screen) = project.screens.get(&id.uuid) {
+                        old = screen.name.clone();
+                    }
+
+                    if let Some(name) = value.to_string()
+                        && old != name
+                    {
+                        let atom = ProjectUndoAtom::RenameScreen(id.uuid, old, name);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    }
                 } else if let Some(action_id) = server_ctx.curr_action_id
                     && id.name.starts_with("action")
                 {
@@ -1741,7 +1810,7 @@ impl Sidebar {
                 // Change the size of the tilemap grid
                 else if id.name == "Tilemap Grid Edit" {
                     if let Some(tilemap_uuid) = &self.curr_tilemap_uuid {
-                        if let Some(tilemap) = project.get_tilemap(*tilemap_uuid) {
+                        if let Some(tilemap) = project.get_tilemap_mut(*tilemap_uuid) {
                             if let Some(size) = value.to_i32() {
                                 tilemap.grid_size = size;
                                 self.apply_tilemap(ui, ctx, Some(tilemap));
@@ -1761,7 +1830,7 @@ impl Sidebar {
                             layout.relayout(ctx);
                         }
                         if let Some(curr_tilemap_uuid) = self.curr_tilemap_uuid {
-                            if let Some(tilemap) = project.get_tilemap(curr_tilemap_uuid) {
+                            if let Some(tilemap) = project.get_tilemap_mut(curr_tilemap_uuid) {
                                 tilemap.zoom = v;
                             }
                         }
@@ -1774,7 +1843,7 @@ impl Sidebar {
             }
             // Tiles Add
             TheEvent::FileRequesterResult(id, paths) => {
-                if id.name == "Tilemap Add" || id.name == "Add Image" {
+                if id.name == "Tilemap Add" || id.name == "Add Tilemap" || id.name == "Add Image" {
                     for p in paths {
                         ctx.ui.decode_image(id.clone(), p.clone());
                     }
@@ -1830,80 +1899,6 @@ impl Sidebar {
                                     }
                                 }
                                 project.add_asset(asset);
-                            }
-                        }
-                    }
-                } else if id.name == "Tilemap Import" {
-                    for p in paths {
-                        let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
-                        let tilemap: Tilemap =
-                            serde_json::from_str(&contents).unwrap_or(Tilemap::default());
-
-                        if project.get_tilemap(tilemap.id).is_none() {
-                            if let Some(layout) = ui
-                                .canvas
-                                .get_layout(Some(&"Tilemap List".to_string()), None)
-                            {
-                                if let Some(list_layout) = layout.as_list_layout() {
-                                    let mut item = TheListItem::new(TheId::named_with_id(
-                                        "Tilemap Item",
-                                        tilemap.id,
-                                    ));
-                                    item.set_text(tilemap.name.clone());
-                                    item.set_state(TheWidgetState::Selected);
-                                    item.set_context_menu(Some(TheContextMenu {
-                                        items: vec![
-                                            TheContextMenuItem::new(
-                                                "Rename Tileset...".to_string(),
-                                                TheId::named("Rename Tileset"),
-                                            ),
-                                            TheContextMenuItem::new(
-                                                "Add Colors to Palette".to_string(),
-                                                TheId::named("Add Tileset Colors"),
-                                            ),
-                                        ],
-                                        ..Default::default()
-                                    }));
-                                    list_layout.deselect_all();
-                                    let id = item.id().clone();
-                                    list_layout.add_item(item, ctx);
-                                    list_layout.select_item(id.uuid, ctx, true);
-
-                                    redraw = true;
-                                }
-                            }
-                            project.add_tilemap(tilemap);
-                            self.update_tiles(ui, ctx, project);
-
-                            ctx.ui.send(TheEvent::SetStatusText(
-                                TheId::empty(),
-                                "Tilemap loaded successfully.".to_string(),
-                            ))
-                        } else {
-                            ctx.ui.send(TheEvent::SetStatusText(
-                                TheId::empty(),
-                                "Tilemap already exists.".to_string(),
-                            ))
-                        }
-                    }
-                } else if id.name == "Tilemap Export" {
-                    if let Some(curr_tilemap_uuid) = self.curr_tilemap_uuid {
-                        if let Some(tilemap) = project.get_tilemap(curr_tilemap_uuid) {
-                            for p in paths {
-                                let json = serde_json::to_string(&tilemap);
-                                if let Ok(json) = json {
-                                    if std::fs::write(p, json).is_ok() {
-                                        ctx.ui.send(TheEvent::SetStatusText(
-                                            TheId::empty(),
-                                            "Tilemap saved successfully.".to_string(),
-                                        ))
-                                    } else {
-                                        ctx.ui.send(TheEvent::SetStatusText(
-                                            TheId::empty(),
-                                            "Unable to save Tilemap!".to_string(),
-                                        ))
-                                    }
-                                }
                             }
                         }
                     }
@@ -2044,6 +2039,70 @@ impl Sidebar {
                             }
                         }
                     }
+                } else if id.name == "Tilemap Import" {
+                    for p in paths {
+                        let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
+                        let mut tilemap: Tilemap =
+                            serde_json::from_str(&contents).unwrap_or(Tilemap::default());
+
+                        tilemap.id = Uuid::new_v4();
+
+                        let atom = ProjectUndoAtom::AddTilemap(tilemap);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    }
+                } else if id.name == "Tilemap Export" {
+                    if let Some(tilemap) = project.get_tilemap(id.uuid) {
+                        let mut tilemap = tilemap.clone();
+                        for p in paths {
+                            tilemap.id = Uuid::new_v4();
+                            if let Ok(json) = serde_json::to_string(&tilemap) {
+                                if std::fs::write(p, json).is_ok() {
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Tilemap saved successfully.".to_string(),
+                                    ))
+                                } else {
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Unable to save Tilemap!".to_string(),
+                                    ))
+                                }
+                            }
+                        }
+                    }
+                } else if id.name == "Screen Import" {
+                    for p in paths {
+                        let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
+                        let mut screen: Screen =
+                            serde_json::from_str(&contents).unwrap_or(Screen::default());
+
+                        screen.id = Uuid::new_v4();
+
+                        let atom = ProjectUndoAtom::AddScreen(screen);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    }
+                } else if id.name == "Screen Export" {
+                    if let Some(screen) = project.screens.get(&id.uuid) {
+                        let mut screen = screen.clone();
+                        for p in paths {
+                            screen.id = Uuid::new_v4();
+                            if let Ok(json) = serde_json::to_string(&screen) {
+                                if std::fs::write(p, json).is_ok() {
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Screen saved successfully.".to_string(),
+                                    ))
+                                } else {
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Unable to save Screen!".to_string(),
+                                    ))
+                                }
+                            }
+                        }
+                    }
                 }
             }
             TheEvent::ImageDecodeResult(id, name, buffer) => {
@@ -2080,44 +2139,18 @@ impl Sidebar {
                         }
                     }
                     project.add_asset(asset);
-                } else if id.name == "Tilemap Add" {
+                } else if id.name == "Tilemap Add" || id.name == "Add Tilemap" {
                     let mut tilemap = Tilemap::new();
                     tilemap.name = name.clone();
                     tilemap.id = Uuid::new_v4();
                     tilemap.buffer = buffer.clone();
 
-                    if let Some(layout) = ui
-                        .canvas
-                        .get_layout(Some(&"Tilemap List".to_string()), None)
-                    {
-                        if let Some(list_layout) = layout.as_list_layout() {
-                            let mut item =
-                                TheListItem::new(TheId::named_with_id("Tilemap Item", tilemap.id));
-                            item.set_text(name.clone());
-                            item.set_state(TheWidgetState::Selected);
-                            item.set_context_menu(Some(TheContextMenu {
-                                items: vec![
-                                    TheContextMenuItem::new(
-                                        "Rename Tileset...".to_string(),
-                                        TheId::named("Rename Tileset"),
-                                    ),
-                                    TheContextMenuItem::new(
-                                        "Add Colors to Palette".to_string(),
-                                        TheId::named("Add Tileset Colors"),
-                                    ),
-                                ],
-                                ..Default::default()
-                            }));
-                            list_layout.deselect_all();
-                            let id = item.id().clone();
-                            list_layout.add_item(item, ctx);
-                            ctx.ui
-                                .send_widget_state_changed(&id, TheWidgetState::Selected);
+                    // Use undo system to add tilemap
+                    let atom = ProjectUndoAtom::AddTilemap(tilemap);
+                    atom.redo(project, ui, ctx, server_ctx);
+                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
 
-                            redraw = true;
-                        }
-                    }
-                    project.add_tilemap(tilemap);
+                    redraw = true;
                 }
             }
             TheEvent::KeyDown(TheValue::Char(c)) => {
@@ -2314,6 +2347,25 @@ impl Sidebar {
                     let atom = ProjectUndoAtom::AddItem(Item::default());
                     atom.redo(project, ui, ctx, server_ctx);
                     UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                } else if id.name == "Add Tilemap" {
+                    // Add Tilemap - open PNG file requester
+                    ctx.ui.open_file_requester(
+                        TheId::named_with_id("Add Tilemap", Uuid::new_v4()),
+                        "Open PNG Image".into(),
+                        TheFileExtension::new(
+                            "PNG Image".into(),
+                            vec!["png".to_string(), "PNG".to_string()],
+                        ),
+                    );
+                    ctx.ui
+                        .set_widget_state("Add Tilemap".to_string(), TheWidgetState::None);
+                    ctx.ui.clear_hover();
+                    redraw = true;
+                } else if id.name == "Add Screen" {
+                    // Add Screen
+                    let atom = ProjectUndoAtom::AddScreen(Screen::default());
+                    atom.redo(project, ui, ctx, server_ctx);
+                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                 } else if id.name == "Import Item" {
                     if let Some(id) = server_ctx.pc.id() {
                         ctx.ui.open_file_requester(
@@ -2325,6 +2377,24 @@ impl Sidebar {
                             ),
                         );
                     }
+                } else if id.name == "Import Tilemap" {
+                    ctx.ui.open_file_requester(
+                        TheId::named_with_id("Tilemap Import", Uuid::new_v4()),
+                        "Import Tilemap".into(),
+                        TheFileExtension::new(
+                            "Eldiron Tilemap".into(),
+                            vec!["eldiron_tilemap".to_string()],
+                        ),
+                    );
+                } else if id.name == "Import Screen" {
+                    ctx.ui.open_file_requester(
+                        TheId::named_with_id("Screen Import", Uuid::new_v4()),
+                        "Import Screen".into(),
+                        TheFileExtension::new(
+                            "Eldiron Screen".into(),
+                            vec!["eldiron_screen".to_string()],
+                        ),
+                    );
                 } else if id.name == "Project Remove" {
                     if server_ctx.pc.is_region() {
                         // Remove Region
@@ -2367,6 +2437,36 @@ impl Sidebar {
                                 UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                             }
                         }
+                    } else if server_ctx.pc.is_tilemap() {
+                        // Remove Tilemap
+                        let mut tilemap: Tilemap = Tilemap::default();
+                        if let Some(id) = server_ctx.pc.id() {
+                            if let Some(t) = project.get_tilemap(id) {
+                                tilemap = t.clone();
+                            }
+
+                            if let Some(index) =
+                                project.tilemaps.iter().position(|r| r.id == tilemap.id)
+                            {
+                                let atom = ProjectUndoAtom::RemoveTilemap(index, tilemap);
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            }
+                        }
+                    } else if server_ctx.pc.is_screen() {
+                        // Remove Screen
+                        let mut screen: Screen = Screen::default();
+                        if let Some(id) = server_ctx.pc.id() {
+                            if let Some(s) = project.screens.get(&id) {
+                                screen = s.clone();
+                            }
+
+                            if let Some(index) = project.screens.get_index_of(&id) {
+                                let atom = ProjectUndoAtom::RemoveScreen(index, screen);
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            }
+                        }
                     }
                 } else if id.name == "Project Export" {
                     if let Some(id) = server_ctx.pc.id() {
@@ -2390,11 +2490,29 @@ impl Sidebar {
                             );
                         } else if server_ctx.pc.is_item() {
                             ctx.ui.save_file_requester(
-                                TheId::named_with_id("Character Import", id),
+                                TheId::named_with_id("Item Export", id),
                                 "Export Item".into(),
                                 TheFileExtension::new(
                                     "Eldiron Item".into(),
                                     vec!["eldiron_item".to_string()],
+                                ),
+                            );
+                        } else if server_ctx.pc.is_tilemap() {
+                            ctx.ui.save_file_requester(
+                                TheId::named_with_id("Tilemap Export", id),
+                                "Export Tilemap".into(),
+                                TheFileExtension::new(
+                                    "Eldiron Tilemap".into(),
+                                    vec!["eldiron_tilemap".to_string()],
+                                ),
+                            );
+                        } else if server_ctx.pc.is_screen() {
+                            ctx.ui.save_file_requester(
+                                TheId::named_with_id("Screen Export", id),
+                                "Export Screen".into(),
+                                TheFileExtension::new(
+                                    "Eldiron Screen".into(),
+                                    vec!["eldiron_screen".to_string()],
                                 ),
                             );
                         }
@@ -2530,6 +2648,62 @@ impl Sidebar {
                             project,
                             server_ctx,
                             ProjectContext::Item(id.references),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Tilemap Item" {
+                    if let Some(_tilemap) = project.get_tilemap(id.references) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Tilemap(id.references),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Tilemap Item Name Edit" {
+                    if let Some(_tilemap) = project.get_tilemap(id.references) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Tilemap(id.references),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Tilemap Item Code Edit" || id.name == "Tilemap Item Grid Edit"
+                {
+                    if let Some(_tilemap) = project.get_tilemap(id.references) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Tilemap(id.references),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Screen Item" {
+                    if let Some(_screen) = project.screens.get(&id.references) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Screen(id.references),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Screen Item Name Edit" {
+                    if let Some(_screen) = project.screens.get(&id.references) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Screen(id.references),
                         );
                         redraw = true;
                     }
@@ -2728,6 +2902,15 @@ impl Sidebar {
                     if let Some(t) = project.get_tilemap(id.uuid) {
                         self.curr_tilemap_uuid = Some(t.id);
 
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Tilemap(id.uuid),
+                        );
+
+                        /*
                         TILEMAPEDITOR.write().unwrap().set_tilemap(t, ui, ctx);
                         self.apply_tilemap(ui, ctx, Some(t));
                         ctx.ui.relayout = true;
@@ -2737,7 +2920,7 @@ impl Sidebar {
                                 TheId::named("Set Tool"),
                                 TheValue::Text(str!("Tileset Tool")),
                             ));
-                        }
+                        }*/
                     }
                     redraw = true;
                 } else if id.name == "Screen Item" {
@@ -3177,6 +3360,7 @@ impl Sidebar {
         self.apply_characters(ui, ctx, server_ctx, project);
         self.apply_items(ui, ctx, server_ctx, project);
         self.apply_tilemaps(ui, ctx, server_ctx, project);
+        self.apply_screens(ui, ctx, server_ctx, project);
 
         // if let Some(list_layout) = ui.get_list_layout("Region List") {
         //     list_layout.clear();
@@ -3508,7 +3692,6 @@ impl Sidebar {
 
                 for (_, item) in project.items.iter() {
                     let node = gen_item_tree_node(item);
-
                     items_node.add_child(node);
                 }
             }
@@ -3524,16 +3707,35 @@ impl Sidebar {
         project: &mut Project,
     ) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-            if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_tilemaps_id) {
-                node.widgets.clear();
-                node.childs.clear();
+            if let Some(tilema_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_tilemaps_id)
+            {
+                tilema_node.widgets.clear();
+                tilema_node.childs.clear();
 
                 for tilemap in project.tilemaps.iter() {
-                    let mut item =
-                        TheTreeItem::new(TheId::named_with_id("Tilemap Item", tilemap.id));
-                    item.set_text(tilemap.name.clone());
+                    let node = gen_tilemap_tree_node(tilemap);
+                    tilema_node.add_child(node);
+                }
+            }
+        }
+    }
 
-                    node.add_widget(Box::new(item));
+    /// Apply the current screens to the tree.
+    pub fn apply_screens(
+        &mut self,
+        ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+    ) {
+        if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+            if let Some(screen_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_screens_id) {
+                screen_node.widgets.clear();
+                screen_node.childs.clear();
+
+                for (_, screen) in project.screens.iter() {
+                    let node = gen_screen_tree_node(screen);
+                    screen_node.add_child(node);
                 }
             }
         }

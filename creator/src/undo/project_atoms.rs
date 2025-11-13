@@ -15,6 +15,13 @@ pub enum ProjectUndoAtom {
     AddItem(Item),
     RemoveItem(usize, Item),
     RenameItem(Uuid, String, String),
+    AddTilemap(Tilemap),
+    RemoveTilemap(usize, Tilemap),
+    RenameTilemap(Uuid, String, String),
+    EditTilemapGridSize(Uuid, i32, i32),
+    AddScreen(Screen),
+    RemoveScreen(usize, Screen),
+    RenameScreen(Uuid, String, String),
 }
 
 use ProjectUndoAtom::*;
@@ -41,6 +48,15 @@ impl ProjectUndoAtom {
             AddItem(character) => format!("Add Item: {}", character.name),
             RemoveItem(_, character) => format!("Remove Item: {}", character.name),
             RenameItem(_, old, new) => format!("Rename Item: {} -> {}", old, new),
+            AddTilemap(tilemap) => format!("Add Tilemap: {}", tilemap.name),
+            RemoveTilemap(_, tilemap) => format!("Remove Tilemap: {}", tilemap.name),
+            RenameTilemap(_, old, new) => format!("Rename Tilemap: {} -> {}", old, new),
+            EditTilemapGridSize(_, old, new) => {
+                format!("Edit Tilemap Grid Size: {} -> {}", old, new)
+            }
+            AddScreen(screen) => format!("Add Screen: {}", screen.name),
+            RemoveScreen(_, screen) => format!("Remove Screen: {}", screen.name),
+            RenameScreen(_, old, new) => format!("Rename Screen: {} -> {}", old, new),
         }
     }
 
@@ -102,6 +118,11 @@ impl ProjectUndoAtom {
                     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                         if let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id) {
                             region_node.widget.set_value(TheValue::Text(old.clone()));
+                            if let Some(widget) = region_node.widgets[0].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Text(old.clone()));
+                                }
+                            }
                         }
                     }
                 }
@@ -149,6 +170,11 @@ impl ProjectUndoAtom {
                     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                         if let Some(region_node) = tree_layout.get_node_by_id_mut(&character.id) {
                             region_node.widget.set_value(TheValue::Text(old.clone()));
+                            if let Some(widget) = region_node.widgets[0].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Text(old.clone()));
+                                }
+                            }
                         }
                     }
                 }
@@ -194,6 +220,134 @@ impl ProjectUndoAtom {
                     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                         if let Some(region_node) = tree_layout.get_node_by_id_mut(&item.id) {
                             region_node.widget.set_value(TheValue::Text(old.clone()));
+                            if let Some(widget) = region_node.widgets[0].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Text(old.clone()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            AddTilemap(tilemap) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(tilemap_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_tilemaps_id)
+                    {
+                        // Find the index of the tilemap in the project
+                        if let Some(index) =
+                            project.tilemaps.iter().position(|t| t.id == tilemap.id)
+                        {
+                            project.tilemaps.remove(index);
+                        }
+                        tilemap_node.remove_child_by_uuid(&tilemap.id);
+                    }
+                }
+            }
+            RemoveTilemap(index, tilemap) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    let tilemap = tilemap.clone();
+
+                    let mut node = gen_tilemap_tree_node(&tilemap);
+                    node.set_open(true);
+                    if let Some(tilemap_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_tilemaps_id)
+                    {
+                        tilemap_node.add_child_at(*index, node);
+                    }
+                    project.tilemaps.insert(*index, tilemap.clone());
+
+                    set_project_context(
+                        ctx,
+                        ui,
+                        project,
+                        server_ctx,
+                        ProjectContext::Tilemap(tilemap.id),
+                    );
+                    update_region(ctx);
+                }
+            }
+            RenameTilemap(id, old, _new) => {
+                if let Some(tilemap) = project.get_tilemap_mut(*id) {
+                    tilemap.name = old.clone();
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(tilemap_node) = tree_layout.get_node_by_id_mut(id) {
+                            tilemap_node.widget.set_value(TheValue::Text(old.clone()));
+                            if let Some(widget) = tilemap_node.widgets[0].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Text(old.clone()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            EditTilemapGridSize(id, old, _new) => {
+                if let Some(tilemap) = project.get_tilemap_mut(*id) {
+                    tilemap.grid_size = *old;
+                    // Update the tree node widget
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(node) = tree_layout.get_node_by_id_mut(id) {
+                            if let Some(widget) = node.widgets[1].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Int(*old));
+
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Tilemap Grid Size Changed"),
+                                        TheValue::Int(*old),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            AddScreen(screen) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(screen_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_screens_id)
+                    {
+                        project.remove_screen(&screen.id);
+                        screen_node.remove_child_by_uuid(&screen.id);
+                    }
+                }
+            }
+            RemoveScreen(index, screen) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    let screen = screen.clone();
+
+                    let mut node = gen_screen_tree_node(&screen);
+                    node.set_open(true);
+                    if let Some(screen_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_screens_id)
+                    {
+                        screen_node.add_child_at(*index, node);
+                    }
+                    let screen_id: Uuid = screen.id;
+                    project.screens.insert_before(*index, screen_id, screen);
+
+                    set_project_context(
+                        ctx,
+                        ui,
+                        project,
+                        server_ctx,
+                        ProjectContext::Screen(screen_id),
+                    );
+                    update_region(ctx);
+                }
+            }
+            RenameScreen(id, old, _new) => {
+                if let Some(screen) = project.screens.get_mut(id) {
+                    screen.name = old.clone();
+                    screen.map.name = old.clone();
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(screen_node) = tree_layout.get_node_by_id_mut(&screen.id) {
+                            screen_node.widget.set_value(TheValue::Text(old.clone()));
+                            if let Some(widget) = screen_node.widgets[0].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Text(old.clone()));
+                                }
+                            }
                         }
                     }
                 }
@@ -275,6 +429,11 @@ impl ProjectUndoAtom {
                     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                         if let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id) {
                             region_node.widget.set_value(TheValue::Text(new.clone()));
+                            if let Some(widget) = region_node.widgets[0].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Text(new.clone()));
+                                }
+                            }
                         }
                     }
                 }
@@ -350,6 +509,11 @@ impl ProjectUndoAtom {
                     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                         if let Some(region_node) = tree_layout.get_node_by_id_mut(&character.id) {
                             region_node.widget.set_value(TheValue::Text(new.clone()));
+                            if let Some(widget) = region_node.widgets[0].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Text(new.clone()));
+                                }
+                            }
                         }
                     }
                 }
@@ -422,6 +586,161 @@ impl ProjectUndoAtom {
                     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                         if let Some(item_node) = tree_layout.get_node_by_id_mut(&item.id) {
                             item_node.widget.set_value(TheValue::Text(new.clone()));
+                            if let Some(widget) = item_node.widgets[0].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Text(new.clone()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            AddTilemap(tilemap) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_tilemaps_id)
+                    {
+                        let tilemap = tilemap.clone();
+
+                        let mut tilemap_node = gen_tilemap_tree_node(&tilemap);
+                        tilemap_node.set_open(true);
+                        node.add_child(tilemap_node);
+
+                        let tilemap_id = tilemap.id;
+                        project.add_tilemap(tilemap);
+
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Tilemap(tilemap_id),
+                        );
+                        update_region(ctx);
+                    }
+                }
+            }
+            RemoveTilemap(_, tilemap) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(tilemap_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_tilemaps_id)
+                    {
+                        tilemap_node.remove_child_by_uuid(&tilemap.id);
+                    }
+                    // Find the index of the tilemap in the project
+                    if let Some(index) = project.tilemaps.iter().position(|t| t.id == tilemap.id) {
+                        project.tilemaps.remove(index);
+                    }
+
+                    if let Some(first_tilemap) = project.tilemaps.first() {
+                        if let Some(tilemap_node) =
+                            tree_layout.get_node_by_id_mut(&first_tilemap.id)
+                        {
+                            tilemap_node.set_open(true);
+                        }
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Tilemap(first_tilemap.id),
+                        );
+                    }
+                }
+            }
+            RenameTilemap(id, _old, new) => {
+                if let Some(tilemap) = project.get_tilemap_mut(*id) {
+                    tilemap.name = new.clone();
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(tilemap_node) = tree_layout.get_node_by_id_mut(id) {
+                            tilemap_node.widget.set_value(TheValue::Text(new.clone()));
+                            if let Some(widget) = tilemap_node.widgets[0].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Text(new.clone()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            EditTilemapGridSize(id, _old, new) => {
+                if let Some(tilemap) = project.get_tilemap_mut(*id) {
+                    tilemap.grid_size = *new;
+                    // Update the tree node widget
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(node) = tree_layout.get_node_by_id_mut(id) {
+                            if let Some(widget) = node.widgets[1].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Int(*new));
+
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Tilemap Grid Size Changed"),
+                                        TheValue::Int(*new),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            AddScreen(screen) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_screens_id)
+                    {
+                        let screen = screen.clone();
+
+                        let mut screen_node = gen_screen_tree_node(&screen);
+                        screen_node.set_open(true);
+                        node.add_child(screen_node);
+
+                        let screen_id = screen.id;
+                        project.add_screen(screen);
+
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Screen(screen_id),
+                        );
+                        update_region(ctx);
+                    }
+                }
+            }
+            RemoveScreen(_, screen) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(screen_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_screens_id)
+                    {
+                        screen_node.remove_child_by_uuid(&screen.id);
+                    }
+                    project.remove_screen(&screen.id);
+
+                    if let Some(first_screen) = project.screens.first() {
+                        if let Some(screen_node) = tree_layout.get_node_by_id_mut(first_screen.0) {
+                            screen_node.set_open(true);
+                        }
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Screen(*first_screen.0),
+                        );
+                    }
+                }
+            }
+            RenameScreen(id, _old, new) => {
+                if let Some(screen) = project.screens.get_mut(id) {
+                    screen.name = new.clone();
+                    screen.map.name = new.clone();
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(screen_node) = tree_layout.get_node_by_id_mut(id) {
+                            screen_node.widget.set_value(TheValue::Text(new.clone()));
+                            if let Some(widget) = screen_node.widgets[0].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Text(new.clone()));
+                                }
+                            }
                         }
                     }
                 }

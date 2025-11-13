@@ -37,7 +37,7 @@ impl ToolList {
             // Box::new(TerrainTool::new()),
             // Box::new(CodeTool::new()),
             // Box::new(DataTool::new()),
-            Box::new(TilesetTool::new()),
+            // Box::new(TilesetTool::new()),
             Box::new(ConfigTool::new()),
             Box::new(InfoTool::new()),
             Box::new(GameTool::new()),

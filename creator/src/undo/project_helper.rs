@@ -86,6 +86,52 @@ pub fn gen_item_tree_node(item_: &Item) -> TheTreeNode {
     node
 }
 
+/// Returns a TheTreeNode for the tilemap item.
+pub fn gen_tilemap_tree_node(tilemap: &Tilemap) -> TheTreeNode {
+    let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&tilemap.name, tilemap.id));
+    node.set_root_mode(false);
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Tilemap Item", tilemap.id));
+    item.set_text("Name".into());
+
+    let mut edit = TheTextLineEdit::new(TheId::named_with_id("Tilemap Item Name Edit", tilemap.id));
+    edit.set_text(tilemap.name.clone());
+    item.add_widget_column(200, Box::new(edit));
+
+    node.add_widget(Box::new(item));
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference(
+        "Tilemap Item Code Edit",
+        tilemap.id,
+    ));
+    item.set_text("Grid Size".into());
+
+    let mut edit = TheTextLineEdit::new(TheId::named_with_id("Tilemap Item Grid Edit", tilemap.id));
+    edit.set_value(TheValue::Int(tilemap.grid_size));
+    item.add_widget_column(200, Box::new(edit));
+
+    node.add_widget(Box::new(item));
+
+    node
+}
+
+/// Returns a TheTreeNode for the screen.
+pub fn gen_screen_tree_node(screen: &Screen) -> TheTreeNode {
+    let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&screen.name, screen.id));
+    node.set_root_mode(false);
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Screen Item", screen.id));
+    item.set_text("Name".into());
+
+    let mut edit = TheTextLineEdit::new(TheId::named_with_id("Screen Item Name Edit", screen.id));
+    edit.set_text(screen.name.clone());
+    item.add_widget_column(200, Box::new(edit));
+
+    node.add_widget(Box::new(item));
+
+    node
+}
+
 /// Rerender the current region.
 pub fn update_region(ctx: &mut TheContext) {
     ctx.ui.send(TheEvent::Custom(
@@ -213,6 +259,19 @@ pub fn set_project_context(
                 .write()
                 .unwrap()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::Tilemap(id) => {
+            if let Some(tilemap) = project.get_tilemap(id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Tilemap: {}", tilemap.name)),
+                );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Tilemap".into(), ui, ctx, project, server_ctx);
         }
         _ => {}
     }

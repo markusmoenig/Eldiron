@@ -60,6 +60,7 @@ pub enum ProjectContext {
     ItemCode(Uuid),
     ItemData(Uuid),
     Tilemap(Uuid),
+    Screen(Uuid),
 }
 
 impl ProjectContext {
@@ -73,7 +74,8 @@ impl ProjectContext {
             | ProjectContext::Item(id)
             | ProjectContext::ItemCode(id)
             | ProjectContext::ItemData(id)
-            | ProjectContext::Tilemap(id) => Some(id),
+            | ProjectContext::Tilemap(id)
+            | ProjectContext::Screen(id) => Some(id),
         }
     }
 
@@ -105,6 +107,13 @@ impl ProjectContext {
     pub fn is_tilemap(&self) -> bool {
         match self {
             ProjectContext::Tilemap(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_screen(&self) -> bool {
+        match self {
+            ProjectContext::Screen(_) => true,
             _ => false,
         }
     }

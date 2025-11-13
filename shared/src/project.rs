@@ -176,7 +176,12 @@ impl Project {
     }
 
     /// Get the tilemap of the given uuid.
-    pub fn get_tilemap(&mut self, uuid: Uuid) -> Option<&mut Tilemap> {
+    pub fn get_tilemap(&self, uuid: Uuid) -> Option<&Tilemap> {
+        self.tilemaps.iter().find(|t| t.id == uuid)
+    }
+
+    /// Get the tilemap of the given uuid.
+    pub fn get_tilemap_mut(&mut self, uuid: Uuid) -> Option<&mut Tilemap> {
         self.tilemaps.iter_mut().find(|t| t.id == uuid)
     }
 
@@ -231,15 +236,6 @@ impl Project {
         self.models.remove(id);
     }
 
-    /// Get the map of the current project content.
-    // pub fn get_map_pc(&self, ctx: &ServerContext) -> Option<&Map> {
-    //     if ctx.pc.is_region() {
-    //         if ctx.editor_view_mode != EditorViewMode::D2 {
-    //             if let Some(region) = self.get_region(ctx.pc.id()) {}
-    //         }
-    //     }
-    // }
-
     /// Get the map of the current context.
     pub fn get_map_pc(&self, ctx: &ServerContext) -> Option<&Map> {
         if let Some(id) = ctx.pc.id() {
@@ -260,8 +256,8 @@ impl Project {
                 } else if let Some(region) = self.regions.iter().find(|t| t.id == id) {
                     return Some(&region.map);
                 }
-            } else if ctx.get_map_context() == MapContext::Screen {
-                if let Some(screen) = self.screens.get(&ctx.curr_screen) {
+            } else if ctx.pc.is_screen() {
+                if let Some(screen) = self.screens.get(&id) {
                     return Some(&screen.map);
                 }
             } else if ctx.pc.is_character() {
@@ -299,8 +295,8 @@ impl Project {
                 } else if let Some(region) = self.regions.iter_mut().find(|t| t.id == id) {
                     return Some(&mut region.map);
                 }
-            } else if ctx.get_map_context() == MapContext::Screen {
-                if let Some(screen) = self.screens.get_mut(&ctx.curr_screen) {
+            } else if ctx.pc.is_screen() {
+                if let Some(screen) = self.screens.get_mut(&id) {
                     return Some(&mut screen.map);
                 }
             } else if ctx.pc.is_character() {

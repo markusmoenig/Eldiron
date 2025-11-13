@@ -1,9 +1,8 @@
-use crate::editor::RUSTERIX;
-use crate::editor::{PREVIEW_ICON, SCENEMANAGER, UNDOMANAGER};
+use crate::editor::{PREVIEW_ICON, RUSTERIX, SCENEMANAGER};
 use crate::prelude::*;
 use rusterix::TileRole;
-use shared::tilemap;
 
+#[allow(dead_code)]
 #[derive(PartialEq)]
 enum AddMode {
     Single,
@@ -13,21 +12,23 @@ enum AddMode {
 
 use AddMode::*;
 
-pub struct TilemapEditor {
+pub struct TilemapDock {
     curr_tilemap_id: Uuid,
     add_mode: AddMode,
 }
 
-#[allow(clippy::new_without_default)]
-impl TilemapEditor {
-    pub fn new() -> Self {
+impl Dock for TilemapDock {
+    fn new() -> Self
+    where
+        Self: Sized,
+    {
         Self {
             curr_tilemap_id: Uuid::new_v4(),
             add_mode: Single,
         }
     }
 
-    pub fn build(&self) -> TheCanvas {
+    fn setup(&mut self, _ctx: &mut TheContext) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
         let rgba_layout = TheRGBALayout::new(TheId::named("Tilemap Editor"));
@@ -145,116 +146,31 @@ impl TilemapEditor {
         canvas
     }
 
-    /// Set the current tilemap
-    pub fn set_tilemap(
+    fn activate(
         &mut self,
-        tilemap: &tilemap::Tilemap,
         ui: &mut TheUI,
         ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
     ) {
-        self.curr_tilemap_id = tilemap.id;
-
-        ui.set_widget_value("Tilemap Editor Zoom", ctx, TheValue::Float(tilemap.zoom));
-
-        if let Some(rgba_layout) = ui.get_rgba_layout("Tilemap Editor") {
-            rgba_layout.set_buffer(tilemap.buffer.clone());
-            rgba_layout.set_scroll_offset(tilemap.scroll_offset);
-            if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                rgba_view.set_supports_external_zoom(true);
-                rgba_view.set_grid(Some(tilemap.grid_size));
-                rgba_view.set_mode(TheRGBAViewMode::TileSelection);
-                rgba_view.set_background([116, 116, 116, 255]);
-                let mut c = WHITE;
-                c[3] = 128;
-                rgba_view.set_hover_color(Some(c));
-                rgba_view.set_rectangular_selection(true);
-                rgba_view.set_dont_show_grid(true);
-                rgba_view.set_zoom(tilemap.zoom);
-
-                let mut used = FxHashSet::default();
-
-                // Compute used
-                for tile in &tilemap.tiles {
-                    for region in &tile.sequence.regions {
-                        used.insert((
-                            region.x as i32 / tilemap.grid_size,
-                            region.y as i32 / tilemap.grid_size,
-                        ));
-                    }
-                }
-                rgba_view.set_used(used);
-            }
-        }
-    }
-
-    /// Clears the selection
-    pub fn clear(&mut self, ui: &mut TheUI) {
-        if let Some(editor) = ui
-            .canvas
-            .get_layout(Some(&"Tilemap Editor".to_string()), None)
-        {
-            if let Some(editor) = editor.as_rgba_layout() {
-                editor
-                    .rgba_view_mut()
-                    .as_rgba_view()
-                    .unwrap()
-                    .set_selection(FxHashSet::default());
-            }
-        }
-        self.set_tilemap_preview(TheRGBATile::default(), ui);
-    }
-
-    /// Set the selection preview
-    pub fn set_tilemap_preview(&self, tile: TheRGBATile, _ui: &mut TheUI) {
-        // if let Some(icon_view) = ui.get_icon_view("Tilemap Selection Preview") {
-        //     icon_view.set_rgba_tile(tile);
-        // }
-        // if let Some(render_view) = ui.get_render_view("MiniMap") {
-        //     let dim = *render_view.dim();
-        //     let buffer = render_view.render_buffer_mut();
-
-        //     buffer.copy_into(0, 0, &tile.buffer[0]);
-        // }
-        *PREVIEW_ICON.write().unwrap() = (tile, 0);
-    }
-
-    /// Compute the selection preview
-    pub fn compute_preview(&mut self, project: &mut Project, ui: &mut TheUI) {
-        if let Some(rgba_layout) = ui.get_rgba_layout("Tilemap Editor") {
-            if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                if self.add_mode == Single {
-                    let mut tile = rgba_view.selection_as_tile();
-                    if let Some(last) = tile.buffer.last() {
-                        tile.buffer = vec![last.clone()];
-                    }
-                    self.set_tilemap_preview(tile, ui);
-                } else if self.add_mode == Anim {
-                    let selection = rgba_view.selection_as_sequence();
-                    let mut tile = TheRGBATile::default();
-                    if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
-                        tile.buffer = tilemap.buffer.extract_sequence(&selection);
-                    }
-                    self.set_tilemap_preview(tile, ui);
-                } else {
-                    let mut tile = TheRGBATile::default();
-                    let dim = rgba_view.selection_as_dim();
-
-                    if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
-                        let region = TheRGBARegion::new(
-                            dim.x as usize * tilemap.grid_size as usize,
-                            dim.y as usize * tilemap.grid_size as usize,
-                            dim.width as usize * tilemap.grid_size as usize,
-                            dim.height as usize * tilemap.grid_size as usize,
-                        );
-                        tile.buffer.push(tilemap.buffer.extract_region(&region));
-                    }
-                    self.set_tilemap_preview(tile, ui);
+        if let Some(id) = server_ctx.pc.id() {
+            if server_ctx.pc.is_tilemap() {
+                if let Some(tilemap) = project.get_tilemap(id) {
+                    self.set_tilemap(tilemap, ui, ctx);
                 }
             }
         }
     }
 
-    pub fn handle_event(
+    fn supports_actions(&self) -> bool {
+        false
+    }
+
+    fn default_state(&self) -> DockDefaultState {
+        DockDefaultState::Maximized
+    }
+
+    fn handle_event(
         &mut self,
         event: &TheEvent,
         ui: &mut TheUI,
@@ -265,6 +181,17 @@ impl TilemapEditor {
         let mut redraw = false;
 
         match event {
+            TheEvent::Custom(id, value) => {
+                if id.name == "Tilemap Grid Size Changed" {
+                    if let Some(rgba_layout) = ui.get_rgba_layout("Tilemap Editor") {
+                        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                            if let Some(grid_size) = value.to_i32() {
+                                rgba_view.set_grid(Some(grid_size));
+                            }
+                        }
+                    }
+                }
+            }
             TheEvent::TileZoomBy(id, delta) => {
                 if id.name == "Tilemap Editor View" {
                     if let Some(tilemap) = project.get_tilemap_mut(self.curr_tilemap_id) {
@@ -313,7 +240,7 @@ impl TilemapEditor {
                         );
                     }
                 } else if item_id.name == "Add Tileset Colors" {
-                    let prev = project.palette.clone();
+                    // let prev = project.palette.clone();
                     if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id).cloned() {
                         let width = tilemap.buffer.dim().width;
                         let height = tilemap.buffer.dim().height;
@@ -345,8 +272,8 @@ impl TilemapEditor {
                     }
                     redraw = true;
 
-                    let undo = PaletteUndoAtom::Edit(prev, project.palette.clone());
-                    UNDOMANAGER.write().unwrap().add_palette_undo(undo, ctx);
+                    // let undo = PaletteUndoAtom::Edit(prev, project.palette.clone());
+                    // UNDOMANAGER.write().unwrap().add_palette_undo(undo, ctx);
                 }
             }
             TheEvent::TileSelectionChanged(id) => {
@@ -561,5 +488,116 @@ impl TilemapEditor {
             _ => {}
         }
         redraw
+    }
+}
+
+impl TilemapDock {
+    /// Set the current tilemap
+    pub fn set_tilemap(
+        &mut self,
+        tilemap: &tilemap::Tilemap,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        self.curr_tilemap_id = tilemap.id;
+
+        ui.set_widget_value("Tilemap Editor Zoom", ctx, TheValue::Float(tilemap.zoom));
+
+        if let Some(rgba_layout) = ui.get_rgba_layout("Tilemap Editor") {
+            rgba_layout.set_buffer(tilemap.buffer.clone());
+            rgba_layout.set_scroll_offset(tilemap.scroll_offset);
+            if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                rgba_view.set_supports_external_zoom(true);
+                rgba_view.set_grid(Some(tilemap.grid_size));
+                rgba_view.set_mode(TheRGBAViewMode::TileSelection);
+                rgba_view.set_background([116, 116, 116, 255]);
+                let mut c = WHITE;
+                c[3] = 128;
+                rgba_view.set_hover_color(Some(c));
+                rgba_view.set_rectangular_selection(true);
+                rgba_view.set_dont_show_grid(true);
+                rgba_view.set_zoom(tilemap.zoom);
+
+                let mut used = FxHashSet::default();
+
+                // Compute used
+                for tile in &tilemap.tiles {
+                    for region in &tile.sequence.regions {
+                        used.insert((
+                            region.x as i32 / tilemap.grid_size,
+                            region.y as i32 / tilemap.grid_size,
+                        ));
+                    }
+                }
+                rgba_view.set_used(used);
+            }
+        }
+    }
+
+    /// Clears the selection
+    pub fn clear(&mut self, ui: &mut TheUI) {
+        if let Some(editor) = ui
+            .canvas
+            .get_layout(Some(&"Tilemap Editor".to_string()), None)
+        {
+            if let Some(editor) = editor.as_rgba_layout() {
+                editor
+                    .rgba_view_mut()
+                    .as_rgba_view()
+                    .unwrap()
+                    .set_selection(FxHashSet::default());
+            }
+        }
+        self.set_tilemap_preview(TheRGBATile::default(), ui);
+    }
+
+    /// Set the selection preview
+    pub fn set_tilemap_preview(&self, tile: TheRGBATile, _ui: &mut TheUI) {
+        // if let Some(icon_view) = ui.get_icon_view("Tilemap Selection Preview") {
+        //     icon_view.set_rgba_tile(tile);
+        // }
+        // if let Some(render_view) = ui.get_render_view("MiniMap") {
+        //     let dim = *render_view.dim();
+        //     let buffer = render_view.render_buffer_mut();
+
+        //     buffer.copy_into(0, 0, &tile.buffer[0]);
+        // }
+        *PREVIEW_ICON.write().unwrap() = (tile, 0);
+    }
+
+    /// Compute the selection preview
+    pub fn compute_preview(&mut self, project: &mut Project, ui: &mut TheUI) {
+        if let Some(rgba_layout) = ui.get_rgba_layout("Tilemap Editor") {
+            if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                if self.add_mode == Single {
+                    let mut tile = rgba_view.selection_as_tile();
+                    if let Some(last) = tile.buffer.last() {
+                        tile.buffer = vec![last.clone()];
+                    }
+                    self.set_tilemap_preview(tile, ui);
+                } else if self.add_mode == Anim {
+                    let selection = rgba_view.selection_as_sequence();
+                    let mut tile = TheRGBATile::default();
+                    if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
+                        tile.buffer = tilemap.buffer.extract_sequence(&selection);
+                    }
+                    self.set_tilemap_preview(tile, ui);
+                } else {
+                    let mut tile = TheRGBATile::default();
+                    let dim = rgba_view.selection_as_dim();
+
+                    if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
+                        let region = TheRGBARegion::new(
+                            dim.x as usize * tilemap.grid_size as usize,
+                            dim.y as usize * tilemap.grid_size as usize,
+                            dim.width as usize * tilemap.grid_size as usize,
+                            dim.height as usize * tilemap.grid_size as usize,
+                        );
+                        tile.buffer.push(tilemap.buffer.extract_region(&region));
+                    }
+                    self.set_tilemap_preview(tile, ui);
+                }
+            }
+        }
     }
 }

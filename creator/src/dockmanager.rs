@@ -26,6 +26,9 @@ impl DockManager {
         let dock: Box<dyn Dock> = Box::new(crate::docks::data::DataDock::new());
         docks.insert("Data".into(), dock);
 
+        let dock: Box<dyn Dock> = Box::new(crate::docks::tilemap::TilemapDock::new());
+        docks.insert("Tilemap".into(), dock);
+
         Self {
             docks,
             dock: "".into(),
@@ -109,6 +112,24 @@ impl DockManager {
             } else {
                 eprint!("Dock \"{}\" not found!", self.dock);
                 return;
+            }
+
+            // Turn actions off / on
+            if let Some(layout) = ui.get_sharedhlayout("Dock Shared Layout") {
+                if self.docks[self.index].supports_actions() {
+                    layout.set_mode(TheSharedHLayoutMode::Shared);
+                } else {
+                    layout.set_mode(TheSharedHLayoutMode::Left);
+                }
+            }
+
+            if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                let state = self.docks[self.index].default_state();
+                if state == DockDefaultState::Minimized {
+                    layout.set_mode(TheSharedVLayoutMode::Shared);
+                } else {
+                    layout.set_mode(TheSharedVLayoutMode::Bottom);
+                }
             }
         }
         self.docks[self.index].activate(ui, ctx, project, server_ctx);
