@@ -843,8 +843,15 @@ impl Sidebar {
             TheTreeNode::new(TheId::named_with_id("Screens", server_ctx.tree_screens_id));
         root.add_child(screens_node);
 
-        let assets_node: TheTreeNode =
+        let mut assets_node: TheTreeNode =
             TheTreeNode::new(TheId::named_with_id("Assets", server_ctx.tree_assets_id));
+
+        let fonts_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
+            "Fonts",
+            server_ctx.tree_assets_fonts_id,
+        ));
+        assets_node.add_child(fonts_node);
+
         root.add_child(assets_node);
 
         let palette_node: TheTreeNode =
@@ -865,6 +872,10 @@ impl Sidebar {
                 TheContextMenuItem::new("Add Item".to_string(), TheId::named("Add Item")),
                 TheContextMenuItem::new("Add Tilemap".to_string(), TheId::named("Add Tilemap")),
                 TheContextMenuItem::new("Add Screen".to_string(), TheId::named("Add Screen")),
+                TheContextMenuItem::new(
+                    "Add Font Asset".to_string(),
+                    TheId::named("Add Font Asset"),
+                ),
             ],
             ..Default::default()
         }));
@@ -893,6 +904,10 @@ impl Sidebar {
                     TheId::named("Import Tilemap"),
                 ),
                 TheContextMenuItem::new("Import Screen".to_string(), TheId::named("Import Screen")),
+                TheContextMenuItem::new(
+                    "Import Font Asset".to_string(),
+                    TheId::named("Import Font Asset"),
+                ),
             ],
             ..Default::default()
         }));
@@ -1047,6 +1062,16 @@ impl Sidebar {
                             project,
                             server_ctx,
                             ProjectContext::Screen(id.uuid),
+                        );
+                    } else
+                    // Asset
+                    if let Some(_item) = project.assets.get(&id.uuid) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Asset(id.uuid),
                         );
                     }
                 }
@@ -1763,6 +1788,20 @@ impl Sidebar {
                         atom.redo(project, ui, ctx, server_ctx);
                         UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                     }
+                } else if id.name.starts_with("Asset Item Name Edit") {
+                    // Rename an Asset
+                    let mut old = String::new();
+                    if let Some(asset) = project.assets.get(&id.uuid) {
+                        old = asset.name.clone();
+                    }
+
+                    if let Some(name) = value.to_string()
+                        && old != name
+                    {
+                        let atom = ProjectUndoAtom::RenameAsset(id.uuid, old, name);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    }
                 } else if let Some(action_id) = server_ctx.curr_action_id
                     && id.name.starts_with("action")
                 {
@@ -1847,7 +1886,32 @@ impl Sidebar {
                     for p in paths {
                         ctx.ui.decode_image(id.clone(), p.clone());
                     }
-                } else if id.name == "Add Font" {
+                } else if id.name == "Add Font Asset" || id.name == "Add Font" {
+                    for p in paths {
+                        if let Ok(bytes) = std::fs::read(p) {
+                            if fontdue::Font::from_bytes(
+                                bytes.clone(),
+                                fontdue::FontSettings::default(),
+                            )
+                            .is_ok()
+                            {
+                                let asset = Asset {
+                                    name: p
+                                        .file_stem()
+                                        .unwrap_or_default()
+                                        .to_string_lossy()
+                                        .to_string(),
+                                    id: Uuid::new_v4(),
+                                    buffer: AssetBuffer::Font(bytes),
+                                };
+
+                                let atom = ProjectUndoAtom::AddAsset(asset);
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            }
+                        }
+                    }
+                } else if id.name == "Add Font Old" {
                     for p in paths {
                         if let Ok(bytes) = std::fs::read(p) {
                             if fontdue::Font::from_bytes(
@@ -2098,6 +2162,38 @@ impl Sidebar {
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
                                         "Unable to save Screen!".to_string(),
+                                    ))
+                                }
+                            }
+                        }
+                    }
+                } else if id.name == "Font Asset Import" {
+                    for p in paths {
+                        let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
+                        let mut asset: Asset =
+                            serde_json::from_str(&contents).unwrap_or(Asset::default());
+
+                        asset.id = Uuid::new_v4();
+
+                        let atom = ProjectUndoAtom::AddAsset(asset);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    }
+                } else if id.name == "Font Asset Export" {
+                    if let Some(asset) = project.assets.get(&id.uuid) {
+                        let mut asset = asset.clone();
+                        for p in paths {
+                            asset.id = Uuid::new_v4();
+                            if let Ok(json) = serde_json::to_string(&asset) {
+                                if std::fs::write(p, json).is_ok() {
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Font Asset saved successfully.".to_string(),
+                                    ))
+                                } else {
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Unable to save Font Asset!".to_string(),
                                     ))
                                 }
                             }
@@ -2366,6 +2462,20 @@ impl Sidebar {
                     let atom = ProjectUndoAtom::AddScreen(Screen::default());
                     atom.redo(project, ui, ctx, server_ctx);
                     UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                } else if id.name == "Add Font Asset" {
+                    // Add Font Asset - open font file requester
+                    ctx.ui.open_file_requester(
+                        TheId::named_with_id("Add Font Asset", Uuid::new_v4()),
+                        "Open Font File".into(),
+                        TheFileExtension::new(
+                            "Font File".into(),
+                            vec!["ttf".to_string(), "otf".to_string()],
+                        ),
+                    );
+                    ctx.ui
+                        .set_widget_state("Add Font Asset".to_string(), TheWidgetState::None);
+                    ctx.ui.clear_hover();
+                    redraw = true;
                 } else if id.name == "Import Item" {
                     if let Some(id) = server_ctx.pc.id() {
                         ctx.ui.open_file_requester(
@@ -2393,6 +2503,15 @@ impl Sidebar {
                         TheFileExtension::new(
                             "Eldiron Screen".into(),
                             vec!["eldiron_screen".to_string()],
+                        ),
+                    );
+                } else if id.name == "Import Font Asset" {
+                    ctx.ui.open_file_requester(
+                        TheId::named_with_id("Font Asset Import", Uuid::new_v4()),
+                        "Import Font Asset".into(),
+                        TheFileExtension::new(
+                            "Eldiron Font Asset".into(),
+                            vec!["eldiron_font_asset".to_string()],
                         ),
                     );
                 } else if id.name == "Project Remove" {
@@ -2467,6 +2586,20 @@ impl Sidebar {
                                 UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                             }
                         }
+                    } else if server_ctx.pc.is_asset() {
+                        // Remove Asset
+                        let mut asset: Asset = Asset::default();
+                        if let Some(id) = server_ctx.pc.id() {
+                            if let Some(a) = project.assets.get(&id) {
+                                asset = a.clone();
+                            }
+
+                            if let Some(index) = project.assets.get_index_of(&id) {
+                                let atom = ProjectUndoAtom::RemoveAsset(index, asset);
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            }
+                        }
                     }
                 } else if id.name == "Project Export" {
                     if let Some(id) = server_ctx.pc.id() {
@@ -2513,6 +2646,15 @@ impl Sidebar {
                                 TheFileExtension::new(
                                     "Eldiron Screen".into(),
                                     vec!["eldiron_screen".to_string()],
+                                ),
+                            );
+                        } else if server_ctx.pc.is_asset() {
+                            ctx.ui.save_file_requester(
+                                TheId::named_with_id("Font Asset Export", id),
+                                "Export Font Asset".into(),
+                                TheFileExtension::new(
+                                    "Eldiron Font Asset".into(),
+                                    vec!["eldiron_font_asset".to_string()],
                                 ),
                             );
                         }
@@ -2704,6 +2846,28 @@ impl Sidebar {
                             project,
                             server_ctx,
                             ProjectContext::Screen(id.references),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Asset Item" {
+                    if let Some(_screen) = project.assets.get(&id.references) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Asset(id.references),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Asset Item Name Edit" {
+                    if let Some(_screen) = project.assets.get(&id.references) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Asset(id.references),
                         );
                         redraw = true;
                     }
@@ -3361,6 +3525,8 @@ impl Sidebar {
         self.apply_items(ui, ctx, server_ctx, project);
         self.apply_tilemaps(ui, ctx, server_ctx, project);
         self.apply_screens(ui, ctx, server_ctx, project);
+        self.apply_assets(ui, ctx, server_ctx, project);
+        self.apply_palette(ui, ctx, server_ctx, project);
 
         // if let Some(list_layout) = ui.get_list_layout("Region List") {
         //     list_layout.clear();
@@ -3737,6 +3903,53 @@ impl Sidebar {
                     let node = gen_screen_tree_node(screen);
                     screen_node.add_child(node);
                 }
+            }
+        }
+    }
+
+    /// Apply the current assets to the tree.
+    pub fn apply_assets(
+        &mut self,
+        ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+    ) {
+        if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+            if let Some(asset_node) =
+                tree_layout.get_node_by_id_mut(&server_ctx.tree_assets_fonts_id)
+            {
+                asset_node.widgets.clear();
+                asset_node.childs.clear();
+
+                for (_, assets) in project.assets.iter() {
+                    let node = gen_asset_tree_node(assets);
+                    asset_node.add_child(node);
+                }
+            }
+        }
+    }
+
+    /// Apply the current palette to the tree.
+    pub fn apply_palette(
+        &mut self,
+        ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+    ) {
+        if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+            if let Some(palette_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_palette_id)
+            {
+                palette_node.widgets.clear();
+                palette_node.childs.clear();
+
+                let mut item = TheTreeIcons::new(TheId::named("Palette Item"));
+                item.set_icon_count(256);
+                item.set_icons_per_row(17);
+                item.set_palette(&project.palette);
+
+                palette_node.add_widget(Box::new(item));
             }
         }
     }

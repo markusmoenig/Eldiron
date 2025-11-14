@@ -132,6 +132,23 @@ pub fn gen_screen_tree_node(screen: &Screen) -> TheTreeNode {
     node
 }
 
+/// Returns a TheTreeNode for the screen.
+pub fn gen_asset_tree_node(asset: &Asset) -> TheTreeNode {
+    let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&asset.name, asset.id));
+    node.set_root_mode(false);
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Asset Item", asset.id));
+    item.set_text("Name".into());
+
+    let mut edit = TheTextLineEdit::new(TheId::named_with_id("Asset Item Name Edit", asset.id));
+    edit.set_text(asset.name.clone());
+    item.add_widget_column(200, Box::new(edit));
+
+    node.add_widget(Box::new(item));
+
+    node
+}
+
 /// Rerender the current region.
 pub fn update_region(ctx: &mut TheContext) {
     ctx.ui.send(TheEvent::Custom(
@@ -272,6 +289,32 @@ pub fn set_project_context(
                 .write()
                 .unwrap()
                 .set_dock("Tilemap".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::Screen(id) => {
+            if let Some(tilemap) = project.screens.get(&id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Screen: {}", tilemap.name)),
+                );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Tilemap".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::Asset(id) => {
+            if let Some(asset) = project.assets.get(&id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Asset: {}", asset.name)),
+                );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
         }
         _ => {}
     }

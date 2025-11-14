@@ -22,6 +22,9 @@ pub enum ProjectUndoAtom {
     AddScreen(Screen),
     RemoveScreen(usize, Screen),
     RenameScreen(Uuid, String, String),
+    AddAsset(Asset),
+    RemoveAsset(usize, Asset),
+    RenameAsset(Uuid, String, String),
 }
 
 use ProjectUndoAtom::*;
@@ -57,6 +60,9 @@ impl ProjectUndoAtom {
             AddScreen(screen) => format!("Add Screen: {}", screen.name),
             RemoveScreen(_, screen) => format!("Remove Screen: {}", screen.name),
             RenameScreen(_, old, new) => format!("Rename Screen: {} -> {}", old, new),
+            AddAsset(asset) => format!("Add Asset: {}", asset.name),
+            RemoveAsset(_, asset) => format!("Remove Asset: {}", asset.name),
+            RenameAsset(_, old, new) => format!("Rename Asset: {} -> {}", old, new),
         }
     }
 
@@ -344,6 +350,55 @@ impl ProjectUndoAtom {
                         if let Some(screen_node) = tree_layout.get_node_by_id_mut(&screen.id) {
                             screen_node.widget.set_value(TheValue::Text(old.clone()));
                             if let Some(widget) = screen_node.widgets[0].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Text(old.clone()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            AddAsset(asset) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(asset_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_assets_id)
+                    {
+                        project.remove_asset(&asset.id);
+                        asset_node.remove_child_by_uuid(&asset.id);
+                    }
+                }
+            }
+            RemoveAsset(index, asset) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    let asset = asset.clone();
+
+                    let mut node = gen_asset_tree_node(&asset);
+                    node.set_open(true);
+                    if let Some(asset_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_assets_id)
+                    {
+                        asset_node.add_child_at(*index, node);
+                    }
+                    let asset_id: Uuid = asset.id;
+                    project.assets.insert_before(*index, asset_id, asset);
+
+                    set_project_context(
+                        ctx,
+                        ui,
+                        project,
+                        server_ctx,
+                        ProjectContext::Asset(asset_id),
+                    );
+                    update_region(ctx);
+                }
+            }
+            RenameAsset(id, old, _new) => {
+                if let Some(asset) = project.assets.get_mut(id) {
+                    asset.name = old.clone();
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(asset_node) = tree_layout.get_node_by_id_mut(&asset.id) {
+                            asset_node.widget.set_value(TheValue::Text(old.clone()));
+                            if let Some(widget) = asset_node.widgets[0].as_tree_item() {
                                 if let Some(embedded) = widget.embedded_widget_mut() {
                                     embedded.set_value(TheValue::Text(old.clone()));
                                 }
@@ -737,6 +792,67 @@ impl ProjectUndoAtom {
                         if let Some(screen_node) = tree_layout.get_node_by_id_mut(id) {
                             screen_node.widget.set_value(TheValue::Text(new.clone()));
                             if let Some(widget) = screen_node.widgets[0].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Text(new.clone()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            AddAsset(asset) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_assets_id) {
+                        let asset = asset.clone();
+
+                        let mut asset_node = gen_asset_tree_node(&asset);
+                        asset_node.set_open(true);
+                        node.add_child(asset_node);
+
+                        let asset_id = asset.id;
+                        project.add_asset(asset);
+
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Asset(asset_id),
+                        );
+                        update_region(ctx);
+                    }
+                }
+            }
+            RemoveAsset(_, asset) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(asset_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_assets_id)
+                    {
+                        asset_node.remove_child_by_uuid(&asset.id);
+                    }
+                    project.remove_asset(&asset.id);
+
+                    if let Some(first_asset) = project.assets.first() {
+                        if let Some(asset_node) = tree_layout.get_node_by_id_mut(first_asset.0) {
+                            asset_node.set_open(true);
+                        }
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Asset(*first_asset.0),
+                        );
+                    }
+                }
+            }
+            RenameAsset(id, _old, new) => {
+                if let Some(asset) = project.assets.get_mut(id) {
+                    asset.name = new.clone();
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(asset_node) = tree_layout.get_node_by_id_mut(id) {
+                            asset_node.widget.set_value(TheValue::Text(new.clone()));
+                            if let Some(widget) = asset_node.widgets[0].as_tree_item() {
                                 if let Some(embedded) = widget.embedded_widget_mut() {
                                     embedded.set_value(TheValue::Text(new.clone()));
                                 }

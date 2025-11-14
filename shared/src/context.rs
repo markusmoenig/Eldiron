@@ -61,6 +61,7 @@ pub enum ProjectContext {
     ItemData(Uuid),
     Tilemap(Uuid),
     Screen(Uuid),
+    Asset(Uuid),
 }
 
 impl ProjectContext {
@@ -75,7 +76,8 @@ impl ProjectContext {
             | ProjectContext::ItemCode(id)
             | ProjectContext::ItemData(id)
             | ProjectContext::Tilemap(id)
-            | ProjectContext::Screen(id) => Some(id),
+            | ProjectContext::Screen(id)
+            | ProjectContext::Asset(id) => Some(id),
         }
     }
 
@@ -112,6 +114,20 @@ impl ProjectContext {
     }
 
     pub fn is_screen(&self) -> bool {
+        match self {
+            ProjectContext::Screen(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_asset(&self) -> bool {
+        match self {
+            ProjectContext::Asset(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn has_custom_map(&self) -> bool {
         match self {
             ProjectContext::Screen(_) => true,
             _ => false,
@@ -216,6 +232,7 @@ pub struct ServerContext {
     pub tree_tilemaps_id: Uuid,
     pub tree_screens_id: Uuid,
     pub tree_assets_id: Uuid,
+    pub tree_assets_fonts_id: Uuid,
     pub tree_palette_id: Uuid,
 
     /// The currently selected region in the editor.
@@ -358,6 +375,7 @@ impl ServerContext {
             tree_tilemaps_id: Uuid::new_v4(),
             tree_screens_id: Uuid::new_v4(),
             tree_assets_id: Uuid::new_v4(),
+            tree_assets_fonts_id: Uuid::new_v4(),
             tree_palette_id: Uuid::new_v4(),
 
             curr_region_content: ContentContext::Unknown,
