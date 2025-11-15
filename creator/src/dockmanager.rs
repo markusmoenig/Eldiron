@@ -1,10 +1,23 @@
 use crate::prelude::*;
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum DockManagerState {
+    Minimized,
+    Maximized,
+    Editor,
+}
+
 pub struct DockManager {
+    pub state: DockManagerState,
+
     pub docks: IndexMap<String, Box<dyn Dock>>,
+
+    pub editor_canvases: IndexMap<String, usize>,
+    pub editor_docks: IndexMap<String, Box<dyn Dock>>,
 
     pub dock: String,
     pub index: usize,
+    pub editor_index: Option<usize>,
 }
 
 impl Default for DockManager {
@@ -30,9 +43,13 @@ impl DockManager {
         docks.insert("Tilemap".into(), dock);
 
         Self {
+            state: DockManagerState::Minimized,
             docks,
+            editor_canvases: IndexMap::default(),
+            editor_docks: IndexMap::default(),
             dock: "".into(),
             index: 0,
+            editor_index: None,
         }
     }
 
@@ -102,6 +119,8 @@ impl DockManager {
         server_ctx: &mut ServerContext,
     ) {
         if dock != self.dock {
+            self.minimize(ui, ctx);
+
             if let Some(index) = self.docks.get_index_of(&dock) {
                 self.index = index;
                 self.dock = dock;
@@ -109,6 +128,8 @@ impl DockManager {
                 if let Some(stack) = ui.get_stack_layout("Dock Stack") {
                     stack.set_index(index);
                 }
+
+                self.editor_index = self.editor_canvases.get(&self.dock).copied();
             } else {
                 eprint!("Dock \"{}\" not found!", self.dock);
                 return;
@@ -126,8 +147,10 @@ impl DockManager {
             if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                 let state = self.docks[self.index].default_state();
                 if state == DockDefaultState::Minimized {
+                    self.state = DockManagerState::Minimized;
                     layout.set_mode(TheSharedVLayoutMode::Shared);
                 } else {
+                    self.state = DockManagerState::Maximized;
                     layout.set_mode(TheSharedVLayoutMode::Bottom);
                 }
             }
@@ -149,5 +172,48 @@ impl DockManager {
             redraw = dock.handle_event(event, ui, ctx, project, server_ctx);
         }
         redraw
+    }
+
+    /// Returns the state of the dock manager.
+    pub fn get_state(&self) -> DockManagerState {
+        self.state
+    }
+
+    /// Add the dock editors to the stack and maps.
+    pub fn add_editors_to_stack(&mut self, stack: &mut TheStackLayout, ctx: &mut TheContext) {
+        let mut tiles_editor: Box<dyn Dock> =
+            Box::new(crate::docks::tiles_editor::TilesEditorDock::new());
+        let tiles_editor_canvas = tiles_editor.setup(ctx);
+        let index = stack.add_canvas(tiles_editor_canvas);
+        self.editor_canvases.insert("Tiles".to_string(), index);
+        self.editor_docks.insert("Tiles".to_string(), tiles_editor);
+    }
+
+    /// Shows the editor of the current dock if available, otherwise maximizes the dock.
+    pub fn edit_maximize(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) {
+        if let Some(editor_index) = self.editor_index {
+            if let Some(stack) = ui.get_stack_layout("Editor Stack") {
+                stack.set_index(editor_index);
+                self.state = DockManagerState::Editor;
+            }
+        } else if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+            layout.set_mode(TheSharedVLayoutMode::Bottom);
+            self.state = DockManagerState::Maximized;
+        }
+    }
+
+    /// Shows the editor of the current dock if available, otherwise maximizes the dock.
+    pub fn minimize(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) {
+        if self.state != DockManagerState::Minimized {
+            if let Some(_editor_index) = self.editor_index {
+                if let Some(stack) = ui.get_stack_layout("Editor Stack") {
+                    stack.set_index(0);
+                    self.state = DockManagerState::Minimized;
+                }
+            } else if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                layout.set_mode(TheSharedVLayoutMode::Shared);
+                self.state = DockManagerState::Minimized;
+            }
+        }
     }
 }

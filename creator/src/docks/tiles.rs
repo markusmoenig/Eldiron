@@ -106,7 +106,6 @@ impl Dock for TilesDock {
         project: &Project,
         _server_ctx: &mut ServerContext,
     ) {
-        println!("Activate");
         self.set_tiles(&project.tiles, ui, ctx);
     }
 

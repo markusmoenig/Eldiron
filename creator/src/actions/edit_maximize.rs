@@ -1,0 +1,70 @@
+use crate::{editor::DOCKMANAGER, prelude::*};
+
+pub struct EditMaximize {
+    id: TheId,
+    nodeui: TheNodeUI,
+}
+
+impl Action for EditMaximize {
+    fn new() -> Self
+    where
+        Self: Sized,
+    {
+        let mut nodeui: TheNodeUI = TheNodeUI::default();
+        let item = TheNodeUIItem::Markdown(
+            "desc".into(),
+            "Open the editor for the current dock or maximizes it.".into(),
+        );
+        nodeui.add_item(item);
+
+        Self {
+            id: TheId::named("Edit / Maximize"),
+            nodeui,
+        }
+    }
+
+    fn id(&self) -> TheId {
+        self.id.clone()
+    }
+
+    fn info(&self) -> &'static str {
+        "Open the editor for the current dock or maximizes it."
+    }
+
+    fn role(&self) -> ActionRole {
+        ActionRole::Dock
+    }
+
+    fn accel(&self) -> Option<TheAccelerator> {
+        Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '['))
+    }
+
+    fn is_applicable(
+        &self,
+        _map: &Map,
+        _ctx: &mut TheContext,
+        _server_ctx: &ServerContext,
+    ) -> bool {
+        DOCKMANAGER.read().unwrap().get_state() == DockManagerState::Minimized
+    }
+
+    fn apply(
+        &self,
+        _map: &mut Map,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        _server_ctx: &mut ServerContext,
+    ) -> Option<RegionUndoAtom> {
+        DOCKMANAGER.write().unwrap().edit_maximize(ui, ctx);
+
+        None
+    }
+
+    fn params(&self) -> TheNodeUI {
+        self.nodeui.clone()
+    }
+
+    fn handle_event(&mut self, event: &TheEvent) -> bool {
+        self.nodeui.handle_event(event)
+    }
+}

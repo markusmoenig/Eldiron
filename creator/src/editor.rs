@@ -399,35 +399,26 @@ impl TheTrait for Editor {
         // Sidebar
         self.sidebar.init_ui(ui, ctx, &mut self.server_ctx);
 
-        // Panels
+        // Docks
         let bottom_panels = DOCKMANAGER.write().unwrap().init(ctx);
 
-        // Editor
-        //let mut tab_canvas: TheCanvas = TheCanvas::new();
-        //let mut tab_layout = TheTabLayout::new(TheId::named("Editor Tab"));
+        let mut editor_canvas: TheCanvas = TheCanvas::new();
 
+        let mut editor_stack = TheStackLayout::new(TheId::named("Editor Stack"));
         let poly_canvas = self.mapeditor.init_ui(ui, ctx, &mut self.project);
+        editor_stack.add_canvas(poly_canvas);
 
-        //tab_layout.add_canvas(str!("Game View"), game_canvas);
+        // Add Dock Editors
+        DOCKMANAGER
+            .write()
+            .unwrap()
+            .add_editors_to_stack(&mut editor_stack, ctx);
 
-        // let model_canvas: TheCanvas =
-        //     MODELEDITOR
-        //         .lock()
-        //         .unwrap()
-        //         .init_ui(ui, ctx, &mut self.project);
-        // tab_layout.add_canvas(str!("Model View"), model_canvas);
+        editor_canvas.set_layout(editor_stack);
 
-        /*
-        let material_canvas = self.materialeditor.init_ui(ui, ctx, &mut self.project);
-        tab_layout.add_canvas(str!("Material View"), material_canvas);
-
-        let screen_canvas = self.screeneditor.init_ui(ui, ctx, &mut self.project);
-        tab_layout.add_canvas(str!("Screen View"), screen_canvas);
-
-        tab_canvas.set_layout(tab_layout);
-        */
+        // Main V Layout
         let mut vsplitlayout = TheSharedVLayout::new(TheId::named("Shared VLayout"));
-        vsplitlayout.add_canvas(poly_canvas);
+        vsplitlayout.add_canvas(editor_canvas);
         vsplitlayout.add_canvas(bottom_panels);
         vsplitlayout.set_shared_ratio(crate::DEFAULT_VLAYOUT_RATIO);
         vsplitlayout.set_mode(TheSharedVLayoutMode::Shared);

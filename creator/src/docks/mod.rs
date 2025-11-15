@@ -2,6 +2,7 @@ pub mod code;
 pub mod data;
 pub mod tilemap;
 pub mod tiles;
+pub mod tiles_editor;
 
 pub use crate::prelude::*;
 

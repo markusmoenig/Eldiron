@@ -4390,7 +4390,14 @@ impl Sidebar {
                             //     accel_text = accel.description();
                             // }
                             // item.add_value_column(110, TheValue::Text(accel_text));
-                            item.set_status_text(action.info());
+                            //
+
+                            let mut status_text = action.info().to_string();
+                            if let Some(accel) = action.accel() {
+                                status_text =
+                                    format!("{} ( {} )", status_text, accel.description());
+                            }
+                            item.set_status_text(&status_text);
                             item.set_background_color(TheColor::from(action.role().to_color()));
 
                             if Some(action.id().uuid) == server_ctx.curr_action_id {

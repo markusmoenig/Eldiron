@@ -88,7 +88,7 @@ pub mod prelude {
     pub use crate::rendereditor::{RenderEditor, RenderMoveAction};
     pub use crate::worldeditor::WorldEditor;
 
-    pub use crate::dockmanager::DockManager;
+    pub use crate::dockmanager::{DockManager, DockManagerState};
 
     pub use toml::Table;
 }
