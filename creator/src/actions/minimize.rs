@@ -11,7 +11,7 @@ impl Action for Minimize {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), "Minimizes the dock.".into());
+        let item = TheNodeUIItem::Markdown("desc".into(), "Minimizes the editor / dock.".into());
         nodeui.add_item(item);
 
         Self {
@@ -25,11 +25,11 @@ impl Action for Minimize {
     }
 
     fn info(&self) -> &'static str {
-        "Minimizes the dock."
+        "Minimizes the editor / dock."
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::Dock
+        ActionRole::Editor
     }
 
     fn accel(&self) -> Option<TheAccelerator> {

@@ -1,6 +1,6 @@
 use crate::editor::{
-    ACTIONLIST, CODEEDITOR, CONFIG, CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER, SHADEGRIDFX,
-    SIDEBARMODE, TOOLLIST, UNDOMANAGER,
+    ACTIONLIST, CODEEDITOR, CONFIG, CONFIGEDITOR, DOCKMANAGER, PALETTE, RUSTERIX, SCENEMANAGER,
+    SHADEGRIDFX, SIDEBARMODE, TOOLLIST, UNDOMANAGER,
 };
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
@@ -4416,8 +4416,10 @@ impl Sidebar {
                     }
                 }
 
-                for item in camera_actions {
-                    list_layout.add_item(item, ctx);
+                if DOCKMANAGER.read().unwrap().get_state() != DockManagerState::Editor {
+                    for item in camera_actions {
+                        list_layout.add_item(item, ctx);
+                    }
                 }
                 for item in editor_actions {
                     list_layout.add_item(item, ctx);

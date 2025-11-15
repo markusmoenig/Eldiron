@@ -23,7 +23,10 @@ impl Dock for TilesEditorDock {
         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
             rgba_view.set_supports_external_zoom(true);
             rgba_view.set_background([116, 116, 116, 255]);
-            rgba_view.set_grid(Some(24));
+            // rgba_view.set_grid(Some(1));
+            // rgba_view.set_grid_color([20, 20, 20, 255]);
+            // rgba_view.set_dont_show_grid(true);
+            rgba_view.set_show_transparency(true);
             rgba_view.set_mode(TheRGBAViewMode::TileEditor);
             let mut c = WHITE;
             c[3] = 128;
@@ -52,7 +55,7 @@ impl Dock for TilesEditorDock {
 
         palette_canvas.set_layout(palette_tree_layout);
 
-        canvas.set_right(palette_canvas);
+        canvas.set_left(palette_canvas);
 
         canvas
     }
