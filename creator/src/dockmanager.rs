@@ -170,6 +170,12 @@ impl DockManager {
 
         if let Some((_, dock)) = self.docks.get_index_mut(self.index) {
             redraw = dock.handle_event(event, ui, ctx, project, server_ctx);
+
+            if let Some(editor_dock) = self.editor_docks.get_mut(&self.dock) {
+                if editor_dock.handle_event(event, ui, ctx, project, server_ctx) {
+                    redraw = true;
+                }
+            }
         }
         redraw
     }
@@ -190,11 +196,21 @@ impl DockManager {
     }
 
     /// Shows the editor of the current dock if available, otherwise maximizes the dock.
-    pub fn edit_maximize(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) {
+    pub fn edit_maximize(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) {
         if let Some(editor_index) = self.editor_index {
             if let Some(stack) = ui.get_stack_layout("Editor Stack") {
                 stack.set_index(editor_index);
                 self.state = DockManagerState::Editor;
+
+                if let Some(editor_dock) = self.editor_docks.get_mut(&self.dock) {
+                    editor_dock.activate(ui, ctx, project, server_ctx);
+                }
             }
         } else if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
             layout.set_mode(TheSharedVLayoutMode::Bottom);

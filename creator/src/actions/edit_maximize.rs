@@ -48,16 +48,17 @@ impl Action for EditMaximize {
         DOCKMANAGER.read().unwrap().get_state() == DockManagerState::Minimized
     }
 
-    fn apply(
+    fn apply_project(
         &self,
-        _map: &mut Map,
+        project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
-        DOCKMANAGER.write().unwrap().edit_maximize(ui, ctx);
-
-        None
+        server_ctx: &mut ServerContext,
+    ) {
+        DOCKMANAGER
+            .write()
+            .unwrap()
+            .edit_maximize(ui, ctx, project, server_ctx);
     }
 
     fn params(&self) -> TheNodeUI {

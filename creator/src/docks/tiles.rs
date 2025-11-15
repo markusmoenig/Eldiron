@@ -81,7 +81,6 @@ impl Dock for TilesDock {
 
         toolbar_canvas.set_layout(toolbar_hlayout);
 
-        // Canvas
         let mut rgba_layout = TheRGBALayout::new(TheId::named("Tiles Dock RGBA Layout"));
         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
             rgba_view.set_supports_external_zoom(true);
