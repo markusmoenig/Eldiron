@@ -36,7 +36,7 @@ pub trait Dock: Send + Sync {
     ) {
     }
 
-    fn deactivate(&mut self) {}
+    fn minimized(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {}
 
     fn supports_actions(&self) -> bool {
         true
@@ -74,7 +74,7 @@ pub trait Dock: Send + Sync {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &Project,
+        project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
     }
@@ -84,7 +84,7 @@ pub trait Dock: Send + Sync {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &Project,
+        project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
     }

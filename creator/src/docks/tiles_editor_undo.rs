@@ -13,21 +13,19 @@ impl TileEditorUndoAtom {
         match self {
             TileEditorUndoAtom::TileEdit(tile_id, prev, _) => {
                 if let Some(tile) = project.tiles.get_mut(tile_id) {
-                    if !tile.textures.is_empty() {
-                        *tile = prev.clone();
+                    *tile = prev.clone();
 
-                        // Notify tile editor to refresh
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Tile Editor"),
-                            TheValue::Empty,
-                        ));
+                    // Notify tile editor to refresh tile
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Tile Updated"),
+                        TheValue::Id(tile.id),
+                    ));
 
-                        // Update tile picker if visible
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Tilepicker"),
-                            TheValue::Empty,
-                        ));
-                    }
+                    // Update tile picker if visible
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Tilepicker"),
+                        TheValue::Empty,
+                    ));
                 }
             }
         }
@@ -40,10 +38,10 @@ impl TileEditorUndoAtom {
                     if !tile.textures.is_empty() {
                         *tile = next.clone();
 
-                        // Notify tile editor to refresh
+                        // Notify tile editor to refresh tile
                         ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Tile Editor"),
-                            TheValue::Empty,
+                            TheId::named("Tile Updated"),
+                            TheValue::Id(tile.id),
                         ));
 
                         // Update tile picker if visible

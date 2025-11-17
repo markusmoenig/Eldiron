@@ -247,6 +247,9 @@ impl DockManager {
         if self.state != DockManagerState::Minimized {
             // Switch back to game tools when minimizing from editor mode
             if self.state == DockManagerState::Editor {
+                if let Some(editor_dock) = self.editor_docks.get_mut(&self.dock) {
+                    editor_dock.minimized(ui, ctx);
+                }
                 TOOLLIST.write().unwrap().set_game_tools(ui, ctx);
             }
 
@@ -284,7 +287,7 @@ impl DockManager {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &Project,
+        project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
         if self.state == DockManagerState::Editor {
@@ -300,7 +303,7 @@ impl DockManager {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &Project,
+        project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
         if self.state == DockManagerState::Editor {

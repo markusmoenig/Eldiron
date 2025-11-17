@@ -28,7 +28,7 @@ impl EditorTool for TileDrawTool {
     }
 
     fn icon_name(&self) -> String {
-        "pen".to_string()
+        "draw".to_string()
     }
 
     fn accel(&self) -> Option<char> {
@@ -47,7 +47,7 @@ impl EditorTool for TileDrawTool {
         // println!("draw {:?}", event);
 
         match event {
-            TheEvent::TileEditorClicked(id, coord) | TheEvent::TileEditorDragged(id, coord) => {
+            TheEvent::TileEditorClicked(id, coord) => {
                 if id.name == "Tile Editor Dock RGBA Layout View" {
                     if let Some(tile_id) = server_ctx.curr_tile_id {
                         if let Some(tile) = project.tiles.get_mut(&tile_id) {
@@ -55,6 +55,12 @@ impl EditorTool for TileDrawTool {
                         }
                     }
 
+                    self.draw_pixel(*coord, ui, ctx, project, server_ctx);
+                    redraw = true;
+                }
+            }
+            TheEvent::TileEditorDragged(id, coord) => {
+                if id.name == "Tile Editor Dock RGBA Layout View" {
                     self.draw_pixel(*coord, ui, ctx, project, server_ctx);
                     redraw = true;
                 }

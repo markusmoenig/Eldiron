@@ -5,7 +5,10 @@ use crate::prelude::*;
 pub struct TilesEditorDock {
     zoom: f32,
     palette_node: Uuid,
-    undo: TileEditorUndo,
+
+    // Per-tile undo stacks
+    tile_undos: FxHashMap<Uuid, TileEditorUndo>,
+    current_tile_id: Option<Uuid>,
     max_undo: usize,
 }
 
@@ -17,7 +20,8 @@ impl Dock for TilesEditorDock {
         Self {
             zoom: 5.0,
             palette_node: Uuid::new_v4(),
-            undo: TileEditorUndo::new(),
+            tile_undos: FxHashMap::default(),
+            current_tile_id: None,
             max_undo: 30,
         }
     }
@@ -88,6 +92,13 @@ impl Dock for TilesEditorDock {
         }
     }
 
+    fn minimized(&mut self, _ui: &mut TheUI, ctx: &mut TheContext) {
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Tiles"),
+            TheValue::Empty,
+        ));
+    }
+
     fn handle_event(
         &mut self,
         event: &TheEvent,
@@ -120,7 +131,6 @@ impl Dock for TilesEditorDock {
                         .get_undo_atom(project)
                     {
                         if let Some(atom) = atom.downcast_ref::<TileEditorUndoAtom>() {
-                            println!("available");
                             self.add_undo(atom.clone(), ctx);
                         }
                     }
@@ -151,18 +161,57 @@ impl Dock for TilesEditorDock {
         true
     }
 
+    fn undo(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        _server_ctx: &mut ServerContext,
+    ) {
+        if let Some(tile_id) = self.current_tile_id {
+            if let Some(undo) = self.tile_undos.get_mut(&tile_id) {
+                undo.undo(project, ui, ctx);
+                self.set_undo_state_to_ui(ctx);
+            }
+        }
+    }
+
+    fn redo(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        _server_ctx: &mut ServerContext,
+    ) {
+        if let Some(tile_id) = self.current_tile_id {
+            if let Some(undo) = self.tile_undos.get_mut(&tile_id) {
+                undo.redo(project, ui, ctx);
+                self.set_undo_state_to_ui(ctx);
+            }
+        }
+    }
+
     fn set_undo_state_to_ui(&self, ctx: &mut TheContext) {
-        if self.undo.has_undo() {
-            ctx.ui.set_enabled("Undo");
-        } else {
-            ctx.ui.set_disabled("Undo");
+        if let Some(tile_id) = self.current_tile_id {
+            if let Some(undo) = self.tile_undos.get(&tile_id) {
+                if undo.has_undo() {
+                    ctx.ui.set_enabled("Undo");
+                } else {
+                    ctx.ui.set_disabled("Undo");
+                }
+
+                if undo.has_redo() {
+                    ctx.ui.set_enabled("Redo");
+                } else {
+                    ctx.ui.set_disabled("Redo");
+                }
+                return;
+            }
         }
 
-        if self.undo.has_redo() {
-            ctx.ui.set_enabled("Redo");
-        } else {
-            ctx.ui.set_disabled("Redo");
-        }
+        // No tile selected or no undo stack
+        ctx.ui.set_disabled("Undo");
+        ctx.ui.set_disabled("Redo");
     }
 
     fn editor_tools(&self) -> Option<Vec<Box<dyn EditorTool>>> {
@@ -175,6 +224,25 @@ impl Dock for TilesEditorDock {
 }
 
 impl TilesEditorDock {
+    /// Switch to a different tile and update undo button states
+    pub fn switch_to_tile(&mut self, tile_id: Uuid, ctx: &mut TheContext) {
+        self.current_tile_id = Some(tile_id);
+        self.set_undo_state_to_ui(ctx);
+    }
+
+    /// Add an undo atom to the current tile's undo stack
+    pub fn add_undo(&mut self, atom: TileEditorUndoAtom, ctx: &mut TheContext) {
+        if let Some(tile_id) = self.current_tile_id {
+            let undo = self
+                .tile_undos
+                .entry(tile_id)
+                .or_insert_with(TileEditorUndo::new);
+            undo.add(atom);
+            undo.truncate_to_limit(self.max_undo);
+            self.set_undo_state_to_ui(ctx);
+        }
+    }
+
     /// Set the tile for the editor.
     pub fn set_tile(
         &mut self,
@@ -183,6 +251,11 @@ impl TilesEditorDock {
         ctx: &mut TheContext,
         update_only: bool,
     ) {
+        // Switch to this tile's undo stack
+        if !update_only {
+            self.switch_to_tile(tile.id, ctx);
+        }
+
         if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout") {
             let view_width = editor.dim().width - 16;
             let view_height = editor.dim().height - 16;
@@ -206,27 +279,5 @@ impl TilesEditorDock {
                 editor.relayout(ctx);
             }
         }
-    }
-
-    /// Add an undo atom to the tile editor's undo stack
-    pub fn add_undo(&mut self, atom: TileEditorUndoAtom, ctx: &mut TheContext) {
-        self.undo.add(atom);
-        self.undo.truncate_to_limit(self.max_undo);
-
-        self.set_undo_state_to_ui(ctx);
-    }
-
-    /// Perform undo operation
-    pub fn undo(&mut self, project: &mut Project, ui: &mut TheUI, ctx: &mut TheContext) {
-        self.undo.undo(project, ui, ctx);
-
-        self.set_undo_state_to_ui(ctx);
-    }
-
-    /// Perform redo operation
-    pub fn redo(&mut self, project: &mut Project, ui: &mut TheUI, ctx: &mut TheContext) {
-        self.undo.redo(project, ui, ctx);
-
-        self.set_undo_state_to_ui(ctx);
     }
 }
