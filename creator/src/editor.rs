@@ -1190,7 +1190,9 @@ impl TheTrait for Editor {
                         }
                     }
                     TheEvent::Custom(id, _) => {
-                        if id.name == "Render SceneManager Map" {
+                        if id.name == "Set Project Undo State" {
+                            UNDOMANAGER.read().unwrap().set_undo_state_to_ui(ctx);
+                        } else if id.name == "Render SceneManager Map" {
                             if self.server_ctx.get_map_context() == MapContext::Region {
                                 if self.server_ctx.editor_view_mode == EditorViewMode::D2
                                     && self.server_ctx.profile_view.is_some()
@@ -2124,6 +2126,22 @@ impl TheTrait for Editor {
                                     ui.undo(ctx);
                                 } else {
                                     ui.redo(ctx);
+                                }
+                            } else if DOCKMANAGER.read().unwrap().current_dock_supports_undo() {
+                                if id.name == "Undo" {
+                                    DOCKMANAGER.write().unwrap().undo(
+                                        ui,
+                                        ctx,
+                                        &mut self.project,
+                                        &mut self.server_ctx,
+                                    );
+                                } else {
+                                    DOCKMANAGER.write().unwrap().redo(
+                                        ui,
+                                        ctx,
+                                        &mut self.project,
+                                        &mut self.server_ctx,
+                                    );
                                 }
                             } else {
                                 let mut manager = UNDOMANAGER.write().unwrap();

@@ -1,8 +1,12 @@
+use crate::docks::tiles_editor_undo::*;
+use crate::editor::TOOLLIST;
 use crate::prelude::*;
 
 pub struct TilesEditorDock {
     zoom: f32,
     palette_node: Uuid,
+    undo: TileEditorUndo,
+    max_undo: usize,
 }
 
 impl Dock for TilesEditorDock {
@@ -13,6 +17,8 @@ impl Dock for TilesEditorDock {
         Self {
             zoom: 5.0,
             palette_node: Uuid::new_v4(),
+            undo: TileEditorUndo::new(),
+            max_undo: 30,
         }
     }
 
@@ -69,7 +75,7 @@ impl Dock for TilesEditorDock {
     ) {
         if let Some(tile_id) = server_ctx.curr_tile_id {
             if let Some(tile) = project.tiles.get(&tile_id) {
-                self.set_tile(tile, ui, ctx);
+                self.set_tile(tile, ui, ctx, false);
             }
         }
 
@@ -98,8 +104,31 @@ impl Dock for TilesEditorDock {
                     && id.name == "Tile Picked"
                 {
                     if let Some(tile) = project.tiles.get(tile_id) {
-                        self.set_tile(tile, ui, ctx);
+                        self.set_tile(tile, ui, ctx, false);
                     }
+                } else if let TheValue::Id(tile_id) = value
+                    && id.name == "Tile Updated"
+                {
+                    if let Some(tile) = project.tiles.get(tile_id) {
+                        self.set_tile(tile, ui, ctx, true);
+                    }
+                } else if id.name == "Tile Editor Undo Available" {
+                    if let Some(atom) = TOOLLIST
+                        .write()
+                        .unwrap()
+                        .get_current_editor_tool()
+                        .get_undo_atom(project)
+                    {
+                        if let Some(atom) = atom.downcast_ref::<TileEditorUndoAtom>() {
+                            println!("available");
+                            self.add_undo(atom.clone(), ctx);
+                        }
+                    }
+                }
+            }
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == "Palette Item" {
+                    project.palette.current_index = *index as u16;
                 }
             }
             TheEvent::TileZoomBy(id, delta) => {
@@ -112,41 +141,92 @@ impl Dock for TilesEditorDock {
                     }
                 }
             }
-            TheEvent::TileEditorClicked(id, pos) => {
-                if id.name == "Tile Editor Dock RGBA Layout View" {
-                    println!("{}", pos);
-                }
-            }
             _ => {}
         }
 
         redraw
     }
+
+    fn supports_undo(&self) -> bool {
+        true
+    }
+
+    fn set_undo_state_to_ui(&self, ctx: &mut TheContext) {
+        if self.undo.has_undo() {
+            ctx.ui.set_enabled("Undo");
+        } else {
+            ctx.ui.set_disabled("Undo");
+        }
+
+        if self.undo.has_redo() {
+            ctx.ui.set_enabled("Redo");
+        } else {
+            ctx.ui.set_disabled("Redo");
+        }
+    }
+
+    fn editor_tools(&self) -> Option<Vec<Box<dyn EditorTool>>> {
+        Some(vec![
+            Box::new(TileDrawTool::new()),
+            // Box::new(TileFillTool::new()),
+            // Box::new(TilePickerTool::new()),
+        ])
+    }
 }
 
 impl TilesEditorDock {
     /// Set the tile for the editor.
-    pub fn set_tile(&mut self, tile: &rusterix::Tile, ui: &mut TheUI, ctx: &mut TheContext) {
+    pub fn set_tile(
+        &mut self,
+        tile: &rusterix::Tile,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        update_only: bool,
+    ) {
         if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout") {
-            editor.set_zoom(self.zoom);
-
             let view_width = editor.dim().width - 16;
             let view_height = editor.dim().height - 16;
 
             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
-                rgba_view.set_grid(Some(1));
-
                 let buffer = tile.textures[0].to_rgba();
-                let icon_width = tile.textures[0].width;
-                let icon_height = tile.textures[0].height;
 
-                self.zoom = (view_width as f32 / icon_width as f32)
-                    .min(view_height as f32 / icon_height as f32);
+                if !update_only {
+                    rgba_view.set_grid(Some(1));
 
+                    let icon_width = tile.textures[0].width;
+                    let icon_height = tile.textures[0].height;
+
+                    self.zoom = (view_width as f32 / icon_width as f32)
+                        .min(view_height as f32 / icon_height as f32);
+                }
                 rgba_view.set_buffer(buffer);
             }
-            editor.set_zoom(self.zoom);
-            editor.relayout(ctx);
+            if !update_only {
+                editor.set_zoom(self.zoom);
+                editor.relayout(ctx);
+            }
         }
+    }
+
+    /// Add an undo atom to the tile editor's undo stack
+    pub fn add_undo(&mut self, atom: TileEditorUndoAtom, ctx: &mut TheContext) {
+        self.undo.add(atom);
+        self.undo.truncate_to_limit(self.max_undo);
+
+        self.set_undo_state_to_ui(ctx);
+    }
+
+    /// Perform undo operation
+    pub fn undo(&mut self, project: &mut Project, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.undo.undo(project, ui, ctx);
+
+        self.set_undo_state_to_ui(ctx);
+    }
+
+    /// Perform redo operation
+    pub fn redo(&mut self, project: &mut Project, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.undo.redo(project, ui, ctx);
+
+        self.set_undo_state_to_ui(ctx);
     }
 }

@@ -854,9 +854,9 @@ impl Sidebar {
 
         root.add_child(assets_node);
 
-        let palette_node: TheTreeNode =
-            TheTreeNode::new(TheId::named_with_id("Palette", server_ctx.tree_palette_id));
-        root.add_child(palette_node);
+        // let palette_node: TheTreeNode =
+        //     TheTreeNode::new(TheId::named_with_id("Palette", server_ctx.tree_palette_id));
+        // root.add_child(palette_node);
 
         project_canvas.set_layout(project_tree_layout);
 
@@ -3526,7 +3526,7 @@ impl Sidebar {
         self.apply_tilemaps(ui, ctx, server_ctx, project);
         self.apply_screens(ui, ctx, server_ctx, project);
         self.apply_assets(ui, ctx, server_ctx, project);
-        self.apply_palette(ui, ctx, server_ctx, project);
+        // self.apply_palette(ui, ctx, server_ctx, project);
 
         // if let Some(list_layout) = ui.get_list_layout("Region List") {
         //     list_layout.clear();

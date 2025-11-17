@@ -11,6 +11,11 @@ pub struct ToolList {
     pub game_tools: Vec<Box<dyn Tool>>,
     pub curr_game_tool: usize,
 
+    // Editor tools for dock editors
+    pub editor_tools: Vec<Box<dyn EditorTool>>,
+    pub curr_editor_tool: usize,
+    pub editor_mode: bool,
+
     pub char_click_selected: bool,
     pub char_click_pos: Vec2<f32>,
     pub item_click_selected: bool,
@@ -49,6 +54,10 @@ impl ToolList {
             game_tools,
             curr_game_tool: 2,
 
+            editor_tools: Vec::new(),
+            curr_editor_tool: 0,
+            editor_mode: false,
+
             char_click_selected: false,
             char_click_pos: Vec2::zero(),
             item_click_selected: false,
@@ -63,15 +72,68 @@ impl ToolList {
         list.clear();
         ctx.ui.relayout = true;
 
-        for (index, tool) in self.game_tools.iter().enumerate() {
-            let mut b = TheToolListButton::new(tool.id());
+        if self.editor_mode {
+            // Show editor tools
+            for (index, tool) in self.editor_tools.iter().enumerate() {
+                let mut b = TheToolListButton::new(tool.id());
 
-            b.set_icon_name(tool.icon_name());
-            b.set_status_text(&tool.info());
-            if index == self.curr_game_tool {
-                b.set_state(TheWidgetState::Selected);
+                b.set_icon_name(tool.icon_name());
+                b.set_status_text(&tool.info());
+                if index == self.curr_editor_tool {
+                    b.set_state(TheWidgetState::Selected);
+                }
+                list.add_widget(Box::new(b));
             }
-            list.add_widget(Box::new(b));
+        } else {
+            // Show game tools
+            for (index, tool) in self.game_tools.iter().enumerate() {
+                let mut b = TheToolListButton::new(tool.id());
+
+                b.set_icon_name(tool.icon_name());
+                b.set_status_text(&tool.info());
+                if index == self.curr_game_tool {
+                    b.set_state(TheWidgetState::Selected);
+                }
+                list.add_widget(Box::new(b));
+            }
+        }
+    }
+
+    /// Switch to editor tools mode
+    pub fn set_editor_tools(
+        &mut self,
+        tools: Vec<Box<dyn EditorTool>>,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        self.editor_tools = tools;
+        self.curr_editor_tool = 0;
+        self.editor_mode = true;
+
+        // Activate first tool
+        if !self.editor_tools.is_empty() {
+            self.editor_tools[0].activate();
+        }
+
+        // Update the toolbar
+        if let Some(list) = ui.get_vlayout("Tool List Layout") {
+            self.set_active_editor(list, ctx);
+        }
+    }
+
+    /// Switch back to game tools mode
+    pub fn set_game_tools(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        // Deactivate current editor tool
+        if self.editor_mode && self.curr_editor_tool < self.editor_tools.len() {
+            self.editor_tools[self.curr_editor_tool].deactivate();
+        }
+
+        self.editor_mode = false;
+        self.editor_tools.clear();
+
+        // Update the toolbar
+        if let Some(list) = ui.get_vlayout("Tool List Layout") {
+            self.set_active_editor(list, ctx);
         }
     }
 
@@ -211,6 +273,11 @@ impl ToolList {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        if self.editor_mode && self.curr_editor_tool < self.editor_tools.len() {
+            return self.editor_tools[self.curr_editor_tool]
+                .handle_event(event, ui, ctx, project, server_ctx);
+        }
+
         let mut redraw = false;
         match event {
             TheEvent::IndexChanged(id, index) => {
@@ -363,19 +430,39 @@ impl ToolList {
                     }*/
 
                     let mut tool_uuid = None;
-                    for tool in self.game_tools.iter() {
-                        if let Some(acc) = tool.accel() {
-                            if acc.to_ascii_lowercase() == *c {
-                                tool_uuid = Some(tool.id().uuid);
-                                ctx.ui.set_widget_state(
-                                    self.game_tools[self.curr_game_tool].id().name,
-                                    TheWidgetState::None,
-                                );
-                                ctx.ui
-                                    .set_widget_state(tool.id().name, TheWidgetState::Selected);
+
+                    if self.editor_mode {
+                        // Check editor tool accelerators
+                        for tool in self.editor_tools.iter() {
+                            if let Some(acc) = tool.accel() {
+                                if acc.to_ascii_lowercase() == *c {
+                                    tool_uuid = Some(tool.id().uuid);
+                                    ctx.ui.set_widget_state(
+                                        self.editor_tools[self.curr_editor_tool].id().name,
+                                        TheWidgetState::None,
+                                    );
+                                    ctx.ui
+                                        .set_widget_state(tool.id().name, TheWidgetState::Selected);
+                                }
+                            }
+                        }
+                    } else {
+                        // Check game tool accelerators
+                        for tool in self.game_tools.iter() {
+                            if let Some(acc) = tool.accel() {
+                                if acc.to_ascii_lowercase() == *c {
+                                    tool_uuid = Some(tool.id().uuid);
+                                    ctx.ui.set_widget_state(
+                                        self.game_tools[self.curr_game_tool].id().name,
+                                        TheWidgetState::None,
+                                    );
+                                    ctx.ui
+                                        .set_widget_state(tool.id().name, TheWidgetState::Selected);
+                                }
                             }
                         }
                     }
+
                     if let Some(uuid) = tool_uuid {
                         self.set_tool(uuid, ui, ctx, project, server_ctx);
                     }
@@ -1137,6 +1224,11 @@ impl ToolList {
         &mut self.game_tools[self.curr_game_tool]
     }
 
+    /// Returns the curent editor tool.
+    pub fn get_current_editor_tool(&mut self) -> &mut Box<dyn EditorTool> {
+        &mut self.editor_tools[self.curr_editor_tool]
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn deactivte_tool(
         &mut self,
@@ -1167,42 +1259,67 @@ impl ToolList {
         let mut switched_tool = false;
         let layout_name = "Game Tool Params";
         let mut old_tool_index = 0;
-        for (index, tool) in self.game_tools.iter().enumerate() {
-            if tool.id().uuid == tool_id && index != self.curr_game_tool {
-                switched_tool = true;
-                old_tool_index = self.curr_game_tool;
-                self.curr_game_tool = index;
-                redraw = true;
-            }
-        }
-        if switched_tool {
-            for tool in self.game_tools.iter() {
-                if tool.id().uuid != tool_id {
-                    ctx.ui
-                        .set_widget_state(tool.id().name.clone(), TheWidgetState::None);
+
+        if self.editor_mode {
+            // Handle editor tool switching
+            for (index, tool) in self.editor_tools.iter().enumerate() {
+                if tool.id().uuid == tool_id && index != self.curr_editor_tool {
+                    switched_tool = true;
+                    old_tool_index = self.curr_editor_tool;
+                    self.curr_editor_tool = index;
+                    redraw = true;
                 }
             }
-            self.game_tools[old_tool_index].tool_event(
-                ToolEvent::DeActivate,
-                ui,
-                ctx,
-                project,
-                server_ctx,
-            );
+            if switched_tool {
+                for tool in self.editor_tools.iter() {
+                    if tool.id().uuid != tool_id {
+                        ctx.ui
+                            .set_widget_state(tool.id().name.clone(), TheWidgetState::None);
+                    }
+                }
+
+                self.editor_tools[old_tool_index].deactivate();
+                self.editor_tools[self.curr_editor_tool].activate();
+            }
+        } else {
+            // Handle game tool switching
+            for (index, tool) in self.game_tools.iter().enumerate() {
+                if tool.id().uuid == tool_id && index != self.curr_game_tool {
+                    switched_tool = true;
+                    old_tool_index = self.curr_game_tool;
+                    self.curr_game_tool = index;
+                    redraw = true;
+                }
+            }
+            if switched_tool {
+                for tool in self.game_tools.iter() {
+                    if tool.id().uuid != tool_id {
+                        ctx.ui
+                            .set_widget_state(tool.id().name.clone(), TheWidgetState::None);
+                    }
+                }
+                self.game_tools[old_tool_index].tool_event(
+                    ToolEvent::DeActivate,
+                    ui,
+                    ctx,
+                    project,
+                    server_ctx,
+                );
+            }
+
+            if let Some(layout) = ui.get_hlayout(layout_name) {
+                layout.clear();
+                layout.set_reverse_index(None);
+                ctx.ui.redraw_all = true;
+            }
+
+            self.get_current_tool()
+                .tool_event(ToolEvent::Activate, ui, ctx, project, server_ctx);
+
+            self.update_geometry_overlay_3d(project, server_ctx);
+
+            crate::editor::RUSTERIX.write().unwrap().set_dirty();
         }
-
-        if let Some(layout) = ui.get_hlayout(layout_name) {
-            layout.clear();
-            layout.set_reverse_index(None);
-            ctx.ui.redraw_all = true;
-        }
-
-        self.get_current_tool()
-            .tool_event(ToolEvent::Activate, ui, ctx, project, server_ctx);
-
-        self.update_geometry_overlay_3d(project, server_ctx);
-
-        crate::editor::RUSTERIX.write().unwrap().set_dirty();
 
         /*
         if let Some(layout) = ui.get_hlayout(layout_name) {

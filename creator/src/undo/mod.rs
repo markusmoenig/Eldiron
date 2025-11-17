@@ -117,17 +117,7 @@ impl UndoManager {
         // self.can_save(ctx);
     }
 
-    pub fn undo(
-        &mut self,
-        server_ctx: &mut ServerContext,
-        project: &mut Project,
-        ui: &mut TheUI,
-        ctx: &mut TheContext,
-    ) {
-        if self.project.has_undo() {
-            self.project.undo(project, ui, ctx, server_ctx);
-        }
-
+    pub fn set_undo_state_to_ui(&self, ctx: &mut TheContext) {
         if !self.project.has_undo() {
             ctx.ui.set_disabled("Undo");
         } else {
@@ -139,6 +129,20 @@ impl UndoManager {
         } else {
             ctx.ui.set_enabled("Redo");
         }
+    }
+
+    pub fn undo(
+        &mut self,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        if self.project.has_undo() {
+            self.project.undo(project, ui, ctx, server_ctx);
+        }
+
+        self.set_undo_state_to_ui(ctx);
         /*
         match &self.context {
             UndoManagerContext::None => {}
@@ -253,17 +257,7 @@ impl UndoManager {
             self.project.redo(project, ui, ctx, server_ctx);
         }
 
-        if !self.project.has_undo() {
-            ctx.ui.set_disabled("Undo");
-        } else {
-            ctx.ui.set_enabled("Undo");
-        }
-
-        if !self.project.has_redo() {
-            ctx.ui.set_disabled("Redo");
-        } else {
-            ctx.ui.set_enabled("Redo");
-        }
+        self.set_undo_state_to_ui(ctx);
         /*
         match &self.context {
             UndoManagerContext::None => {}

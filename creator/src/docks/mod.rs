@@ -3,6 +3,7 @@ pub mod data;
 pub mod tilemap;
 pub mod tiles;
 pub mod tiles_editor;
+pub mod tiles_editor_undo;
 
 pub use crate::prelude::*;
 
@@ -58,5 +59,39 @@ pub trait Dock: Send + Sync {
         server_ctx: &mut ServerContext,
     ) -> bool {
         false
+    }
+
+    /// Returns true if this dock supports internal undo / redo.
+    fn supports_undo(&self) -> bool {
+        false
+    }
+
+    /// If the dock supports undo, set its current state to the UI.
+    fn set_undo_state_to_ui(&self, ctx: &mut TheContext) {}
+
+    /// Undo an action in the current dock
+    fn undo(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) {
+    }
+
+    /// Redo an action in the current dock
+    fn redo(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) {
+    }
+
+    /// Returns the custom editor tools for this dock.
+    /// If None, no custom tools are available.
+    fn editor_tools(&self) -> Option<Vec<Box<dyn EditorTool>>> {
+        None
     }
 }

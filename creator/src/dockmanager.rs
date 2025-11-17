@@ -1,3 +1,4 @@
+use crate::editor::TOOLLIST;
 use crate::prelude::*;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -18,6 +19,8 @@ pub struct DockManager {
     pub dock: String,
     pub index: usize,
     pub editor_index: Option<usize>,
+
+    pub supports_undo: bool,
 }
 
 impl Default for DockManager {
@@ -50,6 +53,7 @@ impl DockManager {
             dock: "".into(),
             index: 0,
             editor_index: None,
+            supports_undo: false,
         }
     }
 
@@ -156,6 +160,10 @@ impl DockManager {
             }
         }
         self.docks[self.index].activate(ui, ctx, project, server_ctx);
+        self.set_supports_undo(self.docks[self.index].supports_undo(), ctx);
+        if self.supports_undo {
+            self.docks[self.index].set_undo_state_to_ui(ctx);
+        }
     }
 
     pub fn handle_event(
@@ -208,8 +216,24 @@ impl DockManager {
                 stack.set_index(editor_index);
                 self.state = DockManagerState::Editor;
 
+                let mut supports_undo = None;
                 if let Some(editor_dock) = self.editor_docks.get_mut(&self.dock) {
                     editor_dock.activate(ui, ctx, project, server_ctx);
+                    supports_undo = Some(editor_dock.supports_undo());
+                    if let Some(supports_undo) = supports_undo
+                        && supports_undo
+                    {
+                        editor_dock.set_undo_state_to_ui(ctx);
+                    }
+
+                    // Switch to editor tools if the dock provides them
+                    if let Some(tools) = editor_dock.editor_tools() {
+                        TOOLLIST.write().unwrap().set_editor_tools(tools, ui, ctx);
+                    }
+                }
+
+                if let Some(supports_undo) = supports_undo {
+                    self.set_supports_undo(supports_undo, ctx);
                 }
             }
         } else if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
@@ -219,8 +243,13 @@ impl DockManager {
     }
 
     /// Shows the editor of the current dock if available, otherwise maximizes the dock.
-    pub fn minimize(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) {
+    pub fn minimize(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         if self.state != DockManagerState::Minimized {
+            // Switch back to game tools when minimizing from editor mode
+            if self.state == DockManagerState::Editor {
+                TOOLLIST.write().unwrap().set_game_tools(ui, ctx);
+            }
+
             if let Some(_editor_index) = self.editor_index {
                 if let Some(stack) = ui.get_stack_layout("Editor Stack") {
                     stack.set_index(0);
@@ -230,6 +259,56 @@ impl DockManager {
                 layout.set_mode(TheSharedVLayoutMode::Shared);
                 self.state = DockManagerState::Minimized;
             }
+
+            self.set_supports_undo(self.docks[self.index].supports_undo(), ctx);
+        }
+    }
+
+    /// Returns true if the current dock (either the editor dock or the normal dock) supports undo.
+    pub fn current_dock_supports_undo(&self) -> bool {
+        self.supports_undo
+    }
+
+    /// Sets the undo support.
+    fn set_supports_undo(&mut self, supports_undo: bool, ctx: &mut TheContext) {
+        if !supports_undo {
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Set Project Undo State"),
+                TheValue::Empty,
+            ));
+        }
+        self.supports_undo = supports_undo;
+    }
+
+    pub fn undo(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        if self.state == DockManagerState::Editor {
+            if let Some(editor_dock) = self.editor_docks.get_mut(&self.dock) {
+                editor_dock.undo(ui, ctx, project, server_ctx);
+            }
+        } else {
+            self.docks[self.index].undo(ui, ctx, project, server_ctx);
+        }
+    }
+
+    pub fn redo(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        if self.state == DockManagerState::Editor {
+            if let Some(editor_dock) = self.editor_docks.get_mut(&self.dock) {
+                editor_dock.redo(ui, ctx, project, server_ctx);
+            }
+        } else {
+            self.docks[self.index].redo(ui, ctx, project, server_ctx);
         }
     }
 }

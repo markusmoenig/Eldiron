@@ -10,6 +10,7 @@ pub mod dockmanager;
 pub mod docks;
 pub mod editcamera;
 pub mod editor;
+pub mod editor_tools;
 pub mod effectpicker;
 pub mod hud;
 pub mod infoviewer;
@@ -79,6 +80,7 @@ pub mod prelude {
 
     pub use crate::actions::*;
     pub use crate::docks::*;
+    pub use crate::editor_tools::*;
     pub use crate::tools::*;
 
     pub use crate::configeditor::ConfigEditor;
