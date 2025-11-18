@@ -17,7 +17,7 @@ impl TileEditorUndoAtom {
 
                     // Notify tile editor to refresh tile
                     ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Tile Updated"),
+                        TheId::named("Tile Picked"),
                         TheValue::Id(tile.id),
                     ));
 
@@ -40,7 +40,7 @@ impl TileEditorUndoAtom {
 
                         // Notify tile editor to refresh tile
                         ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Tile Updated"),
+                            TheId::named("Tile Picked"),
                             TheValue::Id(tile.id),
                         ));
 

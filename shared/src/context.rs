@@ -454,6 +454,13 @@ impl ServerContext {
 
     /// Returns the current map context
     pub fn get_map_context(&self) -> MapContext {
+        if self.pc.is_screen() {
+            return MapContext::Screen;
+        }
+
+        MapContext::Region
+
+        /*
         if (self.curr_map_context == MapContext::Character && self.character_region_override)
             || (self.curr_map_context == MapContext::Item && self.item_region_override)
             || (self.curr_map_context == MapContext::Shader)
@@ -461,7 +468,7 @@ impl ServerContext {
             MapContext::Region
         } else {
             self.curr_map_context
-        }
+        }*/
     }
 
     pub fn set_map_context(&mut self, map_context: MapContext) {

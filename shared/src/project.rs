@@ -334,8 +334,10 @@ impl Project {
                 return Some(&region.map);
             }
         } else if ctx.get_map_context() == MapContext::Screen {
-            if let Some(screen) = self.screens.get(&ctx.curr_screen) {
-                return Some(&screen.map);
+            if let Some(id) = ctx.pc.id() {
+                if let Some(screen) = self.screens.get(&id) {
+                    return Some(&screen.map);
+                }
             }
         } else if ctx.get_map_context() == MapContext::Character {
             if let ContentContext::CharacterTemplate(id) = ctx.curr_character {
@@ -373,8 +375,10 @@ impl Project {
                 return Some(&mut region.map);
             }
         } else if ctx.get_map_context() == MapContext::Screen {
-            if let Some(screen) = self.screens.get_mut(&ctx.curr_screen) {
-                return Some(&mut screen.map);
+            if let Some(id) = ctx.pc.id() {
+                if let Some(screen) = self.screens.get_mut(&id) {
+                    return Some(&mut screen.map);
+                }
             }
         } else if ctx.get_map_context() == MapContext::Character {
             if let ContentContext::CharacterTemplate(id) = ctx.curr_character {

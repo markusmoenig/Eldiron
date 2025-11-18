@@ -1,24 +1,25 @@
 use crate::prelude::*;
 
-pub struct CopyTileID {
+pub struct DuplicateTile {
     id: TheId,
     nodeui: TheNodeUI,
 }
 
-impl Action for CopyTileID {
+impl Action for DuplicateTile {
     fn new() -> Self
     where
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
+
         let item = TheNodeUIItem::Markdown(
             "desc".into(),
-            "Copies the ID of the tile to the clipboard for later use in the code editor.".into(),
+            "Duplicates the currently selected tile.".into(),
         );
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Copy Tile ID"),
+            id: TheId::named("Duplicate Tile"),
             nodeui,
         }
     }
@@ -28,7 +29,7 @@ impl Action for CopyTileID {
     }
 
     fn info(&self) -> &'static str {
-        "Copies the ID of the selected tile to the clipboard."
+        "Duplicates the currently selected tile."
     }
 
     fn role(&self) -> ActionRole {
@@ -44,21 +45,29 @@ impl Action for CopyTileID {
             && server_ctx.curr_tile_id.is_some()
     }
 
-    fn apply(
+    fn apply_project(
         &self,
-        _map: &mut Map,
+        project: &mut Project,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+    ) {
         if let Some(tile_id) = server_ctx.curr_tile_id {
-            let txt = format!("\"{tile_id}\"");
-            ctx.ui.clipboard = Some(TheValue::Text(txt.clone()));
-            let mut clipboard = arboard::Clipboard::new().unwrap();
-            clipboard.set_text(txt.clone()).unwrap();
-        }
+            if let Some(mut tile) = project.tiles.get(&tile_id).cloned() {
+                tile.id = Uuid::new_v4();
+                project.tiles.insert(tile.id, tile);
 
-        None
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Tilepicker"),
+                    TheValue::Empty,
+                ));
+
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Tiles"),
+                    TheValue::Empty,
+                ));
+            }
+        }
     }
 
     fn params(&self) -> TheNodeUI {

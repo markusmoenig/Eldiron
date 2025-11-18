@@ -971,8 +971,9 @@ impl TheTrait for Editor {
                                 || self.server_ctx.get_map_context() == MapContext::Screen
                                 || self.server_ctx.get_map_context() == MapContext::Shader
                             {
+                                // println!("1 {:?}", self.server_ctx.get_map_context());
                                 b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
-                                if let Some(material) = self.project.get_map_mut(&self.server_ctx) {
+                                if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
                                     if let Some(hover_cursor) = self.server_ctx.hover_cursor {
                                         b.set_map_hover_info(
                                             self.server_ctx.hover,
@@ -993,7 +994,7 @@ impl TheTrait for Editor {
 
                                     if let Some(clipboard) = &self.server_ctx.paste_clipboard {
                                         // During a paste operation we use a merged map
-                                        let mut map = material.clone();
+                                        let mut map = map.clone();
                                         if let Some(hover) = self.server_ctx.hover_cursor {
                                             map.paste_at_position(clipboard, hover);
                                         }
@@ -1013,12 +1014,12 @@ impl TheTrait for Editor {
                                     } else {
                                         rusterix.build_custom_scene_d2(
                                             Vec2::new(dim.width as f32, dim.height as f32),
-                                            material,
+                                            map,
                                             &self.build_values,
                                             &None,
                                         );
                                         rusterix.draw_custom_d2(
-                                            material,
+                                            map,
                                             render_view.render_buffer_mut().pixels_mut(),
                                             dim.width as usize,
                                             dim.height as usize,

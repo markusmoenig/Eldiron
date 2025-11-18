@@ -4,6 +4,7 @@ use crate::prelude::*;
 
 pub struct TilesEditorDock {
     zoom: f32,
+    tile_node: Uuid,
     palette_node: Uuid,
 
     // Per-tile undo stacks
@@ -19,6 +20,7 @@ impl Dock for TilesEditorDock {
     {
         Self {
             zoom: 5.0,
+            tile_node: Uuid::new_v4(),
             palette_node: Uuid::new_v4(),
             tile_undos: FxHashMap::default(),
             current_tile_id: None,
@@ -51,6 +53,23 @@ impl Dock for TilesEditorDock {
         let mut palette_tree_layout = TheTreeLayout::new(TheId::named("Tile Editor Tree"));
         palette_tree_layout.limiter_mut().set_max_width(305);
         let root = palette_tree_layout.get_root();
+
+        // Tile
+        let mut tile_node: TheTreeNode =
+            TheTreeNode::new(TheId::named_with_id("Tile", self.tile_node));
+        tile_node.set_open(true);
+
+        let mut item = TheTreeItem::new(TheId::named("Tile Size"));
+        item.set_text("Size".into());
+
+        let mut edit = TheTextLineEdit::new(TheId::named("Tile Size Edit"));
+        edit.set_value(TheValue::Int(0));
+        item.add_widget_column(150, Box::new(edit));
+
+        tile_node.add_widget(Box::new(item));
+        root.add_child(tile_node);
+
+        // Palette
 
         let mut palette_node: TheTreeNode =
             TheTreeNode::new(TheId::named_with_id("Palette", self.palette_node));
@@ -132,6 +151,29 @@ impl Dock for TilesEditorDock {
                     {
                         if let Some(atom) = atom.downcast_ref::<TileEditorUndoAtom>() {
                             self.add_undo(atom.clone(), ctx);
+                        }
+                    }
+                }
+            }
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == "Tile Size Edit" {
+                    if let Some(size) = value.to_i32() {
+                        if let Some(tile_id) = self.current_tile_id {
+                            if let Some(tile) = project.tiles.get_mut(&tile_id) {
+                                if !tile.is_empty() {
+                                    if size != tile.textures[0].width as i32 {
+                                        let new_tile = tile.resized(size as usize, size as usize);
+                                        let atom = TileEditorUndoAtom::TileEdit(
+                                            tile.id,
+                                            tile.clone(),
+                                            new_tile.clone(),
+                                        );
+                                        *tile = new_tile;
+                                        self.add_undo(atom, ctx);
+                                        self.set_tile(tile, ui, ctx, false);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -254,6 +296,18 @@ impl TilesEditorDock {
         // Switch to this tile's undo stack
         if !update_only {
             self.switch_to_tile(tile.id, ctx);
+
+            if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree") {
+                if let Some(tile_node) = tree_layout.get_node_by_id_mut(&self.tile_node) {
+                    if let Some(widget) = tile_node.widgets[0].as_tree_item() {
+                        if let Some(embedded) = widget.embedded_widget_mut() {
+                            if !tile.is_empty() {
+                                embedded.set_value(TheValue::Int(tile.textures[0].width as i32));
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout") {

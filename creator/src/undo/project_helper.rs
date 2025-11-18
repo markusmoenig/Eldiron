@@ -48,7 +48,7 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
         "Character Item Code Edit",
         character.id,
     ));
-    item.set_text("Code".into());
+    item.set_text("Visual Scripting".into());
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference(
@@ -76,7 +76,7 @@ pub fn gen_item_tree_node(item_: &Item) -> TheTreeNode {
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Code Edit", item_.id));
-    item.set_text("Code".into());
+    item.set_text("Visual Scripting".into());
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Data Edit", item_.id));
