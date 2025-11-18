@@ -110,17 +110,18 @@ impl TileDrawTool {
     ) {
         if let Some(tile_id) = server_ctx.curr_tile_id {
             if let Some(tile) = project.tiles.get_mut(&tile_id) {
-                if !tile.textures.is_empty() {
-                    let width = tile.textures[0].width as i32;
-                    let height = tile.textures[0].height as i32;
+                let frame_index = server_ctx.curr_tile_frame_index;
+                if frame_index < tile.textures.len() {
+                    let width = tile.textures[frame_index].width as i32;
+                    let height = tile.textures[frame_index].height as i32;
 
                     if pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height {
                         // Get the selected palette color
                         if let Some(color) = project.palette.get_current_color() {
                             // Set the pixel
                             let index = (pos.y * width + pos.x) as usize;
-                            if index < tile.textures[0].data.len() {
-                                tile.textures[0].set_pixel(
+                            if index < tile.textures[frame_index].data.len() {
+                                tile.textures[frame_index].set_pixel(
                                     pos.x as u32,
                                     pos.y as u32,
                                     color.to_u8_array(),

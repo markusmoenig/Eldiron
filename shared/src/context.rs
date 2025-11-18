@@ -265,6 +265,9 @@ pub struct ServerContext {
     /// The currently selected tile
     pub curr_tile_id: Option<Uuid>,
 
+    /// The current frame/texture index being edited in tile editor
+    pub curr_tile_frame_index: usize,
+
     /// The currently selected model
     pub curr_model_id: Option<Uuid>,
 
@@ -392,6 +395,7 @@ impl ServerContext {
             interactions: FxHashMap::default(),
 
             curr_tile_id: None,
+            curr_tile_frame_index: 0,
 
             curr_model_id: None,
             curr_material_id: None,

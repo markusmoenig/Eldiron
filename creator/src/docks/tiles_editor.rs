@@ -65,8 +65,22 @@ impl Dock for TilesEditorDock {
         let mut edit = TheTextLineEdit::new(TheId::named("Tile Size Edit"));
         edit.set_value(TheValue::Int(0));
         item.add_widget_column(150, Box::new(edit));
-
         tile_node.add_widget(Box::new(item));
+
+        let mut item = TheTreeItem::new(TheId::named("Tile Frames"));
+        item.set_text("Frames".into());
+
+        let mut edit = TheTextLineEdit::new(TheId::named("Tile Frame Edit"));
+        edit.set_value(TheValue::Int(0));
+        item.add_widget_column(150, Box::new(edit));
+        tile_node.add_widget(Box::new(item));
+
+        let mut item = TheTreeIcons::new(TheId::named("Tile Frame Icons"));
+        item.set_icon_size(32);
+        item.set_icon_count(1);
+        item.set_selected_index(Some(0));
+        tile_node.add_widget(Box::new(item));
+
         root.add_child(tile_node);
 
         // Palette
@@ -98,7 +112,7 @@ impl Dock for TilesEditorDock {
     ) {
         if let Some(tile_id) = server_ctx.curr_tile_id {
             if let Some(tile) = project.tiles.get(&tile_id) {
-                self.set_tile(tile, ui, ctx, false);
+                self.set_tile(tile, ui, ctx, server_ctx, false);
             }
         }
 
@@ -124,7 +138,7 @@ impl Dock for TilesEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) -> bool {
         let redraw = false;
 
@@ -134,13 +148,30 @@ impl Dock for TilesEditorDock {
                     && id.name == "Tile Picked"
                 {
                     if let Some(tile) = project.tiles.get(tile_id) {
-                        self.set_tile(tile, ui, ctx, false);
+                        self.set_tile(tile, ui, ctx, server_ctx, false);
                     }
                 } else if let TheValue::Id(tile_id) = value
                     && id.name == "Tile Updated"
                 {
                     if let Some(tile) = project.tiles.get(tile_id) {
-                        self.set_tile(tile, ui, ctx, true);
+                        self.set_tile(tile, ui, ctx, server_ctx, true);
+
+                        // Update the current frame
+                        if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree") {
+                            if let Some(tile_node) = tree_layout.get_node_by_id_mut(&self.tile_node)
+                            {
+                                // Update the frame icon
+                                if let Some(widget) = tile_node.widgets[2].as_tree_icons() {
+                                    if server_ctx.curr_tile_frame_index < tile.textures.len() {
+                                        widget.set_icon(
+                                            server_ctx.curr_tile_frame_index,
+                                            tile.textures[server_ctx.curr_tile_frame_index]
+                                                .to_rgba(),
+                                        );
+                                    }
+                                }
+                            }
+                        }
                     }
                 } else if id.name == "Tile Editor Undo Available" {
                     if let Some(atom) = TOOLLIST
@@ -156,6 +187,7 @@ impl Dock for TilesEditorDock {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
+                // The Size of the Tile has been edited
                 if id.name == "Tile Size Edit" {
                     if let Some(size) = value.to_i32() {
                         if let Some(tile_id) = self.current_tile_id {
@@ -170,8 +202,29 @@ impl Dock for TilesEditorDock {
                                         );
                                         *tile = new_tile;
                                         self.add_undo(atom, ctx);
-                                        self.set_tile(tile, ui, ctx, false);
+                                        self.set_tile(tile, ui, ctx, server_ctx, false);
                                     }
+                                }
+                            }
+                        }
+                    }
+                } else
+                // The frame count of the Tile has been edited
+                if id.name == "Tile Frame Edit" {
+                    if let Some(frames) = value.to_i32() {
+                        if let Some(tile_id) = self.current_tile_id {
+                            if let Some(tile) = project.tiles.get_mut(&tile_id) {
+                                if frames != tile.textures.len() as i32 {
+                                    let mut new_tile = tile.clone();
+                                    new_tile.set_frames(frames as usize);
+                                    let atom = TileEditorUndoAtom::TileEdit(
+                                        tile.id,
+                                        tile.clone(),
+                                        new_tile.clone(),
+                                    );
+                                    *tile = new_tile;
+                                    self.add_undo(atom, ctx);
+                                    self.set_tile(tile, ui, ctx, server_ctx, false);
                                 }
                             }
                         }
@@ -179,7 +232,10 @@ impl Dock for TilesEditorDock {
                 }
             }
             TheEvent::IndexChanged(id, index) => {
-                if id.name == "Palette Item" {
+                if id.name == "Tile Frame Icons" {
+                    // New frame index selected - update the editor display
+                    self.set_frame_index(*index as usize, project, ui, ctx, server_ctx);
+                } else if id.name == "Palette Item" {
                     project.palette.current_index = *index as u16;
                 }
             }
@@ -267,9 +323,98 @@ impl Dock for TilesEditorDock {
 
 impl TilesEditorDock {
     /// Switch to a different tile and update undo button states
-    pub fn switch_to_tile(&mut self, tile_id: Uuid, ctx: &mut TheContext) {
-        self.current_tile_id = Some(tile_id);
+    pub fn switch_to_tile(
+        &mut self,
+        tile: &rusterix::Tile,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+        self.current_tile_id = Some(tile.id);
+
+        // Verify frame index is valid for the new tile
+        if server_ctx.curr_tile_frame_index >= tile.textures.len() {
+            server_ctx.curr_tile_frame_index = 0;
+        }
+
         self.set_undo_state_to_ui(ctx);
+    }
+
+    /// Set the current frame/texture index
+    pub fn set_frame_index(
+        &mut self,
+        index: usize,
+        project: &Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+        // Verify the index is valid for current tile
+        if let Some(tile_id) = self.current_tile_id {
+            if let Some(tile) = project.tiles.get(&tile_id) {
+                if index < tile.textures.len() {
+                    server_ctx.curr_tile_frame_index = index;
+
+                    // Update the TreeIcons selection
+                    if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree") {
+                        if let Some(tile_node) = tree_layout.get_node_by_id_mut(&self.tile_node) {
+                            if let Some(widget) = tile_node.widgets[2].as_tree_icons() {
+                                widget.set_selected_index(Some(index));
+                            }
+                        }
+                    }
+
+                    // Refresh the display with the new frame
+                    self.update_editor_display(tile, ui, ctx, server_ctx);
+                }
+            }
+        }
+    }
+
+    /// Update just the editor display (for when frame index changes)
+    fn update_editor_display(
+        &mut self,
+        tile: &rusterix::Tile,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+        if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout") {
+            let view_width = editor.dim().width - 16;
+            let view_height = editor.dim().height - 16;
+
+            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                let frame_index = server_ctx
+                    .curr_tile_frame_index
+                    .min(tile.textures.len().saturating_sub(1));
+
+                if frame_index < tile.textures.len() {
+                    let buffer = tile.textures[frame_index].to_rgba();
+                    let icon_width = tile.textures[frame_index].width;
+                    let icon_height = tile.textures[frame_index].height;
+
+                    self.zoom = (view_width as f32 / icon_width as f32)
+                        .min(view_height as f32 / icon_height as f32);
+
+                    rgba_view.set_buffer(buffer);
+                    editor.set_zoom(self.zoom);
+                    editor.relayout(ctx);
+                }
+            }
+        }
+    }
+
+    /// Update the frame icons in the tree (call after editing a texture)
+    pub fn update_frame_icons(&self, tile: &rusterix::Tile, ui: &mut TheUI) {
+        if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree") {
+            if let Some(tile_node) = tree_layout.get_node_by_id_mut(&self.tile_node) {
+                if let Some(widget) = tile_node.widgets[2].as_tree_icons() {
+                    // Update all frame icons
+                    for (index, texture) in tile.textures.iter().enumerate() {
+                        widget.set_icon(index, texture.to_rgba());
+                    }
+                }
+            }
+        }
     }
 
     /// Add an undo atom to the current tile's undo stack
@@ -291,19 +436,36 @@ impl TilesEditorDock {
         tile: &rusterix::Tile,
         ui: &mut TheUI,
         ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
         update_only: bool,
     ) {
         // Switch to this tile's undo stack
         if !update_only {
-            self.switch_to_tile(tile.id, ctx);
+            self.switch_to_tile(tile, ctx, server_ctx);
 
             if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree") {
                 if let Some(tile_node) = tree_layout.get_node_by_id_mut(&self.tile_node) {
+                    // Set the tile size
                     if let Some(widget) = tile_node.widgets[0].as_tree_item() {
                         if let Some(embedded) = widget.embedded_widget_mut() {
                             if !tile.is_empty() {
                                 embedded.set_value(TheValue::Int(tile.textures[0].width as i32));
                             }
+                        }
+                    }
+                    // Set the frames editor
+                    if let Some(widget) = tile_node.widgets[1].as_tree_item() {
+                        if let Some(embedded) = widget.embedded_widget_mut() {
+                            if !tile.is_empty() {
+                                embedded.set_value(TheValue::Int(tile.textures.len() as i32));
+                            }
+                        }
+                    }
+                    // Set the frames editor
+                    if let Some(widget) = tile_node.widgets[2].as_tree_icons() {
+                        widget.set_icon_count(tile.textures.len());
+                        for (index, texture) in tile.textures.iter().enumerate() {
+                            widget.set_icon(index, texture.to_rgba());
                         }
                     }
                 }
@@ -315,18 +477,25 @@ impl TilesEditorDock {
             let view_height = editor.dim().height - 16;
 
             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
-                let buffer = tile.textures[0].to_rgba();
+                // Use current frame index, ensure it's valid
+                let frame_index = server_ctx
+                    .curr_tile_frame_index
+                    .min(tile.textures.len().saturating_sub(1));
 
-                if !update_only {
-                    rgba_view.set_grid(Some(1));
+                if frame_index < tile.textures.len() {
+                    let buffer = tile.textures[frame_index].to_rgba();
 
-                    let icon_width = tile.textures[0].width;
-                    let icon_height = tile.textures[0].height;
+                    if !update_only {
+                        rgba_view.set_grid(Some(1));
 
-                    self.zoom = (view_width as f32 / icon_width as f32)
-                        .min(view_height as f32 / icon_height as f32);
+                        let icon_width = tile.textures[frame_index].width;
+                        let icon_height = tile.textures[frame_index].height;
+
+                        self.zoom = (view_width as f32 / icon_width as f32)
+                            .min(view_height as f32 / icon_height as f32);
+                    }
+                    rgba_view.set_buffer(buffer);
                 }
-                rgba_view.set_buffer(buffer);
             }
             if !update_only {
                 editor.set_zoom(self.zoom);
