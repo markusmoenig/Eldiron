@@ -42,18 +42,6 @@ pub fn draw_camera_marker(region: &Region, buffer: &mut TheRGBABuffer, server_ct
     }
 }
 
-pub fn draw_material_minimap(
-    buffer: &mut TheRGBABuffer,
-    project: &Project,
-    server_ctx: &ServerContext,
-) {
-    if let Some(shader_id) = server_ctx.curr_material_id {
-        if let Some(shader) = project.shaders.get(&shader_id) {
-            crate::utils::draw_shader_into(shader, buffer);
-        }
-    }
-}
-
 pub fn draw_minimap(
     orig_region: &Region,
     buffer: &mut TheRGBABuffer,
@@ -83,7 +71,6 @@ pub fn draw_minimap(
     }
 
     let dim = buffer.dim();
-    // println!("hard update");
 
     let width = dim.width as f32;
     let height = dim.height as f32;
@@ -189,7 +176,6 @@ pub fn draw_minimap(
 
         scene_handler.vm.set_layer_enabled(1, true);
 
-        // rusterix.client.scene.animation_frame = anim_frame;
         MINIMAPBUFFER
             .write()
             .unwrap()
@@ -197,8 +183,6 @@ pub fn draw_minimap(
 
         MINIMAPBUFFER.write().unwrap().copy_into(0, 0, buffer);
         draw_camera_marker(orig_region, buffer, server_ctx);
-
-        // region.map.curr_grid_pos = old_grid_pos;
     } else {
         buffer.fill(background);
     }

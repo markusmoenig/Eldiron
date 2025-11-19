@@ -86,7 +86,7 @@ impl ConfigEditor {
     }
 
     pub fn read_defaults(&mut self) {
-        self.target_fps = self.get_i32_default("game", "target_fps", 30);
+        self.target_fps = self.get_i32_default("game", "target_fps", 30).clamp(1, 60);
         self.game_tick_ms = self.get_i32_default("game", "game_tick_ms", 250);
         self.tile_size = self.get_i32_default("materials", "tile_size", 128);
     }

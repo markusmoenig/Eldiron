@@ -4,6 +4,7 @@ pub mod tilemap;
 pub mod tiles;
 pub mod tiles_editor;
 pub mod tiles_editor_undo;
+pub mod visual_code;
 
 pub use crate::prelude::*;
 

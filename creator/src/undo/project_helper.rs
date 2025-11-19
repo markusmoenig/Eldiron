@@ -19,7 +19,16 @@ pub fn gen_region_tree_node(region: &Region) -> TheTreeNode {
     for (id, character) in &region.characters {
         let mut item = TheTreeItem::new(TheId::named_with_id("Region Content List Item", *id));
         item.add_value_column(200, TheValue::Text("Character Instance".to_string()));
+        item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
         item.set_text(character.name.clone());
+        node.add_widget(Box::new(item));
+    }
+
+    for (id, item_) in &region.items {
+        let mut item = TheTreeItem::new(TheId::named_with_id("Region Content List Item", *id));
+        item.add_value_column(200, TheValue::Text("Item Instance".to_string()));
+        item.set_background_color(TheColor::from(ActionRole::Editor.to_color()));
+        item.set_text(item_.name.clone());
         node.add_widget(Box::new(item));
     }
 
@@ -45,17 +54,27 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference(
+        "Character Item Visual Code Edit",
+        character.id,
+    ));
+    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+    item.set_text("Visual Scripting".into());
+    node.add_widget(Box::new(item));
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference(
         "Character Item Code Edit",
         character.id,
     ));
-    item.set_text("Visual Scripting".into());
+    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+    item.set_text("Python Code".into());
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference(
         "Character Item Data Edit",
         character.id,
     ));
-    item.set_text("Data".into());
+    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+    item.set_text("Attributes".into());
     node.add_widget(Box::new(item));
 
     node
@@ -75,12 +94,22 @@ pub fn gen_item_tree_node(item_: &Item) -> TheTreeNode {
 
     node.add_widget(Box::new(item));
 
-    let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Code Edit", item_.id));
+    let mut item = TheTreeItem::new(TheId::named_with_reference(
+        "Item Item Visual Code Edit",
+        item_.id,
+    ));
+    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
     item.set_text("Visual Scripting".into());
     node.add_widget(Box::new(item));
 
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Code Edit", item_.id));
+    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+    item.set_text("Python Code".into());
+    node.add_widget(Box::new(item));
+
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Data Edit", item_.id));
-    item.set_text("Data".into());
+    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+    item.set_text("Attributes".into());
     node.add_widget(Box::new(item));
 
     node
@@ -128,6 +157,19 @@ pub fn gen_screen_tree_node(screen: &Screen) -> TheTreeNode {
     item.add_widget_column(200, Box::new(edit));
 
     node.add_widget(Box::new(item));
+
+    for sector in &screen.map.sectors {
+        if !sector.name.is_empty() {
+            let mut item = TheTreeItem::new(TheId::named_with_id(
+                "Screen Content List Item",
+                sector.creator_id,
+            ));
+            item.add_value_column(200, TheValue::Text("Widget".to_string()));
+            item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+            item.set_text(sector.name.clone());
+            node.add_widget(Box::new(item));
+        }
+    }
 
     node
 }
@@ -199,6 +241,35 @@ pub fn set_project_context(
                 .unwrap()
                 .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
         }
+        ProjectContext::RegionCharacterInstance(id, _) => {
+            if let Some(region) = project.get_region(&id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Region: {}", region.name)),
+                );
+            }
+            DOCKMANAGER.write().unwrap().set_dock(
+                "Visual Code".into(),
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
+        }
+        ProjectContext::RegionItemInstance(id, _) => {
+            if let Some(region) = project.get_region(&id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Region: {}", region.name)),
+                );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+        }
         ProjectContext::Character(id) => {
             if let Some(region) = project.characters.get(&id) {
                 ui.set_widget_value(
@@ -211,6 +282,22 @@ pub fn set_project_context(
                 .write()
                 .unwrap()
                 .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::CharacterVisualCode(id) => {
+            if let Some(region) = project.characters.get(&id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Character: {}", region.name)),
+                );
+            }
+            DOCKMANAGER.write().unwrap().set_dock(
+                "Visual Code".into(),
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
         }
         ProjectContext::CharacterCode(id) => {
             if let Some(region) = project.characters.get(&id) {
@@ -250,6 +337,22 @@ pub fn set_project_context(
                 .write()
                 .unwrap()
                 .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::ItemVisualCode(id) => {
+            if let Some(item) = project.items.get(&id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Item: {}", item.name)),
+                );
+            }
+            DOCKMANAGER.write().unwrap().set_dock(
+                "Visual Code".into(),
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
         }
         ProjectContext::ItemCode(id) => {
             if let Some(item) = project.items.get(&id) {
@@ -301,7 +404,7 @@ pub fn set_project_context(
             DOCKMANAGER
                 .write()
                 .unwrap()
-                .set_dock("Tilemap".into(), ui, ctx, project, server_ctx);
+                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::Asset(id) => {
             if let Some(asset) = project.assets.get(&id) {

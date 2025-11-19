@@ -620,7 +620,7 @@ impl TheTrait for Editor {
 
         // Check for redraw (30fps) and tick updates
         let (redraw_update, tick_update) = self.update_tracker.update(
-            (1000 / CONFIGEDITOR.read().unwrap().target_fps) as u64,
+            (1000 / CONFIGEDITOR.read().unwrap().target_fps.clamp(1, 60)) as u64,
             CONFIGEDITOR.read().unwrap().game_tick_ms as u64,
         );
 
@@ -968,6 +968,7 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
+
                             /*else
                             // Draw the shader map
                             if self.server_ctx.get_map_context() == MapContext::Material {
@@ -1683,6 +1684,19 @@ impl TheTrait for Editor {
                                         for r in &mut self.project.regions {
                                             for c in &mut r.characters {
                                                 if let Some(n) = hash.get(&c.1.character_id) {
+                                                    c.1.name = n.clone();
+                                                }
+                                            }
+                                        }
+
+                                        // Map names of items to instances
+                                        let mut hash = FxHashMap::default();
+                                        for c in &self.project.items {
+                                            hash.insert(c.0, c.1.name.clone());
+                                        }
+                                        for r in &mut self.project.regions {
+                                            for c in &mut r.items {
+                                                if let Some(n) = hash.get(&c.1.item_id) {
                                                     c.1.name = n.clone();
                                                 }
                                             }

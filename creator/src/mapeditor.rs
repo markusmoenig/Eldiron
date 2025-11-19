@@ -987,12 +987,14 @@ impl MapEditor {
                     // ---
 
                     let mut character_template_id: Option<Uuid> = None;
+                    let mut found = false;
+                    let mut is_character_instance = false;
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         region.map.clear_selection();
-                        let mut found = false;
 
                         if let Some(character) = region.characters.get(&id.uuid) {
                             found = true;
+                            is_character_instance = true;
 
                             if *SIDEBARMODE.write().unwrap() == SidebarMode::Region {
                                 /*
@@ -1098,6 +1100,29 @@ impl MapEditor {
                         }
                         server_ctx.content_click_from_map = false;
                         RUSTERIX.write().unwrap().set_dirty();
+                    }
+
+                    if found {
+                        if is_character_instance {
+                            set_project_context(
+                                ctx,
+                                ui,
+                                project,
+                                server_ctx,
+                                ProjectContext::RegionCharacterInstance(
+                                    server_ctx.curr_region,
+                                    id.uuid,
+                                ),
+                            );
+                        } else {
+                            set_project_context(
+                                ctx,
+                                ui,
+                                project,
+                                server_ctx,
+                                ProjectContext::RegionItemInstance(server_ctx.curr_region, id.uuid),
+                            );
+                        }
                     }
 
                     // If in character sidebar mode, set the code aand data

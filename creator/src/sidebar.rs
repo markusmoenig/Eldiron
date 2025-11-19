@@ -2753,6 +2753,20 @@ impl Sidebar {
                         );
                         redraw = true;
                     }
+                } else if id.name == "Character Item Visual Code Edit" {
+                    if let Some(_) = project.characters.get(&id.references) {
+                        server_ctx.curr_character =
+                            ContentContext::CharacterTemplate(id.references);
+                        server_ctx.cc = ContentContext::CharacterTemplate(id.references);
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::CharacterVisualCode(id.references),
+                        );
+                        redraw = true;
+                    }
                 } else if id.name == "Character Item Code Edit" {
                     if let Some(_) = project.characters.get(&id.references) {
                         server_ctx.curr_character =
@@ -2882,6 +2896,19 @@ impl Sidebar {
                             project,
                             server_ctx,
                             ProjectContext::Asset(id.references),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Item Item Visual Code Edit" {
+                    if let Some(_) = project.items.get(&id.references) {
+                        server_ctx.curr_character = ContentContext::ItemTemplate(id.references);
+                        server_ctx.cc = ContentContext::ItemTemplate(id.references);
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::ItemVisualCode(id.references),
                         );
                         redraw = true;
                     }

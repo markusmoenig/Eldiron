@@ -53,10 +53,14 @@ pub enum ContentContext {
 pub enum ProjectContext {
     Unknown,
     Region(Uuid),
+    RegionCharacterInstance(Uuid, Uuid),
+    RegionItemInstance(Uuid, Uuid),
     Character(Uuid),
+    CharacterVisualCode(Uuid),
     CharacterCode(Uuid),
     CharacterData(Uuid),
     Item(Uuid),
+    ItemVisualCode(Uuid),
     ItemCode(Uuid),
     ItemData(Uuid),
     Tilemap(Uuid),
@@ -69,10 +73,14 @@ impl ProjectContext {
         match self {
             ProjectContext::Unknown => None,
             ProjectContext::Region(id)
+            | ProjectContext::RegionCharacterInstance(id, _)
+            | ProjectContext::RegionItemInstance(id, _)
             | ProjectContext::Character(id)
+            | ProjectContext::CharacterVisualCode(id)
             | ProjectContext::CharacterCode(id)
             | ProjectContext::CharacterData(id)
             | ProjectContext::Item(id)
+            | ProjectContext::ItemVisualCode(id)
             | ProjectContext::ItemCode(id)
             | ProjectContext::ItemData(id)
             | ProjectContext::Tilemap(id)
@@ -83,14 +91,22 @@ impl ProjectContext {
 
     pub fn is_region(&self) -> bool {
         match self {
-            ProjectContext::Region(_) => true,
+            ProjectContext::Region(_) | ProjectContext::RegionCharacterInstance(_, _) => true,
             _ => false,
+        }
+    }
+
+    pub fn get_region_character_instance_id(&self) -> Option<Uuid> {
+        match self {
+            ProjectContext::RegionCharacterInstance(_, instance_id) => Some(*instance_id),
+            _ => None,
         }
     }
 
     pub fn is_character(&self) -> bool {
         match self {
             ProjectContext::Character(_)
+            | ProjectContext::CharacterVisualCode(_)
             | ProjectContext::CharacterCode(_)
             | ProjectContext::CharacterData(_) => true,
             _ => false,
@@ -99,9 +115,10 @@ impl ProjectContext {
 
     pub fn is_item(&self) -> bool {
         match self {
-            ProjectContext::Item(_) | ProjectContext::ItemCode(_) | ProjectContext::ItemData(_) => {
-                true
-            }
+            ProjectContext::Item(_)
+            | ProjectContext::ItemVisualCode(_)
+            | ProjectContext::ItemCode(_)
+            | ProjectContext::ItemData(_) => true,
             _ => false,
         }
     }
