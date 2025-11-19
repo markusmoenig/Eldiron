@@ -41,6 +41,7 @@ impl Action for OrbitCamera {
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
         server_ctx.editor_view_mode != EditorViewMode::Orbit
+            && server_ctx.get_map_context() == MapContext::Region
     }
 
     fn apply(

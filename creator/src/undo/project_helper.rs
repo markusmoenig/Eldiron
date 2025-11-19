@@ -432,5 +432,10 @@ pub fn set_project_context(
         }
     }
 
+    ctx.ui.send(TheEvent::Custom(
+        TheId::named("Update Action List"),
+        TheValue::Empty,
+    ));
+
     ctx.ui.relayout = true;
 }

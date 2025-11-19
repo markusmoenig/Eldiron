@@ -5,6 +5,7 @@ pub mod tiles;
 pub mod tiles_editor;
 pub mod tiles_editor_undo;
 pub mod visual_code;
+pub mod visual_code_undo;
 
 pub use crate::prelude::*;
 
