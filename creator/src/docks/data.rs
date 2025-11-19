@@ -21,9 +21,17 @@ impl Dock for DataDock {
                 textedit.set_code_type("TOML");
             }
         }
+
+        if let Some(bytes) = crate::Embedded::get("parser/gruvbox-dark.tmTheme") {
+            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                textedit.add_theme_from_string(source);
+                textedit.set_code_theme("Gruvbox Dark");
+            }
+        }
+
         textedit.set_continuous(true);
         textedit.display_line_number(true);
-        textedit.set_code_theme("base16-eighties.dark");
+        // textedit.set_code_theme("base16-eighties.dark");
         textedit.use_global_statusbar(true);
         textedit.set_font_size(14.0);
         center.set_widget(textedit);

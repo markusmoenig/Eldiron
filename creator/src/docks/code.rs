@@ -15,10 +15,17 @@ impl Dock for CodeDock {
         let mut center = TheCanvas::new();
 
         let mut textedit = TheTextAreaEdit::new(TheId::named("DockCodeEditor"));
+        if let Some(bytes) = crate::Embedded::get("parser/gruvbox-dark.tmTheme") {
+            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                textedit.add_theme_from_string(source);
+                textedit.set_code_theme("Gruvbox Dark");
+            }
+        }
+
         textedit.set_code_type("Python");
         textedit.set_continuous(true);
         textedit.display_line_number(true);
-        textedit.set_code_theme("base16-eighties.dark");
+        // textedit.set_code_theme("base16-eighties.dark");
         textedit.use_global_statusbar(true);
         textedit.set_font_size(14.0);
         center.set_widget(textedit);
@@ -44,7 +51,6 @@ impl Dock for CodeDock {
                 }
             } else if server_ctx.pc.is_item() {
                 if let Some(item) = project.items.get(&id) {
-                    println!("{}", item.source);
                     ui.set_widget_value("DockCodeEditor", ctx, TheValue::Text(item.source.clone()));
                 }
             }
