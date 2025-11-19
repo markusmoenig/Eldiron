@@ -314,4 +314,13 @@ impl DockManager {
             self.docks[self.index].redo(ui, ctx, project, server_ctx);
         }
     }
+
+    /// Get the currently active dock (editor dock if in editor mode, otherwise the current dock)
+    pub fn get_active_dock(&self) -> Option<&dyn Dock> {
+        if self.state == DockManagerState::Editor {
+            self.editor_docks.get(&self.dock).map(|d| d.as_ref())
+        } else {
+            Some(self.docks[self.index].as_ref())
+        }
+    }
 }

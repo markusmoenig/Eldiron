@@ -351,8 +351,8 @@ pub struct ServerContext {
     /// Item Region Override
     pub item_region_override: bool,
 
-    /// Tile Preview Mode
-    pub tile_preview_mode: bool,
+    /// Animation counter for tile previews
+    pub animation_counter: usize,
 
     /// The current 3D hover hit
     pub geo_hit: Option<GeoId>,
@@ -438,7 +438,7 @@ impl ServerContext {
             character_region_override: true,
             item_region_override: true,
 
-            tile_preview_mode: false,
+            animation_counter: 0,
 
             geo_hit: None,
 

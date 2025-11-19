@@ -319,6 +319,62 @@ impl Dock for TilesEditorDock {
             // Box::new(TilePickerTool::new()),
         ])
     }
+
+    fn draw_minimap(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        project: &Project,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) -> bool {
+        buffer.fill(BLACK);
+
+        if let Some(tile_id) = self.current_tile_id {
+            if let Some(tile) = project.tiles.get(&tile_id) {
+                let index = server_ctx.curr_tile_frame_index;
+
+                let stride: usize = buffer.stride();
+
+                let src_pixels = &tile.textures[index].data;
+                let src_w = tile.textures[index].width as f32;
+                let src_h = tile.textures[index].height as f32;
+
+                let dim = buffer.dim();
+                let dst_w = dim.width as f32;
+                let dst_h = dim.height as f32;
+
+                // Compute scale
+                let scale = (dst_w / src_w).min(dst_h / src_h);
+
+                // Scaled dimensions
+                let draw_w = src_w * scale;
+                let draw_h = src_h * scale;
+
+                // Center
+                let offset_x = ((dst_w - draw_w) * 0.5).round() as usize;
+                let offset_y = ((dst_h - draw_h) * 0.5).round() as usize;
+
+                let dst_rect = (
+                    offset_x,
+                    offset_y,
+                    draw_w.round() as usize,
+                    draw_h.round() as usize,
+                );
+
+                ctx.draw.scale_chunk(
+                    buffer.pixels_mut(),
+                    &dst_rect,
+                    stride,
+                    src_pixels,
+                    &(src_w as usize, src_h as usize),
+                    scale,
+                );
+
+                return true;
+            }
+        }
+        false
+    }
 }
 
 impl TilesEditorDock {

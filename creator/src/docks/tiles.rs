@@ -9,6 +9,9 @@ pub struct TilesDock {
     pub zoom: f32,
 
     pub curr_tile: Option<Uuid>,
+
+    pub tile_preview_mode: bool,
+    pub tile_hover_id: Uuid,
 }
 
 impl Dock for TilesDock {
@@ -22,6 +25,9 @@ impl Dock for TilesDock {
             filter_role: 0,
             zoom: 1.5,
             curr_tile: None,
+
+            tile_preview_mode: false,
+            tile_hover_id: Uuid::nil(),
         }
     }
 
@@ -149,6 +155,15 @@ impl Dock for TilesDock {
                     }
                 }
             }
+            TheEvent::LostHover(id) => {
+                if id.name == "Tiles Dock RGBA Layout View" {
+                    self.tile_preview_mode = false;
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Soft Update Minimap"),
+                        TheValue::Empty,
+                    ));
+                }
+            }
             TheEvent::TileEditorHoverChanged(id, pos) => {
                 if id.name == "Tiles Dock RGBA Layout View" {
                     if let Some(tile_id) = self.tile_ids.get(&(pos.x, pos.y)) {
@@ -170,6 +185,13 @@ impl Dock for TilesDock {
                                 ctx.ui.send(TheEvent::SetStatusText(id.clone(), text));
                             }
                         }
+
+                        self.tile_preview_mode = true;
+                        self.tile_hover_id = *tile_id;
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Soft Update Minimap"),
+                            TheValue::Empty,
+                        ));
                     }
                     redraw = true;
                 }
@@ -258,6 +280,65 @@ impl Dock for TilesDock {
             _ => {}
         }
         redraw
+    }
+
+    fn draw_minimap(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        project: &Project,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) -> bool {
+        if !self.tile_preview_mode {
+            return false;
+        }
+
+        buffer.fill(BLACK);
+
+        if let Some(tile) = project.tiles.get(&self.tile_hover_id) {
+            let index = server_ctx.animation_counter % tile.textures.len();
+
+            let stride: usize = buffer.stride();
+
+            let src_pixels = &tile.textures[index].data;
+            let src_w = tile.textures[index].width as f32;
+            let src_h = tile.textures[index].height as f32;
+
+            let dim = buffer.dim();
+            let dst_w = dim.width as f32;
+            let dst_h = dim.height as f32;
+
+            // Compute scale
+            let scale = (dst_w / src_w).min(dst_h / src_h);
+
+            // Scaled dimensions
+            let draw_w = src_w * scale;
+            let draw_h = src_h * scale;
+
+            // Center
+            let offset_x = ((dst_w - draw_w) * 0.5).round() as usize;
+            let offset_y = ((dst_h - draw_h) * 0.5).round() as usize;
+
+            let dst_rect = (
+                offset_x,
+                offset_y,
+                draw_w.round() as usize,
+                draw_h.round() as usize,
+            );
+
+            ctx.draw.scale_chunk(
+                buffer.pixels_mut(),
+                &dst_rect,
+                stride,
+                src_pixels,
+                &(src_w as usize, src_h as usize),
+                scale,
+            );
+
+            return true;
+        }
+
+        false
     }
 }
 

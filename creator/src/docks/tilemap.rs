@@ -1,4 +1,4 @@
-use crate::editor::{PREVIEW_ICON, RUSTERIX, SCENEMANAGER};
+use crate::editor::{RUSTERIX, SCENEMANAGER};
 use crate::prelude::*;
 use rusterix::TileRole;
 
@@ -552,7 +552,7 @@ impl TilemapDock {
     }
 
     /// Set the selection preview
-    pub fn set_tilemap_preview(&self, tile: TheRGBATile, _ui: &mut TheUI) {
+    pub fn set_tilemap_preview(&self, _tile: TheRGBATile, _ui: &mut TheUI) {
         // if let Some(icon_view) = ui.get_icon_view("Tilemap Selection Preview") {
         //     icon_view.set_rgba_tile(tile);
         // }
@@ -562,7 +562,7 @@ impl TilemapDock {
 
         //     buffer.copy_into(0, 0, &tile.buffer[0]);
         // }
-        *PREVIEW_ICON.write().unwrap() = (tile, 0);
+        // *PREVIEW_ICON.write().unwrap() = (tile, 0);
     }
 
     /// Compute the selection preview

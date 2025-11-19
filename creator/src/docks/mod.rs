@@ -94,4 +94,17 @@ pub trait Dock: Send + Sync {
     fn editor_tools(&self) -> Option<Vec<Box<dyn EditorTool>>> {
         None
     }
+
+    /// Draw custom minimap content when this dock is active.
+    /// Returns true if the dock drew custom content (minimap should not draw default content).
+    /// Returns false to let the default minimap drawing proceed.
+    fn draw_minimap(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        project: &Project,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) -> bool {
+        false
+    }
 }

@@ -1339,12 +1339,19 @@ impl Sidebar {
                         let dim = *render_view.dim();
                         let buffer = render_view.render_buffer_mut();
                         buffer.resize(dim.width, dim.height);
-                        if *SIDEBARMODE.read().unwrap() != SidebarMode::Shader {
+
+                        let mut dock_handled_drawing = false;
+                        if let Some(dock) = DOCKMANAGER.read().unwrap().get_active_dock() {
+                            // Test if dock is drawing minimap
+                            if dock.draw_minimap(buffer, project, ctx, server_ctx) {
+                                dock_handled_drawing = true;
+                            }
+                        }
+
+                        if !dock_handled_drawing {
                             if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
                                 draw_minimap(region, buffer, server_ctx, true);
                             }
-                        } else {
-                            crate::minimap::draw_material_minimap(buffer, project, server_ctx);
                         }
                     } else {
                     }
@@ -1355,12 +1362,19 @@ impl Sidebar {
                         let dim = *render_view.dim();
                         let buffer = render_view.render_buffer_mut();
                         buffer.resize(dim.width, dim.height);
-                        if *SIDEBARMODE.read().unwrap() != SidebarMode::Shader {
+
+                        let mut dock_handled_drawing = false;
+                        if let Some(dock) = DOCKMANAGER.read().unwrap().get_active_dock() {
+                            // Test if dock is drawing minimap
+                            if dock.draw_minimap(buffer, project, ctx, server_ctx) {
+                                dock_handled_drawing = true;
+                            }
+                        }
+
+                        if !dock_handled_drawing {
                             if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
                                 draw_minimap(region, buffer, server_ctx, false);
                             }
-                        } else {
-                            crate::minimap::draw_material_minimap(buffer, project, server_ctx);
                         }
                     }
                 } else if id.name == "Update Tiles" {
