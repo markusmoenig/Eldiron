@@ -1654,6 +1654,7 @@ impl TheTrait for Editor {
                                 if let Ok(contents) = std::fs::read_to_string(p) {
                                     if let Ok(project) = serde_json::from_str(&contents) {
                                         self.project = project;
+                                        self.project.palette.current_index = 0;
 
                                         insert_content_into_maps(&mut self.project);
 

@@ -121,10 +121,15 @@ impl TileDrawTool {
                             // Set the pixel
                             let index = (pos.y * width + pos.x) as usize;
                             if index < tile.textures[frame_index].data.len() {
+                                // Apply palette opacity to the color
+                                let mut color_array = color.to_u8_array();
+                                color_array[3] =
+                                    (color_array[3] as f32 * server_ctx.palette_opacity) as u8;
+
                                 tile.textures[frame_index].set_pixel(
                                     pos.x as u32,
                                     pos.y as u32,
-                                    color.to_u8_array(),
+                                    color_array,
                                 );
 
                                 ctx.ui.send(TheEvent::Custom(

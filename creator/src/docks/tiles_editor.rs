@@ -89,9 +89,19 @@ impl Dock for TilesEditorDock {
             TheTreeNode::new(TheId::named_with_id("Palette", self.palette_node));
         palette_node.set_open(true);
 
+        let mut item = TheTreeItem::new(TheId::named("Palette Opacity"));
+        item.set_text("Opacity".into());
+
+        let mut edit = TheTextLineEdit::new(TheId::named("Palette Opacity Edit"));
+        edit.set_value(TheValue::Float(1.0));
+        edit.set_range(TheValue::RangeF32(0.0..=1.0));
+        item.add_widget_column(150, Box::new(edit));
+        palette_node.add_widget(Box::new(item));
+
         let mut item = TheTreeIcons::new(TheId::named("Palette Item"));
         item.set_icon_count(256);
         item.set_icons_per_row(14);
+        item.set_selected_index(Some(0));
 
         palette_node.add_widget(Box::new(item));
         root.add_child(palette_node);
@@ -118,7 +128,7 @@ impl Dock for TilesEditorDock {
 
         if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree") {
             if let Some(palette_node) = tree_layout.get_node_by_id_mut(&self.palette_node) {
-                if let Some(widget) = palette_node.widgets[0].as_tree_icons() {
+                if let Some(widget) = palette_node.widgets[1].as_tree_icons() {
                     widget.set_palette(&project.palette);
                 }
             }
@@ -228,6 +238,12 @@ impl Dock for TilesEditorDock {
                                 }
                             }
                         }
+                    }
+                } else
+                // The palette opacity has been edited
+                if id.name == "Palette Opacity Edit" {
+                    if let Some(opacity) = value.to_f32() {
+                        server_ctx.palette_opacity = opacity;
                     }
                 }
             }
@@ -366,13 +382,12 @@ impl Dock for TilesEditorDock {
                     draw_h.round() as usize,
                 );
 
-                ctx.draw.scale_chunk(
+                ctx.draw.blend_scale_chunk(
                     buffer.pixels_mut(),
                     &dst_rect,
                     stride,
                     src_pixels,
                     &(src_w as usize, src_h as usize),
-                    scale,
                 );
 
                 return true;

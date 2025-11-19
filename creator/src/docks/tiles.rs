@@ -326,13 +326,12 @@ impl Dock for TilesDock {
                 draw_h.round() as usize,
             );
 
-            ctx.draw.scale_chunk(
+            ctx.draw.blend_scale_chunk(
                 buffer.pixels_mut(),
                 &dst_rect,
                 stride,
                 src_pixels,
                 &(src_w as usize, src_h as usize),
-                scale,
             );
 
             return true;

@@ -984,7 +984,7 @@ impl Sidebar {
         shared_layout.add_canvas(canvas);
         shared_layout.add_canvas(nodes_minimap_canvas);
         shared_layout.set_mode(TheSharedVLayoutMode::Shared);
-        shared_layout.set_shared_ratio(0.5);
+        shared_layout.set_shared_ratio(0.6);
         shared_layout.limiter_mut().set_max_width(self.width);
 
         right_canvas.set_layout(shared_layout);

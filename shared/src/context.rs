@@ -285,6 +285,9 @@ pub struct ServerContext {
     /// The current frame/texture index being edited in tile editor
     pub curr_tile_frame_index: usize,
 
+    /// The palette opacity for drawing tools
+    pub palette_opacity: f32,
+
     /// The currently selected model
     pub curr_model_id: Option<Uuid>,
 
@@ -413,6 +416,8 @@ impl ServerContext {
 
             curr_tile_id: None,
             curr_tile_frame_index: 0,
+
+            palette_opacity: 1.0,
 
             curr_model_id: None,
             curr_material_id: None,
