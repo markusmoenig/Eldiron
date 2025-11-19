@@ -66,6 +66,11 @@ impl VisualCodeUndo {
         self.index >= -1 && self.index < self.stack.len() as isize - 1
     }
 
+    pub fn has_changes(&self) -> bool {
+        // Has changes if the index is not at the beginning (i.e., not fully undone)
+        self.index >= 0
+    }
+
     pub fn add(&mut self, atom: VisualCodeUndoAtom) {
         // Remove any redo history
         let to_remove = self.stack.len() as isize - self.index - 1;

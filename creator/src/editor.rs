@@ -2282,7 +2282,7 @@ impl TheTrait for Editor {
 
     /// Returns true if there are changes
     fn has_changes(&self) -> bool {
-        UNDOMANAGER.read().unwrap().has_undo()
+        UNDOMANAGER.read().unwrap().has_undo() || DOCKMANAGER.read().unwrap().has_dock_changes()
     }
 }
 

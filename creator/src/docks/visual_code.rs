@@ -146,6 +146,11 @@ impl Dock for VisualCodeDock {
         true
     }
 
+    fn has_changes(&self) -> bool {
+        // Check if any entity has changes (index >= 0, meaning not fully undone)
+        self.entity_undos.values().any(|undo| undo.has_changes())
+    }
+
     fn undo(
         &mut self,
         ui: &mut TheUI,

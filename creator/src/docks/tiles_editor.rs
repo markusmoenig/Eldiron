@@ -259,6 +259,11 @@ impl Dock for TilesEditorDock {
         true
     }
 
+    fn has_changes(&self) -> bool {
+        // Check if any tile has changes (index >= 0, meaning not fully undone)
+        self.tile_undos.values().any(|undo| undo.has_changes())
+    }
+
     fn undo(
         &mut self,
         ui: &mut TheUI,

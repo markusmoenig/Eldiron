@@ -68,6 +68,11 @@ pub trait Dock: Send + Sync {
         false
     }
 
+    /// Returns true if this dock has unsaved changes in its undo stack.
+    fn has_changes(&self) -> bool {
+        false
+    }
+
     /// If the dock supports undo, set its current state to the UI.
     fn set_undo_state_to_ui(&self, ctx: &mut TheContext) {}
 

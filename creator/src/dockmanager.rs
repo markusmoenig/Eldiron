@@ -326,4 +326,23 @@ impl DockManager {
             Some(self.docks[self.index].as_ref())
         }
     }
+
+    /// Check if any dock has unsaved changes in its undo stack
+    pub fn has_dock_changes(&self) -> bool {
+        // Check all regular docks
+        for dock in self.docks.values() {
+            if dock.has_changes() {
+                return true;
+            }
+        }
+
+        // Check all editor docks
+        for dock in self.editor_docks.values() {
+            if dock.has_changes() {
+                return true;
+            }
+        }
+
+        false
+    }
 }
