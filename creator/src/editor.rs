@@ -1759,30 +1759,22 @@ impl TheTrait for Editor {
                         }
                     }
                     TheEvent::StateChanged(id, _state) => {
-                        // if id.name == "Square" {
-                        //     if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
-                        //         if layout.mode() == TheSharedVLayoutMode::Top {
-                        //             layout.set_mode(TheSharedVLayoutMode::Bottom);
-                        //             ctx.ui.relayout = true;
-                        //         } else {
-                        //             layout.set_mode(TheSharedVLayoutMode::Top);
-                        //             ctx.ui.relayout = true;
-                        //         }
-                        //         redraw = true;
-                        //     }
-                        // } else if id.name == "Square Half" {
-                        //     if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
-                        //         layout.set_mode(TheSharedVLayoutMode::Shared);
-                        //         ctx.ui.relayout = true;
-                        //         redraw = true;
-                        //     }
-                        // } else
                         if id.name == "New" {
                             self.project_path = None;
                             self.update_counter = 0;
                             self.sidebar.startup = true;
                             self.project = Project::default();
-                            self.project.regions.push(Region::default());
+
+                            if let Some(bytes) = crate::Embedded::get("starter_project.eldiron") {
+                                if let Ok(project_string) = std::str::from_utf8(bytes.data.as_ref())
+                                {
+                                    if let Ok(project) =
+                                        serde_json::from_str(&project_string.to_string())
+                                    {
+                                        self.project = project;
+                                    }
+                                }
+                            }
 
                             // ctx.ui.set_disabled("Save");
                             // ctx.ui.set_disabled("Save As");

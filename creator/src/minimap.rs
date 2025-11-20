@@ -149,6 +149,11 @@ pub fn draw_minimap(
 
         let scene_handler = &mut rusterix.scene_handler;
 
+        // No grid
+        scene_handler
+            .vm
+            .execute(scenevm::Atom::SetGP0(Vec4::zero()));
+
         // Ambient light
         scene_handler.vm.execute(scenevm::Atom::SetGP1(Vec4::one()));
 
