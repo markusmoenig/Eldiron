@@ -7,6 +7,15 @@ pub fn gen_region_tree_node(region: &Region) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&region.name, region.id));
     node.set_root_mode(false);
 
+    gen_region_tree_items(&mut node, region);
+
+    node
+}
+
+/// Generate a tree node for the given region
+pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
+    node.widgets = vec![];
+
     let mut item = TheTreeItem::new(TheId::named_with_reference("Region Item", region.id));
     item.set_text("Name".into());
 
@@ -31,8 +40,6 @@ pub fn gen_region_tree_node(region: &Region) -> TheTreeNode {
         item.set_text(item_.name.clone());
         node.add_widget(Box::new(item));
     }
-
-    node
 }
 
 /// Returns a TheTreeNode for the character.
@@ -246,7 +253,7 @@ pub fn set_project_context(
                 ui.set_widget_value(
                     "Project Context",
                     ctx,
-                    TheValue::Text(format!("Region: {}", region.name)),
+                    TheValue::Text(format!("Region ({}) Character", region.name)),
                 );
             }
             DOCKMANAGER.write().unwrap().set_dock(
@@ -262,7 +269,7 @@ pub fn set_project_context(
                 ui.set_widget_value(
                     "Project Context",
                     ctx,
-                    TheValue::Text(format!("Region: {}", region.name)),
+                    TheValue::Text(format!("Region ({}) Item", region.name)),
                 );
             }
             DOCKMANAGER

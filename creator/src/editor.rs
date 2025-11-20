@@ -1301,7 +1301,7 @@ impl TheTrait for Editor {
 
                         if drop.id.name.starts_with("Character") {
                             let mut instance = Character {
-                                character_id: drop.id.uuid,
+                                character_id: drop.id.references,
                                 position: Vec3::new(grid_pos.x, 1.5, grid_pos.y),
                                 ..Default::default()
                             };
@@ -1313,44 +1313,22 @@ impl TheTrait for Editor {
                             }
 
                             let mut name = "Character".to_string();
-                            if let Some(character) = self.project.characters.get(&drop.id.uuid) {
+                            if let Some(character) =
+                                self.project.characters.get(&drop.id.references)
+                            {
                                 name.clone_from(&character.name);
                             }
-                            if let Some(list) = ui.get_list_layout("Region Content List") {
-                                let mut item = TheListItem::new(TheId::named_with_id(
-                                    "Region Content List Item",
-                                    instance.id,
-                                ));
-                                item.set_text(name);
-                                item.set_state(TheWidgetState::Selected);
-                                item.add_value_column(100, TheValue::Text("Character".to_string()));
+                            instance.name = name.clone();
 
-                                list.deselect_all();
-                                item.set_context_menu(Some(TheContextMenu {
-                                    items: vec![TheContextMenuItem::new(
-                                        "Delete Character...".to_string(),
-                                        TheId::named("Sidebar Delete Character Instance"),
-                                    )],
-                                    ..Default::default()
-                                }));
-                                list.add_item(item, ctx);
-                                self.server_ctx.content_click_from_map = true;
-                                list.select_item(instance.id, ctx, true);
-                            }
-
-                            // Add the character instance to the project
-                            if let Some(region) =
-                                self.project.get_region_mut(&self.server_ctx.curr_region)
-                            {
-                                self.server_ctx.curr_region_content =
-                                    ContentContext::CharacterInstance(instance.id);
-                                region.characters.insert(instance.id, instance.clone());
-                                insert_content_into_maps(&mut self.project);
-                                RUSTERIX.write().unwrap().set_dirty();
-                            }
+                            let atom = ProjectUndoAtom::AddRegionCharacterInstance(
+                                self.server_ctx.curr_region,
+                                instance,
+                            );
+                            atom.redo(&mut self.project, ui, ctx, &mut self.server_ctx);
+                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                         } else if drop.id.name.starts_with("Item") {
                             let mut instance = Item {
-                                item_id: drop.id.uuid,
+                                item_id: drop.id.references,
                                 position: Vec3::new(grid_pos.x, 1.5, grid_pos.y),
                                 ..Default::default()
                             };
@@ -1362,42 +1340,17 @@ impl TheTrait for Editor {
                             }
 
                             let mut name = "Item".to_string();
-                            if let Some(item) = self.project.items.get(&drop.id.uuid) {
+                            if let Some(item) = self.project.items.get(&drop.id.references) {
                                 name.clone_from(&item.name);
                             }
+                            instance.name = name;
 
-                            if let Some(list) = ui.get_list_layout("Region Content List") {
-                                let mut item = TheListItem::new(TheId::named_with_id(
-                                    "Region Content List Item",
-                                    instance.id,
-                                ));
-                                item.set_text(name);
-                                item.set_state(TheWidgetState::Selected);
-                                item.add_value_column(100, TheValue::Text("Item".to_string()));
-
-                                list.deselect_all();
-                                item.set_context_menu(Some(TheContextMenu {
-                                    items: vec![TheContextMenuItem::new(
-                                        "Delete Item...".to_string(),
-                                        TheId::named("Sidebar Delete Item Instance"),
-                                    )],
-                                    ..Default::default()
-                                }));
-                                list.add_item(item, ctx);
-                                self.server_ctx.content_click_from_map = true;
-                                list.select_item(instance.id, ctx, true);
-                            }
-
-                            // Add the character instance to the project
-                            if let Some(region) =
-                                self.project.get_region_mut(&self.server_ctx.curr_region)
-                            {
-                                self.server_ctx.curr_region_content =
-                                    ContentContext::ItemInstance(instance.id);
-                                region.items.insert(instance.id, instance.clone());
-                                insert_content_into_maps(&mut self.project);
-                                RUSTERIX.write().unwrap().set_dirty();
-                            }
+                            let atom = ProjectUndoAtom::AddRegionItemInstance(
+                                self.server_ctx.curr_region,
+                                instance,
+                            );
+                            atom.redo(&mut self.project, ui, ctx, &mut self.server_ctx);
+                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                         }
                     }
                     /*

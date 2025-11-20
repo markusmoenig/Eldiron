@@ -1,4 +1,3 @@
-// use crate::editor::DOCKMANAGER;
 use crate::prelude::*;
 use theframework::prelude::*;
 
@@ -9,6 +8,10 @@ pub enum ProjectUndoAtom {
     AddRegion(Region),
     RemoveRegion(usize, Region),
     RenameRegion(Uuid, String, String),
+    AddRegionCharacterInstance(Uuid, Character),
+    RemoveRegionCharacterInstance(usize, Uuid, Character),
+    AddRegionItemInstance(Uuid, Item),
+    RemoveRegionItemInstance(usize, Uuid, Item),
     AddCharacter(Character),
     RemoveCharacter(usize, Character),
     RenameCharacter(Uuid, String, String),
@@ -45,6 +48,18 @@ impl ProjectUndoAtom {
             AddRegion(region) => format!("Add Region: {}", region.name),
             RemoveRegion(_, region) => format!("Remove Region: {}", region.name),
             RenameRegion(_, old, new) => format!("Rename Region: {} -> {}", old, new),
+            AddRegionCharacterInstance(_, character) => {
+                format!("Add Region Character Instance: {}", character.name)
+            }
+            RemoveRegionCharacterInstance(_, _, character) => {
+                format!("Remove Region Character Instance: {}", character.name)
+            }
+            AddRegionItemInstance(_, item) => {
+                format!("Add Region Item Instance: {}", item.name)
+            }
+            RemoveRegionItemInstance(_, _, item) => {
+                format!("Remove Region Item Instance: {}", item.name)
+            }
             AddCharacter(character) => format!("Add Character: {}", character.name),
             RemoveCharacter(_, character) => format!("Remove Character: {}", character.name),
             RenameCharacter(_, old, new) => format!("Rename Character: {} -> {}", old, new),
@@ -131,6 +146,94 @@ impl ProjectUndoAtom {
                             }
                         }
                     }
+                }
+            }
+            AddRegionCharacterInstance(region_id, character) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(region_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id)
+                    {
+                        region_node.remove_widget_by_uuid(&character.id);
+                    }
+
+                    if let Some(region) = project.get_region_mut(region_id) {
+                        region.characters.shift_remove(&character.id);
+                        region.map.entities.retain(|e| e.creator_id != character.id);
+                    }
+
+                    if let Some(region) = project.get_region(region_id) {
+                        if let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id) {
+                            region_node.set_open(true);
+                        }
+                        server_ctx.curr_region = region.id;
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Region(region.id),
+                        );
+                        update_region(ctx);
+                    }
+                }
+            }
+            RemoveRegionCharacterInstance(index, region_id, character) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    let character = character.clone();
+
+                    if let Some(region) = project.get_region_mut(region_id) {
+                        region
+                            .characters
+                            .insert_before(*index, character.id, character);
+
+                        if let Some(region_node) = tree_layout.get_node_by_id_mut(&region_id) {
+                            gen_region_tree_items(region_node, region);
+                        }
+                    }
+                    shared::rusterix_utils::insert_content_into_maps(project);
+                }
+            }
+            AddRegionItemInstance(region_id, item) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(region_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id)
+                    {
+                        region_node.remove_widget_by_uuid(&item.id);
+                    }
+
+                    if let Some(region) = project.get_region_mut(region_id) {
+                        region.items.shift_remove(&item.id);
+                        region.map.items.retain(|e| e.creator_id != item.id);
+                    }
+
+                    if let Some(region) = project.get_region(region_id) {
+                        if let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id) {
+                            region_node.set_open(true);
+                        }
+                        server_ctx.curr_region = region.id;
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Region(region.id),
+                        );
+                        update_region(ctx);
+                    }
+                }
+            }
+            RemoveRegionItemInstance(index, region_id, item) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    let item = item.clone();
+
+                    if let Some(region) = project.get_region_mut(region_id) {
+                        region.items.insert_before(*index, item.id, item);
+
+                        if let Some(region_node) = tree_layout.get_node_by_id_mut(&region_id) {
+                            gen_region_tree_items(region_node, region);
+                        }
+                    }
+                    shared::rusterix_utils::insert_content_into_maps(project);
                 }
             }
             AddCharacter(character) => {
@@ -490,6 +593,92 @@ impl ProjectUndoAtom {
                                 }
                             }
                         }
+                    }
+                }
+            }
+            AddRegionCharacterInstance(region_id, character) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    let character = character.clone();
+
+                    if let Some(region) = project.get_region_mut(region_id) {
+                        region.characters.insert(character.id, character);
+
+                        if let Some(region_node) = tree_layout.get_node_by_id_mut(&region_id) {
+                            gen_region_tree_items(region_node, region);
+                        }
+                    }
+                    shared::rusterix_utils::insert_content_into_maps(project);
+                }
+            }
+            RemoveRegionCharacterInstance(_, region_id, character) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(region_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id)
+                    {
+                        region_node.remove_widget_by_uuid(&character.id);
+                    }
+
+                    if let Some(region) = project.get_region_mut(region_id) {
+                        region.characters.shift_remove(&character.id);
+                        region.map.entities.retain(|e| e.creator_id != character.id);
+                    }
+
+                    if let Some(region) = project.get_region(region_id) {
+                        if let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id) {
+                            region_node.set_open(true);
+                        }
+                        server_ctx.curr_region = region.id;
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Region(region.id),
+                        );
+                        update_region(ctx);
+                    }
+                }
+            }
+            AddRegionItemInstance(region_id, item) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    let item = item.clone();
+
+                    if let Some(region) = project.get_region_mut(region_id) {
+                        region.items.insert(item.id, item);
+
+                        if let Some(region_node) = tree_layout.get_node_by_id_mut(&region_id) {
+                            gen_region_tree_items(region_node, region);
+                        }
+                    }
+                    shared::rusterix_utils::insert_content_into_maps(project);
+                }
+            }
+            RemoveRegionItemInstance(_, region_id, item) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(region_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id)
+                    {
+                        region_node.remove_widget_by_uuid(&item.id);
+                    }
+
+                    if let Some(region) = project.get_region_mut(region_id) {
+                        region.items.shift_remove(&item.id);
+                        region.map.items.retain(|e| e.creator_id != item.id);
+                    }
+
+                    if let Some(region) = project.get_region(region_id) {
+                        if let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id) {
+                            region_node.set_open(true);
+                        }
+                        server_ctx.curr_region = region.id;
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Region(region.id),
+                        );
+                        update_region(ctx);
                     }
                 }
             }

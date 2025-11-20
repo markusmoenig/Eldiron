@@ -2537,17 +2537,67 @@ impl Sidebar {
                     );
                 } else if id.name == "Project Remove" {
                     if server_ctx.pc.is_region() {
-                        // Remove Region
-                        let mut region = Region::default();
-                        if let Some(r) = project.get_region_ctx(server_ctx) {
-                            region = r.clone();
-                        }
-
-                        if let Some(index) = project.regions.iter().position(|r| r.id == region.id)
+                        if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id()
                         {
-                            let atom = ProjectUndoAtom::RemoveRegion(index, region);
+                            // This is a character instance in the region
+
+                            let mut character = Character::default();
+                            let mut index = 0;
+
+                            if let Some(r) = project.get_region_ctx(server_ctx) {
+                                if let Some(ind) = r.characters.get_index_of(&instance_id) {
+                                    index = ind;
+                                }
+                                if let Some(char) = r.characters.get(&instance_id) {
+                                    character = char.clone();
+                                }
+                            }
+
+                            let atom = ProjectUndoAtom::RemoveRegionCharacterInstance(
+                                index,
+                                server_ctx.curr_region,
+                                character,
+                            );
                             atom.redo(project, ui, ctx, server_ctx);
                             UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        } else if let Some(instance_id) =
+                            server_ctx.pc.get_region_item_instance_id()
+                        {
+                            // This is a item instance in the region
+
+                            let mut item = Item::default();
+                            let mut index = 0;
+
+                            if let Some(r) = project.get_region_ctx(server_ctx) {
+                                if let Some(ind) = r.items.get_index_of(&instance_id) {
+                                    index = ind;
+                                }
+                                if let Some(it) = r.items.get(&instance_id) {
+                                    item = it.clone();
+                                }
+                            }
+
+                            let atom = ProjectUndoAtom::RemoveRegionItemInstance(
+                                index,
+                                server_ctx.curr_region,
+                                item,
+                            );
+                            atom.redo(project, ui, ctx, server_ctx);
+                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        } else {
+                            // Remove Region
+                            let mut region = Region::default();
+                            if let Some(r) = project.get_region_ctx(server_ctx) {
+                                region = r.clone();
+                            }
+
+                            if let Some(index) =
+                                project.regions.iter().position(|r| r.id == region.id)
+                            {
+                                let atom = ProjectUndoAtom::RemoveRegion(index, region);
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            }
                         }
                     } else if server_ctx.pc.is_character() {
                         // Remove Character

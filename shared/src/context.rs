@@ -92,7 +92,9 @@ impl ProjectContext {
 
     pub fn is_region(&self) -> bool {
         match self {
-            ProjectContext::Region(_) | ProjectContext::RegionCharacterInstance(_, _) => true,
+            ProjectContext::Region(_)
+            | ProjectContext::RegionCharacterInstance(_, _)
+            | ProjectContext::RegionItemInstance(_, _) => true,
             _ => false,
         }
     }
@@ -100,6 +102,13 @@ impl ProjectContext {
     pub fn get_region_character_instance_id(&self) -> Option<Uuid> {
         match self {
             ProjectContext::RegionCharacterInstance(_, instance_id) => Some(*instance_id),
+            _ => None,
+        }
+    }
+
+    pub fn get_region_item_instance_id(&self) -> Option<Uuid> {
+        match self {
+            ProjectContext::RegionItemInstance(_, instance_id) => Some(*instance_id),
             _ => None,
         }
     }
