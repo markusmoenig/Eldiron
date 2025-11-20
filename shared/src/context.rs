@@ -66,12 +66,13 @@ pub enum ProjectContext {
     Tilemap(Uuid),
     Screen(Uuid),
     Asset(Uuid),
+    ProjectSettings,
 }
 
 impl ProjectContext {
     pub fn id(self) -> Option<Uuid> {
         match self {
-            ProjectContext::Unknown => None,
+            ProjectContext::Unknown | ProjectContext::ProjectSettings => None,
             ProjectContext::Region(id)
             | ProjectContext::RegionCharacterInstance(id, _)
             | ProjectContext::RegionItemInstance(id, _)
@@ -140,6 +141,13 @@ impl ProjectContext {
     pub fn is_asset(&self) -> bool {
         match self {
             ProjectContext::Asset(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_project_settings(&self) -> bool {
+        match self {
+            ProjectContext::ProjectSettings => true,
             _ => false,
         }
     }

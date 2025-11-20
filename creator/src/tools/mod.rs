@@ -2,7 +2,7 @@ pub use crate::prelude::*;
 use rusterix::Assets;
 
 // pub mod code;
-pub mod config;
+// pub mod config;
 // pub mod data;
 pub mod game;
 pub mod info;

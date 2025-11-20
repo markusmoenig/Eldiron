@@ -1,6 +1,6 @@
 use crate::editor::{CODEEDITOR, NODEEDITOR, RUSTERIX, SHAPEPICKER, UNDOMANAGER};
 use crate::prelude::*;
-pub use crate::tools::{config::ConfigTool, info::InfoTool, rect::RectTool};
+pub use crate::tools::{info::InfoTool, rect::RectTool};
 use rusterix::Assets;
 use scenevm::GeoId;
 
@@ -43,7 +43,7 @@ impl ToolList {
             // Box::new(CodeTool::new()),
             // Box::new(DataTool::new()),
             // Box::new(TilesetTool::new()),
-            Box::new(ConfigTool::new()),
+            // Box::new(ConfigTool::new()),
             Box::new(InfoTool::new()),
             Box::new(GameTool::new()),
         ];

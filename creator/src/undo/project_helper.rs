@@ -419,6 +419,17 @@ pub fn set_project_context(
                 .unwrap()
                 .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
         }
+        ProjectContext::ProjectSettings => {
+            ui.set_widget_value(
+                "Project Context",
+                ctx,
+                TheValue::Text("Project Settings".into()),
+            );
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Data".into(), ui, ctx, project, server_ctx);
+        }
         _ => {}
     }
 
