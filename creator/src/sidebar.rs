@@ -1511,73 +1511,7 @@ impl Sidebar {
                 }
             }
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
-                if item_id.name == "Sidebar Delete Character Instance" {
-                    if let ContentContext::CharacterInstance(char_inst) =
-                        server_ctx.curr_region_content
-                    {
-                        let mut name = str!("Unknown");
-                        let mut template_id = None;
-                        if let Some(region) = project.get_region_ctx(&server_ctx) {
-                            if let Some(character) = region.characters.get(&char_inst) {
-                                template_id = Some(character.character_id);
-                            }
-                        }
-                        if let Some(template_id) = template_id {
-                            if let Some(character) = project.characters.get(&template_id) {
-                                name = character.name.clone();
-                            }
-                        }
-                        open_delete_confirmation_dialog(
-                            "Delete Character Instance ?",
-                            format!("Permanently delete the '{name}' instance ?").as_str(),
-                            char_inst,
-                            ui,
-                            ctx,
-                        );
-                    }
-                } else if item_id.name == "Sidebar Delete Item Instance" {
-                    if let ContentContext::ItemInstance(item_inst) = server_ctx.curr_region_content
-                    {
-                        let mut name = str!("Unknown");
-                        let mut template_id = None;
-                        if let Some(region) = project.get_region_ctx(&server_ctx) {
-                            if let Some(item) = region.items.get(&item_inst) {
-                                template_id = Some(item.item_id);
-                            }
-                        }
-                        if let Some(template_id) = template_id {
-                            if let Some(item) = project.items.get(&template_id) {
-                                name = item.name.clone();
-                            }
-                        }
-                        open_delete_confirmation_dialog(
-                            "Delete Item Instance ?",
-                            &format!("Permanently delete the '{name}' instance ?"),
-                            item_inst,
-                            ui,
-                            ctx,
-                        );
-                    }
-                }
-                /*else if item_id.name == "Sidebar Delete Area" {
-                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                        if let Some(area_id) = server_ctx.curr_area {
-                            for area in region.areas.values() {
-                                if area.id == area_id {
-                                    open_delete_confirmation_dialog(
-                                        "Delete Area ?",
-                                        format!("Permanently delete area '{}' ?", area.name)
-                                            .as_str(),
-                                        area_id,
-                                        ui,
-                                        ctx,
-                                    );
-                                }
-                            }
-                        }
-                    }
-                } */
-                else if item_id.name == "Add Image" {
+                if item_id.name == "Add Image" {
                     ctx.ui.open_file_requester(
                         TheId::named_with_id(item_id.name.as_str(), Uuid::new_v4()),
                         "Open Image".into(),
@@ -3844,13 +3778,6 @@ impl Sidebar {
                             ));
                             item.set_text(sector.name.clone());
                             item.add_value_column(100, TheValue::Text("Widget".to_string()));
-                            // item.set_context_menu(Some(TheContextMenu {
-                            //     items: vec![TheContextMenuItem::new(
-                            //         "Delete Character...".to_string(),
-                            //         TheId::named("Sidebar Delete Character Instance"),
-                            //     )],
-                            //     ..Default::default()
-                            // }));
                             list.add_item(item, ctx);
                         }
                     }

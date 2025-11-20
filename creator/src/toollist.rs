@@ -526,6 +526,9 @@ impl ToolList {
                                 }
                             }
                         } else if *code == TheKeyCode::Delete {
+                            let mut found_entity = None;
+                            let mut found_item = None;
+
                             if let Some(map) = project.get_map_mut(server_ctx) {
                                 if server_ctx.get_map_context() == MapContext::Region
                                     && server_ctx.curr_map_tool_type != MapToolType::Effects
@@ -533,25 +536,69 @@ impl ToolList {
                                 {
                                     for e in &map.entities {
                                         if Some(e.creator_id) == map.selected_entity_item {
-                                            ctx.ui.send(TheEvent::ContextMenuSelected(
-                                                TheId::empty(),
-                                                TheId::named("Sidebar Delete Character Instance"),
-                                            ));
+                                            found_entity = map.selected_entity_item.clone();
                                             break;
                                         }
                                     }
-                                    for i in &map.items {
-                                        if Some(i.creator_id) == map.selected_entity_item {
-                                            ctx.ui.send(TheEvent::ContextMenuSelected(
-                                                TheId::empty(),
-                                                TheId::named("Sidebar Delete Item Instance"),
-                                            ));
-                                            break;
+
+                                    if found_entity.is_none() {
+                                        for i in &map.items {
+                                            if Some(i.creator_id) == map.selected_entity_item {
+                                                found_item = map.selected_entity_item.clone();
+                                                break;
+                                            }
                                         }
                                     }
-                                    return false;
                                 }
                             }
+
+                            if let Some(instance_id) = found_entity {
+                                let mut character = Character::default();
+                                let mut index = 0;
+
+                                if let Some(r) = project.get_region_ctx(server_ctx) {
+                                    if let Some(ind) = r.characters.get_index_of(&instance_id) {
+                                        index = ind;
+                                    }
+                                    if let Some(char) = r.characters.get(&instance_id) {
+                                        character = char.clone();
+                                    }
+                                }
+
+                                let atom = ProjectUndoAtom::RemoveRegionCharacterInstance(
+                                    index,
+                                    server_ctx.curr_region,
+                                    character,
+                                );
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+
+                                return true;
+                            }
+                            if let Some(instance_id) = found_item {
+                                let mut item = Item::default();
+                                let mut index = 0;
+
+                                if let Some(r) = project.get_region_ctx(server_ctx) {
+                                    if let Some(ind) = r.items.get_index_of(&instance_id) {
+                                        index = ind;
+                                    }
+                                    if let Some(it) = r.items.get(&instance_id) {
+                                        item = it.clone();
+                                    }
+                                }
+
+                                let atom = ProjectUndoAtom::RemoveRegionItemInstance(
+                                    index,
+                                    server_ctx.curr_region,
+                                    item,
+                                );
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+
+                                return true;
+                            }
+
                             if let Some(map) = project.get_map_mut(server_ctx) {
                                 let undo_atom = self.get_current_tool().map_event(
                                     MapEvent::MapDelete,

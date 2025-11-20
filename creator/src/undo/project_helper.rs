@@ -12,7 +12,7 @@ pub fn gen_region_tree_node(region: &Region) -> TheTreeNode {
     node
 }
 
-/// Generate a tree node for the given region
+/// Generate the items for the region node
 pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
     node.widgets = vec![];
 
@@ -156,6 +156,13 @@ pub fn gen_screen_tree_node(screen: &Screen) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&screen.name, screen.id));
     node.set_root_mode(false);
 
+    gen_screen_tree_items(&mut node, screen);
+
+    node
+}
+
+/// Generate the items for the screen node
+pub fn gen_screen_tree_items(node: &mut TheTreeNode, screen: &Screen) {
     let mut item = TheTreeItem::new(TheId::named_with_reference("Screen Item", screen.id));
     item.set_text("Name".into());
 
@@ -177,8 +184,6 @@ pub fn gen_screen_tree_node(screen: &Screen) -> TheTreeNode {
             node.add_widget(Box::new(item));
         }
     }
-
-    node
 }
 
 /// Returns a TheTreeNode for the screen.
