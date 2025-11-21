@@ -91,9 +91,12 @@ impl ProjectUndoAtom {
         match self {
             MapEdit(pc, old, _new) => {
                 set_project_context(ctx, ui, project, server_ctx, *pc);
-                if let Some(map) = project.get_map_pc_mut(server_ctx) {
+                if let Some(map) = project.get_map_mut(server_ctx) {
                     *map = *old.clone();
-                    update_region(ctx);
+                    map.clear_temp();
+                    if pc.is_region() {
+                        update_region(ctx);
+                    }
                 }
             }
             AddRegion(region) => {
@@ -523,9 +526,12 @@ impl ProjectUndoAtom {
         match self {
             MapEdit(pc, _old, new) => {
                 set_project_context(ctx, ui, project, server_ctx, *pc);
-                if let Some(map) = project.get_map_pc_mut(server_ctx) {
+                if let Some(map) = project.get_map_mut(server_ctx) {
                     *map = *new.clone();
-                    update_region(ctx);
+                    map.clear_temp();
+                    if pc.is_region() {
+                        update_region(ctx);
+                    }
                 }
             }
             AddRegion(region) => {
