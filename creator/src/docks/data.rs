@@ -9,6 +9,7 @@ pub enum EntityKey {
     Character(Uuid),
     Item(Uuid),
     ProjectSettings,
+    ScreenWidget(Uuid, Uuid), // (screen_id, widget_id)
 }
 
 pub struct DataDock {
@@ -86,6 +87,21 @@ impl Dock for DataDock {
                     // Switch to this entity's undo stack
                     self.switch_to_entity(EntityKey::Item(id), ctx);
                 }
+            } else if let ProjectContext::ScreenWidget(screen_id, widget_id) = server_ctx.pc {
+                if let Some(screen) = project.screens.get(&screen_id) {
+                    for sector in &screen.map.sectors {
+                        if sector.creator_id == widget_id {
+                            let data = sector.properties.get_str_default("data", "".into());
+                            ui.set_widget_value("DockDataEditor", ctx, TheValue::Text(data));
+                            // Switch to this entity's undo stack
+                            self.switch_to_entity(
+                                EntityKey::ScreenWidget(screen_id, widget_id),
+                                ctx,
+                            );
+                            break;
+                        }
+                    }
+                }
             }
         } else if server_ctx.pc.is_project_settings() {
             ui.set_widget_value(
@@ -139,6 +155,20 @@ impl Dock for DataDock {
                                 if let Some(item) = project.items.get_mut(&id) {
                                     item.data = code;
                                     redraw = true;
+                                }
+                            }
+                        } else if let ProjectContext::ScreenWidget(screen_id, widget_id) =
+                            server_ctx.pc
+                        {
+                            if let Some(code) = value.to_string() {
+                                if let Some(screen) = project.screens.get_mut(&screen_id) {
+                                    for sector in &mut screen.map.sectors {
+                                        if sector.creator_id == widget_id {
+                                            sector.properties.set("data".into(), Value::Str(code));
+                                            redraw = true;
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -269,6 +299,15 @@ impl DataDock {
                 } else if server_ctx.pc.is_item() {
                     if let Some(item) = project.items.get_mut(&id) {
                         item.data = text;
+                    }
+                } else if let ProjectContext::ScreenWidget(screen_id, widget_id) = server_ctx.pc {
+                    if let Some(screen) = project.screens.get_mut(&screen_id) {
+                        for sector in &mut screen.map.sectors {
+                            if sector.creator_id == widget_id {
+                                sector.properties.set("data".into(), Value::Str(text));
+                                break;
+                            }
+                        }
                     }
                 }
             }

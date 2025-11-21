@@ -906,13 +906,11 @@ impl TheTrait for Editor {
                                     }
                                 }
                             } else
-                            // Draw the material / character / item map
+                            // Draw the screen / character / item map
                             if self.server_ctx.get_map_context() == MapContext::Character
                                 || self.server_ctx.get_map_context() == MapContext::Item
                                 || self.server_ctx.get_map_context() == MapContext::Screen
-                                || self.server_ctx.get_map_context() == MapContext::Shader
                             {
-                                // println!("1 {:?}", self.server_ctx.get_map_context());
                                 b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
                                 if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
                                     if let Some(hover_cursor) = self.server_ctx.hover_cursor {
@@ -968,25 +966,6 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
-
-                            /*else
-                            // Draw the shader map
-                            if self.server_ctx.get_map_context() == MapContext::Material {
-                                let render_buffer = render_view.render_buffer_mut();
-                                let dest_width = render_buffer.dim().width;
-                                let dest_height = render_buffer.dim().height;
-
-                                let shader_buffer = SHADERBUFFER.write().unwrap();
-                                let source_width = shader_buffer.dim().width;
-                                let source_height = shader_buffer.dim().height;
-
-                                // Tile the shader_buffer across the entire destination buffer
-                                for y in (0..dest_height).step_by(source_height as usize) {
-                                    for x in (0..dest_width).step_by(source_width as usize) {
-                                        render_buffer.copy_into(x, y, &*shader_buffer);
-                                    }
-                                }
-                            }*/
                         }
                     }
                     if !self.server_ctx.game_mode {
@@ -2032,49 +2011,6 @@ impl TheTrait for Editor {
                                 } else {
                                     manager.redo(&mut self.server_ctx, &mut self.project, ui, ctx);
                                 }
-                                /*
-                                if manager.context == UndoManagerContext::Region {
-                                    if id.name == "Undo" {
-                                        manager.undo(
-                                            &mut self.server_ctx,
-                                            &mut self.project,
-                                            ui,
-                                            ctx,
-                                        );
-                                    } else {
-                                        manager.redo(
-                                            &mut self.server_ctx,
-                                            &mut self.project,
-                                            ui,
-                                            ctx,
-                                        );
-                                    }
-                                    ctx.ui.send(TheEvent::Custom(
-                                        TheId::named("Update Minimap"),
-                                        TheValue::Empty,
-                                    ));
-                                } else if manager.context == UndoManagerContext::Material
-                                    || manager.context == UndoManagerContext::Palette
-                                    || manager.context == UndoManagerContext::Screen
-                                    || manager.context == UndoManagerContext::Character
-                                    || manager.context == UndoManagerContext::Item
-                                {
-                                    if id.name == "Undo" {
-                                        manager.undo(
-                                            &mut self.server_ctx,
-                                            &mut self.project,
-                                            ui,
-                                            ctx,
-                                        );
-                                    } else {
-                                        manager.redo(
-                                            &mut self.server_ctx,
-                                            &mut self.project,
-                                            ui,
-                                            ctx,
-                                        );
-                                    }
-                                }*/
                             }
                         } else if id.name == "Cut" {
                             if ui.focus_widget_supports_clipboard(ctx) {

@@ -1,4 +1,4 @@
-use crate::editor::{CODEEDITOR, EDITCAMERA, NODEEDITOR, RUSTERIX, SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{EDITCAMERA, NODEEDITOR, RUSTERIX, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::{D3Camera, PixelSource, Value};
 use vek::Vec2;
@@ -344,7 +344,7 @@ impl MapEditor {
                     }
                 } else if id.name == "Map Selection Changed" {
                     set_code(ui, ctx, project, server_ctx);
-                    //self.apply_map_settings(ui, ctx, project, server_ctx);
+                    self.apply_map_settings(ui, ctx, project, server_ctx);
 
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Update Action List"),
@@ -920,28 +920,23 @@ impl MapEditor {
                 }*/
                 // Region Content List Selection
                 if id.name == "Screen Content List Item" {
-                    /*
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Set Tool"),
-                        TheValue::Text(str!("Data Tool")),
-                    ));*/
-                    if let Some(map) = project.get_map_mut(server_ctx) {
-                        for sector in map.sectors.iter_mut() {
+                    if let Some(screen) = project.screens.get_mut(&id.references) {
+                        for sector in screen.map.sectors.iter_mut() {
                             if sector.creator_id == id.uuid {
-                                map.selected_sectors = vec![sector.id];
+                                screen.map.selected_sectors = vec![sector.id];
                                 RUSTERIX.write().unwrap().set_dirty();
                                 server_ctx.cc = ContentContext::Sector(id.uuid);
-                                if !sector.properties.contains("source") {
-                                    // Create default code item
-                                    if let Some(bytes) = crate::Embedded::get("python/widget.py") {
-                                        if let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
-                                        {
-                                            sector
-                                                .properties
-                                                .set("source", Value::Str(source.into()));
-                                        }
-                                    }
-                                }
+                                // if !sector.properties.contains("source") {
+                                //     // Create default code item
+                                //     if let Some(bytes) = crate::Embedded::get("python/widget.py") {
+                                //         if let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+                                //         {
+                                //             sector
+                                //                 .properties
+                                //                 .set("source", Value::Str(source.into()));
+                                //         }
+                                //     }
+                                // }
                                 if !sector.properties.contains("data") {
                                     // Create default data item
                                     if let Some(bytes) = crate::Embedded::get("toml/widget.toml") {
@@ -955,7 +950,32 @@ impl MapEditor {
                                 }
                             }
                         }
-                        set_code(ui, ctx, project, server_ctx);
+
+                        let mut center = None;
+                        for sector in screen.map.sectors.iter() {
+                            if sector.creator_id == id.uuid {
+                                center = sector.center(&screen.map.clone());
+                                break;
+                            }
+                        }
+
+                        if let Some(center) = center {
+                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                                let dim = *render_view.dim();
+                                server_ctx.center_map_at_grid_pos(
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    Vec2::new(center.x, center.y),
+                                    &mut screen.map,
+                                );
+                            }
+                        }
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::ScreenWidget(id.references, id.uuid),
+                        );
                     }
                 } else
                 // Region Content List Selection
@@ -1165,6 +1185,48 @@ impl MapEditor {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
+        if let Some(id) = server_ctx.pc.id()
+            && server_ctx.pc.is_screen()
+        {
+            let mut sector_id = None;
+            if let Some(map) = project.get_map_mut(server_ctx) {
+                if !map.selected_sectors.is_empty() {
+                    if let Some(sector) = map.find_sector_mut(map.selected_sectors[0]) {
+                        if sector.name.is_empty() {
+                            sector.name = "Unnamed".to_string();
+                            ctx.ui.send(TheEvent::StateChanged(
+                                TheId::named_with_id_and_reference(
+                                    "Screen Content List Item",
+                                    sector.creator_id,
+                                    sector.creator_id,
+                                ),
+                                TheWidgetState::Clicked,
+                            ));
+                        }
+
+                        sector_id = Some(sector.creator_id);
+                    }
+                }
+            }
+
+            if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                if let Some(node) = tree_layout.get_node_by_id_mut(&id) {
+                    if let Some(screen) = project.screens.get(&id) {
+                        gen_screen_tree_items(node, screen);
+                    }
+                    if let Some(sector_id) = sector_id {
+                        node.new_item_selected(&TheId::named_with_id_and_reference(
+                            "Screen Content List Item",
+                            sector_id,
+                            id,
+                        ));
+                    }
+                }
+            }
+        }
+
+        /*
+
         // Create Node Settings if necessary
         if let Some(layout) = ui.get_text_layout("Node Settings") {
             layout.clear();
@@ -1194,8 +1256,9 @@ impl MapEditor {
                                     TheValue::Empty,
                                 ));
                                 ctx.ui.send(TheEvent::StateChanged(
-                                    TheId::named_with_id(
+                                    TheId::named_with_id_and_reference(
                                         "Screen Content List Item",
+                                        sector.creator_id,
                                         sector.creator_id,
                                     ),
                                     TheWidgetState::Clicked,
@@ -1211,7 +1274,7 @@ impl MapEditor {
             {
                 self.create_vertex_settings(map, map.selected_vertices[0], ui, ctx, server_ctx);
             }
-        }
+        }*/
     }
 
     /// Adds an undo step for the given map change.
@@ -1255,7 +1318,7 @@ impl MapEditor {
         }
     }*/
 
-    fn create_vertex_settings(
+    fn _create_vertex_settings(
         &self,
         map: &Map,
         vertex_id: u32,
@@ -1327,7 +1390,7 @@ impl MapEditor {
         }
     }
 
-    fn create_linedef_settings(
+    fn _create_linedef_settings(
         &self,
         map: &Map,
         linedef_id: u32,
@@ -1499,7 +1562,7 @@ impl MapEditor {
         }
     }
 
-    fn create_sector_settings(
+    fn _create_sector_settings(
         &self,
         map: &Map,
         sector_id: u32,

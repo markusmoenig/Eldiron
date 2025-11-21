@@ -163,6 +163,8 @@ pub fn gen_screen_tree_node(screen: &Screen) -> TheTreeNode {
 
 /// Generate the items for the screen node
 pub fn gen_screen_tree_items(node: &mut TheTreeNode, screen: &Screen) {
+    node.widgets = vec![];
+
     let mut item = TheTreeItem::new(TheId::named_with_reference("Screen Item", screen.id));
     item.set_text("Name".into());
 
@@ -174,9 +176,10 @@ pub fn gen_screen_tree_items(node: &mut TheTreeNode, screen: &Screen) {
 
     for sector in &screen.map.sectors {
         if !sector.name.is_empty() {
-            let mut item = TheTreeItem::new(TheId::named_with_id(
+            let mut item = TheTreeItem::new(TheId::named_with_id_and_reference(
                 "Screen Content List Item",
                 sector.creator_id,
+                screen.id,
             ));
             item.add_value_column(200, TheValue::Text("Widget".to_string()));
             item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
@@ -406,17 +409,30 @@ pub fn set_project_context(
                 .set_dock("Tilemap".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::Screen(id) => {
-            if let Some(tilemap) = project.screens.get(&id) {
+            if let Some(screen) = project.screens.get(&id) {
                 ui.set_widget_value(
                     "Project Context",
                     ctx,
-                    TheValue::Text(format!("Screen: {}", tilemap.name)),
+                    TheValue::Text(format!("Screen: {}", screen.name)),
                 );
             }
             DOCKMANAGER
                 .write()
                 .unwrap()
                 .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::ScreenWidget(id, _widget_id) => {
+            if let Some(screen) = project.screens.get(&id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Screen ({}) Widget", screen.name,)),
+                );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::Asset(id) => {
             if let Some(asset) = project.assets.get(&id) {
