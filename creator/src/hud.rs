@@ -621,6 +621,7 @@ impl Hud {
         for (i, rect) in self.icon_rects.iter().enumerate() {
             if rect.contains(Vec2::new(x, y)) {
                 self.selected_icon_index = i as i32;
+                server_ctx.selected_hud_icon_index = i as i32;
                 if self.mode == HudMode::Linedef {
                     server_ctx.selected_wall_row = Some(i as i32);
                     ctx.ui.send(TheEvent::Custom(

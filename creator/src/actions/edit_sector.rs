@@ -97,6 +97,30 @@ impl Action for EditSector {
         }
     }
 
+    fn apply_project(
+        &self,
+        project: &mut Project,
+        ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+        // If the update sector is a screen widget, refresh the screen list to show potential new names
+        if let ProjectContext::ScreenWidget(id, widget_id) = server_ctx.pc {
+            if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                if let Some(node) = tree_layout.get_node_by_id_mut(&id) {
+                    if let Some(screen) = project.screens.get(&id) {
+                        gen_screen_tree_items(node, screen);
+                    }
+                    node.new_item_selected(&TheId::named_with_id_and_reference(
+                        "Screen Content List Item",
+                        widget_id,
+                        id,
+                    ));
+                }
+            }
+        }
+    }
+
     fn params(&self) -> TheNodeUI {
         self.nodeui.clone()
     }

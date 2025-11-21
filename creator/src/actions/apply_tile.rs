@@ -57,9 +57,17 @@ impl Action for ApplyTile {
         if let Some(tile_id) = server_ctx.curr_tile_id {
             for sector_id in &map.selected_sectors.clone() {
                 if let Some(sector) = map.find_sector_mut(*sector_id) {
+                    let mut source = "source";
+
+                    if server_ctx.pc.is_screen() {
+                        if server_ctx.selected_hud_icon_index == 1 {
+                            source = "ceiling_source";
+                        }
+                    }
+
                     sector
                         .properties
-                        .set("source", Value::Source(PixelSource::TileId(tile_id)));
+                        .set(source, Value::Source(PixelSource::TileId(tile_id)));
                     changed = true;
                 }
             }

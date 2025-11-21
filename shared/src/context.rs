@@ -405,6 +405,9 @@ pub struct ServerContext {
 
     /// Temporary storage for the editing positon
     pub editing_pos_buffer: Option<Vec3<f32>>,
+
+    /// The index of the selected icon in the hud
+    pub selected_hud_icon_index: i32,
 }
 
 impl Default for ServerContext {
@@ -491,6 +494,8 @@ impl ServerContext {
             geo_hit: None,
 
             editing_pos_buffer: None,
+
+            selected_hud_icon_index: 0,
         }
     }
 
