@@ -929,6 +929,15 @@ impl TheTrait for Editor {
                                             width: 10.0,
                                             height: 10.0,
                                         }));
+                                    } else {
+                                        if let Some(bbox) = map.bounding_box() {
+                                            b.set_clip_rect(Some(rusterix::Rect {
+                                                x: bbox.x,
+                                                y: bbox.y,
+                                                width: bbox.z,
+                                                height: bbox.w,
+                                            }));
+                                        }
                                     }
 
                                     if let Some(clipboard) = &self.server_ctx.paste_clipboard {
