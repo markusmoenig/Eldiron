@@ -1046,7 +1046,7 @@ impl ToolList {
                             server_ctx.geo_hit =
                                 self.get_geometry_hit(render_view, *coord, server_ctx);
 
-                            // println!("{:?}", geo_id);
+                            // println!("{:?}", server_ctx.geo_hit);
                             // let pt = self.hitpoint_to_editing_coord(
                             //     project,
                             //     server_ctx,

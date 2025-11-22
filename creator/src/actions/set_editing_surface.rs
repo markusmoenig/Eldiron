@@ -46,7 +46,7 @@ impl Action for SetEditingSurface {
     fn apply(
         &self,
         map: &mut Map,
-        ui: &mut TheUI,
+        _ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
@@ -69,21 +69,12 @@ impl Action for SetEditingSurface {
                 }
 
                 server_ctx.editing_surface = Some(surface.clone());
-
-                if let Some(widget) = ui.get_group_button("Editor View Switch") {
-                    server_ctx.editor_view_mode = EditorViewMode::D2;
-                    widget.set_index(0);
-                }
+                server_ctx.editor_view_mode = EditorViewMode::D2;
             }
 
             if let Some(profile_to_add) = profile_to_add {
                 map.profiles.insert(profile_to_add.id, profile_to_add);
             }
-
-            ctx.ui.send(TheEvent::Custom(
-                TheId::named("Update Action List"),
-                TheValue::Empty,
-            ));
 
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Render SceneManager Map"),

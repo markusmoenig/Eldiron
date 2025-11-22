@@ -155,31 +155,6 @@ impl Tool for SectorTool {
                             TheValue::Empty,
                         ));
                     }
-
-                    /*
-                    //  Make the selected sector the editing surface if in 3D
-                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                        if let Some(s) = server_ctx.hover.2 {
-                            if map.selected_sectors.contains(&s) {
-                                match server_ctx.hitinfo.geometry_source {
-                                    rusterix::GeometrySource::Sector(id) => {
-                                        if let Some(surface) = map.get_surface_for_sector_id(id) {
-                                            let mut surface = surface.clone();
-                                            if let Some(sector) = map.find_sector(id) {
-                                                if let Some(vertices) = sector.vertices_world(map) {
-                                                    surface.world_vertices = vertices;
-                                                }
-                                            }
-                                            server_ctx.editing_surface = Some(surface);
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-                        }
-                    }*/
-                } else if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                    server_ctx.editing_surface = None;
                 }
 
                 self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);

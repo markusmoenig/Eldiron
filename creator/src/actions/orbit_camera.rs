@@ -48,11 +48,17 @@ impl Action for OrbitCamera {
         &self,
         _map: &mut Map,
         _ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         server_ctx.editor_view_mode = EditorViewMode::Orbit;
-
+        if server_ctx.editing_surface.is_some() {
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Render SceneManager Map"),
+                TheValue::Empty,
+            ));
+            server_ctx.editing_surface = None;
+        }
         None
     }
 

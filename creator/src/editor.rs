@@ -772,7 +772,7 @@ impl TheTrait for Editor {
                             } else
                             // Draw the region map
                             if self.server_ctx.get_map_context() == MapContext::Region
-                            // && self.server_ctx.editing_surface.is_none()
+                                && self.server_ctx.editing_surface.is_none()
                             {
                                 if let Some(region) =
                                     self.project.get_region(&self.server_ctx.curr_region)
@@ -852,8 +852,6 @@ impl TheTrait for Editor {
                             } else if self.server_ctx.get_map_context() == MapContext::Region
                                 && self.server_ctx.editing_surface.is_some()
                             {
-                                // Draw the wall profile
-
                                 b.set_map_tool_type(self.server_ctx.curr_map_tool_type);
                                 if let Some(profile) = self.project.get_map_mut(&self.server_ctx) {
                                     if let Some(hover_cursor) = self.server_ctx.hover_cursor {
@@ -895,7 +893,7 @@ impl TheTrait for Editor {
                                             Vec2::new(dim.width as f32, dim.height as f32),
                                             profile,
                                             &self.build_values,
-                                            &None,
+                                            &self.server_ctx.editing_surface,
                                         );
                                         rusterix.draw_custom_d2(
                                             profile,

@@ -640,6 +640,10 @@ impl Hud {
         }
 
         if self.profile2d_rect.contains(Vec2::new(x, y)) && server_ctx.editing_surface.is_some() {
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Render SceneManager Map"),
+                TheValue::Empty,
+            ));
             server_ctx.editing_surface = None;
             RUSTERIX.write().unwrap().set_dirty();
             return true;

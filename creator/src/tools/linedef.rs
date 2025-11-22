@@ -370,6 +370,7 @@ impl Tool for LinedefTool {
                             Vec2::new(coord.x as f32, coord.y as f32),
                             map,
                         );
+
                         hover.0 = None;
                         hover.2 = None;
 
