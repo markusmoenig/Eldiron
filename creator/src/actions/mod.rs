@@ -31,6 +31,7 @@ pub mod recess;
 pub mod relief;
 pub mod set_editing_surface;
 pub mod split;
+pub mod toggle_editing_geo;
 pub mod toggle_rect_geo;
 
 #[derive(PartialEq)]

@@ -127,7 +127,7 @@ pub fn gen_tilemap_tree_node(tilemap: &Tilemap) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&tilemap.name, tilemap.id));
     node.set_root_mode(false);
 
-    let mut item = TheTreeItem::new(TheId::named_with_reference("Tilemap Item", tilemap.id));
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Tileset Item", tilemap.id));
     item.set_text("Name".into());
 
     let mut edit = TheTextLineEdit::new(TheId::named_with_id("Tilemap Item Name Edit", tilemap.id));
@@ -142,7 +142,10 @@ pub fn gen_tilemap_tree_node(tilemap: &Tilemap) -> TheTreeNode {
     ));
     item.set_text("Grid Size".into());
 
-    let mut edit = TheTextLineEdit::new(TheId::named_with_id("Tilemap Item Grid Edit", tilemap.id));
+    let mut edit = TheTextLineEdit::new(TheId::named_with_reference(
+        "Tilemap Item Grid Edit",
+        tilemap.id,
+    ));
     edit.set_value(TheValue::Int(tilemap.grid_size));
     item.add_widget_column(200, Box::new(edit));
 

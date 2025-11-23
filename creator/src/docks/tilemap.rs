@@ -15,6 +15,8 @@ use AddMode::*;
 pub struct TilemapDock {
     curr_tilemap_id: Uuid,
     add_mode: AddMode,
+
+    preview_tile: Option<rusterix::Tile>,
 }
 
 impl Dock for TilemapDock {
@@ -25,6 +27,8 @@ impl Dock for TilemapDock {
         Self {
             curr_tilemap_id: Uuid::new_v4(),
             add_mode: Single,
+
+            preview_tile: None,
         }
     }
 
@@ -198,11 +202,7 @@ impl Dock for TilemapDock {
                         tilemap.zoom += *delta * 0.05;
                         tilemap.zoom = tilemap.zoom.clamp(0.5, 5.0);
                         self.set_tilemap(tilemap, ui, ctx);
-                        ui.set_widget_value(
-                            "Tilemap Editor Zoom",
-                            ctx,
-                            TheValue::Float(tilemap.zoom),
-                        );
+                        ctx.ui.relayout = true;
                     }
                 }
             }
@@ -217,14 +217,6 @@ impl Dock for TilemapDock {
                     }
                     self.compute_preview(project, ui);
                     redraw = true;
-                }
-            }
-            TheEvent::DialogValueOnClose(role, name, uuid, value) => {
-                if name == "Rename Tileset" && *role == TheDialogButtonRole::Accept {
-                    if let Some(tilemap) = project.get_tilemap_mut(self.curr_tilemap_id) {
-                        tilemap.name = value.describe();
-                        ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
-                    }
                 }
             }
             TheEvent::ContextMenuSelected(_widget_id, item_id) => {
@@ -285,7 +277,7 @@ impl Dock for TilemapDock {
                 if id.name == "Tilemap Editor Clear" && *state == TheWidgetState::Clicked {
                     self.clear(ui);
                 } else if id.name == "Tilemap Editor Add" {
-                    let mut clear_selection = false;
+                    let clear_selection = true;
 
                     if let Some(editor) = ui
                         .canvas
@@ -343,11 +335,11 @@ impl Dock for TilemapDock {
                             }
 
                             for mut tile in tiles {
-                                if let Some(text_line_edit) =
-                                    ui.get_text_line_edit("Tilemap Editor Name Edit")
-                                {
-                                    tile.name = text_line_edit.text();
-                                }
+                                // if let Some(text_line_edit) =
+                                //     ui.get_text_line_edit("Tilemap Editor Name Edit")
+                                // {
+                                //     tile.name = text_line_edit.text();
+                                // }
 
                                 // if let Some(block_widget) = ui
                                 //     .canvas
@@ -365,6 +357,7 @@ impl Dock for TilemapDock {
 
                                 // Only add if non-empty
                                 if !tile.sequence.regions.is_empty() {
+                                    /*
                                     if let Some(layout) = ui
                                         .canvas
                                         .get_layout(Some(&"Tilemap Tile List".to_string()), None)
@@ -406,7 +399,7 @@ impl Dock for TilemapDock {
                                             clear_selection = true;
                                             redraw = true;
                                         }
-                                    }
+                                    }*/
 
                                     let id = tile.id;
                                     // Add the local tile to the bitmmap
@@ -414,7 +407,7 @@ impl Dock for TilemapDock {
                                         project.get_tilemap_mut(self.curr_tilemap_id)
                                     {
                                         tilemap.tiles.push(tile);
-                                        self.set_tilemap(tilemap, ui, ctx);
+                                        // self.set_tilemap(tilemap, ui, ctx);
                                     }
 
                                     if let Some(t) = project.extract_tile(&id) {
@@ -489,6 +482,62 @@ impl Dock for TilemapDock {
         }
         redraw
     }
+
+    /// Draw the tile preview
+    fn draw_minimap(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        _project: &Project,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) -> bool {
+        if let Some(tile) = &self.preview_tile
+            && !tile.textures.is_empty()
+        {
+            buffer.fill(BLACK);
+            let index = server_ctx.animation_counter % tile.textures.len();
+
+            let stride: usize = buffer.stride();
+
+            let src_pixels = &tile.textures[index].data;
+            let src_w = tile.textures[index].width as f32;
+            let src_h = tile.textures[index].height as f32;
+
+            let dim = buffer.dim();
+            let dst_w = dim.width as f32;
+            let dst_h = dim.height as f32;
+
+            // Compute scale
+            let scale = (dst_w / src_w).min(dst_h / src_h);
+
+            // Scaled dimensions
+            let draw_w = src_w * scale;
+            let draw_h = src_h * scale;
+
+            // Center
+            let offset_x = ((dst_w - draw_w) * 0.5).round() as usize;
+            let offset_y = ((dst_h - draw_h) * 0.5).round() as usize;
+
+            let dst_rect = (
+                offset_x,
+                offset_y,
+                draw_w.round() as usize,
+                draw_h.round() as usize,
+            );
+
+            ctx.draw.blend_scale_chunk(
+                buffer.pixels_mut(),
+                &dst_rect,
+                stride,
+                src_pixels,
+                &(src_w as usize, src_h as usize),
+            );
+
+            return true;
+        }
+
+        false
+    }
 }
 
 impl TilemapDock {
@@ -552,7 +601,27 @@ impl TilemapDock {
     }
 
     /// Set the selection preview
-    pub fn set_tilemap_preview(&self, _tile: TheRGBATile, _ui: &mut TheUI) {
+    pub fn set_tilemap_preview(&mut self, rgba_tile: TheRGBATile, _ui: &mut TheUI) {
+        let mut texture_array: Vec<rusterix::Texture> = vec![];
+        for b in &rgba_tile.buffer {
+            let mut texture = rusterix::Texture::new(
+                b.pixels().to_vec(),
+                b.dim().width as usize,
+                b.dim().height as usize,
+            );
+            texture.generate_normals(true);
+            texture_array.push(texture);
+        }
+        self.preview_tile = Some(rusterix::Tile {
+            id: rgba_tile.id,
+            role: rusterix::TileRole::from_index(rgba_tile.role),
+            textures: texture_array.clone(),
+            module: None,
+            blocking: rgba_tile.blocking,
+            scale: rgba_tile.scale,
+            tags: rgba_tile.name.clone(),
+        });
+
         // if let Some(icon_view) = ui.get_icon_view("Tilemap Selection Preview") {
         //     icon_view.set_rgba_tile(tile);
         // }

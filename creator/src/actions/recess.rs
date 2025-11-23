@@ -71,7 +71,7 @@ impl Action for Recess {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         let mut changed = false;
         let prev = map.clone();
@@ -86,25 +86,15 @@ impl Action for Recess {
         for sector_id in &map.selected_sectors.clone() {
             if let Some(sector) = map.find_sector_mut(*sector_id) {
                 sector.properties.set("profile_op", Value::Int(2));
-                sector.properties.set("profile_depth", Value::Float(depth));
-                sector.properties.set("profile_target", Value::Int(1));
-
+                sector.properties.set("profile_amount", Value::Float(depth));
                 sector.properties.set("profile_target", Value::Int(target));
 
-                sector.properties.remove("recess_source");
-                sector.properties.remove("recess_jamb_source");
-                /*
-                if let Some(tile_id) = server_ctx.curr_tile_id
-                    && apply_tile
-                {
-                    sector
-                        .properties
-                        .set("recess_source", Value::Source(PixelSource::TileId(tile_id)));
-                    sector.properties.set(
-                        "recess_jamb_source",
-                        Value::Source(PixelSource::TileId(tile_id)),
-                    );
-                }*/
+                if let Some(tile_id) = server_ctx.curr_tile_id {
+                    let pixel = Value::Source(rusterix::PixelSource::TileId(tile_id));
+                    sector.properties.set("jamb_source", pixel.clone());
+                    sector.properties.set("cap_source", pixel.clone());
+                    sector.properties.set("source", pixel);
+                }
 
                 changed = true;
             }

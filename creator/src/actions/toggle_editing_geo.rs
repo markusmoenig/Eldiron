@@ -1,11 +1,11 @@
 use crate::prelude::*;
 
-pub struct FirstPCamera {
+pub struct ToggleEditingGeo {
     id: TheId,
     nodeui: TheNodeUI,
 }
 
-impl Action for FirstPCamera {
+impl Action for ToggleEditingGeo {
     fn new() -> Self
     where
         Self: Sized,
@@ -13,12 +13,12 @@ impl Action for FirstPCamera {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
         let item = TheNodeUIItem::Markdown(
             "desc".into(),
-            "Render the scene using a 3D first person camera.".into(),
+            "Toggles visibility of the editing geometry overlay.".into(),
         );
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("3D First Person Camera"),
+            id: TheId::named("Toggle Editing Geometry"),
             nodeui,
         }
     }
@@ -28,37 +28,30 @@ impl Action for FirstPCamera {
     }
 
     fn info(&self) -> &'static str {
-        "Render the scene using a 3D first person camera."
+        "Toggle the visibility of geometry created by the Rect tool in the 2D editor."
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::Camera
+        ActionRole::Editor
     }
 
     fn accel(&self) -> Option<TheAccelerator> {
-        Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '5'))
+        Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 't'))
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.editor_view_mode != EditorViewMode::FirstP
-            && server_ctx.get_map_context() == MapContext::Region
+        server_ctx.editor_view_mode != EditorViewMode::D2
     }
 
     fn apply(
         &self,
         _map: &mut Map,
         _ui: &mut TheUI,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
-        server_ctx.editor_view_mode = EditorViewMode::FirstP;
-        if server_ctx.editing_surface.is_some() {
-            ctx.ui.send(TheEvent::Custom(
-                TheId::named("Render SceneManager Map"),
-                TheValue::Empty,
-            ));
-            server_ctx.editing_surface = None;
-        }
+        server_ctx.show_editing_geometry = !server_ctx.show_editing_geometry;
+
         None
     }
 

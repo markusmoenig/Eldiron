@@ -44,6 +44,7 @@ impl ActionList {
             Box::new(crate::tools::relief::Relief::new()),
             Box::new(crate::tools::set_editing_surface::SetEditingSurface::new()),
             Box::new(crate::tools::split::Split::new()),
+            Box::new(crate::tools::toggle_editing_geo::ToggleEditingGeo::new()),
             Box::new(crate::tools::toggle_rect_geo::ToggleRectGeo::new()),
         ];
         Self { actions }

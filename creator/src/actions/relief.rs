@@ -72,7 +72,7 @@ impl Action for Relief {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         let mut changed = false;
         let prev = map.clone();
@@ -92,12 +92,16 @@ impl Action for Relief {
                 sector.properties.set("profile_op", Value::Int(1)); // Relief
                 sector
                     .properties
-                    .set("profile_height", Value::Float(height));
+                    .set("profile_amount", Value::Float(height));
 
                 sector.properties.set("profile_target", Value::Int(target));
 
-                sector.properties.remove("relief_source");
-                sector.properties.remove("relief_jamb_source");
+                if let Some(tile_id) = server_ctx.curr_tile_id {
+                    let pixel = Value::Source(rusterix::PixelSource::TileId(tile_id));
+                    sector.properties.set("jamb_source", pixel.clone());
+                    sector.properties.set("cap_source", pixel.clone());
+                    sector.properties.set("source", pixel);
+                }
 
                 changed = true;
             }

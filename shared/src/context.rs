@@ -408,6 +408,9 @@ pub struct ServerContext {
 
     /// The index of the selected icon in the hud
     pub selected_hud_icon_index: i32,
+
+    ///Switch for showing 3D editing geometry
+    pub show_editing_geometry: bool,
 }
 
 impl Default for ServerContext {
@@ -496,6 +499,7 @@ impl ServerContext {
             editing_pos_buffer: None,
 
             selected_hud_icon_index: 0,
+            show_editing_geometry: true,
         }
     }
 

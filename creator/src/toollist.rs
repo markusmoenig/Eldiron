@@ -1451,6 +1451,12 @@ impl ToolList {
 
         let mut rusterix = RUSTERIX.write().unwrap();
         rusterix.scene_handler.clear_overlay();
+        // rusterix.scene_handler.vm.set_layer_activity_logging(true);
+
+        if !server_ctx.show_editing_geometry {
+            rusterix.scene_handler.set_overlay();
+            return;
+        }
 
         // basis_vectors returns (forward, right, up)
         let (cam_forward, cam_right, cam_up) = rusterix.client.camera_d3.basis_vectors();

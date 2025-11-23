@@ -62,6 +62,19 @@ impl Action for OrbitCamera {
         None
     }
 
+    fn apply_project(
+        &self,
+        project: &mut Project,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+        crate::editor::TOOLLIST
+            .write()
+            .unwrap()
+            .update_geometry_overlay_3d(project, server_ctx);
+    }
+
     fn params(&self) -> TheNodeUI {
         self.nodeui.clone()
     }
