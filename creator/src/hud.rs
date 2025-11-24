@@ -102,32 +102,34 @@ impl Hud {
             &bg_color,
         );
 
-        if let Some(font) = &ctx.ui.font {
-            if let Some(v) = server_ctx.hover_cursor {
-                ctx.draw.text(
-                    buffer.pixels_mut(),
-                    &(10, 2),
-                    stride,
-                    font,
-                    13.0,
-                    &format!("{:.2}, {:.2}", v.x, v.y),
-                    &text_color,
-                    &bg_color,
-                );
-            }
+        if let Some(v) = server_ctx.hover_cursor {
+            ctx.draw.text(
+                buffer.pixels_mut(),
+                &(10, 2),
+                stride,
+                &format!("{:.2}, {:.2}", v.x, v.y),
+                TheFontSettings {
+                    size: 13.0,
+                    ..Default::default()
+                },
+                &text_color,
+                &bg_color,
+            );
+        }
 
-            if let Some(v) = &server_ctx.background_progress {
-                ctx.draw.text(
-                    buffer.pixels_mut(),
-                    &(550, 2),
-                    stride,
-                    font,
-                    13.0,
-                    v,
-                    &text_color,
-                    &bg_color,
-                );
-            }
+        if let Some(v) = &server_ctx.background_progress {
+            ctx.draw.text(
+                buffer.pixels_mut(),
+                &(550, 2),
+                stride,
+                v,
+                TheFontSettings {
+                    size: 13.0,
+                    ..Default::default()
+                },
+                &text_color,
+                &bg_color,
+            );
         }
 
         self.show_softrigs = server_ctx.get_map_context() == MapContext::Shader
@@ -151,24 +153,24 @@ impl Hud {
             );
 
             let r = rect.to_buffer_utuple();
-            if let Some(font) = &ctx.ui.font {
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
-                    &(r.0 + 4, r.1, r.2 - 8, r.3),
-                    stride,
-                    font,
-                    11.5,
-                    "Base State",
-                    if map.editing_rig.is_none() {
-                        &sel_text_color
-                    } else {
-                        &text_color
-                    },
-                    &dark_bg_color,
-                    TheHorizontalAlign::Left,
-                    TheVerticalAlign::Center,
-                );
-            }
+            ctx.draw.text_rect(
+                buffer.pixels_mut(),
+                &(r.0 + 4, r.1, r.2 - 8, r.3),
+                stride,
+                "Base State",
+                TheFontSettings {
+                    size: 11.5,
+                    ..Default::default()
+                },
+                if map.editing_rig.is_none() {
+                    &sel_text_color
+                } else {
+                    &text_color
+                },
+                &dark_bg_color,
+                TheHorizontalAlign::Left,
+                TheVerticalAlign::Center,
+            );
 
             self.poses_rects.push(rect);
 
@@ -190,45 +192,45 @@ impl Hud {
 
                 if rig.in_editor_playlist {
                     let r = rect.to_buffer_utuple();
-                    if let Some(font) = &ctx.ui.font {
-                        ctx.draw.text_rect(
-                            buffer.pixels_mut(),
-                            &(r.0, r.1, 20, r.3),
-                            stride,
-                            font,
-                            11.5,
-                            "X",
-                            if selected {
-                                &sel_text_color
-                            } else {
-                                &text_color
-                            },
-                            &dark_bg_color,
-                            TheHorizontalAlign::Center,
-                            TheVerticalAlign::Center,
-                        );
-                    }
-                }
-
-                let r = rect.to_buffer_utuple();
-                if let Some(font) = &ctx.ui.font {
                     ctx.draw.text_rect(
                         buffer.pixels_mut(),
-                        &(r.0 + 20, r.1, r.2 - 25, r.3),
+                        &(r.0, r.1, 20, r.3),
                         stride,
-                        font,
-                        11.5,
-                        &map.softrigs[i].name,
+                        "X",
+                        TheFontSettings {
+                            size: 11.5,
+                            ..Default::default()
+                        },
                         if selected {
                             &sel_text_color
                         } else {
                             &text_color
                         },
                         &dark_bg_color,
-                        TheHorizontalAlign::Left,
+                        TheHorizontalAlign::Center,
                         TheVerticalAlign::Center,
                     );
                 }
+
+                let r = rect.to_buffer_utuple();
+                ctx.draw.text_rect(
+                    buffer.pixels_mut(),
+                    &(r.0 + 20, r.1, r.2 - 25, r.3),
+                    stride,
+                    &map.softrigs[i].name,
+                    TheFontSettings {
+                        size: 11.5,
+                        ..Default::default()
+                    },
+                    if selected {
+                        &sel_text_color
+                    } else {
+                        &text_color
+                    },
+                    &dark_bg_color,
+                    TheHorizontalAlign::Left,
+                    TheVerticalAlign::Center,
+                );
 
                 self.poses_rects.push(rect);
                 y += poses_height as usize;
@@ -244,25 +246,25 @@ impl Hud {
                 &bg_color,
             );
 
-            if let Some(font) = &ctx.ui.font {
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
-                    &rect.to_buffer_utuple(),
-                    stride,
-                    font,
-                    11.5,
-                    "+",
-                    // if map.animation.current_state.is_none() {
-                    //     &sel_text_color
-                    // } else {
-                    //     &text_color
-                    // },
-                    &text_color,
-                    &dark_bg_color,
-                    TheHorizontalAlign::Center,
-                    TheVerticalAlign::Center,
-                );
-            }
+            ctx.draw.text_rect(
+                buffer.pixels_mut(),
+                &rect.to_buffer_utuple(),
+                stride,
+                "+",
+                TheFontSettings {
+                    size: 11.5,
+                    ..Default::default()
+                },
+                // if map.animation.current_state.is_none() {
+                //     &sel_text_color
+                // } else {
+                //     &text_color
+                // },
+                &text_color,
+                &dark_bg_color,
+                TheHorizontalAlign::Center,
+                TheVerticalAlign::Center,
+            );
 
             self.add_pose_rect = rect;
 
@@ -276,25 +278,25 @@ impl Hud {
                 &bg_color,
             );
 
-            if let Some(font) = &ctx.ui.font {
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
-                    &rect.to_buffer_utuple(),
-                    stride,
-                    font,
-                    11.5,
-                    "P",
-                    // if map.animation.current_state.is_none() {
-                    //     &sel_text_color
-                    // } else {
-                    //     &text_color
-                    // },
-                    &text_color,
-                    &dark_bg_color,
-                    TheHorizontalAlign::Center,
-                    TheVerticalAlign::Center,
-                );
-            }
+            ctx.draw.text_rect(
+                buffer.pixels_mut(),
+                &rect.to_buffer_utuple(),
+                stride,
+                "P",
+                TheFontSettings {
+                    size: 11.5,
+                    ..Default::default()
+                },
+                // if map.animation.current_state.is_none() {
+                //     &sel_text_color
+                // } else {
+                //     &text_color
+                // },
+                &text_color,
+                &dark_bg_color,
+                TheHorizontalAlign::Center,
+                TheVerticalAlign::Center,
+            );
 
             self.play_button_rect = rect;
 
@@ -350,21 +352,21 @@ impl Hud {
                 &bg_color,
             );
 
-            if let Some(font) = &ctx.ui.font {
-                let r = rect.to_buffer_utuple();
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
-                    &(r.0, 1, r.2, 19),
-                    stride,
-                    font,
-                    10.0,
-                    &self.get_icon_text(i, server_ctx),
-                    &text_color,
-                    &bg_color,
-                    TheHorizontalAlign::Center,
-                    TheVerticalAlign::Center,
-                );
-            }
+            let r = rect.to_buffer_utuple();
+            ctx.draw.text_rect(
+                buffer.pixels_mut(),
+                &(r.0, 1, r.2, 19),
+                stride,
+                &self.get_icon_text(i, server_ctx),
+                TheFontSettings {
+                    size: 10.0,
+                    ..Default::default()
+                },
+                &text_color,
+                &bg_color,
+                TheHorizontalAlign::Center,
+                TheVerticalAlign::Center,
+            );
 
             let r = &rect.to_buffer_utuple();
             ctx.draw.rect(
@@ -422,43 +424,43 @@ impl Hud {
 
             let txt = "Region";
 
-            if let Some(font) = &ctx.ui.font {
+            let r = self.profile2d_rect.to_buffer_utuple();
+            ctx.draw.text_rect(
+                buffer.pixels_mut(),
+                &(r.0, 1, r.2, 19),
+                stride,
+                txt,
+                TheFontSettings {
+                    size: 13.0,
+                    ..Default::default()
+                },
+                &if self.profile2d_rect.contains(self.mouse_pos) {
+                    sel_text_color
+                } else {
+                    text_color
+                },
+                &bg_color,
+                TheHorizontalAlign::Center,
+                TheVerticalAlign::Center,
+            );
+
+            if let Some(_editing_surface) = &server_ctx.editing_surface {
+                let txt = ">  Surface Profile";
                 let r = self.profile2d_rect.to_buffer_utuple();
                 ctx.draw.text_rect(
                     buffer.pixels_mut(),
-                    &(r.0, 1, r.2, 19),
+                    &(r.0 + 55, 1, r.2 + 60, 19),
                     stride,
-                    font,
-                    13.0,
                     txt,
-                    &if self.profile2d_rect.contains(self.mouse_pos) {
-                        sel_text_color
-                    } else {
-                        text_color
+                    TheFontSettings {
+                        size: 13.0,
+                        ..Default::default()
                     },
+                    &text_color,
                     &bg_color,
                     TheHorizontalAlign::Center,
                     TheVerticalAlign::Center,
                 );
-            }
-
-            if let Some(_editing_surface) = &server_ctx.editing_surface {
-                let txt = ">  Surface Profile";
-                if let Some(font) = &ctx.ui.font {
-                    let r = self.profile2d_rect.to_buffer_utuple();
-                    ctx.draw.text_rect(
-                        buffer.pixels_mut(),
-                        &(r.0 + 55, 1, r.2 + 60, 19),
-                        stride,
-                        font,
-                        13.0,
-                        txt,
-                        &text_color,
-                        &bg_color,
-                        TheHorizontalAlign::Center,
-                        TheVerticalAlign::Center,
-                    );
-                }
             }
         }
 
@@ -474,44 +476,44 @@ impl Hud {
             for i in 0..10 {
                 let rect = TheDim::rect(x + (i * size), 0, size, size);
 
-                if let Some(font) = &ctx.ui.font {
-                    let r = rect.to_buffer_utuple();
-                    ctx.draw.text_rect(
-                        buffer.pixels_mut(),
-                        &(r.0, 1, r.2, 19),
-                        stride,
-                        font,
-                        13.0,
-                        &(i + 1).to_string(),
-                        &if (i + 1) as f32 == map.subdivisions || rect.contains(self.mouse_pos) {
-                            sel_text_color
-                        } else {
-                            text_color
-                        },
-                        &bg_color,
-                        TheHorizontalAlign::Center,
-                        TheVerticalAlign::Center,
-                    );
-                }
+                let r = rect.to_buffer_utuple();
+                ctx.draw.text_rect(
+                    buffer.pixels_mut(),
+                    &(r.0, 1, r.2, 19),
+                    stride,
+                    &(i + 1).to_string(),
+                    TheFontSettings {
+                        size: 13.0,
+                        ..Default::default()
+                    },
+                    &if (i + 1) as f32 == map.subdivisions || rect.contains(self.mouse_pos) {
+                        sel_text_color
+                    } else {
+                        text_color
+                    },
+                    &bg_color,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
                 self.subdiv_rects.push(rect);
             }
         }
 
         // Terrain: Height
         if self.mode == HudMode::Terrain {
-            if let Some(font) = &ctx.ui.font {
-                if let Some(v) = server_ctx.hover_height {
-                    ctx.draw.text(
-                        buffer.pixels_mut(),
-                        &(150, 2),
-                        stride,
-                        font,
-                        13.0,
-                        &format!("Elevation {v:.2}"),
-                        &text_color,
-                        &bg_color,
-                    );
-                }
+            if let Some(v) = server_ctx.hover_height {
+                ctx.draw.text(
+                    buffer.pixels_mut(),
+                    &(150, 2),
+                    stride,
+                    &format!("Elevation {v:.2}"),
+                    TheFontSettings {
+                        size: 13.0,
+                        ..Default::default()
+                    },
+                    &text_color,
+                    &bg_color,
+                );
             }
         }
 
