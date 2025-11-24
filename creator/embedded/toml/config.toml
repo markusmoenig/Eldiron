@@ -27,13 +27,32 @@ weapon_slots = ["main_hand", "off_hand"]
 # The attribute which handles health & death
 health = "HP"
 
-[materials]
-tile_size = 128 # Pixel size of materials
-
-[render]
-sample_mode = "nearest" # "nearest" or "linear"
-
 [viewport]
 width = 960
 height = 540
 grid_size = 32
+
+[render]
+# Sky color in hex format (light blue)
+sky_color = "#87CEEB"
+
+# Sun color in hex format (light yellow)
+sun_color = "#FFFACD"
+
+# Sun intensity (brightness multiplier)
+sun_intensity = 1.0
+
+# Enable or disable sun lighting
+sun_enabled = true
+
+# Ambient light color in hex format
+ambient_color = "#FFFFFF"
+
+# Ambient light strength (0.0 to 1.0)
+ambient_strength = 0.8
+
+# Fog color in hex format (white)
+fog_color = "#FFFFFF"
+
+# Fog density (0.0 = no fog, higher values = denser fog)
+fog_density = 0.0

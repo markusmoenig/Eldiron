@@ -94,10 +94,10 @@ impl Sidebar {
         assets_node.add_child(fonts_node);
         root.add_child(assets_node);
 
-        let mut config_node: TheTreeNode = TheTreeNode::new(TheId::named("Settings"));
+        let mut config_node: TheTreeNode = TheTreeNode::new(TheId::named("Game"));
 
         let mut config_item = TheTreeItem::new(TheId::named("Project Settings"));
-        config_item.set_text("Game Settings".to_string());
+        config_item.set_text("Settings".to_string());
         config_node.add_widget(Box::new(config_item));
 
         root.add_child(config_node);

@@ -1,4 +1,5 @@
 use crate::docks::data_undo::*;
+use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use theframework::prelude::*;
 use theframework::theui::thewidget::thetextedit::TheTextEditState;
@@ -174,6 +175,7 @@ impl Dock for DataDock {
                         }
                     } else if server_ctx.pc.is_project_settings() {
                         if let Some(code) = value.to_string() {
+                            _ = RUSTERIX.write().unwrap().scene_handler.settings.read(&code);
                             project.config = code;
                             redraw = true;
                         }

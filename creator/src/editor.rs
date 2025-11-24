@@ -1670,6 +1670,10 @@ impl TheTrait for Editor {
                                             }
                                         }
 
+                                        for (_, tile) in self.project.tiles.iter_mut() {
+                                            tile.set_default_materials();
+                                        }
+
                                         // Set the project time to the server time slider widget
                                         if let Some(widget) = ui.get_widget("Server Time Slider") {
                                             widget.set_value(TheValue::Time(self.project.time));
