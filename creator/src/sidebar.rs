@@ -2236,6 +2236,13 @@ impl Sidebar {
         server_ctx: &mut ServerContext,
         project: &mut Project,
     ) {
+        _ = RUSTERIX
+            .write()
+            .unwrap()
+            .scene_handler
+            .settings
+            .read(&project.config);
+
         // If no colors we load the duel palette: https://lospec.com/palette-list/duel
         if project.palette.is_empty() {
             if let Some(bytes) = crate::Embedded::get("duel.txt") {

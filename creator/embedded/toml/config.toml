@@ -33,26 +33,63 @@ height = 540
 grid_size = 32
 
 [render]
-# Sky color in hex format (light blue)
+# Static sky color (used when simulation is disabled)
 sky_color = "#87CEEB"
 
-# Sun color in hex format (light yellow)
+# Static sun color (used when simulation is disabled)
 sun_color = "#FFFACD"
 
-# Sun intensity (brightness multiplier)
+# Sun intensity/brightness multiplier
 sun_intensity = 1.0
 
-# Enable or disable sun lighting
+# Static sun direction as [x, y, z] (used when simulation is disabled)
+sun_direction = [-0.5, -1.0, -0.3]
+
+# Enable/disable sun lighting
 sun_enabled = true
 
-# Ambient light color in hex format
-ambient_color = "#FFFFFF"
+# Ambient light color
+ambient_color = "#CCCCCC"
 
-# Ambient light strength (0.0 to 1.0)
-ambient_strength = 0.8
+# Ambient light strength (0.0 - 1.0)
+ambient_strength = 0.3
 
-# Fog color in hex format (white)
-fog_color = "#FFFFFF"
+# Fog color
+fog_color = "#808080"
 
 # Fog density (0.0 = no fog, higher values = denser fog)
 fog_density = 0.0
+
+[simulation]
+# Enable procedural daylight simulation (overrides static sky_color, sun_color, sun_direction)
+enabled = true
+
+# Sky color at night (dark)
+night_sky_color = "#050510"
+
+# Sky color at sunrise/sunset (morning)
+morning_sky_color = "#FF9966"
+
+# Sky color at midday
+midday_sky_color = "#87CEEB"
+
+# Sky color in the evening
+evening_sky_color = "#FF8040"
+
+# Sun/moon color at night (very dim)
+night_sun_color = "#1A1A26"
+
+# Sun color at sunrise/sunset (morning)
+morning_sun_color = "#FFCC99"
+
+# Sun color at midday
+midday_sun_color = "#FFFFF2"
+
+# Sun color in the evening
+evening_sun_color = "#FFB380"
+
+# Sunrise time in 24-hour format (e.g., 6.5 = 6:30 AM)
+sunrise_time = 6.0
+
+# Sunset time in 24-hour format (e.g., 18.5 = 6:30 PM)
+sunset_time = 18.0
