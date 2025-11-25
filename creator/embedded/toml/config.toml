@@ -33,6 +33,27 @@ height = 540
 grid_size = 32
 
 [render]
+# AO samples (number of rays, 0.0 = disable AO, default: 8)
+ao_samples = 8.0
+
+# AO radius (0.0 = disable AO, default: 0.5)
+ao_radius = 0.5
+
+# Bump strength (0.0 = disable bump mapping, default: 1.0)
+bump_strength = 1.0
+
+# Max transparency bounces (1.0 = no transparency, default: 8)
+max_transparency_bounces = 8.0
+
+# Max shadow distance (0.0 = no distance limit, default: 10.0)
+max_shadow_distance = 10.0
+
+# Max sky distance (0.0 = no sky visibility check, default: 50.0)
+max_sky_distance = 50.0
+
+# Max shadow steps for transparent shadows (0.0 = no transparent shadows, default: 0)
+max_shadow_steps = 0.0
+
 # Static sky color (used when simulation is disabled)
 sky_color = "#87CEEB"
 
