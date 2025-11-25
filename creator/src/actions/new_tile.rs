@@ -97,7 +97,8 @@ impl Action for NewTile {
             textures.push(texture);
         }
 
-        let tile = rusterix::Tile::from_textures(textures);
+        let mut tile = rusterix::Tile::from_textures(textures);
+        tile.set_default_materials();
         project.tiles.insert(tile.id, tile);
 
         ctx.ui.send(TheEvent::Custom(

@@ -277,6 +277,7 @@ pub struct ServerContext {
     pub tree_assets_id: Uuid,
     pub tree_assets_fonts_id: Uuid,
     pub tree_palette_id: Uuid,
+    pub tree_settings_id: Uuid,
 
     /// The currently selected region in the editor.
     pub curr_region: Uuid,
@@ -432,6 +433,7 @@ impl ServerContext {
             tree_assets_id: Uuid::new_v4(),
             tree_assets_fonts_id: Uuid::new_v4(),
             tree_palette_id: Uuid::new_v4(),
+            tree_settings_id: Uuid::new_v4(),
 
             curr_region_content: ContentContext::Unknown,
             curr_character: ContentContext::Unknown,

@@ -211,20 +211,30 @@ impl Sidebar {
         minimap_canvas.set_widget(minimap);
 
         let mut node_settings_canvas = TheCanvas::default();
-        let mut text_layout = TheTextLayout::new(TheId::named("Node Settings"));
-        text_layout.limiter_mut().set_max_width(self.width);
+        let mut tree_layout = TheTreeLayout::new(TheId::named("Node Settings"));
+        tree_layout.limiter_mut().set_max_width(self.width);
+        let root = tree_layout.get_root();
+
         //text_layout.set_fixed_text_width(110);
-        text_layout.set_text_margin(20);
-        text_layout.set_text_align(TheHorizontalAlign::Right);
+        // text_layout.set_text_margin(20);
+        // text_layout.set_text_align(TheHorizontalAlign::Right);
+        let mut settings_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
+            "Settings",
+            server_ctx.tree_settings_id,
+        ));
+        settings_node.set_root_mode(false);
+        settings_node.set_open(true);
 
-        node_settings_canvas.set_layout(text_layout);
+        root.add_child(settings_node);
 
-        let mut header = TheCanvas::new();
-        let mut switchbar = TheSwitchbar::new(TheId::named("Action Header"));
-        switchbar.set_text("Settings".to_string());
-        header.set_widget(switchbar);
+        node_settings_canvas.set_layout(tree_layout);
 
-        nodes_minimap_canvas.set_top(header);
+        // let mut header = TheCanvas::new();
+        // let mut switchbar = TheSwitchbar::new(TheId::named("Action Header"));
+        // switchbar.set_text("Settings".to_string());
+        // header.set_widget(switchbar);
+
+        // nodes_minimap_canvas.set_top(header);
 
         nodes_minimap_shared.add_canvas(node_settings_canvas);
         nodes_minimap_shared.add_canvas(minimap_canvas);
@@ -1464,37 +1474,37 @@ impl Sidebar {
                 if let Some(action) = ACTIONLIST.write().unwrap().get_action_by_id_mut(id.uuid) {
                     server_ctx.curr_action_id = Some(action.id().uuid);
 
-                    if let Some(layout) = ui.get_text_layout("Node Settings") {
+                    //layout.clear();
+                    // if let Some(node) = layout.get_node_by_id_mut(&server_ctx.tree_settings_id) {
+                    //     if let Some(action_id) = server_ctx.curr_action_id {
+                    //         if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id) {
+                    //             let nodeui = action.params();
+                    //             // nodeui.apply_to_text_layout(layout);
+                    //             nodeui.apply_to_tree_node(node);
+                    //             ctx.ui.relayout = true;
+
+                    if let Some(layout) = ui.get_tree_layout("Node Settings") {
                         if let Some(map) = project.get_map_mut(&server_ctx) {
                             action.load_params(map);
                         }
                         action.load_params_project(project, server_ctx);
-
-                        let nodeui = action.params();
-                        nodeui.apply_to_text_layout(layout);
-                        ctx.ui.relayout = true;
 
                         let mut text = action.id().name.clone();
                         if let Some(accel) = action.accel() {
                             text += &format!(" ({})", accel.description());
                         }
 
-                        ui.set_widget_value("Action Header", ctx, TheValue::Text(text));
+                        if let Some(node) = layout.get_node_by_id_mut(&server_ctx.tree_settings_id)
+                        {
+                            let nodeui = action.params();
+                            nodeui.apply_to_tree_node(node);
+                            node.widget.set_value(TheValue::Text(text));
+                        }
                     }
                 } else if id.name == "Action Apply" {
                     if let Some(action_id) = server_ctx.curr_action_id {
                         if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id)
                         {
-                            // let map = if server_ctx.editor_view_mode == EditorViewMode::D2 {
-                            //     project.get_map_mut(&server_ctx)
-                            // } else {
-                            //     if let Some(region) = project.get_region_ctx_mut(server_ctx) {
-                            //         Some(&mut region.map)
-                            //     } else {
-                            //         None
-                            //     }
-                            // };
-
                             let mut needs_scene_redraw = false;
                             if let Some(map) = project.get_map_mut(&server_ctx) {
                                 needs_scene_redraw =
@@ -3124,21 +3134,20 @@ impl Sidebar {
             }
         }
 
-        if let Some(layout) = ui.get_text_layout("Node Settings") {
-            layout.clear();
+        if let Some(layout) = ui.get_tree_layout("Node Settings") {
+            if let Some(node) = layout.get_node_by_id_mut(&server_ctx.tree_settings_id) {
+                if let Some(action_id) = server_ctx.curr_action_id {
+                    if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id) {
+                        let nodeui = action.params();
+                        nodeui.apply_to_tree_node(node);
 
-            if let Some(action_id) = server_ctx.curr_action_id {
-                if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id) {
-                    let nodeui = action.params();
-                    nodeui.apply_to_text_layout(layout);
-                    ctx.ui.relayout = true;
+                        let mut text = action.id().name.clone();
+                        if let Some(accel) = action.accel() {
+                            text += &format!(" ({})", accel.description());
+                        }
 
-                    let mut text = action.id().name.clone();
-                    if let Some(accel) = action.accel() {
-                        text += &format!(" ({})", accel.description());
+                        node.widget.set_value(TheValue::Text(text));
                     }
-
-                    ui.set_widget_value("Action Header", ctx, TheValue::Text(text));
                 }
             }
         }
