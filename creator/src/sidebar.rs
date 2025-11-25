@@ -1499,6 +1499,8 @@ impl Sidebar {
                             let nodeui = action.params();
                             nodeui.apply_to_tree_node(node);
                             node.widget.set_value(TheValue::Text(text));
+                            layout.relayout(ctx);
+                            ctx.ui.relayout = true;
                         }
                     }
                 } else if id.name == "Action Apply" {
@@ -3147,6 +3149,8 @@ impl Sidebar {
                         }
 
                         node.widget.set_value(TheValue::Text(text));
+                        layout.relayout(ctx);
+                        ctx.ui.relayout = true;
                     }
                 }
             }
