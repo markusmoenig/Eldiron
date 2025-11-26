@@ -76,7 +76,7 @@ impl Dock for TilesEditorDock {
         tile_node.add_widget(Box::new(item));
 
         let mut item = TheTreeIcons::new(TheId::named("Tile Frame Icons"));
-        item.set_icon_size(32);
+        item.set_icon_size(40);
         item.set_icon_count(1);
         item.set_selected_index(Some(0));
         tile_node.add_widget(Box::new(item));

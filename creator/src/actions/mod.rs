@@ -91,5 +91,12 @@ pub trait Action: Send + Sync {
     }
 
     fn params(&self) -> TheNodeUI;
-    fn handle_event(&mut self, event: &TheEvent) -> bool;
+    fn handle_event(
+        &mut self,
+        event: &TheEvent,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) -> bool;
 }

@@ -138,6 +138,27 @@ impl Dock for TilesDock {
             TheEvent::Resize => {
                 self.set_tiles(&project.tiles, ui, ctx);
             }
+            TheEvent::TileDragStarted(id, pos, _offset) => {
+                if id.name == "Tiles Dock RGBA Layout View" {
+                    if let Some(tile_id) = self.tile_ids.get(&(pos.x, pos.y)) {
+                        if let Some(tile) = project.tiles.get(tile_id) {
+                            let mut drop = TheDrop::new(TheId::named_with_id("Tile", *tile_id));
+                            if !tile.is_empty() {
+                                let b = TheRGBABuffer::from(
+                                    tile.textures[0].data.clone(),
+                                    tile.textures[0].width as u32,
+                                    tile.textures[0].height as u32,
+                                );
+                                drop.set_image(b.scaled(
+                                    (tile.textures[0].width as f32 * self.zoom) as i32,
+                                    (tile.textures[0].height as f32 * self.zoom) as i32,
+                                ));
+                            }
+                            ctx.ui.set_drop(drop);
+                        }
+                    }
+                }
+            }
             TheEvent::TilePicked(id, pos) => {
                 if id.name == "Tiles Dock RGBA Layout View" {
                     if let Some(tile_id) = self.tile_ids.get(&(pos.x, pos.y)) {

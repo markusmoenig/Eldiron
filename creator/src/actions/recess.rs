@@ -1,3 +1,5 @@
+use rusterix::{PixelSource, Value};
+
 use crate::prelude::*;
 
 pub struct Recess {
@@ -28,6 +30,25 @@ impl Action for Recess {
             "The recess can be attached to the front or back face.".into(),
             vec!["Front".to_string(), "Back".to_string()],
             1,
+        );
+        nodeui.add_item(item);
+
+        let item = TheNodeUIItem::Icons(
+            "actionRecessTiles".into(),
+            "Icons".into(),
+            "The recess can be attached to the front or back face.".into(),
+            vec![
+                (
+                    TheRGBABuffer::new(TheDim::sized(36, 36)),
+                    "CAP".to_string(),
+                    Uuid::nil(),
+                ),
+                (
+                    TheRGBABuffer::new(TheDim::sized(36, 36)),
+                    "JAMB".to_string(),
+                    Uuid::nil(),
+                ),
+            ],
         );
         nodeui.add_item(item);
 
@@ -66,12 +87,76 @@ impl Action for Recess {
             && server_ctx.editing_surface.is_some()
     }
 
+    fn load_params(&mut self, map: &Map) {
+        if let Some(sector_id) = map.selected_sectors.first() {
+            if let Some(sector) = map.find_sector(*sector_id) {
+                self.nodeui.set_f32_value(
+                    "actionRecessDepth",
+                    sector.properties.get_float_default("profile_amount", 0.1),
+                );
+                self.nodeui.set_i32_value(
+                    "actionRecessTarget",
+                    sector.properties.get_int_default("profile_target", 1),
+                );
+            }
+        }
+    }
+
+    fn load_params_project(&mut self, project: &Project, server_ctx: &mut ServerContext) {
+        let mut cap_icon = TheRGBABuffer::new(TheDim::sized(36, 36));
+        let mut jamb_icon = TheRGBABuffer::new(TheDim::sized(36, 36));
+        let mut cap_id = Uuid::nil();
+        let mut jamb_id = Uuid::nil();
+
+        println!("read");
+        if let Some(map) = project.get_map(server_ctx) {
+            if let Some(sector_id) = map.selected_sectors.first() {
+                if let Some(sector) = map.find_sector(*sector_id) {
+                    if let Some(Value::Source(PixelSource::TileId(id))) =
+                        sector.properties.get("cap_source")
+                    {
+                        if let Some(tile) = project.tiles.get(id)
+                            && !tile.is_empty()
+                        {
+                            cap_icon = tile.textures[0].to_rgba();
+                            cap_id = *id;
+                        }
+                    }
+                    if let Some(Value::Source(PixelSource::TileId(id))) =
+                        sector.properties.get("jamb_source")
+                    {
+                        if let Some(tile) = project.tiles.get(id)
+                            && !tile.is_empty()
+                        {
+                            jamb_icon = tile.textures[0].to_rgba();
+                            jamb_id = *id;
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(item) = self.nodeui.get_item_mut("actionRecessTiles") {
+            match item {
+                TheNodeUIItem::Icons(_, _, _, items) => {
+                    if items.len() == 2 {
+                        items[0].0 = cap_icon;
+                        items[0].2 = cap_id;
+                        items[1].0 = jamb_icon;
+                        items[1].2 = jamb_id;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     fn apply(
         &self,
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        _server_ctx: &mut ServerContext,
     ) -> Option<RegionUndoAtom> {
         let mut changed = false;
         let prev = map.clone();
@@ -83,19 +168,31 @@ impl Action for Recess {
 
         let target = self.nodeui.get_i32_value("actionRecessTarget").unwrap_or(1);
 
+        let cap = self.nodeui.get_tile_id("actionRecessTiles", 0);
+        let jamb = self.nodeui.get_tile_id("actionRecessTiles", 1);
+
         for sector_id in &map.selected_sectors.clone() {
             if let Some(sector) = map.find_sector_mut(*sector_id) {
                 sector.properties.set("profile_op", Value::Int(2));
                 sector.properties.set("profile_amount", Value::Float(depth));
                 sector.properties.set("profile_target", Value::Int(target));
 
-                if let Some(tile_id) = server_ctx.curr_tile_id {
-                    let pixel = Value::Source(rusterix::PixelSource::TileId(tile_id));
-                    sector.properties.set("jamb_source", pixel.clone());
-                    sector.properties.set("cap_source", pixel.clone());
-                    sector.properties.set("source", pixel);
+                if let Some(cap) = cap
+                    && cap != Uuid::nil()
+                {
+                    sector.properties.set(
+                        "cap_source",
+                        Value::Source(rusterix::PixelSource::TileId(cap)),
+                    );
                 }
-
+                if let Some(jamb) = jamb
+                    && jamb != Uuid::nil()
+                {
+                    sector.properties.set(
+                        "jamb_source",
+                        Value::Source(rusterix::PixelSource::TileId(jamb)),
+                    );
+                }
                 changed = true;
             }
         }
@@ -114,7 +211,38 @@ impl Action for Recess {
         self.nodeui.clone()
     }
 
-    fn handle_event(&mut self, event: &TheEvent) -> bool {
+    fn handle_event(
+        &mut self,
+        event: &TheEvent,
+        project: &mut Project,
+        _ui: &mut TheUI,
+        ctx: &mut TheContext,
+        _server_ctx: &mut ServerContext,
+    ) -> bool {
+        if let TheEvent::TileDropped(id, tile_id, index) = event {
+            println!("{:?}", id);
+            if let Some(item) = self.nodeui.get_item_mut(&id.name) {
+                match item {
+                    TheNodeUIItem::Icons(_, _, _, items) => {
+                        if *index < items.len() {
+                            if let Some(tile) = project.tiles.get(tile_id)
+                                && !tile.is_empty()
+                            {
+                                println!("set {}", index);
+                                items[*index].0 = tile.textures[0].to_rgba();
+                                items[*index].2 = *tile_id;
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Update Action List"),
+                                    TheValue::Empty,
+                                ));
+                                return true;
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
         self.nodeui.handle_event(event)
     }
 }

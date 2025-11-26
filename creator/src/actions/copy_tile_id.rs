@@ -65,7 +65,14 @@ impl Action for CopyTileID {
         self.nodeui.clone()
     }
 
-    fn handle_event(&mut self, event: &TheEvent) -> bool {
+    fn handle_event(
+        &mut self,
+        event: &TheEvent,
+        _project: &mut Project,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _server_ctx: &mut ServerContext,
+    ) -> bool {
         self.nodeui.handle_event(event)
     }
 }

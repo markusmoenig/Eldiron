@@ -535,51 +535,35 @@ impl Sidebar {
                     if let Some(region) = project.get_region_ctx(server_ctx) {
                         server_ctx.editing_pos_buffer = Some(region.editing_position_3d);
                     }
-                } else
-                /*
-                if id.name == "Update Materialpicker" {
-                    self.show_filtered_materials(ui, ctx, project, server_ctx);
-                    // Set the materials in the RUSTERIX assets
-                    let mut rusterix = RUSTERIX.write().unwrap();
-                    rusterix.assets.set_materials(
-                        project
-                            .materials
-                            .iter()
-                            .map(|(k, v)| (*k, v.clone()))
-                            .collect(),
-                    );
-                    SCENEMANAGER.write().unwrap().set_tile_list(
-                        rusterix.assets.tile_list.clone(),
-                        rusterix.assets.tile_indices.clone(),
-                    );
-                    rusterix.set_dirty();
-                } else
-                 */
-                if id.name == "Update Action List" {
+                } else if id.name == "Update Action List" {
                     // Update the current action params (if any)
                     if let Some(curr_action_id) = server_ctx.curr_action_id {
-                        if let Some(action) = ACTIONLIST
+                        if let Some(_action) = ACTIONLIST
                             .write()
                             .unwrap()
                             .get_action_by_id_mut(curr_action_id)
                         {
-                            if let Some(map) = project.get_map_mut(&server_ctx) {
-                                action.load_params(map);
-                            }
-                            action.load_params_project(project, server_ctx);
+                            // if let Some(map) = project.get_map_mut(&server_ctx) {
+                            //     action.load_params(map);
+                            // }
+                            // action.load_params_project(project, server_ctx);
                         }
                     }
                     self.show_actions(ui, ctx, project, server_ctx);
-
-                    // self.deselect_sections_buttons(ctx, ui, "Action Section".to_string());
-                    // self.select_section_button(ui, "Action Section".to_string());
-
-                    // *SIDEBARMODE.write().unwrap() = SidebarMode::Action;
-
-                    // ctx.ui.send(TheEvent::SetStackIndex(
-                    //     self.stack_layout_id.clone(),
-                    //     SidebarMode::Action as usize,
-                    // ));
+                    if server_ctx.curr_action_id.is_none() {
+                        if let Some(layout) = ui.get_tree_layout("Node Settings") {
+                            if let Some(node) =
+                                layout.get_node_by_id_mut(&server_ctx.tree_settings_id)
+                            {
+                                node.childs.clear();
+                                node.widgets.clear();
+                                node.widget.set_value(TheValue::Text("Settings".into()));
+                                layout.relayout(ctx);
+                                ctx.ui.relayout = true;
+                                println!("cleared");
+                            }
+                        }
+                    }
                 } else if id.name == "Nodegraph Id Changed" {
                     if let Some(map) = project.get_map(server_ctx) {
                         if let Some(widget) = ui.get_widget("Graph Id Text") {
@@ -909,6 +893,19 @@ impl Sidebar {
                     ctx.ui.set_drop(drop);
                 }
             }
+            TheEvent::TileDropped(id, _, _) => {
+                if let Some(action_id) = server_ctx.curr_action_id
+                    && id.name.starts_with("action")
+                {
+                    if let Some(action) =
+                        ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
+                    {
+                        if action.handle_event(event, project, ui, ctx, server_ctx) {
+                            return true;
+                        }
+                    }
+                }
+            }
             TheEvent::ValueChanged(id, value) => {
                 if id.name.starts_with("Region Item Name Edit") {
                     // Rename a region
@@ -1014,7 +1011,7 @@ impl Sidebar {
                     if let Some(action) =
                         ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
                     {
-                        if action.handle_event(event) {
+                        if action.handle_event(event, project, ui, ctx, server_ctx) {
                             return true;
                         }
                     }
