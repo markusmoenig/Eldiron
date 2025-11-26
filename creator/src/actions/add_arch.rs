@@ -68,8 +68,8 @@ impl Action for AddArch {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+        server_ctx: &mut ServerContext,
+    ) -> Option<ProjectUndoAtom> {
         if map.selected_linedefs.is_empty() {
             return None;
         }
@@ -244,7 +244,8 @@ impl Action for AddArch {
         }
 
         if changed {
-            Some(RegionUndoAtom::MapEdit(
+            Some(ProjectUndoAtom::MapEdit(
+                server_ctx.pc,
                 Box::new(prev),
                 Box::new(map.clone()),
             ))

@@ -535,6 +535,20 @@ impl Sidebar {
                     if let Some(region) = project.get_region_ctx(server_ctx) {
                         server_ctx.editing_pos_buffer = Some(region.editing_position_3d);
                     }
+                } else if id.name == "Update Action Parameters" {
+                    // Update the current action params (if any)
+                    if let Some(curr_action_id) = server_ctx.curr_action_id {
+                        if let Some(action) = ACTIONLIST
+                            .write()
+                            .unwrap()
+                            .get_action_by_id_mut(curr_action_id)
+                        {
+                            if let Some(map) = project.get_map_mut(&server_ctx) {
+                                action.load_params(map);
+                            }
+                            action.load_params_project(project, server_ctx);
+                        }
+                    }
                 } else if id.name == "Update Action List" {
                     // Update the current action params (if any)
                     if let Some(curr_action_id) = server_ctx.curr_action_id {
@@ -3303,26 +3317,6 @@ impl Sidebar {
         }
     }
 
-    /*
-    /// Adds the given debug messages to the debug list.
-    pub fn add_debug_messages(
-        &self,
-        messages: Vec<TheDebugMessage>,
-        ui: &mut TheUI,
-        ctx: &mut TheContext,
-    ) {
-        if let Some(layout) = ui.canvas.get_layout(Some(&"Debug List".to_string()), None) {
-            if let Some(list_layout) = layout.as_list_layout() {
-                for message in messages {
-                    let mut item = TheListItem::new(TheId::named("Debug Item"));
-                    item.add_value_column(100, TheValue::Text(message.entity));
-                    item.set_text(message.message);
-                    list_layout.add_item(item, ctx);
-                }
-            }
-        }
-    }*/
-
     pub fn apply_action(
         &self,
         action: &Box<dyn Action>,
@@ -3332,59 +3326,16 @@ impl Sidebar {
         server_ctx: &mut ServerContext,
     ) -> bool {
         if let Some(undo_atom) = action.apply(map, ui, ctx, server_ctx) {
-            if server_ctx.get_map_context() == MapContext::Region {
-                UNDOMANAGER.write().unwrap().add_region_undo(
-                    &server_ctx.curr_region,
-                    undo_atom,
-                    ctx,
-                );
-                if server_ctx.editor_view_mode == EditorViewMode::D2
-                    && server_ctx.profile_view.is_some()
-                {
-                } else {
-                    map.update_surfaces();
-                    return true;
-                }
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
-            } else if server_ctx.get_map_context() == MapContext::Character {
-                if let Some(character_undo_atom) = undo_atom.to_character_atom() {
-                    UNDOMANAGER
-                        .write()
-                        .unwrap()
-                        .add_character_undo(character_undo_atom, ctx);
+            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
 
-                    /*
-                    NODEEDITOR.write().unwrap().create_shape_preview(
-                        map,
-                        &RUSTERIX.read().unwrap().assets,
-                    );*/
-                }
-            } else if server_ctx.get_map_context() == MapContext::Item {
-                if let Some(item_undo_atom) = undo_atom.to_item_atom() {
-                    UNDOMANAGER
-                        .write()
-                        .unwrap()
-                        .add_item_undo(item_undo_atom, ctx);
-
-                    /*
-                    NODEEDITOR
-                        .write()
-                        .unwrap()
-                        .create_shape_preview(
-                            map,
-                            &RUSTERIX.read().unwrap().assets,
-                        );
-                    */
-                }
-            } else if server_ctx.get_map_context() == MapContext::Screen {
-                if let Some(screen_undo_atom) = undo_atom.to_screen_atom() {
-                    UNDOMANAGER
-                        .write()
-                        .unwrap()
-                        .add_screen_undo(screen_undo_atom, ctx);
-                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                }
+            if server_ctx.editor_view_mode == EditorViewMode::D2
+                && server_ctx.profile_view.is_some()
+            {
+            } else {
+                map.update_surfaces();
+                return true;
             }
+            crate::editor::RUSTERIX.write().unwrap().set_dirty();
         }
 
         ctx.ui.send(TheEvent::Custom(

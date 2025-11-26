@@ -51,7 +51,7 @@ impl Action for Minimize {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         _server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+    ) -> Option<ProjectUndoAtom> {
         DOCKMANAGER.write().unwrap().minimize(ui, ctx);
 
         None

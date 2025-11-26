@@ -160,8 +160,8 @@ impl Action for CreateSector {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+        server_ctx: &mut ServerContext,
+    ) -> Option<ProjectUndoAtom> {
         let mut changed = false;
 
         // Prefer linedefs if available; else use vertices
@@ -230,7 +230,8 @@ impl Action for CreateSector {
         }
 
         if changed {
-            Some(RegionUndoAtom::MapEdit(
+            Some(ProjectUndoAtom::MapEdit(
+                server_ctx.pc,
                 Box::new(prev),
                 Box::new(map.clone()),
             ))

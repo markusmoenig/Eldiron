@@ -50,7 +50,7 @@ impl Action for EditingCamera {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+    ) -> Option<ProjectUndoAtom> {
         server_ctx.editor_view_mode = EditorViewMode::D2;
 
         None

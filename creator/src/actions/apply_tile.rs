@@ -50,7 +50,7 @@ impl Action for ApplyTile {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+    ) -> Option<ProjectUndoAtom> {
         let mut changed = false;
         let prev = map.clone();
 
@@ -74,7 +74,8 @@ impl Action for ApplyTile {
         }
 
         if changed {
-            Some(RegionUndoAtom::MapEdit(
+            Some(ProjectUndoAtom::MapEdit(
+                server_ctx.pc,
                 Box::new(prev),
                 Box::new(map.clone()),
             ))

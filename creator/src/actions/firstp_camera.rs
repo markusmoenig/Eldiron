@@ -50,7 +50,7 @@ impl Action for FirstPCamera {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+    ) -> Option<ProjectUndoAtom> {
         server_ctx.editor_view_mode = EditorViewMode::FirstP;
         if server_ctx.editing_surface.is_some() {
             ctx.ui.send(TheEvent::Custom(

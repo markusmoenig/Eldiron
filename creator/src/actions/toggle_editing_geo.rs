@@ -49,7 +49,7 @@ impl Action for ToggleEditingGeo {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+    ) -> Option<ProjectUndoAtom> {
         server_ctx.show_editing_geometry = !server_ctx.show_editing_geometry;
 
         None

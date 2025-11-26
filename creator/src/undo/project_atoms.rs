@@ -96,6 +96,7 @@ impl ProjectUndoAtom {
                     map.clear_temp();
                     if pc.is_region() {
                         update_region(ctx);
+                        map.update_surfaces();
                     }
                 }
             }
@@ -531,6 +532,7 @@ impl ProjectUndoAtom {
                     map.clear_temp();
                     if pc.is_region() {
                         update_region(ctx);
+                        map.update_surfaces();
                     }
                 }
             }

@@ -48,15 +48,16 @@ impl Action for CreateLinedef {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+        server_ctx: &mut ServerContext,
+    ) -> Option<ProjectUndoAtom> {
         let changed = true;
         let prev = map.clone();
 
         _ = map.create_linedef(map.selected_vertices[0], map.selected_vertices[1]);
 
         if changed {
-            Some(RegionUndoAtom::MapEdit(
+            Some(ProjectUndoAtom::MapEdit(
+                server_ctx.pc,
                 Box::new(prev),
                 Box::new(map.clone()),
             ))

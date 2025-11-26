@@ -50,7 +50,7 @@ impl Action for CopyTileID {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+    ) -> Option<ProjectUndoAtom> {
         if let Some(tile_id) = server_ctx.curr_tile_id {
             let txt = format!("\"{tile_id}\"");
             ctx.ui.clipboard = Some(TheValue::Text(txt.clone()));

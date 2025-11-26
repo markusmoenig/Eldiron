@@ -49,7 +49,7 @@ impl Action for SetEditingSurface {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+    ) -> Option<ProjectUndoAtom> {
         if let Some(sector_id) = map.selected_sectors.first().cloned() {
             let mut profile_to_add = None;
 

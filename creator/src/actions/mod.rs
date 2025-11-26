@@ -77,7 +77,7 @@ pub trait Action: Send + Sync {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+    ) -> Option<ProjectUndoAtom> {
         None
     }
 

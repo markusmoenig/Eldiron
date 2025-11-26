@@ -52,7 +52,7 @@ impl Action for ToggleRectGeo {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+    ) -> Option<ProjectUndoAtom> {
         server_ctx.no_rect_geo_on_map = !server_ctx.no_rect_geo_on_map;
 
         ctx.ui.send(TheEvent::Custom(

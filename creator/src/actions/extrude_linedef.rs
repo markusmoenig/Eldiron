@@ -138,8 +138,8 @@ impl Action for ExtrudeLinedef {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
-    ) -> Option<RegionUndoAtom> {
+        server_ctx: &mut ServerContext,
+    ) -> Option<ProjectUndoAtom> {
         let mut changed = false;
         let prev = map.clone();
 
@@ -157,7 +157,8 @@ impl Action for ExtrudeLinedef {
         }
 
         if changed {
-            Some(RegionUndoAtom::MapEdit(
+            Some(ProjectUndoAtom::MapEdit(
+                server_ctx.pc,
                 Box::new(prev),
                 Box::new(map.clone()),
             ))

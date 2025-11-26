@@ -350,6 +350,11 @@ impl MapEditor {
                         TheId::named("Update Action List"),
                         TheValue::Empty,
                     ));
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Action Parameters"),
+                        TheValue::Empty,
+                    ));
                 }
                 // else if id.name == "Cursor Pos Changed" {
                 //     if let Some(text) = ui.get_text("Cursor Position") {
