@@ -876,7 +876,6 @@ dependencies = [
 [[package]]
 name = "codegridfx"
 version = "0.1.0"
-source = "git+https://github.com/markusmoenig/Rusterix#d07c4c983dcfb35e0f78631173328e6ad43996ca"
 dependencies = [
  "indexmap 2.12.1",
  "rusteria",
@@ -1367,7 +1366,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5190,7 +5189,6 @@ dependencies = [
 [[package]]
 name = "rusteria"
 version = "0.1.0"
-source = "git+https://github.com/markusmoenig/Rusterix#d07c4c983dcfb35e0f78631173328e6ad43996ca"
 dependencies = [
  "image",
  "indexmap 2.12.1",
@@ -5207,7 +5205,6 @@ dependencies = [
 [[package]]
 name = "rusterix"
 version = "0.2.8"
-source = "git+https://github.com/markusmoenig/Rusterix#d07c4c983dcfb35e0f78631173328e6ad43996ca"
 dependencies = [
  "bincode",
  "bvh",
@@ -5659,7 +5656,6 @@ dependencies = [
 [[package]]
 name = "scenevm"
 version = "0.1.0"
-source = "git+https://github.com/markusmoenig/SceneVM#0b12ee8dab15228e54b98f602f6317f683b44f31"
 dependencies = [
  "bytemuck",
  "image",
@@ -6319,7 +6315,6 @@ checksum = "c13547615a44dc9c452a8a534638acdf07120d4b6847c8178705da06306a3057"
 [[package]]
 name = "theframework"
 version = "0.1.40"
-source = "git+https://github.com/markusmoenig/TheFramework#69a6e924b1605dc938dc498fbc7c366d1400236a"
 dependencies = [
  "arboard",
  "console_error_panic_hook",
