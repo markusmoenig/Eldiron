@@ -15,8 +15,8 @@ impl Action for Relief {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionReliefHeight".into(),
-            "Height".into(),
-            "The height of the relief (emboss).".into(),
+            fl!("height"),
+            fl!("status_action_relief_height"),
             0.2,       // default
             0.0..=1.0, // range
             false,
@@ -25,8 +25,8 @@ impl Action for Relief {
 
         let item = TheNodeUIItem::Selector(
             "actionReliefTarget".into(),
-            "Target".into(),
-            "The relief can be attached to the front or back face.".into(),
+            fl!("target"),
+            fl!("status_action_relief_target"),
             vec!["Front".to_string(), "Back".to_string()],
             1,
         );
@@ -34,8 +34,8 @@ impl Action for Relief {
 
         let item = TheNodeUIItem::Icons(
             "actionReliefTiles".into(),
-            "Icons".into(),
-            "The cap and side (jamb) tiles for the relief.".into(),
+            fl!("icons"),
+            fl!("status_action_relief_tiles"),
             vec![
                 (
                     TheRGBABuffer::new(TheDim::sized(36, 36)),
@@ -51,10 +51,7 @@ impl Action for Relief {
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Creates a relief (emboss) on the selected profile sector.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_relief_desc"));
         nodeui.add_item(item);
 
         Self {

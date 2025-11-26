@@ -12,10 +12,7 @@ impl Action for ToggleRectGeo {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Geometry created by the Rect tool is by default not shown in the 2D editor. This action toggles visibilty.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_toggle_rect_geo"));
         nodeui.add_item(item);
 
         Self {

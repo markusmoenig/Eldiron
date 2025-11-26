@@ -11,10 +11,7 @@ impl Action for ClearTile {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Clears the tiles from the selected sectors.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_clear_tile"));
         nodeui.add_item(item);
 
         Self {

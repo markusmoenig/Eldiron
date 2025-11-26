@@ -123,10 +123,7 @@ impl Action for CreateSector {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Creates a new sector / surface from the selected vertices. The vertices must form a closed loop (we auto-order them).".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_create_sector"));
         nodeui.add_item(item);
 
         Self {

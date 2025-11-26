@@ -12,10 +12,7 @@ impl Action for Split {
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
 
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Split the selected linedef(s) by adding a middle point. Thew new point gets added to all sectors the linedef is part of.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_split"));
         nodeui.add_item(item);
 
         Self {

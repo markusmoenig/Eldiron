@@ -17,7 +17,7 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
     node.widgets = vec![];
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Region Item", region.id));
-    item.set_text("Name".into());
+    item.set_text(fl!("name"));
 
     let name = format!("Region Item Name Edit: {}", region.name);
     let mut edit = TheTextLineEdit::new(TheId::named_with_id(&name, region.id));
@@ -49,7 +49,7 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
     node.set_root_mode(false);
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Character Item", character.id));
-    item.set_text("Name".into());
+    item.set_text(fl!("name"));
 
     let mut edit = TheTextLineEdit::new(TheId::named_with_id(
         "Character Item Name Edit",
@@ -65,7 +65,7 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
         character.id,
     ));
     item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
-    item.set_text("Visual Scripting".into());
+    item.set_text(fl!("visual_script"));
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference(
@@ -73,7 +73,7 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
         character.id,
     ));
     item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
-    item.set_text("Python Code".into());
+    item.set_text(fl!("python_code"));
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference(
@@ -81,7 +81,7 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
         character.id,
     ));
     item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
-    item.set_text("Attributes".into());
+    item.set_text(fl!("attributes"));
     node.add_widget(Box::new(item));
 
     node
@@ -93,7 +93,7 @@ pub fn gen_item_tree_node(item_: &Item) -> TheTreeNode {
     node.set_root_mode(false);
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item", item_.id));
-    item.set_text("Name".into());
+    item.set_text(fl!("name"));
 
     let mut edit = TheTextLineEdit::new(TheId::named_with_id("Item Item Name Edit", item_.id));
     edit.set_text(item_.name.clone());
@@ -106,17 +106,17 @@ pub fn gen_item_tree_node(item_: &Item) -> TheTreeNode {
         item_.id,
     ));
     item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
-    item.set_text("Visual Scripting".into());
+    item.set_text(fl!("visual_script"));
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Code Edit", item_.id));
     item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
-    item.set_text("Python Code".into());
+    item.set_text(fl!("python_code"));
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Data Edit", item_.id));
     item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
-    item.set_text("Attributes".into());
+    item.set_text(fl!("attributes"));
     node.add_widget(Box::new(item));
 
     node
@@ -128,7 +128,7 @@ pub fn gen_tilemap_tree_node(tilemap: &Tilemap) -> TheTreeNode {
     node.set_root_mode(false);
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Tileset Item", tilemap.id));
-    item.set_text("Name".into());
+    item.set_text(fl!("name"));
 
     let mut edit = TheTextLineEdit::new(TheId::named_with_id("Tilemap Item Name Edit", tilemap.id));
     edit.set_text(tilemap.name.clone());
@@ -140,7 +140,7 @@ pub fn gen_tilemap_tree_node(tilemap: &Tilemap) -> TheTreeNode {
         "Tilemap Item Code Edit",
         tilemap.id,
     ));
-    item.set_text("Grid Size".into());
+    item.set_text(fl!("grid_size"));
 
     let mut edit = TheTextLineEdit::new(TheId::named_with_reference(
         "Tilemap Item Grid Edit",
@@ -169,7 +169,7 @@ pub fn gen_screen_tree_items(node: &mut TheTreeNode, screen: &Screen) {
     node.widgets = vec![];
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Screen Item", screen.id));
-    item.set_text("Name".into());
+    item.set_text(fl!("name"));
 
     let mut edit = TheTextLineEdit::new(TheId::named_with_id("Screen Item Name Edit", screen.id));
     edit.set_text(screen.name.clone());
@@ -198,7 +198,7 @@ pub fn gen_asset_tree_node(asset: &Asset) -> TheTreeNode {
     node.set_root_mode(false);
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Asset Item", asset.id));
-    item.set_text("Name".into());
+    item.set_text(fl!("name"));
 
     let mut edit = TheTextLineEdit::new(TheId::named_with_id("Asset Item Name Edit", asset.id));
     edit.set_text(asset.name.clone());

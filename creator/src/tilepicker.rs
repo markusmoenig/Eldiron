@@ -38,7 +38,7 @@ impl TilePicker {
         toolbar_hlayout.set_background_color(None);
 
         let mut filter_text = TheText::new(TheId::empty());
-        filter_text.set_text("Filter".to_string());
+        filter_text.set_text(fl!("filter"));
 
         toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
         toolbar_hlayout.set_padding(3);
@@ -50,7 +50,7 @@ impl TilePicker {
             .set_max_size(Vec2::new(if minimal { 75 } else { 120 }, 18));
         filter_edit.set_font_size(12.5);
         filter_edit.set_embedded(true);
-        filter_edit.set_status_text("Show tiles containing the given text.");
+        filter_edit.set_status_text(&fl!("status_tile_picker_filter_edit"));
         filter_edit.set_continuous(true);
         toolbar_hlayout.add_widget(Box::new(filter_edit));
 

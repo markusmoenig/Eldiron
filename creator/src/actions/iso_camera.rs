@@ -11,10 +11,7 @@ impl Action for IsoCamera {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Render the scene using a 3D Iso camera.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_iso_camera"));
         nodeui.add_item(item);
 
         Self {

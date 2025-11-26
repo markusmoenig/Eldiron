@@ -14,8 +14,8 @@ impl Action for AddArch {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionArchHeight".into(),
-            "Height".into(),
-            "Arch bulge height in XY.".into(),
+            fl!("height"),
+            fl!("status_action_add_arch_height"),
             1.0,
             0.1..=2.0,
             false,
@@ -24,8 +24,8 @@ impl Action for AddArch {
 
         let item = TheNodeUIItem::IntEditSlider(
             "actionArchSegments".into(),
-            "Segments".into(),
-            "Number of segments for the arch polyline.".into(),
+            fl!("segments"),
+            fl!("status_action_add_arch_segment"),
             12,
             4..=64,
             false,
@@ -34,7 +34,7 @@ impl Action for AddArch {
 
         nodeui.add_item(TheNodeUIItem::Markdown(
             "desc".into(),
-            "Add an arch (curved polyline) replacing the selected linedef(s).".into(),
+            fl!("action_add_arch_desc"),
         ));
 
         Self {

@@ -11,10 +11,7 @@ impl Action for EditMaximize {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Open the editor for the current dock or maximizes it.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_maximize"));
         nodeui.add_item(item);
 
         Self {

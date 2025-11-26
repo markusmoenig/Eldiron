@@ -166,20 +166,19 @@ impl NodeEditor {
 
         let mut id_text = TheText::new(TheId::named("Graph Id Text"));
         id_text.set_fixed_size_text("(---)".into());
-        id_text.set_status_text("The Id of the graph inside the map.");
+        id_text.set_status_text(&fl!("status_node_editor_graph_id"));
         id_text.set_text("(--)".to_string());
         toolbar_hlayout.add_widget(Box::new(id_text));
 
         let mut create_button = TheTraybarButton::new(TheId::named("Create Graph Button"));
-        create_button.set_status_text("Apply the source to the selected geometry.");
-        create_button.set_text("Create Graph".to_string());
+        create_button.set_status_text(&fl!("status_node_editor_create_button"));
+        create_button.set_text(fl!("node_editor_create_button"));
         toolbar_hlayout.add_widget(Box::new(create_button));
 
         let mut fx_nodes_button = TheTraybarButton::new(TheId::named("FX Nodes"));
         fx_nodes_button.set_custom_color(self.categories.get("FX").cloned());
         fx_nodes_button.set_text(str!("FX"));
-        fx_nodes_button
-            .set_status_text("Nodes which create a special effect like lights or particles.");
+        fx_nodes_button.set_status_text(&fl!("status_node_editor_fx_node_button"));
         fx_nodes_button.set_context_menu(Some(TheContextMenu {
             items: vec![
                 TheContextMenuItem::new("Material".to_string(), TheId::named("Material")),
@@ -192,7 +191,7 @@ impl NodeEditor {
         let mut render_nodes_button = TheTraybarButton::new(TheId::named("Render Nodes"));
         render_nodes_button.set_custom_color(self.categories.get("Render").cloned());
         render_nodes_button.set_text(str!("Render"));
-        render_nodes_button.set_status_text("Nodes for the global and local render graphs.");
+        render_nodes_button.set_status_text(&fl!("status_node_editor_render_nodes_button"));
         render_nodes_button.set_context_menu(Some(TheContextMenu {
             items: vec![
                 TheContextMenuItem::new("Lights".to_string(), TheId::named("Lights")),
@@ -206,8 +205,7 @@ impl NodeEditor {
         let mut mesh_nodes_button = TheTraybarButton::new(TheId::named("Modifier Nodes"));
         mesh_nodes_button.set_custom_color(self.categories.get("Modifier").cloned());
         mesh_nodes_button.set_text(str!("Modifier"));
-        mesh_nodes_button
-            .set_status_text("Nodes which control and modify terrain and mesh creation.");
+        mesh_nodes_button.set_status_text(&fl!("status_node_editor_mesh_nodes_button"));
         mesh_nodes_button.set_context_menu(Some(TheContextMenu {
             items: vec![
                 TheContextMenuItem::new("Terrain: Colorize".to_string(), TheId::named("Colorize")),
@@ -236,9 +234,7 @@ impl NodeEditor {
         let mut shapefx_nodes_button = TheTraybarButton::new(TheId::named("ShapeFX Nodes"));
         shapefx_nodes_button.set_custom_color(self.categories.get("ShapeFX").cloned());
         shapefx_nodes_button.set_text(str!("Shape FX"));
-        shapefx_nodes_button.set_status_text(
-            "Nodes which attach to geometry and shapes and create colors and patterns.",
-        );
+        shapefx_nodes_button.set_status_text(&fl!("status_node_editor_shapefx_nodes_button"));
         shapefx_nodes_button.set_context_menu(Some(TheContextMenu {
             items: vec![
                 TheContextMenuItem::new("Color".to_string(), TheId::named("Color")),

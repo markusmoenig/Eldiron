@@ -14,18 +14,15 @@ impl Action for EditSector {
 
         let item = TheNodeUIItem::Text(
             "actionSectorName".into(),
-            "Sector Name".into(),
-            "Set the name of the sector.".into(),
+            fl!("action_edit_sector_name"),
+            fl!("status_action_edit_sector_name"),
             "".into(),
             None,
             false,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Edit the attributes of the selected sector.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_sector_desc"));
         nodeui.add_item(item);
 
         Self {

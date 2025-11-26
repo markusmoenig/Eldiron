@@ -11,10 +11,7 @@ impl Action for CopyTileID {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Copies the ID of the tile to the clipboard for later use in the code editor.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_copy_tile_id"));
         nodeui.add_item(item);
 
         Self {

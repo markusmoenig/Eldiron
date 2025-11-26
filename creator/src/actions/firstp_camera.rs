@@ -11,10 +11,7 @@ impl Action for FirstPCamera {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Render the scene using a 3D first person camera.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_first_p_camera"));
         nodeui.add_item(item);
 
         Self {

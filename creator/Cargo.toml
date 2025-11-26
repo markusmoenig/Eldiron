@@ -16,7 +16,6 @@ name = "eldiron-creator"
 path = "src/main.rs"
 
 [dependencies]
-theframework.workspace = true
 rusterix.workspace = true
 codegridfx.workspace = true
 rusteria.workspace = true
@@ -38,14 +37,23 @@ vek = { version = "0.17.1", default-features = true }
 regex = "1.11.1"
 arboard = "3.4.1"
 toml = "0.8.20"
-# lazy_static = "1.5.0"
 rand = "0.9"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+theframework = { workspace = true, features = ["ui", "i18n"] }
+lazy_static = "1.5.0"
+i18n-embed = { version = "0.16.0", features = [
+    "fluent-system",
+    "desktop-requester",
+] }
+i18n-embed-fl = { version = "0.10.0" }
 self_update = { version = "0.39.0", features = [
     "archive-tar",
     "compression-flate2",
 ] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+theframework = { workspace = true, features = ["ui"] }
 
 [package.metadata.bundle.bin.eldiron-creator]
 name = "Eldiron Creator"

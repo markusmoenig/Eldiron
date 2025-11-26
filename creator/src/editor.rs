@@ -156,6 +156,10 @@ impl TheTrait for Editor {
         "Eldiron Creator".to_string()
     }
 
+    fn fonts_to_load(&self) -> Vec<TheFontScript> {
+        vec![TheFontScript::Han]
+    }
+
     fn default_window_size(&self) -> (usize, usize) {
         (1200, 720)
     }
@@ -223,54 +227,57 @@ impl TheTrait for Editor {
         let mut menu_canvas = TheCanvas::new();
         let mut menu = TheMenu::new(TheId::named("Menu"));
 
-        let mut file_menu = TheContextMenu::named(str!("File"));
-        file_menu.add(TheContextMenuItem::new(str!("New"), TheId::named("New")));
+        let mut file_menu = TheContextMenu::named(fl!("menu_file"));
+        file_menu.add(TheContextMenuItem::new(
+            fl!("menu_new"),
+            TheId::named("New"),
+        ));
         file_menu.add_separator();
         file_menu.add(TheContextMenuItem::new_with_accel(
-            str!("Open..."),
+            fl!("menu_open"),
             TheId::named("Open"),
             TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'o'),
         ));
         file_menu.add(TheContextMenuItem::new_with_accel(
-            str!("Save"),
+            fl!("menu_save"),
             TheId::named("Save"),
             TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 's'),
         ));
         file_menu.add(TheContextMenuItem::new_with_accel(
-            str!("Save As ..."),
+            fl!("menu_save_as"),
             TheId::named("Save As"),
             TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'a'),
         ));
-        let mut edit_menu = TheContextMenu::named(str!("Edit"));
+        let mut edit_menu = TheContextMenu::named(fl!("menu_edit"));
         edit_menu.add(TheContextMenuItem::new_with_accel(
-            str!("Undo"),
+            fl!("menu_undo"),
             TheId::named("Undo"),
             TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'z'),
         ));
         edit_menu.add(TheContextMenuItem::new_with_accel(
-            str!("Redo"),
+            fl!("menu_redo"),
             TheId::named("Redo"),
             TheAccelerator::new(TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT, 'z'),
         ));
         edit_menu.add_separator();
         edit_menu.add(TheContextMenuItem::new_with_accel(
-            str!("Cut"),
+            fl!("menu_cut"),
             TheId::named("Cut"),
             TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'x'),
         ));
         edit_menu.add(TheContextMenuItem::new_with_accel(
-            str!("Copy"),
+            fl!("menu_copy"),
             TheId::named("Copy"),
             TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'c'),
         ));
         edit_menu.add(TheContextMenuItem::new_with_accel(
-            str!("Paste"),
+            fl!("menu_paste"),
             TheId::named("Paste"),
             TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'v'),
         ));
         edit_menu.add_separator();
         edit_menu.add(TheContextMenuItem::new_with_accel(
-            str!("Apply Action"),
+            fl!("menu_apply_action"),
             TheId::named("Action Apply"),
             TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'p'),
         ));
@@ -314,54 +321,54 @@ impl TheTrait for Editor {
 
         let mut logo_button = TheMenubarButton::new(TheId::named("Logo"));
         logo_button.set_icon_name("logo".to_string());
-        logo_button.set_status_text("Open the Eldiron Website ...");
+        logo_button.set_status_text(&fl!("status_logo_button"));
 
         let mut open_button = TheMenubarButton::new(TheId::named("Open"));
         open_button.set_icon_name("icon_role_load".to_string());
-        open_button.set_status_text("Open an existing Eldiron project...");
+        open_button.set_status_text(&fl!("status_open_button"));
 
         let mut save_button = TheMenubarButton::new(TheId::named("Save"));
-        save_button.set_status_text("Save the current project.");
+        save_button.set_status_text(&fl!("status_save_button"));
         save_button.set_icon_name("icon_role_save".to_string());
 
         let mut save_as_button = TheMenubarButton::new(TheId::named("Save As"));
         save_as_button.set_icon_name("icon_role_save_as".to_string());
-        save_as_button.set_status_text("Save the current project to a new file.");
+        save_as_button.set_status_text(&fl!("status_save_as_button"));
         save_as_button.set_icon_offset(Vec2::new(2, -5));
 
         let mut undo_button = TheMenubarButton::new(TheId::named("Undo"));
-        undo_button.set_status_text("Undo the last action.");
+        undo_button.set_status_text(&fl!("status_undo_button"));
         undo_button.set_icon_name("icon_role_undo".to_string());
 
         let mut redo_button = TheMenubarButton::new(TheId::named("Redo"));
-        redo_button.set_status_text("Redo the last action.");
+        redo_button.set_status_text(&fl!("status_redo_button"));
         redo_button.set_icon_name("icon_role_redo".to_string());
 
         let mut play_button = TheMenubarButton::new(TheId::named("Play"));
-        play_button.set_status_text("Start the server for live editing and debugging.");
+        play_button.set_status_text(&fl!("status_play_button"));
         play_button.set_icon_name("play".to_string());
         //play_button.set_fixed_size(vec2i(28, 28));
 
         let mut pause_button = TheMenubarButton::new(TheId::named("Pause"));
-        pause_button.set_status_text("Pause. Click for single stepping the server.");
+        pause_button.set_status_text(&fl!("status_pause_button"));
         pause_button.set_icon_name("play-pause".to_string());
 
         let mut stop_button = TheMenubarButton::new(TheId::named("Stop"));
-        stop_button.set_status_text("Stop the server.");
+        stop_button.set_status_text(&fl!("status_stop_button"));
         stop_button.set_icon_name("stop-fill".to_string());
 
         let mut time_slider = TheTimeSlider::new(TheId::named("Server Time Slider"));
-        time_slider.set_status_text("Adjust the server time.");
+        time_slider.set_status_text(&fl!("status_time_slider"));
         time_slider.set_continuous(true);
         time_slider.limiter_mut().set_max_width(400);
         time_slider.set_value(TheValue::Time(TheTime::default()));
 
         let mut update_button = TheMenubarButton::new(TheId::named("Update"));
-        update_button.set_status_text("Update application.");
+        update_button.set_status_text(&fl!("status_update_button"));
         update_button.set_icon_name("arrows-clockwise".to_string());
 
         let mut patreon_button = TheMenubarButton::new(TheId::named("Patreon"));
-        patreon_button.set_status_text("Visit my Patreon page.");
+        patreon_button.set_status_text(&fl!("status_patreon_button"));
         patreon_button.set_icon_name("patreon".to_string());
         // patreon_button.set_fixed_size(vec2i(36, 36));
         patreon_button.set_icon_offset(Vec2::new(-4, -2));
@@ -459,10 +466,7 @@ impl TheTrait for Editor {
 
         let mut status_canvas = TheCanvas::new();
         let mut statusbar = TheStatusbar::new(TheId::named("Statusbar"));
-        statusbar.set_text(
-            "Welcome to Eldiron! Visit Eldiron.com for information and example projects."
-                .to_string(),
-        );
+        statusbar.set_text(fl!("info_welcome"));
         status_canvas.set_widget(statusbar);
 
         ui.canvas.set_bottom(status_canvas);
@@ -1836,7 +1840,7 @@ impl TheTrait for Editor {
                                         statusbar
                                             .as_statusbar()
                                             .unwrap()
-                                            .set_text("Checking updates...".to_string());
+                                            .set_text(fl!("info_update_check"));
                                     }
 
                                     let updater = Arc::clone(&self.self_updater);

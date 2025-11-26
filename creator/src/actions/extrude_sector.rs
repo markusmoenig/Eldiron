@@ -16,15 +16,15 @@ impl Action for ExtrudeSector {
         // Surface extrusion settings
         nodeui.add_item(TheNodeUIItem::Checkbox(
             "actionSurfEnable".into(),
-            "Surface Extrusion".into(),
-            "When a sector (surface) is selected: turn on/off extrusion for that surface.".into(),
+            fl!("action_extrude_sector_surface_extrusion"),
+            fl!("status_action_extrude_sector_surface_extrusion"),
             true,
         ));
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionDepth".into(),
-            "Depth".into(),
-            "The extrusion depth.".into(),
+            fl!("depth"),
+            fl!("status_action_extrude_sector_depth"),
             0.2,
             -20.0..=20.0,
             false,
@@ -33,15 +33,12 @@ impl Action for ExtrudeSector {
 
         nodeui.add_item(TheNodeUIItem::Checkbox(
             "actionBackOpen".into(),
-            "Open back".into(),
-            "Leave the back side uncapped; useful for facades/interiors.".into(),
+            fl!("action_extrude_sector_open_back"),
+            fl!("status_action_extrude_sector_open_back"),
             false,
         ));
 
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Sets **surface extrusion** on selected sectors, optionally with an open back.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_extrude_sector_desc"));
         nodeui.add_item(item);
 
         Self {

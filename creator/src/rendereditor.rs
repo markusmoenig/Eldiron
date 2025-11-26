@@ -35,7 +35,7 @@ impl RenderEditor {
         let mut text_layout = TheTextLayout::new(TheId::named("Brush Settings"));
 
         let mut trace_button = TheTraybarButton::new(TheId::named("Trace Button"));
-        trace_button.set_text("Start Trace".into());
+        trace_button.set_text(fl!("render_editor_trace_button"));
         trace_button.limiter_mut().set_min_width(120);
         text_layout.add_pair("Trace".into(), Box::new(trace_button));
 

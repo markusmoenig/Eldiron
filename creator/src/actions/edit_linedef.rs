@@ -14,18 +14,15 @@ impl Action for EditLinedef {
 
         let item = TheNodeUIItem::Text(
             "actionLinedefName".into(),
-            "Linedef Name".into(),
-            "Set the name of the linedef.".into(),
+            fl!("action_edit_linedef_name"),
+            fl!("status_action_edit_linedef_name"),
             "".into(),
             None,
             false,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Edit the attributes of the selected linedef.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_linedef_desc"));
         nodeui.add_item(item);
 
         Self {

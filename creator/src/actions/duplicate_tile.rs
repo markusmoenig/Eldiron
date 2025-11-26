@@ -12,10 +12,7 @@ impl Action for DuplicateTile {
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
 
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Duplicates the currently selected tile.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_duplicate_tile"));
         nodeui.add_item(item);
 
         Self {

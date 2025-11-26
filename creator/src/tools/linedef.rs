@@ -41,7 +41,7 @@ impl Tool for LinedefTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Linedef Tool (L). Create line definitions and sectors.")
+        fl!("tool_linedef")
     }
     fn icon_name(&self) -> String {
         str!("line-segment")

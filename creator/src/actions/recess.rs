@@ -15,8 +15,8 @@ impl Action for Recess {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionRecessDepth".into(),
-            "Depth".into(),
-            "The depth of the recess.".into(),
+            fl!("depth"),
+            fl!("status_action_recess_depth"),
             0.1,
             0.0..=1.0,
             false,
@@ -25,8 +25,8 @@ impl Action for Recess {
 
         let item = TheNodeUIItem::Selector(
             "actionRecessTarget".into(),
-            "Target".into(),
-            "The recess can be attached to the front or back face.".into(),
+            fl!("target"),
+            fl!("status_action_recess_target"),
             vec!["Front".to_string(), "Back".to_string()],
             1,
         );
@@ -34,8 +34,8 @@ impl Action for Recess {
 
         let item = TheNodeUIItem::Icons(
             "actionRecessTiles".into(),
-            "Icons".into(),
-            "The cap and side (jamb) tiles for the recess.".into(),
+            fl!("icons"),
+            fl!("status_action_recess_tiles"),
             vec![
                 (
                     TheRGBABuffer::new(TheDim::sized(36, 36)),
@@ -51,10 +51,7 @@ impl Action for Recess {
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Creates a recess in the selected profile sector.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_recess_desc"));
         nodeui.add_item(item);
 
         Self {

@@ -14,8 +14,8 @@ impl Action for EditVertex {
 
         let item = TheNodeUIItem::Text(
             "actionVertexName".into(),
-            "Vertex Name".into(),
-            "Set the name of the vertex.".into(),
+            fl!("action_edit_vertex_name"),
+            fl!("status_action_edit_vertex_name"),
             "".into(),
             None,
             false,
@@ -24,8 +24,8 @@ impl Action for EditVertex {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionVertexX".into(),
-            "X-Position".into(),
-            "The x position of the vertex.".into(),
+            fl!("action_edit_vertex_x"),
+            fl!("status_action_edit_vertex_x"),
             0.0,
             -1000.0..=1000.0,
             false,
@@ -34,8 +34,8 @@ impl Action for EditVertex {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionVertexY".into(),
-            "Y-Position".into(),
-            "The y position of the vertex.".into(),
+            fl!("action_edit_vertex_y"),
+            fl!("status_action_edit_vertex_y"),
             0.0,
             -1000.0..=1000.0,
             false,
@@ -44,18 +44,15 @@ impl Action for EditVertex {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionVertexZ".into(),
-            "Z-Position".into(),
-            "The z position of the vertex.".into(),
+            fl!("action_edit_vertex_z"),
+            fl!("status_action_edit_vertex_z"),
             0.0,
             -1000.0..=1000.0,
             false,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Edit the attributes of the selected vertex. The XZ positions are the ground / 2D plane positions. The Y-position is up.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_vertex_desc"));
         nodeui.add_item(item);
 
         Self {

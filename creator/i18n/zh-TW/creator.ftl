@@ -1,0 +1,185 @@
+# Menu
+## Menu File
+menu_file = 檔案
+menu_new = 新建
+menu_open = 開啟
+menu_save = 儲存
+menu_save_as = 另存為
+## Menu Edit
+menu_edit = 編輯
+menu_undo = 復原
+menu_redo = 重做
+menu_cut = 剪下
+menu_copy = 複製
+menu_paste = 貼上
+menu_apply_action = 套用操作
+
+# Widgets
+## Dock
+dock_action = 操作列表
+## Node Editor
+node_editor_create_button = 建立圖形
+## Render Editor
+render_editor_trace_button = 開始追蹤
+## Tilemap
+tilemap_add_button = 新增圖塊
+
+# Status
+## Actions
+status_action_add_arch_height = XY 平面的拱形凸起高度
+status_action_add_arch_segment = 拱形折線的段數
+status_action_edit_linedef_name = 設置線段的名稱
+status_action_edit_sector_name = 設置區域的名稱
+status_action_edit_tile_role = 編輯圖塊的角色
+status_action_edit_tile_blocking = 編輯圖塊是否阻擋（僅適用於 2D 遊戲）
+status_action_edit_tile_tags = 編輯圖塊的標籤
+status_action_edit_vertex_name = 設置頂點的名稱
+status_action_edit_vertex_x = 頂點的 X 位置
+status_action_edit_vertex_y = 頂點的 Y 位置
+status_action_edit_vertex_z = 頂點的 Z 位置
+status_action_extrude_linedef_distance = 拉伸距離（符號決定方向）
+status_action_extrude_linedef_angle = 圍繞幾何軸／法線的旋轉角度
+status_action_extrude_sector_surface_extrusion = 當選中區域（表面）時：啟用／關閉該表面的拉伸
+status_action_extrude_sector_depth = 拉伸深度
+status_action_extrude_sector_open_back = 保留背面開放；適用於立面／室內
+status_action_new_tile_size = 新圖塊的尺寸
+status_action_new_tile_frames = 新圖塊的幀數
+status_action_recess_depth = 凹槽深度
+status_action_recess_target = 凹槽可附著在前表面或後表面
+status_action_recess_tiles = 凹槽的封蓋與側邊（側框）圖塊
+status_action_relief_height = 浮雕高度
+status_action_relief_target = 浮雕可附著在前表面或後表面
+status_action_relief_tiles = 浮雕的封蓋與側邊（側框）圖塊
+## Menubar
+status_logo_button = 開啟 Eldiron 官網
+status_open_button = 開啟現有的 Eldiron 專案
+status_save_button = 儲存目前專案
+status_save_as_button = 將目前專案另存為新檔案
+status_undo_button = 復原上一個動作
+status_redo_button = 重做上一個動作
+status_play_button = 啟動伺服器以進行即時編輯與除錯
+status_pause_button = 暫停 點擊以單步執行伺服器
+status_stop_button = 停止伺服器
+status_time_slider = 調整伺服器時間
+status_update_button = 更新應用程式
+status_patreon_button = 造訪我的 Patreon 頁面
+## Sidebar
+status_project_add_button = 加入到專案
+status_project_remove_button = 從專案中移除項目
+status_project_import_button = 匯入到專案
+status_project_export_button = 從專案匯出
+## Dock
+status_dock_action_apply = 套用目前操作
+## Effect Picker
+status_effect_picker_filter_edit = 顯示包含指定文字的圖塊
+## Map Editor
+status_map_editor_grid_sub_div = 網格的細分等級
+## Node Editor
+status_node_editor_graph_id = 地圖中圖形的 ID
+status_node_editor_create_button = 將來源套用到選取的幾何體
+status_node_editor_fx_node_button = 用來建立特殊效果如光照或粒子的節點
+status_node_editor_render_nodes_button = 用於全域與局部渲染流程的節點
+status_node_editor_mesh_nodes_button = 控制並修改地形與網格生成的節點
+status_node_editor_shapefx_nodes_button = 附加到幾何與形狀以產生顏色與圖案的節點
+## Shape Picker
+status_shape_picker_filter_edit = 顯示包含指定文字的圖塊
+## Tilemap Editor
+status_tilemap_editor_clear_button = 清除目前選取
+status_tilemap_editor_add_button = 新增目前選取的圖塊
+## Tile Picker
+status_tile_picker_filter_edit = 顯示包含指定文字的圖塊
+## Tilemap
+status_tilemap_clear_button = 清除目前選取
+status_tilemap_add_button = 新增目前選取的圖塊
+## Tiles
+status_tiles_filter_edit = 顯示包含指定標籤的圖塊
+## World Editor
+status_world_editor_brush_radius = 控制畫筆在世界單位中的大小
+status_world_editor_brush_falloff = 控制畫筆強度自中心衰減的速度
+status_world_editor_brush_strength = 畫筆在中心的最大強度
+status_world_editor_brush_fixed = 固定畫筆使用的固定地形高度
+
+# Actions
+action_add_arch_desc = 新增一個拱形（曲線折線）以取代所選的線段。
+action_apply_tile = 將目前的圖塊套用到所選區域。
+action_clear_tile = 清除所選區域的圖塊。
+action_copy_tile_id = 複製圖塊的 ID 到剪貼簿，以便稍後在程式碼編輯器中使用。
+action_create_center_vertex = 在所選區域的中心建立新頂點。
+action_create_linedef = 在兩個頂點之間建立新的線段。
+action_create_sector = 使用所選頂點建立新的區域／表面。頂點必須形成封閉迴圈（會自動排序）。
+action_duplicate_tile = 複製目前選中的圖塊。
+action_edit_linedef_name = 線段名稱
+action_edit_linedef_desc = 編輯所選線段的屬性。
+action_edit_maximize = 開啟目前 dock 的編輯器或將其最大化。
+action_edit_sector_name = 區域名稱
+action_edit_sector_desc = 編輯所選區域的屬性。
+action_edit_tile_desc = 編輯目前選中的圖塊的元資料。
+action_edit_vertex_name = 頂點名稱
+action_edit_vertex_x = X 座標
+action_edit_vertex_y = Y 座標
+action_edit_vertex_z = Z 座標
+action_edit_vertex_desc = 編輯所選頂點的屬性。XZ 為地面／2D 平面位置，Y 為高度。
+action_editing_camera = 使用 2D 編輯相機渲染場景。
+action_extrude_linedef_desc = 以指定距離拉伸線段並建立新區域。角度可選擇沿線段軸旋轉。
+action_extrude_sector_surface_extrusion = 表面拉伸
+action_extrude_sector_open_back = 開放背面
+action_extrude_sector_desc = 為所選區域設定**表面拉伸**，可選擇開放背面。
+action_first_p_camera = 使用 3D 第一人稱相機渲染場景。
+action_iso_camera = 使用 3D 等角相機渲染場景。
+action_minimize = 最小化編輯器／dock。
+action_new_tile_desc = 建立具有指定幀尺寸的新圖塊。
+action_orbit_camera = 使用 3D 環繞相機渲染場景。
+action_recess_desc = 在所選剖面區域建立凹槽。
+action_relief_desc = 在所選剖面區域建立浮雕。
+action_set_edit_surface = 將所選表面設為活動的 2D 剖面以進行編輯。Eldiron 會切換到 2D 視圖，若尚無剖面會為此表面建立一個。要返回區域地圖，請點擊工具列中的**Region**。
+action_split = 在中間新增節點以分割所選線段。新節點會加到所有包含該線段的區域中。
+action_toggle_edit_geo = 切換編輯幾何疊加層的可見性。
+action_toggle_rect_geo = 由矩形工具建立的幾何預設不在 2D 編輯器中顯示，此操作用來切換其可見性。
+
+# Tools
+tool_game = 遊戲工具 (G)。伺服器運行時輸入事件會傳送到遊戲
+tool_linedef = 線段工具 (L)。建立線段定義與區域
+tool_rect = 矩形工具 (R)。點擊繪製當前圖塊，按住 Shift 點擊刪除
+tool_sector = 區域工具 (E)
+tool_selection = 選取工具 (S)。按住 Shift 新增，按住 Alt 減去，點擊並拖曳進行多重選取。3D：選取編輯平面
+tool_selection_mac = 選取工具 (S)。按住 Shift 新增，按住 Option 減去，點擊並拖曳進行多重選取。3D：選取編輯平面
+tool_vertex = 頂點工具 (V)
+
+# Common
+all = 全部
+angle = 角度
+apply = 套用
+attributes = 屬性
+blocking = 阻擋
+character = 角色
+clear = 清除
+depth = 深度
+distance = 距離
+dungeon = 地牢
+effect = 效果
+filter = 篩選
+frames = 幀數
+grid_size = 網格大小
+height = 高度
+icon = 圖示
+icons = 圖示
+manmade = 人造
+mountain = 山脈
+name = 名稱
+nature = 自然
+opacity = 不透明度
+python_code = Python 程式碼
+role = 角色類型
+segments = 段數
+settings = 設定
+size = 大小
+tags = 標籤
+target = 目標
+ui = 介面
+visual_script = 視覺化腳本
+water = 水域
+
+# Info
+info_server_started = 伺服器已啟動
+info_update_check = 正在檢查更新
+info_welcome = 歡迎使用 Eldiron 造訪 Eldiron.com 以取得資訊與示例專案

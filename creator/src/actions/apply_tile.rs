@@ -12,10 +12,7 @@ impl Action for ApplyTile {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Applies the current tile to the selected sectors.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_apply_tile"));
         nodeui.add_item(item);
 
         Self {

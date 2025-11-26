@@ -11,10 +11,7 @@ impl Action for SetEditingSurface {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Make the selected surface the active 2D Profil for editing. Eldiron will switch to the 2D view and, if no profile exists yet, create one for this surface. To return to the Region map, click **Region** in the toolbar.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_set_edit_surface"));
         nodeui.add_item(item);
 
         Self {
