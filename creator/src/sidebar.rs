@@ -560,7 +560,6 @@ impl Sidebar {
                                 node.widget.set_value(TheValue::Text("Settings".into()));
                                 layout.relayout(ctx);
                                 ctx.ui.relayout = true;
-                                println!("cleared");
                             }
                         }
                     }

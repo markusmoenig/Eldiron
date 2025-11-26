@@ -1,6 +1,5 @@
-use rusterix::{PixelSource, Value};
-
 use crate::prelude::*;
+use rusterix::{PixelSource, Value};
 
 pub struct Recess {
     id: TheId,
@@ -36,7 +35,7 @@ impl Action for Recess {
         let item = TheNodeUIItem::Icons(
             "actionRecessTiles".into(),
             "Icons".into(),
-            "The recess can be attached to the front or back face.".into(),
+            "The cap and side (jamb) tiles for the recess.".into(),
             vec![
                 (
                     TheRGBABuffer::new(TheDim::sized(36, 36)),
@@ -45,7 +44,7 @@ impl Action for Recess {
                 ),
                 (
                     TheRGBABuffer::new(TheDim::sized(36, 36)),
-                    "JAMB".to_string(),
+                    "SIDE".to_string(),
                     Uuid::nil(),
                 ),
             ],
@@ -108,7 +107,6 @@ impl Action for Recess {
         let mut cap_id = Uuid::nil();
         let mut jamb_id = Uuid::nil();
 
-        println!("read");
         if let Some(map) = project.get_map(server_ctx) {
             if let Some(sector_id) = map.selected_sectors.first() {
                 if let Some(sector) = map.find_sector(*sector_id) {
@@ -220,7 +218,6 @@ impl Action for Recess {
         _server_ctx: &mut ServerContext,
     ) -> bool {
         if let TheEvent::TileDropped(id, tile_id, index) = event {
-            println!("{:?}", id);
             if let Some(item) = self.nodeui.get_item_mut(&id.name) {
                 match item {
                     TheNodeUIItem::Icons(_, _, _, items) => {
@@ -228,7 +225,6 @@ impl Action for Recess {
                             if let Some(tile) = project.tiles.get(tile_id)
                                 && !tile.is_empty()
                             {
-                                println!("set {}", index);
                                 items[*index].0 = tile.textures[0].to_rgba();
                                 items[*index].2 = *tile_id;
                                 ctx.ui.send(TheEvent::Custom(
