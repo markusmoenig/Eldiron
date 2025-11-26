@@ -2,6 +2,10 @@
 
 use theframework::*;
 
+#[cfg(not(target_arch = "wasm32"))]
+#[macro_use]
+mod macros;
+
 pub mod actionlist;
 pub mod actions;
 pub mod codeeditor;
@@ -13,6 +17,8 @@ pub mod editor;
 pub mod editor_tools;
 pub mod effectpicker;
 pub mod hud;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod i18n;
 pub mod infoviewer;
 pub mod mapeditor;
 pub mod minimap;
@@ -103,6 +109,9 @@ fn main() {
     unsafe {
         std::env::set_var("RUST_BACKTRACE", "1");
     }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = i18n::select_system_locales();
 
     let editor = Editor::new();
     let mut app = TheApp::new();

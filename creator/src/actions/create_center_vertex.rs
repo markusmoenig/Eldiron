@@ -11,10 +11,7 @@ impl Action for CreateCenterVertex {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Creates a new vertex in the center of the selected sectors.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_create_center_vertex"));
         nodeui.add_item(item);
 
         Self {

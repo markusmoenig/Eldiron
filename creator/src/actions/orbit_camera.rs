@@ -11,10 +11,7 @@ impl Action for OrbitCamera {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Render the scene using a 3D orbit camera.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_orbit_camera"));
         nodeui.add_item(item);
 
         Self {

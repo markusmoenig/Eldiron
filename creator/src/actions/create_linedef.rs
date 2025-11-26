@@ -11,10 +11,7 @@ impl Action for CreateLinedef {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Creates a new linedef between two vertices".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_create_linedef"));
         nodeui.add_item(item);
 
         Self {

@@ -29,13 +29,9 @@ impl Tool for SelectionTool {
     }
     fn info(&self) -> String {
         if cfg!(target_os = "macos") {
-            str!(
-                "Selection Tool (S). Hold 'Shift' to add. 'Option' to subtract. Click and drag for multi-selection. 3D: Select editing plane."
-            )
+            fl!("tool_selection_mac")
         } else {
-            str!(
-                "Selection Tool (S). Hold 'Shift' to add. 'Alt' to subtract. Click and drag for multi-selection. 3D: Select editing plane."
-            )
+            fl!("tool_selection")
         }
     }
     fn icon_name(&self) -> String {

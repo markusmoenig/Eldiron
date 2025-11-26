@@ -90,12 +90,12 @@ impl DockManager {
         toolbar_hlayout.set_background_color(None);
 
         let mut text = TheText::new(TheId::named("Action Text"));
-        text.set_text("Action List".to_string());
+        text.set_text(fl!("dock_action"));
         text.set_text_size(12.0);
 
         let mut action_apply_button = TheTraybarButton::new(TheId::named("Action Apply"));
-        action_apply_button.set_text("Apply".to_string());
-        action_apply_button.set_status_text("Apply the current action.");
+        action_apply_button.set_text(fl!("apply"));
+        action_apply_button.set_status_text(&fl!("status_dock_action_apply"));
 
         toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
         toolbar_hlayout.set_padding(3);

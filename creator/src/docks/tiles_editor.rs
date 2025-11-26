@@ -60,7 +60,7 @@ impl Dock for TilesEditorDock {
         tile_node.set_open(true);
 
         let mut item = TheTreeItem::new(TheId::named("Tile Size"));
-        item.set_text("Size".into());
+        item.set_text(fl!("size"));
 
         let mut edit = TheTextLineEdit::new(TheId::named("Tile Size Edit"));
         edit.set_value(TheValue::Int(0));
@@ -68,7 +68,7 @@ impl Dock for TilesEditorDock {
         tile_node.add_widget(Box::new(item));
 
         let mut item = TheTreeItem::new(TheId::named("Tile Frames"));
-        item.set_text("Frames".into());
+        item.set_text(fl!("frames"));
 
         let mut edit = TheTextLineEdit::new(TheId::named("Tile Frame Edit"));
         edit.set_value(TheValue::Int(0));
@@ -90,7 +90,7 @@ impl Dock for TilesEditorDock {
         palette_node.set_open(true);
 
         let mut item = TheTreeItem::new(TheId::named("Palette Opacity"));
-        item.set_text("Opacity".into());
+        item.set_text(fl!("opacity"));
 
         let mut edit = TheTextLineEdit::new(TheId::named("Palette Opacity Edit"));
         edit.set_value(TheValue::Float(1.0));

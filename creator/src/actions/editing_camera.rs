@@ -11,10 +11,7 @@ impl Action for EditingCamera {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Render the scene using the 2D editing camera.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_editing_camera"));
         nodeui.add_item(item);
 
         Self {

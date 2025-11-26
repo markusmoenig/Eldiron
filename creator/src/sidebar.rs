@@ -97,7 +97,7 @@ impl Sidebar {
         let mut config_node: TheTreeNode = TheTreeNode::new(TheId::named("Game"));
 
         let mut config_item = TheTreeItem::new(TheId::named("Project Settings"));
-        config_item.set_text("Settings".to_string());
+        config_item.set_text(fl!("settings"));
         config_node.add_widget(Box::new(config_item));
 
         root.add_child(config_node);
@@ -112,7 +112,7 @@ impl Sidebar {
 
         let mut add_button = TheTraybarButton::new(TheId::named("Project Add"));
         add_button.set_icon_name("icon_role_add".to_string());
-        add_button.set_status_text("Add to the project.");
+        add_button.set_status_text(&fl!("status_project_add_button"));
         add_button.set_context_menu(Some(TheContextMenu {
             items: vec![
                 TheContextMenuItem::new("Add Region".to_string(), TheId::named("Add Region")),
@@ -130,7 +130,7 @@ impl Sidebar {
 
         let mut remove_button = TheTraybarButton::new(TheId::named("Project Remove"));
         remove_button.set_icon_name("icon_role_remove".to_string());
-        remove_button.set_status_text("Remove an item from the project.");
+        remove_button.set_status_text(&fl!("status_project_remove_button"));
 
         let mut project_context_text = TheText::new(TheId::named("Project Context"));
         project_context_text.set_text("".to_string());
@@ -138,7 +138,7 @@ impl Sidebar {
         let mut import_button: TheTraybarButton =
             TheTraybarButton::new(TheId::named("Project Import"));
         import_button.set_icon_name("import".to_string());
-        import_button.set_status_text("Import to the project.");
+        import_button.set_status_text(&fl!("status_project_import_button"));
         import_button.set_context_menu(Some(TheContextMenu {
             items: vec![
                 TheContextMenuItem::new("Import Region".to_string(), TheId::named("Import Region")),
@@ -163,7 +163,7 @@ impl Sidebar {
         let mut export_button: TheTraybarButton =
             TheTraybarButton::new(TheId::named("Project Export"));
         export_button.set_icon_name("export".to_string());
-        export_button.set_status_text("Export from the project.");
+        export_button.set_status_text(&fl!("status_project_export_button"));
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
@@ -3296,7 +3296,7 @@ impl Sidebar {
                 list_layout.clear();
 
                 let mut item = TheListItem::new(TheId::empty());
-                item.set_text("Server has been started".to_string());
+                item.set_text(fl!("info_server_started"));
                 item.add_value_column(100, TheValue::Text("Status".to_string()));
                 list_layout.add_item(item, ctx);
             }

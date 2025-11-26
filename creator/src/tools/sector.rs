@@ -39,7 +39,7 @@ impl Tool for SectorTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Sector Tool (E).")
+        fl!("tool_sector")
     }
     fn icon_name(&self) -> String {
         str!("polygon")

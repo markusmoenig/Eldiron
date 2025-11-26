@@ -129,7 +129,7 @@ impl WorldEditor {
         radius.set_value(TheValue::Float(10.0));
         radius.set_range(TheValue::RangeF32(0.5..=10.0));
         radius.set_info_text(Some("Radius".into()));
-        radius.set_status_text("Controls the size of the brush in world units.");
+        radius.set_status_text(&fl!("status_world_editor_brush_radius"));
         radius.limiter_mut().set_max_width(300);
         text_layout.add_pair("".to_string(), Box::new(radius));
 
@@ -137,7 +137,7 @@ impl WorldEditor {
         falloff.set_value(TheValue::Float(2.0));
         falloff.set_range(TheValue::RangeF32(0.5..=4.0));
         falloff.set_info_text(Some("Falloff".into()));
-        falloff.set_status_text("Controls how quickly the brush strength fades from the center.");
+        falloff.set_status_text(&fl!("status_world_editor_brush_falloff"));
         falloff.limiter_mut().set_max_width(300);
         text_layout.add_pair("".to_string(), Box::new(falloff));
 
@@ -145,7 +145,7 @@ impl WorldEditor {
         strength.set_value(TheValue::Float(0.2));
         strength.set_range(TheValue::RangeF32(0.01..=1.0));
         strength.set_info_text(Some("Strength".into()));
-        strength.set_status_text("Maximum intensity of the brush effect at the center.");
+        strength.set_status_text(&fl!("status_world_editor_brush_strength"));
         strength.limiter_mut().set_max_width(300);
         text_layout.add_pair("".to_string(), Box::new(strength));
 
@@ -153,7 +153,7 @@ impl WorldEditor {
         fixed.set_value(TheValue::Float(2.0));
         fixed.set_range(TheValue::RangeF32(-10.0..=50.0));
         fixed.set_info_text(Some("Fixed".into()));
-        fixed.set_status_text("Fixed terrain height used by the 'Fixed' brush.");
+        fixed.set_status_text(&fl!("status_world_editor_brush_fixed"));
         fixed.limiter_mut().set_max_width(300);
         text_layout.add_pair("".to_string(), Box::new(fixed));
 

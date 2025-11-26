@@ -78,8 +78,8 @@ impl Action for ExtrudeLinedef {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionDistance".into(),
-            "Distance".into(),
-            "The extrusion distance (sign sets direction).".into(),
+            fl!("distance"),
+            fl!("status_action_extrude_linedef_distance"),
             2.0,
             -20.0..=20.0,
             false,
@@ -88,18 +88,15 @@ impl Action for ExtrudeLinedef {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionAngle".into(),
-            "Angle".into(),
-            "The angle of rotation around the axis / normal of the geometry.".into(),
+            fl!("angle"),
+            fl!("status_action_extrude_linedef_angle"),
             0.0,
             0.0..=360.0,
             false,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Extrudes the linedef by the given distance and creates a new sector. The angle applies an optional rotation around the linedef axis.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_extrude_linedef_desc"));
         nodeui.add_item(item);
 
         Self {

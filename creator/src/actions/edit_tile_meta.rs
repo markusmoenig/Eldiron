@@ -19,8 +19,8 @@ impl Action for EditTileMeta {
         }
         let item = TheNodeUIItem::Selector(
             "actionTileRole".into(),
-            "Role".into(),
-            "Edit the role of the tile.".into(),
+            fl!("role"),
+            fl!("status_action_edit_tile_role"),
             roles,
             1,
         );
@@ -28,8 +28,8 @@ impl Action for EditTileMeta {
 
         let item = TheNodeUIItem::Selector(
             "actionTileBlocking".into(),
-            "Blocking".into(),
-            "Edit if the tile is blocking (for 2D games only).".into(),
+            fl!("blocking"),
+            fl!("status_action_edit_tile_blocking"),
             vec!["No".to_string(), "Yes".to_string()],
             0,
         );
@@ -37,18 +37,15 @@ impl Action for EditTileMeta {
 
         let item = TheNodeUIItem::Text(
             "actionTileTags".into(),
-            "Tags".into(),
-            "Edit the tags of the tile.".into(),
+            fl!("tags"),
+            fl!("status_action_edit_tile_tags"),
             "".into(),
             None,
             false,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown(
-            "desc".into(),
-            "Edit the meta data of the currently selected tile.".into(),
-        );
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_tile_desc"));
         nodeui.add_item(item);
 
         Self {

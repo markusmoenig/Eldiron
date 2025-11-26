@@ -43,8 +43,8 @@ impl Dock for TilemapDock {
         toolbar_canvas.set_widget(traybar_widget);
 
         let mut clear_button = TheTraybarButton::new(TheId::named("Tilemap Editor Clear"));
-        clear_button.set_text("Clear".to_string());
-        clear_button.set_status_text("Clear the current selection.");
+        clear_button.set_text(fl!("clear"));
+        clear_button.set_status_text(&fl!("status_tilemap_clear_button"));
 
         //let icon_view = TheIconView::new(TheId::named("Tilemap Editor Icon View"));
 
@@ -102,8 +102,8 @@ impl Dock for TilemapDock {
         toolbar_hlayout.add_widget(Box::new(hdivider));
 
         let mut add_button = TheTraybarButton::new(TheId::named("Tilemap Editor Add"));
-        add_button.set_text("Add Tile(s)".to_string());
-        add_button.set_status_text("Adds the current tile selection.");
+        add_button.set_text(fl!("tilemap_add_button"));
+        add_button.set_status_text(&fl!("status_tilemap_add_button"));
 
         toolbar_hlayout.add_widget(Box::new(add_button));
         toolbar_hlayout.add_widget(Box::new(clear_button));

@@ -110,7 +110,7 @@ impl MapEditor {
         grid_sub_div.set_range(TheValue::RangeI32(1..=10));
         grid_sub_div.set_continuous(true);
         grid_sub_div.limiter_mut().set_max_width(150);
-        grid_sub_div.set_status_text("The subdivision level of the grid.");
+        grid_sub_div.set_status_text(&fl!("status_map_editor_grid_sub_div"));
         grid_sub_div.limiter_mut().set_max_width(75);
         vlayout.add_widget(Box::new(grid_sub_div));
 

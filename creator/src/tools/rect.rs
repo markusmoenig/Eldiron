@@ -35,7 +35,7 @@ impl Tool for RectTool {
         self.id.clone()
     }
     fn info(&self) -> String {
-        str!("Rect Tool (R). Click to draw the current tile. Shift-click to delete.")
+        fl!("tool_rect")
     }
     fn icon_name(&self) -> String {
         str!("square")

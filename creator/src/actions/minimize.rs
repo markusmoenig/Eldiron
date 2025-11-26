@@ -11,7 +11,7 @@ impl Action for Minimize {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), "Minimizes the editor / dock.".into());
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_minimize"));
         nodeui.add_item(item);
 
         Self {
