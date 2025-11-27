@@ -24,8 +24,8 @@ impl Action for CopyTileID {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Copies the ID of the selected tile to the clipboard."
+    fn info(&self) -> String {
+        fl!("action_copy_tile_id")
     }
 
     fn role(&self) -> ActionRole {

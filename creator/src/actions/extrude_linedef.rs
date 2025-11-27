@@ -109,8 +109,8 @@ impl Action for ExtrudeLinedef {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Extrudes the selected linedef(s)."
+    fn info(&self) -> String {
+        fl!("action_extrude_linedef_desc")
     }
 
     fn role(&self) -> ActionRole {

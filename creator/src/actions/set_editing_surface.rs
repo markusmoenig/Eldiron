@@ -24,8 +24,8 @@ impl Action for SetEditingSurface {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Set the 2D editing surface."
+    fn info(&self) -> String {
+        fl!("action_set_edit_surface")
     }
 
     fn role(&self) -> ActionRole {

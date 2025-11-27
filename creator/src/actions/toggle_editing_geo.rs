@@ -24,8 +24,8 @@ impl Action for ToggleEditingGeo {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Toggle the visibility of geometry created by the Rect tool in the 2D editor."
+    fn info(&self) -> String {
+        fl!("action_toggle_edit_geo")
     }
 
     fn role(&self) -> ActionRole {

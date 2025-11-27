@@ -25,8 +25,8 @@ impl Action for Split {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Split a linedef."
+    fn info(&self) -> String {
+        fl!("action_split")
     }
 
     fn role(&self) -> ActionRole {

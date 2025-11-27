@@ -24,8 +24,8 @@ impl Action for OrbitCamera {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Render the scene using a 3D orbit camera."
+    fn info(&self) -> String {
+        fl!("action_orbit_camera")
     }
 
     fn role(&self) -> ActionRole {

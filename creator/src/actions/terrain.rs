@@ -1,21 +1,30 @@
 use crate::prelude::*;
 
-pub struct ClearTile {
+pub struct Terrain {
     id: TheId,
     nodeui: TheNodeUI,
 }
 
-impl Action for ClearTile {
+impl Action for Terrain {
     fn new() -> Self
     where
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_clear_tile"));
+
+        // Surface extrusion settings
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "actionTerrainEnable".into(),
+            fl!("action_terrain_enable"),
+            fl!("status_action_terrain_enable"),
+            true,
+        ));
+
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_terrain_desc"));
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Clear Tile"),
+            id: TheId::named("Terrain"),
             nodeui,
         }
     }
@@ -25,26 +34,19 @@ impl Action for ClearTile {
     }
 
     fn info(&self) -> String {
-        fl!("action_clear_tile")
+        fl!("action_terrain_desc")
     }
 
     fn role(&self) -> ActionRole {
-        ActionRole::Dock
+        ActionRole::Editor
     }
 
     fn accel(&self) -> Option<TheAccelerator> {
         None
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
-        if map.selected_sectors.is_empty() {
-            return false;
-        }
-        // match server_ctx.editor_view_mode {
-        //     EditorViewMode::D2 => server_ctx.editing_surface.is_none(),
-        //     _ => true,
-        // }
-        true
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+        server_ctx.editor_view_mode != EditorViewMode::D2 || server_ctx.editing_surface.is_none()
     }
 
     fn apply(
@@ -54,17 +56,11 @@ impl Action for ClearTile {
         _ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
-        let mut changed = false;
+        let changed = true;
         let prev = map.clone();
 
-        for sector_id in &map.selected_sectors.clone() {
-            if let Some(sector) = map.find_sector_mut(*sector_id) {
-                if sector.properties.contains("source") {
-                    sector.properties.remove("source");
-                    changed = true;
-                }
-            }
-        }
+        // Enable terrain on map
+        map.properties.set("terrain_enabled", Value::Bool(true));
 
         if changed {
             Some(ProjectUndoAtom::MapEdit(

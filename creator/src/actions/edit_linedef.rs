@@ -35,8 +35,8 @@ impl Action for EditLinedef {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Edit linedef attributes."
+    fn info(&self) -> String {
+        fl!("action_edit_linedef_desc")
     }
 
     fn role(&self) -> ActionRole {

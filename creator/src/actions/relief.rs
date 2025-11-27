@@ -64,8 +64,8 @@ impl Action for Relief {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Creates a relief (emboss) for the profile sector."
+    fn info(&self) -> String {
+        fl!("action_relief_desc")
     }
 
     fn role(&self) -> ActionRole {

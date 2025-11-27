@@ -64,8 +64,8 @@ impl Action for Recess {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Creates a recess for the profile sector."
+    fn info(&self) -> String {
+        fl!("action_recess_desc")
     }
 
     fn role(&self) -> ActionRole {

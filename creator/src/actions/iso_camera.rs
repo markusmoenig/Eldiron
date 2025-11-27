@@ -24,8 +24,8 @@ impl Action for IsoCamera {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Render the scene using a 3D Iso camera."
+    fn info(&self) -> String {
+        fl!("action_iso_camera")
     }
 
     fn role(&self) -> ActionRole {

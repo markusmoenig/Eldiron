@@ -24,8 +24,8 @@ impl Action for EditingCamera {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Render the scene using the 2D editing camera."
+    fn info(&self) -> String {
+        fl!("action_editing_camera")
     }
 
     fn role(&self) -> ActionRole {

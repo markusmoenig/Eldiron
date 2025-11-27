@@ -35,8 +35,8 @@ impl Action for EditSector {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Edit sector attributes."
+    fn info(&self) -> String {
+        fl!("action_edit_sector_desc")
     }
 
     fn role(&self) -> ActionRole {

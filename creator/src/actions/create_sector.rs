@@ -136,8 +136,8 @@ impl Action for CreateSector {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Creates a sector / surface for the selected vertices."
+    fn info(&self) -> String {
+        fl!("action_create_sector")
     }
 
     fn role(&self) -> ActionRole {

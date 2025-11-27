@@ -25,8 +25,8 @@ impl Action for DuplicateTile {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Duplicates the currently selected tile."
+    fn info(&self) -> String {
+        fl!("action_duplicate_tile")
     }
 
     fn role(&self) -> ActionRole {

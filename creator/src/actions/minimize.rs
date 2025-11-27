@@ -24,8 +24,8 @@ impl Action for Minimize {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Minimizes the editor / dock."
+    fn info(&self) -> String {
+        fl!("action_minimize")
     }
 
     fn role(&self) -> ActionRole {

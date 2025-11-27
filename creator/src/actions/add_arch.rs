@@ -47,8 +47,8 @@ impl Action for AddArch {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Replace the selected linedef(s) with an arch."
+    fn info(&self) -> String {
+        fl!("action_add_arch_desc")
     }
 
     fn role(&self) -> ActionRole {

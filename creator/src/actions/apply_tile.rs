@@ -25,8 +25,8 @@ impl Action for ApplyTile {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Applies the current tile to the selected sectors."
+    fn info(&self) -> String {
+        fl!("action_apply_tile")
     }
 
     fn role(&self) -> ActionRole {

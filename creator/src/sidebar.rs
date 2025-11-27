@@ -547,6 +547,23 @@ impl Sidebar {
                                 action.load_params(map);
                             }
                             action.load_params_project(project, server_ctx);
+
+                            if let Some(layout) = ui.get_tree_layout("Node Settings") {
+                                let mut text = action.id().name.clone();
+                                if let Some(accel) = action.accel() {
+                                    text += &format!(" ({})", accel.description());
+                                }
+
+                                if let Some(node) =
+                                    layout.get_node_by_id_mut(&server_ctx.tree_settings_id)
+                                {
+                                    let nodeui = action.params();
+                                    nodeui.apply_to_tree_node(node);
+                                    node.widget.set_value(TheValue::Text(text));
+                                    layout.relayout(ctx);
+                                    ctx.ui.relayout = true;
+                                }
+                            }
                         }
                     }
                 } else if id.name == "Update Action List" {

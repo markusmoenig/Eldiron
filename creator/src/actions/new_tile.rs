@@ -47,8 +47,8 @@ impl Action for NewTile {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Creates a new tile with frames of the given size."
+    fn info(&self) -> String {
+        fl!("action_new_tile_desc")
     }
 
     fn role(&self) -> ActionRole {

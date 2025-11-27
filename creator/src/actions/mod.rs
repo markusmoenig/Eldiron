@@ -31,6 +31,7 @@ pub mod recess;
 pub mod relief;
 pub mod set_editing_surface;
 pub mod split;
+pub mod terrain;
 pub mod toggle_editing_geo;
 pub mod toggle_rect_geo;
 
@@ -59,7 +60,7 @@ pub trait Action: Send + Sync {
         Self: Sized;
 
     fn id(&self) -> TheId;
-    fn info(&self) -> &'static str;
+    fn info(&self) -> String;
     fn role(&self) -> ActionRole;
 
     fn accel(&self) -> Option<TheAccelerator> {

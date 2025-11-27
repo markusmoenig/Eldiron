@@ -24,8 +24,8 @@ impl Action for FirstPCamera {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Render the scene using a 3D first person camera."
+    fn info(&self) -> String {
+        fl!("action_first_p_camera")
     }
 
     fn role(&self) -> ActionRole {

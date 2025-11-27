@@ -24,8 +24,8 @@ impl Action for EditMaximize {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Open the editor for the current dock or maximizes it."
+    fn info(&self) -> String {
+        fl!("action_edit_maximize")
     }
 
     fn role(&self) -> ActionRole {

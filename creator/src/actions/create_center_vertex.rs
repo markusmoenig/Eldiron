@@ -24,8 +24,8 @@ impl Action for CreateCenterVertex {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Creates a vertex in the center of the sectors."
+    fn info(&self) -> String {
+        fl!("action_create_center_vertex")
     }
 
     fn role(&self) -> ActionRole {

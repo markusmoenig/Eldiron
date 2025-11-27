@@ -51,8 +51,8 @@ impl Action for ExtrudeSector {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Extrudes the current linedef or sector."
+    fn info(&self) -> String {
+        fl!("action_extrude_sector_desc")
     }
 
     fn role(&self) -> ActionRole {

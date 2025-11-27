@@ -58,8 +58,8 @@ impl Action for EditTileMeta {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Edit the meta data of the selected tile."
+    fn info(&self) -> String {
+        fl!("action_edit_tile_desc")
     }
 
     fn role(&self) -> ActionRole {

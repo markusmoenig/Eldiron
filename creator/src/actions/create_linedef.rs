@@ -24,8 +24,8 @@ impl Action for CreateLinedef {
         self.id.clone()
     }
 
-    fn info(&self) -> &'static str {
-        "Creates a linedef between two vertices."
+    fn info(&self) -> String {
+        fl!("action_create_linedef")
     }
 
     fn role(&self) -> ActionRole {
