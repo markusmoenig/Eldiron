@@ -51,7 +51,6 @@ status_action_recess_tiles = The cap and side (jamb) tiles for the recess.
 status_action_relief_height = The height of the relief (emboss).
 status_action_relief_target = The relief can be attached to the front or back face.
 status_action_relief_tiles = The cap and side (jamb) tiles for the relief.
-status_action_terrain_enable = Enables terrain for this region.
 ## Menubar
 status_logo_button = Open the Eldiron Website ...
 status_open_button = Open an existing Eldiron project...
@@ -136,8 +135,6 @@ action_recess_desc = Creates a recess in the selected profile sector.
 action_relief_desc = Creates a relief (emboss) on the selected profile sector.
 action_set_edit_surface = Make the selected surface the active 2D Profil for editing. Eldiron will switch to the 2D view and, if no profile exists yet, create one for this surface. To return to the Region map, click **Region** in the toolbar.
 action_split = Split the selected linedef(s) by adding a middle point. Thew new point gets added to all sectors the linedef is part of.
-action_terrain_enable = Enable Terrain
-action_terrain_desc = Enables Terrain for this region.
 action_toggle_edit_geo = Toggles visibility of the editing geometry overlay.
 action_toggle_rect_geo = Geometry created by the Rect tool is by default not shown in the 2D editor. This action toggles visibilty.
 

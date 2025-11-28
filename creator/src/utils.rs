@@ -5,6 +5,39 @@ use rusteria::{RenderBuffer, Rusteria};
 use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
 use toml::*;
 
+pub fn update_region_settings(
+    project: &mut Project,
+    server_ctx: &ServerContext,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    let mut changed = false;
+    if let Some(id) = server_ctx.pc.id() {
+        if server_ctx.pc.is_region() {
+            if let Some(region) = project.get_region_mut(&id) {
+                let parsed: toml::Value = toml::from_str(&region.config)?;
+                // Parse [render] section
+                if let Some(section) = parsed.get("terrain") {
+                    if let Some(enabled) = section.get("enabled") {
+                        let enabled = enabled.as_bool().unwrap_or(false);
+                        // let existing = region
+                        //     .map
+                        //     .properties
+                        //     .get_bool_default("terain_enabled", false);
+                        // if enabled != existing {
+                        region
+                            .map
+                            .properties
+                            .set("terrain_enabled", Value::Bool(enabled));
+                        changed = true;
+                        // }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(changed)
+}
+
 /// Sets the code for the code editor based on the current editor mode
 pub fn set_code(
     ui: &mut TheUI,
@@ -317,8 +350,10 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
         }
     } else {
         // In 3D we always only render the base map
-        if let Some(region) = project.get_region_ctx(server_ctx) {
-            SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+        if let Some(id) = server_ctx.pc.id() {
+            if let Some(region) = project.get_region(&id) {
+                SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+            }
         }
     }
 }

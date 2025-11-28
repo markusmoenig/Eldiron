@@ -16,6 +16,7 @@ pub fn gen_region_tree_node(region: &Region) -> TheTreeNode {
 pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
     node.widgets = vec![];
 
+    // Name
     let mut item = TheTreeItem::new(TheId::named_with_reference("Region Item", region.id));
     item.set_text(fl!("name"));
 
@@ -23,6 +24,14 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
     let mut edit = TheTextLineEdit::new(TheId::named_with_id(&name, region.id));
     edit.set_text(region.name.clone());
     item.add_widget_column(200, Box::new(edit));
+    node.add_widget(Box::new(item));
+
+    // Settings
+    let mut item = TheTreeItem::new(TheId::named_with_reference(
+        "Region Settings Item",
+        region.id,
+    ));
+    item.set_text(fl!("settings"));
     node.add_widget(Box::new(item));
 
     for (id, character) in &region.characters {
@@ -233,6 +242,7 @@ pub fn set_project_context(
     pc: ProjectContext,
 ) {
     // println!("set_project_context {:?}", pc);
+    let mut old_project_id = None;
     if let Some(old_id) = server_ctx.pc.id() {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
             if let Some(node) = tree_layout.get_node_by_id_mut(&old_id) {
@@ -241,6 +251,7 @@ pub fn set_project_context(
                 }
             }
         }
+        old_project_id = Some(old_id);
     }
 
     server_ctx.pc = pc;
@@ -258,6 +269,19 @@ pub fn set_project_context(
                 .write()
                 .unwrap()
                 .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::RegionSettings(id) => {
+            if let Some(region) = project.get_region(&id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Region Settings: {}", region.name)),
+                );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::RegionCharacterInstance(id, _) => {
             if let Some(region) = project.get_region(&id) {
@@ -462,6 +486,23 @@ pub fn set_project_context(
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
         _ => {}
+    }
+
+    // If the region changed, update it
+    if pc.is_region() {
+        if old_project_id != pc.id() {
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Update Minimap"),
+                TheValue::Empty,
+            ));
+
+            RUSTERIX.write().unwrap().set_dirty();
+
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Render SceneManager Map"),
+                TheValue::Empty,
+            ));
+        }
     }
 
     if let Some(new_id) = pc.id() {

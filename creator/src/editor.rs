@@ -1105,7 +1105,7 @@ impl TheTrait for Editor {
                         if id.name == "Set Project Undo State" {
                             UNDOMANAGER.read().unwrap().set_undo_state_to_ui(ctx);
                         } else if id.name == "Render SceneManager Map" {
-                            if self.server_ctx.get_map_context() == MapContext::Region {
+                            if self.server_ctx.pc.is_region() {
                                 if self.server_ctx.editor_view_mode == EditorViewMode::D2
                                     && self.server_ctx.profile_view.is_some()
                                 {

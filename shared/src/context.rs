@@ -53,6 +53,7 @@ pub enum ContentContext {
 pub enum ProjectContext {
     Unknown,
     Region(Uuid),
+    RegionSettings(Uuid),
     RegionCharacterInstance(Uuid, Uuid),
     RegionItemInstance(Uuid, Uuid),
     Character(Uuid),
@@ -75,6 +76,7 @@ impl ProjectContext {
         match self {
             ProjectContext::Unknown | ProjectContext::ProjectSettings => None,
             ProjectContext::Region(id)
+            | ProjectContext::RegionSettings(id)
             | ProjectContext::RegionCharacterInstance(id, _)
             | ProjectContext::RegionItemInstance(id, _)
             | ProjectContext::Character(id)
@@ -95,6 +97,7 @@ impl ProjectContext {
     pub fn is_region(&self) -> bool {
         match self {
             ProjectContext::Region(_)
+            | ProjectContext::RegionSettings(_)
             | ProjectContext::RegionCharacterInstance(_, _)
             | ProjectContext::RegionItemInstance(_, _) => true,
             _ => false,

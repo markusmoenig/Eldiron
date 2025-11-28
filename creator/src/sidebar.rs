@@ -1630,7 +1630,13 @@ impl Sidebar {
                     }
                 } else if id.name == "Add Region" {
                     // Add Region
-                    let atom = ProjectUndoAtom::AddRegion(Region::default());
+                    let mut region = Region::default();
+                    if let Some(bytes) = crate::Embedded::get("toml/region.toml") {
+                        if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                            region.config = source.to_string();
+                        }
+                    }
+                    let atom = ProjectUndoAtom::AddRegion(region);
                     atom.redo(project, ui, ctx, server_ctx);
                     UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                 } else if id.name == "Import Region" {
@@ -1943,7 +1949,20 @@ impl Sidebar {
                         server_ctx,
                         ProjectContext::Region(id.references),
                     );
-
+                    let _ = crate::utils::update_region_settings(project, server_ctx);
+                    self.apply_region(ui, ctx, Some(id.references), project);
+                    redraw = true;
+                } else if id.name == "Region Settings Item" {
+                    server_ctx.editing_pos_buffer = None;
+                    server_ctx.curr_region = id.references;
+                    set_project_context(
+                        ctx,
+                        ui,
+                        project,
+                        server_ctx,
+                        ProjectContext::RegionSettings(id.references),
+                    );
+                    let _ = crate::utils::update_region_settings(project, server_ctx);
                     self.apply_region(ui, ctx, Some(id.references), project);
                     redraw = true;
                 } else if id.name == "Character Item" {
@@ -2721,11 +2740,12 @@ impl Sidebar {
     /// Apply the given item to the UI
     pub fn apply_region(
         &mut self,
-        ui: &mut TheUI,
-        ctx: &mut TheContext,
-        region_id: Option<Uuid>,
-        project: &mut Project,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _region_id: Option<Uuid>,
+        _project: &mut Project,
     ) {
+        /*
         ui.set_widget_disabled_state("Region Remove", ctx, region_id.is_none());
         ui.set_widget_disabled_state("Region Settings", ctx, region_id.is_none());
 
@@ -2767,7 +2787,7 @@ impl Sidebar {
                     rgba_layout.scroll_to(Vec2::new(0, 0));
                 }
             }
-        }
+        }*/
 
         /*
         // Show the filter region content.
@@ -2888,26 +2908,29 @@ impl Sidebar {
             }
         }*/
 
-        ctx.ui.send(TheEvent::Custom(
-            TheId::named("Update Minimap"),
-            TheValue::Empty,
-        ));
+        // let mut changed = false;
 
-        RUSTERIX.write().unwrap().set_dirty();
+        // ctx.ui.send(TheEvent::Custom(
+        //     TheId::named("Update Minimap"),
+        //     TheValue::Empty,
+        // ));
 
-        if let Some(region_id) = region_id {
-            ctx.ui.send(TheEvent::Custom(
-                TheId::named("Render SceneManager Map"),
-                TheValue::Empty,
-            ));
-            if let Some(region) = project.get_region(&region_id) {
-                ui.set_widget_value(
-                    "RegionConfigEdit",
-                    ctx,
-                    TheValue::Text(region.config.clone()),
-                );
-            }
-        }
+        // RUSTERIX.write().unwrap().set_dirty();
+
+        // if let Some(region_id) = region_id {
+        //     ctx.ui.send(TheEvent::Custom(
+        //         TheId::named("Render SceneManager Map"),
+        //         TheValue::Empty,
+        //     ));
+
+        // if let Some(region) = project.get_region(&region_id) {
+        //     ui.set_widget_value(
+        //         "RegionConfigEdit",
+        //         ctx,
+        //         TheValue::Text(region.config.clone()),
+        //     );
+        // }
+        // }
         /*
         if let Some(widget) = ui
             .canvas

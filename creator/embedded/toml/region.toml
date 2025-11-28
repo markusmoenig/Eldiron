@@ -1,2 +1,2 @@
-[rendering]
-receives_daylight = false
+[terrain]
+enabled = false

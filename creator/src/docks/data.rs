@@ -7,6 +7,7 @@ use theframework::theui::thewidget::thetextedit::TheTextEditState;
 /// Unique identifier for entities being edited
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EntityKey {
+    RegionSettings(Uuid),
     Character(Uuid),
     Item(Uuid),
     ProjectSettings,
@@ -72,7 +73,17 @@ impl Dock for DataDock {
         server_ctx: &mut ServerContext,
     ) {
         if let Some(id) = server_ctx.pc.id() {
-            if server_ctx.pc.is_character() {
+            if server_ctx.pc.is_region() {
+                if let Some(region) = project.get_region(&id) {
+                    ui.set_widget_value(
+                        "DockDataEditor",
+                        ctx,
+                        TheValue::Text(region.config.clone()),
+                    );
+                    // Switch to this entity's undo stack
+                    self.switch_to_entity(EntityKey::RegionSettings(id), ctx);
+                }
+            } else if server_ctx.pc.is_character() {
                 if let Some(character) = project.characters.get(&id) {
                     ui.set_widget_value(
                         "DockDataEditor",
@@ -144,7 +155,31 @@ impl Dock for DataDock {
                     }
 
                     if let Some(id) = server_ctx.pc.id() {
-                        if server_ctx.pc.is_character() {
+                        if server_ctx.pc.is_region() {
+                            if let Some(code) = value.to_string() {
+                                if let Some(region) = project.get_region_mut(&id) {
+                                    region.config = code;
+                                    redraw = true;
+                                }
+                            }
+                            if let Ok(changed) =
+                                crate::utils::update_region_settings(project, server_ctx)
+                            {
+                                if changed {
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Update Minimap"),
+                                        TheValue::Empty,
+                                    ));
+
+                                    RUSTERIX.write().unwrap().set_dirty();
+
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Render SceneManager Map"),
+                                        TheValue::Empty,
+                                    ));
+                                }
+                            }
+                        } else if server_ctx.pc.is_character() {
                             if let Some(code) = value.to_string() {
                                 if let Some(character) = project.characters.get_mut(&id) {
                                     character.data = code;
@@ -211,7 +246,7 @@ impl Dock for DataDock {
                     self.set_undo_state_to_ui(ctx);
 
                     // Update the project with the undone text
-                    self.update_project_data(ui, project, server_ctx);
+                    self.update_project_data(ui, ctx, project, server_ctx);
                 }
             }
         }
@@ -232,7 +267,7 @@ impl Dock for DataDock {
                     self.set_undo_state_to_ui(ctx);
 
                     // Update the project with the redone text
-                    self.update_project_data(ui, project, server_ctx);
+                    self.update_project_data(ui, ctx, project, server_ctx);
                 }
             }
         }
@@ -286,6 +321,7 @@ impl DataDock {
     fn update_project_data(
         &mut self,
         ui: &mut TheUI,
+        ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
@@ -294,7 +330,28 @@ impl DataDock {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
 
-                if server_ctx.pc.is_character() {
+                if server_ctx.pc.is_region() {
+                    if let Some(region) = project.get_region_mut(&id) {
+                        region.config = text;
+                        if let Ok(changed) =
+                            crate::utils::update_region_settings(project, server_ctx)
+                        {
+                            if changed {
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Update Minimap"),
+                                    TheValue::Empty,
+                                ));
+
+                                RUSTERIX.write().unwrap().set_dirty();
+
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Render SceneManager Map"),
+                                    TheValue::Empty,
+                                ));
+                            }
+                        }
+                    }
+                } else if server_ctx.pc.is_character() {
                     if let Some(character) = project.characters.get_mut(&id) {
                         character.data = text;
                     }
@@ -317,6 +374,7 @@ impl DataDock {
             if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
+                _ = RUSTERIX.write().unwrap().scene_handler.settings.read(&text);
                 project.config = text;
             }
         }
