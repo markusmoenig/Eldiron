@@ -73,7 +73,10 @@ impl RegionUndoAtom {
             }
             RegionUndoAtom::TerrainEdit(prev, _) => {
                 let array = prev.values().cloned().collect();
-                SCENEMANAGER.read().unwrap().set_dirty_terrain_chunks(array);
+                SCENEMANAGER
+                    .write()
+                    .unwrap()
+                    .set_dirty_terrain_chunks(array);
                 region.map.terrain.chunks = *prev.clone();
             }
             RegionUndoAtom::SectorShaderEdit(map_id, _, prev, _) => {
@@ -129,7 +132,10 @@ impl RegionUndoAtom {
             }
             RegionUndoAtom::TerrainEdit(_, next) => {
                 let array = next.values().cloned().collect();
-                SCENEMANAGER.read().unwrap().set_dirty_terrain_chunks(array);
+                SCENEMANAGER
+                    .write()
+                    .unwrap()
+                    .set_dirty_terrain_chunks(array);
                 region.map.terrain.chunks = *next.clone();
             }
             RegionUndoAtom::SectorShaderEdit(map_id, _, _, next) => {

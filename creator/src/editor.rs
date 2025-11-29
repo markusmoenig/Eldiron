@@ -646,7 +646,7 @@ impl TheTrait for Editor {
         }
 
         if redraw_update && !self.project.regions.is_empty() {
-            // let render_mode = *RENDERMODE.lock().unwrap();
+            SCENEMANAGER.write().unwrap().tick();
 
             self.build_values.set(
                 "no_rect_geo",
@@ -1995,6 +1995,11 @@ impl TheTrait for Editor {
                             self.server.stop();*/
                             insert_content_into_maps(&mut self.project);
                             update_server_icons = true;
+
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Render SceneManager Map"),
+                                TheValue::Empty,
+                            ));
                         } else if id.name == "Undo" || id.name == "Redo" {
                             if ui.focus_widget_supports_undo_redo(ctx) {
                                 if id.name == "Undo" {
