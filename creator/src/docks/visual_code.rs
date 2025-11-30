@@ -82,6 +82,32 @@ impl Dock for VisualCodeDock {
         }
     }
 
+    fn import(
+        &mut self,
+        content: String,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        self.module = Module::from_json(&content);
+        if let Some(prev) = &self.prev_module {
+            self.module.id = prev.id;
+        }
+        self.module.redraw(ui, ctx);
+        self.handle_event(
+            &TheEvent::Custom(TheId::named("ModuleChanged"), TheValue::Empty),
+            ui,
+            ctx,
+            project,
+            server_ctx,
+        );
+    }
+
+    fn export(&self) -> Option<String> {
+        Some(self.module.to_json())
+    }
+
     fn handle_event(
         &mut self,
         event: &TheEvent,

@@ -204,8 +204,6 @@ pub fn extract_build_values_from_config(values: &mut ValueContainer) {
             Value::SampleMode(rusterix::SampleMode::Nearest),
         );
     }
-
-    values.set("tile_size", Value::Int(config.tile_size));
 }
 
 /// Reads map relevant region settings from the TOML config and stores it in the map.

@@ -1102,9 +1102,21 @@ impl Sidebar {
                     self.apply_region(ui, ctx, Some(server_ctx.curr_region), project);
                 }
             }
-            // Tiles Add
             TheEvent::FileRequesterResult(id, paths) => {
-                if id.name == "Tilemap Add" || id.name == "Add Tileset" || id.name == "Add Image" {
+                if let Some(action_id) = server_ctx.curr_action_id
+                    && id.name.starts_with("action")
+                {
+                    if let Some(action) =
+                        ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
+                    {
+                        if action.handle_event(event, project, ui, ctx, server_ctx) {
+                            return true;
+                        }
+                    }
+                } else if id.name == "Tilemap Add"
+                    || id.name == "Add Tileset"
+                    || id.name == "Add Image"
+                {
                     for p in paths {
                         ctx.ui.decode_image(id.clone(), p.clone());
                     }
@@ -3131,7 +3143,7 @@ impl Sidebar {
                 let mut editor_actions: Vec<TheListItem> = vec![];
                 let mut dock_actions: Vec<TheListItem> = vec![];
 
-                if let Some(map) = project.get_map(server_ctx) {
+                if let Some(map) = project.get_map(server_ctx).or(Some(&Map::default())) {
                     for action in &actions.actions {
                         if action.is_applicable(map, ctx, server_ctx) {
                             let mut item = TheListItem::new(action.id().clone());

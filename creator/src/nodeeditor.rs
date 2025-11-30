@@ -1,4 +1,4 @@
-use crate::editor::{CONFIGEDITOR, RUSTERIX, UNDOMANAGER};
+use crate::editor::{RUSTERIX, UNDOMANAGER};
 use crate::prelude::*;
 use shared::prelude::*;
 
@@ -563,7 +563,7 @@ impl NodeEditor {
 
     /// Create a preview for the shape and stores it in the map
     pub fn create_shape_preview(&self, map: &mut Map, assets: &Assets) {
-        let size = CONFIGEDITOR.read().unwrap().tile_size;
+        let size = 128;
         let mut texture = Texture::alloc(size as usize, size as usize);
 
         let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
@@ -574,7 +574,7 @@ impl NodeEditor {
 
     /// Create a preview for the material and stores it in the map
     pub fn create_material_preview(&self, map: &mut Map, assets: &Assets) {
-        let size = CONFIGEDITOR.read().unwrap().tile_size;
+        let size = 128;
         let mut texture = Texture::alloc(size as usize, size as usize);
 
         let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));

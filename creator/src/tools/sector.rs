@@ -157,6 +157,8 @@ impl Tool for SectorTool {
                     }
                 }
 
+                println!("{:?}", map.selected_sectors);
+
                 self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);
                 self.rectangle_undo_map = map.clone();
             }

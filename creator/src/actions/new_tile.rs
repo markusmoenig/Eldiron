@@ -1,5 +1,6 @@
 use rusterix::Texture;
 
+use crate::editor::DOCKMANAGER;
 use crate::prelude::*;
 
 pub struct NewTile {
@@ -59,8 +60,13 @@ impl Action for NewTile {
         None
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker
+    fn is_applicable(
+        &self,
+        _map: &Map,
+        _ctx: &mut TheContext,
+        _server_ctx: &ServerContext,
+    ) -> bool {
+        DOCKMANAGER.read().unwrap().dock == "Tiles"
     }
 
     fn apply_project(

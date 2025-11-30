@@ -169,6 +169,31 @@ impl DockManager {
         }
     }
 
+    pub fn import(
+        &mut self,
+        content: String,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        if let Some((_, dock)) = self.docks.get_index_mut(self.index) {
+            dock.import(content.clone(), ui, ctx, project, server_ctx);
+
+            if let Some(editor_dock) = self.editor_docks.get_mut(&self.dock) {
+                editor_dock.import(content, ui, ctx, project, server_ctx);
+            }
+        }
+    }
+
+    pub fn export(&self) -> Option<String> {
+        if let Some((_, dock)) = self.docks.get_index(self.index) {
+            dock.export()
+        } else {
+            None
+        }
+    }
+
     pub fn handle_event(
         &mut self,
         event: &TheEvent,

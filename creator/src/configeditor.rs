@@ -2,7 +2,8 @@ use theframework::prelude::*;
 pub struct ConfigEditor {
     pub target_fps: i32,
     pub game_tick_ms: i32,
-    pub tile_size: i32,
+    pub viewport: Vec2<i32>,
+    pub grid_size: i32,
 }
 
 use crate::editor::CONFIG;
@@ -13,7 +14,8 @@ impl ConfigEditor {
         Self {
             target_fps: 30,
             game_tick_ms: 250,
-            tile_size: 128,
+            viewport: Vec2::new(800, 600),
+            grid_size: 32,
         }
     }
 
@@ -88,6 +90,8 @@ impl ConfigEditor {
     pub fn read_defaults(&mut self) {
         self.target_fps = self.get_i32_default("game", "target_fps", 30).clamp(1, 60);
         self.game_tick_ms = self.get_i32_default("game", "game_tick_ms", 250);
-        self.tile_size = self.get_i32_default("materials", "tile_size", 128);
+        self.viewport.x = self.get_i32_default("viewport", "width", 800);
+        self.viewport.y = self.get_i32_default("viewport", "height", 600);
+        self.grid_size = self.get_i32_default("viewport", "grid_size", 32);
     }
 }

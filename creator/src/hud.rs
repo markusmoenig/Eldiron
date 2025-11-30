@@ -1,4 +1,4 @@
-use crate::editor::{CONFIGEDITOR, RUSTERIX};
+use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use rusterix::ShapeStack;
 use rusterix::prelude::*;
@@ -523,7 +523,7 @@ impl Hud {
             || server_ctx.get_map_context() == MapContext::Item
         {
             if self.is_playing {
-                let size = CONFIGEDITOR.read().unwrap().tile_size;
+                let size = 128;
                 let mut texture = Texture::alloc(size as usize, size as usize);
 
                 let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));

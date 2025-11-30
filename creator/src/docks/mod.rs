@@ -54,6 +54,22 @@ pub trait Dock: Send + Sync {
         DockMaximizedState::Maximized
     }
 
+    /// Dock supports an import operation from JSON.
+    fn import(
+        &mut self,
+        content: String,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) {
+    }
+
+    /// Dock supports an export operation to JSON.
+    fn export(&self) -> Option<String> {
+        None
+    }
+
     fn handle_event(
         &mut self,
         event: &TheEvent,

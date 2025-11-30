@@ -1,3 +1,4 @@
+use crate::editor::DOCKMANAGER;
 use crate::prelude::*;
 
 pub struct DuplicateTile {
@@ -38,8 +39,7 @@ impl Action for DuplicateTile {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker
-            && server_ctx.curr_tile_id.is_some()
+        DOCKMANAGER.read().unwrap().dock == "Tiles" && server_ctx.curr_tile_id.is_some()
     }
 
     fn apply_project(

@@ -932,14 +932,17 @@ impl TheTrait for Editor {
                                             height: 10.0,
                                         }));
                                     } else {
-                                        if let Some(bbox) = map.bounding_box() {
-                                            b.set_clip_rect(Some(rusterix::Rect {
-                                                x: bbox.x,
-                                                y: bbox.y,
-                                                width: bbox.z,
-                                                height: bbox.w,
-                                            }));
-                                        }
+                                        let viewport = CONFIGEDITOR.read().unwrap().viewport;
+                                        let grid_size =
+                                            CONFIGEDITOR.read().unwrap().grid_size as f32;
+                                        let w = viewport.x as f32 / grid_size;
+                                        let h = viewport.y as f32 / grid_size;
+                                        b.set_clip_rect(Some(rusterix::Rect {
+                                            x: -w / 2.0,
+                                            y: -h / 2.0,
+                                            width: w,
+                                            height: h,
+                                        }));
                                     }
 
                                     if let Some(clipboard) = &self.server_ctx.paste_clipboard {
