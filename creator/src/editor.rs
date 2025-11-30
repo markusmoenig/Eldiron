@@ -567,7 +567,7 @@ impl TheTrait for Editor {
                         }
                     }
                 }
-                SceneManagerResult::Chunk(chunk, togo, total) => {
+                SceneManagerResult::Chunk(chunk, togo, total, billboards) => {
                     if togo == 0 {
                         self.server_ctx.background_progress = None;
                     } else {
@@ -587,15 +587,15 @@ impl TheTrait for Editor {
                         id: Uuid::new_v4(),
                         chunk: chunk,
                     });
-                    /*
-                    RUSTERIX
-                        .write()
-                        .unwrap()
-                        .client
-                        .scene
-                        .chunks
-                        .insert((chunk.origin.x, chunk.origin.y), chunk);
-                    */
+
+                    // Add billboards to scene_handler (indexed by GeoId)
+                    for billboard in billboards {
+                        rusterix
+                            .scene_handler
+                            .billboards
+                            .insert(billboard.geo_id, billboard);
+                    }
+
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Update Minimap"),
                         TheValue::Empty,
