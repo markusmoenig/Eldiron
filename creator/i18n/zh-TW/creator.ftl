@@ -54,6 +54,10 @@ status_action_recess_tiles = 凹槽的封蓋與側邊（側框）圖塊
 status_action_relief_height = 浮雕高度
 status_action_relief_target = 浮雕可附著在前表面或後表面
 status_action_relief_tiles = 浮雕的封蓋與側邊（側框）圖塊
+status_action_set_tile_material_roughness = 材質的粗糙度成分。
+status_action_set_tile_material_metallic = 材質的金屬度成分。
+status_action_set_tile_material_opacity = 材質的不透明度成分。
+status_action_set_tile_material_emissive = 材質的自發光成分。
 ## Menubar
 status_logo_button = 開啟 Eldiron 官網
 status_open_button = 開啟現有的 Eldiron 專案
@@ -169,6 +173,8 @@ action_relief = 浮雕
 action_relief_desc = 在所選剖面區域建立浮雕。
 action_set_edit_surface = 設定編輯面
 action_set_edit_surface_desc = 將所選表面設為活動的 2D 剖面以進行編輯。若尚無剖面會為此表面建立一個。要返回區域地圖，請點擊工具列中的 Region。
+action_set_tile_material = 設定圖塊材質
+action_set_tile_material_desc = 將材質屬性套用到圖塊的所有像素。
 action_split = 分割
 action_split_desc = 在中間新增節點以分割所選線段。新節點會加到所有包含該線段的區域中。
 action_toggle_edit_geo = 切換編輯幾何
@@ -231,6 +237,9 @@ fonts = 字型
 game = 遊戲
 character_instance = 角色實例
 item_instance = 物品實例
+roughness = 粗糙度
+metallic = 金屬度
+emissive = 自發光
 
 # Info
 info_server_started = 伺服器已啟動

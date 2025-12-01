@@ -422,7 +422,7 @@ impl Dock for TilemapDock {
                                             texture.generate_normals(true);
                                             texture_array.push(texture);
                                         }
-                                        let tile = rusterix::Tile {
+                                        let mut tile = rusterix::Tile {
                                             id: t.id,
                                             role: rusterix::TileRole::from_index(t.role),
                                             textures: texture_array.clone(),
@@ -431,6 +431,7 @@ impl Dock for TilemapDock {
                                             scale: t.scale,
                                             tags: t.name.clone(),
                                         };
+                                        tile.set_default_materials();
                                         project.tiles.insert(id, tile);
                                     }
 

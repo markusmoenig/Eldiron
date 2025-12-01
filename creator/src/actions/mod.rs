@@ -13,6 +13,7 @@ pub mod edit_sector;
 pub mod edit_vertex;
 pub mod extrude_linedef;
 pub mod extrude_sector;
+pub mod set_tile_material;
 // pub mod gen_stone_trim;
 pub mod copy_tile_id;
 pub mod duplicate_tile;

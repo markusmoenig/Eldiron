@@ -614,7 +614,7 @@ impl TheTrait for Editor {
                         .vm
                         .execute(scenevm::Atom::ClearGeometry);
 
-                    //rusterix.client.scene.chunks.clear();
+                    rusterix.scene_handler.billboards.clear();
                 }
                 SceneManagerResult::Quit => {
                     println!("Scene manager has shutdown.");
@@ -1678,7 +1678,9 @@ impl TheTrait for Editor {
                                         }
 
                                         for (_, tile) in self.project.tiles.iter_mut() {
-                                            tile.set_default_materials();
+                                            for texture in &mut tile.textures {
+                                                texture.generate_normals(true);
+                                            }
                                         }
 
                                         // Set the project time to the server time slider widget

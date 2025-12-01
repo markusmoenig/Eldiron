@@ -132,6 +132,8 @@ impl TileDrawTool {
                                     color_array,
                                 );
 
+                                tile.textures[frame_index].generate_normals(true);
+
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Tile Updated"),
                                     TheValue::Id(tile_id),

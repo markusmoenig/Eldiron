@@ -116,7 +116,7 @@ fn main() {
     let editor = Editor::new();
     let mut app = TheApp::new();
     app.set_cmd_line_args(args);
-    _ = i18n::select_locales(&["zh_CN"]);
+    // _ = i18n::select_locales(&["zh_CN"]);
 
     let () = app.run(Box::new(editor));
 }

@@ -54,6 +54,10 @@ status_action_recess_tiles = The cap and side (jamb) tiles for the recess.
 status_action_relief_height = The height of the relief (emboss).
 status_action_relief_target = The relief can be attached to the front or back face.
 status_action_relief_tiles = The cap and side (jamb) tiles for the relief.
+status_action_set_tile_material_roughness = The roughness component of the material.
+status_action_set_tile_material_metallic = The metallic component of the material.
+status_action_set_tile_material_opacity = The opacity component of the material.
+status_action_set_tile_material_emissive = The emissive component of the material.
 ## Menubar
 status_logo_button = Open the Eldiron Website ...
 status_open_button = Open an existing Eldiron project...
@@ -169,6 +173,8 @@ action_relief = Relief
 action_relief_desc = Creates a relief (emboss) on the selected profile sector.
 action_set_edit_surface = Set Editing Surface
 action_set_edit_surface_desc = Make the selected surface the active 2D profile for editing.
+action_set_tile_material = Set Tile Material
+action_set_tile_material_desc = Set the material attributes to all pixels of the tile.
 action_split = Split
 action_split_desc = Split the selected linedef(s) by adding a middle point. Thew new point gets added to all sectors the linedef is part of.
 action_toggle_edit_geo = Toggle Editing Geometry
@@ -231,6 +237,10 @@ fonts = Fonts
 game = Game
 character_instance = Character Instance
 item_instance = Item Instance
+roughness = roughness
+metallic = metallic
+opacity = Opacity
+emissive = Emissive
 
 # Info
 info_server_started = Server has been started

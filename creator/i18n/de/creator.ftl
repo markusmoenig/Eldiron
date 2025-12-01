@@ -54,6 +54,10 @@ status_action_recess_tiles = Die Abschluss- und Seitenkacheln (Pfosten) der Vert
 status_action_relief_height = Die Höhe des Reliefs (Prägung).
 status_action_relief_target = Das Relief kann an der Vorder- oder Rückseite liegen.
 status_action_relief_tiles = Die Abschluss- und Seitenkacheln (Pfosten) des Reliefs.
+status_action_set_tile_material_roughness = Der Rauheitsanteil des Materials.
+status_action_set_tile_material_metallic = Der Metallanteil des Materials.
+status_action_set_tile_material_opacity = Die Deckkraft des Materials.
+status_action_set_tile_material_emissive = Der Emissionsanteil des Materials.
 ## Menubar
 status_logo_button = Die Eldiron-Website öffnen ...
 status_open_button = Ein bestehendes Eldiron-Projekt öffnen...
@@ -169,6 +173,8 @@ action_relief = Relief
 action_relief_desc = Erstellt ein Relief (Prägung) im ausgewählten Profilsektor.
 action_set_edit_surface = Bearbeitungsfläche setzen
 action_set_edit_surface_desc = Setzt die ausgewählte Fläche als aktive 2D-Profilfläche für die Bearbeitung.
+action_set_tile_material = Kachelmaterial festlegen
+action_set_tile_material_desc = Setzt die Materialattribute für alle Pixel der Kachel.
 action_split = Teilen
 action_split_desc = Teilt die ausgewählten Linedefs, indem ein Mittelpunkt hinzugefügt wird. Der neue Punkt wird allen Sektoren hinzugefügt, zu denen die Linedef gehört.
 action_toggle_edit_geo = Bearbeitungsgeometrie umschalten
@@ -231,6 +237,9 @@ fonts = Schriften
 game = Spiel
 character_instance = Charakterinstanz
 item_instance = Gegenstandsinstanz
+roughness = Rauheit
+metallic = Metallisch
+emissive = Emissiv
 
 # Info
 info_server_started = Server wurde gestartet

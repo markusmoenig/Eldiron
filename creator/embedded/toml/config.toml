@@ -39,6 +39,9 @@ ao_samples = 8.0
 # AO radius (0.0 = disable AO, default: 0.5)
 ao_radius = 0.5
 
+# Reflection samples (0 = disabled, >=1 = GGX PBR reflection rays)
+reflection_samples = 0.0
+
 # Bump strength (0.0 = disable bump mapping, default: 1.0)
 bump_strength = 1.0
 

@@ -262,7 +262,7 @@ pub fn set_project_context(
                 ui.set_widget_value(
                     "Project Context",
                     ctx,
-                    TheValue::Text(format!("Region: {}", region.name)),
+                    TheValue::Text(format!("{}: {}", fl!("region"), region.name)),
                 );
             }
             DOCKMANAGER
