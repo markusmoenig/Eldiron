@@ -2,6 +2,7 @@ pub use crate::prelude::*;
 
 pub mod add_arch;
 pub mod apply_tile;
+pub mod clear_profile;
 pub mod clear_tile;
 pub mod create_center_vertex;
 pub mod create_linedef;
@@ -19,6 +20,7 @@ pub mod edit_tile_meta;
 pub mod editing_camera;
 pub mod export_vcode;
 pub mod firstp_camera;
+pub mod gate_door;
 pub mod import_vcode;
 pub mod iso_camera;
 pub mod minimize;
