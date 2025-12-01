@@ -58,43 +58,51 @@ impl Sidebar {
         let mut project_tree_layout = TheTreeLayout::new(TheId::named("Project Tree"));
         let root = project_tree_layout.get_root();
 
-        let mut regions_node: TheTreeNode =
-            TheTreeNode::new(TheId::named_with_id("Regions", server_ctx.tree_regions_id));
+        let mut regions_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
+            &fl!("regions"),
+            server_ctx.tree_regions_id,
+        ));
         regions_node.set_open(true);
 
         root.add_child(regions_node);
 
         let characters_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
-            "Characters",
+            &fl!("characters"),
             server_ctx.tree_characters_id,
         ));
         root.add_child(characters_node);
 
-        let items_node: TheTreeNode =
-            TheTreeNode::new(TheId::named_with_id("Items", server_ctx.tree_items_id));
+        let items_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
+            &fl!("items"),
+            server_ctx.tree_items_id,
+        ));
         root.add_child(items_node);
 
         let tilemaps_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
-            "Tilesets",
+            &fl!("tilesets"),
             server_ctx.tree_tilemaps_id,
         ));
         root.add_child(tilemaps_node);
 
-        let screens_node: TheTreeNode =
-            TheTreeNode::new(TheId::named_with_id("Screens", server_ctx.tree_screens_id));
+        let screens_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
+            &fl!("screens"),
+            server_ctx.tree_screens_id,
+        ));
         root.add_child(screens_node);
 
-        let mut assets_node: TheTreeNode =
-            TheTreeNode::new(TheId::named_with_id("Assets", server_ctx.tree_assets_id));
+        let mut assets_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
+            &fl!("assets"),
+            server_ctx.tree_assets_id,
+        ));
 
         let fonts_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
-            "Fonts",
+            &fl!("fonts"),
             server_ctx.tree_assets_fonts_id,
         ));
         assets_node.add_child(fonts_node);
         root.add_child(assets_node);
 
-        let mut config_node: TheTreeNode = TheTreeNode::new(TheId::named("Game"));
+        let mut config_node: TheTreeNode = TheTreeNode::new(TheId::named(&fl!("game")));
 
         let mut config_item = TheTreeItem::new(TheId::named("Project Settings"));
         config_item.set_text(fl!("settings"));
@@ -588,7 +596,7 @@ impl Sidebar {
                             {
                                 node.childs.clear();
                                 node.widgets.clear();
-                                node.widget.set_value(TheValue::Text("Settings".into()));
+                                node.widget.set_value(TheValue::Text(fl!("settings")));
                                 layout.relayout(ctx);
                                 ctx.ui.relayout = true;
                             }

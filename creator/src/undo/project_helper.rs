@@ -36,7 +36,7 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
 
     for (id, character) in &region.characters {
         let mut item = TheTreeItem::new(TheId::named_with_id("Region Content List Item", *id));
-        item.add_value_column(200, TheValue::Text("Character Instance".to_string()));
+        item.add_value_column(200, TheValue::Text(fl!("character_instance")));
         item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
         item.set_text(character.name.clone());
         node.add_widget(Box::new(item));
@@ -44,7 +44,7 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
 
     for (id, item_) in &region.items {
         let mut item = TheTreeItem::new(TheId::named_with_id("Region Content List Item", *id));
-        item.add_value_column(200, TheValue::Text("Item Instance".to_string()));
+        item.add_value_column(200, TheValue::Text(fl!("item_instance")));
         item.set_background_color(TheColor::from(ActionRole::Editor.to_color()));
         item.set_text(item_.name.clone());
         node.add_widget(Box::new(item));

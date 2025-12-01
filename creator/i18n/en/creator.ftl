@@ -220,6 +220,17 @@ target = Target
 ui = UI
 visual_script = Visual Scripting
 water = Water
+region = Region
+regions = Regions
+characters = Characters
+items = Items
+tilesets = Tilesets
+screens = Screens
+assets = Assets
+fonts = Fonts
+game = Game
+character_instance = Character Instance
+item_instance = Item Instance
 
 # Info
 info_server_started = Server has been started
