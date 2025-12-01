@@ -48,7 +48,7 @@ impl Action for GateDoor {
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Gate / Door"),
+            id: TheId::named(&fl!("action_gate_door")),
             nodeui,
         }
     }

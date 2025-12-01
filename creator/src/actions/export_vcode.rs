@@ -15,7 +15,7 @@ impl Action for ExportVCode {
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Export Visual Code ..."),
+            id: TheId::named(&fl!("action_export_vcode")),
             nodeui,
         }
     }

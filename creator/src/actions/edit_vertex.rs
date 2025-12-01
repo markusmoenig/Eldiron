@@ -76,7 +76,7 @@ impl Action for EditVertex {
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Edit Vertex"),
+            id: TheId::named(&fl!("action_edit_vertex")),
             nodeui,
         }
     }

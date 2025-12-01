@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use rusterix::Value;
 
 pub struct ClearProfile {
     id: TheId,
@@ -17,7 +16,7 @@ impl Action for ClearProfile {
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Clear Profile"),
+            id: TheId::named(&fl!("action_clear_profile")),
             nodeui,
         }
     }

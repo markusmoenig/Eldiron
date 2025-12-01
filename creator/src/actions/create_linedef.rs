@@ -11,11 +11,11 @@ impl Action for CreateLinedef {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_create_linedef"));
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_create_linedef_desc"));
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Create Linedef"),
+            id: TheId::named(&fl!("action_create_linedef")),
             nodeui,
         }
     }
@@ -25,7 +25,7 @@ impl Action for CreateLinedef {
     }
 
     fn info(&self) -> String {
-        fl!("action_create_linedef")
+        fl!("action_create_linedef_desc")
     }
 
     fn role(&self) -> ActionRole {

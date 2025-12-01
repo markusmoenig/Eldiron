@@ -39,7 +39,7 @@ impl Action for NewTile {
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("New Tile"),
+            id: TheId::named(&fl!("action_new_tile")),
             nodeui,
         }
     }

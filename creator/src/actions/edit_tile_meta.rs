@@ -50,7 +50,7 @@ impl Action for EditTileMeta {
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Edit Tile Meta Data"),
+            id: TheId::named(&fl!("action_edit_tile")),
             nodeui,
         }
     }

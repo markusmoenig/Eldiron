@@ -123,11 +123,11 @@ impl Action for CreateSector {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_create_sector"));
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_create_sector_desc"));
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Create Sector"),
+            id: TheId::named(&fl!("action_create_sector")),
             nodeui,
         }
     }
@@ -137,7 +137,7 @@ impl Action for CreateSector {
     }
 
     fn info(&self) -> String {
-        fl!("action_create_sector")
+        fl!("action_create_sector_desc")
     }
 
     fn role(&self) -> ActionRole {

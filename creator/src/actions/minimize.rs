@@ -11,11 +11,11 @@ impl Action for Minimize {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_minimize"));
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_minimize_desc"));
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Minimize"),
+            id: TheId::named(&fl!("action_minimize")),
             nodeui,
         }
     }
@@ -25,7 +25,7 @@ impl Action for Minimize {
     }
 
     fn info(&self) -> String {
-        fl!("action_minimize")
+        fl!("action_minimize_desc")
     }
 
     fn role(&self) -> ActionRole {

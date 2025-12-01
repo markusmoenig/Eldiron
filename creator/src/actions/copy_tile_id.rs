@@ -12,11 +12,11 @@ impl Action for CopyTileID {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_copy_tile_id"));
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_copy_tile_id_desc"));
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Copy Tile ID"),
+            id: TheId::named(&fl!("action_copy_tile_id")),
             nodeui,
         }
     }
@@ -26,7 +26,7 @@ impl Action for CopyTileID {
     }
 
     fn info(&self) -> String {
-        fl!("action_copy_tile_id")
+        fl!("action_copy_tile_id_desc")
     }
 
     fn role(&self) -> ActionRole {

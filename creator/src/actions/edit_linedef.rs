@@ -26,7 +26,7 @@ impl Action for EditLinedef {
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Edit Linedef"),
+            id: TheId::named(&fl!("action_edit_linedef")),
             nodeui,
         }
     }

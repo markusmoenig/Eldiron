@@ -11,11 +11,11 @@ impl Action for ClearTile {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_clear_tile"));
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_clear_tile_desc"));
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Clear Tile"),
+            id: TheId::named(&fl!("action_clear_tile")),
             nodeui,
         }
     }
@@ -25,7 +25,7 @@ impl Action for ClearTile {
     }
 
     fn info(&self) -> String {
-        fl!("action_clear_tile")
+        fl!("action_clear_tile_desc")
     }
 
     fn role(&self) -> ActionRole {

@@ -11,11 +11,11 @@ impl Action for IsoCamera {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_iso_camera"));
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_iso_camera_desc"));
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("3D Iso Camera"),
+            id: TheId::named(&fl!("action_iso_camera")),
             nodeui,
         }
     }
@@ -25,7 +25,7 @@ impl Action for IsoCamera {
     }
 
     fn info(&self) -> String {
-        fl!("action_iso_camera")
+        fl!("action_iso_camera_desc")
     }
 
     fn role(&self) -> ActionRole {

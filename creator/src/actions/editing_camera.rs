@@ -11,11 +11,11 @@ impl Action for EditingCamera {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_editing_camera"));
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_editing_camera_desc"));
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("2D Camera"),
+            id: TheId::named(&fl!("action_editing_camera")),
             nodeui,
         }
     }
@@ -25,7 +25,7 @@ impl Action for EditingCamera {
     }
 
     fn info(&self) -> String {
-        fl!("action_editing_camera")
+        fl!("action_editing_camera_desc")
     }
 
     fn role(&self) -> ActionRole {

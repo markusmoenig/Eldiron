@@ -42,7 +42,7 @@ impl Action for ExtrudeSector {
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Extrude Sector"),
+            id: TheId::named(&fl!("action_extrude_sector")),
             nodeui,
         }
     }

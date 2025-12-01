@@ -38,7 +38,7 @@ impl Action for AddArch {
         ));
 
         Self {
-            id: TheId::named("Add Arch"),
+            id: TheId::named(&fl!("action_add_arch")),
             nodeui,
         }
     }

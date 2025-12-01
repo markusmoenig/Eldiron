@@ -11,11 +11,11 @@ impl Action for CreateCenterVertex {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_create_center_vertex"));
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_create_center_vertex_desc"));
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Create Center Vertex"),
+            id: TheId::named(&fl!("action_create_center_vertex")),
             nodeui,
         }
     }
@@ -25,7 +25,7 @@ impl Action for CreateCenterVertex {
     }
 
     fn info(&self) -> String {
-        fl!("action_create_center_vertex")
+        fl!("action_create_center_vertex_desc")
     }
 
     fn role(&self) -> ActionRole {

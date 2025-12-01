@@ -12,11 +12,11 @@ impl Action for ToggleRectGeo {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_toggle_rect_geo"));
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_toggle_rect_geo_desc"));
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Toggle Rect Geometry"),
+            id: TheId::named(&fl!("action_toggle_rect_geo")),
             nodeui,
         }
     }
@@ -26,7 +26,7 @@ impl Action for ToggleRectGeo {
     }
 
     fn info(&self) -> String {
-        fl!("action_toggle_rect_geo")
+        fl!("action_toggle_rect_geo_desc")
     }
 
     fn role(&self) -> ActionRole {

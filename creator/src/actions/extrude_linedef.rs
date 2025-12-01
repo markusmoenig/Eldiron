@@ -100,7 +100,7 @@ impl Action for ExtrudeLinedef {
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Extrude Linedef"),
+            id: TheId::named(&fl!("action_extrude_linedef")),
             nodeui,
         }
     }

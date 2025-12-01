@@ -55,7 +55,7 @@ impl Action for Recess {
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Recess"),
+            id: TheId::named(&fl!("action_recess")),
             nodeui,
         }
     }

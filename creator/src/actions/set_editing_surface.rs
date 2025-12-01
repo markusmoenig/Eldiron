@@ -11,11 +11,11 @@ impl Action for SetEditingSurface {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_set_edit_surface"));
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_set_edit_surface_desc"));
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Set Editing Surface"),
+            id: TheId::named(&fl!("action_set_edit_surface")),
             nodeui,
         }
     }
@@ -25,7 +25,7 @@ impl Action for SetEditingSurface {
     }
 
     fn info(&self) -> String {
-        fl!("action_set_edit_surface")
+        fl!("action_set_edit_surface_desc")
     }
 
     fn role(&self) -> ActionRole {

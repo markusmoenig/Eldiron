@@ -26,7 +26,7 @@ impl Action for EditSector {
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Edit Sector"),
+            id: TheId::named(&fl!("action_edit_sector")),
             nodeui,
         }
     }

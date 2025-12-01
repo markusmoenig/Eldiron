@@ -11,11 +11,11 @@ impl Action for OrbitCamera {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_orbit_camera"));
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_orbit_camera_desc"));
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("3D Orbit Camera"),
+            id: TheId::named(&fl!("action_orbit_camera")),
             nodeui,
         }
     }
@@ -25,7 +25,7 @@ impl Action for OrbitCamera {
     }
 
     fn info(&self) -> String {
-        fl!("action_orbit_camera")
+        fl!("action_orbit_camera_desc")
     }
 
     fn role(&self) -> ActionRole {

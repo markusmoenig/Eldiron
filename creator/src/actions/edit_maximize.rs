@@ -11,11 +11,11 @@ impl Action for EditMaximize {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_maximize"));
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_maximize_desc"));
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Edit / Maximize"),
+            id: TheId::named(&fl!("action_edit_maximize")),
             nodeui,
         }
     }
@@ -25,7 +25,7 @@ impl Action for EditMaximize {
     }
 
     fn info(&self) -> String {
-        fl!("action_edit_maximize")
+        fl!("action_edit_maximize_desc")
     }
 
     fn role(&self) -> ActionRole {

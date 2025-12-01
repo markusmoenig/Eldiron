@@ -15,7 +15,7 @@ impl Action for ImportVCode {
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Import Visual Code ..."),
+            id: TheId::named(&fl!("action_import_vcode")),
             nodeui,
         }
     }

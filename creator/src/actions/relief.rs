@@ -55,7 +55,7 @@ impl Action for Relief {
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("Relief"),
+            id: TheId::named(&fl!("action_relief")),
             nodeui,
         }
     }

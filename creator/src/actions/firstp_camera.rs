@@ -11,11 +11,11 @@ impl Action for FirstPCamera {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_first_p_camera"));
+        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_first_p_camera_desc"));
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named("3D First Person Camera"),
+            id: TheId::named(&fl!("action_first_p_camera")),
             nodeui,
         }
     }
@@ -25,7 +25,7 @@ impl Action for FirstPCamera {
     }
 
     fn info(&self) -> String {
-        fl!("action_first_p_camera")
+        fl!("action_first_p_camera_desc")
     }
 
     fn role(&self) -> ActionRole {
