@@ -125,6 +125,11 @@ impl Dock for TilesDock {
         let mut redraw = false;
 
         match event {
+            TheEvent::WidgetResized(id, _) => {
+                if id.name == "Tiles Dock RGBA Layout View" {
+                    self.set_tiles(&project.tiles, ui, ctx);
+                }
+            }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
                 if id.name == "Tiles Dock Tile Copy" {
                     if let Some(tile_id) = self.curr_tile {
@@ -372,7 +377,6 @@ impl TilesDock {
     ) {
         self.tile_ids.clear();
         if let Some(editor) = ui.get_rgba_layout("Tiles Dock RGBA Layout") {
-            //println!("{}", editor.dim().width);
             let width = editor.dim().width - 16;
             let height = editor.dim().height - 16;
 

@@ -375,6 +375,7 @@ impl Project {
         for tilemap in &mut self.tilemaps {
             tilemap.tiles.retain(|t| t.id != *id);
         }
+        self.tiles.shift_remove(id);
     }
 
     /// Gets the given tile from the project.
