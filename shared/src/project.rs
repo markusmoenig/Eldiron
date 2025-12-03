@@ -239,10 +239,8 @@ impl Project {
     /// Get the map of the current context.
     pub fn get_map(&self, ctx: &ServerContext) -> Option<&Map> {
         if ctx.editor_view_mode != EditorViewMode::D2 {
-            if let Some(id) = ctx.pc.id() {
-                if let Some(region) = self.get_region(&id) {
-                    return Some(&region.map);
-                }
+            if let Some(region) = self.get_region(&ctx.curr_region) {
+                return Some(&region.map);
             }
         } else if ctx.get_map_context() == MapContext::Region {
             if let Some(id) = ctx.pc.id() {
@@ -255,7 +253,7 @@ impl Project {
                         }
                     }
                     return None;
-                } else if let Some(region) = self.regions.iter().find(|t| t.id == id) {
+                } else if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
                     return Some(&region.map);
                 }
             }
@@ -286,21 +284,21 @@ impl Project {
         if ctx.get_map_context() == MapContext::Region {
             if let Some(id) = ctx.pc.id() {
                 if ctx.editor_view_mode != EditorViewMode::D2 {
-                    if let Some(region) = self.get_region_mut(&id) {
+                    if let Some(region) = self.get_region_mut(&ctx.curr_region) {
                         return Some(&mut region.map);
                     }
                 } else if let Some(surface) = &ctx.editing_surface {
-                    if let Some(id) = ctx.pc.id() {
-                        if let Some(region) = self.regions.iter_mut().find(|t| t.id == id) {
-                            if let Some(surface) = region.map.surfaces.get_mut(&surface.id) {
-                                if let Some(profile_id) = surface.profile {
-                                    return region.map.profiles.get_mut(&profile_id);
-                                }
+                    if let Some(region) = self.regions.iter_mut().find(|t| t.id == id) {
+                        if let Some(surface) = region.map.surfaces.get_mut(&surface.id) {
+                            if let Some(profile_id) = surface.profile {
+                                return region.map.profiles.get_mut(&profile_id);
                             }
                         }
                     }
                     return None;
-                } else if let Some(region) = self.regions.iter_mut().find(|t| t.id == id) {
+                } else if let Some(region) =
+                    self.regions.iter_mut().find(|t| t.id == ctx.curr_region)
+                {
                     return Some(&mut region.map);
                 }
             }

@@ -820,6 +820,7 @@ impl TheTrait for Editor {
                                             Vec2::new(dim.width as f32, dim.height as f32),
                                             &map,
                                             &self.server_ctx.editing_surface,
+                                            false,
                                         );
                                     } else {
                                         // rusterix.build_scene(
@@ -834,6 +835,7 @@ impl TheTrait for Editor {
                                                 Vec2::new(dim.width as f32, dim.height as f32),
                                                 map,
                                                 &self.server_ctx.editing_surface,
+                                                false,
                                             );
                                         }
                                     }
@@ -866,12 +868,6 @@ impl TheTrait for Editor {
                                     } else {
                                         b.set_map_hover_info(self.server_ctx.hover, None);
                                     }
-                                    // b.set_clip_rect(Some(rusterix::Rect {
-                                    //     x: -5.0,
-                                    //     y: -5.0,
-                                    //     width: 10.0,
-                                    //     height: 10.0,
-                                    // }));
 
                                     if let Some(clipboard) = &self.server_ctx.paste_clipboard {
                                         // During a paste operation we use a merged map
@@ -885,6 +881,7 @@ impl TheTrait for Editor {
                                             &map,
                                             &self.build_values,
                                             &self.server_ctx.editing_surface,
+                                            true,
                                         );
                                         rusterix.draw_custom_d2(
                                             &map,
@@ -898,6 +895,7 @@ impl TheTrait for Editor {
                                             profile,
                                             &self.build_values,
                                             &self.server_ctx.editing_surface,
+                                            true,
                                         );
                                         rusterix.draw_custom_d2(
                                             profile,
@@ -957,6 +955,7 @@ impl TheTrait for Editor {
                                             &map,
                                             &self.build_values,
                                             &self.server_ctx.editing_surface,
+                                            true,
                                         );
                                         rusterix.draw_custom_d2(
                                             &map,
@@ -970,6 +969,7 @@ impl TheTrait for Editor {
                                             map,
                                             &self.build_values,
                                             &None,
+                                            true,
                                         );
                                         rusterix.draw_custom_d2(
                                             map,
