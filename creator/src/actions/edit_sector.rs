@@ -22,6 +22,13 @@ impl Action for EditSector {
         );
         nodeui.add_item(item);
 
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "actionSectorVisible".into(),
+            fl!("action_edit_sector_visible"),
+            fl!("status_action_edit_sector_visible"),
+            true,
+        ));
+
         let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_sector_desc"));
         nodeui.add_item(item);
 
@@ -56,6 +63,9 @@ impl Action for EditSector {
             if let Some(sector) = map.find_sector(*sector_id) {
                 self.nodeui
                     .set_text_value("actionSectorName", sector.name.clone());
+
+                let visible = sector.properties.get_bool_default("visible", true);
+                self.nodeui.set_bool_value("actionSectorVisible", visible);
             }
         }
     }
@@ -75,10 +85,21 @@ impl Action for EditSector {
             .get_text_value("actionSectorName")
             .unwrap_or(String::new());
 
+        let visible = self
+            .nodeui
+            .get_bool_value("actionSectorVisible")
+            .unwrap_or(true);
+
         if let Some(sector_id) = map.selected_sectors.first() {
             if let Some(sector) = map.find_sector_mut(*sector_id) {
                 if name != sector.name {
                     sector.name = name;
+                    changed = true;
+                }
+
+                let vis = sector.properties.get_bool_default("visible", true);
+                if vis != visible {
+                    sector.properties.set("visible", Value::Bool(visible));
                     changed = true;
                 }
             }

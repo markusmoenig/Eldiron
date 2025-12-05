@@ -26,7 +26,7 @@ impl Action for ExtrudeSector {
             fl!("depth"),
             fl!("status_action_extrude_sector_depth"),
             0.2,
-            -20.0..=20.0,
+            0.0..=1.0,
             false,
         );
         nodeui.add_item(item);
