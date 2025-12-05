@@ -19,6 +19,7 @@ pub mod copy_tile_id;
 pub mod duplicate_tile;
 pub mod edit_tile_meta;
 pub mod editing_camera;
+pub mod editing_slice;
 pub mod export_vcode;
 pub mod firstp_camera;
 pub mod gate_door;
@@ -91,6 +92,7 @@ pub trait Action: Send + Sync {
     }
 
     fn params(&self) -> TheNodeUI;
+
     fn handle_event(
         &mut self,
         event: &TheEvent,

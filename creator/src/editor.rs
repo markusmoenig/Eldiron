@@ -1134,6 +1134,10 @@ impl TheTrait for Editor {
                                 "no_rect_geo",
                                 rusterix::Value::Bool(self.server_ctx.no_rect_geo_on_map),
                             );
+                            self.build_values.set(
+                                "editing_slice",
+                                rusterix::Value::Float(self.server_ctx.editing_slice),
+                            );
                             rusterix
                                 .client
                                 .builder_d2

@@ -30,6 +30,7 @@ impl ActionList {
             Box::new(crate::tools::edit_linedef::EditLinedef::new()),
             Box::new(crate::tools::edit_sector::EditSector::new()),
             Box::new(crate::tools::edit_vertex::EditVertex::new()),
+            Box::new(crate::tools::editing_slice::EditingSlice::new()),
             Box::new(crate::tools::edit_tile_meta::EditTileMeta::new()),
             Box::new(crate::tools::export_vcode::ExportVCode::new()),
             Box::new(crate::tools::extrude_linedef::ExtrudeLinedef::new()),

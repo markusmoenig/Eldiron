@@ -415,6 +415,9 @@ pub struct ServerContext {
 
     ///Switch for showing 3D editing geometry
     pub show_editing_geometry: bool,
+
+    /// Position of the 2D editing slice.
+    pub editing_slice: f32,
 }
 
 impl Default for ServerContext {
@@ -505,6 +508,8 @@ impl ServerContext {
 
             selected_hud_icon_index: 0,
             show_editing_geometry: true,
+
+            editing_slice: 0.0,
         }
     }
 
@@ -633,40 +638,45 @@ impl ServerContext {
 
         // Check the vertices
         for vertex in &map.vertices {
-            if let Some(vertex_pos) = map.get_vertex(vertex.id) {
-                let vertex_pos = Self::map_grid_to_local(screen_size, vertex_pos, map);
-                if (screen_pos - vertex_pos).magnitude() <= hover_threshold {
-                    selection.0 = Some(vertex.id);
-                    break;
+            if vertex.intersects_vertical_slice(self.editing_slice, 1.0) {
+                if let Some(vertex_pos) = map.get_vertex(vertex.id) {
+                    let vertex_pos = Self::map_grid_to_local(screen_size, vertex_pos, map);
+                    if (screen_pos - vertex_pos).magnitude() <= hover_threshold {
+                        selection.0 = Some(vertex.id);
+                        break;
+                    }
                 }
             }
         }
 
         // Check the lines
         for linedef in &map.linedefs {
-            if self.no_rect_geo_on_map && map.is_linedef_in_rect(linedef.id) {
-                continue;
-            }
+            if linedef.intersects_vertical_slice(map, self.editing_slice, 1.0) {
+                if self.no_rect_geo_on_map && map.is_linedef_in_rect(linedef.id) {
+                    continue;
+                }
 
-            let start_vertex = map.get_vertex(linedef.start_vertex);
-            let end_vertex = map.get_vertex(linedef.end_vertex);
+                let start_vertex = map.get_vertex(linedef.start_vertex);
+                let end_vertex = map.get_vertex(linedef.end_vertex);
 
-            if let Some(start_vertex) = start_vertex {
-                if let Some(end_vertex) = end_vertex {
-                    let start_pos = Self::map_grid_to_local(screen_size, start_vertex, map);
-                    let end_pos = Self::map_grid_to_local(screen_size, end_vertex, map);
+                if let Some(start_vertex) = start_vertex {
+                    if let Some(end_vertex) = end_vertex {
+                        let start_pos = Self::map_grid_to_local(screen_size, start_vertex, map);
+                        let end_pos = Self::map_grid_to_local(screen_size, end_vertex, map);
 
-                    // Compute the perpendicular distance from the point to the line
-                    let line_vec = end_pos - start_pos;
-                    let mouse_vec = screen_pos - start_pos;
-                    let line_vec_length = line_vec.magnitude();
-                    let projection = mouse_vec.dot(line_vec) / (line_vec_length * line_vec_length);
-                    let closest_point = start_pos + projection.clamp(0.0, 1.0) * line_vec;
-                    let distance = (screen_pos - closest_point).magnitude();
+                        // Compute the perpendicular distance from the point to the line
+                        let line_vec = end_pos - start_pos;
+                        let mouse_vec = screen_pos - start_pos;
+                        let line_vec_length = line_vec.magnitude();
+                        let projection =
+                            mouse_vec.dot(line_vec) / (line_vec_length * line_vec_length);
+                        let closest_point = start_pos + projection.clamp(0.0, 1.0) * line_vec;
+                        let distance = (screen_pos - closest_point).magnitude();
 
-                    if distance <= hover_threshold {
-                        selection.1 = Some(linedef.id);
-                        break;
+                        if distance <= hover_threshold {
+                            selection.1 = Some(linedef.id);
+                            break;
+                        }
                     }
                 }
             }
@@ -697,27 +707,29 @@ impl ServerContext {
         // Reverse on sorted sectors by area (to allow to pick small sectors first)
         let ordered = map.sorted_sectors_by_area();
         for sector in ordered.iter().rev() {
-            if self.no_rect_geo_on_map && sector.properties.contains("rect") {
-                continue;
-            }
-            let mut vertices = Vec::new();
-            for &linedef_id in &sector.linedefs {
-                if let Some(linedef) = map.find_linedef(linedef_id) {
-                    if let Some(start_vertex) = map.find_vertex(linedef.start_vertex) {
-                        let vertex =
-                            Self::map_grid_to_local(screen_size, start_vertex.as_vec2(), map);
+            if sector.intersects_vertical_slice(map, self.editing_slice, 1.0) {
+                if self.no_rect_geo_on_map && sector.properties.contains("rect") {
+                    continue;
+                }
+                let mut vertices = Vec::new();
+                for &linedef_id in &sector.linedefs {
+                    if let Some(linedef) = map.find_linedef(linedef_id) {
+                        if let Some(start_vertex) = map.find_vertex(linedef.start_vertex) {
+                            let vertex =
+                                Self::map_grid_to_local(screen_size, start_vertex.as_vec2(), map);
 
-                        // Add the vertex to the list if it isn't already there
-                        if vertices.last() != Some(&vertex) {
-                            vertices.push(vertex);
+                            // Add the vertex to the list if it isn't already there
+                            if vertices.last() != Some(&vertex) {
+                                vertices.push(vertex);
+                            }
                         }
                     }
                 }
-            }
 
-            if point_in_polygon(screen_pos, &vertices) {
-                selection.2 = Some(sector.id);
-                return selection;
+                if point_in_polygon(screen_pos, &vertices) {
+                    selection.2 = Some(sector.id);
+                    return selection;
+                }
             }
         }
 
@@ -804,27 +816,31 @@ impl ServerContext {
 
         // Check vertices
         for vertex in &map.vertices {
-            if let Some(vertex_pos) = map.get_vertex(vertex.id) {
-                if point_in_rectangle(vertex_pos, top_left, bottom_right) {
-                    selection.0.push(vertex.id);
+            if vertex.intersects_vertical_slice(self.editing_slice, 1.0) {
+                if let Some(vertex_pos) = map.get_vertex(vertex.id) {
+                    if point_in_rectangle(vertex_pos, top_left, bottom_right) {
+                        selection.0.push(vertex.id);
+                    }
                 }
             }
         }
 
         // Check linedefs
         for linedef in &map.linedefs {
-            let start_vertex = map.get_vertex(linedef.start_vertex);
-            let end_vertex = map.get_vertex(linedef.end_vertex);
+            if linedef.intersects_vertical_slice(map, self.editing_slice, 1.0) {
+                let start_vertex = map.get_vertex(linedef.start_vertex);
+                let end_vertex = map.get_vertex(linedef.end_vertex);
 
-            if let (Some(start_vertex), Some(end_vertex)) = (start_vertex, end_vertex) {
-                let start_pos = start_vertex;
-                let end_pos = end_vertex;
+                if let (Some(start_vertex), Some(end_vertex)) = (start_vertex, end_vertex) {
+                    let start_pos = start_vertex;
+                    let end_pos = end_vertex;
 
-                // Check if either endpoint is inside the rectangle
-                if point_in_rectangle(start_pos, top_left, bottom_right)
-                    || point_in_rectangle(end_pos, top_left, bottom_right)
-                {
-                    selection.1.push(linedef.id);
+                    // Check if either endpoint is inside the rectangle
+                    if point_in_rectangle(start_pos, top_left, bottom_right)
+                        || point_in_rectangle(end_pos, top_left, bottom_right)
+                    {
+                        selection.1.push(linedef.id);
+                    }
                 }
             }
         }
@@ -850,31 +866,33 @@ impl ServerContext {
         // }
 
         for sector in &map.sectors {
-            let mut vertices = Vec::new();
-            for &linedef_id in &sector.linedefs {
-                if let Some(linedef) = map.find_linedef(linedef_id) {
-                    if let Some(start_vertex) = map.find_vertex(linedef.start_vertex) {
-                        let vertex = start_vertex.as_vec2();
+            if sector.intersects_vertical_slice(map, self.editing_slice, 1.0) {
+                let mut vertices = Vec::new();
+                for &linedef_id in &sector.linedefs {
+                    if let Some(linedef) = map.find_linedef(linedef_id) {
+                        if let Some(start_vertex) = map.find_vertex(linedef.start_vertex) {
+                            let vertex = start_vertex.as_vec2();
 
-                        // Add the vertex to the list if it isn't already there
-                        if vertices.last() != Some(&vertex) {
-                            vertices.push(vertex);
+                            // Add the vertex to the list if it isn't already there
+                            if vertices.last() != Some(&vertex) {
+                                vertices.push(vertex);
+                            }
                         }
                     }
                 }
-            }
 
-            // Check if any part of the sector polygon is in the rectangle
-            if vertices
-                .iter()
-                .any(|v| point_in_rectangle(*v, top_left, bottom_right))
-                || vertices.windows(2).any(|pair| {
-                    // For edges, check if they intersect the rectangle
-                    let (a, b) = (pair[0], pair[1]);
-                    line_intersects_rectangle(a, b, top_left, bottom_right)
-                })
-            {
-                selection.2.push(sector.id);
+                // Check if any part of the sector polygon is in the rectangle
+                if vertices
+                    .iter()
+                    .any(|v| point_in_rectangle(*v, top_left, bottom_right))
+                    || vertices.windows(2).any(|pair| {
+                        // For edges, check if they intersect the rectangle
+                        let (a, b) = (pair[0], pair[1]);
+                        line_intersects_rectangle(a, b, top_left, bottom_right)
+                    })
+                {
+                    selection.2.push(sector.id);
+                }
             }
         }
 
