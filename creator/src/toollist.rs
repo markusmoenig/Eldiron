@@ -1434,11 +1434,6 @@ impl ToolList {
         rusterix.scene_handler.clear_overlay();
         // rusterix.scene_handler.vm.set_layer_activity_logging(true);
 
-        if !server_ctx.show_editing_geometry {
-            rusterix.scene_handler.set_overlay();
-            return;
-        }
-
         // basis_vectors returns (forward, right, up)
         let (cam_forward, cam_right, cam_up) = rusterix.client.camera_d3.basis_vectors();
         let view_right = cam_right;
@@ -1446,10 +1441,6 @@ impl ToolList {
         let view_nudge = cam_forward * -0.002; // small toward-camera nudge to avoid z-fighting
         rusterix.client.scene.d3_overlay.clear();
         let thickness = 0.15;
-
-        if self.get_current_tool().id().name == "Render Tool" {
-            return;
-        }
 
         if let Some(region) = project.get_region_ctx(&server_ctx) {
             let map = &region.map;
@@ -1502,18 +1493,10 @@ impl ToolList {
                 }
             }
 
-            // if let Some(surface) = map.surfaces.get(&hover_surface_id) {
-            //     let tile_xy = surface.world_to_tile(hover_world_pos); // (i32, i32)
-            //     let corners = surface.tile_outline_world(tile_xy); // [Vec3; 4]
-            //     let n = surface.plane.normal;
-
-            //     // Draw 4 edges (close the loop by wrapping 3→0)
-            //     for i in 0..4 {
-            //         let a = corners[i] + view_nudge;
-            //         let b = corners[(i + 1) % 4] + view_nudge;
-            //         push_line(GeoId::Unknown(0), a, b, n, false, true); // set id/flags as you wish
-            //     }
-            // }
+            if !server_ctx.show_editing_geometry {
+                rusterix.scene_handler.set_overlay();
+                return;
+            }
 
             // Helper to draw a single vertex as a camera-facing billboard in the overlay
             let vertex_size_world = 0.24_f32; // slightly larger for visibility
