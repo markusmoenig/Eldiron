@@ -304,8 +304,19 @@ impl Tool for RectTool {
                                 Some(Value::TileOverrides(existing)) => existing.clone(),
                                 _ => FxHashMap::default(),
                             };
-                            tiles.insert(server_ctx.rect_tile_id_3d, PixelSource::TileId(tile_id));
-                            sector.properties.set("tiles", Value::TileOverrides(tiles));
+                            if ui.shift {
+                                tiles.remove(&server_ctx.rect_tile_id_3d);
+                            } else {
+                                tiles.insert(
+                                    server_ctx.rect_tile_id_3d,
+                                    PixelSource::TileId(tile_id),
+                                );
+                            }
+                            if tiles.is_empty() {
+                                sector.properties.remove("tiles");
+                            } else {
+                                sector.properties.set("tiles", Value::TileOverrides(tiles));
+                            }
 
                             undo_atom = Some(ProjectUndoAtom::MapEdit(
                                 server_ctx.pc,
@@ -351,11 +362,20 @@ impl Tool for RectTool {
                                         Some(Value::TileOverrides(existing)) => existing.clone(),
                                         _ => FxHashMap::default(),
                                     };
-                                    tiles.insert(
-                                        server_ctx.rect_tile_id_3d,
-                                        PixelSource::TileId(tile_id),
-                                    );
-                                    sector.properties.set("tiles", Value::TileOverrides(tiles));
+
+                                    if ui.shift {
+                                        tiles.remove(&server_ctx.rect_tile_id_3d);
+                                    } else {
+                                        tiles.insert(
+                                            server_ctx.rect_tile_id_3d,
+                                            PixelSource::TileId(tile_id),
+                                        );
+                                    }
+                                    if tiles.is_empty() {
+                                        sector.properties.remove("tiles");
+                                    } else {
+                                        sector.properties.set("tiles", Value::TileOverrides(tiles));
+                                    }
 
                                     undo_atom = Some(ProjectUndoAtom::MapEdit(
                                         server_ctx.pc,
