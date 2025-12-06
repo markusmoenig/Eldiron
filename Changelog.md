@@ -1,3 +1,28 @@
+# Eldiron Creator v0.8.90
+
+## New Features
+
+### Creator
+
+- New UI concept: A project tree view now drives the content shown in the dock window (instead of Tools). This also drives a new Undo / Redo system, each dock window has its own undo / redo stack.
+- Maximizing the tile picker now reveals the new tile editor. Edit tiles directly in Eldiron and see them update the region in realtime.
+- The action list has been expanded and is now central to nearly all functionality inside Eldiron. A lot of new actions were added covering all aspects of Eldiron.
+- The Rect tool now works in 3D, draw tiles directly on surfaces.
+- New 3D editing actions include creation of gates and doors within surface holes, material settings for tiles and more.
+
+### Client
+
+- Switched from software based rendering to GPU based rendering for 2D and 3D. 3D is utilizing PBR shading and ray tracing.
+- A new collision system for extruded surfaces allowing opening / closing passages.
+
+## Bug Fixes
+
+- A DPI setting > 1.0 could crash Windows and Linux machines.
+- In 2D mode drawing blocking tiles would not make them blocking.
+- And many others ...
+
+---
+
 # Eldiron Creator v0.8.80
 
 ## New Features
