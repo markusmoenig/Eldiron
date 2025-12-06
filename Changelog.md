@@ -9,6 +9,8 @@
 - The action list has been expanded and is now central to nearly all functionality inside Eldiron. A lot of new actions were added covering all aspects of Eldiron.
 - The Rect tool now works in 3D, draw tiles directly on surfaces.
 - New 3D editing actions include creation of gates and doors within surface holes, material settings for tiles and more.
+- Now localization system and initial Chinese, Taiwanese, Spanish and German translations for the Creator.
+- Added a minimal starter project for new projects.
 
 ### Client
 
