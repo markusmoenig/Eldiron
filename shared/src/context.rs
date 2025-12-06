@@ -418,6 +418,10 @@ pub struct ServerContext {
 
     /// Position of the 2D editing slice.
     pub editing_slice: f32,
+
+    // For the Rect tool, identify the current sector and tile for preview
+    pub rect_sector_id_3d: Option<u32>,
+    pub rect_tile_id_3d: (i32, i32),
 }
 
 impl Default for ServerContext {
@@ -510,6 +514,8 @@ impl ServerContext {
             show_editing_geometry: true,
 
             editing_slice: 0.0,
+            rect_sector_id_3d: None,
+            rect_tile_id_3d: (0, 0),
         }
     }
 

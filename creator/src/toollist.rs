@@ -633,6 +633,7 @@ impl ToolList {
                                 if let Some(paste) = &server_ctx.paste_clipboard {
                                     if let Some(hover) = server_ctx.hover_cursor {
                                         let prev = map.clone();
+
                                         map.paste_at_position(paste, hover);
 
                                         if server_ctx.curr_map_tool_type == MapToolType::Vertex {
@@ -650,53 +651,26 @@ impl ToolList {
                                             map.selected_linedefs.clear();
                                         }
 
-                                        if server_ctx.curr_map_tool_helper
-                                            != MapToolHelper::ShapePicker
-                                        {
-                                            server_ctx.paste_clipboard = None;
-                                        }
-                                        RUSTERIX.write().unwrap().set_dirty();
+                                        // if server_ctx.curr_map_tool_helper
+                                        //     != MapToolHelper::ShapePicker
+                                        // {
+                                        // }
 
-                                        let undo_atom = RegionUndoAtom::MapEdit(
+                                        server_ctx.paste_clipboard = None;
+
+                                        let undo_atom = ProjectUndoAtom::MapEdit(
+                                            server_ctx.pc,
                                             Box::new(prev),
                                             Box::new(map.clone()),
                                         );
 
-                                        /*
-                                        if server_ctx.get_map_context() == MapContext::Material {
-                                            if let Some(material_undo_atom) =
-                                                undo_atom.to_material_atom()
-                                            {
-                                                UNDOMANAGER
-                                                    .write()
-                                                    .unwrap()
-                                                    .add_material_undo(material_undo_atom, ctx);
-                                            }
-                                        } else */
-
-                                        if server_ctx.get_map_context() == MapContext::Character {
-                                            if let Some(character_undo_atom) =
-                                                undo_atom.to_character_atom()
-                                            {
-                                                UNDOMANAGER
-                                                    .write()
-                                                    .unwrap()
-                                                    .add_character_undo(character_undo_atom, ctx);
-                                            }
-                                        } else if server_ctx.get_map_context() == MapContext::Item {
-                                            if let Some(item_undo_atom) = undo_atom.to_item_atom() {
-                                                UNDOMANAGER
-                                                    .write()
-                                                    .unwrap()
-                                                    .add_item_undo(item_undo_atom, ctx);
-                                            }
-                                        } else {
-                                            UNDOMANAGER.write().unwrap().add_region_undo(
-                                                &server_ctx.curr_region,
-                                                undo_atom,
-                                                ctx,
-                                            );
-                                        }
+                                        self.update_map_context(
+                                            ui,
+                                            ctx,
+                                            project,
+                                            server_ctx,
+                                            Some(undo_atom),
+                                        );
 
                                         return true;
                                     }
@@ -883,98 +857,101 @@ impl ToolList {
                     }
                 }*/
 
-                if id.name == "PolyView" && server_ctx.editor_view_mode == EditorViewMode::D2 {
+                if id.name == "PolyView" {
                     let mut changed_entities: FxHashMap<Uuid, Vec3<f32>> = FxHashMap::default();
                     let mut changed_items: FxHashMap<Uuid, Vec3<f32>> = FxHashMap::default();
 
-                    if self.char_click_selected {
-                        if let Some(map) = project.get_map_mut(server_ctx) {
-                            // Dragging selected character
-                            if let Some(render_view) = ui.get_render_view("PolyView") {
-                                let dim = *render_view.dim();
+                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                        if self.char_click_selected {
+                            if let Some(map) = project.get_map_mut(server_ctx) {
+                                // Dragging selected character
+                                if let Some(render_view) = ui.get_render_view("PolyView") {
+                                    let dim = *render_view.dim();
 
-                                let mut drag_pos = server_ctx.local_to_map_cell(
-                                    Vec2::new(dim.width as f32, dim.height as f32),
-                                    Vec2::new(coord.x as f32, coord.y as f32),
-                                    map,
-                                    map.subdivisions,
-                                );
-                                drag_pos += map.subdivisions * 0.5;
+                                    let mut drag_pos = server_ctx.local_to_map_cell(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        Vec2::new(coord.x as f32, coord.y as f32),
+                                        map,
+                                        map.subdivisions,
+                                    );
+                                    drag_pos += map.subdivisions * 0.5;
 
-                                let drag_delta = self.char_click_pos - drag_pos;
+                                    let drag_delta = self.char_click_pos - drag_pos;
 
-                                for entity in map.entities.iter_mut() {
-                                    if Some(entity.creator_id) == map.selected_entity_item {
-                                        let new_pos = Vec2::new(
-                                            self.char_click_pos.x - drag_delta.x,
-                                            self.char_click_pos.y - drag_delta.y,
-                                        );
-                                        entity.position.x = new_pos.x;
-                                        entity.position.z = new_pos.y;
+                                    for entity in map.entities.iter_mut() {
+                                        if Some(entity.creator_id) == map.selected_entity_item {
+                                            let new_pos = Vec2::new(
+                                                self.char_click_pos.x - drag_delta.x,
+                                                self.char_click_pos.y - drag_delta.y,
+                                            );
+                                            entity.position.x = new_pos.x;
+                                            entity.position.z = new_pos.y;
 
-                                        changed_entities.insert(entity.creator_id, entity.position);
+                                            changed_entities
+                                                .insert(entity.creator_id, entity.position);
 
-                                        self.drag_changed = self.char_click_pos.x != new_pos.x
-                                            || self.char_click_pos.y != new_pos.y;
+                                            self.drag_changed = self.char_click_pos.x != new_pos.x
+                                                || self.char_click_pos.y != new_pos.y;
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            for (id, position) in changed_entities {
-                                if let Some(instance) = region.characters.get_mut(&id) {
-                                    instance.position = position;
-                                }
-                            }
-                        }
-                        return true;
-                    }
-
-                    if self.item_click_selected {
-                        if let Some(map) = project.get_map_mut(server_ctx) {
-                            // Dragging selected item
-                            if let Some(render_view) = ui.get_render_view("PolyView") {
-                                let dim = *render_view.dim();
-
-                                let mut drag_pos = server_ctx.local_to_map_cell(
-                                    Vec2::new(dim.width as f32, dim.height as f32),
-                                    Vec2::new(coord.x as f32, coord.y as f32),
-                                    map,
-                                    map.subdivisions,
-                                );
-                                drag_pos += map.subdivisions * 0.5;
-
-                                let drag_delta = self.char_click_pos - drag_pos;
-
-                                for item in map.items.iter_mut() {
-                                    if Some(item.creator_id) == map.selected_entity_item {
-                                        let new_pos = Vec2::new(
-                                            self.char_click_pos.x - drag_delta.x,
-                                            self.char_click_pos.y - drag_delta.y,
-                                        );
-                                        item.position.x = new_pos.x;
-                                        item.position.z = new_pos.y;
-
-                                        changed_items.insert(item.creator_id, item.position);
-
-                                        self.drag_changed = self.char_click_pos.x != new_pos.x
-                                            || self.char_click_pos.y != new_pos.y;
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                for (id, position) in changed_entities {
+                                    if let Some(instance) = region.characters.get_mut(&id) {
+                                        instance.position = position;
                                     }
                                 }
                             }
+                            return true;
                         }
 
-                        // Update character / item positions
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            for (id, position) in changed_items {
-                                if let Some(instance) = region.items.get_mut(&id) {
-                                    instance.position = position;
+                        if self.item_click_selected {
+                            if let Some(map) = project.get_map_mut(server_ctx) {
+                                // Dragging selected item
+                                if let Some(render_view) = ui.get_render_view("PolyView") {
+                                    let dim = *render_view.dim();
+
+                                    let mut drag_pos = server_ctx.local_to_map_cell(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        Vec2::new(coord.x as f32, coord.y as f32),
+                                        map,
+                                        map.subdivisions,
+                                    );
+                                    drag_pos += map.subdivisions * 0.5;
+
+                                    let drag_delta = self.char_click_pos - drag_pos;
+
+                                    for item in map.items.iter_mut() {
+                                        if Some(item.creator_id) == map.selected_entity_item {
+                                            let new_pos = Vec2::new(
+                                                self.char_click_pos.x - drag_delta.x,
+                                                self.char_click_pos.y - drag_delta.y,
+                                            );
+                                            item.position.x = new_pos.x;
+                                            item.position.z = new_pos.y;
+
+                                            changed_items.insert(item.creator_id, item.position);
+
+                                            self.drag_changed = self.char_click_pos.x != new_pos.x
+                                                || self.char_click_pos.y != new_pos.y;
+                                        }
+                                    }
                                 }
                             }
-                        }
 
-                        return true;
+                            // Update character / item positions
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                for (id, position) in changed_items {
+                                    if let Some(instance) = region.items.get_mut(&id) {
+                                        instance.position = position;
+                                    }
+                                }
+                            }
+
+                            return true;
+                        }
                     }
 
                     if let Some(map) = project.get_map_mut(server_ctx) {
@@ -987,11 +964,15 @@ impl ToolList {
                         );
                         if undo_atom.is_some() {
                             map.changed += 1;
-                            if server_ctx.get_map_context() == MapContext::Shader {
-                                NODEEDITOR.read().unwrap().force_update(ctx, map);
-                            }
+                            // if server_ctx.get_map_context() == MapContext::Shader {
+                            //     NODEEDITOR.read().unwrap().force_update(ctx, map);
+                            // }
                         }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
+
+                        if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                            self.update_geometry_overlay_3d(project, server_ctx);
+                        }
                     }
 
                     redraw = true;
@@ -1499,6 +1480,41 @@ impl ToolList {
                     .add_line_3d(id, tile_id, a, b, thickness, normal, 100);
             };
 
+            // Rect tool previews
+
+            if server_ctx.curr_map_tool_type == MapToolType::Rect {
+                if let Some(sector_id) = server_ctx.rect_sector_id_3d {
+                    let mut index = 0;
+                    for (_, surface) in &map.surfaces {
+                        if surface.sector_id == sector_id {
+                            let corners = surface.tile_outline_world(server_ctx.rect_tile_id_3d);
+                            let n = surface.plane.normal;
+
+                            // Draw 4 edges (close the loop by wrapping 3→0)
+                            for i in 0..4 {
+                                let a = corners[i] + view_nudge;
+                                let b = corners[(i + 1) % 4] + view_nudge;
+                                push_line(GeoId::Unknown(index), a, b, n, false, false);
+                                index += 1;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // if let Some(surface) = map.surfaces.get(&hover_surface_id) {
+            //     let tile_xy = surface.world_to_tile(hover_world_pos); // (i32, i32)
+            //     let corners = surface.tile_outline_world(tile_xy); // [Vec3; 4]
+            //     let n = surface.plane.normal;
+
+            //     // Draw 4 edges (close the loop by wrapping 3→0)
+            //     for i in 0..4 {
+            //         let a = corners[i] + view_nudge;
+            //         let b = corners[(i + 1) % 4] + view_nudge;
+            //         push_line(GeoId::Unknown(0), a, b, n, false, true); // set id/flags as you wish
+            //     }
+            // }
+
             // Helper to draw a single vertex as a camera-facing billboard in the overlay
             let vertex_size_world = 0.24_f32; // slightly larger for visibility
             let push_vertex =
@@ -1808,8 +1824,6 @@ impl ToolList {
         if let Some(rc) = rc {
             return Some(rc.0);
         }
-
-        // Try
 
         None
     }

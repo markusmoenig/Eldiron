@@ -1,3 +1,4 @@
+use crate::editor::RUSTERIX;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -278,13 +279,40 @@ impl Tool for RectTool {
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     return None;
                 }
+
                 self.processed.clear();
-                if let Some(cp) = server_ctx.hover_cursor {
-                    let k = Vec2::new(cp.x as i32, cp.y as i32);
-                    if !self.processed.contains(&k) {
-                        undo_atom =
-                            add_tile(ui, ctx, map, server_ctx, self.hovered_vertices, self.mode);
-                        self.processed.insert(k);
+                if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    if let Some(cp) = server_ctx.hover_cursor {
+                        let k = Vec2::new(cp.x as i32, cp.y as i32);
+                        if !self.processed.contains(&k) {
+                            undo_atom = add_tile(
+                                ui,
+                                ctx,
+                                map,
+                                server_ctx,
+                                self.hovered_vertices,
+                                self.mode,
+                            );
+                            self.processed.insert(k);
+                        }
+                    }
+                } else if let Some(sector_id) = server_ctx.rect_sector_id_3d {
+                    let prev = map.clone();
+                    if let Some(tile_id) = server_ctx.curr_tile_id {
+                        if let Some(sector) = map.find_sector_mut(sector_id) {
+                            let mut tiles = match sector.properties.get("tiles") {
+                                Some(Value::TileOverrides(existing)) => existing.clone(),
+                                _ => FxHashMap::default(),
+                            };
+                            tiles.insert(server_ctx.rect_tile_id_3d, PixelSource::TileId(tile_id));
+                            sector.properties.set("tiles", Value::TileOverrides(tiles));
+
+                            undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                server_ctx.pc,
+                                Box::new(prev),
+                                Box::new(map.clone()),
+                            ));
+                        }
                     }
                 }
             }
@@ -293,19 +321,65 @@ impl Tool for RectTool {
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     return None;
                 }
-                self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
-                if let Some(cp) = server_ctx.hover_cursor {
-                    let k = Vec2::new(cp.x as i32, cp.y as i32);
-                    if !self.processed.contains(&k) {
-                        undo_atom =
-                            add_tile(ui, ctx, map, server_ctx, self.hovered_vertices, self.mode);
-                        self.processed.insert(k);
+                if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
+                    if let Some(cp) = server_ctx.hover_cursor {
+                        let k = Vec2::new(cp.x as i32, cp.y as i32);
+                        if !self.processed.contains(&k) {
+                            undo_atom = add_tile(
+                                ui,
+                                ctx,
+                                map,
+                                server_ctx,
+                                self.hovered_vertices,
+                                self.mode,
+                            );
+                            self.processed.insert(k);
+                        }
+                    }
+                } else {
+                    self.compute_3d_tile(coord, map, ui, server_ctx);
+                    if !self.processed.contains(&Vec2::new(
+                        server_ctx.rect_tile_id_3d.0,
+                        server_ctx.rect_tile_id_3d.1,
+                    )) {
+                        if let Some(sector_id) = server_ctx.rect_sector_id_3d {
+                            let prev = map.clone();
+                            if let Some(tile_id) = server_ctx.curr_tile_id {
+                                if let Some(sector) = map.find_sector_mut(sector_id) {
+                                    let mut tiles = match sector.properties.get("tiles") {
+                                        Some(Value::TileOverrides(existing)) => existing.clone(),
+                                        _ => FxHashMap::default(),
+                                    };
+                                    tiles.insert(
+                                        server_ctx.rect_tile_id_3d,
+                                        PixelSource::TileId(tile_id),
+                                    );
+                                    sector.properties.set("tiles", Value::TileOverrides(tiles));
+
+                                    undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                        server_ctx.pc,
+                                        Box::new(prev),
+                                        Box::new(map.clone()),
+                                    ));
+
+                                    self.processed.insert(Vec2::new(
+                                        server_ctx.rect_tile_id_3d.0,
+                                        server_ctx.rect_tile_id_3d.1,
+                                    ));
+                                }
+                            }
+                        }
                     }
                 }
             }
             MapUp(_) => {}
             MapHover(coord) => {
-                self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
+                if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
+                } else {
+                    self.compute_3d_tile(coord, map, ui, server_ctx);
+                }
             }
             MapDelete => {}
             MapEscape => {
@@ -433,5 +507,47 @@ impl Tool for RectTool {
             _ => {}
         }
         redraw
+    }
+}
+
+impl RectTool {
+    fn compute_3d_tile(
+        &self,
+        coord: Vec2<i32>,
+        map: &Map,
+        ui: &mut TheUI,
+        server_ctx: &mut ServerContext,
+    ) {
+        if let Some(render_view) = ui.get_render_view("PolyView") {
+            let dim = *render_view.dim();
+
+            let screen_uv = [
+                coord.x as f32 / dim.width as f32,
+                coord.y as f32 / dim.height as f32,
+            ];
+
+            let rusterix = RUSTERIX.read().unwrap();
+
+            let rc = rusterix.scene_handler.vm.pick_geo_id_at_uv(
+                dim.width as u32,
+                dim.height as u32,
+                screen_uv,
+            );
+
+            let mut found = false;
+            if let Some((scenevm::GeoId::Sector(id), world_hit, _)) = rc {
+                for (_, surface) in &map.surfaces {
+                    if surface.sector_id == id {
+                        server_ctx.rect_tile_id_3d = surface.world_to_tile(world_hit);
+                        server_ctx.rect_sector_id_3d = Some(id);
+                        found = true;
+                    }
+                }
+            }
+
+            if !found {
+                server_ctx.rect_sector_id_3d = None;
+            }
+        }
     }
 }
