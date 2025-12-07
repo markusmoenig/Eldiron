@@ -234,17 +234,18 @@ fragment float4 m4mBoxPatternDrawable(RasterizerData in [[stage_in]],
 // --- Copy texture
 fragment float4 m4mCopyTextureDrawable(RasterizerData in [[stage_in]],
                                 constant TextureUniform *data [[ buffer(0) ]],
-                                texture2d<half, access::read> inTexture [[ texture(1) ]])
+                                texture2d<half> inTexture [[ texture(1) ]],
+                                sampler textureSampler [[sampler(2)]])
 {
-    float2 uv = in.textureCoordinate * data->size;
-    uv.y = data->size.y - uv.y;
+    float2 uv = in.textureCoordinate;
+    uv.y = 1.0 - uv.y;
 
-    const half4 colorSample = inTexture.read(uint2(uv));
+    const half4 colorSample = inTexture.sample(textureSampler, uv);
     float4 sample = float4( colorSample );
 
     sample.w *= data->globalAlpha;
 
-    return float4(sample.x / sample.w, sample.y / sample.w, sample.z / sample.w, sample.w);
+    return sample;
 }
 
 // --- Draw a textue
