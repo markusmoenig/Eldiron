@@ -23,7 +23,7 @@ scenevm = { version = "0.1", git = "https://github.com/markusmoenig/SceneVM" }
 
 [workspace.package]
 edition = "2024"
-version = "0.8.80"
+version = "0.8.90"
 license = "MIT"
 authors = ["Markus Moenig"]
 description = "A game creator for classical RPGs."
