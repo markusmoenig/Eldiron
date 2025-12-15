@@ -1800,6 +1800,7 @@ impl ToolList {
             dim.width as u32,
             dim.height as u32,
             screen_uv,
+            true,
         );
 
         rusterix.scene_handler.vm.set_active_vm(0);

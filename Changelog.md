@@ -1,3 +1,18 @@
+# Eldiron Creator v0.8.10
+
+## New Features
+
+### Creator
+
+- "Edit Sector" action can now apply tags to sectors.
+- Geometry can now be made visible / invisible without rebuilding the BVH. This lays the foundation to be able to hide roofs and other geometry in-game on the fly.
+
+### Client
+
+## Bug Fixes
+
+---
+
 # Eldiron Creator v0.8.90
 
 ## New Features

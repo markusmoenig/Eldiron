@@ -5639,17 +5639,21 @@ name = "scenevm"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "getrandom 0.3.4",
  "image",
  "pollster",
- "rayon",
+ "rfd",
  "rust-embed",
  "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
  "uuid",
  "vek",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
  "wgpu",
+ "winit",
 ]
 
 [[package]]
@@ -7007,6 +7011,7 @@ dependencies = [
  "rand 0.9.2",
  "serde_core",
  "uuid-macro-internal",
+ "uuid-rng-internal",
  "wasm-bindgen",
 ]
 
@@ -7019,6 +7024,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "uuid-rng-internal"
+version = "1.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d0021aebf9af0cbec73af2f884a2cd0a41d984c00e42f27baa11856ab480e2c"
+dependencies = [
+ "getrandom 0.3.4",
 ]
 
 [[package]]

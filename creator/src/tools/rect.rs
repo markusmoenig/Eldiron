@@ -552,6 +552,7 @@ impl RectTool {
                 dim.width as u32,
                 dim.height as u32,
                 screen_uv,
+                false,
             );
 
             let mut found = false;
