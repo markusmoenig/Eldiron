@@ -149,6 +149,28 @@ impl Tool for VertexTool {
                             TheValue::Empty,
                         ));
                     }
+                } else {
+                    if ui.shift {
+                        // Add a new vertex
+                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                            let dim = *render_view.dim();
+                            let grid_pos = server_ctx.local_to_map_grid(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                Vec2::new(coord.x as f32, coord.y as f32),
+                                map,
+                                map.subdivisions,
+                            );
+
+                            let prev = map.clone();
+                            _ = map.add_vertex_at(grid_pos.x, grid_pos.y);
+
+                            undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                server_ctx.pc,
+                                Box::new(prev),
+                                Box::new(map.clone()),
+                            ));
+                        }
+                    }
                 }
 
                 self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);
@@ -305,6 +327,12 @@ impl Tool for VertexTool {
                     if let Some(geo_id) = server_ctx.geo_hit {
                         match geo_id {
                             GeoId::Vertex(id) => {
+                                println!(
+                                    "hover {:?} {} {}",
+                                    geo_id,
+                                    map.id,
+                                    map.find_vertex(id).is_some()
+                                );
                                 server_ctx.hover = (Some(id), None, None);
                             }
                             _ => {

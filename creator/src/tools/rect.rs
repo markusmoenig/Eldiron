@@ -14,6 +14,8 @@ pub struct RectTool {
     hud: Hud,
 
     processed: FxHashSet<Vec2<i32>>,
+
+    is_terrain: bool,
 }
 
 impl Tool for RectTool {
@@ -29,6 +31,8 @@ impl Tool for RectTool {
             hud: Hud::new(HudMode::Rect),
 
             processed: FxHashSet::default(),
+
+            is_terrain: false,
         }
     }
 
@@ -296,33 +300,72 @@ impl Tool for RectTool {
                             self.processed.insert(k);
                         }
                     }
-                } else if let Some(sector_id) = server_ctx.rect_sector_id_3d {
+                } else {
                     let prev = map.clone();
+                    self.is_terrain = false;
+
                     if let Some(tile_id) = server_ctx.curr_tile_id {
-                        if let Some(sector) = map.find_sector_mut(sector_id) {
-                            let mut tiles = match sector.properties.get("tiles") {
+                        if let Some((x, z)) = server_ctx.rect_terrain_id {
+                            let prev = map.clone();
+
+                            let mut tiles = match map.properties.get("tiles") {
                                 Some(Value::TileOverrides(existing)) => existing.clone(),
                                 _ => FxHashMap::default(),
                             };
-                            if ui.shift {
-                                tiles.remove(&server_ctx.rect_tile_id_3d);
-                            } else {
-                                tiles.insert(
-                                    server_ctx.rect_tile_id_3d,
-                                    PixelSource::TileId(tile_id),
-                                );
-                            }
-                            if tiles.is_empty() {
-                                sector.properties.remove("tiles");
-                            } else {
-                                sector.properties.set("tiles", Value::TileOverrides(tiles));
-                            }
 
-                            undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                server_ctx.pc,
-                                Box::new(prev),
-                                Box::new(map.clone()),
-                            ));
+                            if let Some(tile_id) = server_ctx.curr_tile_id {
+                                if ui.shift {
+                                    tiles.remove(&(x, z));
+                                } else {
+                                    tiles.insert((x, z), PixelSource::TileId(tile_id));
+                                }
+
+                                if tiles.is_empty() {
+                                    map.properties.remove("tiles");
+                                } else {
+                                    map.properties.set("tiles", Value::TileOverrides(tiles));
+                                }
+
+                                undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                    server_ctx.pc,
+                                    Box::new(prev),
+                                    Box::new(map.clone()),
+                                ));
+
+                                self.is_terrain = true;
+                                self.processed.insert(Vec2::new(x, z));
+                            }
+                        } else if let Some(sector_id) = server_ctx.rect_sector_id_3d {
+                            if let Some(sector) = map.find_sector_mut(sector_id) {
+                                let mut tiles = match sector.properties.get("tiles") {
+                                    Some(Value::TileOverrides(existing)) => existing.clone(),
+                                    _ => FxHashMap::default(),
+                                };
+                                if ui.shift {
+                                    tiles.remove(&server_ctx.rect_tile_id_3d);
+                                } else {
+                                    tiles.insert(
+                                        server_ctx.rect_tile_id_3d,
+                                        PixelSource::TileId(tile_id),
+                                    );
+                                }
+                                if tiles.is_empty() {
+                                    sector.properties.remove("tiles");
+                                } else {
+                                    sector.properties.set("tiles", Value::TileOverrides(tiles));
+                                }
+
+                                undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                    server_ctx.pc,
+                                    Box::new(prev),
+                                    Box::new(map.clone()),
+                                ));
+
+                                self.processed.insert(Vec2::new(
+                                    server_ctx.rect_tile_id_3d.0,
+                                    server_ctx.rect_tile_id_3d.1,
+                                ));
+                            }
                         }
                     }
                 }
@@ -350,31 +393,27 @@ impl Tool for RectTool {
                     }
                 } else {
                     self.compute_3d_tile(coord, map, ui, server_ctx);
-                    if !self.processed.contains(&Vec2::new(
-                        server_ctx.rect_tile_id_3d.0,
-                        server_ctx.rect_tile_id_3d.1,
-                    )) {
-                        if let Some(sector_id) = server_ctx.rect_sector_id_3d {
-                            let prev = map.clone();
-                            if let Some(tile_id) = server_ctx.curr_tile_id {
-                                if let Some(sector) = map.find_sector_mut(sector_id) {
-                                    let mut tiles = match sector.properties.get("tiles") {
-                                        Some(Value::TileOverrides(existing)) => existing.clone(),
-                                        _ => FxHashMap::default(),
-                                    };
+                    if self.is_terrain {
+                        if let Some((x, z)) = server_ctx.rect_terrain_id {
+                            if !self.processed.contains(&Vec2::new(x, z)) {
+                                let prev = map.clone();
 
+                                let mut tiles = match map.properties.get("tiles") {
+                                    Some(Value::TileOverrides(existing)) => existing.clone(),
+                                    _ => FxHashMap::default(),
+                                };
+
+                                if let Some(tile_id) = server_ctx.curr_tile_id {
                                     if ui.shift {
-                                        tiles.remove(&server_ctx.rect_tile_id_3d);
+                                        tiles.remove(&(x, z));
                                     } else {
-                                        tiles.insert(
-                                            server_ctx.rect_tile_id_3d,
-                                            PixelSource::TileId(tile_id),
-                                        );
+                                        tiles.insert((x, z), PixelSource::TileId(tile_id));
                                     }
+
                                     if tiles.is_empty() {
-                                        sector.properties.remove("tiles");
+                                        map.properties.remove("tiles");
                                     } else {
-                                        sector.properties.set("tiles", Value::TileOverrides(tiles));
+                                        map.properties.set("tiles", Value::TileOverrides(tiles));
                                     }
 
                                     undo_atom = Some(ProjectUndoAtom::MapEdit(
@@ -383,10 +422,53 @@ impl Tool for RectTool {
                                         Box::new(map.clone()),
                                     ));
 
-                                    self.processed.insert(Vec2::new(
-                                        server_ctx.rect_tile_id_3d.0,
-                                        server_ctx.rect_tile_id_3d.1,
-                                    ));
+                                    self.processed.insert(Vec2::new(x, z));
+                                }
+                            }
+                        }
+                    } else {
+                        if !self.processed.contains(&Vec2::new(
+                            server_ctx.rect_tile_id_3d.0,
+                            server_ctx.rect_tile_id_3d.1,
+                        )) {
+                            if let Some(sector_id) = server_ctx.rect_sector_id_3d {
+                                let prev = map.clone();
+                                if let Some(tile_id) = server_ctx.curr_tile_id {
+                                    if let Some(sector) = map.find_sector_mut(sector_id) {
+                                        let mut tiles = match sector.properties.get("tiles") {
+                                            Some(Value::TileOverrides(existing)) => {
+                                                existing.clone()
+                                            }
+                                            _ => FxHashMap::default(),
+                                        };
+
+                                        if ui.shift {
+                                            tiles.remove(&server_ctx.rect_tile_id_3d);
+                                        } else {
+                                            tiles.insert(
+                                                server_ctx.rect_tile_id_3d,
+                                                PixelSource::TileId(tile_id),
+                                            );
+                                        }
+                                        if tiles.is_empty() {
+                                            sector.properties.remove("tiles");
+                                        } else {
+                                            sector
+                                                .properties
+                                                .set("tiles", Value::TileOverrides(tiles));
+                                        }
+
+                                        undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                            server_ctx.pc,
+                                            Box::new(prev),
+                                            Box::new(map.clone()),
+                                        ));
+
+                                        self.processed.insert(Vec2::new(
+                                            server_ctx.rect_tile_id_3d.0,
+                                            server_ctx.rect_tile_id_3d.1,
+                                        ));
+                                    }
                                 }
                             }
                         }
@@ -532,7 +614,7 @@ impl Tool for RectTool {
 
 impl RectTool {
     fn compute_3d_tile(
-        &self,
+        &mut self,
         coord: Vec2<i32>,
         map: &Map,
         ui: &mut TheUI,
@@ -564,6 +646,12 @@ impl RectTool {
                         found = true;
                     }
                 }
+            }
+
+            if let Some((scenevm::GeoId::Terrain(x, z), _, _)) = rc {
+                server_ctx.rect_terrain_id = Some((x, z));
+            } else {
+                server_ctx.rect_terrain_id = None;
             }
 
             if !found {

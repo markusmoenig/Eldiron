@@ -422,6 +422,7 @@ pub struct ServerContext {
     // For the Rect tool, identify the current sector and tile for preview
     pub rect_sector_id_3d: Option<u32>,
     pub rect_tile_id_3d: (i32, i32),
+    pub rect_terrain_id: Option<(i32, i32)>,
 }
 
 impl Default for ServerContext {
@@ -516,6 +517,7 @@ impl ServerContext {
             editing_slice: 0.0,
             rect_sector_id_3d: None,
             rect_tile_id_3d: (0, 0),
+            rect_terrain_id: None,
         }
     }
 

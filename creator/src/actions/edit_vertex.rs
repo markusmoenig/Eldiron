@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use rusterix::{PixelSource, Value};
+use rusterix::Value;
 
 pub struct EditVertex {
     id: TheId,
@@ -60,15 +60,13 @@ impl Action for EditVertex {
             false,
         ));
 
-        let item = TheNodeUIItem::Icons(
-            "actionVertexTile".into(),
-            fl!("icons"),
-            fl!("status_action_recess_tiles"),
-            vec![(
-                TheRGBABuffer::new(TheDim::sized(36, 36)),
-                "".to_string(),
-                Uuid::nil(),
-            )],
+        let item = TheNodeUIItem::FloatEditSlider(
+            "actionVertexTerrainSmoothness".into(),
+            fl!("action_edit_vertex_terrain_smoothness"),
+            fl!("status_action_edit_vertex_terrain_smoothness"),
+            0.0,
+            0.0..=0.0,
+            false,
         );
         nodeui.add_item(item);
 
@@ -110,43 +108,14 @@ impl Action for EditVertex {
                     "actionVertexTerrain",
                     vertex.properties.get_bool_default("terrain_control", false),
                 );
+                self.nodeui.set_f32_value(
+                    "actionVertexTerrainSmoothness",
+                    vertex.properties.get_float_default("smoothness", 1.0),
+                );
+
                 self.nodeui.set_f32_value("actionVertexX", vertex.x);
                 self.nodeui.set_f32_value("actionVertexY", vertex.z);
                 self.nodeui.set_f32_value("actionVertexZ", vertex.y);
-            }
-        }
-    }
-
-    fn load_params_project(&mut self, project: &Project, server_ctx: &mut ServerContext) {
-        let mut tile_icon = TheRGBABuffer::new(TheDim::sized(36, 36));
-        let mut tile_id = Uuid::nil();
-
-        if let Some(map) = project.get_map(server_ctx) {
-            if let Some(vertex_id) = map.selected_vertices.first() {
-                if let Some(vertex) = map.find_vertex(*vertex_id) {
-                    if let Some(Value::Source(PixelSource::TileId(id))) =
-                        vertex.properties.get("source")
-                    {
-                        if let Some(tile) = project.tiles.get(id)
-                            && !tile.is_empty()
-                        {
-                            tile_icon = tile.textures[0].to_rgba();
-                            tile_id = *id;
-                        }
-                    }
-                }
-            }
-        }
-
-        if let Some(item) = self.nodeui.get_item_mut("actionVertexTile") {
-            match item {
-                TheNodeUIItem::Icons(_, _, _, items) => {
-                    if items.len() == 1 {
-                        items[0].0 = tile_icon;
-                        items[0].2 = tile_id;
-                    }
-                }
-                _ => {}
             }
         }
     }
@@ -171,7 +140,10 @@ impl Action for EditVertex {
             .get_bool_value("actionVertexTerrain")
             .unwrap_or(false);
 
-        let tile_id = self.nodeui.get_tile_id("actionVertexTile", 0);
+        let terrain_smoothness = self
+            .nodeui
+            .get_f32_value("actionVertexTerrainSmoothness")
+            .unwrap_or(1.0);
 
         let x = self.nodeui.get_f32_value("actionVertexX").unwrap_or(0.0);
         let y = self.nodeui.get_f32_value("actionVertexY").unwrap_or(0.0);
@@ -181,6 +153,7 @@ impl Action for EditVertex {
             if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
                 let ex_terrain_control =
                     vertex.properties.get_bool_default("terrain_control", false);
+
                 if ex_terrain_control != terrain_control {
                     vertex
                         .properties
@@ -188,13 +161,12 @@ impl Action for EditVertex {
                     changed = true;
                 }
 
-                if let Some(tile_id) = tile_id
-                    && tile_id != Uuid::nil()
-                {
-                    vertex.properties.set(
-                        "source",
-                        Value::Source(rusterix::PixelSource::TileId(tile_id)),
-                    );
+                let ex_terrain_smoothness = vertex.properties.get_float_default("smoothness", 1.0);
+                if ex_terrain_smoothness != terrain_smoothness {
+                    vertex
+                        .properties
+                        .set("smoothness", Value::Float(terrain_smoothness));
+                    println!("set {}", terrain_smoothness);
                     changed = true;
                 }
 
@@ -236,33 +208,11 @@ impl Action for EditVertex {
     fn handle_event(
         &mut self,
         event: &TheEvent,
-        project: &mut Project,
+        _project: &mut Project,
         _ui: &mut TheUI,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
         _server_ctx: &mut ServerContext,
     ) -> bool {
-        if let TheEvent::TileDropped(id, tile_id, index) = event {
-            if let Some(item) = self.nodeui.get_item_mut(&id.name) {
-                match item {
-                    TheNodeUIItem::Icons(_, _, _, items) => {
-                        if *index < items.len() {
-                            if let Some(tile) = project.tiles.get(tile_id)
-                                && !tile.is_empty()
-                            {
-                                items[*index].0 = tile.textures[0].to_rgba();
-                                items[*index].2 = *tile_id;
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Update Action List"),
-                                    TheValue::Empty,
-                                ));
-                                return true;
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
         self.nodeui.handle_event(event)
     }
 }

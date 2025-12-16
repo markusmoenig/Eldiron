@@ -39,6 +39,18 @@ impl Action for EditSector {
             true,
         ));
 
+        let item = TheNodeUIItem::Selector(
+            "actionSectorTerrain".into(),
+            fl!("action_edit_sector_terrain"),
+            fl!("status_action_edit_sector_terrain"),
+            vec![
+                fl!("action_edit_sector_terrain_none"),
+                fl!("action_edit_sector_terrain_exclude"),
+            ],
+            0,
+        );
+        nodeui.add_item(item);
+
         let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_sector_desc"));
         nodeui.add_item(item);
 
@@ -79,6 +91,14 @@ impl Action for EditSector {
 
                 let visible = sector.properties.get_bool_default("visible", true);
                 self.nodeui.set_bool_value("actionSectorVisible", visible);
+
+                let terrain_mode = sector.properties.get_str_default("terrain_mode", "".into());
+                let mut terrain_val = 0;
+                if terrain_mode == "exclude" {
+                    terrain_val = 1;
+                }
+                self.nodeui
+                    .set_i32_value("actionSectorTerrain", terrain_val);
             }
         }
     }
@@ -108,6 +128,11 @@ impl Action for EditSector {
             .get_bool_value("actionSectorVisible")
             .unwrap_or(true);
 
+        let terrain_role = self
+            .nodeui
+            .get_i32_value("actionSectorTerrain")
+            .unwrap_or(0);
+
         if let Some(sector_id) = map.selected_sectors.first() {
             if let Some(sector) = map.find_sector_mut(*sector_id) {
                 if name != sector.name {
@@ -124,6 +149,14 @@ impl Action for EditSector {
                 let vis = sector.properties.get_bool_default("visible", true);
                 if vis != visible {
                     sector.properties.set("visible", Value::Bool(visible));
+                    changed = true;
+                }
+
+                // let terr = sector.properties.get_str_default("terrain_mode", "".into());
+                if terrain_role == 1 {
+                    sector
+                        .properties
+                        .set("terrain_mode", Value::Str("exclude".to_string()));
                     changed = true;
                 }
             }

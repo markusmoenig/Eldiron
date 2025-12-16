@@ -2,6 +2,7 @@ use crate::editor::{CODEEDITOR, NODEEDITOR, RUSTERIX, SHAPEPICKER, UNDOMANAGER};
 use crate::prelude::*;
 pub use crate::tools::rect::RectTool;
 use rusterix::Assets;
+use rusterix::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
 use scenevm::GeoId;
 
 pub struct ToolList {
@@ -1474,7 +1475,20 @@ impl ToolList {
             // Rect tool previews
 
             if server_ctx.curr_map_tool_type == MapToolType::Rect {
-                if let Some(sector_id) = server_ctx.rect_sector_id_3d {
+                if let Some(terrain_id) = server_ctx.rect_terrain_id {
+                    let mut index = 0;
+                    let config = TerrainConfig::default();
+                    let corners = TerrainGenerator::tile_outline_world(map, terrain_id, &config);
+                    let n = TerrainGenerator::tile_normal(map, terrain_id, &config);
+
+                    // Draw 4 edges (close the loop by wrapping 3→0)
+                    for i in 0..4 {
+                        let a = corners[i] + view_nudge;
+                        let b = corners[(i + 1) % 4] + view_nudge;
+                        push_line(GeoId::Unknown(index), a, b, n, false, false);
+                        index += 1;
+                    }
+                } else if let Some(sector_id) = server_ctx.rect_sector_id_3d {
                     let mut index = 0;
                     for (_, surface) in &map.surfaces {
                         if surface.sector_id == sector_id {

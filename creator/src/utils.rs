@@ -3,6 +3,7 @@ use crate::prelude::*;
 use codegridfx::{Module, ModuleType};
 use rusteria::{RenderBuffer, Rusteria};
 use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
+use std::str::FromStr;
 use toml::*;
 
 pub fn update_region_settings(
@@ -29,6 +30,22 @@ pub fn update_region_settings(
                             .set("terrain_enabled", Value::Bool(enabled));
                         changed = true;
                         // }
+                    }
+
+                    let mut got_tile_id = false;
+                    if let Some(enabled) = section.get("tile_id") {
+                        if let Some(tile_id) = enabled.as_str() {
+                            if let Ok(id) = Uuid::from_str(tile_id) {
+                                region.map.properties.set(
+                                    "default_terrain_tile",
+                                    Value::Source(PixelSource::TileId(id)),
+                                );
+                                got_tile_id = true;
+                            }
+                        }
+                    }
+                    if !got_tile_id {
+                        region.map.properties.remove("default_terrain_tile");
                     }
                 }
             }

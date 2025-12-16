@@ -4,8 +4,18 @@
 
 ### Creator
 
+- New terrain system:
+  - Region settings turn terrain on / off and set a default tile_id.
+  - Vertices control height and terrain smoothness.
+  - Rect tool now paints on terrain.
+
 - "Edit Sector" action can now apply tags to sectors.
 - Geometry can now be made visible / invisible without rebuilding the BVH. This lays the foundation to be able to hide roofs and other geometry in-game on the fly.
+- 'Shift' + Click in the vertex tool now adds vertices.
+
+### Renderer
+
+- Support for **vertex texture blending** / **vertex-weighted texture blending**.
 
 ### Client
 
