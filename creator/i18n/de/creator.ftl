@@ -39,6 +39,7 @@ status_action_edit_tile_tags = Die Tags der Kachel bearbeiten.
 status_action_edit_vertex_name = Den Namen des Vertex setzen.
 status_action_edit_vertex_terrain_control = Vertex als Terrain-Kontrollpunkt aktivieren.
 status_action_edit_vertex_terrain_smoothness = Terrain-Einflussradius (höher = breiter, flachere Hänge).
+status_action_edit_vertex_tile = Billboard-Kachel an der Vertex-Position.
 status_action_edit_vertex_x = Die X-Position des Vertex.
 status_action_edit_vertex_y = Die Y-Position des Vertex.
 status_action_edit_vertex_z = Die Z-Position des Vertex.
@@ -153,7 +154,7 @@ action_edit_vertex_terrain_smoothness = Glättung
 action_edit_vertex_x = X-Position
 action_edit_vertex_y = Y-Position
 action_edit_vertex_z = Z-Position
-action_edit_vertex_desc = Bearbeitet die Attribute des ausgewählten Vertex. Die XZ-Positionen sind die Boden- / 2D-Positionen. Die Y-Position ist die Höhe. Optional kann der Vertex als Terrain-Kontrollpunkt aktiviert werden.
+action_edit_vertex_desc = Bearbeitet die Attribute des ausgewählten Vertex. Die XZ-Positionen sind die Boden- / 2D-Positionen. Die Y-Position ist die Höhe. Optional kann der Vertex als Terrain-Kontrollpunkt aktiviert oder eine Billboard-Kachel zugewiesen werden.
 action_editing_camera = 2D-Kamera
 action_editing_camera_desc = Szene mit der 2D-Bearbeitungskamera rendern.
 action_editing_slice = Bearbeitungsschnitt

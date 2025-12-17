@@ -6,7 +6,7 @@
 
 - New terrain system:
   - Region settings turn terrain on / off and set a default tile_id.
-  - Vertices control height and terrain smoothness.
+  - Vertices control height and terrain smoothness and can be associated with a billboard tile.
   - Rect tool now paints on terrain.
 
 - "Edit Sector" action can now apply tags to sectors.

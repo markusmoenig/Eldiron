@@ -39,6 +39,7 @@ status_action_edit_tile_tags = Editar las etiquetas de la baldosa.
 status_action_edit_vertex_name = Establecer el nombre del vértice.
 status_action_edit_vertex_terrain_control = Activar vértice como punto de control de terreno.
 status_action_edit_vertex_terrain_smoothness = Radio de influencia del terreno (mayor = más ancho, pendientes suaves).
+status_action_edit_vertex_tile = Baldosa billboard en la posición del vértice.
 status_action_edit_vertex_x = Posición X del vértice.
 status_action_edit_vertex_y = Posición Y del vértice.
 status_action_edit_vertex_z = Posición Z del vértice.
@@ -153,7 +154,7 @@ action_edit_vertex_terrain_smoothness = Suavidad
 action_edit_vertex_x = Posición X
 action_edit_vertex_y = Posición Y
 action_edit_vertex_z = Posición Z
-action_edit_vertex_desc = Edita los atributos del vértice seleccionado. Las posiciones XZ son el plano del suelo/2D. Y es altura. Opcionalmente activa el vértice como punto de control de terreno.
+action_edit_vertex_desc = Edita los atributos del vértice seleccionado. Las posiciones XZ son el plano del suelo/2D. La posición Y es la altura. Opcionalmente activa el vértice como punto de control de terreno o asigna una baldosa billboard al vértice.
 action_editing_camera = Cámara 2D
 action_editing_camera_desc = Renderiza la escena con la cámara de edición 2D.
 action_editing_slice = Corte de edición

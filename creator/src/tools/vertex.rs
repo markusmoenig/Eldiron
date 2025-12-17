@@ -327,12 +327,6 @@ impl Tool for VertexTool {
                     if let Some(geo_id) = server_ctx.geo_hit {
                         match geo_id {
                             GeoId::Vertex(id) => {
-                                println!(
-                                    "hover {:?} {} {}",
-                                    geo_id,
-                                    map.id,
-                                    map.find_vertex(id).is_some()
-                                );
                                 server_ctx.hover = (Some(id), None, None);
                             }
                             _ => {

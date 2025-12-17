@@ -39,6 +39,7 @@ status_action_edit_tile_tags = Edit the tags of the tile.
 status_action_edit_vertex_name = Set the name of the vertex.
 status_action_edit_vertex_terrain_control = Enable vertex as a terrain control point.
 status_action_edit_vertex_terrain_smoothness = Terrain influence radius (higher = wider, gentler slopes).
+status_action_edit_vertex_tile = Billboard tile at the vertex position.
 status_action_edit_vertex_x = The x position of the vertex.
 status_action_edit_vertex_y = The y position of the vertex.
 status_action_edit_vertex_z = The z position of the vertex.
@@ -156,7 +157,7 @@ action_edit_vertex_terrain_smoothness = Smoothness
 action_edit_vertex_x = X-Position
 action_edit_vertex_y = Y-Position
 action_edit_vertex_z = Z-Position
-action_edit_vertex_desc = Edit the attributes of the selected vertex. The XZ positions are the ground / 2D plane positions. The Y-position is up. Optionally enable the vertex as a terrain control point.
+action_edit_vertex_desc = Edit the attributes of the selected vertex. The XZ positions are the ground / 2D plane positions. Enable the vertex as a terrain control point or give the vertex a billboard tile.
 action_editing_camera = 2D Camera
 action_editing_camera_desc = Render the scene using the 2D editing camera.
 action_export_vcode = Export Visual Code ...

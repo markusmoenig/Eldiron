@@ -39,6 +39,7 @@ status_action_edit_tile_tags = 编辑图块标签
 status_action_edit_vertex_name = 设置顶点名称
 status_action_edit_vertex_terrain_control = 将顶点设为地形控制点。
 status_action_edit_vertex_terrain_smoothness = 地形影响半径（越大 = 范围越广，坡度更平缓）。
+status_action_edit_vertex_tile = 在顶点位置的公告板图块。
 status_action_edit_vertex_x = 顶点的 X 位置
 status_action_edit_vertex_y = 顶点的 Y 位置
 status_action_edit_vertex_z = 顶点的 Z 位置
@@ -153,7 +154,7 @@ action_edit_vertex_terrain_smoothness = 平滑度
 action_edit_vertex_x = X 位置
 action_edit_vertex_y = Y 位置
 action_edit_vertex_z = Z 位置
-action_edit_vertex_desc = 编辑选中顶点的属性。XZ 位置是地面 / 2D 平面坐标，Y 位置是高度。可选将顶点设为地形控制点。
+action_edit_vertex_desc = 编辑选中顶点的属性。XZ 位置是地面 / 2D 平面坐标。Y 位置是高度。可选将顶点设为地形控制点或为顶点指定公告板图块。
 action_editing_camera = 2D 相机
 action_editing_camera_desc = 使用 2D 编辑相机渲染场景。
 action_editing_slice = 编辑切片
