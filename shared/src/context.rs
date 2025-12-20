@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use rusterix::Surface;
-pub use rusterix::{Value, map::*};
+pub use rusterix::{Value, VertexBlendPreset, map::*};
 use scenevm::GeoId;
 use theframework::prelude::*;
 
@@ -423,6 +423,7 @@ pub struct ServerContext {
     pub rect_sector_id_3d: Option<u32>,
     pub rect_tile_id_3d: (i32, i32),
     pub rect_terrain_id: Option<(i32, i32)>,
+    pub rect_blend_preset: VertexBlendPreset,
 }
 
 impl Default for ServerContext {
@@ -518,6 +519,7 @@ impl ServerContext {
             rect_sector_id_3d: None,
             rect_tile_id_3d: (0, 0),
             rect_terrain_id: None,
+            rect_blend_preset: VertexBlendPreset::Solid,
         }
     }
 

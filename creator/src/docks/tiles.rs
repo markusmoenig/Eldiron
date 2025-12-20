@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use rusterix::TileRole;
+use rusterix::{TileRole, VertexBlendPreset};
 
 pub struct TilesDock {
     pub tile_ids: FxHashMap<(i32, i32), Uuid>,
@@ -12,6 +12,8 @@ pub struct TilesDock {
 
     pub tile_preview_mode: bool,
     pub tile_hover_id: Uuid,
+
+    blend_index: usize,
 }
 
 impl Dock for TilesDock {
@@ -28,6 +30,8 @@ impl Dock for TilesDock {
 
             tile_preview_mode: false,
             tile_hover_id: Uuid::nil(),
+
+            blend_index: 0,
         }
     }
 
@@ -56,15 +60,6 @@ impl Dock for TilesDock {
         filter_edit.set_continuous(true);
         toolbar_hlayout.add_widget(Box::new(filter_edit));
 
-        // for dir in TileRole::iterator() {
-        //     let mut color_button = TheColorButton::new(TheId::named("Tilemap Filter Character"));
-        //     color_button.limiter_mut().set_max_size(vec2i(17, 17));
-        //     color_button.set_color(dir.to_color().to_u8_array());
-        //     color_button.set_state(TheWidgetState::Selected);
-        //     color_button.set_status_text(format!("Show \"{}\" tiles.", dir.to_string()).as_str());
-        //     toolbar_hlayout.add_widget(Box::new(color_button));
-        // }
-
         let mut drop_down = TheDropdownMenu::new(TheId::named("Tiles Dock Filter Role"));
         drop_down.add_option(fl!("all"));
         for dir in TileRole::iterator() {
@@ -86,6 +81,7 @@ impl Dock for TilesDock {
         toolbar_hlayout.set_reverse_index(Some(1));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
+        canvas.set_top(toolbar_canvas);
 
         let mut rgba_layout = TheRGBALayout::new(TheId::named("Tiles Dock RGBA Layout"));
         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
@@ -98,7 +94,40 @@ impl Dock for TilesDock {
             rgba_view.set_hover_color(Some(c));
         }
 
-        canvas.set_top(toolbar_canvas);
+        // Bottom toolbar
+        let mut toolbar_canvas = TheCanvas::default();
+        let traybar_widget = TheTraybar::new(TheId::empty());
+        toolbar_canvas.set_widget(traybar_widget);
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+
+        toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
+        toolbar_hlayout.set_padding(3);
+
+        let size = 24;
+        for (index, p) in VertexBlendPreset::ALL.iter().enumerate() {
+            let weights = p.weights();
+            let buffer = p.preview_vertex_blend(weights, size);
+            let rgba = TheRGBABuffer::from(buffer, size as u32, size as u32);
+            let mut view = TheIconView::new(TheId::named(&format!("Blend #{}", index)));
+            view.set_rgba_tile(TheRGBATile::buffer(rgba));
+            if index == 0 {
+                view.set_border_color(Some(WHITE));
+            }
+            toolbar_hlayout.add_widget(Box::new(view));
+
+            if index == 2 || index == 6 || index == 10 || index == 14 {
+                let mut spacer = TheSpacer::new(TheId::empty());
+                spacer.limiter_mut().set_max_width(4);
+                toolbar_hlayout.add_widget(Box::new(spacer));
+            }
+        }
+
+        toolbar_canvas.set_layout(toolbar_hlayout);
+        canvas.set_bottom(toolbar_canvas);
+
+        // ---
+
         canvas.set_layout(rgba_layout);
 
         canvas
@@ -131,7 +160,21 @@ impl Dock for TilesDock {
                 }
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
-                if id.name == "Tiles Dock Tile Copy" {
+                if id.name.starts_with("Blend #") {
+                    if let Ok(index) = id.name.strip_prefix("Blend #").unwrap().parse::<usize>() {
+                        if let Some(old_icon) =
+                            ui.get_icon_view(&format!("Blend #{}", self.blend_index))
+                        {
+                            old_icon.set_border_color(None);
+                        }
+                        if let Some(old_icon) = ui.get_icon_view(&format!("Blend #{}", index)) {
+                            old_icon.set_border_color(Some(WHITE));
+                        }
+                        self.blend_index = index;
+                        server_ctx.rect_blend_preset = VertexBlendPreset::from_index(index)
+                            .unwrap_or(VertexBlendPreset::Solid);
+                    }
+                } else if id.name == "Tiles Dock Tile Copy" {
                     if let Some(tile_id) = self.curr_tile {
                         let txt = format!("\"{tile_id}\"");
                         ctx.ui.clipboard = Some(TheValue::Text(txt.clone()));
