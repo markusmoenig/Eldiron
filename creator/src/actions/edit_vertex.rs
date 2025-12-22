@@ -53,6 +53,8 @@ impl Action for EditVertex {
         );
         nodeui.add_item(item);
 
+        nodeui.add_item(TheNodeUIItem::OpenTree(fl!("terrain")));
+
         nodeui.add_item(TheNodeUIItem::Checkbox(
             "actionVertexTerrain".into(),
             fl!("action_edit_vertex_terrain_control"),
@@ -82,8 +84,10 @@ impl Action for EditVertex {
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_vertex_desc"));
-        nodeui.add_item(item);
+        nodeui.add_item(TheNodeUIItem::CloseTree);
+
+        // let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_vertex_desc"));
+        // nodeui.add_item(item);
 
         Self {
             id: TheId::named(&fl!("action_edit_vertex")),

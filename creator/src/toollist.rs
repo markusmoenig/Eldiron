@@ -1806,6 +1806,19 @@ impl ToolList {
 
         let mut rusterix = RUSTERIX.write().unwrap();
 
+        server_ctx.hover_cursor_3d = None;
+        if let Some(rc) = rusterix.scene_handler.vm.pick_geo_id_at_uv(
+            dim.width as u32,
+            dim.height as u32,
+            screen_uv,
+            true,
+        ) {
+            server_ctx.hover_cursor_3d = Some(rc.1);
+            if server_ctx.curr_map_tool_type == MapToolType::Sector {
+                return Some(rc.0);
+            }
+        }
+
         if server_ctx.curr_map_tool_type != MapToolType::Sector {
             rusterix.scene_handler.vm.set_active_vm(1);
         }

@@ -39,6 +39,8 @@ impl Action for EditSector {
             true,
         ));
 
+        nodeui.add_item(TheNodeUIItem::OpenTree(fl!("terrain")));
+
         let item = TheNodeUIItem::Selector(
             "actionSectorTerrain".into(),
             fl!("action_edit_sector_terrain"),
@@ -46,13 +48,46 @@ impl Action for EditSector {
             vec![
                 fl!("action_edit_sector_terrain_none"),
                 fl!("action_edit_sector_terrain_exclude"),
+                fl!("action_edit_sector_terrain_ridge"),
             ],
             0,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_sector_desc"));
+        let item = TheNodeUIItem::FloatEditSlider(
+            "actionSectorTerrainRidgeHeight".into(),
+            fl!("action_edit_sector_terrain_ridge_height"),
+            fl!("status_action_edit_sector_terrain_ridge_height"),
+            1.0,
+            0.0..=0.0,
+            false,
+        );
         nodeui.add_item(item);
+
+        let item = TheNodeUIItem::FloatEditSlider(
+            "actionSectorTerrainRidgePlateau".into(),
+            fl!("action_edit_sector_terrain_ridge_plateau"),
+            fl!("status_action_edit_sector_terrain_ridge_plateau"),
+            0.0,
+            0.0..=0.0,
+            false,
+        );
+        nodeui.add_item(item);
+
+        let item = TheNodeUIItem::FloatEditSlider(
+            "actionSectorTerrainRidgeFalloff".into(),
+            fl!("action_edit_sector_terrain_ridge_falloff"),
+            fl!("status_action_edit_sector_terrain_ridge_falloff"),
+            5.0,
+            0.0..=0.0,
+            false,
+        );
+        nodeui.add_item(item);
+
+        nodeui.add_item(TheNodeUIItem::CloseTree);
+
+        // let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_sector_desc"));
+        // nodeui.add_item(item);
 
         Self {
             id: TheId::named(&fl!("action_edit_sector")),
@@ -92,13 +127,25 @@ impl Action for EditSector {
                 let visible = sector.properties.get_bool_default("visible", true);
                 self.nodeui.set_bool_value("actionSectorVisible", visible);
 
-                let terrain_mode = sector.properties.get_str_default("terrain_mode", "".into());
-                let mut terrain_val = 0;
-                if terrain_mode == "exclude" {
-                    terrain_val = 1;
-                }
+                let terrain_mode = sector.properties.get_int_default("terrain_mode", 0);
                 self.nodeui
-                    .set_i32_value("actionSectorTerrain", terrain_val);
+                    .set_i32_value("actionSectorTerrain", terrain_mode);
+
+                let ridge_height = sector.properties.get_float_default("ridge_height", 1.0);
+                self.nodeui
+                    .set_f32_value("actionSectorTerrainRidgeHeight", ridge_height);
+
+                let ridge_plateau = sector
+                    .properties
+                    .get_float_default("ridge_plateau_width", 0.0);
+                self.nodeui
+                    .set_f32_value("actionSectorTerrainRidgePlateau", ridge_plateau);
+
+                let ridge_falloff = sector
+                    .properties
+                    .get_float_default("ridge_falloff_distance", 5.0);
+                self.nodeui
+                    .set_f32_value("actionSectorTerrainRidgeFalloff", ridge_falloff);
             }
         }
     }
@@ -133,6 +180,21 @@ impl Action for EditSector {
             .get_i32_value("actionSectorTerrain")
             .unwrap_or(0);
 
+        let ridge_height = self
+            .nodeui
+            .get_f32_value("actionSectorTerrainRidgeHeight")
+            .unwrap_or(1.0);
+
+        let ridge_plateau = self
+            .nodeui
+            .get_f32_value("actionSectorTerrainRidgePlateau")
+            .unwrap_or(0.0);
+
+        let ridge_falloff = self
+            .nodeui
+            .get_f32_value("actionSectorTerrainRidgeFalloff")
+            .unwrap_or(5.0);
+
         if let Some(sector_id) = map.selected_sectors.first() {
             if let Some(sector) = map.find_sector_mut(*sector_id) {
                 if name != sector.name {
@@ -152,11 +214,39 @@ impl Action for EditSector {
                     changed = true;
                 }
 
-                // let terr = sector.properties.get_str_default("terrain_mode", "".into());
-                if terrain_role == 1 {
+                let terr = sector.properties.get_int_default("terrain_mode", 0);
+                if terrain_role != terr {
                     sector
                         .properties
-                        .set("terrain_mode", Value::Str("exclude".to_string()));
+                        .set("terrain_mode", Value::Int(terrain_role));
+                    changed = true;
+                }
+
+                let r_height = sector.properties.get_float_default("ridge_height", 1.0);
+                if ridge_height != r_height {
+                    sector
+                        .properties
+                        .set("ridge_height", Value::Float(ridge_height));
+                    changed = true;
+                }
+
+                let r_plateau = sector
+                    .properties
+                    .get_float_default("ridge_plateau_width", 0.0);
+                if ridge_plateau != r_plateau {
+                    sector
+                        .properties
+                        .set("ridge_plateau_width", Value::Float(ridge_plateau));
+                    changed = true;
+                }
+
+                let r_falloff = sector
+                    .properties
+                    .get_float_default("ridge_falloff_distance", 5.0);
+                if ridge_falloff != r_falloff {
+                    sector
+                        .properties
+                        .set("ridge_falloff_distance", Value::Float(ridge_falloff));
                     changed = true;
                 }
             }

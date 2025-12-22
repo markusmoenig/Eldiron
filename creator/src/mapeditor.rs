@@ -56,8 +56,8 @@ impl MapEditor {
         //center.set_layout(shared_layout);
 
         let mut poly_canvas: TheCanvas = TheCanvas::new();
-        let mut render_view = TheRenderView::new(TheId::named("PolyView"));
-        render_view.set_auto_focus(true);
+        let render_view = TheRenderView::new(TheId::named("PolyView"));
+        // render_view.set_auto_focus(true);
         poly_canvas.set_widget(render_view);
 
         center.set_center(poly_canvas);

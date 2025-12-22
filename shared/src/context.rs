@@ -335,6 +335,9 @@ pub struct ServerContext {
     /// The current grid hover position
     pub hover_cursor: Option<Vec2<f32>>,
 
+    /// The current 3d hover position
+    pub hover_cursor_3d: Option<Vec3<f32>>,
+
     /// The current grid hover height
     pub hover_height: Option<f32>,
 
@@ -474,6 +477,7 @@ impl ServerContext {
 
             hover: (None, None, None),
             hover_cursor: None,
+            hover_cursor_3d: None,
             hover_height: None,
 
             curr_map_tool_type: MapToolType::Linedef,

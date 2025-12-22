@@ -153,22 +153,34 @@ impl Tool for VertexTool {
                     if ui.shift {
                         // Add a new vertex
                         if let Some(render_view) = ui.get_render_view("PolyView") {
-                            let dim = *render_view.dim();
-                            let grid_pos = server_ctx.local_to_map_grid(
-                                Vec2::new(dim.width as f32, dim.height as f32),
-                                Vec2::new(coord.x as f32, coord.y as f32),
-                                map,
-                                map.subdivisions,
-                            );
+                            if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                                let prev = map.clone();
+                                let dim = *render_view.dim();
+                                let grid_pos = server_ctx.local_to_map_grid(
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    Vec2::new(coord.x as f32, coord.y as f32),
+                                    map,
+                                    map.subdivisions,
+                                );
 
-                            let prev = map.clone();
-                            _ = map.add_vertex_at(grid_pos.x, grid_pos.y);
+                                _ = map.add_vertex_at(grid_pos.x, grid_pos.y);
 
-                            undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                server_ctx.pc,
-                                Box::new(prev),
-                                Box::new(map.clone()),
-                            ));
+                                undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                    server_ctx.pc,
+                                    Box::new(prev),
+                                    Box::new(map.clone()),
+                                ));
+                            } else if let Some(pt) = server_ctx.hover_cursor_3d {
+                                let prev = map.clone();
+
+                                _ = map.add_vertex_at_3d(pt.x, pt.z, pt.y, false);
+
+                                undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                    server_ctx.pc,
+                                    Box::new(prev),
+                                    Box::new(map.clone()),
+                                ));
+                            }
                         }
                     }
                 }
