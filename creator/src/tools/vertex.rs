@@ -1,3 +1,4 @@
+use crate::actions::edit_vertex::EDIT_VERTEX_ACTION_ID;
 use crate::editor::NODEEDITOR;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
@@ -6,6 +7,7 @@ use ToolEvent::*;
 use rusterix::Assets;
 use rusterix::prelude::*;
 use scenevm::GeoId;
+use std::str::FromStr;
 
 pub struct VertexTool {
     id: TheId,
@@ -144,6 +146,9 @@ impl Tool for VertexTool {
                     }
 
                     if changed {
+                        server_ctx.curr_action_id =
+                            Some(Uuid::from_str(EDIT_VERTEX_ACTION_ID).unwrap());
+
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,
@@ -163,7 +168,16 @@ impl Tool for VertexTool {
                                     map.subdivisions,
                                 );
 
-                                _ = map.add_vertex_at(grid_pos.x, grid_pos.y);
+                                let id = map.add_vertex_at(grid_pos.x, grid_pos.y);
+                                map.selected_vertices = vec![id];
+
+                                server_ctx.curr_action_id =
+                                    Some(Uuid::from_str(EDIT_VERTEX_ACTION_ID).unwrap());
+
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Map Selection Changed"),
+                                    TheValue::Empty,
+                                ));
 
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
                                     server_ctx.pc,
@@ -173,7 +187,16 @@ impl Tool for VertexTool {
                             } else if let Some(pt) = server_ctx.hover_cursor_3d {
                                 let prev = map.clone();
 
-                                _ = map.add_vertex_at_3d(pt.x, pt.z, pt.y, false);
+                                let id = map.add_vertex_at_3d(pt.x, pt.z, pt.y, false);
+                                map.selected_vertices = vec![id];
+
+                                server_ctx.curr_action_id =
+                                    Some(Uuid::from_str(EDIT_VERTEX_ACTION_ID).unwrap());
+
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Map Selection Changed"),
+                                    TheValue::Empty,
+                                ));
 
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
                                     server_ctx.pc,

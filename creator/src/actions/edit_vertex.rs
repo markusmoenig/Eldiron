@@ -1,5 +1,8 @@
 use crate::prelude::*;
 use rusterix::{PixelSource, Value};
+use std::str::FromStr;
+
+pub const EDIT_VERTEX_ACTION_ID: &str = "260fcd81-c456-4ad4-894c-85e7552c856f";
 
 pub struct EditVertex {
     id: TheId,
@@ -90,7 +93,10 @@ impl Action for EditVertex {
         // nodeui.add_item(item);
 
         Self {
-            id: TheId::named(&fl!("action_edit_vertex")),
+            id: TheId::named_with_id(
+                &fl!("action_edit_vertex"),
+                Uuid::from_str(EDIT_VERTEX_ACTION_ID).unwrap(),
+            ),
             nodeui,
         }
     }

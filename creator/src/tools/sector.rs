@@ -1,3 +1,4 @@
+use crate::actions::edit_sector::EDIT_SECTOR_ACTION_ID;
 use crate::editor::NODEEDITOR;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
@@ -5,6 +6,7 @@ use MapEvent::*;
 use ToolEvent::*;
 use rusterix::{Assets, PixelSource, Value};
 use scenevm::GeoId;
+use std::str::FromStr;
 use vek::Vec2;
 
 pub struct SectorTool {
@@ -150,6 +152,8 @@ impl Tool for SectorTool {
                     }
 
                     if changed {
+                        server_ctx.curr_action_id =
+                            Some(Uuid::from_str(EDIT_SECTOR_ACTION_ID).unwrap());
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,

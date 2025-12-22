@@ -1,4 +1,7 @@
 use crate::prelude::*;
+use std::str::FromStr;
+
+pub const EDIT_SECTOR_ACTION_ID: &str = "1a1dea50-0181-46d9-acd6-913755c915e0";
 
 pub struct EditSector {
     id: TheId,
@@ -90,7 +93,10 @@ impl Action for EditSector {
         // nodeui.add_item(item);
 
         Self {
-            id: TheId::named(&fl!("action_edit_sector")),
+            id: TheId::named_with_id(
+                &fl!("action_edit_sector"),
+                Uuid::from_str(EDIT_SECTOR_ACTION_ID).unwrap(),
+            ),
             nodeui,
         }
     }

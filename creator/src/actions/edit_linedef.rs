@@ -1,4 +1,7 @@
 use crate::prelude::*;
+use std::str::FromStr;
+
+pub const EDIT_LINEDEF_ACTION_ID: &str = "284638fa-5769-442a-a55e-88121a37f193";
 
 pub struct EditLinedef {
     id: TheId,
@@ -26,7 +29,10 @@ impl Action for EditLinedef {
         nodeui.add_item(item);
 
         Self {
-            id: TheId::named(&fl!("action_edit_linedef")),
+            id: TheId::named_with_id(
+                &fl!("action_edit_linedef"),
+                Uuid::from_str(EDIT_LINEDEF_ACTION_ID).unwrap(),
+            ),
             nodeui,
         }
     }
