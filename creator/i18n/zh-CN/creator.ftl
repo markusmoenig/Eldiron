@@ -43,6 +43,7 @@ status_action_edit_vertex_name = 设置顶点名称
 status_action_edit_vertex_terrain_control = 将顶点设为地形控制点。
 status_action_edit_vertex_terrain_smoothness = 地形影响半径（越大 = 范围越广，坡度更平缓）。
 status_action_edit_vertex_tile = 在顶点位置的公告板图块。
+status_action_edit_vertex_tile_size = Size of the billboard tile.
 status_action_edit_vertex_x = 顶点的 X 位置
 status_action_edit_vertex_y = 顶点的 Y 位置
 status_action_edit_vertex_z = 顶点的 Z 位置

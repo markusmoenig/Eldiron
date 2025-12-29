@@ -43,6 +43,7 @@ status_action_edit_vertex_name = Establecer el nombre del vértice.
 status_action_edit_vertex_terrain_control = Activar vértice como punto de control de terreno.
 status_action_edit_vertex_terrain_smoothness = Radio de influencia del terreno (mayor = más ancho, pendientes suaves).
 status_action_edit_vertex_tile = Baldosa billboard en la posición del vértice.
+status_action_edit_vertex_tile_size = Size of the billboard tile.
 status_action_edit_vertex_x = Posición X del vértice.
 status_action_edit_vertex_y = Posición Y del vértice.
 status_action_edit_vertex_z = Posición Z del vértice.

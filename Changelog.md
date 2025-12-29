@@ -6,7 +6,7 @@
 
 - New terrain system:
   - Region settings turn terrain on / off and set a default tile_id.
-  - Vertices control height and terrain smoothness and can be associated with a billboard tile.
+  - Vertices control height and terrain smoothness and can be associated with a billboard tile (of configurable size).
   - Sectors can either exclude (cut out) terrain (for houses etc) or create ridges of varying height, width and steepness.
   - Rect tool now paints on terrain.
 
@@ -16,11 +16,10 @@
 
 ### Renderer
 
-- Support for **vertex texture blending** / **vertex-weighted texture blending**.
+- Support for **vertex-weighted texture blending**.
+- Fixed a bug where transparent billboards would prevent proper ambient occlusion / shadow tracing.
 
 ### Client
-
-## Bug Fixes
 
 ---
 

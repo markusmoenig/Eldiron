@@ -87,6 +87,16 @@ impl Action for EditVertex {
         );
         nodeui.add_item(item);
 
+        let item = TheNodeUIItem::FloatEditSlider(
+            "actionVertexTileSize".into(),
+            fl!("size"),
+            fl!("status_action_edit_vertex_tile_size"),
+            1.0,
+            0.0..=0.0,
+            false,
+        );
+        nodeui.add_item(item);
+
         nodeui.add_item(TheNodeUIItem::CloseTree);
 
         // let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_vertex_desc"));
@@ -133,6 +143,11 @@ impl Action for EditVertex {
                 self.nodeui.set_f32_value(
                     "actionVertexTerrainSmoothness",
                     vertex.properties.get_float_default("smoothness", 1.0),
+                );
+
+                self.nodeui.set_f32_value(
+                    "actionVertexTileSize",
+                    vertex.properties.get_float_default("source_size", 1.0),
                 );
 
                 self.nodeui.set_f32_value("actionVertexX", vertex.x);
@@ -201,6 +216,11 @@ impl Action for EditVertex {
             .get_f32_value("actionVertexTerrainSmoothness")
             .unwrap_or(1.0);
 
+        let tile_size = self
+            .nodeui
+            .get_f32_value("actionVertexTileSize")
+            .unwrap_or(1.0);
+
         let tile_id = self.nodeui.get_tile_id("actionVertexTile", 0);
 
         let x = self.nodeui.get_f32_value("actionVertexX").unwrap_or(0.0);
@@ -224,6 +244,14 @@ impl Action for EditVertex {
                     vertex
                         .properties
                         .set("smoothness", Value::Float(terrain_smoothness));
+                    changed = true;
+                }
+
+                let ex_tile_size = vertex.properties.get_float_default("source_size", 1.0);
+                if ex_tile_size != tile_size {
+                    vertex
+                        .properties
+                        .set("source_size", Value::Float(tile_size));
                     changed = true;
                 }
 

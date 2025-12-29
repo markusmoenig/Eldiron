@@ -43,6 +43,7 @@ status_action_edit_vertex_name = Den Namen des Vertex setzen.
 status_action_edit_vertex_terrain_control = Vertex als Terrain-Kontrollpunkt aktivieren.
 status_action_edit_vertex_terrain_smoothness = Terrain-Einflussradius (höher = breiter, flachere Hänge).
 status_action_edit_vertex_tile = Billboard-Kachel an der Vertex-Position.
+status_action_edit_vertex_tile_size = Size of the billboard tile.
 status_action_edit_vertex_x = Die X-Position des Vertex.
 status_action_edit_vertex_y = Die Y-Position des Vertex.
 status_action_edit_vertex_z = Die Z-Position des Vertex.
