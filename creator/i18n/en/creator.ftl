@@ -17,6 +17,7 @@ menu_apply_action = Apply Action
 # Widgets
 ## Dock
 dock_action = Action List
+dock_auto = Automatic
 ## Node Editor
 node_editor_create_button = Create Graph
 ## Render Editor
@@ -68,6 +69,8 @@ status_action_set_tile_material_roughness = The roughness component of the mater
 status_action_set_tile_material_metallic = The metallic component of the material.
 status_action_set_tile_material_opacity = The opacity component of the material.
 status_action_set_tile_material_emissive = The emissive component of the material.
+status_action_iso_camera_azimuth = Rotates the camera left or right around the scene.
+status_action_iso_camera_elevation = Camera rotation around the up (Y) axis.
 ## Menubar
 status_logo_button = Open the Eldiron Website ...
 status_open_button = Open an existing Eldiron project...
@@ -88,6 +91,7 @@ status_project_import_button = Import to the project.
 status_project_export_button = Export from the project.
 ## Dock
 status_dock_action_apply = Apply the current action.
+status_dock_action_auto = Auto apply actions.
 ## Effect Picker
 status_effect_picker_filter_edit = Show tiles containing the given text.
 ## Map Editor
@@ -183,6 +187,8 @@ action_gate_door_desc = Creates a hole with a gate / door in the selected profil
 action_import_vcode = Import Visual Code ...
 action_import_vcode_desc = Import a visual code module.
 action_iso_camera = 3D Iso Camera
+action_iso_camera_azimuth = Azimuth
+action_iso_camera_elevation = Elevation
 action_iso_camera_desc = Render the scene using a 3D Iso camera.
 action_minimize = Minimize
 action_minimize_desc = Minimizes the editor / dock.

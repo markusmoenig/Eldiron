@@ -17,6 +17,7 @@ menu_apply_action = 应用操作
 # Widgets
 ## Dock
 dock_action = 操作列表
+dock_auto = 自动
 ## Node Editor
 node_editor_create_button = 创建图形
 ## Render Editor
@@ -68,6 +69,8 @@ status_action_set_tile_material_roughness = 材质的粗糙度分量。
 status_action_set_tile_material_metallic = 材质的金属度分量。
 status_action_set_tile_material_opacity = 材质的不透明度分量。
 status_action_set_tile_material_emissive = 材质的自发光分量。
+status_action_iso_camera_azimuth = 让相机绕场景向左或向右旋转。
+status_action_iso_camera_elevation = 相机绕上（Y）轴旋转。
 ## Menubar
 status_logo_button = 打开 Eldiron 官网
 status_open_button = 打开已有的 Eldiron 项目
@@ -88,6 +91,7 @@ status_project_import_button = 导入到项目
 status_project_export_button = 从项目导出
 ## Dock
 status_dock_action_apply = 应用当前操作
+status_dock_action_auto = 自动应用操作
 ## Effect Picker
 status_effect_picker_filter_edit = 显示包含指定文本的图块
 ## Map Editor
@@ -183,6 +187,8 @@ action_gate_door_desc = 在选中的轮廓区域创建带门 / 门洞的开口�
 action_import_vcode = 导入可视化代码 ...
 action_import_vcode_desc = 导入一个可视化代码模块。
 action_iso_camera = 3D 等距相机
+action_iso_camera_azimuth = 方位角
+action_iso_camera_elevation = 俯仰角
 action_iso_camera_desc = 使用 3D 等距相机渲染场景。
 action_minimize = 最小化
 action_minimize_desc = 最小化编辑器 / 停靠窗口。

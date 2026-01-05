@@ -17,6 +17,7 @@ menu_apply_action = 套用操作
 # Widgets
 ## Dock
 dock_action = 操作列表
+dock_auto = 自動
 ## Node Editor
 node_editor_create_button = 建立圖形
 ## Render Editor
@@ -68,6 +69,8 @@ status_action_set_tile_material_roughness = 材質的粗糙度成分。
 status_action_set_tile_material_metallic = 材質的金屬度成分。
 status_action_set_tile_material_opacity = 材質的不透明度成分。
 status_action_set_tile_material_emissive = 材質的自發光成分。
+status_action_iso_camera_azimuth = 讓相機繞場景向左或向右旋轉。
+status_action_iso_camera_elevation = 相機繞上（Y）軸旋轉。
 ## Menubar
 status_logo_button = 開啟 Eldiron 官網
 status_open_button = 開啟現有的 Eldiron 專案
@@ -88,6 +91,7 @@ status_project_import_button = 匯入到專案
 status_project_export_button = 從專案匯出
 ## Dock
 status_dock_action_apply = 套用目前操作
+status_dock_action_auto = 自動套用操作
 ## Effect Picker
 status_effect_picker_filter_edit = 顯示包含指定文字的圖塊
 ## Map Editor
@@ -183,6 +187,8 @@ action_gate_door_desc = 在所選剖面區域建立帶門／門洞的開口。
 action_import_vcode = 匯入視覺化程式碼 ...
 action_import_vcode_desc = 匯入一個視覺化程式碼模組。
 action_iso_camera = 3D 等距相機
+action_iso_camera_azimuth = 方位角
+action_iso_camera_elevation = 仰角
 action_iso_camera_desc = 使用 3D 等距相機渲染場景。
 action_minimize = 最小化
 action_minimize_desc = 最小化編輯器／dock。

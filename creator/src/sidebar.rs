@@ -1050,6 +1050,12 @@ impl Sidebar {
                         ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
                     {
                         if action.handle_event(event, project, ui, ctx, server_ctx) {
+                            if server_ctx.auto_action {
+                                ctx.ui.send(TheEvent::StateChanged(
+                                    TheId::named("Action Apply"),
+                                    TheWidgetState::Clicked,
+                                ));
+                            }
                             return true;
                         }
                     }
@@ -1501,7 +1507,7 @@ impl Sidebar {
                                 if action.is_applicable(map, ctx, server_ctx) {
                                     println!("{}", action.id().name);
                                     needs_scene_redraw =
-                                        self.apply_action(action, map, ui, ctx, server_ctx);
+                                        self.apply_action(action, map, ui, ctx, server_ctx, true);
                                 }
                             }
                             action.apply_project(project, ui, ctx, server_ctx);
@@ -1516,9 +1522,14 @@ impl Sidebar {
                         .update_geometry_overlay_3d(project, server_ctx);
                 }
             }
-            TheEvent::StateChanged(id, _) => {
-                // Iterate actions first
-                if let Some(action) = ACTIONLIST.write().unwrap().get_action_by_id_mut(id.uuid) {
+            TheEvent::StateChanged(id, state) => {
+                if id.name == "Action Auto" {
+                    server_ctx.auto_action = *state == TheWidgetState::Selected;
+                } else
+                // Iterate actions
+                if let Some(action) =
+                    ACTIONLIST.write().unwrap().get_action_by_id_mut(id.uuid)
+                {
                     server_ctx.curr_action_id = Some(action.id().uuid);
 
                     //layout.clear();
@@ -1549,6 +1560,13 @@ impl Sidebar {
                             layout.relayout(ctx);
                             ctx.ui.relayout = true;
                         }
+
+                        if server_ctx.auto_action {
+                            ctx.ui.send(TheEvent::StateChanged(
+                                TheId::named("Action Apply"),
+                                TheWidgetState::None,
+                            ));
+                        }
                     }
                 } else if id.name == "Action Apply" {
                     if let Some(action_id) = server_ctx.curr_action_id {
@@ -1556,8 +1574,14 @@ impl Sidebar {
                         {
                             let mut needs_scene_redraw = false;
                             if let Some(map) = project.get_map_mut(&server_ctx) {
-                                needs_scene_redraw =
-                                    self.apply_action(action, map, ui, ctx, server_ctx);
+                                needs_scene_redraw = self.apply_action(
+                                    action,
+                                    map,
+                                    ui,
+                                    ctx,
+                                    server_ctx,
+                                    !(*state == TheWidgetState::None),
+                                );
                             }
                             action.apply_project(project, ui, ctx, server_ctx);
 
@@ -3384,6 +3408,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
+        param_update: bool,
     ) -> bool {
         if let Some(undo_atom) = action.apply(map, ui, ctx, server_ctx) {
             UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
@@ -3398,10 +3423,12 @@ impl Sidebar {
             crate::editor::RUSTERIX.write().unwrap().set_dirty();
         }
 
-        ctx.ui.send(TheEvent::Custom(
-            TheId::named("Update Action List"),
-            TheValue::Empty,
-        ));
+        if !param_update {
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Update Action List"),
+                TheValue::Empty,
+            ));
+        }
         false
     }
 

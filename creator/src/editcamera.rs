@@ -111,6 +111,16 @@ impl EditCamera {
         } else if server_ctx.editor_view_mode == EditorViewMode::Iso {
             rusterix.client.camera_d3 = Box::new(self.iso_camera.clone());
 
+            rusterix.client.camera_d3.set_parameter_f32(
+                "azimuth_deg",
+                self.iso_camera.get_parameter_f32("azimuth_deg"),
+            );
+
+            rusterix.client.camera_d3.set_parameter_f32(
+                "elevation_deg",
+                self.iso_camera.get_parameter_f32("elevation_deg"),
+            );
+
             rusterix
                 .client
                 .camera_d3

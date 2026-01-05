@@ -90,8 +90,12 @@ impl DockManager {
         toolbar_hlayout.set_background_color(None);
 
         let mut text = TheText::new(TheId::named("Action Text"));
-        text.set_text(fl!("dock_action"));
+        text.set_text(fl!("dock_auto"));
         text.set_text_size(12.0);
+
+        let mut action_auto_button = TheCheckButton::new(TheId::named("Action Auto"));
+        action_auto_button.set_status_text(&fl!("status_dock_action_auto"));
+        action_auto_button.set_value(TheValue::Bool(true));
 
         let mut action_apply_button = TheTraybarButton::new(TheId::named("Action Apply"));
         action_apply_button.set_text(fl!("apply"));
@@ -100,6 +104,7 @@ impl DockManager {
         toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
         toolbar_hlayout.set_padding(3);
         toolbar_hlayout.add_widget(Box::new(text));
+        toolbar_hlayout.add_widget(Box::new(action_auto_button));
         toolbar_hlayout.add_widget(Box::new(action_apply_button));
         toolbar_hlayout.set_reverse_index(Some(1));
         toolbar_canvas.set_layout(toolbar_hlayout);

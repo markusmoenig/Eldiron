@@ -377,6 +377,9 @@ pub struct ServerContext {
     /// The currently selected action
     pub curr_action_id: Option<Uuid>,
 
+    /// Automatially apply actions
+    pub auto_action: bool,
+
     /// Selected wall row, set by the linedef Hud
     pub selected_wall_row: Option<i32>,
 
@@ -494,6 +497,7 @@ impl ServerContext {
 
             editing_surface: None,
             curr_action_id: None,
+            auto_action: true,
 
             selected_wall_row: Some(0),
 
