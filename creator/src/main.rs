@@ -26,6 +26,7 @@ pub mod misc;
 pub mod nodeeditor;
 pub mod panels;
 pub mod rendereditor;
+#[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
 pub mod self_update;
 pub mod shapepicker;
 pub mod sidebar;

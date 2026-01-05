@@ -1,11 +1,12 @@
+#![cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+
 use std::vec;
 
 use self_update::{
-    cargo_crate_version,
+    Status, cargo_crate_version,
     errors::Error,
     update::{Release, ReleaseUpdate},
     version::bump_is_greater,
-    Status,
 };
 
 pub enum SelfUpdateEvent {

@@ -7,19 +7,18 @@ resolver = "2"
 theframework = { version = "0.1.40", git = "https://github.com/markusmoenig/TheFramework", features = [
     "ui",
 ], default-features = true }
-# theframework = { path = "../TheFramework", features = [
-#     "ui",
-# ], default-features = true }
-
 rusterix = { version = "0.2.8", git = "https://github.com/markusmoenig/Rusterix" }
 codegridfx = { git = "https://github.com/markusmoenig/Rusterix", package = "codegridfx" }
 rusteria = { git = "https://github.com/markusmoenig/Rusterix", package = "rusteria" }
-scenevm = { version = "0.1", git = "https://github.com/markusmoenig/SceneVM" }
+scenevm = { version = "0.1", git = "https://github.com/markusmoenig/SceneVM", default-features = false  }
 
+# theframework = { path = "../TheFramework", features = [
+#     "ui",
+# ], default-features = false }
 # rusterix = { path = "../Rusterix" }
 # codegridfx = { path = "../Rusterix/codegridfx/lib", package = "codegridfx" }
 # rusteria = { path = "../Rusterix/rusteria", package = "rusteria" }
-# scenevm = { path = "../SceneVM" }
+# scenevm = { path = "../SceneVM", default-features = false }
 
 [workspace.package]
 edition = "2024"
