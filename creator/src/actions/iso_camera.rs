@@ -1,3 +1,6 @@
+use rusterix::D3Camera;
+
+use crate::editor::EDITCAMERA;
 use crate::prelude::*;
 
 pub struct IsoCamera {
@@ -11,6 +14,27 @@ impl Action for IsoCamera {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
+
+        let item = TheNodeUIItem::FloatEditSlider(
+            "actionIsoCameraAzimuth".into(),
+            fl!("action_iso_camera_azimuth"),
+            fl!("status_action_iso_camera_azimuth"),
+            135.0,
+            0.0..=360.0,
+            true,
+        );
+        nodeui.add_item(item);
+
+        let item = TheNodeUIItem::FloatEditSlider(
+            "actionIsoCameraElevation".into(),
+            fl!("action_iso_camera_elevation"),
+            fl!("status_action_iso_camera_elevation"),
+            35.264,
+            0.0..=90.0,
+            true,
+        );
+        nodeui.add_item(item);
+
         let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_iso_camera_desc"));
         nodeui.add_item(item);
 
@@ -37,8 +61,8 @@ impl Action for IsoCamera {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.editor_view_mode != EditorViewMode::Iso
-            && server_ctx.get_map_context() == MapContext::Region
+        // server_ctx.editor_view_mode != EditorViewMode::Iso &&
+        server_ctx.get_map_context() == MapContext::Region
     }
 
     fn apply(
@@ -49,6 +73,29 @@ impl Action for IsoCamera {
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         server_ctx.editor_view_mode = EditorViewMode::Iso;
+
+        let azimuth = self
+            .nodeui
+            .get_f32_value("actionIsoCameraAzimuth")
+            .unwrap_or(0.0);
+
+        let elevation = self
+            .nodeui
+            .get_f32_value("actionIsoCameraElevation")
+            .unwrap_or(0.0);
+
+        EDITCAMERA
+            .write()
+            .unwrap()
+            .iso_camera
+            .set_parameter_f32("azimuth_deg", azimuth);
+
+        EDITCAMERA
+            .write()
+            .unwrap()
+            .iso_camera
+            .set_parameter_f32("elevation_deg", elevation);
+
         if server_ctx.editing_surface.is_some() {
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Render SceneManager Map"),
