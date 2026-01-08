@@ -1545,7 +1545,7 @@ impl ToolList {
                 // Linedefs
                 if server_ctx.curr_map_tool_type == MapToolType::Linedef {
                     for linedef in &map.linedefs {
-                        if linedef.front_sector.is_none() && linedef.back_sector.is_none() {
+                        if linedef.sector_ids.is_empty() {
                             if let (Some(vs), Some(ve)) = (
                                 map.get_vertex_3d(linedef.start_vertex),
                                 map.get_vertex_3d(linedef.end_vertex),

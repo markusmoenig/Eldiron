@@ -87,8 +87,7 @@ impl Action for AddArch {
         for ld_id in map.selected_linedefs.clone() {
             if let Some(ld) = map.find_linedef(ld_id).cloned() {
                 // Remember original sector bindings and properties
-                let orig_front = ld.front_sector;
-                let orig_back = ld.back_sector;
+                let orig_sector_ids = ld.sector_ids.clone();
                 let orig_props = ld.properties.clone();
 
                 // Fetch endpoints in 3D (Y up)
@@ -123,21 +122,16 @@ impl Action for AddArch {
                     let midy = (ay + by) * 0.5;
 
                     // --- Flip normal OUTWARD if we can infer an inside sector ---
-                    // Prefer a single-sided edge's sector; if both sides exist, prefer a selected sector, else front.
+                    // Prefer a sector that is currently selected; otherwise use the first attached sector.
                     let mut ref_sector_id: Option<u32> = None;
-                    if let Some(front) = ld.front_sector {
-                        if ld.back_sector.is_none() {
-                            ref_sector_id = Some(front);
-                        } else if map.selected_sectors.contains(&front) {
-                            ref_sector_id = Some(front);
-                        } else {
-                            ref_sector_id = Some(front);
-                        }
-                    }
-                    if ref_sector_id.is_none() {
-                        if let Some(back) = ld.back_sector {
-                            ref_sector_id = Some(back);
-                        }
+                    if let Some(sel) = ld
+                        .sector_ids
+                        .iter()
+                        .find(|sid| map.selected_sectors.contains(sid))
+                    {
+                        ref_sector_id = Some(*sel);
+                    } else if let Some(first) = ld.sector_ids.first() {
+                        ref_sector_id = Some(*first);
                     }
 
                     if let Some(sec_id) = ref_sector_id {
@@ -204,16 +198,32 @@ impl Action for AddArch {
                         // Copy properties & bind sectors like the original linedef
                         if let Some(nld) = map.find_linedef_mut(new_ld_id) {
                             nld.properties = orig_props.clone();
-                            nld.front_sector = orig_front;
-                            nld.back_sector = orig_back;
+                            nld.sector_ids = orig_sector_ids.clone();
                         }
                         new_ids.push(new_ld_id);
                     }
 
                     // Phase 2: splice the new chain into every sector that referenced the old linedef
+                    let mut touched_sectors: Vec<u32> = Vec::new();
                     for sector in map.sectors.iter_mut() {
                         if let Some(pos) = sector.linedefs.iter().position(|&id| id == ld_id) {
                             sector.linedefs.splice(pos..=pos, new_ids.iter().copied());
+                            if !touched_sectors.contains(&sector.id) {
+                                touched_sectors.push(sector.id);
+                            }
+                        }
+                    }
+
+                    // Update new linedefs with sector memberships
+                    let mut new_sector_ids = orig_sector_ids.clone();
+                    for sid in touched_sectors {
+                        if !new_sector_ids.contains(&sid) {
+                            new_sector_ids.push(sid);
+                        }
+                    }
+                    for nid in &new_ids {
+                        if let Some(nld) = map.find_linedef_mut(*nid) {
+                            nld.sector_ids = new_sector_ids.clone();
                         }
                     }
 

@@ -1676,6 +1676,8 @@ impl TheTrait for Editor {
                                                     c.1.name = n.clone();
                                                 }
                                             }
+
+                                            r.map.associate_linedefs_with_sectors();
                                         }
 
                                         // Convert old tile refs to new tiles
