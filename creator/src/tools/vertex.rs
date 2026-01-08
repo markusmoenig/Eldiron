@@ -385,7 +385,7 @@ impl Tool for VertexTool {
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
                             format!(
-                                "Vertex {} - (X: {:.2}, Y: {:.2}, Z: {:.2})",
+                                "Vertex {}: (X: {:.2}, Y: {:.2}, Z: {:.2})",
                                 v, vertex.x, vertex.z, vertex.y
                             ),
                         ));

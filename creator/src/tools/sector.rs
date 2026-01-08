@@ -334,6 +334,24 @@ impl Tool for SectorTool {
                             ));
                         }
                     }
+
+                    if let Some(s) = server_ctx.hover.2 {
+                        if let Some(sector) = map.find_sector(s) {
+                            let lines = sector
+                                .linedefs
+                                .iter()
+                                .map(|id| id.to_string())
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                format!("Sector {}: Linedefs ({})", s, lines),
+                            ));
+                        }
+                    } else {
+                        ctx.ui
+                            .send(TheEvent::SetStatusText(TheId::empty(), "".into()));
+                    }
                 }
             }
             MapDelete => {

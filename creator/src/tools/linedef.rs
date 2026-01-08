@@ -411,6 +411,21 @@ impl Tool for LinedefTool {
                             ));
                         }
                     }
+
+                    if let Some(l) = server_ctx.hover.1 {
+                        if let Some(linedef) = map.find_linedef(l) {
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                format!(
+                                    "Linedef {}: V{} - V{}",
+                                    l, linedef.start_vertex, linedef.end_vertex
+                                ),
+                            ));
+                        }
+                    } else {
+                        ctx.ui
+                            .send(TheEvent::SetStatusText(TheId::empty(), "".into()));
+                    }
                 }
             }
             MapDelete => {
