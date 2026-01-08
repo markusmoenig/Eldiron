@@ -1533,13 +1533,13 @@ impl ToolList {
                 };
 
             if server_ctx.curr_map_tool_type == MapToolType::Vertex {
-                for (idx, v) in map.vertices.iter().enumerate() {
+                for v in map.vertices.iter() {
                     let mut pos = Vec3::new(v.x, v.z, v.y);
                     pos += view_nudge;
-                    let vid = idx as u32;
                     let selected =
-                        map.selected_vertices.contains(&vid) || server_ctx.hover.0 == Some(vid);
-                    push_vertex(GeoId::Vertex(vid), pos, selected, &mut rusterix);
+                        map.selected_vertices.contains(&v.id) || server_ctx.hover.0 == Some(v.id);
+
+                    push_vertex(GeoId::Vertex(v.id), pos, selected, &mut rusterix);
                 }
             } else {
                 // Linedefs

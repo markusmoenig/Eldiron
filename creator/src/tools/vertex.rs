@@ -356,6 +356,7 @@ impl Tool for VertexTool {
                             TheId::named("Cursor Pos Changed"),
                             TheValue::Float2(cp),
                         ));
+
                         server_ctx.hover_cursor = Some(cp);
                     }
                 } else {
@@ -378,6 +379,20 @@ impl Tool for VertexTool {
                             TheValue::Float2(cp),
                         ));
                     }
+                }
+                if let Some(v) = server_ctx.hover.0 {
+                    if let Some(vertex) = map.find_vertex(v) {
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            format!(
+                                "Vertex {} - (X: {:.2}, Y: {:.2}, Z: {:.2})",
+                                v, vertex.x, vertex.z, vertex.y
+                            ),
+                        ));
+                    }
+                } else {
+                    ctx.ui
+                        .send(TheEvent::SetStatusText(TheId::empty(), "".into()));
                 }
             }
             MapDelete => {
