@@ -1677,7 +1677,7 @@ impl TheTrait for Editor {
                                                 }
                                             }
 
-                                            r.map.associate_linedefs_with_sectors();
+                                            r.map.sanitize();
                                         }
 
                                         // Convert old tile refs to new tiles

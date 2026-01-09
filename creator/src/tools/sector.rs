@@ -1,5 +1,5 @@
 use crate::actions::edit_sector::EDIT_SECTOR_ACTION_ID;
-use crate::editor::NODEEDITOR;
+use crate::editor::{NODEEDITOR, RUSTERIX};
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -240,16 +240,53 @@ impl Tool for SectorTool {
                         map.subdivisions,
                     );
 
-                    let top_left =
-                        Vec2::new(click_pos.x.min(drag_pos.x), click_pos.y.min(drag_pos.y));
-                    let bottom_right =
-                        Vec2::new(click_pos.x.max(drag_pos.x), click_pos.y.max(drag_pos.y));
+                    let selection = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                        let top_left =
+                            Vec2::new(click_pos.x.min(drag_pos.x), click_pos.y.min(drag_pos.y));
+                        let bottom_right =
+                            Vec2::new(click_pos.x.max(drag_pos.x), click_pos.y.max(drag_pos.y));
 
-                    let mut selection =
-                        server_ctx.geometry_in_rectangle(top_left, bottom_right, map);
+                        let mut selection =
+                            server_ctx.geometry_in_rectangle(top_left, bottom_right, map);
 
-                    selection.0 = vec![];
-                    selection.1 = vec![];
+                        selection.0 = vec![];
+                        selection.1 = vec![];
+                        selection
+                    } else {
+                        let mut selection = (vec![], vec![], vec![]);
+
+                        let click_pos = self.click_pos;
+                        let drag_pos = Vec2::new(coord.x as f32, coord.y as f32);
+
+                        let top_left =
+                            Vec2::new(click_pos.x.min(drag_pos.x), click_pos.y.min(drag_pos.y));
+                        let bottom_right =
+                            Vec2::new(click_pos.x.max(drag_pos.x), click_pos.y.max(drag_pos.y));
+
+                        let mut rusterix = RUSTERIX.write().unwrap();
+                        rusterix.scene_handler.vm.set_active_vm(2);
+                        let linedefs = rusterix.scene_handler.vm.active_vm().pick_geo_ids_in_rect(
+                            dim.width as u32,
+                            dim.height as u32,
+                            top_left,
+                            bottom_right,
+                            GeoId::Linedef(0),
+                            true,
+                        );
+                        for l in linedefs {
+                            if let GeoId::Linedef(l) = l {
+                                if let Some(linedef) = map.find_linedef(l) {
+                                    for s in &linedef.sector_ids {
+                                        if !selection.2.contains(s) {
+                                            selection.2.push(*s);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        rusterix.scene_handler.vm.set_active_vm(0);
+                        selection
+                    };
 
                     *map = self.rectangle_undo_map.clone();
                     map.curr_rectangle = Some((click_pos, drag_pos));

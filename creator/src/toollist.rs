@@ -1447,12 +1447,13 @@ impl ToolList {
             let map = &region.map;
 
             // Helper to draw a single world-space line into the overlay
-            let mut push_line = |id: GeoId,
-                                 mut a: Vec3<f32>,
-                                 mut b: Vec3<f32>,
-                                 normal: Vec3<f32>,
-                                 selected: bool,
-                                 hovered: bool| {
+            let push_line = |id: GeoId,
+                             rusterix: &mut rusterix::Rusterix,
+                             mut a: Vec3<f32>,
+                             mut b: Vec3<f32>,
+                             normal: Vec3<f32>,
+                             selected: bool,
+                             hovered: bool| {
                 // Z-fight mitigation: nudge along CAMERA FORWARD, not the line normal
                 if selected {
                     let extra_nudge = cam_forward * -0.004; // toward camera
@@ -1468,11 +1469,45 @@ impl ToolList {
 
                 rusterix
                     .scene_handler
-                    .overlay
+                    .overlay_3d
                     .add_line_3d(id, tile_id, a, b, thickness, normal, 100);
             };
 
             // Rect tool previews
+
+            if let Some((top_left, bottom_right)) = map.curr_rectangle {
+                let mut index = 0;
+                let min = Vec2::new(
+                    top_left.x.min(bottom_right.x),
+                    top_left.y.min(bottom_right.y),
+                );
+                let max = Vec2::new(
+                    top_left.x.max(bottom_right.x),
+                    bottom_right.y.max(top_left.y),
+                );
+
+                let corners = [
+                    Vec2::new(min.x, min.y),
+                    Vec2::new(max.x, min.y),
+                    Vec2::new(max.x, max.y),
+                    Vec2::new(min.x, max.y),
+                ];
+                let color = rusterix.scene_handler.white;
+
+                // Draw 4 edges (close the loop by wrapping 3→0) in 2D overlay
+                for i in 0..4 {
+                    let a = corners[i];
+                    let b = corners[(i + 1) % 4];
+                    rusterix.scene_handler.add_overlay_2d_line(
+                        GeoId::Gizmo(index),
+                        a,
+                        b,
+                        color,
+                        100,
+                    );
+                    index += 1;
+                }
+            }
 
             if server_ctx.curr_map_tool_type == MapToolType::Rect {
                 if let Some(terrain_id) = server_ctx.rect_terrain_id {
@@ -1485,7 +1520,7 @@ impl ToolList {
                     for i in 0..4 {
                         let a = corners[i] + view_nudge;
                         let b = corners[(i + 1) % 4] + view_nudge;
-                        push_line(GeoId::Unknown(index), a, b, n, false, false);
+                        push_line(GeoId::Unknown(index), &mut rusterix, a, b, n, false, false);
                         index += 1;
                     }
                 } else if let Some(sector_id) = server_ctx.rect_sector_id_3d {
@@ -1499,7 +1534,15 @@ impl ToolList {
                             for i in 0..4 {
                                 let a = corners[i] + view_nudge;
                                 let b = corners[(i + 1) % 4] + view_nudge;
-                                push_line(GeoId::Unknown(index), a, b, n, false, false);
+                                push_line(
+                                    GeoId::Unknown(index),
+                                    &mut rusterix,
+                                    a,
+                                    b,
+                                    n,
+                                    false,
+                                    false,
+                                );
                                 index += 1;
                             }
                         }
@@ -1521,7 +1564,7 @@ impl ToolList {
                     } else {
                         rusterix.scene_handler.white
                     };
-                    rusterix.scene_handler.overlay.add_billboard_3d(
+                    rusterix.scene_handler.overlay_3d.add_billboard_3d(
                         id,
                         tile_id,
                         p,
@@ -1559,6 +1602,7 @@ impl ToolList {
 
                                 push_line(
                                     GeoId::Linedef(linedef.id),
+                                    &mut rusterix,
                                     a,
                                     b,
                                     normal,
@@ -1665,6 +1709,7 @@ impl ToolList {
                         // &mut overlay_batches,
                         // GeometrySource::Linedef(e.rep_ld_id),
                         GeoId::Linedef(e.rep_ld_id),
+                        &mut rusterix,
                         e.a,
                         e.b,
                         cam_forward,
@@ -1820,7 +1865,7 @@ impl ToolList {
         }
 
         if server_ctx.curr_map_tool_type != MapToolType::Sector {
-            rusterix.scene_handler.vm.set_active_vm(1);
+            rusterix.scene_handler.vm.set_active_vm(2);
         }
 
         let rc = rusterix.scene_handler.vm.pick_geo_id_at_uv(
