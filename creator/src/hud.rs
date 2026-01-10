@@ -615,7 +615,7 @@ impl Hud {
     fn draw_plane_picker(
         &mut self,
         buffer: &mut TheRGBABuffer,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
         server_ctx: &ServerContext,
         width: usize,
         height: usize,
@@ -623,91 +623,204 @@ impl Hud {
     ) {
         self.plane_picker_rects.clear();
 
-        let widget_size = 30;
-        let widget_spacing = 5;
+        let widget_size = 80;
         let widget_margin = 20;
 
         // Position in lower-right corner
-        let start_x = width as i32 - (widget_size * 3 + widget_spacing * 2 + widget_margin);
-        let start_y = height as i32 - widget_size - widget_margin;
+        let x = width as i32 - widget_size - widget_margin;
+        let y = height as i32 - widget_size - widget_margin;
 
-        let colors = [
-            [100, 150, 100, 255], // XZ - Greenish (horizontal plane)
-            [100, 100, 150, 255], // XY - Blueish (front plane)
-            [150, 100, 100, 255], // YZ - Reddish (side plane)
+        // Draw isometric cube with three visible planes
+        let cx = x + widget_size / 2;
+        let cy = y + widget_size / 2 + 25; // Offset down to fit in widget
+        let size = 15;
+
+        // Define the 8 corners of the isometric cube
+        // Standard isometric projection (30-degree angles)
+        let iso_x = |ix: i32, iy: i32, _iz: i32| cx + (ix - iy) * size;
+        let iso_y = |ix: i32, iy: i32, iz: i32| cy + (ix + iy) * size / 2 - iz * size;
+
+        // Cube corners (centered at origin, extending from -1 to +1 to avoid cancellation)
+        let p = [
+            (iso_x(-1, -1, 0), iso_y(-1, -1, 0)), // 0: bottom back left
+            (iso_x(1, -1, 0), iso_y(1, -1, 0)),   // 1: bottom back right
+            (iso_x(1, 1, 0), iso_y(1, 1, 0)),     // 2: bottom front right
+            (iso_x(-1, 1, 0), iso_y(-1, 1, 0)),   // 3: bottom front left
+            (iso_x(-1, -1, 2), iso_y(-1, -1, 2)), // 4: top back left
+            (iso_x(1, -1, 2), iso_y(1, -1, 2)),   // 5: top back right
+            (iso_x(1, 1, 2), iso_y(1, 1, 2)),     // 6: top front right
+            (iso_x(-1, 1, 2), iso_y(-1, 1, 2)),   // 7: top front left
         ];
 
-        let selected_colors = [
-            [120, 200, 120, 255], // XZ selected
-            [120, 120, 200, 255], // XY selected
-            [200, 120, 120, 255], // YZ selected
-        ];
+        // Define colors for each plane
+        let xz_color = if server_ctx.gizmo_mode == GizmoMode::XZ {
+            [120, 200, 120, 200]
+        } else {
+            [80, 140, 80, 150]
+        };
 
-        let gizmo_modes = [GizmoMode::XZ, GizmoMode::XY, GizmoMode::YZ];
-        let labels = ["XZ", "XY", "YZ"];
+        let xy_color = if server_ctx.gizmo_mode == GizmoMode::XY {
+            [120, 120, 200, 200]
+        } else {
+            [80, 80, 140, 150]
+        };
 
-        for i in 0..3 {
-            let x = start_x + i * (widget_size + widget_spacing);
-            let y = start_y;
+        let yz_color = if server_ctx.gizmo_mode == GizmoMode::YZ {
+            [200, 120, 120, 200]
+        } else {
+            [140, 80, 80, 150]
+        };
 
-            let rect = TheDim::rect(x, y, widget_size, widget_size);
-            self.plane_picker_rects.push(rect);
+        // Helper to fill a quad
+        let widget_bounds = (x, y, x + widget_size, y + widget_size);
+        let fill_quad = |buffer: &mut [u8],
+                         p0: (i32, i32),
+                         p1: (i32, i32),
+                         p2: (i32, i32),
+                         p3: (i32, i32),
+                         color: [u8; 4]| {
+            // Simple scanline fill
+            let points = [p0, p1, p2, p3];
+            let min_y = points.iter().map(|p| p.1).min().unwrap();
+            let max_y = points.iter().map(|p| p.1).max().unwrap();
 
-            let is_selected = server_ctx.gizmo_mode == gizmo_modes[i as usize];
-            let color = if is_selected {
-                selected_colors[i as usize]
-            } else {
-                colors[i as usize]
-            };
+            for scan_y in min_y..=max_y {
+                // Skip if outside widget bounds
+                if scan_y < widget_bounds.1 || scan_y >= widget_bounds.3 {
+                    continue;
+                }
 
-            // Draw the button background
-            ctx.draw.rect(
-                buffer.pixels_mut(),
-                &(
-                    x as usize,
-                    y as usize,
-                    widget_size as usize,
-                    widget_size as usize,
-                ),
-                stride,
-                &color,
-            );
+                let mut x_intersects = Vec::new();
+                for i in 0..4 {
+                    let a = points[i];
+                    let b = points[(i + 1) % 4];
+                    if (a.1 <= scan_y && b.1 > scan_y) || (b.1 <= scan_y && a.1 > scan_y) {
+                        let t = (scan_y - a.1) as f32 / (b.1 - a.1) as f32;
+                        let x = a.0 as f32 + t * (b.0 - a.0) as f32;
+                        x_intersects.push(x as i32);
+                    }
+                }
+                x_intersects.sort();
+                for i in (0..x_intersects.len()).step_by(2) {
+                    if i + 1 < x_intersects.len() {
+                        for px in x_intersects[i]..=x_intersects[i + 1] {
+                            // Clip to widget bounds
+                            if px >= widget_bounds.0
+                                && px < widget_bounds.2
+                                && scan_y >= widget_bounds.1
+                                && scan_y < widget_bounds.3
+                                && px >= 0
+                                && scan_y >= 0
+                                && (px as usize) < width
+                                && (scan_y as usize) < height
+                            {
+                                let offset = scan_y as usize * stride * 4 + px as usize * 4;
+                                if offset + 3 < buffer.len() {
+                                    buffer[offset] = color[0];
+                                    buffer[offset + 1] = color[1];
+                                    buffer[offset + 2] = color[2];
+                                    buffer[offset + 3] = color[3];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
 
-            // Draw border
-            let border_color = if is_selected {
-                [255, 255, 255, 255]
-            } else {
-                [70, 70, 70, 255]
-            };
+        // Draw the three visible front faces (XZ top, YZ front-left, XY front-right)
+        // XZ plane (top/horizontal) - points 4,5,6,7
+        fill_quad(buffer.pixels_mut(), p[4], p[5], p[6], p[7], xz_color);
 
-            ctx.draw.rect_outline(
-                buffer.pixels_mut(),
-                &(
-                    x as usize,
-                    y as usize,
-                    widget_size as usize,
-                    widget_size as usize,
-                ),
-                stride,
-                &border_color,
-            );
+        // YZ plane (front-left vertical) - points 3,7,6,2
+        fill_quad(buffer.pixels_mut(), p[3], p[7], p[6], p[2], yz_color);
 
-            // Draw label text
-            let text_color = [255, 255, 255, 255];
-            let label = labels[i as usize];
-            ctx.draw.text(
-                buffer.pixels_mut(),
-                &(x as usize + 8, y as usize + 9),
-                stride,
-                label,
-                TheFontSettings {
-                    size: 13.0,
-                    ..Default::default()
-                },
-                &text_color,
-                &color,
-            );
-        }
+        // XY plane (front-right vertical) - points 1,5,6,2
+        fill_quad(buffer.pixels_mut(), p[1], p[5], p[6], p[2], xy_color);
+
+        // Draw edges for clarity
+        let edge_color = [200, 200, 200, 255];
+        let draw_edge = |buf: &mut [u8], p0: (i32, i32), p1: (i32, i32)| {
+            // Bresenham line
+            let mut x0 = p0.0;
+            let mut y0 = p0.1;
+            let x1 = p1.0;
+            let y1 = p1.1;
+            let dx = (x1 - x0).abs();
+            let dy = (y1 - y0).abs();
+            let sx = if x0 < x1 { 1 } else { -1 };
+            let sy = if y0 < y1 { 1 } else { -1 };
+            let mut err = dx - dy;
+            loop {
+                // Clip to widget bounds
+                if x0 >= widget_bounds.0
+                    && x0 < widget_bounds.2
+                    && y0 >= widget_bounds.1
+                    && y0 < widget_bounds.3
+                    && x0 >= 0
+                    && y0 >= 0
+                    && (x0 as usize) < width
+                    && (y0 as usize) < height
+                {
+                    let offset = y0 as usize * stride * 4 + x0 as usize * 4;
+                    if offset + 3 < buf.len() {
+                        buf[offset] = edge_color[0];
+                        buf[offset + 1] = edge_color[1];
+                        buf[offset + 2] = edge_color[2];
+                        buf[offset + 3] = edge_color[3];
+                    }
+                }
+                if x0 == x1 && y0 == y1 {
+                    break;
+                }
+                let e2 = 2 * err;
+                if e2 > -dy {
+                    err -= dy;
+                    x0 += sx;
+                }
+                if e2 < dx {
+                    err += dx;
+                    y0 += sy;
+                }
+            }
+        };
+
+        // Draw cube edges
+        let buf = buffer.pixels_mut();
+        draw_edge(buf, p[4], p[5]);
+        draw_edge(buf, p[5], p[6]);
+        draw_edge(buf, p[6], p[7]);
+        draw_edge(buf, p[7], p[4]);
+        draw_edge(buf, p[1], p[5]);
+        draw_edge(buf, p[2], p[6]);
+        draw_edge(buf, p[3], p[7]);
+        draw_edge(buf, p[1], p[2]);
+        draw_edge(buf, p[2], p[3]);
+
+        // Store clickable regions for each plane
+        // XZ plane (top)
+        self.plane_picker_rects.push(TheDim::rect(
+            p[4].0.min(p[5].0).min(p[6].0).min(p[7].0),
+            p[4].1.min(p[5].1).min(p[6].1).min(p[7].1),
+            p[4].0.max(p[5].0).max(p[6].0).max(p[7].0) - p[4].0.min(p[5].0).min(p[6].0).min(p[7].0),
+            p[4].1.max(p[5].1).max(p[6].1).max(p[7].1) - p[4].1.min(p[5].1).min(p[6].1).min(p[7].1),
+        ));
+
+        // YZ plane (front-left)
+        self.plane_picker_rects.push(TheDim::rect(
+            p[3].0.min(p[7].0).min(p[6].0).min(p[2].0),
+            p[3].1.min(p[7].1).min(p[6].1).min(p[2].1),
+            p[3].0.max(p[7].0).max(p[6].0).max(p[2].0) - p[3].0.min(p[7].0).min(p[6].0).min(p[2].0),
+            p[3].1.max(p[7].1).max(p[6].1).max(p[2].1) - p[3].1.min(p[7].1).min(p[6].1).min(p[2].1),
+        ));
+
+        // XY plane (front-right)
+        self.plane_picker_rects.push(TheDim::rect(
+            p[1].0.min(p[5].0).min(p[6].0).min(p[2].0),
+            p[1].1.min(p[5].1).min(p[6].1).min(p[2].1),
+            p[1].0.max(p[5].0).max(p[6].0).max(p[2].0) - p[1].0.min(p[5].0).min(p[6].0).min(p[2].0),
+            p[1].1.max(p[5].1).max(p[6].1).max(p[2].1) - p[1].1.min(p[5].1).min(p[6].1).min(p[2].1),
+        ));
     }
 
     pub fn clicked(
@@ -754,9 +867,18 @@ impl Hud {
             for (i, rect) in self.plane_picker_rects.iter().enumerate() {
                 if rect.contains(Vec2::new(x, y)) {
                     server_ctx.gizmo_mode = match i {
-                        0 => GizmoMode::XZ,
-                        1 => GizmoMode::XY,
-                        2 => GizmoMode::YZ,
+                        0 => {
+                            println!("Plane picker: XZ plane selected");
+                            GizmoMode::XZ
+                        }
+                        1 => {
+                            println!("Plane picker: YZ plane selected");
+                            GizmoMode::YZ
+                        }
+                        2 => {
+                            println!("Plane picker: XY plane selected");
+                            GizmoMode::XY
+                        }
                         _ => server_ctx.gizmo_mode,
                     };
                     return true;

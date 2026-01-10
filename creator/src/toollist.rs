@@ -998,6 +998,7 @@ impl ToolList {
                             if server_ctx.get_map_context() == MapContext::Shader {
                                 NODEEDITOR.read().unwrap().force_update(ctx, map);
                             }
+                            map.update_surfaces();
                         }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                         if server_ctx.editor_view_mode != EditorViewMode::D2 {
@@ -1041,6 +1042,7 @@ impl ToolList {
                             if server_ctx.get_map_context() == MapContext::Shader {
                                 NODEEDITOR.read().unwrap().force_update(ctx, map);
                             }
+                            map.update_surfaces();
                         }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
 
