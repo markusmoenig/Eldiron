@@ -5,6 +5,13 @@ use scenevm::GeoId;
 use theframework::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
+pub enum GizmoMode {
+    XZ,
+    XY,
+    YZ,
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum EditorViewMode {
     D2,
     Orbit,
@@ -413,6 +420,9 @@ pub struct ServerContext {
     /// The current 3D hover hit
     pub geo_hit: Option<GeoId>,
 
+    /// The current geometry hover hit position
+    pub geo_hit_pos: Vec3<f32>,
+
     /// Temporary storage for the editing positon
     pub editing_pos_buffer: Option<Vec3<f32>>,
 
@@ -424,6 +434,9 @@ pub struct ServerContext {
 
     /// Position of the 2D editing slice.
     pub editing_slice: f32,
+
+    /// The current plane for 3D movement
+    pub gizmo_mode: GizmoMode,
 
     // For the Rect tool, identify the current sector and tile for preview
     pub rect_sector_id_3d: Option<u32>,
@@ -517,11 +530,14 @@ impl ServerContext {
             animation_counter: 0,
 
             geo_hit: None,
+            geo_hit_pos: Vec3::zero(),
 
             editing_pos_buffer: None,
 
             selected_hud_icon_index: 0,
             show_editing_geometry: true,
+
+            gizmo_mode: GizmoMode::XZ,
 
             editing_slice: 0.0,
             rect_sector_id_3d: None,

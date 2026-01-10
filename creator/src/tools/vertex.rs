@@ -12,6 +12,7 @@ use std::str::FromStr;
 pub struct VertexTool {
     id: TheId,
     click_pos: Vec2<f32>,
+    click_pos_3d: Vec3<f32>,
     click_selected: bool,
     drag_changed: bool,
     rectangle_undo_map: Map,
@@ -28,6 +29,7 @@ impl Tool for VertexTool {
         Self {
             id: TheId::named("Vertex Tool"),
             click_pos: Vec2::zero(),
+            click_pos_3d: Vec3::zero(),
             click_selected: false,
             drag_changed: false,
             rectangle_undo_map: Map::default(),
@@ -209,6 +211,19 @@ impl Tool for VertexTool {
                 }
 
                 self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);
+
+                // For 3D dragging, use the actual vertex position if one is selected
+                if self.click_selected && !map.selected_vertices.is_empty() {
+                    if let Some(vertex) = map.find_vertex(map.selected_vertices[0]) {
+                        // Convert vertex storage to world 3D coords
+                        self.click_pos_3d = vertex.as_vec3_world();
+                    } else {
+                        self.click_pos_3d = server_ctx.geo_hit_pos;
+                    }
+                } else {
+                    self.click_pos_3d = server_ctx.geo_hit_pos;
+                }
+
                 self.rectangle_undo_map = map.clone();
             }
             MapDragged(coord) => {
@@ -221,40 +236,143 @@ impl Tool for VertexTool {
                     // If we selected a vertex, drag means we move all selected vertices
                     if let Some(render_view) = ui.get_render_view("PolyView") {
                         let dim = *render_view.dim();
-                        let click_pos = server_ctx.local_to_map_grid(
-                            Vec2::new(dim.width as f32, dim.height as f32),
-                            self.click_pos,
-                            map,
-                            map.subdivisions,
-                        );
-                        let drag_pos = server_ctx.local_to_map_grid(
-                            Vec2::new(dim.width as f32, dim.height as f32),
-                            Vec2::new(coord.x as f32, coord.y as f32),
-                            map,
-                            map.subdivisions,
-                        );
 
-                        let drag_delta = click_pos - drag_pos;
-                        for vertex_id in &map.selected_vertices.clone() {
-                            if let Some(original_vertex) =
-                                self.rectangle_undo_map.find_vertex_mut(*vertex_id)
-                            {
-                                // if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
-                                //     vertex.x = original_vertex.x - drag_delta.x;
-                                //     vertex.y = original_vertex.y - drag_delta.y;
-                                // }
+                        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                            let click_pos = server_ctx.local_to_map_grid(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                self.click_pos,
+                                map,
+                                map.subdivisions,
+                            );
+                            let drag_pos = server_ctx.local_to_map_grid(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                Vec2::new(coord.x as f32, coord.y as f32),
+                                map,
+                                map.subdivisions,
+                            );
 
-                                let new_pos = Vec2::new(
-                                    original_vertex.x - drag_delta.x,
-                                    original_vertex.y - drag_delta.y,
-                                );
-                                map.update_vertex(*vertex_id, new_pos);
+                            let drag_delta = click_pos - drag_pos;
+                            for vertex_id in &map.selected_vertices.clone() {
+                                if let Some(original_vertex) =
+                                    self.rectangle_undo_map.find_vertex_mut(*vertex_id)
+                                {
+                                    let new_pos = Vec2::new(
+                                        original_vertex.x - drag_delta.x,
+                                        original_vertex.y - drag_delta.y,
+                                    );
+                                    map.update_vertex(*vertex_id, new_pos);
+                                }
                             }
-                        }
-                        server_ctx.hover_cursor = Some(drag_pos);
+                            server_ctx.hover_cursor = Some(drag_pos);
 
-                        if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
-                            self.drag_changed = true;
+                            if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
+                                self.drag_changed = true;
+                            }
+                        } else {
+                            // 3D Drag
+                            let start_pos = self.click_pos_3d;
+                            let plane = server_ctx.gizmo_mode;
+
+                            // Get current mouse ray and intersect with drag plane
+                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                                let dim = *render_view.dim();
+                                let screen_uv = [
+                                    coord.x as f32 / dim.width as f32,
+                                    coord.y as f32 / dim.height as f32,
+                                ];
+
+                                // Get the camera ray for current mouse position
+                                let rusterix = RUSTERIX.read().unwrap();
+                                let ray = rusterix.client.camera_d3.create_ray(
+                                    Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    Vec2::zero(),
+                                );
+                                drop(rusterix);
+
+                                // Define plane normal based on gizmo mode
+                                let plane_normal = match plane {
+                                    GizmoMode::XZ => Vec3::new(0.0, 1.0, 0.0), // Horizontal plane
+                                    GizmoMode::XY => Vec3::new(0.0, 0.0, 1.0), // Front plane
+                                    GizmoMode::YZ => Vec3::new(1.0, 0.0, 0.0), // Side plane
+                                };
+
+                                // Ray-plane intersection
+                                let denom: f32 = plane_normal.dot(ray.dir);
+
+                                if denom.abs() > 0.0001 {
+                                    let t = (start_pos - ray.origin).dot(plane_normal) / denom;
+                                    if t >= 0.0 {
+                                        let current_pos = ray.origin + ray.dir * t;
+
+                                        // Calculate drag delta based on the gizmo plane mode
+                                        let drag_delta = match plane {
+                                            GizmoMode::XZ => {
+                                                // XZ plane: allow movement in X and Z, lock Y
+                                                Vec3::new(
+                                                    current_pos.x - start_pos.x,
+                                                    0.0,
+                                                    current_pos.z - start_pos.z,
+                                                )
+                                            }
+                                            GizmoMode::XY => {
+                                                // XY plane: allow movement in X and Y, lock Z
+                                                Vec3::new(
+                                                    current_pos.x - start_pos.x,
+                                                    current_pos.y - start_pos.y,
+                                                    0.0,
+                                                )
+                                            }
+                                            GizmoMode::YZ => {
+                                                // YZ plane: allow movement in Y and Z, lock X
+                                                Vec3::new(
+                                                    0.0,
+                                                    current_pos.y - start_pos.y,
+                                                    current_pos.z - start_pos.z,
+                                                )
+                                            }
+                                        };
+
+                                        // Apply drag delta to all selected vertices
+                                        for vertex_id in &map.selected_vertices.clone() {
+                                            if let Some(original_vertex) =
+                                                self.rectangle_undo_map.find_vertex(*vertex_id)
+                                            {
+                                                // Coordinate mapping:
+                                                // vertex.x = world X, vertex.y = world Z, vertex.z = world Y
+                                                // drag_delta is in world coords (x, y, z) where y is up
+                                                // update_vertex_3d takes (vertex_id, new_x, new_z, new_y)
+                                                let new_x = original_vertex.x + drag_delta.x;
+                                                let new_y = original_vertex.y + drag_delta.z;
+                                                let new_z = original_vertex.z + drag_delta.y;
+
+                                                // Snap to grid
+                                                let subdivisions = 1.0 / map.subdivisions;
+                                                let snapped_x =
+                                                    (new_x / subdivisions).round() * subdivisions;
+                                                let snapped_y =
+                                                    (new_y / subdivisions).round() * subdivisions;
+                                                let snapped_z =
+                                                    (new_z / subdivisions).round() * subdivisions;
+
+                                                if let Some(vertex) =
+                                                    map.find_vertex_mut(*vertex_id)
+                                                {
+                                                    vertex.x = snapped_x;
+                                                    vertex.y = snapped_y;
+                                                    vertex.z = snapped_z;
+                                                }
+                                            }
+                                        }
+                                        if drag_delta.x != 0.0
+                                            || drag_delta.y != 0.0
+                                            || drag_delta.z != 0.0
+                                        {
+                                            self.drag_changed = true;
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 } else if let Some(render_view) = ui.get_render_view("PolyView") {

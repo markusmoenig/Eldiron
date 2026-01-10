@@ -1025,9 +1025,14 @@ impl ToolList {
                 if id.name == "PolyView" {
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
                         if let Some(render_view) = ui.get_render_view("PolyView") {
-                            server_ctx.geo_hit =
-                                self.get_geometry_hit(render_view, *coord, server_ctx);
-
+                            if let Some(rc) = self.get_geometry_hit(render_view, *coord, server_ctx)
+                            {
+                                server_ctx.geo_hit = Some(rc.0);
+                                server_ctx.geo_hit_pos = rc.1;
+                            } else {
+                                server_ctx.geo_hit = None;
+                                server_ctx.geo_hit_pos = Vec3::zero();
+                            }
                             // println!("{:?}", server_ctx.geo_hit);
                             // let pt = self.hitpoint_to_editing_coord(
                             //     project,
@@ -1841,7 +1846,7 @@ impl ToolList {
         render_view: &dyn TheRenderViewTrait,
         coord: Vec2<i32>,
         server_ctx: &mut ServerContext,
-    ) -> Option<GeoId> {
+    ) -> Option<(GeoId, Vec3<f32>)> {
         let dim = *render_view.dim();
 
         let screen_uv = [
@@ -1860,7 +1865,7 @@ impl ToolList {
         ) {
             server_ctx.hover_cursor_3d = Some(rc.1);
             if server_ctx.curr_map_tool_type == MapToolType::Sector {
-                return Some(rc.0);
+                return Some((rc.0, rc.1));
             }
         }
 
@@ -1878,7 +1883,7 @@ impl ToolList {
         rusterix.scene_handler.vm.set_active_vm(0);
 
         if let Some(rc) = rc {
-            return Some(rc.0);
+            return Some((rc.0, rc.1));
         }
 
         None
