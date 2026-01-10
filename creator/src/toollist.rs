@@ -844,20 +844,6 @@ impl ToolList {
                 }
             }
             TheEvent::RenderViewDragged(id, coord) => {
-                /*
-                if id.name == "PolyView" {
-                    if let Some(drag_coord) = &self.camera_drag_coord {
-                        if ui.logo || ui.ctrl {
-                            EDITCAMERA
-                                .write()
-                                .unwrap()
-                                .click_drag((*coord - *drag_coord).map(|v| v as f32 * 5.0));
-                            self.camera_drag_coord = Some(*coord);
-                        }
-                        return true;
-                    }
-                }*/
-
                 if id.name == "PolyView" {
                     let mut changed_entities: FxHashMap<Uuid, Vec3<f32>> = FxHashMap::default();
                     let mut changed_items: FxHashMap<Uuid, Vec3<f32>> = FxHashMap::default();

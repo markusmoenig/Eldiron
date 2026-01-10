@@ -12,6 +12,7 @@ use vek::Vec2;
 pub struct LinedefTool {
     id: TheId,
     click_pos: Vec2<f32>,
+    click_pos_3d: Vec3<f32>,
     click_selected: bool,
     drag_changed: bool,
     rectangle_undo_map: Map,
@@ -29,6 +30,7 @@ impl Tool for LinedefTool {
         Self {
             id: TheId::named("Linedef Tool"),
             click_pos: Vec2::zero(),
+            click_pos_3d: Vec3::zero(),
             click_selected: false,
             drag_changed: false,
             rectangle_undo_map: Map::default(),
@@ -221,6 +223,32 @@ impl Tool for LinedefTool {
                 }
 
                 self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);
+
+                // For 3D dragging, use the average position of selected linedef vertices
+                if self.click_selected && !map.selected_linedefs.is_empty() {
+                    let mut sum_pos = Vec3::zero();
+                    let mut count = 0;
+                    for line_id in &map.selected_linedefs {
+                        if let Some(line) = map.find_linedef(*line_id) {
+                            if let Some(v1) = map.find_vertex(line.start_vertex) {
+                                sum_pos += v1.as_vec3_world();
+                                count += 1;
+                            }
+                            if let Some(v2) = map.find_vertex(line.end_vertex) {
+                                sum_pos += v2.as_vec3_world();
+                                count += 1;
+                            }
+                        }
+                    }
+                    if count > 0 {
+                        self.click_pos_3d = sum_pos / count as f32;
+                    } else {
+                        self.click_pos_3d = server_ctx.geo_hit_pos;
+                    }
+                } else {
+                    self.click_pos_3d = server_ctx.geo_hit_pos;
+                }
+
                 self.rectangle_undo_map = map.clone();
                 self.rectangle_mode = false;
             }
@@ -234,43 +262,144 @@ impl Tool for LinedefTool {
                     // Dragging selected lines
                     if let Some(render_view) = ui.get_render_view("PolyView") {
                         let dim = *render_view.dim();
-                        let click_pos = server_ctx.local_to_map_grid(
-                            Vec2::new(dim.width as f32, dim.height as f32),
-                            self.click_pos,
-                            map,
-                            map.subdivisions,
-                        );
-                        let drag_pos = server_ctx.local_to_map_grid(
-                            Vec2::new(dim.width as f32, dim.height as f32),
-                            Vec2::new(coord.x as f32, coord.y as f32),
-                            map,
-                            map.subdivisions,
-                        );
 
-                        let mut selected_vertices = vec![];
+                        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                            // 2D dragging
+                            let click_pos = server_ctx.local_to_map_grid(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                self.click_pos,
+                                map,
+                                map.subdivisions,
+                            );
+                            let drag_pos = server_ctx.local_to_map_grid(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                Vec2::new(coord.x as f32, coord.y as f32),
+                                map,
+                                map.subdivisions,
+                            );
 
-                        let drag_delta = click_pos - drag_pos;
-                        for line_id in self.rectangle_undo_map.selected_linedefs.iter() {
-                            if let Some(line) = self.rectangle_undo_map.find_linedef(*line_id) {
-                                selected_vertices.push(line.start_vertex);
-                                selected_vertices.push(line.end_vertex);
+                            let mut selected_vertices = vec![];
+
+                            let drag_delta = click_pos - drag_pos;
+                            for line_id in self.rectangle_undo_map.selected_linedefs.iter() {
+                                if let Some(line) = self.rectangle_undo_map.find_linedef(*line_id) {
+                                    selected_vertices.push(line.start_vertex);
+                                    selected_vertices.push(line.end_vertex);
+                                }
                             }
-                        }
 
-                        for vertex_id in selected_vertices.iter() {
-                            if let Some(original_vertex) =
-                                self.rectangle_undo_map.find_vertex_mut(*vertex_id)
-                            {
-                                let new_pos = Vec2::new(
-                                    original_vertex.x - drag_delta.x,
-                                    original_vertex.y - drag_delta.y,
-                                );
-                                map.update_vertex(*vertex_id, new_pos);
+                            for vertex_id in selected_vertices.iter() {
+                                if let Some(original_vertex) =
+                                    self.rectangle_undo_map.find_vertex_mut(*vertex_id)
+                                {
+                                    let new_pos = Vec2::new(
+                                        original_vertex.x - drag_delta.x,
+                                        original_vertex.y - drag_delta.y,
+                                    );
+                                    map.update_vertex(*vertex_id, new_pos);
+                                }
                             }
-                        }
-                        server_ctx.hover_cursor = Some(drag_pos);
-                        if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
-                            self.drag_changed = true;
+                            server_ctx.hover_cursor = Some(drag_pos);
+                            if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
+                                self.drag_changed = true;
+                            }
+                        } else {
+                            // 3D dragging
+                            let start_pos = self.click_pos_3d;
+                            let plane = server_ctx.gizmo_mode;
+
+                            let screen_uv = [
+                                coord.x as f32 / dim.width as f32,
+                                coord.y as f32 / dim.height as f32,
+                            ];
+
+                            let rusterix = RUSTERIX.read().unwrap();
+                            let ray = rusterix.client.camera_d3.create_ray(
+                                Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                Vec2::zero(),
+                            );
+                            drop(rusterix);
+
+                            let plane_normal = match plane {
+                                GizmoMode::XZ => Vec3::new(0.0, 1.0, 0.0),
+                                GizmoMode::XY => Vec3::new(0.0, 0.0, 1.0),
+                                GizmoMode::YZ => Vec3::new(1.0, 0.0, 0.0),
+                            };
+
+                            let denom: f32 = plane_normal.dot(ray.dir);
+
+                            if denom.abs() > 0.0001 {
+                                let t = (start_pos - ray.origin).dot(plane_normal) / denom;
+                                if t >= 0.0 {
+                                    let current_pos = ray.origin + ray.dir * t;
+
+                                    let drag_delta = match plane {
+                                        GizmoMode::XZ => Vec3::new(
+                                            current_pos.x - start_pos.x,
+                                            0.0,
+                                            current_pos.z - start_pos.z,
+                                        ),
+                                        GizmoMode::XY => Vec3::new(
+                                            current_pos.x - start_pos.x,
+                                            current_pos.y - start_pos.y,
+                                            0.0,
+                                        ),
+                                        GizmoMode::YZ => Vec3::new(
+                                            0.0,
+                                            current_pos.y - start_pos.y,
+                                            current_pos.z - start_pos.z,
+                                        ),
+                                    };
+
+                                    let mut selected_vertices = vec![];
+                                    for line_id in self.rectangle_undo_map.selected_linedefs.iter()
+                                    {
+                                        if let Some(line) =
+                                            self.rectangle_undo_map.find_linedef(*line_id)
+                                        {
+                                            if !selected_vertices.contains(&line.start_vertex) {
+                                                selected_vertices.push(line.start_vertex);
+                                            }
+                                            if !selected_vertices.contains(&line.end_vertex) {
+                                                selected_vertices.push(line.end_vertex);
+                                            }
+                                        }
+                                    }
+
+                                    for vertex_id in selected_vertices.iter() {
+                                        if let Some(original_vertex) =
+                                            self.rectangle_undo_map.find_vertex(*vertex_id)
+                                        {
+                                            let new_x = original_vertex.x + drag_delta.x;
+                                            let new_y = original_vertex.y + drag_delta.z;
+                                            let new_z = original_vertex.z + drag_delta.y;
+
+                                            // Snap to grid
+                                            let subdivisions = 1.0 / map.subdivisions;
+                                            let snapped_x =
+                                                (new_x / subdivisions).round() * subdivisions;
+                                            let snapped_y =
+                                                (new_y / subdivisions).round() * subdivisions;
+                                            let snapped_z =
+                                                (new_z / subdivisions).round() * subdivisions;
+
+                                            if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
+                                                vertex.x = snapped_x;
+                                                vertex.y = snapped_y;
+                                                vertex.z = snapped_z;
+                                            }
+                                        }
+                                    }
+
+                                    if drag_delta.x != 0.0
+                                        || drag_delta.y != 0.0
+                                        || drag_delta.z != 0.0
+                                    {
+                                        self.drag_changed = true;
+                                    }
+                                }
+                            }
                         }
                     }
                 } else {

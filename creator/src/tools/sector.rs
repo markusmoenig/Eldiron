@@ -12,6 +12,7 @@ use vek::Vec2;
 pub struct SectorTool {
     id: TheId,
     click_pos: Vec2<f32>,
+    click_pos_3d: Vec3<f32>,
     rectangle_undo_map: Map,
     click_selected: bool,
     drag_changed: bool,
@@ -28,6 +29,7 @@ impl Tool for SectorTool {
         Self {
             id: TheId::named("Sector Tool"),
             click_pos: Vec2::zero(),
+            click_pos_3d: Vec3::zero(),
             click_selected: false,
             drag_changed: false,
             rectangle_undo_map: Map::default(),
@@ -162,6 +164,10 @@ impl Tool for SectorTool {
                 }
 
                 self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);
+
+                // For 3D dragging, use the actual click position
+                self.click_pos_3d = server_ctx.geo_hit_pos;
+
                 self.rectangle_undo_map = map.clone();
             }
             MapDragged(coord) => {
@@ -174,51 +180,172 @@ impl Tool for SectorTool {
                     // Dragging selected sectors
                     if let Some(render_view) = ui.get_render_view("PolyView") {
                         let dim = *render_view.dim();
-                        let click_pos = server_ctx.local_to_map_grid(
-                            Vec2::new(dim.width as f32, dim.height as f32),
-                            self.click_pos,
-                            map,
-                            map.subdivisions,
-                        );
-                        let drag_pos = server_ctx.local_to_map_grid(
-                            Vec2::new(dim.width as f32, dim.height as f32),
-                            Vec2::new(coord.x as f32, coord.y as f32),
-                            map,
-                            map.subdivisions,
-                        );
 
-                        let mut selected_vertices = vec![];
+                        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                            // 2D dragging
+                            let click_pos = server_ctx.local_to_map_grid(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                self.click_pos,
+                                map,
+                                map.subdivisions,
+                            );
+                            let drag_pos = server_ctx.local_to_map_grid(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                Vec2::new(coord.x as f32, coord.y as f32),
+                                map,
+                                map.subdivisions,
+                            );
 
-                        let drag_delta = click_pos - drag_pos;
+                            let mut selected_vertices = vec![];
 
-                        for sector_id in self.rectangle_undo_map.selected_sectors.iter() {
-                            if let Some(sector) = self.rectangle_undo_map.find_sector(*sector_id) {
-                                for line_id in &sector.linedefs {
-                                    if let Some(line) =
-                                        self.rectangle_undo_map.find_linedef(*line_id)
-                                    {
-                                        selected_vertices.push(line.start_vertex);
-                                        selected_vertices.push(line.end_vertex);
+                            let drag_delta = click_pos - drag_pos;
+
+                            for sector_id in self.rectangle_undo_map.selected_sectors.iter() {
+                                if let Some(sector) =
+                                    self.rectangle_undo_map.find_sector(*sector_id)
+                                {
+                                    for line_id in &sector.linedefs {
+                                        if let Some(line) =
+                                            self.rectangle_undo_map.find_linedef(*line_id)
+                                        {
+                                            selected_vertices.push(line.start_vertex);
+                                            selected_vertices.push(line.end_vertex);
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        for vertex_id in selected_vertices.iter() {
-                            if let Some(original_vertex) =
-                                self.rectangle_undo_map.find_vertex_mut(*vertex_id)
-                            {
-                                let new_pos = Vec2::new(
-                                    original_vertex.x - drag_delta.x,
-                                    original_vertex.y - drag_delta.y,
-                                );
-                                map.update_vertex(*vertex_id, new_pos);
+                            for vertex_id in selected_vertices.iter() {
+                                if let Some(original_vertex) =
+                                    self.rectangle_undo_map.find_vertex_mut(*vertex_id)
+                                {
+                                    let new_pos = Vec2::new(
+                                        original_vertex.x - drag_delta.x,
+                                        original_vertex.y - drag_delta.y,
+                                    );
+                                    map.update_vertex(*vertex_id, new_pos);
+                                }
                             }
-                        }
-                        server_ctx.hover_cursor = Some(drag_pos);
+                            server_ctx.hover_cursor = Some(drag_pos);
 
-                        if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
-                            self.drag_changed = true;
+                            if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
+                                self.drag_changed = true;
+                            }
+                        } else {
+                            // 3D dragging
+                            let start_pos = self.click_pos_3d;
+                            let plane = server_ctx.gizmo_mode;
+
+                            let screen_uv = [
+                                coord.x as f32 / dim.width as f32,
+                                coord.y as f32 / dim.height as f32,
+                            ];
+
+                            let rusterix = RUSTERIX.read().unwrap();
+                            let ray = rusterix.client.camera_d3.create_ray(
+                                Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                Vec2::zero(),
+                            );
+                            drop(rusterix);
+
+                            let plane_normal = match plane {
+                                GizmoMode::XZ => Vec3::new(0.0, 1.0, 0.0),
+                                GizmoMode::XY => Vec3::new(0.0, 0.0, 1.0),
+                                GizmoMode::YZ => Vec3::new(1.0, 0.0, 0.0),
+                            };
+
+                            let denom = plane_normal.dot(ray.dir);
+                            if denom.abs() > 0.0001 {
+                                let t = (start_pos - ray.origin).dot(plane_normal) / denom;
+
+                                if t >= 0.0 {
+                                    let current_pos = ray.origin + ray.dir * t;
+
+                                    // Calculate drag delta based on the gizmo plane mode
+                                    let drag_delta = match plane {
+                                        GizmoMode::XZ => {
+                                            // XZ plane: allow movement in X and Z, lock Y
+                                            Vec3::new(
+                                                current_pos.x - start_pos.x,
+                                                0.0,
+                                                current_pos.z - start_pos.z,
+                                            )
+                                        }
+                                        GizmoMode::XY => {
+                                            // XY plane: allow movement in X and Y, lock Z
+                                            Vec3::new(
+                                                current_pos.x - start_pos.x,
+                                                current_pos.y - start_pos.y,
+                                                0.0,
+                                            )
+                                        }
+                                        GizmoMode::YZ => {
+                                            // YZ plane: allow movement in Y and Z, lock X
+                                            Vec3::new(
+                                                0.0,
+                                                current_pos.y - start_pos.y,
+                                                current_pos.z - start_pos.z,
+                                            )
+                                        }
+                                    };
+
+                                    let mut selected_vertices = vec![];
+                                    for sector_id in self.rectangle_undo_map.selected_sectors.iter()
+                                    {
+                                        if let Some(sector) =
+                                            self.rectangle_undo_map.find_sector(*sector_id)
+                                        {
+                                            for line_id in &sector.linedefs {
+                                                if let Some(line) =
+                                                    self.rectangle_undo_map.find_linedef(*line_id)
+                                                {
+                                                    if !selected_vertices
+                                                        .contains(&line.start_vertex)
+                                                    {
+                                                        selected_vertices.push(line.start_vertex);
+                                                    }
+                                                    if !selected_vertices.contains(&line.end_vertex)
+                                                    {
+                                                        selected_vertices.push(line.end_vertex);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    for vertex_id in selected_vertices.iter() {
+                                        if let Some(original_vertex) =
+                                            self.rectangle_undo_map.find_vertex(*vertex_id)
+                                        {
+                                            let new_x = original_vertex.x + drag_delta.x;
+                                            let new_y = original_vertex.y + drag_delta.z;
+                                            let new_z = original_vertex.z + drag_delta.y;
+
+                                            let subdivisions = 1.0 / map.subdivisions;
+                                            let snapped_x =
+                                                (new_x / subdivisions).round() * subdivisions;
+                                            let snapped_y =
+                                                (new_y / subdivisions).round() * subdivisions;
+                                            let snapped_z =
+                                                (new_z / subdivisions).round() * subdivisions;
+
+                                            if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
+                                                vertex.x = snapped_x;
+                                                vertex.y = snapped_y;
+                                                vertex.z = snapped_z;
+                                            }
+                                        }
+                                    }
+
+                                    if drag_delta.x != 0.0
+                                        || drag_delta.y != 0.0
+                                        || drag_delta.z != 0.0
+                                    {
+                                        self.drag_changed = true;
+                                    }
+                                }
+                            }
                         }
                     }
                 } else if let Some(render_view) = ui.get_render_view("PolyView") {
