@@ -37,6 +37,9 @@ pub struct Hud {
 
     is_playing: bool,
     light_icon: Option<TheRGBABuffer>,
+
+    // Plane picker widget for 3D mode
+    plane_picker_rects: Vec<TheDim>,
 }
 
 impl Hud {
@@ -62,6 +65,8 @@ impl Hud {
 
             is_playing: false,
             light_icon: None,
+
+            plane_picker_rects: vec![],
         }
     }
 
@@ -600,6 +605,109 @@ impl Hud {
                 );
             }*/
         }
+
+        // Draw plane picker widget in 3D mode when editing geometry
+        if server_ctx.editor_view_mode != EditorViewMode::D2 && server_ctx.show_editing_geometry {
+            self.draw_plane_picker(buffer, ctx, server_ctx, width, height, stride);
+        }
+    }
+
+    fn draw_plane_picker(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+        width: usize,
+        height: usize,
+        stride: usize,
+    ) {
+        self.plane_picker_rects.clear();
+
+        let widget_size = 30;
+        let widget_spacing = 5;
+        let widget_margin = 20;
+
+        // Position in lower-right corner
+        let start_x = width as i32 - (widget_size * 3 + widget_spacing * 2 + widget_margin);
+        let start_y = height as i32 - widget_size - widget_margin;
+
+        let colors = [
+            [100, 150, 100, 255], // XZ - Greenish (horizontal plane)
+            [100, 100, 150, 255], // XY - Blueish (front plane)
+            [150, 100, 100, 255], // YZ - Reddish (side plane)
+        ];
+
+        let selected_colors = [
+            [120, 200, 120, 255], // XZ selected
+            [120, 120, 200, 255], // XY selected
+            [200, 120, 120, 255], // YZ selected
+        ];
+
+        let gizmo_modes = [GizmoMode::XZ, GizmoMode::XY, GizmoMode::YZ];
+        let labels = ["XZ", "XY", "YZ"];
+
+        for i in 0..3 {
+            let x = start_x + i * (widget_size + widget_spacing);
+            let y = start_y;
+
+            let rect = TheDim::rect(x, y, widget_size, widget_size);
+            self.plane_picker_rects.push(rect);
+
+            let is_selected = server_ctx.gizmo_mode == gizmo_modes[i as usize];
+            let color = if is_selected {
+                selected_colors[i as usize]
+            } else {
+                colors[i as usize]
+            };
+
+            // Draw the button background
+            ctx.draw.rect(
+                buffer.pixels_mut(),
+                &(
+                    x as usize,
+                    y as usize,
+                    widget_size as usize,
+                    widget_size as usize,
+                ),
+                stride,
+                &color,
+            );
+
+            // Draw border
+            let border_color = if is_selected {
+                [255, 255, 255, 255]
+            } else {
+                [70, 70, 70, 255]
+            };
+
+            ctx.draw.rect_outline(
+                buffer.pixels_mut(),
+                &(
+                    x as usize,
+                    y as usize,
+                    widget_size as usize,
+                    widget_size as usize,
+                ),
+                stride,
+                &border_color,
+            );
+
+            // Draw label text
+            let text_color = [255, 255, 255, 255];
+            let label = labels[i as usize];
+            ctx.draw.text(
+                buffer.pixels_mut(),
+                &(x as usize + 8, y as usize + 9),
+                stride,
+                label,
+                TheFontSettings {
+                    size: 13.0,
+                    ..Default::default()
+                },
+                &text_color,
+                &color,
+            );
+        }
     }
 
     pub fn clicked(
@@ -638,6 +746,21 @@ impl Hud {
             if rect.contains(Vec2::new(x, y)) {
                 map.subdivisions = (i + 1) as f32;
                 return true;
+            }
+        }
+
+        // Check plane picker clicks in 3D mode
+        if server_ctx.editor_view_mode != EditorViewMode::D2 && server_ctx.show_editing_geometry {
+            for (i, rect) in self.plane_picker_rects.iter().enumerate() {
+                if rect.contains(Vec2::new(x, y)) {
+                    server_ctx.gizmo_mode = match i {
+                        0 => GizmoMode::XZ,
+                        1 => GizmoMode::XY,
+                        2 => GizmoMode::YZ,
+                        _ => server_ctx.gizmo_mode,
+                    };
+                    return true;
+                }
             }
         }
 
