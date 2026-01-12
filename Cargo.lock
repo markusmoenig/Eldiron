@@ -5377,7 +5377,7 @@ dependencies = [
 [[package]]
 name = "scenevm"
 version = "0.1.0"
-source = "git+https://github.com/markusmoenig/SceneVM#10308aed73a34970315590e08774fc0c722d5df2"
+source = "git+https://github.com/markusmoenig/SceneVM#f08332d851ee44a7b5bdb8f3a7480575578f9b58"
 dependencies = [
  "bytemuck",
  "getrandom 0.3.4",
