@@ -44,6 +44,7 @@ impl ActionList {
             Box::new(crate::tools::minimize::Minimize::new()),
             Box::new(crate::tools::recess::Recess::new()),
             Box::new(crate::tools::relief::Relief::new()),
+            Box::new(crate::tools::remap_tile::RemapTile::new()),
             Box::new(crate::tools::set_editing_surface::SetEditingSurface::new()),
             Box::new(crate::tools::set_tile_material::SetTileMaterial::new()),
             Box::new(crate::tools::split::Split::new()),

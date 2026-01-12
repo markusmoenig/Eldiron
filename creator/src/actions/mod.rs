@@ -32,6 +32,7 @@ pub mod new_tile;
 pub mod orbit_camera;
 pub mod recess;
 pub mod relief;
+pub mod remap_tile;
 pub mod set_editing_surface;
 pub mod split;
 pub mod toggle_editing_geo;

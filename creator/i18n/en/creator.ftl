@@ -214,6 +214,8 @@ action_import_palette = Import Palette ...
 action_import_palette_desc = Import a Paint.net palette
 action_clear_palette = Clear Palette
 action_clear_palette_desc = Clears the palette
+action_remap_tile = Remap Tile
+action_remap_tile_desc = Remaps the colors of the tile to the palette.
 
 # Tools
 tool_game = Game Tool (G). If the server is running input events are send to the game.

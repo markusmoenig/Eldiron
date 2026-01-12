@@ -214,6 +214,8 @@ action_import_palette = Palette importieren ...
 action_import_palette_desc = Eine Paint.net-Palette importieren
 action_clear_palette = Palette leeren
 action_clear_palette_desc = Leert die Palette
+action_remap_tile = Kachel neu zuordnen
+action_remap_tile_desc = Ordnet die Farben der Kachel der Palette zu
 
 # Tools
 tool_game = Spiel-Tool (G). Wenn der Server läuft, werden Eingabeereignisse an das Spiel gesendet.

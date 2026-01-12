@@ -214,6 +214,8 @@ action_import_palette = 导入调色板 ...
 action_import_palette_desc = 导入 Paint.net 调色板
 action_clear_palette = 清空调色板
 action_clear_palette_desc = 清空当前调色板
+action_remap_tile = 重新映射图块
+action_remap_tile_desc = 将图块的颜色映射到调色板
 
 # Tools
 tool_game = 游戏工具 (G)。服务器运行时输入事件会发送到游戏

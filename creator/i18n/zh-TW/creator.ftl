@@ -214,6 +214,8 @@ action_import_palette = 匯入調色盤 ...
 action_import_palette_desc = 匯入 Paint.net 調色盤
 action_clear_palette = 清空調色盤
 action_clear_palette_desc = 清空調色盤
+action_remap_tile = 重新對應圖塊
+action_remap_tile_desc = 將圖塊的顏色對應到調色盤
 
 # Tools
 tool_game = 遊戲工具 (G)。伺服器運行時輸入事件會傳送到遊戲

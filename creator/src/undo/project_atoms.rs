@@ -29,6 +29,7 @@ pub enum ProjectUndoAtom {
     RemoveAsset(usize, Asset),
     RenameAsset(Uuid, String, String),
     PaletteEdit(ThePalette, ThePalette),
+    TileEdit(rusterix::Tile, rusterix::Tile),
 }
 
 use ProjectUndoAtom::*;
@@ -80,6 +81,7 @@ impl ProjectUndoAtom {
             RemoveAsset(_, asset) => format!("Remove Asset: {}", asset.name),
             RenameAsset(_, old, new) => format!("Rename Asset: {} -> {}", old, new),
             PaletteEdit(_old, _new) => format!("Palette Changed"),
+            TileEdit(_old, _new) => format!("Tile Changed"),
         }
     }
 
@@ -521,6 +523,13 @@ impl ProjectUndoAtom {
                 project.palette = old.clone();
                 project.palette.current_index = sel;
                 apply_palette(ui, ctx, server_ctx, project);
+            }
+            TileEdit(old, _new) => {
+                project.tiles.insert(old.id, old.clone());
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Tiles"),
+                    TheValue::Empty,
+                ));
             }
         }
     }
@@ -1071,6 +1080,13 @@ impl ProjectUndoAtom {
                 project.palette = new.clone();
                 project.palette.current_index = sel;
                 apply_palette(ui, ctx, server_ctx, project);
+            }
+            TileEdit(_old, new) => {
+                project.tiles.insert(new.id, new.clone());
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Tiles"),
+                    TheValue::Empty,
+                ));
             }
         }
     }

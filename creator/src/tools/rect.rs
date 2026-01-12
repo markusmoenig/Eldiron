@@ -149,6 +149,7 @@ impl Tool for RectTool {
                                     let sectors =
                                         map.find_sectors_with_vertex_indices(&[ev0, ev1, ev2, ev3]);
 
+                                    let prev = map.clone();
                                     for sector_id in sectors {
                                         if let Some(sector) = map.find_sector_mut(sector_id) {
                                             if let Some(sector_floor_source) =
@@ -170,7 +171,15 @@ impl Tool for RectTool {
                                                         "source",
                                                         Value::Source(source.clone()),
                                                     );
+
+                                                    undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                                        server_ctx.pc,
+                                                        Box::new(prev),
+                                                        Box::new(map.clone()),
+                                                    ));
+
                                                     add_it = false;
+                                                    break;
                                                 }
                                             }
                                         }

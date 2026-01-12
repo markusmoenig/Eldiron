@@ -214,6 +214,8 @@ action_import_palette = Importar paleta ...
 action_import_palette_desc = Importa una paleta de Paint.net
 action_clear_palette = Limpiar paleta
 action_clear_palette_desc = Limpia la paleta
+action_remap_tile = Remapear baldosa
+action_remap_tile_desc = Remapea los colores de la baldosa a la paleta
 
 # Tools
 tool_game = Herramienta de juego (G). Si el servidor está en marcha, los eventos de entrada se envían al juego.
