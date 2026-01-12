@@ -38,3 +38,6 @@ instant = { version = "0.1", features = ["wasm-bindgen"] }
 
 [features]
 log = ["theframework/log"]
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd = { workspace = true }
