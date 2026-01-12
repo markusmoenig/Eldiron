@@ -253,7 +253,7 @@ impl Project {
                         }
                     }
                     return None;
-                } else if let Some(region) = self.regions.iter().find(|t| t.id == ctx.curr_region) {
+                } else if let Some(region) = self.regions.iter().find(|t| t.id == id) {
                     return Some(&region.map);
                 }
             }
@@ -296,9 +296,7 @@ impl Project {
                         }
                     }
                     return None;
-                } else if let Some(region) =
-                    self.regions.iter_mut().find(|t| t.id == ctx.curr_region)
-                {
+                } else if let Some(region) = self.regions.iter_mut().find(|t| t.id == id) {
                     return Some(&mut region.map);
                 }
             }

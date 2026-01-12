@@ -1142,10 +1142,12 @@ impl TheTrait for Editor {
                                         &self.project,
                                         &self.server_ctx,
                                     );
-                                    TOOLLIST.write().unwrap().update_geometry_overlay_3d(
-                                        &mut self.project,
-                                        &mut self.server_ctx,
-                                    );
+                                    if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                        TOOLLIST.write().unwrap().update_geometry_overlay_3d(
+                                            &mut self.project,
+                                            &mut self.server_ctx,
+                                        );
+                                    }
                                 }
                             }
                         } else if id.name == "Tool Changed" {
