@@ -20,6 +20,10 @@ scenevm = { version = "0.1", git = "https://github.com/markusmoenig/SceneVM", de
 # rusteria = { path = "../Rusterix/rusteria", package = "rusteria" }
 # scenevm = { path = "../SceneVM", default-features = false }
 
+ashpd = "0.11"
+zbus = "=4.4.0"
+zvariant = "=4.2.0"
+
 [workspace.package]
 edition = "2024"
 version = "0.8.90"
