@@ -210,6 +210,10 @@ action_toggle_edit_geo = Bearbeitungsgeometrie umschalten
 action_toggle_edit_geo_desc = Schaltet die Sichtbarkeit der Bearbeitungsgeometrie-Overlay um.
 action_toggle_rect_geo = Rect-Geometrie umschalten
 action_toggle_rect_geo_desc = Von der Rect-Geometrie erstellte Geometrie wird im 2D-Editor standardmäßig nicht angezeigt. Diese Aktion schaltet die Sichtbarkeit um.
+action_import_palette = Palette importieren ...
+action_import_palette_desc = Eine Paint.net-Palette importieren
+action_clear_palette = Palette leeren
+action_clear_palette_desc = Leert die Palette
 
 # Tools
 tool_game = Spiel-Tool (G). Wenn der Server läuft, werden Eingabeereignisse an das Spiel gesendet.
@@ -270,6 +274,7 @@ roughness = Rauheit
 metallic = Metallisch
 emissive = Emissiv
 terrain = Terrain
+palette = Palette
 
 # Info
 info_server_started = Server wurde gestartet

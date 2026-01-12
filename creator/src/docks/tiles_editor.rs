@@ -86,7 +86,7 @@ impl Dock for TilesEditorDock {
         // Palette
 
         let mut palette_node: TheTreeNode =
-            TheTreeNode::new(TheId::named_with_id("Palette", self.palette_node));
+            TheTreeNode::new(TheId::named_with_id("Color", self.palette_node));
         palette_node.set_open(true);
 
         let mut item = TheTreeItem::new(TheId::named("Palette Opacity"));
@@ -98,12 +98,12 @@ impl Dock for TilesEditorDock {
         item.add_widget_column(150, Box::new(edit));
         palette_node.add_widget(Box::new(item));
 
-        let mut item = TheTreeIcons::new(TheId::named("Palette Item"));
-        item.set_icon_count(256);
-        item.set_icons_per_row(14);
-        item.set_selected_index(Some(0));
+        // let mut item = TheTreeIcons::new(TheId::named("Palette Item"));
+        // item.set_icon_count(256);
+        // item.set_icons_per_row(14);
+        // item.set_selected_index(Some(0));
 
-        palette_node.add_widget(Box::new(item));
+        // palette_node.add_widget(Box::new(item));
         root.add_child(palette_node);
 
         palette_canvas.set_layout(palette_tree_layout);
@@ -126,13 +126,13 @@ impl Dock for TilesEditorDock {
             }
         }
 
-        if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree") {
-            if let Some(palette_node) = tree_layout.get_node_by_id_mut(&self.palette_node) {
-                if let Some(widget) = palette_node.widgets[1].as_tree_icons() {
-                    widget.set_palette(&project.palette);
-                }
-            }
-        }
+        // if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree") {
+        //     if let Some(palette_node) = tree_layout.get_node_by_id_mut(&self.palette_node) {
+        //         if let Some(widget) = palette_node.widgets[1].as_tree_icons() {
+        //             widget.set_palette(&project.palette);
+        //         }
+        //     }
+        // }
     }
 
     fn minimized(&mut self, _ui: &mut TheUI, ctx: &mut TheContext) {
@@ -251,9 +251,10 @@ impl Dock for TilesEditorDock {
                 if id.name == "Tile Frame Icons" {
                     // New frame index selected - update the editor display
                     self.set_frame_index(*index as usize, project, ui, ctx, server_ctx);
-                } else if id.name == "Palette Item" {
-                    project.palette.current_index = *index as u16;
                 }
+                // else if id.name == "Palette Item" {
+                //     project.palette.current_index = *index as u16;
+                // }
             }
             TheEvent::TileZoomBy(id, delta) => {
                 if id.name == "Tile Editor Dock RGBA Layout View" {

@@ -210,6 +210,10 @@ action_toggle_edit_geo = Alternar geometría de edición
 action_toggle_edit_geo_desc = Alterna la visibilidad de la superposición de geometría de edición.
 action_toggle_rect_geo = Alternar geometría de rectángulo
 action_toggle_rect_geo_desc = La geometría creada por la herramienta Rect no se muestra por defecto en el editor 2D. Esta acción alterna su visibilidad.
+action_import_palette = Importar paleta ...
+action_import_palette_desc = Importa una paleta de Paint.net
+action_clear_palette = Limpiar paleta
+action_clear_palette_desc = Limpia la paleta
 
 # Tools
 tool_game = Herramienta de juego (G). Si el servidor está en marcha, los eventos de entrada se envían al juego.
@@ -258,6 +262,7 @@ roughness = Rugosidad
 metallic = Metálico
 emissive = Emisión
 terrain = Terrain
+palette = Paleta
 visual_script = Programación visual
 water = Agua
 region = Región

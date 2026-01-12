@@ -210,6 +210,10 @@ action_toggle_edit_geo = 切换编辑几何
 action_toggle_edit_geo_desc = 切换编辑几何覆盖层的可见性。
 action_toggle_rect_geo = 切换矩形几何
 action_toggle_rect_geo_desc = 矩形工具创建的几何默认不在 2D 编辑器中显示，此操作切换其可见性。
+action_import_palette = 导入调色板 ...
+action_import_palette_desc = 导入 Paint.net 调色板
+action_clear_palette = 清空调色板
+action_clear_palette_desc = 清空当前调色板
 
 # Tools
 tool_game = 游戏工具 (G)。服务器运行时输入事件会发送到游戏
@@ -270,6 +274,7 @@ roughness = 粗糙度
 metallic = 金属度
 emissive = 自发光
 terrain = Terrain
+palette = 调色板
 
 # Info
 info_server_started = 服务器已启动

@@ -233,6 +233,28 @@ pub fn update_region(ctx: &mut TheContext) {
     ));
 }
 
+/// Apply the current palette to the tree.
+pub fn apply_palette(
+    ui: &mut TheUI,
+    _ctx: &mut TheContext,
+    server_ctx: &mut ServerContext,
+    project: &mut Project,
+) {
+    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+        if let Some(palette_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_palette_id) {
+            palette_node.widgets.clear();
+            palette_node.childs.clear();
+
+            let mut item = TheTreeIcons::new(TheId::named("Palette Item"));
+            item.set_icon_count(256);
+            item.set_icons_per_row(17);
+            item.set_palette(&project.palette);
+
+            palette_node.add_widget(Box::new(item));
+        }
+    }
+}
+
 /// Set the project context and the current docker.
 pub fn set_project_context(
     ctx: &mut TheContext,

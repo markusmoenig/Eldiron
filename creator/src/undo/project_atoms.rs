@@ -28,6 +28,7 @@ pub enum ProjectUndoAtom {
     AddAsset(Asset),
     RemoveAsset(usize, Asset),
     RenameAsset(Uuid, String, String),
+    PaletteEdit(ThePalette, ThePalette),
 }
 
 use ProjectUndoAtom::*;
@@ -78,6 +79,7 @@ impl ProjectUndoAtom {
             AddAsset(asset) => format!("Add Asset: {}", asset.name),
             RemoveAsset(_, asset) => format!("Remove Asset: {}", asset.name),
             RenameAsset(_, old, new) => format!("Rename Asset: {} -> {}", old, new),
+            PaletteEdit(_old, _new) => format!("Palette Changed"),
         }
     }
 
@@ -513,6 +515,12 @@ impl ProjectUndoAtom {
                         }
                     }
                 }
+            }
+            PaletteEdit(old, _new) => {
+                let sel = project.palette.current_index;
+                project.palette = old.clone();
+                project.palette.current_index = sel;
+                apply_palette(ui, ctx, server_ctx, project);
             }
         }
     }
@@ -1057,6 +1065,12 @@ impl ProjectUndoAtom {
                         }
                     }
                 }
+            }
+            PaletteEdit(_old, new) => {
+                let sel = project.palette.current_index;
+                project.palette = new.clone();
+                project.palette.current_index = sel;
+                apply_palette(ui, ctx, server_ctx, project);
             }
         }
     }

@@ -13,6 +13,10 @@
 - "Edit Sector" action can now apply tags to sectors.
 - Geometry can now be made visible / invisible without rebuilding the BVH. This lays the foundation to be able to hide roofs and other geometry in-game on the fly.
 - 'Shift' + Click in the vertex tool now adds vertices in both 2D and 3D.
+- Rectangle selection mode now works with all 3D cameras (previously only worked in 2D).
+- New 3D Gizmo for moving vertices / linedefs and sectors along the current plane in 3D camera modes (previously only worked in 2D).
+- "Automatic" mode for Actions. Apply actions automatically when clicked (or a parameter changes).
+- New Azimuth / Elevation settings for the Isometric camera.
 
 ### Renderer
 

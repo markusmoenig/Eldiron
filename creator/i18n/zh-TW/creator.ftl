@@ -210,6 +210,10 @@ action_toggle_edit_geo = 切換編輯幾何
 action_toggle_edit_geo_desc = 切換編輯幾何疊加層的可見性。
 action_toggle_rect_geo = 切換矩形幾何
 action_toggle_rect_geo_desc = 由矩形工具建立的幾何預設不在 2D 編輯器中顯示，此操作用來切換其可見性。
+action_import_palette = 匯入調色盤 ...
+action_import_palette_desc = 匯入 Paint.net 調色盤
+action_clear_palette = 清空調色盤
+action_clear_palette_desc = 清空調色盤
 
 # Tools
 tool_game = 遊戲工具 (G)。伺服器運行時輸入事件會傳送到遊戲
@@ -270,6 +274,7 @@ roughness = 粗糙度
 metallic = 金屬度
 emissive = 自發光
 terrain = Terrain
+palette = 調色盤
 
 # Info
 info_server_started = 伺服器已啟動

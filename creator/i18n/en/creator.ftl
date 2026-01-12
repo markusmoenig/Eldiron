@@ -210,6 +210,10 @@ action_toggle_edit_geo = Toggle Editing Geometry
 action_toggle_edit_geo_desc = Toggles visibility of the editing geometry overlay.
 action_toggle_rect_geo = Toggle Rect Geometry
 action_toggle_rect_geo_desc = Geometry created by the Rect tool is by default not shown in the 2D editor. This action toggles visibilty.
+action_import_palette = Import Palette ...
+action_import_palette_desc = Import a Paint.net palette
+action_clear_palette = Clear Palette
+action_clear_palette_desc = Clears the palette
 
 # Tools
 tool_game = Game Tool (G). If the server is running input events are send to the game.
@@ -271,6 +275,7 @@ metallic = Metallic
 opacity = Opacity
 emissive = Emissive
 terrain = Terrain
+palette = Palette
 
 # Info
 info_server_started = Server has been started

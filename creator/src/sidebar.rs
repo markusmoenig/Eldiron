@@ -102,6 +102,18 @@ impl Sidebar {
         assets_node.add_child(fonts_node);
         root.add_child(assets_node);
 
+        let mut palette_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
+            &fl!("palette"),
+            server_ctx.tree_palette_id,
+        ));
+
+        let mut item = TheTreeIcons::new(TheId::named("Palette Item"));
+        item.set_icon_count(256);
+        item.set_icons_per_row(17);
+        item.set_selected_index(Some(0));
+        palette_node.add_widget(Box::new(item));
+        root.add_child(palette_node);
+
         let mut config_node: TheTreeNode = TheTreeNode::new(TheId::named(&fl!("game")));
 
         let mut config_item = TheTreeItem::new(TheId::named("Project Settings"));
@@ -109,10 +121,6 @@ impl Sidebar {
         config_node.add_widget(Box::new(config_item));
 
         root.add_child(config_node);
-
-        // let palette_node: TheTreeNode =
-        //     TheTreeNode::new(TheId::named_with_id("Palette", server_ctx.tree_palette_id));
-        // root.add_child(palette_node);
 
         project_canvas.set_layout(project_tree_layout);
 
@@ -347,6 +355,8 @@ impl Sidebar {
                     server_ctx.character_region_override = *index == 1;
                 } else if id.name == "Item Region Override" {
                     server_ctx.item_region_override = *index == 1;
+                } else if id.name == "Palette Item" {
+                    project.palette.current_index = *index as u16;
                 }
             }
             TheEvent::RenderViewClicked(id, coord)
@@ -2360,30 +2370,9 @@ impl Sidebar {
         self.apply_tilemaps(ui, ctx, server_ctx, project);
         self.apply_screens(ui, ctx, server_ctx, project);
         self.apply_assets(ui, ctx, server_ctx, project);
-        // self.apply_palette(ui, ctx, server_ctx, project);
-
-        // if let Some(list_layout) = ui.get_list_layout("Region List") {
-        //     list_layout.clear();
-        //     for region in &project.regions {
-        //         let mut item = TheListItem::new(TheId::named_with_id("Region Item", region.id));
-        //         item.set_text(region.name.clone());
-        //         item.set_context_menu(Some(TheContextMenu {
-        //             items: vec![
-        //                 TheContextMenuItem::new(
-        //                     "Rename Region...".to_string(),
-        //                     TheId::named("Rename Region"),
-        //                 ),
-        //                 // TheContextMenuItem::new(
-        //                 //     "Copy Prerendered...".to_string(),
-        //                 //     TheId::named("Copy Prerendered"),
-        //                 // ),
-        //             ],
-        //             ..Default::default()
-        //         }));
-        //         list_layout.add_item(item, ctx);
-        //     }
-        // }
+        apply_palette(ui, ctx, server_ctx, project);
         self.apply_screen(ui, ctx, None);
+
         if let Some(list_layout) = ui.get_list_layout("Screen List") {
             list_layout.clear();
             let list = project.sorted_screens_list();
@@ -2753,30 +2742,6 @@ impl Sidebar {
                     let node = gen_asset_tree_node(assets);
                     asset_node.add_child(node);
                 }
-            }
-        }
-    }
-
-    /// Apply the current palette to the tree.
-    pub fn apply_palette(
-        &mut self,
-        ui: &mut TheUI,
-        _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
-        project: &mut Project,
-    ) {
-        if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-            if let Some(palette_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_palette_id)
-            {
-                palette_node.widgets.clear();
-                palette_node.childs.clear();
-
-                let mut item = TheTreeIcons::new(TheId::named("Palette Item"));
-                item.set_icon_count(256);
-                item.set_icons_per_row(17);
-                item.set_palette(&project.palette);
-
-                palette_node.add_widget(Box::new(item));
             }
         }
     }
