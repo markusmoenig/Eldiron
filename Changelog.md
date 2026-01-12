@@ -17,6 +17,10 @@
 - New 3D Gizmo for moving vertices / linedefs and sectors along the current plane in 3D camera modes (previously only worked in 2D).
 - "Automatic" mode for Actions. Apply actions automatically when clicked (or a parameter changes).
 - New Azimuth / Elevation settings for the Isometric camera.
+- Palette now has its own entry in the project root
+  - **Clear Palette** action
+  - **Import Palette...** action
+  - **Remap Tile** action (Remaps a tile to the current palette)
 
 ### Renderer
 
