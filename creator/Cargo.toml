@@ -75,7 +75,3 @@ Create classical RPGs with Eldiron.
 default = []
 log = ["theframework/log"]
 self-update = ["dep:self_update"]
-
-# Downgrade ashpd
-[target.'cfg(target_os = "linux")'.dependencies]
-ashpd = "=0.10.2"
