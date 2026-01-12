@@ -39,5 +39,6 @@ instant = { version = "0.1", features = ["wasm-bindgen"] }
 [features]
 log = ["theframework/log"]
 
+# Downgrade ashpd
 [target.'cfg(target_os = "linux")'.dependencies]
-ashpd = { workspace = true }
+ashpd = "=0.10.2"
