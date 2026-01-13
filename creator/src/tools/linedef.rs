@@ -129,8 +129,22 @@ impl Tool for LinedefTool {
 
                 // ---
 
+                // Test if a vertex is under the cursor, in that case in D2 we dont select but do add lines
+                let mut over_vertex = false;
+                if let Some(grid) = &server_ctx.hover_cursor {
+                    if map.find_vertex_at(grid.x, grid.y).is_some() {
+                        over_vertex = true;
+                    }
+                }
+
                 self.click_selected = false;
-                if map.curr_grid_pos.is_none() && server_ctx.hover.1.is_some() {
+                let hovering_vertex_in_2d =
+                    server_ctx.editor_view_mode == EditorViewMode::D2 && over_vertex;
+
+                if map.curr_grid_pos.is_none()
+                    && server_ctx.hover.1.is_some()
+                    && !hovering_vertex_in_2d
+                {
                     map.selected_entity_item = None;
                     let mut changed = false;
 
