@@ -1710,9 +1710,21 @@ impl TheTrait for Editor {
                                             }
                                         }
 
+                                        // Generate all tile normals
                                         for (_, tile) in self.project.tiles.iter_mut() {
                                             for texture in &mut tile.textures {
                                                 texture.generate_normals(true);
+                                            }
+                                        }
+
+                                        // Recompile character visual codes if scripts have Python code
+                                        for (_, character) in self.project.characters.iter_mut() {
+                                            if character.source.starts_with("class") {
+                                                character.source = character.module.build(false);
+                                                character.source_debug =
+                                                    character.module.build(true);
+
+                                                println!("{}", character.source_debug);
                                             }
                                         }
 
