@@ -1719,13 +1719,22 @@ impl TheTrait for Editor {
 
                                         // Recompile character visual codes if scripts have Python code
                                         for (_, character) in self.project.characters.iter_mut() {
-                                            if character.source.starts_with("class") {
-                                                character.source = character.module.build(false);
-                                                character.source_debug =
-                                                    character.module.build(true);
+                                            // if character.source.starts_with("class") {
+                                            character.source = character.module.build(false);
+                                            character.source_debug = character.module.build(true);
 
-                                                println!("{}", character.source_debug);
-                                            }
+                                            // println!("{}", character.source_debug);
+                                            // }
+                                        }
+
+                                        // Recompile entity visual codes if scripts have Python code
+                                        for (_, item) in self.project.items.iter_mut() {
+                                            // if item.source.starts_with("class") {
+                                            item.source = item.module.build(false);
+                                            item.source_debug = item.module.build(true);
+
+                                            // println!("{}", item.source_debug);
+                                            // }
                                         }
 
                                         // Set the project time to the server time slider widget

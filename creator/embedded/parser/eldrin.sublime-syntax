@@ -1,0 +1,63 @@
+%YAML 1.2
+---
+name: Eldrin Script
+file_extensions:
+  - eldrin
+scope: source.rusterix
+
+contexts:
+  main:
+    - include: comments
+    - include: strings
+    - include: numbers
+    - include: keywords
+    - include: types
+    - include: functions
+    - include: operators
+    - include: identifiers
+
+  comments:
+    - match: //.*
+      scope: comment.line.double-slash.rusterix
+
+  strings:
+    - match: '"'
+      scope: punctuation.definition.string.begin.rusterix
+      push:
+        - meta_scope: string.quoted.double.rusterix
+        - match: '"'
+          scope: punctuation.definition.string.end.rusterix
+          pop: true
+        - match: '\\.'
+          scope: constant.character.escape.rusterix
+
+  numbers:
+    - match: \b\d+\.\d+\b
+      scope: constant.numeric.float.rusterix
+    - match: \b\d+\b
+      scope: constant.numeric.integer.rusterix
+
+  keywords:
+    - match: \b(let|fn|if|else|for|match|return|while|break|true|false|import|in|out|inout|void|const|struct)\b
+      scope: keyword.control.rusterix
+    - match: \b(and|or)\b
+      scope: keyword.operator.logical.rusterix
+
+  types:
+    - match: \b(vec[234]|float[234]?|int[234]?|mat[234])\b
+      scope: storage.type.rusterix
+
+  functions:
+    # Identifiers followed by '(' are treated as function names/calls
+    - match: \b[A-Za-z_]\w*(?=\s*\()
+      scope: support.function.rusterix
+
+  operators:
+    - match: '==|!=|<=|>=|<|>|&&|\|\||\+|\-|\*|/|%|=|\?|\:'
+      scope: keyword.operator.rusterix
+    - match: '\.'
+      scope: punctuation.accessor.rusterix
+
+  identifiers:
+    - match: \b[A-Za-z_]\w*\b
+      scope: variable.other.rusterix

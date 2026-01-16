@@ -35,6 +35,14 @@ impl Dock for CodeDock {
         let mut center = TheCanvas::new();
 
         let mut textedit = TheTextAreaEdit::new(TheId::named("DockCodeEditor"));
+
+        if let Some(bytes) = crate::Embedded::get("parser/eldrin.sublime-syntax") {
+            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                textedit.add_syntax_from_string(source);
+                textedit.set_code_type("Eldrin Script");
+            }
+        }
+
         if let Some(bytes) = crate::Embedded::get("parser/gruvbox-dark.tmTheme") {
             if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
                 textedit.add_theme_from_string(source);
@@ -42,7 +50,6 @@ impl Dock for CodeDock {
             }
         }
 
-        textedit.set_code_type("Python");
         textedit.set_continuous(true);
         textedit.display_line_number(true);
         // textedit.set_code_theme("base16-eighties.dark");
