@@ -203,29 +203,48 @@ impl Tool for LinedefTool {
                                     map.add_vertex_at(curr_grid_pos.x, curr_grid_pos.y);
                                 let end_vertex = map.add_vertex_at(grid_pos.x, grid_pos.y);
 
-                                // Returns id of linedef and optional id of new sector if polygon closes
-                                let ids = map.create_linedef(start_vertex, end_vertex);
+                                // Choose between manual and auto polygon creation modes
+                                // You can switch between these modes with a keyboard modifier (e.g., ui.alt)
+                                let use_manual_mode = true; // Set to false or use !ui.alt to enable auto-detection
 
-                                if let Some(sector_id) = ids.1 {
-                                    // When we close a polygon add a surface
-                                    let mut surface = Surface::new(sector_id);
-                                    surface.calculate_geometry(map);
-                                    map.surfaces.insert(surface.id, surface);
+                                if use_manual_mode {
+                                    // MANUAL MODE: Only creates sectors when you manually close the polygon
+                                    // Good for drawing in existing grids where auto-detection would trigger too early
+                                    let _linedef_id =
+                                        map.create_linedef_manual(start_vertex, end_vertex);
 
-                                    // and delete the temporary data
-                                    map.clear_temp();
-                                    set_current_gid_pos = false;
+                                    // Check if the user manually closed the polygon (clicked back to start)
+                                    if let Some(sector_id) = map.close_polygon_manual() {
+                                        // When we close a polygon add a surface
+                                        let mut surface = Surface::new(sector_id);
+                                        surface.calculate_geometry(map);
+                                        map.surfaces.insert(surface.id, surface);
+
+                                        // and delete the temporary data
+                                        map.clear_temp();
+                                        set_current_gid_pos = false;
+                                    }
+                                } else {
+                                    // AUTO MODE: Automatically detects and creates sectors when a loop is closed
+                                    // Good for quick polygon creation in empty areas
+                                    let ids = map.create_linedef(start_vertex, end_vertex);
+
+                                    if let Some(sector_id) = ids.1 {
+                                        // When we close a polygon add a surface
+                                        let mut surface = Surface::new(sector_id);
+                                        surface.calculate_geometry(map);
+                                        map.surfaces.insert(surface.id, surface);
+
+                                        // and delete the temporary data
+                                        map.clear_temp();
+                                        set_current_gid_pos = false;
+                                    }
                                 }
 
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
                                     server_ctx.pc,
                                     Box::new(prev),
                                     Box::new(map.clone()),
-                                ));
-
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Update Minimap"),
-                                    TheValue::Empty,
                                 ));
                             }
                         }

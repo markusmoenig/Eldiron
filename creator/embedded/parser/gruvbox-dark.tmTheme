@@ -160,7 +160,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#6aa2e8</string>
+				<string>#5d9ad6</string>
 				<key>fontStyle</key>
 				<string>bold</string>
 			</dict>
@@ -184,7 +184,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#6aa2e8</string>
+				<string>#5d9ad6</string>
 			</dict>
 		</dict>
 		<dict>

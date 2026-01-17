@@ -216,6 +216,49 @@ impl Tool for SectorTool {
                             }
 
                             for vertex_id in selected_vertices.iter() {
+                                // Check if this vertex is shared with any unselected rect sector
+                                let is_unselected_rect_vertex = map.sectors.iter().any(|sector| {
+                                    if sector.properties.contains("rect")
+                                        && !self
+                                            .rectangle_undo_map
+                                            .selected_sectors
+                                            .contains(&sector.id)
+                                    {
+                                        sector.linedefs.iter().any(|&line_id| {
+                                            if let Some(line) = map.find_linedef(line_id) {
+                                                line.start_vertex == *vertex_id
+                                                    || line.end_vertex == *vertex_id
+                                            } else {
+                                                false
+                                            }
+                                        })
+                                    } else {
+                                        false
+                                    }
+                                });
+
+                                let vertex_to_move = if is_unselected_rect_vertex {
+                                    // Vertex is shared with rect geometry - duplicate it for the selected sectors
+                                    if let Some(new_vertex_id) = map.duplicate_vertex(*vertex_id) {
+                                        // Replace old vertex with new vertex in all selected sectors
+                                        for sector_id in
+                                            self.rectangle_undo_map.selected_sectors.iter()
+                                        {
+                                            map.replace_vertex_in_sector(
+                                                *sector_id,
+                                                *vertex_id,
+                                                new_vertex_id,
+                                            );
+                                        }
+                                        new_vertex_id
+                                    } else {
+                                        *vertex_id
+                                    }
+                                } else {
+                                    // Vertex is not shared with rect geometry - move it directly
+                                    *vertex_id
+                                };
+
                                 if let Some(original_vertex) =
                                     self.rectangle_undo_map.find_vertex_mut(*vertex_id)
                                 {
@@ -223,7 +266,7 @@ impl Tool for SectorTool {
                                         original_vertex.x - drag_delta.x,
                                         original_vertex.y - drag_delta.y,
                                     );
-                                    map.update_vertex(*vertex_id, new_pos);
+                                    map.update_vertex(vertex_to_move, new_pos);
                                 }
                             }
                             server_ctx.hover_cursor = Some(drag_pos);
@@ -315,6 +358,54 @@ impl Tool for SectorTool {
                                     }
 
                                     for vertex_id in selected_vertices.iter() {
+                                        // Check if this vertex is shared with any unselected rect sector
+                                        let is_unselected_rect_vertex =
+                                            map.sectors.iter().any(|sector| {
+                                                if sector.properties.contains("rect")
+                                                    && !self
+                                                        .rectangle_undo_map
+                                                        .selected_sectors
+                                                        .contains(&sector.id)
+                                                {
+                                                    sector.linedefs.iter().any(|&line_id| {
+                                                        if let Some(line) =
+                                                            map.find_linedef(line_id)
+                                                        {
+                                                            line.start_vertex == *vertex_id
+                                                                || line.end_vertex == *vertex_id
+                                                        } else {
+                                                            false
+                                                        }
+                                                    })
+                                                } else {
+                                                    false
+                                                }
+                                            });
+
+                                        let vertex_to_move = if is_unselected_rect_vertex {
+                                            // Vertex is shared with rect geometry - duplicate it for the selected sectors
+                                            if let Some(new_vertex_id) =
+                                                map.duplicate_vertex(*vertex_id)
+                                            {
+                                                // Replace old vertex with new vertex in all selected sectors
+                                                for sector_id in
+                                                    self.rectangle_undo_map.selected_sectors.iter()
+                                                {
+                                                    map.replace_vertex_in_sector(
+                                                        *sector_id,
+                                                        *vertex_id,
+                                                        new_vertex_id,
+                                                    );
+                                                }
+                                                new_vertex_id
+                                            } else {
+                                                *vertex_id
+                                            }
+                                        } else {
+                                            // Vertex is not shared with rect geometry - move it directly
+                                            *vertex_id
+                                        };
+
                                         if let Some(original_vertex) =
                                             self.rectangle_undo_map.find_vertex(*vertex_id)
                                         {
@@ -330,7 +421,9 @@ impl Tool for SectorTool {
                                             let snapped_z =
                                                 (new_z / subdivisions).round() * subdivisions;
 
-                                            if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
+                                            if let Some(vertex) =
+                                                map.find_vertex_mut(vertex_to_move)
+                                            {
                                                 vertex.x = snapped_x;
                                                 vertex.y = snapped_y;
                                                 vertex.z = snapped_z;
