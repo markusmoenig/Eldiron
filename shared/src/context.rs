@@ -742,7 +742,10 @@ impl ServerContext {
         let ordered = map.sorted_sectors_by_area();
         for sector in ordered.iter().rev() {
             if sector.intersects_vertical_slice(map, self.editing_slice, 1.0) {
-                if self.no_rect_geo_on_map && sector.properties.contains("rect") {
+                if self.no_rect_geo_on_map
+                    && sector.properties.contains("rect")
+                    && sector.name.is_empty()
+                {
                     continue;
                 }
                 let mut vertices = Vec::new();
