@@ -204,8 +204,9 @@ impl Tool for LinedefTool {
                                 let end_vertex = map.add_vertex_at(grid_pos.x, grid_pos.y);
 
                                 // Choose between manual and auto polygon creation modes
-                                // You can switch between these modes with a keyboard modifier (e.g., ui.alt)
-                                let use_manual_mode = true; // Set to false or use !ui.alt to enable auto-detection
+                                // Manual mode (default): Only creates sectors when you close the polygon
+                                // Auto mode (Ctrl/Cmd): Automatically detects and creates sectors when a loop is closed
+                                let use_manual_mode = !ui.ctrl; // Ctrl/Cmd enables auto-detection
 
                                 if use_manual_mode {
                                     // MANUAL MODE: Only creates sectors when you manually close the polygon

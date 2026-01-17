@@ -17,6 +17,8 @@ pub struct SectorTool {
     click_selected: bool,
     drag_changed: bool,
     was_clicked: bool,
+    vertices_duplicated: bool,
+    cached_sectors_to_move: Vec<u32>,
 
     hud: Hud,
 }
@@ -34,6 +36,8 @@ impl Tool for SectorTool {
             drag_changed: false,
             rectangle_undo_map: Map::default(),
             was_clicked: false,
+            vertices_duplicated: false,
+            cached_sectors_to_move: vec![],
 
             hud: Hud::new(HudMode::Sector),
         }
@@ -169,6 +173,8 @@ impl Tool for SectorTool {
                 self.click_pos_3d = server_ctx.geo_hit_pos;
 
                 self.rectangle_undo_map = map.clone();
+                self.vertices_duplicated = false;
+                self.cached_sectors_to_move.clear();
             }
             MapDragged(coord) => {
                 if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx) {
@@ -200,7 +206,30 @@ impl Tool for SectorTool {
 
                             let drag_delta = click_pos - drag_pos;
 
-                            for sector_id in self.rectangle_undo_map.selected_sectors.iter() {
+                            // Collect sectors to move (selected + optionally embedded)
+                            // Only compute this once and cache it
+                            if self.cached_sectors_to_move.is_empty() {
+                                self.cached_sectors_to_move =
+                                    self.rectangle_undo_map.selected_sectors.clone();
+
+                                // If Ctrl is pressed, include all embedded sectors
+                                if ui.ctrl {
+                                    let mut embedded_sectors = vec![];
+                                    for sector_id in &self.rectangle_undo_map.selected_sectors {
+                                        let embedded = map.find_embedded_sectors(*sector_id);
+                                        for emb_id in embedded {
+                                            if !self.cached_sectors_to_move.contains(&emb_id) {
+                                                embedded_sectors.push(emb_id);
+                                            }
+                                        }
+                                    }
+                                    self.cached_sectors_to_move.extend(embedded_sectors);
+                                }
+                            }
+
+                            let sectors_to_move = &self.cached_sectors_to_move;
+
+                            for sector_id in sectors_to_move.iter() {
                                 if let Some(sector) =
                                     self.rectangle_undo_map.find_sector(*sector_id)
                                 {
@@ -215,58 +244,75 @@ impl Tool for SectorTool {
                                 }
                             }
 
-                            for vertex_id in selected_vertices.iter() {
-                                // Check if this vertex is shared with any unselected rect sector
-                                let is_unselected_rect_vertex = map.sectors.iter().any(|sector| {
-                                    if sector.properties.contains("rect")
-                                        && !self
-                                            .rectangle_undo_map
-                                            .selected_sectors
-                                            .contains(&sector.id)
-                                    {
-                                        sector.linedefs.iter().any(|&line_id| {
-                                            if let Some(line) = map.find_linedef(line_id) {
-                                                line.start_vertex == *vertex_id
-                                                    || line.end_vertex == *vertex_id
+                            // Duplicate shared vertices only once at the start of dragging
+                            if !self.vertices_duplicated {
+                                for vertex_id in selected_vertices.iter() {
+                                    // Check if this vertex is shared with any unselected rect sector
+                                    let is_unselected_rect_vertex =
+                                        map.sectors.iter().any(|sector| {
+                                            if sector.properties.contains("rect")
+                                                && !sectors_to_move.contains(&sector.id)
+                                            {
+                                                sector.linedefs.iter().any(|&line_id| {
+                                                    if let Some(line) = map.find_linedef(line_id) {
+                                                        line.start_vertex == *vertex_id
+                                                            || line.end_vertex == *vertex_id
+                                                    } else {
+                                                        false
+                                                    }
+                                                })
                                             } else {
                                                 false
                                             }
-                                        })
-                                    } else {
-                                        false
-                                    }
-                                });
+                                        });
 
-                                let vertex_to_move = if is_unselected_rect_vertex {
-                                    // Vertex is shared with rect geometry - duplicate it for the selected sectors
-                                    if let Some(new_vertex_id) = map.duplicate_vertex(*vertex_id) {
-                                        // Replace old vertex with new vertex in all selected sectors
-                                        for sector_id in
-                                            self.rectangle_undo_map.selected_sectors.iter()
+                                    if is_unselected_rect_vertex {
+                                        // Vertex is shared with rect geometry - duplicate it for the sectors being moved
+                                        if let Some(new_vertex_id) =
+                                            map.duplicate_vertex(*vertex_id)
                                         {
-                                            map.replace_vertex_in_sector(
-                                                *sector_id,
-                                                *vertex_id,
-                                                new_vertex_id,
-                                            );
+                                            // Replace old vertex with new vertex in all sectors being moved
+                                            for sector_id in sectors_to_move.iter() {
+                                                map.replace_vertex_in_sector(
+                                                    *sector_id,
+                                                    *vertex_id,
+                                                    new_vertex_id,
+                                                );
+                                            }
                                         }
-                                        new_vertex_id
-                                    } else {
-                                        *vertex_id
                                     }
-                                } else {
-                                    // Vertex is not shared with rect geometry - move it directly
-                                    *vertex_id
-                                };
+                                }
+                                self.vertices_duplicated = true;
+                                // Update rectangle_undo_map after duplication so future drags use correct vertex IDs
+                                self.rectangle_undo_map = map.clone();
+                            }
 
+                            // Re-collect vertices from sectors (they may have new IDs after duplication)
+                            let mut current_vertices = vec![];
+                            for sector_id in sectors_to_move.iter() {
+                                if let Some(sector) = map.find_sector(*sector_id) {
+                                    for line_id in &sector.linedefs {
+                                        if let Some(line) = map.find_linedef(*line_id) {
+                                            if !current_vertices.contains(&line.start_vertex) {
+                                                current_vertices.push(line.start_vertex);
+                                            }
+                                            if !current_vertices.contains(&line.end_vertex) {
+                                                current_vertices.push(line.end_vertex);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            for vertex_id in current_vertices.iter() {
                                 if let Some(original_vertex) =
-                                    self.rectangle_undo_map.find_vertex_mut(*vertex_id)
+                                    self.rectangle_undo_map.find_vertex(*vertex_id)
                                 {
                                     let new_pos = Vec2::new(
                                         original_vertex.x - drag_delta.x,
                                         original_vertex.y - drag_delta.y,
                                     );
-                                    map.update_vertex(vertex_to_move, new_pos);
+                                    map.update_vertex(*vertex_id, new_pos);
                                 }
                             }
                             server_ctx.hover_cursor = Some(drag_pos);
@@ -333,9 +379,36 @@ impl Tool for SectorTool {
                                         }
                                     };
 
+                                    // Only compute sectors to move once and cache it
+                                    if self.cached_sectors_to_move.is_empty() {
+                                        self.cached_sectors_to_move =
+                                            self.rectangle_undo_map.selected_sectors.clone();
+
+                                        // If Ctrl is pressed, include all embedded sectors
+                                        if ui.ctrl {
+                                            let mut embedded_sectors = vec![];
+                                            for sector_id in
+                                                &self.rectangle_undo_map.selected_sectors
+                                            {
+                                                let embedded =
+                                                    map.find_embedded_sectors(*sector_id);
+                                                for emb_id in embedded {
+                                                    if !self
+                                                        .cached_sectors_to_move
+                                                        .contains(&emb_id)
+                                                    {
+                                                        embedded_sectors.push(emb_id);
+                                                    }
+                                                }
+                                            }
+                                            self.cached_sectors_to_move.extend(embedded_sectors);
+                                        }
+                                    }
+
+                                    let sectors_to_move = &self.cached_sectors_to_move;
+
                                     let mut selected_vertices = vec![];
-                                    for sector_id in self.rectangle_undo_map.selected_sectors.iter()
-                                    {
+                                    for sector_id in sectors_to_move.iter() {
                                         if let Some(sector) =
                                             self.rectangle_undo_map.find_sector(*sector_id)
                                         {
@@ -357,55 +430,72 @@ impl Tool for SectorTool {
                                         }
                                     }
 
-                                    for vertex_id in selected_vertices.iter() {
-                                        // Check if this vertex is shared with any unselected rect sector
-                                        let is_unselected_rect_vertex =
-                                            map.sectors.iter().any(|sector| {
-                                                if sector.properties.contains("rect")
-                                                    && !self
-                                                        .rectangle_undo_map
-                                                        .selected_sectors
-                                                        .contains(&sector.id)
-                                                {
-                                                    sector.linedefs.iter().any(|&line_id| {
-                                                        if let Some(line) =
-                                                            map.find_linedef(line_id)
-                                                        {
-                                                            line.start_vertex == *vertex_id
-                                                                || line.end_vertex == *vertex_id
-                                                        } else {
-                                                            false
-                                                        }
-                                                    })
-                                                } else {
-                                                    false
-                                                }
-                                            });
+                                    // Duplicate shared vertices only once at the start of dragging
+                                    if !self.vertices_duplicated {
+                                        for vertex_id in selected_vertices.iter() {
+                                            // Check if this vertex is shared with any unselected rect sector
+                                            let is_unselected_rect_vertex =
+                                                map.sectors.iter().any(|sector| {
+                                                    if sector.properties.contains("rect")
+                                                        && !sectors_to_move.contains(&sector.id)
+                                                    {
+                                                        sector.linedefs.iter().any(|&line_id| {
+                                                            if let Some(line) =
+                                                                map.find_linedef(line_id)
+                                                            {
+                                                                line.start_vertex == *vertex_id
+                                                                    || line.end_vertex == *vertex_id
+                                                            } else {
+                                                                false
+                                                            }
+                                                        })
+                                                    } else {
+                                                        false
+                                                    }
+                                                });
 
-                                        let vertex_to_move = if is_unselected_rect_vertex {
-                                            // Vertex is shared with rect geometry - duplicate it for the selected sectors
-                                            if let Some(new_vertex_id) =
-                                                map.duplicate_vertex(*vertex_id)
-                                            {
-                                                // Replace old vertex with new vertex in all selected sectors
-                                                for sector_id in
-                                                    self.rectangle_undo_map.selected_sectors.iter()
+                                            if is_unselected_rect_vertex {
+                                                // Vertex is shared with rect geometry - duplicate it for the sectors being moved
+                                                if let Some(new_vertex_id) =
+                                                    map.duplicate_vertex(*vertex_id)
                                                 {
-                                                    map.replace_vertex_in_sector(
-                                                        *sector_id,
-                                                        *vertex_id,
-                                                        new_vertex_id,
-                                                    );
+                                                    // Replace old vertex with new vertex in all sectors being moved
+                                                    for sector_id in sectors_to_move.iter() {
+                                                        map.replace_vertex_in_sector(
+                                                            *sector_id,
+                                                            *vertex_id,
+                                                            new_vertex_id,
+                                                        );
+                                                    }
                                                 }
-                                                new_vertex_id
-                                            } else {
-                                                *vertex_id
                                             }
-                                        } else {
-                                            // Vertex is not shared with rect geometry - move it directly
-                                            *vertex_id
-                                        };
+                                        }
+                                        self.vertices_duplicated = true;
+                                        // Update rectangle_undo_map after duplication so future drags use correct vertex IDs
+                                        self.rectangle_undo_map = map.clone();
+                                    }
 
+                                    // Re-collect vertices from sectors (they may have new IDs after duplication)
+                                    let mut current_vertices = vec![];
+                                    for sector_id in sectors_to_move.iter() {
+                                        if let Some(sector) = map.find_sector(*sector_id) {
+                                            for line_id in &sector.linedefs {
+                                                if let Some(line) = map.find_linedef(*line_id) {
+                                                    if !current_vertices
+                                                        .contains(&line.start_vertex)
+                                                    {
+                                                        current_vertices.push(line.start_vertex);
+                                                    }
+                                                    if !current_vertices.contains(&line.end_vertex)
+                                                    {
+                                                        current_vertices.push(line.end_vertex);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    for vertex_id in current_vertices.iter() {
                                         if let Some(original_vertex) =
                                             self.rectangle_undo_map.find_vertex(*vertex_id)
                                         {
@@ -421,9 +511,7 @@ impl Tool for SectorTool {
                                             let snapped_z =
                                                 (new_z / subdivisions).round() * subdivisions;
 
-                                            if let Some(vertex) =
-                                                map.find_vertex_mut(vertex_to_move)
-                                            {
+                                            if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
                                                 vertex.x = snapped_x;
                                                 vertex.y = snapped_y;
                                                 vertex.z = snapped_z;
