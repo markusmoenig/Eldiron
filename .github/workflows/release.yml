@@ -68,11 +68,7 @@ jobs:
 
       # --- Install Rust ------------------------------------------------------
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+        uses: dtolnay/rust-toolchain@stable
 
       # --- Build Eldiron -----------------------------------------------------
       - name: Build (release)
