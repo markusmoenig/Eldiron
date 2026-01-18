@@ -52,6 +52,10 @@ impl Tool for VertexTool {
         Some('V')
     }
 
+    fn help_url(&self) -> Option<String> {
+        Some("docs/creator/tools/vertex".to_string())
+    }
+
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,

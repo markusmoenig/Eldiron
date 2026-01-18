@@ -443,6 +443,9 @@ pub struct ServerContext {
     pub rect_tile_id_3d: (i32, i32),
     pub rect_terrain_id: Option<(i32, i32)>,
     pub rect_blend_preset: VertexBlendPreset,
+
+    // Help mode state
+    pub help_mode: bool,
 }
 
 impl Default for ServerContext {
@@ -544,6 +547,8 @@ impl ServerContext {
             rect_tile_id_3d: (0, 0),
             rect_terrain_id: None,
             rect_blend_preset: VertexBlendPreset::Solid,
+
+            help_mode: false,
         }
     }
 

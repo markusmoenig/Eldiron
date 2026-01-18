@@ -1540,6 +1540,17 @@ impl Sidebar {
                 if let Some(action) =
                     ACTIONLIST.write().unwrap().get_action_by_id_mut(id.uuid)
                 {
+                    if server_ctx.help_mode {
+                        let mut name = id.name.to_lowercase().trim().to_string();
+                        name = name.replace(" ", "-".into());
+                        let url = format!("docs/creator/actions/#{}", name);
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Show Help"),
+                            TheValue::Text(url),
+                        ));
+                        return true;
+                    }
+
                     server_ctx.curr_action_id = Some(action.id().uuid);
 
                     //layout.clear();

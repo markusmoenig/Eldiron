@@ -56,6 +56,10 @@ impl Tool for SectorTool {
         Some('E')
     }
 
+    fn help_url(&self) -> Option<String> {
+        Some("docs/creator/tools/sector".to_string())
+    }
+
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,

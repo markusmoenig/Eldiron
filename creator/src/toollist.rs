@@ -471,6 +471,34 @@ impl ToolList {
             }
             TheEvent::StateChanged(id, state) => {
                 if id.name.contains("Tool") && *state == TheWidgetState::Selected {
+                    if server_ctx.help_mode {
+                        if self.editor_mode {
+                            for tool in self.editor_tools.iter() {
+                                if tool.id().uuid == id.uuid {
+                                    if let Some(url) = tool.help_url() {
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Show Help"),
+                                            TheValue::Text(url),
+                                        ));
+                                    }
+                                }
+                            }
+                        } else {
+                            for tool in self.game_tools.iter() {
+                                if tool.id().uuid == id.uuid {
+                                    if tool.id().uuid == id.uuid {
+                                        if let Some(url) = tool.help_url() {
+                                            ctx.ui.send(TheEvent::Custom(
+                                                TheId::named("Show Help"),
+                                                TheValue::Text(url),
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     redraw = self.set_tool(id.uuid, ui, ctx, project, server_ctx);
                 }
             }

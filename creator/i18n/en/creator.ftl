@@ -83,7 +83,8 @@ status_pause_button = Pause. Click for single stepping the server.
 status_stop_button = Stop the server.
 status_time_slider = Adjust the server time.
 status_update_button = Update application.
-status_patreon_button = Visit my Patreon page.
+status_patreon_button = Visit the Eldiron Patreon page. Thanks for your support.
+status_help_button = Click on any UI element to visit the Eldiron Online Documentation.
 ## Sidebar
 status_project_add_button = Add to the project.
 status_project_remove_button = Remove an item from the project.

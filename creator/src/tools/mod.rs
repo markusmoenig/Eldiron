@@ -50,6 +50,10 @@ pub trait Tool: Send + Sync {
         None
     }
 
+    fn help_url(&self) -> Option<String> {
+        None
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn tool_event(
         &mut self,

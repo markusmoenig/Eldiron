@@ -41,6 +41,10 @@ impl Tool for SelectionTool {
         Some('S')
     }
 
+    fn help_url(&self) -> Option<String> {
+        Some("docs/creator/tools/selection".to_string())
+    }
+
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,

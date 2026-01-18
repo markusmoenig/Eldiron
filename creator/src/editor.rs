@@ -382,6 +382,13 @@ impl TheTrait for Editor {
         // patreon_button.set_fixed_size(vec2i(36, 36));
         patreon_button.set_icon_offset(Vec2::new(-4, -2));
 
+        let mut help_button = TheMenubarButton::new(TheId::named("Help"));
+        help_button.set_status_text(&fl!("status_help_button"));
+        help_button.set_icon_name("question-mark".to_string());
+        help_button.set_has_state(true);
+        // patreon_button.set_fixed_size(vec2i(36, 36));
+        help_button.set_icon_offset(Vec2::new(-2, -2));
+
         #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
         let mut update_button = {
             let mut button = TheMenubarButton::new(TheId::named("Update"));
@@ -420,7 +427,8 @@ impl TheTrait for Editor {
         #[cfg(not(all(not(target_arch = "wasm32"), feature = "self-update")))]
         {
             hlayout.add_widget(Box::new(patreon_button));
-            hlayout.set_reverse_index(Some(1));
+            hlayout.add_widget(Box::new(help_button));
+            hlayout.set_reverse_index(Some(2));
         }
 
         top_canvas.set_widget(menubar);
@@ -1129,7 +1137,17 @@ impl TheTrait for Editor {
                             }
                         }
                     }
-                    TheEvent::Custom(id, _) => {
+                    TheEvent::Custom(id, value) => {
+                        if id.name == "Show Help" {
+                            if let TheValue::Text(url) = value {
+                                _ = open::that(format!("https://www.eldiron.com/{}", url));
+                                ctx.ui
+                                    .set_widget_state("Help".to_string(), TheWidgetState::None);
+                                ctx.ui.clear_hover();
+                                self.server_ctx.help_mode = false;
+                                redraw = true;
+                            }
+                        }
                         if id.name == "Set Project Undo State" {
                             UNDOMANAGER.read().unwrap().set_undo_state_to_ui(ctx);
                         } else if id.name == "Render SceneManager Map" {
@@ -1719,22 +1737,19 @@ impl TheTrait for Editor {
 
                                         // Recompile character visual codes if scripts have Python code
                                         for (_, character) in self.project.characters.iter_mut() {
-                                            // if character.source.starts_with("class") {
-                                            character.source = character.module.build(false);
-                                            character.source_debug = character.module.build(true);
-
-                                            // println!("{}", character.source_debug);
-                                            // }
+                                            if character.source.starts_with("class") {
+                                                character.source = character.module.build(false);
+                                                character.source_debug =
+                                                    character.module.build(true);
+                                            }
                                         }
 
                                         // Recompile entity visual codes if scripts have Python code
                                         for (_, item) in self.project.items.iter_mut() {
-                                            // if item.source.starts_with("class") {
-                                            item.source = item.module.build(false);
-                                            item.source_debug = item.module.build(true);
-
-                                            // println!("{}", item.source_debug);
-                                            // }
+                                            if item.source.starts_with("class") {
+                                                item.source = item.module.build(false);
+                                                item.source_debug = item.module.build(true);
+                                            }
                                         }
 
                                         // Set the project time to the server time slider widget
@@ -1811,8 +1826,14 @@ impl TheTrait for Editor {
                             }
                         }
                     }
-                    TheEvent::StateChanged(id, _state) => {
-                        if id.name == "New" {
+                    TheEvent::StateChanged(id, state) => {
+                        if id.name == "Help" {
+                            if state == TheWidgetState::Clicked {
+                                self.server_ctx.help_mode = true;
+                            } else {
+                                self.server_ctx.help_mode = false;
+                            }
+                        } else if id.name == "New" {
                             self.project_path = None;
                             self.update_counter = 0;
                             self.sidebar.startup = true;

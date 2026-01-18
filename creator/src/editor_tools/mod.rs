@@ -24,6 +24,10 @@ pub trait EditorTool: Send + Sync {
         None
     }
 
+    fn help_url(&self) -> Option<String> {
+        None
+    }
+
     fn activate(&mut self) {}
     fn deactivate(&mut self) {}
 
