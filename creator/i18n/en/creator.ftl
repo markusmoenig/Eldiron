@@ -226,6 +226,7 @@ tool_sector = Sector Tool (E).
 tool_selection = Selection Tool (S). Hold 'Shift' to add. 'Alt' to subtract. Click and drag for multi-selection. 3D: Select editing plane.
 tool_selection_mac = Selection Tool (S). Hold 'Shift' to add. 'Option' to subtract. Click and drag for multi-selection. 3D: Select editing plane.
 tool_vertex = Vertex Tool (V). 'Shift' + Click to create a new vertex.
+tool_entity = Entity Tool (Y). Place, move, select, and delete game entities.
 
 # Common
 all = All
@@ -279,6 +280,7 @@ opacity = Opacity
 emissive = Emissive
 terrain = Terrain
 palette = Palette
+debug_log = Debug Log
 
 # Info
 info_server_started = Server has been started

@@ -13,6 +13,7 @@ pub mod sector;
 pub mod selection;
 // pub mod terrain;
 // pub mod tileset;
+pub mod entity;
 pub mod vertex;
 
 #[derive(PartialEq, Clone, Debug, Copy)]

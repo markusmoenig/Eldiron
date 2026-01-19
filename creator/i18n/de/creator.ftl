@@ -83,7 +83,8 @@ status_pause_button = Pausieren. Klicken zum Einzelschritt des Servers.
 status_stop_button = Den Server stoppen.
 status_time_slider = Die Serverzeit anpassen.
 status_update_button = Anwendung aktualisieren.
-status_patreon_button = Meine Patreon-Seite besuchen.
+status_patreon_button = Die Eldiron-Patreon-Seite besuchen. Danke für die Unterstützung.
+status_help_button = Auf ein beliebiges UI-Element klicken, um die Eldiron-Online-Dokumentation zu öffnen.
 ## Sidebar
 status_project_add_button = Zum Projekt hinzufügen.
 status_project_remove_button = Ein Element aus dem Projekt entfernen.
@@ -225,6 +226,7 @@ tool_sector = Sektor-Tool (E).
 tool_selection = Auswahl-Tool (S). Halte 'Shift', um hinzuzufügen. 'Alt', um zu subtrahieren. Klicken und ziehen für Mehrfachauswahl. 3D: Bearbeitungsebene auswählen.
 tool_selection_mac = Auswahl-Tool (S). Halte 'Shift', um hinzuzufügen. 'Option', um zu subtrahieren. Klicken und ziehen für Mehrfachauswahl. 3D: Bearbeitungsebene auswählen.
 tool_vertex = Vertex-Tool (V). 'Shift' + Klick erstellt einen neuen Vertex.
+tool_entity = Entity-Tool (Y). Spiel-Entitäten platzieren, verschieben, auswählen und löschen.
 
 # Common
 all = Alle
@@ -277,6 +279,7 @@ metallic = Metallisch
 emissive = Emissiv
 terrain = Terrain
 palette = Palette
+debug_log = Debug-Protokoll
 
 # Info
 info_server_started = Server wurde gestartet

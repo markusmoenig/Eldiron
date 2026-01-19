@@ -268,6 +268,28 @@
 				<string>#282828</string>
 			</dict>
 		</dict>
+		<dict>
+			<key>name</key>
+			<string>Log Warning</string>
+			<key>scope</key>
+			<string>keyword.other.warning.log</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#d79921</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>Log Error</string>
+			<key>scope</key>
+			<string>keyword.other.error.log</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#fe8019</string>
+			</dict>
+		</dict>
 	</array>
 	<key>uuid</key>
 	<string>gruvbox-dark</string>

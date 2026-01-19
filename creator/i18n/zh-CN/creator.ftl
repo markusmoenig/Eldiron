@@ -83,7 +83,8 @@ status_pause_button = 暂停 点击以单步执行服务器
 status_stop_button = 停止服务器
 status_time_slider = 调整服务器时间
 status_update_button = 更新应用程序
-status_patreon_button = 访问我的 Patreon 页面
+status_patreon_button = 访问 Eldiron 的 Patreon 页面，感谢支持。
+status_help_button = 点击任意 UI 元素以访问 Eldiron 在线文档。
 ## Sidebar
 status_project_add_button = 添加到项目
 status_project_remove_button = 从项目中移除条目
@@ -225,6 +226,7 @@ tool_sector = 区域工具 (E)
 tool_selection = 选择工具 (S)。按住 Shift 添加，按住 Alt 减去，点击并拖动进行多选。3D：选择编辑平面
 tool_selection_mac = 选择工具 (S)。按住 Shift 添加，按住 Option 减去，点击并拖动进行多选。3D：选择编辑平面
 tool_vertex = 顶点工具 (V)。按住 'Shift' + 单击可创建新顶点。
+tool_entity = 实体工具 (Y)。放置、移动、选择和删除游戏实体。
 
 # Common
 all = 全部
@@ -277,6 +279,7 @@ metallic = 金属度
 emissive = 自发光
 terrain = Terrain
 palette = 调色板
+debug_log = 调试日志
 
 # Info
 info_server_started = 服务器已启动

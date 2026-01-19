@@ -2,6 +2,7 @@ pub mod code;
 pub mod code_undo;
 pub mod data;
 pub mod data_undo;
+pub mod log;
 pub mod tilemap;
 pub mod tiles;
 pub mod tiles_editor;

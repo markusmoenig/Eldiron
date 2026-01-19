@@ -120,6 +120,10 @@ impl Sidebar {
         config_item.set_text(fl!("settings"));
         config_node.add_widget(Box::new(config_item));
 
+        let mut debug_log_item = TheTreeItem::new(TheId::named("Debug Log"));
+        debug_log_item.set_text(fl!("debug_log"));
+        config_node.add_widget(Box::new(debug_log_item));
+
         root.add_child(config_node);
 
         project_canvas.set_layout(project_tree_layout);
@@ -2240,6 +2244,9 @@ impl Sidebar {
                         server_ctx,
                         ProjectContext::ProjectSettings,
                     );
+                    redraw = true;
+                } else if id.name == "Debug Log" {
+                    set_project_context(ctx, ui, project, server_ctx, ProjectContext::DebugLog);
                     redraw = true;
                 } else if id.name == "Shader Add" {
                     let mut module: Module = Module::as_type(codegridfx::ModuleType::Shader);

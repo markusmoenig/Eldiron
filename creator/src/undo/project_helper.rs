@@ -507,6 +507,13 @@ pub fn set_project_context(
                 .unwrap()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
+        ProjectContext::DebugLog => {
+            // ui.set_widget_value("LogEdit", ctx, TheValue::Text(log));
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Log".into(), ui, ctx, project, server_ctx);
+        }
         _ => {}
     }
 

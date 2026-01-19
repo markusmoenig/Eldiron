@@ -76,12 +76,15 @@ pub enum ProjectContext {
     ScreenWidget(Uuid, Uuid),
     Asset(Uuid),
     ProjectSettings,
+    DebugLog,
 }
 
 impl ProjectContext {
     pub fn id(self) -> Option<Uuid> {
         match self {
-            ProjectContext::Unknown | ProjectContext::ProjectSettings => None,
+            ProjectContext::Unknown
+            | ProjectContext::ProjectSettings
+            | ProjectContext::DebugLog => None,
             ProjectContext::Region(id)
             | ProjectContext::RegionSettings(id)
             | ProjectContext::RegionCharacterInstance(id, _)

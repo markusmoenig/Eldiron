@@ -2031,6 +2031,11 @@ impl TheTrait for Editor {
                                     TheId::empty(),
                                     "Server has been started.".to_string(),
                                 ));
+                                // ui.set_widget_value("LogEdit", ctx, TheValue::Text(String::new()));
+                                ctx.ui.send(TheEvent::StateChanged(
+                                    TheId::named("Debug Log"),
+                                    TheWidgetState::Clicked,
+                                ));
                                 RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
                             }
                             /*

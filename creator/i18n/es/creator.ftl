@@ -83,7 +83,8 @@ status_pause_button = Pausar. Clic para ejecutar el servidor paso a paso.
 status_stop_button = Detener el servidor.
 status_time_slider = Ajustar el tiempo del servidor.
 status_update_button = Actualizar aplicación.
-status_patreon_button = Visitar mi página de Patreon.
+status_patreon_button = Visita la página de Patreon de Eldiron. Gracias por tu apoyo.
+status_help_button = Haz clic en cualquier elemento de la UI para visitar la Documentación en línea de Eldiron.
 ## Sidebar
 status_project_add_button = Añadir al proyecto.
 status_project_remove_button = Eliminar un elemento del proyecto.
@@ -225,6 +226,7 @@ tool_sector = Herramienta de sector (E).
 tool_selection = Herramienta de selección (S). Mantén 'Shift' para añadir. 'Alt' para restar. Clic y arrastra para selección múltiple. 3D: Seleccionar plano de edición.
 tool_selection_mac = Herramienta de selección (S). Mantén 'Shift' para añadir. 'Option' para restar. Clic y arrastra para selección múltiple. 3D: Seleccionar plano de edición.
 tool_vertex = Herramienta de vértice (V). 'Shift' + clic para crear un nuevo vértice.
+tool_entity = Herramienta de entidad (Y). Coloca, mueve, selecciona y elimina entidades del juego.
 
 # Common
 all = Todo
@@ -277,6 +279,7 @@ fonts = Fuentes
 game = Juego
 character_instance = Instancia de personaje
 item_instance = Instancia de objeto
+debug_log = Registro de depuración
 
 # Info
 info_server_started = El servidor se ha iniciado
