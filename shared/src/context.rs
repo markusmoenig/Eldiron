@@ -390,6 +390,12 @@ pub struct ServerContext {
     /// Automatially apply actions
     pub auto_action: bool,
 
+    /// Pending entity position changes: (from, to)
+    pub moved_entities: FxHashMap<Uuid, (Vec3<f32>, Vec3<f32>)>,
+
+    /// Pending item position changes: (from, to)
+    pub moved_items: FxHashMap<Uuid, (Vec3<f32>, Vec3<f32>)>,
+
     /// Selected wall row, set by the linedef Hud
     pub selected_wall_row: Option<i32>,
 
@@ -518,6 +524,9 @@ impl ServerContext {
             curr_action_id: None,
             auto_action: true,
 
+            moved_entities: FxHashMap::default(),
+            moved_items: FxHashMap::default(),
+
             selected_wall_row: Some(0),
 
             editor_view_mode: EditorViewMode::D2,
@@ -599,6 +608,8 @@ impl ServerContext {
         self.curr_grid_id = None;
         self.curr_screen = Uuid::nil();
         self.interactions.clear();
+        self.moved_entities.clear();
+        self.moved_items.clear();
     }
 
     pub fn clear_interactions(&mut self) {

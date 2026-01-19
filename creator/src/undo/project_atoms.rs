@@ -10,8 +10,10 @@ pub enum ProjectUndoAtom {
     RenameRegion(Uuid, String, String),
     AddRegionCharacterInstance(Uuid, Character),
     RemoveRegionCharacterInstance(usize, Uuid, Character),
+    MoveRegionCharacterInstance(Uuid, Uuid, Vec3<f32>, Vec3<f32>), // region, instance, from, to
     AddRegionItemInstance(Uuid, Item),
     RemoveRegionItemInstance(usize, Uuid, Item),
+    MoveRegionItemInstance(Uuid, Uuid, Vec3<f32>, Vec3<f32>), // region, instance, from, to
     AddCharacter(Character),
     RemoveCharacter(usize, Character),
     RenameCharacter(Uuid, String, String),
@@ -56,12 +58,14 @@ impl ProjectUndoAtom {
             RemoveRegionCharacterInstance(_, _, character) => {
                 format!("Remove Region Character Instance: {}", character.name)
             }
+            MoveRegionCharacterInstance(_, _, _, _) => "Move Region Character Instance".into(),
             AddRegionItemInstance(_, item) => {
                 format!("Add Region Item Instance: {}", item.name)
             }
             RemoveRegionItemInstance(_, _, item) => {
                 format!("Remove Region Item Instance: {}", item.name)
             }
+            MoveRegionItemInstance(_, _, _, _) => "Move Region Item Instance".into(),
             AddCharacter(character) => format!("Add Character: {}", character.name),
             RemoveCharacter(_, character) => format!("Remove Character: {}", character.name),
             RenameCharacter(_, old, new) => format!("Rename Character: {} -> {}", old, new),
@@ -201,6 +205,17 @@ impl ProjectUndoAtom {
                     shared::rusterix_utils::insert_content_into_maps(project);
                 }
             }
+            MoveRegionCharacterInstance(region_id, instance_id, from, _to) => {
+                move_region_character_pos(
+                    project,
+                    ui,
+                    ctx,
+                    server_ctx,
+                    *region_id,
+                    *instance_id,
+                    *from,
+                );
+            }
             AddRegionItemInstance(region_id, item) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(region_node) =
@@ -243,6 +258,17 @@ impl ProjectUndoAtom {
                     }
                     shared::rusterix_utils::insert_content_into_maps(project);
                 }
+            }
+            MoveRegionItemInstance(region_id, instance_id, from, _to) => {
+                move_region_item_pos(
+                    project,
+                    ui,
+                    ctx,
+                    server_ctx,
+                    *region_id,
+                    *instance_id,
+                    *from,
+                );
             }
             AddCharacter(character) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
@@ -635,6 +661,17 @@ impl ProjectUndoAtom {
                     shared::rusterix_utils::insert_content_into_maps(project);
                 }
             }
+            MoveRegionCharacterInstance(region_id, instance_id, _from, to) => {
+                move_region_character_pos(
+                    project,
+                    ui,
+                    ctx,
+                    server_ctx,
+                    *region_id,
+                    *instance_id,
+                    *to,
+                );
+            }
             RemoveRegionCharacterInstance(_, region_id, character) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(region_node) =
@@ -677,6 +714,9 @@ impl ProjectUndoAtom {
                     }
                     shared::rusterix_utils::insert_content_into_maps(project);
                 }
+            }
+            MoveRegionItemInstance(region_id, instance_id, _from, to) => {
+                move_region_item_pos(project, ui, ctx, server_ctx, *region_id, *instance_id, *to);
             }
             RemoveRegionItemInstance(_, region_id, item) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
@@ -1087,6 +1127,80 @@ impl ProjectUndoAtom {
                     TheId::named("Update Tiles"),
                     TheValue::Empty,
                 ));
+            }
+        }
+    }
+}
+
+fn move_region_character_pos(
+    project: &mut Project,
+    ui: &mut TheUI,
+    ctx: &mut TheContext,
+    server_ctx: &mut ServerContext,
+    region_id: Uuid,
+    instance_id: Uuid,
+    pos: Vec3<f32>,
+) {
+    set_project_context(
+        ctx,
+        ui,
+        project,
+        server_ctx,
+        ProjectContext::Region(region_id),
+    );
+
+    if let Some(region) = project.get_region_mut(&region_id) {
+        if let Some(instance) = region.characters.get_mut(&instance_id) {
+            instance.position = pos;
+        }
+        for entity in region.map.entities.iter_mut() {
+            if entity.creator_id == instance_id {
+                entity.position = pos;
+            }
+        }
+    }
+
+    if let Some(map) = project.get_map_mut(server_ctx) {
+        for entity in map.entities.iter_mut() {
+            if entity.creator_id == instance_id {
+                entity.position = pos;
+            }
+        }
+    }
+}
+
+fn move_region_item_pos(
+    project: &mut Project,
+    ui: &mut TheUI,
+    ctx: &mut TheContext,
+    server_ctx: &mut ServerContext,
+    region_id: Uuid,
+    instance_id: Uuid,
+    pos: Vec3<f32>,
+) {
+    set_project_context(
+        ctx,
+        ui,
+        project,
+        server_ctx,
+        ProjectContext::Region(region_id),
+    );
+
+    if let Some(region) = project.get_region_mut(&region_id) {
+        if let Some(instance) = region.items.get_mut(&instance_id) {
+            instance.position = pos;
+        }
+        for item in region.map.items.iter_mut() {
+            if item.creator_id == instance_id {
+                item.position = pos;
+            }
+        }
+    }
+
+    if let Some(map) = project.get_map_mut(server_ctx) {
+        for item in map.items.iter_mut() {
+            if item.creator_id == instance_id {
+                item.position = pos;
             }
         }
     }
