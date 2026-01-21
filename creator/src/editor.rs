@@ -2053,43 +2053,55 @@ impl TheTrait for Editor {
                         // Server
                         else if id.name == "Play" {
                             let state = RUSTERIX.read().unwrap().server.state;
-                            if state == rusterix::ServerState::Off {
-                                start_server(
-                                    &mut RUSTERIX.write().unwrap(),
-                                    &mut self.project,
-                                    true,
-                                );
-                                let commands =
-                                    setup_client(&mut RUSTERIX.write().unwrap(), &mut self.project);
-                                RUSTERIX
-                                    .write()
-                                    .unwrap()
-                                    .server
-                                    .process_client_commands(commands);
+                            if state == rusterix::ServerState::Paused {
+                                RUSTERIX.write().unwrap().server.continue_instances();
+                                update_server_icons = true;
+                            } else {
+                                if state == rusterix::ServerState::Off {
+                                    start_server(
+                                        &mut RUSTERIX.write().unwrap(),
+                                        &mut self.project,
+                                        true,
+                                    );
+                                    let commands = setup_client(
+                                        &mut RUSTERIX.write().unwrap(),
+                                        &mut self.project,
+                                    );
+                                    RUSTERIX
+                                        .write()
+                                        .unwrap()
+                                        .server
+                                        .process_client_commands(commands);
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Server has been started.".to_string(),
+                                    ));
+                                    // ui.set_widget_value("LogEdit", ctx, TheValue::Text(String::new()));
+                                    ctx.ui.send(TheEvent::StateChanged(
+                                        TheId::named("Debug Log"),
+                                        TheWidgetState::Clicked,
+                                    ));
+                                    RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
+                                }
+                                /*
+                                self.server.start();
+                                self.client.reset();
+                                self.client.set_project(self.project.clone());
+                                self.server_ctx.clear_interactions();
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
                                     "Server has been started.".to_string(),
                                 ));
-                                // ui.set_widget_value("LogEdit", ctx, TheValue::Text(String::new()));
-                                ctx.ui.send(TheEvent::StateChanged(
-                                    TheId::named("Debug Log"),
-                                    TheWidgetState::Clicked,
-                                ));
-                                RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
+                                self.sidebar.clear_debug_messages(ui, ctx);
+                                */
+                                update_server_icons = true;
                             }
-                            /*
-                            self.server.start();
-                            self.client.reset();
-                            self.client.set_project(self.project.clone());
-                            self.server_ctx.clear_interactions();
-                            ctx.ui.send(TheEvent::SetStatusText(
-                                TheId::empty(),
-                                "Server has been started.".to_string(),
-                            ));
-                            self.sidebar.clear_debug_messages(ui, ctx);
-                            */
-                            update_server_icons = true;
                         } else if id.name == "Pause" {
+                            let state = RUSTERIX.read().unwrap().server.state;
+                            if state == rusterix::ServerState::Running {
+                                RUSTERIX.write().unwrap().server.pause();
+                                update_server_icons = true;
+                            }
                             /*
                             if self.server.state == ServerState::Running {
                                 self.server.state = ServerState::Paused;
