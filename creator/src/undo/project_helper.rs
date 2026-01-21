@@ -281,6 +281,7 @@ pub fn set_project_context(
     match pc {
         ProjectContext::Region(id) => {
             if let Some(region) = project.get_region(&id) {
+                server_ctx.curr_region = id;
                 ui.set_widget_value(
                     "Project Context",
                     ctx,
@@ -294,6 +295,7 @@ pub fn set_project_context(
         }
         ProjectContext::RegionSettings(id) => {
             if let Some(region) = project.get_region(&id) {
+                server_ctx.curr_region = id;
                 ui.set_widget_value(
                     "Project Context",
                     ctx,
@@ -307,6 +309,7 @@ pub fn set_project_context(
         }
         ProjectContext::RegionCharacterInstance(id, _) => {
             if let Some(region) = project.get_region(&id) {
+                server_ctx.curr_region = id;
                 ui.set_widget_value(
                     "Project Context",
                     ctx,
@@ -323,6 +326,7 @@ pub fn set_project_context(
         }
         ProjectContext::RegionItemInstance(id, _) => {
             if let Some(region) = project.get_region(&id) {
+                server_ctx.curr_region = id;
                 ui.set_widget_value(
                     "Project Context",
                     ctx,

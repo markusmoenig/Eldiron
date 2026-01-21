@@ -387,10 +387,10 @@ impl ToolList {
 
                 let mut acc = !ui.focus_widget_supports_text_input(ctx);
                 if self.get_current_tool().id().name == "Game Tool"
-                    || self.get_current_tool().id().name == "Info Tool"
                     || ui.ctrl
                     || ui.logo
                     || ui.alt
+                    || server_ctx.game_input_mode
                 {
                     acc = false;
                 }
@@ -567,7 +567,7 @@ impl ToolList {
             }
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == "PolyView" {
-                    if !server_ctx.game_mode {
+                    if !server_ctx.game_mode && !server_ctx.game_input_mode {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             if coord.y > 20 {
                                 // Test for Paste operation
@@ -1154,6 +1154,16 @@ impl ToolList {
         for tool in self.game_tools.iter() {
             if tool.id().name == name {
                 return Some(tool.id().uuid);
+            }
+        }
+        None
+    }
+
+    // Return the tool of the given name
+    pub fn get_game_tool_of_name(&mut self, name: &str) -> Option<&mut Box<dyn Tool>> {
+        for tool in self.game_tools.iter_mut() {
+            if tool.id().name == name {
+                return Some(tool);
             }
         }
         None

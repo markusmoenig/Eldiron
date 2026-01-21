@@ -23,6 +23,9 @@
   - **Remap Tile** action (Remaps a tile to the current palette)
 - Pressing Cmd / Ctrl during dragging of **sectors** moves all embedded sectors with the sector. Useful for moving complete houses etc (in 2D).
 - Sector creation with the linedef tool: By default manual mode is used which only closes polygons based on the click history. When Cmd / Ctrl is pressed auto mode is used which tries to close polygons automatically (also allows closing of old polygons). Auto mode however fails when operating in a grid (Rect tool).
+- New **Debug Log** project tree item. Shows debug output from the server when running.
+- New **Entity Tool** to move and delete entity and item instances on the map.
+- New **Game Input** switch to send keyboard events directly to the running game from within the editor.
 
 - Switched from Python to my own scripting language: **Eldrin**. Old projects need to be tweaked to work again.
 

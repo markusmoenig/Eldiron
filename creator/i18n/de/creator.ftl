@@ -13,6 +13,10 @@ menu_cut = Ausschneiden
 menu_copy = Kopieren
 menu_paste = Einfügen
 menu_apply_action = Aktion anwenden
+# Menu Game
+menu_play = Starten
+menu_pause = Pause
+menu_stop = Stoppen
 
 # Widgets
 ## Dock
@@ -78,9 +82,10 @@ status_save_button = Das aktuelle Projekt speichern.
 status_save_as_button = Das aktuelle Projekt in eine neue Datei speichern.
 status_undo_button = Die letzte Aktion rückgängig machen.
 status_redo_button = Die letzte Aktion wiederholen.
-status_play_button = Den Server für Live-Bearbeitung und Debugging starten.
-status_pause_button = Pausieren. Klicken zum Einzelschritt des Servers.
-status_stop_button = Den Server stoppen.
+status_play_button = Den Spielserver für Live-Bearbeitung und Debugging starten.
+status_pause_button = Pausieren. Klicken zum Einzelschritt des Spielservers.
+status_stop_button = Den Spielserver stoppen.
+status_game_input_button = Leitet Eingaben an das Spiel statt an den Editor weiter, wenn das Spiel läuft.
 status_time_slider = Die Serverzeit anpassen.
 status_update_button = Anwendung aktualisieren.
 status_patreon_button = Die Eldiron-Patreon-Seite besuchen. Danke für die Unterstützung.

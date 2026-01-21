@@ -453,7 +453,10 @@ pub struct ServerContext {
     pub rect_terrain_id: Option<(i32, i32)>,
     pub rect_blend_preset: VertexBlendPreset,
 
-    // Help mode state
+    /// Game input mode
+    pub game_input_mode: bool,
+
+    /// Help mode state
     pub help_mode: bool,
 }
 
@@ -560,6 +563,7 @@ impl ServerContext {
             rect_terrain_id: None,
             rect_blend_preset: VertexBlendPreset::Solid,
 
+            game_input_mode: false,
             help_mode: false,
         }
     }

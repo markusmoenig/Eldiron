@@ -13,6 +13,10 @@ menu_cut = 剪下
 menu_copy = 複製
 menu_paste = 貼上
 menu_apply_action = 套用操作
+# Menu Game
+menu_play = 啟動
+menu_pause = 暫停
+menu_stop = 停止
 
 # Widgets
 ## Dock
@@ -78,9 +82,10 @@ status_save_button = 儲存目前專案
 status_save_as_button = 將目前專案另存為新檔案
 status_undo_button = 復原上一個動作
 status_redo_button = 重做上一個動作
-status_play_button = 啟動伺服器以進行即時編輯與除錯
-status_pause_button = 暫停 點擊以單步執行伺服器
-status_stop_button = 停止伺服器
+status_play_button = 啟動遊戲伺服器以進行即時編輯與除錯
+status_pause_button = 暫停 點擊以單步執行遊戲伺服器
+status_stop_button = 停止遊戲伺服器
+status_game_input_button = 遊戲執行時，將輸入導向遊戲而非編輯器
 status_time_slider = 調整伺服器時間
 status_update_button = 更新應用程式
 status_patreon_button = 造訪 Eldiron 的 Patreon 頁面，感謝您的支持。

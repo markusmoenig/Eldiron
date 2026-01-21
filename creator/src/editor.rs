@@ -316,14 +316,32 @@ impl TheTrait for Editor {
         //     TheId::named("Rerender"),
         //     TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'r'),
         // ));
+        let mut game_menu = TheContextMenu::named(fl!("game"));
+        game_menu.add(TheContextMenuItem::new_with_accel(
+            fl!("menu_play"),
+            TheId::named("Play"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'p'),
+        ));
+        game_menu.add(TheContextMenuItem::new_with_accel(
+            fl!("menu_pause"),
+            TheId::named("Pause"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'o'),
+        ));
+        game_menu.add(TheContextMenuItem::new_with_accel(
+            fl!("menu_stop"),
+            TheId::named("Stop"),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT, 'p'),
+        ));
 
         file_menu.register_accel(ctx);
         edit_menu.register_accel(ctx);
+        game_menu.register_accel(ctx);
         // view_menu.register_accel(ctx);
         // tools_menu.register_accel(ctx);
 
         menu.add_context_menu(file_menu);
         menu.add_context_menu(edit_menu);
+        menu.add_context_menu(game_menu);
         menu_canvas.set_widget(menu);
 
         // Menubar
@@ -370,6 +388,11 @@ impl TheTrait for Editor {
         stop_button.set_status_text(&fl!("status_stop_button"));
         stop_button.set_icon_name("stop-fill".to_string());
 
+        let mut input_button = TheMenubarButton::new(TheId::named("GameInput"));
+        input_button.set_status_text(&fl!("status_game_input_button"));
+        input_button.set_icon_name("keyboard".to_string());
+        input_button.set_has_state(true);
+
         let mut time_slider = TheTimeSlider::new(TheId::named("Server Time Slider"));
         time_slider.set_status_text(&fl!("status_time_slider"));
         time_slider.set_continuous(true);
@@ -412,6 +435,7 @@ impl TheTrait for Editor {
         hlayout.add_widget(Box::new(play_button));
         hlayout.add_widget(Box::new(pause_button));
         hlayout.add_widget(Box::new(stop_button));
+        hlayout.add_widget(Box::new(input_button));
         hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
         hlayout.add_widget(Box::new(time_slider));
         //hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
@@ -1046,13 +1070,29 @@ impl TheTrait for Editor {
 
         if let Some(receiver) = &mut self.event_receiver {
             while let Ok(event) = receiver.try_recv() {
-                redraw = self.sidebar.handle_event(
+                if self.server_ctx.game_input_mode {
+                    // In game input mode send events to the game tool
+                    if let Some(game_tool) =
+                        TOOLLIST.write().unwrap().get_game_tool_of_name("Game Tool")
+                    {
+                        redraw = game_tool.handle_event(
+                            &event,
+                            ui,
+                            ctx,
+                            &mut self.project,
+                            &mut self.server_ctx,
+                        );
+                    }
+                }
+                if self.sidebar.handle_event(
                     &event,
                     ui,
                     ctx,
                     &mut self.project,
                     &mut self.server_ctx,
-                );
+                ) {
+                    redraw = true;
+                }
                 if TOOLLIST.write().unwrap().handle_event(
                     &event,
                     ui,
@@ -1828,11 +1868,10 @@ impl TheTrait for Editor {
                     }
                     TheEvent::StateChanged(id, state) => {
                         if id.name == "Help" {
-                            if state == TheWidgetState::Clicked {
-                                self.server_ctx.help_mode = true;
-                            } else {
-                                self.server_ctx.help_mode = false;
-                            }
+                            self.server_ctx.help_mode = state == TheWidgetState::Clicked;
+                        }
+                        if id.name == "GameInput" {
+                            self.server_ctx.game_input_mode = state == TheWidgetState::Clicked;
                         } else if id.name == "New" {
                             self.project_path = None;
                             self.update_counter = 0;

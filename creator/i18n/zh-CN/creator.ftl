@@ -13,6 +13,10 @@ menu_cut = 剪切
 menu_copy = 复制
 menu_paste = 粘贴
 menu_apply_action = 应用操作
+# Menu Game
+menu_play = 启动
+menu_pause = 暂停
+menu_stop = 停止
 
 # Widgets
 ## Dock
@@ -78,9 +82,10 @@ status_save_button = 保存当前项目
 status_save_as_button = 将当前项目保存为新文件
 status_undo_button = 撤销上一步操作
 status_redo_button = 重做上一步操作
-status_play_button = 启动服务器以进行实时编辑和调试
-status_pause_button = 暂停 点击以单步执行服务器
-status_stop_button = 停止服务器
+status_play_button = 启动游戏服务器以进行实时编辑和调试
+status_pause_button = 暂停 点击以单步执行游戏服务器
+status_stop_button = 停止游戏服务器
+status_game_input_button = 游戏运行时，将输入转向游戏而不是编辑器
 status_time_slider = 调整服务器时间
 status_update_button = 更新应用程序
 status_patreon_button = 访问 Eldiron 的 Patreon 页面，感谢支持。

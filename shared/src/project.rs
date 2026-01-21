@@ -243,20 +243,21 @@ impl Project {
                 return Some(&region.map);
             }
         } else if ctx.get_map_context() == MapContext::Region {
-            if let Some(id) = ctx.pc.id() {
-                if let Some(surface) = &ctx.editing_surface {
-                    if let Some(region) = self.regions.iter().find(|t| t.id == id) {
-                        if let Some(surface) = region.map.surfaces.get(&surface.id) {
-                            if let Some(profile_id) = surface.profile {
-                                return region.map.profiles.get(&profile_id);
-                            }
+            let id = ctx.curr_region;
+            // if let Some(id) = ctx.pc.id() {
+            if let Some(surface) = &ctx.editing_surface {
+                if let Some(region) = self.regions.iter().find(|t| t.id == id) {
+                    if let Some(surface) = region.map.surfaces.get(&surface.id) {
+                        if let Some(profile_id) = surface.profile {
+                            return region.map.profiles.get(&profile_id);
                         }
                     }
-                    return None;
-                } else if let Some(region) = self.regions.iter().find(|t| t.id == id) {
-                    return Some(&region.map);
                 }
+                return None;
+            } else if let Some(region) = self.regions.iter().find(|t| t.id == id) {
+                return Some(&region.map);
             }
+            // }
         } else if ctx.get_map_context() == MapContext::Screen {
             if let Some(id) = ctx.pc.id() {
                 if let Some(screen) = self.screens.get(&id) {
@@ -282,24 +283,25 @@ impl Project {
     /// Get the mutable map of the current context.
     pub fn get_map_mut(&mut self, ctx: &ServerContext) -> Option<&mut Map> {
         if ctx.get_map_context() == MapContext::Region {
-            if let Some(id) = ctx.pc.id() {
-                if ctx.editor_view_mode != EditorViewMode::D2 {
-                    if let Some(region) = self.get_region_mut(&ctx.curr_region) {
-                        return Some(&mut region.map);
-                    }
-                } else if let Some(surface) = &ctx.editing_surface {
-                    if let Some(region) = self.regions.iter_mut().find(|t| t.id == id) {
-                        if let Some(surface) = region.map.surfaces.get_mut(&surface.id) {
-                            if let Some(profile_id) = surface.profile {
-                                return region.map.profiles.get_mut(&profile_id);
-                            }
-                        }
-                    }
-                    return None;
-                } else if let Some(region) = self.regions.iter_mut().find(|t| t.id == id) {
+            let id = ctx.curr_region;
+            // if let Some(id) = ctx.pc.id() {
+            if ctx.editor_view_mode != EditorViewMode::D2 {
+                if let Some(region) = self.get_region_mut(&ctx.curr_region) {
                     return Some(&mut region.map);
                 }
+            } else if let Some(surface) = &ctx.editing_surface {
+                if let Some(region) = self.regions.iter_mut().find(|t| t.id == id) {
+                    if let Some(surface) = region.map.surfaces.get_mut(&surface.id) {
+                        if let Some(profile_id) = surface.profile {
+                            return region.map.profiles.get_mut(&profile_id);
+                        }
+                    }
+                }
+                return None;
+            } else if let Some(region) = self.regions.iter_mut().find(|t| t.id == id) {
+                return Some(&mut region.map);
             }
+            // }
         } else if ctx.get_map_context() == MapContext::Screen {
             if let Some(id) = ctx.pc.id() {
                 if let Some(screen) = self.screens.get_mut(&id) {
