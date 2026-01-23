@@ -174,12 +174,14 @@ pub fn draw_minimap(
         ));
 
         scene_handler.vm.set_layer_enabled(1, false);
+        scene_handler.vm.set_layer_enabled(2, false);
 
         scene_handler
             .vm
             .render_frame(buffer.pixels_mut(), width as u32, height as u32);
 
         scene_handler.vm.set_layer_enabled(1, true);
+        scene_handler.vm.set_layer_enabled(2, true);
 
         MINIMAPBUFFER
             .write()

@@ -26,9 +26,9 @@ impl Action for EditSector {
         nodeui.add_item(item);
 
         let item = TheNodeUIItem::Text(
-            "actionSectorTags".into(),
-            fl!("action_edit_sector_tags"),
-            fl!("status_action_edit_sector_tags"),
+            "actionSectorItem".into(),
+            fl!("action_edit_sector_item"),
+            fl!("status_action_edit_sector_item"),
             "".into(),
             None,
             false,
@@ -127,8 +127,8 @@ impl Action for EditSector {
                 self.nodeui
                     .set_text_value("actionSectorName", sector.name.clone());
 
-                let tags = sector.properties.get_str_default("tags", "".into());
-                self.nodeui.set_text_value("actionSectorTags", tags);
+                let item_name = sector.properties.get_str_default("item", "".into());
+                self.nodeui.set_text_value("actionSectorItem", item_name);
 
                 let visible = sector.properties.get_bool_default("visible", true);
                 self.nodeui.set_bool_value("actionSectorVisible", visible);
@@ -171,9 +171,9 @@ impl Action for EditSector {
             .get_text_value("actionSectorName")
             .unwrap_or(String::new());
 
-        let tags = self
+        let item = self
             .nodeui
-            .get_text_value("actionSectorTags")
+            .get_text_value("actionSectorItem")
             .unwrap_or(String::new());
 
         let visible = self
@@ -208,9 +208,9 @@ impl Action for EditSector {
                     changed = true;
                 }
 
-                let ta = sector.properties.get_str_default("tags", "".into());
-                if tags != ta {
-                    sector.properties.set("tags", Value::Str(tags));
+                let it = sector.properties.get_str_default("item", "".into());
+                if item != it {
+                    sector.properties.set("item", Value::Str(item));
                     changed = true;
                 }
 
