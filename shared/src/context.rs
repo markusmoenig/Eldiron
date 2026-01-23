@@ -989,44 +989,4 @@ impl ServerContext {
             }
         }
     }
-
-    pub fn create_wall_sector_from_linedef(&self, map: &mut Map, ld_id: u32) -> Option<u32> {
-        // Find the source linedef and its endpoints
-        let ld = map.find_linedef(ld_id)?;
-        let v0 = ld.start_vertex;
-        let v1 = ld.end_vertex;
-
-        let p0 = map.find_vertex(v0)?.clone();
-        let p1 = map.find_vertex(v1)?.clone();
-
-        // Height: fixed 2.0 for now (could be read from a property later)
-        let h = 2.0;
-
-        // Create (or reuse) top vertices exactly h units above each endpoint
-        let v2 = map.add_vertex_at_3d(p1.x, p1.y, p1.z + h, false); // top at end
-        let v3 = map.add_vertex_at_3d(p0.x, p0.y, p0.z + h, false); // top at start
-
-        let _ = map.create_linedef(v0, v1);
-        let _ = map.create_linedef(v1, v2);
-        let _ = map.create_linedef(v2, v3);
-        let (_, sid) = map.create_linedef(v3, v0);
-
-        sid
-    }
-
-    /// When the user switches to profile view, check if we need to setup the default wall sector
-    pub fn create_wall_profile(&self, map: &mut Map) -> bool {
-        let mut changed = false;
-
-        for linedef_id in map.selected_linedefs.clone() {
-            if let Some(sector_id) = self.create_wall_sector_from_linedef(map, linedef_id) {
-                let mut surface = Surface::new(sector_id);
-                surface.calculate_geometry(map);
-                map.surfaces.insert(surface.id, surface);
-
-                changed = true;
-            }
-        }
-        changed
-    }
 }

@@ -50,7 +50,9 @@ impl Action for CreateLinedef {
         let changed = true;
         let prev = map.clone();
 
-        _ = map.create_linedef(map.selected_vertices[0], map.selected_vertices[1]);
+        // Use manual creation to avoid unwanted sector auto-detection
+        _ = map.create_linedef_manual(map.selected_vertices[0], map.selected_vertices[1]);
+        map.possible_polygon.clear();
 
         if changed {
             Some(ProjectUndoAtom::MapEdit(

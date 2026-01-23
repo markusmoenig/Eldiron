@@ -895,15 +895,6 @@ impl MapEditor {
                         }
                     }
                 }
-                if id.name == "linedefCreateWall" && *state == TheWidgetState::Clicked {
-                    if let Some(map) = project.get_map_mut(server_ctx) {
-                        let prev = map.clone();
-                        if server_ctx.create_wall_profile(map) {
-                            self.add_map_undo(map, prev, ctx, server_ctx);
-                        }
-                    }
-                    crate::utils::scenemanager_render_map(project, server_ctx);
-                }
                 /*
                 if id.name == "linedefDeleteWall" && *state == TheWidgetState::Clicked {
                     if let Some(map) = project.get_map_mut(server_ctx) {

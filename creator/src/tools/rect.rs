@@ -200,12 +200,13 @@ impl Tool for RectTool {
                         let v3 = map.add_vertex_at(vertices[3].x, vertices[3].y);
 
                         map.possible_polygon = vec![];
-                        let _ = map.create_linedef(v0, v1);
-                        let _ = map.create_linedef(v1, v2);
-                        let _ = map.create_linedef(v2, v3);
-                        let id = map.create_linedef(v3, v0);
+                        let _ = map.create_linedef_manual(v0, v1);
+                        let _ = map.create_linedef_manual(v1, v2);
+                        let _ = map.create_linedef_manual(v2, v3);
+                        let _ = map.create_linedef_manual(v3, v0);
+                        let sid = map.close_polygon_manual();
 
-                        if let Some(sector_id) = id.1 {
+                        if let Some(sector_id) = sid {
                             // Add the info for correct box rendering
                             // if let Some(l) = map.find_linedef_mut(l0.0) {
                             //     l.properties.set("row1_source", source.clone());

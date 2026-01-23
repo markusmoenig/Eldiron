@@ -59,13 +59,15 @@ impl ExtrudeLinedef {
         let v2 = map.add_vertex_at_3d(p1_top.x, p1_top.y, p1_top.z, false);
         let v3 = map.add_vertex_at_3d(p0_top.x, p0_top.y, p0_top.z, false);
 
+        // Use manual linedef creation to avoid premature sector detection
+        // (auto-detection can find wrong cycles when vertices are reused)
         map.possible_polygon = vec![];
-        let _ = map.create_linedef(v0, v1); // bottom
-        let _ = map.create_linedef(v1, v2); // side
-        let _ = map.create_linedef(v2, v3); // top
-        let (_, sid) = map.create_linedef(v3, v0); // side + try close sector
+        let _ = map.create_linedef_manual(v0, v1); // bottom
+        let _ = map.create_linedef_manual(v1, v2); // side
+        let _ = map.create_linedef_manual(v2, v3); // top
+        let _ = map.create_linedef_manual(v3, v0); // side
 
-        sid
+        map.close_polygon_manual()
     }
 }
 
@@ -81,7 +83,7 @@ impl Action for ExtrudeLinedef {
             fl!("distance"),
             fl!("status_action_extrude_linedef_distance"),
             2.0,
-            -20.0..=20.0,
+            0.0..=0.0,
             false,
         );
         nodeui.add_item(item);

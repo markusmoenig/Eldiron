@@ -194,7 +194,8 @@ impl Action for AddArch {
 
                     let mut new_ids: Vec<u32> = Vec::with_capacity(segments as usize);
                     for w in chain.windows(2) {
-                        let (new_ld_id, _maybe_sector) = map.create_linedef(w[0], w[1]);
+                        // Use manual creation to avoid unwanted sector auto-detection
+                        let new_ld_id = map.create_linedef_manual(w[0], w[1]);
                         // Copy properties & bind sectors like the original linedef
                         if let Some(nld) = map.find_linedef_mut(new_ld_id) {
                             nld.properties = orig_props.clone();
@@ -202,6 +203,8 @@ impl Action for AddArch {
                         }
                         new_ids.push(new_ld_id);
                     }
+                    // Clear possible_polygon since we don't want to create a sector
+                    map.possible_polygon.clear();
 
                     // Phase 2: splice the new chain into every sector that referenced the old linedef
                     let mut touched_sectors: Vec<u32> = Vec::new();

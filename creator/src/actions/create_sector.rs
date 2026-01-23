@@ -170,7 +170,7 @@ impl Action for CreateSector {
         let prev = map.clone();
         map.possible_polygon.clear();
 
-        let mut sector_id: Option<u32> = None;
+        let sector_id: Option<u32>;
 
         if using_linedefs {
             // Build an ordered vertex loop from selected linedefs
@@ -180,18 +180,17 @@ impl Action for CreateSector {
                     return None;
                 }
             };
+            // Use manual linedef creation to avoid premature/wrong cycle detection
             for i in 0..ordered.len() {
                 let a = ordered[i];
                 let b = ordered[(i + 1) % ordered.len()];
                 if a == b {
                     continue;
                 }
-                let ids = map.create_linedef(a, b); // reuses if exists; may close sector
-                if let Some(sid) = ids.1 {
-                    sector_id = Some(sid);
-                    break;
-                }
+                let _ = map.create_linedef_manual(a, b);
             }
+            // Now manually close the polygon
+            sector_id = map.close_polygon_manual();
         } else {
             // Vertex-based loop (existing ordering)
             let ordered = match Self::order_vertices_clockwise(map, &map.selected_vertices) {
@@ -200,18 +199,17 @@ impl Action for CreateSector {
                     return None;
                 }
             };
+            // Use manual linedef creation to avoid premature/wrong cycle detection
             for i in 0..ordered.len() {
                 let a = ordered[i];
                 let b = ordered[(i + 1) % ordered.len()];
                 if a == b {
                     continue;
                 }
-                let ids = map.create_linedef(a, b);
-                if let Some(sid) = ids.1 {
-                    sector_id = Some(sid);
-                    break;
-                }
+                let _ = map.create_linedef_manual(a, b);
             }
+            // Now manually close the polygon
+            sector_id = map.close_polygon_manual();
         }
 
         if let Some(sector_id) = sector_id {
