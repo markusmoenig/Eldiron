@@ -754,7 +754,7 @@ impl ProjectUndoAtom {
                     {
                         let mut character = character.clone();
 
-                        if let Some(bytes) = crate::Embedded::get("python/basecharacter.py") {
+                        if let Some(bytes) = crate::Embedded::get("eldrin/character.eldrin") {
                             if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
                                 character.source = source.to_string();
                             }
@@ -832,7 +832,7 @@ impl ProjectUndoAtom {
                     if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id) {
                         let mut item = item.clone();
 
-                        if let Some(bytes) = crate::Embedded::get("python/baseitem.py") {
+                        if let Some(bytes) = crate::Embedded::get("eldrin/item.eldrin") {
                             if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
                                 item.source = source.to_string();
                             }

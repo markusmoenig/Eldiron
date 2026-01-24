@@ -1,0 +1,26 @@
+
+// Proess character system events
+fn event(event, value) {
+}
+
+// Proess character user events
+fn user_event(event, value) {
+    if event == "key_down" {
+        let key = value;
+        if key == "w" {
+            action("forward");
+        }
+        if key == "a" {
+            action("left");
+        }
+        if key == "d" {
+            action("right");
+        }
+        if key == "s" {
+            action("backward");
+        }
+    }
+    if event == "key_up" {
+        action("none");
+    }
+}
