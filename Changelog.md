@@ -26,6 +26,9 @@
 - New **Debug Log** project tree item. Shows debug output from the server when running.
 - New **Entity Tool** to move and delete entity and item instances on the map.
 - New **Game Input** switch to send keyboard events directly to the running game from within the editor.
+- New **Apply Tile** action now has a repate mode setting (repeat / scale).
+
+- **Items** can now be associated to Door / Gates (i.e. profile cutouts), controlling blocking states, visibility and more. The item name can be entered in the sector settings.
 
 - Switched from Python to my own scripting language: **Eldrin**. Old projects need to be tweaked to work again.
 

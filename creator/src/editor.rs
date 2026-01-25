@@ -1730,14 +1730,23 @@ impl TheTrait for Editor {
                                         for c in &self.project.items {
                                             hash.insert(c.0, c.1.name.clone());
                                         }
+
+                                        // Apply names and sanitize map and its profiles
                                         for r in &mut self.project.regions {
                                             for c in &mut r.items {
                                                 if let Some(n) = hash.get(&c.1.item_id) {
                                                     c.1.name = n.clone();
                                                 }
                                             }
-
+                                            for (_, p) in &mut r.map.profiles {
+                                                p.sanitize();
+                                            }
                                             r.map.sanitize();
+                                        }
+
+                                        // Sanitize screens
+                                        for (_, screen) in &mut self.project.screens {
+                                            screen.map.sanitize();
                                         }
 
                                         // Convert old tile refs to new tiles

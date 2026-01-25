@@ -75,6 +75,7 @@ status_action_set_tile_material_opacity = 材质的不透明度分量。
 status_action_set_tile_material_emissive = 材质的自发光分量。
 status_action_iso_camera_azimuth = 让相机绕场景向左或向右旋转。
 status_action_iso_camera_elevation = 相机绕上（Y）轴旋转。
+status_action_apply_tile_mode = 图块的重复模式。
 ## Menubar
 status_logo_button = 打开 Eldiron 官网
 status_open_button = 打开已有的 Eldiron 项目
@@ -285,6 +286,8 @@ emissive = 自发光
 terrain = Terrain
 palette = 调色板
 debug_log = 调试日志
+scale = 缩放
+repeat = 重复
 
 # Info
 info_server_started = 服务器已启动

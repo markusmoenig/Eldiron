@@ -13,6 +13,16 @@ impl Action for ApplyTile {
         Self: Sized,
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
+
+        let item = TheNodeUIItem::Selector(
+            "actionApplyTileMode".into(),
+            fl!("repeat_mode"),
+            fl!("status_action_apply_tile_mode"),
+            vec![fl!("repeat"), fl!("scale")],
+            0,
+        );
+        nodeui.add_item(item);
+
         let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_apply_tile_desc"));
         nodeui.add_item(item);
 
@@ -54,6 +64,16 @@ impl Action for ApplyTile {
         let mut changed = false;
         let prev = map.clone();
 
+        let mut mode = self
+            .nodeui
+            .get_i32_value("actionApplyTileMode")
+            .unwrap_or(0);
+
+        mode = match mode {
+            1 => 0,
+            _ => 1,
+        };
+
         if let Some(tile_id) = server_ctx.curr_tile_id {
             for sector_id in &map.selected_sectors.clone() {
                 if let Some(sector) = map.find_sector_mut(*sector_id) {
@@ -68,6 +88,7 @@ impl Action for ApplyTile {
                     sector
                         .properties
                         .set(source, Value::Source(PixelSource::TileId(tile_id)));
+                    sector.properties.set("tile_mode", Value::Int(mode));
                     changed = true;
                 }
             }

@@ -136,9 +136,11 @@ impl Tool for LinedefTool {
 
                 // ---
 
-                // Test if a vertex is under the cursor, in that case in D2 we dont select but do add lines
+                // Audo Mode: Test if a vertex is under the cursor, in that case in D2 we dont select but do add lines
                 let mut over_vertex = false;
-                if let Some(grid) = &server_ctx.hover_cursor {
+                if let Some(grid) = &server_ctx.hover_cursor
+                    && ui.ctrl
+                {
                     if map.find_vertex_at(grid.x, grid.y).is_some() {
                         over_vertex = true;
                     }

@@ -27,7 +27,7 @@ impl Action for GateDoor {
             "actionGateDoorRepeatMode".into(),
             fl!("repeat_mode"),
             fl!("status_action_gate_door_repeat_mode"),
-            vec!["Repeat".to_string(), "Scale".to_string()],
+            vec![fl!("repeat"), fl!("scale")],
             1,
         );
         nodeui.add_item(item);

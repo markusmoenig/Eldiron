@@ -75,6 +75,7 @@ status_action_set_tile_material_opacity = Прозрачность матери�
 status_action_set_tile_material_emissive = Свечение материала.
 status_action_iso_camera_azimuth = Поворачивает камеру влево или вправо вокруг сцены.
 status_action_iso_camera_elevation = Вращение камеры вокруг вертикальной (Y) оси.
+status_action_apply_tile_mode = Режим повторения тайла.
 ## Menubar
 status_logo_button = Открыть сайт Eldiron ...
 status_open_button = Открыть существующий проект Eldiron...
@@ -286,6 +287,8 @@ emissive = Свечение
 terrain = Рельеф
 palette = Палитра
 debug_log = Журнал отладки
+scale = Масштаб
+repeat = Повтор
 
 # Info
 info_server_started = Сервер запущен

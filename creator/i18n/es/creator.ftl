@@ -75,6 +75,7 @@ status_action_set_tile_material_opacity = Componente de opacidad del material.
 status_action_set_tile_material_emissive = Componente emisivo del material.
 status_action_iso_camera_azimuth = Gira la cámara a izquierda o derecha alrededor de la escena.
 status_action_iso_camera_elevation = Rotación de la cámara alrededor del eje vertical (Y).
+status_action_apply_tile_mode = El modo de repetición de la baldosa.
 ## Menubar
 status_logo_button = Abrir el sitio web de Eldiron ...
 status_open_button = Abrir un proyecto existente de Eldiron...
@@ -285,6 +286,8 @@ game = Juego
 character_instance = Instancia de personaje
 item_instance = Instancia de objeto
 debug_log = Registro de depuración
+scale = Escala
+repeat = Repetición
 
 # Info
 info_server_started = El servidor se ha iniciado

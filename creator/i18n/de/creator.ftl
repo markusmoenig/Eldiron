@@ -75,6 +75,7 @@ status_action_set_tile_material_opacity = Die Deckkraft des Materials.
 status_action_set_tile_material_emissive = Der Emissionsanteil des Materials.
 status_action_iso_camera_azimuth = Dreht die Kamera nach links oder rechts um die Szene.
 status_action_iso_camera_elevation = Kamerarotation um die Hochachse (Y).
+status_action_apply_tile_mode = Der Wiederholmodus der Kachel.
 ## Menubar
 status_logo_button = Die Eldiron-Website öffnen ...
 status_open_button = Ein bestehendes Eldiron-Projekt öffnen...
@@ -285,6 +286,8 @@ emissive = Emissiv
 terrain = Terrain
 palette = Palette
 debug_log = Debug-Protokoll
+scale = Skalierung
+repeat = Wiederholung
 
 # Info
 info_server_started = Server wurde gestartet

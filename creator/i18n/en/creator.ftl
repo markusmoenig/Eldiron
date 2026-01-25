@@ -75,6 +75,7 @@ status_action_set_tile_material_opacity = The opacity component of the material.
 status_action_set_tile_material_emissive = The emissive component of the material.
 status_action_iso_camera_azimuth = Rotates the camera left or right around the scene.
 status_action_iso_camera_elevation = Camera rotation around the up (Y) axis.
+status_action_apply_tile_mode = The repeat mode of the tile.
 ## Menubar
 status_logo_button = Open the Eldiron Website ...
 status_open_button = Open an existing Eldiron project...
@@ -286,6 +287,8 @@ emissive = Emissive
 terrain = Terrain
 palette = Palette
 debug_log = Debug Log
+scale = Scale
+repeat = Repeat
 
 # Info
 info_server_started = Server has been started
