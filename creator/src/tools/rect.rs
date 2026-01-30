@@ -768,6 +768,7 @@ impl RectTool {
                 dim.height as u32,
                 screen_uv,
                 false,
+                false
             );
 
             let mut found = false;

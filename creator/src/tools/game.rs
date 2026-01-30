@@ -104,7 +104,7 @@ impl Tool for GameTool {
         &mut self,
         map_event: MapEvent,
         _ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         map: &mut Map,
         _server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
@@ -117,6 +117,30 @@ impl Tool for GameTool {
                     if let Some(action) = rusterix.client.touch_down(coord, map) {
                         rusterix.server.local_player_action(action);
                     }
+                }
+            }
+            MapDragged(coord) => {
+                let mut rusterix = RUSTERIX.write().unwrap();
+                let is_running = rusterix.server.state == rusterix::ServerState::Running;
+
+                let is_inside = rusterix.client.is_inside_game(coord);
+                if is_running && is_inside {
+                    ctx.set_cursor_visible(false);
+                    rusterix.client_touch_dragged(coord, map);
+                } else {
+                    ctx.set_cursor_visible(true);
+                }
+            }
+            MapHover(coord) => {
+                let mut rusterix = RUSTERIX.write().unwrap();
+                let is_running = rusterix.server.state == rusterix::ServerState::Running;
+
+                let is_inside = rusterix.client.is_inside_game(coord);
+                if is_running && is_inside {
+                    ctx.set_cursor_visible(false);
+                    rusterix.client_touch_hover(coord, map);
+                } else {
+                    ctx.set_cursor_visible(true);
                 }
             }
             MapUp(coord) => {

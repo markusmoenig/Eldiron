@@ -584,6 +584,7 @@ impl Tool for SectorTool {
                             bottom_right,
                             GeoId::Linedef(0),
                             true,
+                            false
                         );
                         for l in linedefs {
                             if let GeoId::Linedef(l) = l {

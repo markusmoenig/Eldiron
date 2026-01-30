@@ -431,6 +431,7 @@ impl Tool for VertexTool {
                             bottom_right,
                             GeoId::Vertex(0),
                             true,
+                            false
                         );
                         for v in vertices {
                             if let GeoId::Vertex(v) = v {

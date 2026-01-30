@@ -1605,6 +1605,7 @@ impl ToolList {
             dim.height as u32,
             screen_uv,
             true,
+            false,
         ) {
             server_ctx.hover_cursor_3d = Some(rc.1);
             if server_ctx.curr_map_tool_type == MapToolType::Sector {
@@ -1621,6 +1622,7 @@ impl ToolList {
             dim.height as u32,
             screen_uv,
             true,
+            false
         );
 
         rusterix.scene_handler.vm.set_active_vm(0);
