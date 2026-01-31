@@ -29,6 +29,7 @@
 - New **Apply Tile** action now has a repate mode setting (repeat / scale).
 
 - **Items** can now be associated to Door / Gates (i.e. profile cutouts), controlling blocking states, visibility and more. The item name can be entered in the sector settings.
+- Door / Gate billboards can now be animated when visibility changes, with scrolling up /down, left / right or fading in / out.
 
 - Switched from Python to my own scripting language: **Eldrin**. Old projects need to be tweaked to work again.
 
