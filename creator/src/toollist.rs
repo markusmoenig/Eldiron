@@ -795,7 +795,7 @@ impl ToolList {
                             self.update_geometry_overlay_3d(project, server_ctx);
                         }
                     }
-                    redraw = true;
+                    redraw = false;
                 }
             }
             // TheEvent::RenderViewScrollBy(id, coord) => { TODO
@@ -1622,7 +1622,7 @@ impl ToolList {
             dim.height as u32,
             screen_uv,
             true,
-            false
+            false,
         );
 
         rusterix.scene_handler.vm.set_active_vm(0);

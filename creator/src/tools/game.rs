@@ -131,18 +131,6 @@ impl Tool for GameTool {
                     ctx.set_cursor_visible(true);
                 }
             }
-            MapHover(coord) => {
-                let mut rusterix = RUSTERIX.write().unwrap();
-                let is_running = rusterix.server.state == rusterix::ServerState::Running;
-
-                let is_inside = rusterix.client.is_inside_game(coord);
-                if is_running && is_inside {
-                    ctx.set_cursor_visible(false);
-                    rusterix.client_touch_hover(coord, map);
-                } else {
-                    ctx.set_cursor_visible(true);
-                }
-            }
             MapUp(coord) => {
                 let mut rusterix = RUSTERIX.write().unwrap();
                 let is_running = rusterix.server.state == rusterix::ServerState::Running;
@@ -162,8 +150,8 @@ impl Tool for GameTool {
         &mut self,
         event: &TheEvent,
         _ui: &mut TheUI,
-        _ctx: &mut TheContext,
-        _project: &mut Project,
+        ctx: &mut TheContext,
+        project: &mut Project,
         _server_ctx: &mut ServerContext,
     ) -> bool {
         #[allow(clippy::single_match)]
@@ -185,6 +173,26 @@ impl Tool for GameTool {
                         .client
                         .user_event("key_up".into(), Value::Str(char.to_string()));
                     rusterix.server.local_player_action(action);
+                }
+            }
+            TheEvent::RenderViewHoverChanged(id, coord) => {
+                if id.name == "PolyView" {
+                    let mut rusterix = RUSTERIX.write().unwrap();
+                    let is_running = rusterix.server.state == rusterix::ServerState::Running;
+
+                    let is_inside = rusterix.client.is_inside_game(*coord);
+                    if is_running && is_inside {
+                        ctx.set_cursor_visible(false);
+
+                        for region in &project.regions {
+                            if region.map.name == rusterix.client.current_map {
+                                rusterix.client_touch_hover(*coord, &region.map);
+                                break;
+                            }
+                        }
+                    } else {
+                        ctx.set_cursor_visible(true);
+                    }
                 }
             }
             _ => {}

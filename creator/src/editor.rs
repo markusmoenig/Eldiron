@@ -744,7 +744,7 @@ impl TheTrait for Editor {
 
                         if r.id == self.server_ctx.curr_region {
                             if let Some(time) = rusterix.server.get_time(&r.map.id) {
-                                rusterix.client.server_time = time;
+                                rusterix.client.set_server_time(time);
                                 if let Some(widget) = ui.get_widget("Server Time Slider") {
                                     widget.set_value(TheValue::Time(rusterix.client.server_time));
                                 }
@@ -1809,7 +1809,7 @@ impl TheTrait for Editor {
                                         // Set the server time to the client (and if running to the server)
                                         {
                                             let mut rusterix = RUSTERIX.write().unwrap();
-                                            rusterix.client.server_time = self.project.time;
+                                            rusterix.client.set_server_time(self.project.time);
                                             rusterix.client.global =
                                                 self.project.render_graph.clone();
                                             if rusterix.server.state
@@ -1914,7 +1914,7 @@ impl TheTrait for Editor {
                             // Set the server time to the client (and if running to the server)
                             {
                                 let mut rusterix = RUSTERIX.write().unwrap();
-                                rusterix.client.server_time = self.project.time;
+                                rusterix.client.set_server_time(self.project.time);
                                 if rusterix.server.state == rusterix::ServerState::Running {
                                     if let Some(map) = self.project.get_map(&self.server_ctx) {
                                         rusterix.server.set_time(&map.id, self.project.time);
@@ -2086,10 +2086,10 @@ impl TheTrait for Editor {
                                         "Server has been started.".to_string(),
                                     ));
                                     // ui.set_widget_value("LogEdit", ctx, TheValue::Text(String::new()));
-                                    ctx.ui.send(TheEvent::StateChanged(
-                                        TheId::named("Debug Log"),
-                                        TheWidgetState::Clicked,
-                                    ));
+                                    // ctx.ui.send(TheEvent::StateChanged(
+                                    //     TheId::named("Debug Log"),
+                                    //     TheWidgetState::Clicked,
+                                    // ));
                                     RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
                                 }
                                 /*
@@ -2218,7 +2218,8 @@ impl TheTrait for Editor {
                             if let TheValue::Time(time) = value {
                                 self.project.time = time;
                                 let mut rusterix = RUSTERIX.write().unwrap();
-                                rusterix.client.server_time = time;
+                                rusterix.client.set_server_time(time);
+
                                 if rusterix.server.state == rusterix::ServerState::Running {
                                     if let Some(map) = self.project.get_map(&self.server_ctx) {
                                         rusterix.server.set_time(&map.id, time);

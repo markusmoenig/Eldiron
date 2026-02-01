@@ -54,12 +54,14 @@ impl Action for RemapTile {
                     for y in 0..tex.height {
                         for x in 0..tex.width {
                             let mut col = tex.get_pixel(x as u32, y as u32);
+                            let t = col[3];
                             let color = TheColor::from(col);
 
                             if let Some(index) = project.palette.find_closest_color_index(&color) {
                                 if let Some(c) = project.palette.colors.get(index) {
                                     if let Some(c) = c {
                                         col = c.to_u8_array();
+                                        col[3] = t;
                                     }
                                 }
                             }

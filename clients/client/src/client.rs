@@ -98,6 +98,8 @@ impl TheTrait for Client {
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        ctx.set_cursor_visible(false);
+
         for file in Embedded::iter() {
             let name = file.as_ref();
             if name.ends_with(".png") {
@@ -120,6 +122,15 @@ impl TheTrait for Client {
                     }
                 }
             }
+        }
+
+        // Set the server time
+        for region in &self.project.regions {
+            if region.name == self.rusterix.client.current_map {
+                // println!("{}", self.project.time.to_time24());
+                self.rusterix.server.set_time(&region.id, self.project.time);
+            }
+            break;
         }
 
         // -
@@ -153,7 +164,7 @@ impl TheTrait for Client {
                         self.rusterix.client.current_map = new_region_name;
                     }
                     if let Some(time) = self.rusterix.server.get_time(&r.map.id) {
-                        self.rusterix.client.server_time = time;
+                        self.rusterix.client.set_server_time(time);
                     }
 
                     rusterix::tile_builder(&mut r.map, &mut self.rusterix.assets);
@@ -170,7 +181,7 @@ impl TheTrait for Client {
 
         if let Some(receiver) = &mut self.event_receiver {
             while let Ok(event) = receiver.try_recv() {
-                //println!("Event received {:?}", event);
+                // println!("Event received {:?}", event);
                 match event {
                     TheEvent::Resize => {}
                     TheEvent::MouseDown(coord) => {
@@ -221,6 +232,26 @@ impl TheTrait for Client {
         }
 
         redraw
+    }
+
+    fn touch_dragged(&mut self, x: f32, y: f32, _ctx: &mut TheContext) -> bool {
+        let coord = Vec2::new(x as i32, y as i32);
+        for r in &mut self.project.regions {
+            if r.map.name == self.rusterix.client.current_map {
+                self.rusterix.client_touch_dragged(coord, &r.map);
+            }
+        }
+        true
+    }
+
+    fn hover(&mut self, x: f32, y: f32, _ctx: &mut TheContext) -> bool {
+        let coord = Vec2::new(x as i32, y as i32);
+        for r in &mut self.project.regions {
+            if r.map.name == self.rusterix.client.current_map {
+                self.rusterix.client_touch_hover(coord, &r.map);
+            }
+        }
+        true
     }
 
     // Query if the widget needs a redraw
