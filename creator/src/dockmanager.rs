@@ -351,6 +351,22 @@ impl DockManager {
         }
     }
 
+    /// Returns true if the current (visible) dock needs animated minimap updates.
+    pub fn current_dock_supports_minimap_animation(&self) -> bool {
+        match self.state {
+            DockManagerState::Editor => self
+                .editor_docks
+                .get(&self.dock)
+                .map(|d| d.supports_minimap_animation())
+                .unwrap_or(false),
+            _ => self
+                .docks
+                .get_index(self.index)
+                .map(|(_, d)| d.supports_minimap_animation())
+                .unwrap_or(false),
+        }
+    }
+
     /// Get the currently active dock (editor dock if in editor mode, otherwise the current dock)
     pub fn get_active_dock(&self) -> Option<&dyn Dock> {
         if self.state == DockManagerState::Editor {

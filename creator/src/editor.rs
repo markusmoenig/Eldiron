@@ -689,10 +689,17 @@ impl TheTrait for Editor {
             RUSTERIX.write().unwrap().client.inc_animation_frame();
 
             self.server_ctx.animation_counter = self.server_ctx.animation_counter.wrapping_add(1);
-            // ctx.ui.send(TheEvent::Custom(
-            //     TheId::named("Soft Update Minimap"),
-            //     TheValue::Empty,
-            // ));
+            // To update animated minimaps (only for docks that need it)
+            if DOCKMANAGER
+                .read()
+                .unwrap()
+                .current_dock_supports_minimap_animation()
+            {
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Soft Update Minimap"),
+                    TheValue::Empty,
+                ));
+            }
 
             if RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running {
                 INFOVIEWER

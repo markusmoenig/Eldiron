@@ -396,6 +396,10 @@ impl Dock for TilesEditorDock {
         }
         false
     }
+
+    fn supports_minimap_animation(&self) -> bool {
+        true
+    }
 }
 
 impl TilesEditorDock {

@@ -408,6 +408,10 @@ impl Dock for TilesDock {
 
         false
     }
+
+    fn supports_minimap_animation(&self) -> bool {
+        true
+    }
 }
 
 impl TilesDock {

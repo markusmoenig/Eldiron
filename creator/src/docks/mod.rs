@@ -133,4 +133,9 @@ pub trait Dock: Send + Sync {
     ) -> bool {
         false
     }
+
+    /// Returns true if this dock animates minimap content (requires soft updates each tick).
+    fn supports_minimap_animation(&self) -> bool {
+        false
+    }
 }

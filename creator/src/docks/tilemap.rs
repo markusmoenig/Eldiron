@@ -539,6 +539,10 @@ impl Dock for TilemapDock {
 
         false
     }
+
+    fn supports_minimap_animation(&self) -> bool {
+        true
+    }
 }
 
 impl TilemapDock {
