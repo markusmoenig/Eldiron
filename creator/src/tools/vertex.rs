@@ -13,6 +13,8 @@ pub struct VertexTool {
     id: TheId,
     click_pos: Vec2<f32>,
     click_pos_3d: Vec3<f32>,
+    /// The initial ray intersection point on the drag plane at click time
+    click_ray_intersection_3d: Option<Vec3<f32>>,
     click_selected: bool,
     drag_changed: bool,
     rectangle_undo_map: Map,
@@ -30,6 +32,7 @@ impl Tool for VertexTool {
             id: TheId::named("Vertex Tool"),
             click_pos: Vec2::zero(),
             click_pos_3d: Vec3::zero(),
+            click_ray_intersection_3d: None,
             click_selected: false,
             drag_changed: false,
             rectangle_undo_map: Map::default(),
@@ -215,6 +218,7 @@ impl Tool for VertexTool {
                 }
 
                 self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);
+                self.click_ray_intersection_3d = None;
 
                 // For 3D dragging, use the actual vertex position if one is selected
                 if self.click_selected && !map.selected_vertices.is_empty() {
@@ -223,6 +227,40 @@ impl Tool for VertexTool {
                         self.click_pos_3d = vertex.as_vec3_world();
                     } else {
                         self.click_pos_3d = server_ctx.geo_hit_pos;
+                    }
+
+                    // Compute initial ray intersection on the drag plane at click time
+                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                            let dim = *render_view.dim();
+                            let screen_uv = [
+                                coord.x as f32 / dim.width as f32,
+                                coord.y as f32 / dim.height as f32,
+                            ];
+
+                            let rusterix = RUSTERIX.read().unwrap();
+                            let ray = rusterix.client.camera_d3.create_ray(
+                                Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                Vec2::zero(),
+                            );
+                            drop(rusterix);
+
+                            let plane = server_ctx.gizmo_mode;
+                            let plane_normal = match plane {
+                                GizmoMode::XZ => Vec3::new(0.0, 1.0, 0.0),
+                                GizmoMode::XY => Vec3::new(0.0, 0.0, 1.0),
+                                GizmoMode::YZ => Vec3::new(1.0, 0.0, 0.0),
+                            };
+
+                            let denom: f32 = plane_normal.dot(ray.dir);
+                            if denom.abs() > 0.0001 {
+                                let t = (self.click_pos_3d - ray.origin).dot(plane_normal) / denom;
+                                if t >= 0.0 {
+                                    self.click_ray_intersection_3d = Some(ray.origin + ray.dir * t);
+                                }
+                            }
+                        }
                     }
                 } else {
                     self.click_pos_3d = server_ctx.geo_hit_pos;
@@ -274,6 +312,25 @@ impl Tool for VertexTool {
                             }
                         } else {
                             // 3D Drag
+                            // Only start dragging after a minimum distance threshold
+                            let drag_distance = self
+                                .click_pos
+                                .distance(Vec2::new(coord.x as f32, coord.y as f32));
+                            if drag_distance < 5.0 {
+                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                return None;
+                            }
+
+                            // Use the initial ray intersection as reference (not vertex position)
+                            // This prevents the "jump" when starting to drag
+                            let click_intersection = match self.click_ray_intersection_3d {
+                                Some(pos) => pos,
+                                None => {
+                                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                    return None;
+                                }
+                            };
+
                             let start_pos = self.click_pos_3d;
                             let plane = server_ctx.gizmo_mode;
 
@@ -309,21 +366,22 @@ impl Tool for VertexTool {
                                     if t >= 0.0 {
                                         let current_pos = ray.origin + ray.dir * t;
 
-                                        // Calculate drag delta based on the gizmo plane mode
+                                        // Calculate drag delta relative to initial click intersection
+                                        // (not the vertex position)
                                         let drag_delta = match plane {
                                             GizmoMode::XZ => {
                                                 // XZ plane: allow movement in X and Z, lock Y
                                                 Vec3::new(
-                                                    current_pos.x - start_pos.x,
+                                                    current_pos.x - click_intersection.x,
                                                     0.0,
-                                                    current_pos.z - start_pos.z,
+                                                    current_pos.z - click_intersection.z,
                                                 )
                                             }
                                             GizmoMode::XY => {
                                                 // XY plane: allow movement in X and Y, lock Z
                                                 Vec3::new(
-                                                    current_pos.x - start_pos.x,
-                                                    current_pos.y - start_pos.y,
+                                                    current_pos.x - click_intersection.x,
+                                                    current_pos.y - click_intersection.y,
                                                     0.0,
                                                 )
                                             }
@@ -331,8 +389,8 @@ impl Tool for VertexTool {
                                                 // YZ plane: allow movement in Y and Z, lock X
                                                 Vec3::new(
                                                     0.0,
-                                                    current_pos.y - start_pos.y,
-                                                    current_pos.z - start_pos.z,
+                                                    current_pos.y - click_intersection.y,
+                                                    current_pos.z - click_intersection.z,
                                                 )
                                             }
                                         };
@@ -431,7 +489,7 @@ impl Tool for VertexTool {
                             bottom_right,
                             GeoId::Vertex(0),
                             true,
-                            false
+                            false,
                         );
                         for v in vertices {
                             if let GeoId::Vertex(v) = v {
