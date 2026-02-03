@@ -13,6 +13,8 @@ pub struct SectorTool {
     id: TheId,
     click_pos: Vec2<f32>,
     click_pos_3d: Vec3<f32>,
+    /// The initial ray intersection point on the drag plane at click time
+    click_ray_intersection_3d: Option<Vec3<f32>>,
     rectangle_undo_map: Map,
     click_selected: bool,
     drag_changed: bool,
@@ -32,6 +34,7 @@ impl Tool for SectorTool {
             id: TheId::named("Sector Tool"),
             click_pos: Vec2::zero(),
             click_pos_3d: Vec3::zero(),
+            click_ray_intersection_3d: None,
             click_selected: false,
             drag_changed: false,
             rectangle_undo_map: Map::default(),
@@ -172,9 +175,70 @@ impl Tool for SectorTool {
                 }
 
                 self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);
+                self.click_ray_intersection_3d = None;
 
-                // For 3D dragging, use the actual click position
-                self.click_pos_3d = server_ctx.geo_hit_pos;
+                // For 3D dragging, use the average position of selected sector vertices
+                if self.click_selected && !map.selected_sectors.is_empty() {
+                    let mut sum_pos = Vec3::zero();
+                    let mut count = 0;
+                    for sector_id in &map.selected_sectors {
+                        if let Some(sector) = map.find_sector(*sector_id) {
+                            for line_id in &sector.linedefs {
+                                if let Some(line) = map.find_linedef(*line_id) {
+                                    if let Some(v1) = map.find_vertex(line.start_vertex) {
+                                        sum_pos += v1.as_vec3_world();
+                                        count += 1;
+                                    }
+                                    if let Some(v2) = map.find_vertex(line.end_vertex) {
+                                        sum_pos += v2.as_vec3_world();
+                                        count += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if count > 0 {
+                        self.click_pos_3d = sum_pos / count as f32;
+                    } else {
+                        self.click_pos_3d = server_ctx.geo_hit_pos;
+                    }
+
+                    // Compute initial ray intersection on the drag plane at click time
+                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                            let dim = *render_view.dim();
+                            let screen_uv = [
+                                coord.x as f32 / dim.width as f32,
+                                coord.y as f32 / dim.height as f32,
+                            ];
+
+                            let rusterix = RUSTERIX.read().unwrap();
+                            let ray = rusterix.client.camera_d3.create_ray(
+                                Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                Vec2::zero(),
+                            );
+                            drop(rusterix);
+
+                            let plane = server_ctx.gizmo_mode;
+                            let plane_normal = match plane {
+                                GizmoMode::XZ => Vec3::new(0.0, 1.0, 0.0),
+                                GizmoMode::XY => Vec3::new(0.0, 0.0, 1.0),
+                                GizmoMode::YZ => Vec3::new(1.0, 0.0, 0.0),
+                            };
+
+                            let denom: f32 = plane_normal.dot(ray.dir);
+                            if denom.abs() > 0.0001 {
+                                let t = (self.click_pos_3d - ray.origin).dot(plane_normal) / denom;
+                                if t >= 0.0 {
+                                    self.click_ray_intersection_3d = Some(ray.origin + ray.dir * t);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    self.click_pos_3d = server_ctx.geo_hit_pos;
+                }
 
                 self.rectangle_undo_map = map.clone();
                 self.vertices_duplicated = false;
@@ -326,6 +390,25 @@ impl Tool for SectorTool {
                             }
                         } else {
                             // 3D dragging
+                            // Only start dragging after a minimum distance threshold
+                            let drag_distance = self
+                                .click_pos
+                                .distance(Vec2::new(coord.x as f32, coord.y as f32));
+                            if drag_distance < 5.0 {
+                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                return None;
+                            }
+
+                            // Use the initial ray intersection as reference (not vertex average)
+                            // This prevents the "jump" when starting to drag
+                            let click_intersection = match self.click_ray_intersection_3d {
+                                Some(pos) => pos,
+                                None => {
+                                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                    return None;
+                                }
+                            };
+
                             let start_pos = self.click_pos_3d;
                             let plane = server_ctx.gizmo_mode;
 
@@ -348,28 +431,29 @@ impl Tool for SectorTool {
                                 GizmoMode::YZ => Vec3::new(1.0, 0.0, 0.0),
                             };
 
-                            let denom = plane_normal.dot(ray.dir);
+                            let denom: f32 = plane_normal.dot(ray.dir);
                             if denom.abs() > 0.0001 {
                                 let t = (start_pos - ray.origin).dot(plane_normal) / denom;
 
                                 if t >= 0.0 {
                                     let current_pos = ray.origin + ray.dir * t;
 
-                                    // Calculate drag delta based on the gizmo plane mode
+                                    // Calculate drag delta relative to initial click intersection
+                                    // (not the vertex average position)
                                     let drag_delta = match plane {
                                         GizmoMode::XZ => {
                                             // XZ plane: allow movement in X and Z, lock Y
                                             Vec3::new(
-                                                current_pos.x - start_pos.x,
+                                                current_pos.x - click_intersection.x,
                                                 0.0,
-                                                current_pos.z - start_pos.z,
+                                                current_pos.z - click_intersection.z,
                                             )
                                         }
                                         GizmoMode::XY => {
                                             // XY plane: allow movement in X and Y, lock Z
                                             Vec3::new(
-                                                current_pos.x - start_pos.x,
-                                                current_pos.y - start_pos.y,
+                                                current_pos.x - click_intersection.x,
+                                                current_pos.y - click_intersection.y,
                                                 0.0,
                                             )
                                         }
@@ -377,8 +461,8 @@ impl Tool for SectorTool {
                                             // YZ plane: allow movement in Y and Z, lock X
                                             Vec3::new(
                                                 0.0,
-                                                current_pos.y - start_pos.y,
-                                                current_pos.z - start_pos.z,
+                                                current_pos.y - click_intersection.y,
+                                                current_pos.z - click_intersection.z,
                                             )
                                         }
                                     };
@@ -584,7 +668,7 @@ impl Tool for SectorTool {
                             bottom_right,
                             GeoId::Linedef(0),
                             true,
-                            false
+                            false,
                         );
                         for l in linedefs {
                             if let GeoId::Linedef(l) = l {
