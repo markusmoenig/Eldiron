@@ -13,6 +13,7 @@ pub enum HudMode {
     Effects,
     Rect,
     Terrain,
+    Entity,
 }
 
 pub struct Hud {

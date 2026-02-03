@@ -1384,7 +1384,7 @@ impl TheTrait for Editor {
                                     map,
                                     map.subdivisions,
                                 );
-                                grid_pos += map.subdivisions * 0.5;
+                                grid_pos += 0.5;
                             }
                         }
 

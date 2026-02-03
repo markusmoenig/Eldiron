@@ -1,13 +1,16 @@
+use crate::hud::{Hud, HudMode};
 use crate::{
     editor::{RUSTERIX, UNDOMANAGER},
     prelude::*,
 };
 use MapEvent::*;
 use rusterix::EntityAction;
+use rusterix::prelude::*;
 use theframework::prelude::*;
 
 pub struct EntityTool {
     id: TheId,
+    hud: Hud,
 
     drag_state: Option<DragState>,
 }
@@ -32,6 +35,7 @@ impl Tool for EntityTool {
     {
         Self {
             id: TheId::named("Entity Tool"),
+            hud: Hud::new(HudMode::Entity),
 
             drag_state: None,
         }
@@ -83,6 +87,11 @@ impl Tool for EntityTool {
     ) -> Option<ProjectUndoAtom> {
         match map_event {
             MapClicked(coord) => {
+                if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    return None;
+                }
+
                 if self.handle_game_click(coord, map) {
                     return None;
                 }
@@ -150,7 +159,7 @@ impl Tool for EntityTool {
                             map,
                             map.subdivisions,
                         );
-                        drag_pos += map.subdivisions * 0.5;
+                        drag_pos += 0.5;
 
                         match state.target {
                             DragTarget::Entity(id) => {
@@ -208,11 +217,39 @@ impl Tool for EntityTool {
                             .send(TheEvent::SetStatusText(TheId::empty(), "".into()));
                     }
                 }
+
+                if let Some(render_view) = ui.get_render_view("PolyView") {
+                    let dim = *render_view.dim();
+                    server_ctx.hover = (None, None, None);
+                    let cp = server_ctx.local_to_map_cell(
+                        Vec2::new(dim.width as f32, dim.height as f32),
+                        Vec2::new(coord.x as f32, coord.y as f32),
+                        map,
+                        map.subdivisions,
+                    );
+                    server_ctx.hover_cursor = Some(cp);
+                }
             }
             _ => {}
         }
 
         None
+    }
+
+    fn draw_hud(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        map: &mut Map,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        assets: &Assets,
+    ) {
+        let id = if !map.selected_linedefs.is_empty() {
+            Some(map.selected_linedefs[0])
+        } else {
+            None
+        };
+        self.hud.draw(buffer, map, ctx, server_ctx, id, assets);
     }
 
     fn handle_event(
