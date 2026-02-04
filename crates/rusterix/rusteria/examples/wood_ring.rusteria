@@ -1,0 +1,45 @@
+
+// Tileable wood ring
+
+fn pdelta(a, c) { fract(a - c + 0.5) - 0.5; }  // [-0.5, 0.5)
+
+// Wood (tileable)
+fn shade() {
+    let t = time * 0.1;
+
+    // base uv in [0,1), ensure wrapped
+    let uv0 = fract(uv);
+
+    // torus-distance radius around center
+    let cx = 0.5; let cy = 0.5;
+    let dx = pdelta(uv0.x, cx);
+    let dy = pdelta(uv0.y, cy);
+    let r  = length(vec2(dx, dy));
+
+    // small, tileable turbulence (wrap inputs + integer scales)
+    let w1 = sample(fract(uv0 * 2.0 + vec2(t, 0.0)), "fbm_perlin"); // tiles (×2)
+    let w2 = sample(fract(uv0 * 4.0 + vec2(0.0, t)), "fbm_perlin"); // tiles (×4)
+    let turb = (0.6 * w1 + 0.4 * w2) - 0.5;  // zero-mean
+
+    // ring phase; keep warp small to avoid marble look
+    let ring_freq = 14.0;      // try integers
+    let ring_warp = 0.05;      // small
+    let phase = r + ring_warp * turb;
+
+    // thin rings
+    let waves = sin(phase * ring_freq * 6.2831853); // use 2π if you like continuous control
+    let rings_mask = pow(1.0 - abs(waves), 6.0);
+
+    // fine longitudinal grain (also tiled)
+    let grain_uv = fract(vec2(uv0.x * 8.0, uv0.y * 64.0)); // integer scales
+    let g = sample(grain_uv + vec2(0.0, fract(t)), "value");
+    let grain = (g - 0.5) * 2.0;
+
+    // colors
+    let base_light = vec3(0.72, 0.52, 0.32);
+    let base_dark  = vec3(0.45, 0.30, 0.16);
+    color = mix(base_light, base_dark, rings_mask);
+    color *= (1.0 + 0.05 * grain);
+
+    roughness = 0.6;
+}

@@ -1,0 +1,25 @@
+[package]
+name = "rusteria"
+version = "0.1.0"
+edition = "2024"
+description = "Rusteria is a fast shader like programming language."
+license = "Apache-2.0 AND MIT"
+repository = "https://github.com/markusmoenig/Rusterix"
+keywords = ["software", "rendering", "graphics", "game", "3d", "doom", "engine"]
+
+[dependencies]
+theframework.workspace = true
+
+rustc-hash = "2.1.1"
+indexmap = "2.10.0"
+rayon = "1.11.0"
+vek = { version = "0.17.1", default-features = true }
+image = { version = "0.25", features = ["png"] }
+once_cell = "1.21.3"
+rust-embed = { version = "8", default-features = true, features = [
+    "include-exclude",
+] }
+strum = { version = "0.27", features = ["derive"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3", features = ['Window'] }

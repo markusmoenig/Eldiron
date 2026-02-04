@@ -1,0 +1,327 @@
+
+// Value noise, based on https://www.shadertoy.com/view/4dS3Wd
+// By Morgan McGuire @morgan3d, http://graphicscodex.com
+// Reuse permitted under the BSD license.
+
+fn value_hash(p, scale) {
+    p = mod(p, scale);
+    let p3 = fract(p.xyx * 0.13); 
+    p3 += dot(p3, p3.yzx + 3.333); 
+    return fract((p3.x + p3.y) * p3.z); 
+}
+
+fn value_noise(x, scale) {
+    x *= scale;
+
+    let i = floor(x);
+    let f = fract(x);
+
+	let a = value_hash(i, scale);
+    let b = value_hash(i + vec2(1.0, 0.0), scale);
+    let c = value_hash(i + vec2(0.0, 1.0), scale);
+    let d = value_hash(i + vec2(1.0, 1.0), scale);
+
+    let u = f * f * (3.0 - 2.0 * f);
+	return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+}
+
+fn fbm_value(x, scale) {
+	let v = 0.0;
+	let a = 0.5;
+	let shift = vec2(100);
+	for (let i = 0; i < 5; i += 1) {
+		v += a * value_noise(x, scale);
+        x = rotate2d(x, 0.5) * 2.0 + shift;
+		a *= 0.5;
+	}
+	return v;
+}
+
+fn make_value_noise() {
+    color = value_noise(uv, 20);
+}
+
+fn make_fbm_value_noise() {
+    color = fbm_value(uv, 20);
+}
+
+let tex = alloc(512, 512);
+iterate(tex, "make_value_noise");
+save(tex, "rusteria/embedded/value.png");
+
+iterate(tex, "make_fbm_value_noise");
+save(tex, "rusteria/embedded/fbm_value.png");
+
+/*
+// Simplex noise, based on https://www.shadertoy.com/view/Msf3WH
+// The MIT License
+// Copyright © 2013 Inigo Quilez
+
+fn simplex_hash( p, scale )
+{
+    //p = mod(p, scale);
+	p = vec2( dot2(p,vec2(127.1,311.7)), dot2(p,vec2(269.5,183.3)) );
+    let t = -1.0 + 2.0*fract(sin2(p)*43758.5453123);
+    return vec3(t.x, t.y, 0.0);
+}
+
+fn simplex_noise( p, scale )
+{
+    //p *= scale;
+
+    let K1 = 0.366025404; // (sqrt(3)-1)/2;
+    let K2 = 0.211324865; // (3-sqrt(3))/6;
+
+	let  i = floor( p + (p.x+p.y)*K1 );
+    let  a = p - i + (i.x+i.y)*K2;
+    let m = step(a.y,a.x); 
+    let  o = vec2(m,1.0-m);
+    let  b = a - o + K2;
+	let  c = a - 1.0 + 2.0*K2;
+    let  h = max( 0.5-vec3(dot2(a,a), dot2(b,b), dot2(c,c) ), 0.0 );
+	let  n = h*h*h*h*vec3( dot2(a,simplex_hash(i+0.0, scale)), dot2(b,simplex_hash(i+o, scale)), dot2(c,simplex_hash(i+1.0, scale)));
+    return 0.5 + dot( n, vec3(70.0) ) * 0.5;
+}
+
+fn make_simplex_noise() {
+    color = simplex_noise(uv * 10.0, 1.0);
+}
+
+iterate(tex, "make_simplex_noise");
+save(tex, "rusteria/embedded/simplex.png");
+*/
+
+// True 2D Perlin gradient noise
+
+// Gradient hash: pick one of 8 unit vectors based on lattice index
+fn grad2(i) {
+    // Hash into [0,8)
+    let h = floor(fract(sin2(dot2(i, vec2(127.1, 311.7))) * 43758.5453) * 8.0);
+
+    // Branch by range, since h is float
+    if (h < 1.0) { return vec3( 1.0,  0.0, 0.0); }
+    if (h < 2.0) { return vec3(-1.0,  0.0, 0.0); }
+    if (h < 3.0) { return vec3( 0.0,  1.0, 0.0); }
+    if (h < 4.0) { return vec3( 0.0, -1.0, 0.0); }
+    if (h < 5.0) { return vec3( 0.707,  0.707, 0.0); }
+    if (h < 6.0) { return vec3(-0.707,  0.707, 0.0); }
+    if (h < 7.0) { return vec3( 0.707, -0.707, 0.0); }
+    return vec3(-0.707, -0.707, 0.0);
+}
+
+// Fade curve (Perlin's improved smoothstep)
+fn fade(t) {
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
+
+fn perlin_noise(p, period) {
+    p *= period;
+
+    let i = floor(p);
+    let f = fract(p);
+
+    // wrap lattice indices to [0, period)
+    let iw   = mod(i, period);
+    let iw10 = mod(i + vec2(1.0, 0.0), period);
+    let iw01 = mod(i + vec2(0.0, 1.0), period);
+    let iw11 = mod(i + vec2(1.0, 1.0), period);
+
+    // Gradient vectors at four wrapped corners
+    let g00 = grad2(iw);
+    let g10 = grad2(iw10);
+    let g01 = grad2(iw01);
+    let g11 = grad2(iw11);
+
+    // Offsets from *unwrapped* corners (to preserve local geometry)
+    let d00 = vec2(f.x,   f.y);
+    let d10 = vec2(f.x-1, f.y);
+    let d01 = vec2(f.x,   f.y-1);
+    let d11 = vec2(f.x-1, f.y-1);
+
+    // Dot products
+    let v00 = dot2(d00, g00);
+    let v10 = dot2(d10, g10);
+    let v01 = dot2(d01, g01);
+    let v11 = dot2(d11, g11);
+
+    // Fade
+    let u = fade(f);
+
+    // Interpolation
+    let nx0 = mix(v00, v10, u.x);
+    let nx1 = mix(v01, v11, u.x);
+    let nxy = mix(nx0, nx1, u.y);
+
+    return 0.5 * vec3(nxy + 1.0);
+}
+
+fn perlin_fbm(p, scale) {
+    let v = 0.0;
+    let a = 0.5;
+    for (let i = 0; i < 5; i += 1) {
+        v += a * perlin_noise(p, scale);
+        p = p * 2.0 + vec2(100.0);
+        a *= 0.5;
+    }
+    return vec3(v);
+}
+
+fn make_perlin_noise() {
+    color = perlin_noise(uv, 10.0);
+}
+
+fn make_perlin_fbm() {
+    color = perlin_fbm(uv, 10.0);
+}
+
+iterate(tex, "make_perlin_noise");
+save(tex, "rusteria/embedded/perlin.png");
+
+iterate(tex, "make_perlin_fbm");
+save(tex, "rusteria/embedded/fbm_perlin.png");
+
+// Bricks
+
+fn hash21(p)
+{
+	let p3 = fract(p * vec3(.1031, .1030, .0973));
+	p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.xx+p3.yz)*p3.zy);
+}
+
+fn make_bricks() {
+    let ratio = 3.0;
+    let cell = 18.0;
+    let gap  = 0.05;
+    let bevel = 0.0;
+    let cycle = vec2( round(cell / ratio), cell);
+
+    let u = uv;
+
+    let w = vec2(ratio, 1.0);
+    u *= cell / w;
+
+    u.x += 0.5 * (floor(u.y) % 2.0);
+
+    let p = u % cycle;
+    p = floor(p);
+    p.z = 0.0;
+    let id = hash21(p);
+
+    let s = w* (fract(u) - 1./2.); 
+
+    let a = w/2. - gap - abs(s);
+    let b  = a * 2. / bevel;
+    let m = min(b.x,b.y); 
+
+    let mask = clamp( m ,0.,1.); 
+
+    color = vec2(mask.x, id.x);
+}
+
+iterate(tex, "make_bricks");
+save(tex, "rusteria/embedded/bricks.png");
+
+// Tiles
+
+fn make_tiles() {
+    let ratio = 1.0;
+    let cell = 18.0;
+    let gap  = 0.01;
+    let bevel = 0.1;
+    let cycle = vec2( ceil(cell / ratio), cell);
+
+    let u = uv;
+
+    let w = vec2(ratio, 1.0);
+    u *= cell / w;
+
+    //u.x += 0.5 * (floor(u.y) % 2.0);
+
+    let p = mod(u, cycle);
+    p = floor(p);
+    p.z = 0.0;
+    let id = hash21(p);
+
+    let s = w* (fract(u) - 1./2.); 
+
+    let a = w/2. - gap - abs(s);
+    let b  = a * 2. / bevel;
+    let m = min(b.x,b.y); 
+
+    let mask = clamp( m ,0.,1.); 
+
+    color = vec2(mask.x, id.x);
+}
+
+iterate(tex, "make_tiles");
+save(tex, "rusteria/embedded/tiles.png");
+
+// Shanes subdivided blocks
+
+fn s_box(p, b, rf) {
+    let q = abs(p) - b + rf;
+    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - rf;
+}
+
+fn make_blocks() {
+
+    let gap = 0.1;
+    let rotation = 2;
+    let rounding = 0.04;
+
+    let p = uv;
+    let ip = floor(uv);
+    p -= ip;
+
+    let last_l = 0.0;
+    let l = vec2(1.0, 1.0);
+    let r = hash21(ip);
+
+    for (let i = 0; i < 6; i += 1) {
+        r = fract(dot(l + r, vec2(123.71, 439.43))) * 0.4 + (1.0 - 0.4) / 2.0;
+
+        last_l = l;
+        if l.x > l.y {
+            p = vec2(p.y, p.x);
+            l = vec2(l.y, l.x);
+        }
+
+        if p.x < r {
+            l.x /= r;
+            p.x /= r;
+        } else {
+            l.x /= 1.0 - r;
+            p.x = (p.x - r) / (1.0 - r);
+        }
+
+        if last_l.x > last_l.y {
+            p = vec2(p.y, p.x);
+            l = vec2(l.y, l.x);
+        }
+    }
+    p -= 0.5;
+
+    // Create the id
+    let id = hash21(ip + l);
+
+    // Slightly rotate the tile based on its id
+    p = rotate2d(p, (id - 0.5) * rotation);
+
+    // Gap, or mortar, width. Using "l" to keep it roughly constant.
+    let th = l * 0.02 * gap;
+
+    // Take the subdivided space and turn them into rounded pavers.
+    let c = s_box(p, 0.5 - th, rounding);
+
+    let c01 = clamp(0.5 - c / (2.0 * 0.5), 0.0, 1.0);
+
+    let mask = 1.0;
+    if c > 0.0 {
+        mask = 0.0;
+    }
+    color = vec3(mask.x, id.x, c01.x);
+}
+
+iterate(tex, "make_blocks");
+save(tex, "rusteria/embedded/blocks.png");

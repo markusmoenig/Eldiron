@@ -24,29 +24,46 @@ For a more detailed feature overview please visit [Eldiron.com](https://eldiron.
 
 ## Source Code
 
-Eldiron is built on three core crates that I have developed over the last years. Each focuses on a specific aspect of the engine and editor, and together they form the foundation of the Eldiron ecosystem.
+Eldiron is built on three embedded crates that I have developed over the last years. Each focuses on a specific aspect of the engine and editor, and together they form the foundation of the Eldiron ecosystem.
 
-- [TheFramework](https://github.com/markusmoenig/TheFramework)
+- **TheFramework**
   Handles cross-platform window creation, user event abstraction, and the custom UI system used by *Eldiron Creator*.
 
-- [Rusterix](https://github.com/markusmoenig/Rusterix)
+- **Rusterix**
   Started as a software rasterizer for 2D and 3D geometry, but has since evolved into the core game engine. While *SceneVM* now handles most rendering tasks, the software rasterization aspect of Rusterix is still used for example in in-game UI elements.
 
-- [SceneVM](https://github.com/markusmoenig/SceneVM)
+- **SceneVM**
   An abstracted, layer-based renderer for 2D and 3D built on top of [wGPU](https://wgpu.rs). Each layer can define its own geometry and compute shaders, making SceneVM the main rendering backbone of Eldiron.
-
-These crates are currently only lightly documented, as the main focus is on reaching a solid v1 release of Eldiron. Documentation will improve as the project matures. I hope to make each of the three crates viable for stand-alone usage.
 
 Over the past five years, Eldiron has gone through several major iterations. As a result, some parts of the code are in the process of being consolidated or phased out as the project moves toward a cleaner v1 architecture.
 
 ---
 
-## Building Eldiron Creator Locally
+## Installation
 
-If you have [Rust installed](https://www.rust-lang.org/tools/install), you can build Eldiron Creator simply via
-`cargo run --release --package creator`
+### Pre-built Binaries
 
-Linux:
+Download the latest release for your platform from the [GitHub Releases](https://github.com/markusmoenig/Eldiron/releases) page.
+
+### Install via Cargo
+
+If you have [Rust installed](https://www.rust-lang.org/tools/install), you can install Eldiron Creator directly from the repository:
+
+```bash
+cargo install --git https://github.com/markusmoenig/Eldiron --bin eldiron-creator
+```
+
+### Building from Source
+
+Clone the repository and build:
+
+```bash
+git clone https://github.com/markusmoenig/Eldiron
+cd Eldiron
+cargo run --release --package creator
+```
+
+### Linux Dependencies
 
 Make sure these dependencies are installed: `libasound2-dev` `libatk1.0-dev` `libgtk-3-dev`
 

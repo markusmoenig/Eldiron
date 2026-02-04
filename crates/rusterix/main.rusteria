@@ -1,0 +1,73 @@
+
+fn hash21(p)
+{
+	let p3 = fract(p * vec3(.1031, .1030, .0973));
+	p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.xx+p3.yz)*p3.zy);
+}
+
+fn s_box(p, b, rf) {
+    let q = abs(p) - b + rf;
+    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - rf;
+}
+
+fn shade() {
+
+    let gap = 0.1;
+    let rotation = 2;
+    let rounding = 0.04;
+
+    uv = uv % 1;
+
+    let p = uv;
+    let ip = floor(uv);
+    p -= ip;
+
+    let last_l = 0.0;
+    let l = vec2(1.0, 1.0);
+    let r = hash21(ip);
+
+    for (let i = 0; i < 6; i += 1) {
+        r = fract(dot(l + r, vec2(123.71, 439.43))) * 0.4 + (1.0 - 0.4) / 2.0;
+
+        last_l = l;
+        if l.x > l.y {
+            p = vec2(p.y, p.x);
+            l = vec2(l.y, l.x);
+        }
+
+        if p.x < r {
+            l.x /= r;
+            p.x /= r;
+        } else {
+            l.x /= 1.0 - r;
+            p.x = (p.x - r) / (1.0 - r);
+        }
+
+        if last_l.x > last_l.y {
+            p = vec2(p.y, p.x);
+            l = vec2(l.y, l.x);
+        }
+    }
+    p -= 0.5;
+
+    // Create the id
+    let id = hash21(ip + l);
+
+    // Slightly rotate the tile based on its id
+    p = rotate2d(p, (id - 0.5) * rotation);
+
+    // Gap, or mortar, width. Using "l" to keep it roughly constant.
+    let th = l * 0.02 * gap;
+
+    // Take the subdivided space and turn them into rounded pavers.
+    let c = s_box(p, 0.5 - th, rounding);
+
+    let c01 = clamp(0.5 - c / (2.0 * 0.5), 0.0, 1.0);
+
+    let mask = 1.0;
+    if c > 0.0 {
+        mask = 0.0;
+    }
+    color = vec3(mask.x, id.x, c01.x);
+}

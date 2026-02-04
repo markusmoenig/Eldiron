@@ -1,0 +1,62 @@
+[package]
+name = "rusterix"
+version = "0.2.8"
+edition = "2024"
+description = "Rusterix is a fast software renderer and game engine."
+license = "Apache-2.0 AND MIT"
+repository = "https://github.com/markusmoenig/Rusterix"
+keywords = ["software", "rendering", "graphics", "game", "engine"]
+
+[dependencies]
+theframework.workspace = true
+scenevm.workspace = true
+rusteria.workspace = true
+codegridfx.workspace = true
+
+fontdue = "0.9.3"
+rayon = "1.10"
+vek = { version = "0.17.1", default-features = true }
+earcutr = "0.5"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+image = "0.25.5"
+walkdir = "2.5.0"
+crossbeam-channel = "0.5.14"
+bincode = "1.3.3"
+rand = "0.9"
+pathfinding = "4.13.1"
+ordered-float = "5.0"
+toml = "0.9.5"
+rust-embed = { version = "8.5", default-features = true, features = [
+    "include-exclude",
+] }
+indexmap = "2.7.1"
+regex = "1.11.1"
+instant = { version = "0.1", features = ["wasm-bindgen"] }
+bvh = "0.11"
+nalgebra = "0.33.2"
+vectorize = "0.2.0"
+noiselib = "0.2.4"
+fast-srgb8 = "1.0.0"
+crossbeam = "0.8.4"
+rustc-hash = "2.1.1"
+
+[dependencies.uuid]
+version = "1.1.2"
+features = [
+    "v4",
+    "fast-rng",
+    "macro-diagnostics",
+    "serde",
+    "js",
+]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ['Window'] }
+console_error_panic_hook = "0.1"
+instant = { version = "0.1", features = ["wasm-bindgen"] }
+
+[features]
+single_thread = []
+default = []

@@ -1,0 +1,12 @@
+[package]
+name = "circle"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+theframework = { path = "../.." }
+lazy_static = "1.4.0"
+
+# [lib]
+# name = "rustapi"
+# crate-type = ["staticlib"]

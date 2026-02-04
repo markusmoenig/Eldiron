@@ -524,7 +524,7 @@ dependencies = [
 
 [[package]]
 name = "client"
-version = "0.8.90"
+version = "0.8.100"
 dependencies = [
  "console_error_panic_hook",
  "fontdue",
@@ -742,7 +742,7 @@ dependencies = [
 
 [[package]]
 name = "creator"
-version = "0.8.90"
+version = "0.8.100"
 dependencies = [
  "arboard",
  "codegridfx",
@@ -844,9 +844,9 @@ dependencies = [
 
 [[package]]
 name = "ctor-lite"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f791803201ab277ace03903de1594460708d2d54df6053f2d9e82f592b19e3b"
+checksum = "b29fccfdaeb0f9bd90da5759b1d0eaa2f6cfcfe90960124cfc83141ed4e111fd"
 
 [[package]]
 name = "cursor-icon"
@@ -4072,6 +4072,7 @@ name = "scenevm"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "fontdue",
  "getrandom 0.3.4",
  "image",
  "pollster",
@@ -4087,6 +4088,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "wgpu",
+ "winit",
 ]
 
 [[package]]
@@ -4278,7 +4280,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.8.90"
+version = "0.8.100"
 dependencies = [
  "codegridfx",
  "earcutr",

@@ -1,28 +1,21 @@
 [workspace]
 
-members = ["creator", "run-wasm", "shared", "clients/client"]
+members = ["creator", "run-wasm", "shared", "clients/client", "crates/rusterix", "crates/rusterix/rusteria", "crates/rusterix/codegridfx/lib", "crates/theframework", "crates/scenevm"]
 resolver = "2"
 
 [workspace.dependencies]
-theframework = { version = "0.1.40", git = "https://github.com/markusmoenig/TheFramework", features = [
+theframework = { path = "crates/theframework", features = [
     "ui",
 ], default-features = true }
-rusterix = { version = "0.2.8", git = "https://github.com/markusmoenig/Rusterix" }
-codegridfx = { git = "https://github.com/markusmoenig/Rusterix", package = "codegridfx" }
-rusteria = { git = "https://github.com/markusmoenig/Rusterix", package = "rusteria" }
-scenevm = { version = "0.1", git = "https://github.com/markusmoenig/SceneVM", default-features = false  }
 
-# theframework = { path = "../TheFramework", features = [
-#     "ui",
-# ], default-features = false }
-# rusterix = { path = "../Rusterix" }
-# codegridfx = { path = "../Rusterix/codegridfx/lib", package = "codegridfx" }
-# rusteria = { path = "../Rusterix/rusteria", package = "rusteria" }
-# scenevm = { path = "../SceneVM", default-features = false }
+rusterix = { path = "crates/rusterix" }
+codegridfx = { path = "crates/rusterix/codegridfx/lib", package = "codegridfx" }
+rusteria = { path = "crates/rusterix/rusteria", package = "rusteria" }
+scenevm = { path = "crates/scenevm", default-features = false }
 
 [workspace.package]
 edition = "2024"
-version = "0.8.90"
+version = "0.8.100"
 license = "MIT"
 authors = ["Markus Moenig"]
 description = "A game creator for classical RPGs."

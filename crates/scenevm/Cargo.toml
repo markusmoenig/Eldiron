@@ -1,0 +1,57 @@
+[package]
+name = "scenevm"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wgpu = "27.0.1"
+pollster = "0.4"
+uuid = { version = "1.18.1", features = ["v4", "rng-getrandom"] }
+rustc-hash = "2.1.1"
+vek = { version = "0.17.1", default-features = true }
+bytemuck = "1.24.0"
+image = { version = "0.25.8", default-features = false, features = [
+    "png",
+    "jpeg",
+    "gif",
+    "bmp",
+    "tga",
+] }
+rust-embed = { version = "8.5", default-features = true, features = [
+    "include-exclude",
+] }
+rayon = { version = "1.10" }
+fontdue = { version = "0.9.3", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+winit = { version = "0.30", optional = true }
+
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "ios")))'.dependencies]
+rfd = "0.17.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4"
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = [
+    'Window',
+    'Document',
+    'HtmlCanvasElement',
+    'CanvasRenderingContext2d',
+    'ImageData',
+    'PointerEvent',
+    'console',
+    'DomRect',
+    'Element',
+] }
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
+[features]
+ui = ["fontdue"]
+windowing = ["winit"]
+
+default = ["windowing"]
+
+[lib]
+crate-type = ["rlib", "staticlib"]

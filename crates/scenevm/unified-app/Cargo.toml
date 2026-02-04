@@ -1,0 +1,27 @@
+[package]
+name = "unified-app"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["ui"]
+ui = ["scenevm/ui"]
+
+[dependencies]
+scenevm = { path = ".." }
+uuid = { version = "1.18.1", features = ["v4", "js"] }
+vek = "0.17"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Document",
+    "HtmlCanvasElement",
+    "CanvasRenderingContext2d",
+    "ImageData",
+] }
+js-sys = "0.3"

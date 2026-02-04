@@ -1,0 +1,13 @@
+[package]
+name = "cornell"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+scenevm = { path = ".." }
+theframework.workspace = true
+vek = { version = "0.17.1", default-features = true }
+uuid = { version = "1.18.1", features = ["v4"] }
+rust-embed = { version = "8.5", default-features = true, features = [
+    "include-exclude",
+] }

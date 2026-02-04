@@ -1,0 +1,84 @@
+# Render settings example with daylight simulation support
+
+[render]
+# Static sky color (used when simulation is disabled)
+sky_color = "#87CEEB"
+
+# Static sun color (used when simulation is disabled)
+sun_color = "#FFFACD"
+
+# Sun intensity/brightness multiplier
+sun_intensity = 1.0
+
+# Static sun direction as [x, y, z] (used when simulation is disabled)
+sun_direction = [-0.5, -1.0, -0.3]
+
+# Enable/disable sun lighting
+sun_enabled = true
+
+# Ambient light color
+ambient_color = "#CCCCCC"
+
+# Ambient light strength (0.0 - 1.0)
+ambient_strength = 0.3
+
+# Fog color
+fog_color = "#808080"
+
+# Fog density (0.0 = no fog, higher values = denser fog)
+fog_density = 0.0
+
+# AO samples (number of rays, 0.0 = disable AO, default: 8)
+ao_samples = 8.0
+
+# AO radius (0.0 = disable AO, default: 0.5)
+ao_radius = 0.5
+
+# Bump strength (0.0 = disable bump mapping, default: 1.0)
+bump_strength = 1.0
+
+# Max transparency bounces (0.0 = no transparency, default: 8)
+max_transparency_bounces = 8.0
+
+# Max shadow distance (0.0 = no distance limit, default: 10.0)
+max_shadow_distance = 10.0
+
+# Max sky distance (0.0 = no sky visibility check, default: 50.0)
+max_sky_distance = 50.0
+
+# Max shadow steps for transparent shadows (0.0 = no transparent shadows, default: 2)
+max_shadow_steps = 2.0
+
+[simulation]
+# Enable procedural daylight simulation (overrides static sky_color, sun_color, sun_direction)
+enabled = true
+
+# Sky color at night (dark)
+night_sky_color = "#050510"
+
+# Sky color at sunrise/sunset (morning)
+morning_sky_color = "#FF9966"
+
+# Sky color at midday
+midday_sky_color = "#87CEEB"
+
+# Sky color in the evening
+evening_sky_color = "#FF8040"
+
+# Sun/moon color at night (very dim)
+night_sun_color = "#1A1A26"
+
+# Sun color at sunrise/sunset (morning)
+morning_sun_color = "#FFCC99"
+
+# Sun color at midday
+midday_sun_color = "#FFFFF2"
+
+# Sun color in the evening
+evening_sun_color = "#FFB380"
+
+# Sunrise time in 24-hour format (e.g., 6.5 = 6:30 AM)
+sunrise_time = 6.0
+
+# Sunset time in 24-hour format (e.g., 18.5 = 6:30 PM)
+sunset_time = 18.0

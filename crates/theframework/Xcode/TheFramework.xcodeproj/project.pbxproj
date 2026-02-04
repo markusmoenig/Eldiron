@@ -1,0 +1,845 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		DD219B89297672ED00E978F5 /* Keycodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD219B88297672ED00E978F5 /* Keycodes.swift */; };
+		DD219B8A297672ED00E978F5 /* Keycodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD219B88297672ED00E978F5 /* Keycodes.swift */; };
+		DD219B8B297672ED00E978F5 /* Keycodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD219B88297672ED00E978F5 /* Keycodes.swift */; };
+		DD28F9342978E5A80003766F /* librustapi_ios.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DD8662772978DC85003878C0 /* librustapi_ios.a */; };
+		DD28F9362978F1670003766F /* File.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD28F9352978F1670003766F /* File.swift */; };
+		DD28F9372978F1670003766F /* File.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD28F9352978F1670003766F /* File.swift */; };
+		DD28F9382978F1670003766F /* File.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD28F9352978F1670003766F /* File.swift */; };
+		DD5B036D290E834C003F7C12 /* RMKTView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B036C290E834C003F7C12 /* RMKTView.swift */; };
+		DD5B036F290E83E3003F7C12 /* Math.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B036E290E83E3003F7C12 /* Math.swift */; };
+		DD5B0370290E84B3003F7C12 /* RMKTView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B036C290E834C003F7C12 /* RMKTView.swift */; };
+		DD5B0371290E84B3003F7C12 /* RMKTView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B036C290E834C003F7C12 /* RMKTView.swift */; };
+		DD5B0372290E84B6003F7C12 /* Math.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B036E290E83E3003F7C12 /* Math.swift */; };
+		DD5B0373290E84B7003F7C12 /* Math.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B036E290E83E3003F7C12 /* Math.swift */; };
+		DD5B0375290E8A17003F7C12 /* Texture2D.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B0374290E8A17003F7C12 /* Texture2D.swift */; };
+		DD5B0376290E8A17003F7C12 /* Texture2D.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B0374290E8A17003F7C12 /* Texture2D.swift */; };
+		DD5B0377290E8A17003F7C12 /* Texture2D.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B0374290E8A17003F7C12 /* Texture2D.swift */; };
+		DD5B0379290E8F8D003F7C12 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B0378290E8F8D003F7C12 /* Utils.swift */; };
+		DD5B037A290E8F8D003F7C12 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B0378290E8F8D003F7C12 /* Utils.swift */; };
+		DD5B037B290E8F8D003F7C12 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B0378290E8F8D003F7C12 /* Utils.swift */; };
+		DD5B037D290E90B3003F7C12 /* MetalStates.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B037C290E90B3003F7C12 /* MetalStates.swift */; };
+		DD5B037E290E90B3003F7C12 /* MetalStates.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B037C290E90B3003F7C12 /* MetalStates.swift */; };
+		DD5B037F290E90B3003F7C12 /* MetalStates.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B037C290E90B3003F7C12 /* MetalStates.swift */; };
+		DD5FD10528FBD15B00853829 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD10428FBD15B00853829 /* AppDelegate.swift */; };
+		DD5FD10728FBD15B00853829 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD10628FBD15B00853829 /* GameViewController.swift */; };
+		DD5FD10A28FBD15B00853829 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD10828FBD15B00853829 /* Main.storyboard */; };
+		DD5FD10D28FBD15B00853829 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD10B28FBD15B00853829 /* LaunchScreen.storyboard */; };
+		DD5FD11528FBD15B00853829 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD11428FBD15B00853829 /* AppDelegate.swift */; };
+		DD5FD11728FBD15B00853829 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD11628FBD15B00853829 /* GameViewController.swift */; };
+		DD5FD11A28FBD15B00853829 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD11828FBD15B00853829 /* Main.storyboard */; };
+		DD5FD11D28FBD15B00853829 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD11B28FBD15B00853829 /* LaunchScreen.storyboard */; };
+		DD5FD12528FBD15C00853829 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD12428FBD15C00853829 /* AppDelegate.swift */; };
+		DD5FD12728FBD15C00853829 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD12628FBD15C00853829 /* GameViewController.swift */; };
+		DD5FD12A28FBD15C00853829 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD12828FBD15C00853829 /* Main.storyboard */; };
+		DD5FD12C28FBD15C00853829 /* Metal.metal in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD0F928FBD15A00853829 /* Metal.metal */; };
+		DD5FD12D28FBD15C00853829 /* Metal.metal in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD0F928FBD15A00853829 /* Metal.metal */; };
+		DD5FD12E28FBD15C00853829 /* Metal.metal in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD0F928FBD15A00853829 /* Metal.metal */; };
+		DD5FD12F28FBD15C00853829 /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD0FA28FBD15A00853829 /* Renderer.swift */; };
+		DD5FD13028FBD15C00853829 /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD0FA28FBD15A00853829 /* Renderer.swift */; };
+		DD5FD13128FBD15C00853829 /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD0FA28FBD15A00853829 /* Renderer.swift */; };
+		DD5FD13228FBD15C00853829 /* Metal.h in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD0FB28FBD15A00853829 /* Metal.h */; };
+		DD5FD13328FBD15C00853829 /* Metal.h in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD0FB28FBD15A00853829 /* Metal.h */; };
+		DD5FD13428FBD15C00853829 /* Metal.h in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD0FB28FBD15A00853829 /* Metal.h */; };
+		DD5FD13528FBD15C00853829 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD0FC28FBD15B00853829 /* Assets.xcassets */; };
+		DD5FD13628FBD15C00853829 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD0FC28FBD15B00853829 /* Assets.xcassets */; };
+		DD5FD13728FBD15C00853829 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD0FC28FBD15B00853829 /* Assets.xcassets */; };
+		DD86627B2978DE20003878C0 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD8662792978DE20003878C0 /* AudioToolbox.framework */; };
+		DD86627C2978DE20003878C0 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD86627A2978DE20003878C0 /* CoreAudio.framework */; };
+		DDB2401C2CF59DC000425D2F /* librustapi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DD219B7529741C3900E978F5 /* librustapi.a */; };
+		DDB2401E2CF5A0F900425D2F /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DDB2401D2CF5A0F900425D2F /* Carbon.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		DD219B7229741B3800E978F5 /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapi.a; path = ../../target/release/librustapi.a; sourceTree = "<group>"; };
+		DD219B7429741BF800E978F5 /* librustapi.d */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.dtrace; name = librustapi.d; path = ../../target/release/librustapi.d; sourceTree = "<group>"; };
+		DD219B7529741C3900E978F5 /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = librustapi.a; sourceTree = "<group>"; };
+		DD219B8429752AE300E978F5 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
+		DD219B8629752B1100E978F5 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
+		DD219B88297672ED00E978F5 /* Keycodes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keycodes.swift; sourceTree = "<group>"; };
+		DD28F9352978F1670003766F /* File.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = File.swift; sourceTree = "<group>"; };
+		DD2AC08A2978E0300037996A /* Eldiron iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Eldiron iOS.entitlements"; sourceTree = "<group>"; };
+		DD5B036C290E834C003F7C12 /* RMKTView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RMKTView.swift; sourceTree = "<group>"; };
+		DD5B036E290E83E3003F7C12 /* Math.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Math.swift; sourceTree = "<group>"; };
+		DD5B0374290E8A17003F7C12 /* Texture2D.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Texture2D.swift; sourceTree = "<group>"; };
+		DD5B0378290E8F8D003F7C12 /* Utils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
+		DD5B037C290E90B3003F7C12 /* MetalStates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalStates.swift; sourceTree = "<group>"; };
+		DD5B0381290F68D2003F7C12 /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapi.a; path = rustapi/libs_ios/librustapi.a; sourceTree = "<group>"; };
+		DD5FD0F928FBD15A00853829 /* Metal.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Metal.metal; sourceTree = "<group>"; };
+		DD5FD0FA28FBD15A00853829 /* Renderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Renderer.swift; sourceTree = "<group>"; };
+		DD5FD0FB28FBD15A00853829 /* Metal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Metal.h; sourceTree = "<group>"; };
+		DD5FD0FC28FBD15B00853829 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		DD5FD10128FBD15B00853829 /* TheFramework.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TheFramework.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DD5FD10428FBD15B00853829 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		DD5FD10628FBD15B00853829 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
+		DD5FD10928FBD15B00853829 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		DD5FD10C28FBD15B00853829 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		DD5FD11228FBD15B00853829 /* TheFramework.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TheFramework.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DD5FD11428FBD15B00853829 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		DD5FD11628FBD15B00853829 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
+		DD5FD11928FBD15B00853829 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		DD5FD11C28FBD15B00853829 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		DD5FD12228FBD15C00853829 /* TheFramework.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TheFramework.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DD5FD12428FBD15C00853829 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		DD5FD12628FBD15C00853829 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
+		DD5FD12928FBD15C00853829 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		DD5FD12B28FBD15C00853829 /* TheFramework_macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TheFramework_macOS.entitlements; sourceTree = "<group>"; };
+		DD8662772978DC85003878C0 /* librustapi_ios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = librustapi_ios.a; sourceTree = "<group>"; };
+		DD8662792978DE20003878C0 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.2.sdk/System/Library/Frameworks/AudioToolbox.framework; sourceTree = DEVELOPER_DIR; };
+		DD86627A2978DE20003878C0 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.2.sdk/System/Library/Frameworks/CoreAudio.framework; sourceTree = DEVELOPER_DIR; };
+		DD976A99290E62C2007131BA /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapi.a; path = "rust-api/target/release/librustapi.a"; sourceTree = "<group>"; };
+		DD976A9B290E65DA007131BA /* Bridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Bridge.h; sourceTree = "<group>"; };
+		DD976A9C290E6732007131BA /* librustapi.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = librustapi.dylib; path = "rust-api/target/release/librustapi.dylib"; sourceTree = "<group>"; };
+		DD976AA1290E67CC007131BA /* libs */ = {isa = PBXFileReference; lastKnownFileType = folder; name = libs; path = "rust-api/libs"; sourceTree = "<group>"; };
+		DD976AA2290E6802007131BA /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapi.a; path = "rust-api/libs/librustapi.a"; sourceTree = "<group>"; };
+		DD976AA3290E729C007131BA /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapi.a; path = rustapi/libs/librustapi.a; sourceTree = "<group>"; };
+		DDAB9557290F6A9800B79AB8 /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapi.a; path = rustapi/target/universal/release/librustapi.a; sourceTree = "<group>"; };
+		DDAB9559290F6AC900B79AB8 /* librustapiios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapiios.a; path = rustapi/libs_ios/librustapiios.a; sourceTree = "<group>"; };
+		DDAB955B290F6B6D00B79AB8 /* librustapiios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapiios.a; path = rustapi/libs/librustapiios.a; sourceTree = "<group>"; };
+		DDB2401D2CF5A0F900425D2F /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = System/Library/Frameworks/Carbon.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		DD5FD0FE28FBD15B00853829 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DD86627C2978DE20003878C0 /* CoreAudio.framework in Frameworks */,
+				DD86627B2978DE20003878C0 /* AudioToolbox.framework in Frameworks */,
+				DD28F9342978E5A80003766F /* librustapi_ios.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DD5FD10F28FBD15B00853829 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DD5FD11F28FBD15C00853829 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DDB2401C2CF59DC000425D2F /* librustapi.a in Frameworks */,
+				DDB2401E2CF5A0F900425D2F /* Carbon.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		DD5FD0F328FBD15A00853829 = {
+			isa = PBXGroup;
+			children = (
+				DD5FD0F828FBD15A00853829 /* TheFramework Shared */,
+				DD5FD10328FBD15B00853829 /* TheFramework iOS */,
+				DD5FD11328FBD15B00853829 /* TheFramework tvOS */,
+				DD5FD12328FBD15C00853829 /* TheFramework macOS */,
+				DD5FD10228FBD15B00853829 /* Products */,
+				DD976A98290E62C2007131BA /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		DD5FD0F828FBD15A00853829 /* TheFramework Shared */ = {
+			isa = PBXGroup;
+			children = (
+				DD5FD0FA28FBD15A00853829 /* Renderer.swift */,
+				DD5B037C290E90B3003F7C12 /* MetalStates.swift */,
+				DD976A9B290E65DA007131BA /* Bridge.h */,
+				DD5FD0F928FBD15A00853829 /* Metal.metal */,
+				DD5FD0FB28FBD15A00853829 /* Metal.h */,
+				DD5B036C290E834C003F7C12 /* RMKTView.swift */,
+				DD5B036E290E83E3003F7C12 /* Math.swift */,
+				DD5B0374290E8A17003F7C12 /* Texture2D.swift */,
+				DD5B0378290E8F8D003F7C12 /* Utils.swift */,
+				DD219B88297672ED00E978F5 /* Keycodes.swift */,
+				DD5FD0FC28FBD15B00853829 /* Assets.xcassets */,
+				DD28F9352978F1670003766F /* File.swift */,
+			);
+			path = "TheFramework Shared";
+			sourceTree = "<group>";
+		};
+		DD5FD10228FBD15B00853829 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				DD5FD10128FBD15B00853829 /* TheFramework.app */,
+				DD5FD11228FBD15B00853829 /* TheFramework.app */,
+				DD5FD12228FBD15C00853829 /* TheFramework.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		DD5FD10328FBD15B00853829 /* TheFramework iOS */ = {
+			isa = PBXGroup;
+			children = (
+				DD2AC08A2978E0300037996A /* Eldiron iOS.entitlements */,
+				DD5FD10428FBD15B00853829 /* AppDelegate.swift */,
+				DD5FD10628FBD15B00853829 /* GameViewController.swift */,
+				DD5FD10828FBD15B00853829 /* Main.storyboard */,
+				DD5FD10B28FBD15B00853829 /* LaunchScreen.storyboard */,
+			);
+			path = "TheFramework iOS";
+			sourceTree = "<group>";
+		};
+		DD5FD11328FBD15B00853829 /* TheFramework tvOS */ = {
+			isa = PBXGroup;
+			children = (
+				DD5FD11428FBD15B00853829 /* AppDelegate.swift */,
+				DD5FD11628FBD15B00853829 /* GameViewController.swift */,
+				DD5FD11828FBD15B00853829 /* Main.storyboard */,
+				DD5FD11B28FBD15B00853829 /* LaunchScreen.storyboard */,
+			);
+			path = "TheFramework tvOS";
+			sourceTree = "<group>";
+		};
+		DD5FD12328FBD15C00853829 /* TheFramework macOS */ = {
+			isa = PBXGroup;
+			children = (
+				DD5FD12428FBD15C00853829 /* AppDelegate.swift */,
+				DD5FD12628FBD15C00853829 /* GameViewController.swift */,
+				DD5FD12828FBD15C00853829 /* Main.storyboard */,
+				DD5FD12B28FBD15C00853829 /* TheFramework_macOS.entitlements */,
+			);
+			path = "TheFramework macOS";
+			sourceTree = "<group>";
+		};
+		DD976A98290E62C2007131BA /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				DDB2401D2CF5A0F900425D2F /* Carbon.framework */,
+				DD8662792978DE20003878C0 /* AudioToolbox.framework */,
+				DD86627A2978DE20003878C0 /* CoreAudio.framework */,
+				DD8662772978DC85003878C0 /* librustapi_ios.a */,
+				DD219B8629752B1100E978F5 /* CoreAudio.framework */,
+				DD219B8429752AE300E978F5 /* AudioToolbox.framework */,
+				DD219B7529741C3900E978F5 /* librustapi.a */,
+				DD219B7429741BF800E978F5 /* librustapi.d */,
+				DD219B7229741B3800E978F5 /* librustapi.a */,
+				DDAB9559290F6AC900B79AB8 /* librustapiios.a */,
+				DDAB955B290F6B6D00B79AB8 /* librustapiios.a */,
+				DD976AA2290E6802007131BA /* librustapi.a */,
+				DD976AA3290E729C007131BA /* librustapi.a */,
+				DD5B0381290F68D2003F7C12 /* librustapi.a */,
+				DDAB9557290F6A9800B79AB8 /* librustapi.a */,
+				DD976AA1290E67CC007131BA /* libs */,
+				DD976A9C290E6732007131BA /* librustapi.dylib */,
+				DD976A99290E62C2007131BA /* librustapi.a */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		DD5FD10028FBD15B00853829 /* TheFramework iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DD5FD13A28FBD15C00853829 /* Build configuration list for PBXNativeTarget "TheFramework iOS" */;
+			buildPhases = (
+				DD5FD0FD28FBD15B00853829 /* Sources */,
+				DD5FD0FE28FBD15B00853829 /* Frameworks */,
+				DD5FD0FF28FBD15B00853829 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "TheFramework iOS";
+			productName = "Xcode2Rust iOS";
+			productReference = DD5FD10128FBD15B00853829 /* TheFramework.app */;
+			productType = "com.apple.product-type.application";
+		};
+		DD5FD11128FBD15B00853829 /* TheFramework tvOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DD5FD13D28FBD15C00853829 /* Build configuration list for PBXNativeTarget "TheFramework tvOS" */;
+			buildPhases = (
+				DD5FD10E28FBD15B00853829 /* Sources */,
+				DD5FD10F28FBD15B00853829 /* Frameworks */,
+				DD5FD11028FBD15B00853829 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "TheFramework tvOS";
+			productName = "Xcode2Rust tvOS";
+			productReference = DD5FD11228FBD15B00853829 /* TheFramework.app */;
+			productType = "com.apple.product-type.application";
+		};
+		DD5FD12128FBD15C00853829 /* TheFramework macOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DD5FD14028FBD15C00853829 /* Build configuration list for PBXNativeTarget "TheFramework macOS" */;
+			buildPhases = (
+				DD5FD11E28FBD15C00853829 /* Sources */,
+				DD5FD11F28FBD15C00853829 /* Frameworks */,
+				DD5FD12028FBD15C00853829 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "TheFramework macOS";
+			productName = "Xcode2Rust macOS";
+			productReference = DD5FD12228FBD15C00853829 /* TheFramework.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		DD5FD0F428FBD15A00853829 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1400;
+				LastUpgradeCheck = 1400;
+				TargetAttributes = {
+					DD5FD10028FBD15B00853829 = {
+						CreatedOnToolsVersion = 14.0.1;
+					};
+					DD5FD11128FBD15B00853829 = {
+						CreatedOnToolsVersion = 14.0.1;
+					};
+					DD5FD12128FBD15C00853829 = {
+						CreatedOnToolsVersion = 14.0.1;
+					};
+				};
+			};
+			buildConfigurationList = DD5FD0F728FBD15A00853829 /* Build configuration list for PBXProject "TheFramework" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = DD5FD0F328FBD15A00853829;
+			productRefGroup = DD5FD10228FBD15B00853829 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DD5FD10028FBD15B00853829 /* TheFramework iOS */,
+				DD5FD11128FBD15B00853829 /* TheFramework tvOS */,
+				DD5FD12128FBD15C00853829 /* TheFramework macOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		DD5FD0FF28FBD15B00853829 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DD5FD13228FBD15C00853829 /* Metal.h in Resources */,
+				DD5FD10A28FBD15B00853829 /* Main.storyboard in Resources */,
+				DD5FD13528FBD15C00853829 /* Assets.xcassets in Resources */,
+				DD5FD10D28FBD15B00853829 /* LaunchScreen.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DD5FD11028FBD15B00853829 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DD5FD13328FBD15C00853829 /* Metal.h in Resources */,
+				DD5FD11A28FBD15B00853829 /* Main.storyboard in Resources */,
+				DD5FD13628FBD15C00853829 /* Assets.xcassets in Resources */,
+				DD5FD11D28FBD15B00853829 /* LaunchScreen.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DD5FD12028FBD15C00853829 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DD5FD12A28FBD15C00853829 /* Main.storyboard in Resources */,
+				DD5FD13728FBD15C00853829 /* Assets.xcassets in Resources */,
+				DD5FD13428FBD15C00853829 /* Metal.h in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		DD5FD0FD28FBD15B00853829 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DD219B89297672ED00E978F5 /* Keycodes.swift in Sources */,
+				DD5FD12F28FBD15C00853829 /* Renderer.swift in Sources */,
+				DD5FD12C28FBD15C00853829 /* Metal.metal in Sources */,
+				DD5FD10728FBD15B00853829 /* GameViewController.swift in Sources */,
+				DD5B036D290E834C003F7C12 /* RMKTView.swift in Sources */,
+				DD5FD10528FBD15B00853829 /* AppDelegate.swift in Sources */,
+				DD5B036F290E83E3003F7C12 /* Math.swift in Sources */,
+				DD5B037D290E90B3003F7C12 /* MetalStates.swift in Sources */,
+				DD5B0375290E8A17003F7C12 /* Texture2D.swift in Sources */,
+				DD28F9362978F1670003766F /* File.swift in Sources */,
+				DD5B0379290E8F8D003F7C12 /* Utils.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DD5FD10E28FBD15B00853829 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DD219B8A297672ED00E978F5 /* Keycodes.swift in Sources */,
+				DD5FD13028FBD15C00853829 /* Renderer.swift in Sources */,
+				DD5FD12D28FBD15C00853829 /* Metal.metal in Sources */,
+				DD5FD11728FBD15B00853829 /* GameViewController.swift in Sources */,
+				DD5B0370290E84B3003F7C12 /* RMKTView.swift in Sources */,
+				DD5FD11528FBD15B00853829 /* AppDelegate.swift in Sources */,
+				DD5B0372290E84B6003F7C12 /* Math.swift in Sources */,
+				DD5B037E290E90B3003F7C12 /* MetalStates.swift in Sources */,
+				DD5B0376290E8A17003F7C12 /* Texture2D.swift in Sources */,
+				DD28F9372978F1670003766F /* File.swift in Sources */,
+				DD5B037A290E8F8D003F7C12 /* Utils.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DD5FD11E28FBD15C00853829 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DD219B8B297672ED00E978F5 /* Keycodes.swift in Sources */,
+				DD5FD13128FBD15C00853829 /* Renderer.swift in Sources */,
+				DD5FD12E28FBD15C00853829 /* Metal.metal in Sources */,
+				DD5FD12728FBD15C00853829 /* GameViewController.swift in Sources */,
+				DD5B0371290E84B3003F7C12 /* RMKTView.swift in Sources */,
+				DD5FD12528FBD15C00853829 /* AppDelegate.swift in Sources */,
+				DD5B0373290E84B7003F7C12 /* Math.swift in Sources */,
+				DD5B037F290E90B3003F7C12 /* MetalStates.swift in Sources */,
+				DD5B0377290E8A17003F7C12 /* Texture2D.swift in Sources */,
+				DD28F9382978F1670003766F /* File.swift in Sources */,
+				DD5B037B290E8F8D003F7C12 /* Utils.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		DD5FD10828FBD15B00853829 /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				DD5FD10928FBD15B00853829 /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+		DD5FD10B28FBD15B00853829 /* LaunchScreen.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				DD5FD10C28FBD15B00853829 /* Base */,
+			);
+			name = LaunchScreen.storyboard;
+			sourceTree = "<group>";
+		};
+		DD5FD11828FBD15B00853829 /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				DD5FD11928FBD15B00853829 /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+		DD5FD11B28FBD15B00853829 /* LaunchScreen.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				DD5FD11C28FBD15B00853829 /* Base */,
+			);
+			name = LaunchScreen.storyboard;
+			sourceTree = "<group>";
+		};
+		DD5FD12828FBD15C00853829 /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				DD5FD12928FBD15C00853829 /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		DD5FD13828FBD15C00853829 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		DD5FD13928FBD15C00853829 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		DD5FD13B28FBD15C00853829 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Eldiron iOS/Eldiron iOS.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = G6R6L3VH62;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Eldiron;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
+				MARKETING_VERSION = 0.75;
+				OTHER_CODE_SIGN_FLAGS = "";
+				"OTHER_CODE_SIGN_FLAGS[sdk=*]" = "";
+				PRODUCT_BUNDLE_IDENTIFIER = com.moenig.eldiron;
+				PRODUCT_NAME = TheFramework;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Eldiron Shared/Bridge.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		DD5FD13C28FBD15C00853829 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Eldiron iOS/Eldiron iOS.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = G6R6L3VH62;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Eldiron;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
+				MARKETING_VERSION = 0.75;
+				OTHER_CODE_SIGN_FLAGS = "";
+				PRODUCT_BUNDLE_IDENTIFIER = com.moenig.eldiron;
+				PRODUCT_NAME = TheFramework;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Eldiron Shared/Bridge.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		DD5FD13E28FBD15C00853829 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "tvOS App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = G6R6L3VH62;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.moenig.Eldiron;
+				PRODUCT_NAME = TheFramework;
+				SDKROOT = appletvos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Eldiron Shared/Bridge.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 16.0;
+			};
+			name = Debug;
+		};
+		DD5FD13F28FBD15C00853829 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "tvOS App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = G6R6L3VH62;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.moenig.Eldiron;
+				PRODUCT_NAME = TheFramework;
+				SDKROOT = appletvos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Eldiron Shared/Bridge.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 16.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		DD5FD14128FBD15C00853829 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "TheFramework macOS/TheFramework_macOS.entitlements";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = G6R6L3VH62;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = TheFramework;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/rust-api/target/release",
+					"$(PROJECT_DIR)/rustapi/libs",
+					"$(PROJECT_DIR)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.3;
+				MARKETING_VERSION = 0.1;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.moenig.theframework;
+				PRODUCT_NAME = TheFramework;
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "TheFramework Shared/Bridge.h";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		DD5FD14228FBD15C00853829 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "TheFramework macOS/TheFramework_macOS.entitlements";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = G6R6L3VH62;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = TheFramework;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/rust-api/target/release",
+					"$(PROJECT_DIR)/rustapi/libs",
+					"$(PROJECT_DIR)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.3;
+				MARKETING_VERSION = 0.1;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.moenig.theframework;
+				PRODUCT_NAME = TheFramework;
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "TheFramework Shared/Bridge.h";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		DD5FD0F728FBD15A00853829 /* Build configuration list for PBXProject "TheFramework" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DD5FD13828FBD15C00853829 /* Debug */,
+				DD5FD13928FBD15C00853829 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DD5FD13A28FBD15C00853829 /* Build configuration list for PBXNativeTarget "TheFramework iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DD5FD13B28FBD15C00853829 /* Debug */,
+				DD5FD13C28FBD15C00853829 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DD5FD13D28FBD15C00853829 /* Build configuration list for PBXNativeTarget "TheFramework tvOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DD5FD13E28FBD15C00853829 /* Debug */,
+				DD5FD13F28FBD15C00853829 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DD5FD14028FBD15C00853829 /* Build configuration list for PBXNativeTarget "TheFramework macOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DD5FD14128FBD15C00853829 /* Debug */,
+				DD5FD14228FBD15C00853829 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = DD5FD0F428FBD15A00853829 /* Project object */;
+}

@@ -1,0 +1,20 @@
+[package]
+name = "uidemo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+theframework = { path = "../..", default-features = true, features = ["ui"] }
+lazy_static = "1.4.0"
+rust-pathtracer = "0.2.4"
+# rust-pathtracer = { path = "../../../rust-pathtracer/rust-pathtracer" }
+nalgebra = "0.34.1"
+
+# theframework = { path = "../..", features = ["ui"] }
+# [lib]
+# name = "rustapi"
+# crate-type = ["staticlib"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ['Window'] }
