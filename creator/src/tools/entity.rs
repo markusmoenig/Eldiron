@@ -316,7 +316,11 @@ impl Tool for EntityTool {
         match event {
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
                 if *code == TheKeyCode::Delete {
-                    return self.delete_selected(ui, ctx, project, server_ctx);
+                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                        if ctx.ui.has_focus(render_view.id()) {
+                            return self.delete_selected(ui, ctx, project, server_ctx);
+                        }
+                    }
                 }
             }
             _ => {}
