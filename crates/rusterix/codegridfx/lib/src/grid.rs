@@ -458,9 +458,34 @@ impl Grid {
 
     /// Handles a return at the given row, i.e. pushes the current row and all rows below down
     /// and inserts an empty row at the current position with the same indent.
+    /// Special case: if the current row starts with `If` and the next row is not indented,
+    /// insert a new indented line below for the if body instead of moving things down.
     pub fn return_at(&mut self, row: u32) {
-        // Get the indent of the current row before shifting
-        let current_indent = self.effective_indent(row);
+        // Check if current row starts with an If cell
+        let starts_with_if = self
+            .grid
+            .get(&(0, row))
+            .map(|ci| matches!(ci.cell, Cell::If))
+            .unwrap_or(false);
+
+        if starts_with_if {
+            // Check if the next row exists and is indented relative to current row
+            let current_indent = self.row_indents.get(&row).copied().unwrap_or(0);
+            let next_indent = self.row_indents.get(&(row + 1)).copied().unwrap_or(0);
+
+            if next_indent <= current_indent {
+                // Next row is not indented (no body for the if), create a new indented line below
+                self.move_down_from(row + 1);
+
+                let new_indent = current_indent + 1;
+                self.row_indents.insert(row + 1, new_indent);
+                self.grid.insert((0, row + 1), CellItem::new(Cell::Empty));
+                return;
+            }
+        }
+
+        // Default behavior: move current row down and insert empty row at current position
+        let current_indent = self.row_indents.get(&row).copied().unwrap_or(0);
 
         // Shift rows >= `row` down by 1 (including the current row)
         let mut to_shift: Vec<((u32, u32), CellItem)> = Vec::new();
@@ -574,8 +599,47 @@ impl Grid {
         }
         self.row_indents = new_indents;
 
-        // Restore grid invariants: ensure each row ends with an empty cell and a new bottom row if needed
-        self.insert_empty();
+        // Check if there's still at least one empty row at the bottom after deletion
+        // Find the bottom-most row with non-empty content
+        let mut bottom_nonempty_row: Option<u32> = None;
+        for (&(_, r), cell) in &self.grid {
+            if !matches!(cell.cell, Cell::Empty) {
+                bottom_nonempty_row = match bottom_nonempty_row {
+                    Some(br) if r > br => Some(r),
+                    None => Some(r),
+                    other => other,
+                };
+            }
+        }
+
+        // Find the bottom-most row overall
+        let mut bottom_row: Option<u32> = None;
+        for &(_, r) in self.grid.keys() {
+            bottom_row = match bottom_row {
+                Some(br) if r > br => Some(r),
+                None => Some(r),
+                other => other,
+            };
+        }
+
+        // Check if the bottom row is indented
+        let bottom_row_indented = bottom_row
+            .map(|r| self.row_indents.get(&r).copied().unwrap_or(0) > 0)
+            .unwrap_or(false);
+
+        // Need to call insert_empty if:
+        // 1. There's no empty row after the last non-empty row, OR
+        // 2. The bottom row is indented (need a non-indented row to insert below blocks)
+        let needs_empty = match (bottom_nonempty_row, bottom_row) {
+            (Some(nonempty), Some(bottom)) => bottom <= nonempty || bottom_row_indented,
+            (None, None) => true, // No rows at all, need at least one empty
+            (None, Some(_)) => bottom_row_indented, // All rows are empty, but check if indented
+            (Some(_), None) => true, // Shouldn't happen, but be safe
+        };
+
+        if needs_empty {
+            self.insert_empty();
+        }
     }
 
     /// Move all rows at or below the given row index one line down (shift by 1).

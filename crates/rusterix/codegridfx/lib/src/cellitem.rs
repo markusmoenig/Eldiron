@@ -765,17 +765,15 @@ impl CellItem {
                     );
                     grid.insert((pos.0 + 3, pos.1), CellItem::new(Cell::Integer("0".into())));
 
-                    grid.move_down_from(pos.1 + 2);
-                    grid.insert((0, pos.1 + 1), CellItem::new(Cell::Empty));
+                    grid.move_down_from(pos.1 + 1);
 
                     let mut indent = 1;
                     if let Some(ind) = grid.row_indents.get(&pos.1) {
                         indent += *ind;
                     }
+                    grid.row_indents.insert(pos.1 + 1, indent);
 
-                    if !grid.grid.contains_key(&(0, pos.1 + 1)) {
-                        grid.row_indents.insert(pos.1 + 1, indent);
-                    }
+                    grid.insert((0, pos.1 + 1), CellItem::new(Cell::Empty));
                     grid.insert_empty();
                 }
             }
