@@ -78,10 +78,8 @@ jobs:
       # --- Package artefacts -------------------------------------------------
       - name: Package artefacts
         run: |
-          mv /c/t/release/${{ matrix.config.bin-name }}.exe .
-          tar -czvf ${{ matrix.config.bin-name }}-x86_64-pc-windows-msvc.tar.gz ${{ matrix.config.bin-name }}.exe
           mkdir -p output
-          mv ${{ matrix.config.bin-name }}-*.gz output/
+          7z a -tzip output/${{ matrix.config.bin-name }}-x86_64-pc-windows-msvc.zip /c/t/release/${{ matrix.config.bin-name }}.exe
 
       - name: Upload artefacts
         uses: actions/upload-artifact@v4
@@ -110,12 +108,17 @@ jobs:
         run: cargo run-wasm --release --bin ${{ matrix.config.bin-name }} --build-only
 
       # --- Package artefacts -------------------------------------------------
-      - name: Package artefacts
+      - name: Preparation
         run: |
-          mv target/wasm-examples/${{ matrix.config.bin-name }} .
-          tar -czvf ${{ matrix.config.bin-name }}-wasm32-unknown-unknown.tar.gz ${{ matrix.config.bin-name }}
           mkdir -p output
+          cp -r target/wasm-examples/${{ matrix.config.bin-name }} .
+      - name: Package artefacts (tar.gz)
+        run: |
+          tar -czvf ${{ matrix.config.bin-name }}-wasm32-unknown-unknown.tar.gz ${{ matrix.config.bin-name }}
           mv ${{ matrix.config.bin-name }}-*.gz output/
+      - name: Package artefacts (zip)
+        run: |
+          7z a -tzip output/${{ matrix.config.bin-name }}-wasm32-unknown-unknown.zip ${{ matrix.config.bin-name }}
 
       - name: Upload artefacts
         uses: actions/upload-artifact@v4
@@ -178,9 +181,6 @@ jobs:
         with:
           name: linux-eldiron-client
 
-      - name: Unpack tarball
-        run: tar -xzvf eldiron-client-*.gz
-
       - name: GitHub release (Linux)
         uses: softprops/action-gh-release@v1
         with:
@@ -205,8 +205,8 @@ jobs:
         with:
           name: windows-eldiron-creator
 
-      - name: Unpack tarball
-        run: tar -xzvf eldiron-creator-*.gz
+      - name: Unpack zip
+        run: 7z x eldiron-creator-*.zip -o.
 
       - name: Install WiX
         run: nuget install WiX -Version 3.11.2
@@ -223,7 +223,7 @@ jobs:
         with:
           files: |
             Eldiron-Creator.msi
-            eldiron-creator-*.gz
+            eldiron-creator-*.zip
 
   # ─────────────────────────── Windows release client ─────────────────────────────
   windows_release_client:
@@ -243,14 +243,11 @@ jobs:
         with:
           name: windows-eldiron-client
 
-      - name: Unpack tarball
-        run: tar -xzvf eldiron-client-*.gz
-
       - name: GitHub release (Windows)
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            eldiron-client-*.gz
+            eldiron-client-*.zip
 
   # ──────────────────────────────── WASM release ──────────────────────────────────
   wasm_release:
@@ -270,11 +267,9 @@ jobs:
         with:
           name: wasm-${{ matrix.bin-name }}
 
-      - name: Unpack tarball
-        run: tar -xzvf ${{ matrix.bin-name }}-*.gz
-
       - name: GitHub release (WASM)
         uses: softprops/action-gh-release@v1
         with:
           files: |
             ${{ matrix.bin-name }}-*.gz
+            ${{ matrix.bin-name }}-*.zip
