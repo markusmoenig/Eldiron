@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc,
+    atomic::{AtomicBool, Ordering},
 };
 
 const TREE_INDENT: i32 = 20;

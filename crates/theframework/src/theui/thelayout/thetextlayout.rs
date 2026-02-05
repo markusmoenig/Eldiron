@@ -123,11 +123,7 @@ impl TheLayout for TheTextLayout {
             }
         }
 
-        if self.text.is_empty() {
-            true
-        } else {
-            false
-        }
+        if self.text.is_empty() { true } else { false }
     }
 
     fn dim(&self) -> &TheDim {

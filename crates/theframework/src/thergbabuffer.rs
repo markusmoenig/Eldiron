@@ -276,7 +276,7 @@ impl TheRGBABuffer {
 
                 for r in 0..rows_in_batch {
                     let i = base_row + r; // row index within the full region [0..row_cnt)
-                                          // Bounds guard (last batch may be partial)
+                    // Bounds guard (last batch may be partial)
                     if i >= row_cnt {
                         break;
                     }

@@ -1,11 +1,12 @@
 [package]
 name = "theframework"
-version = "0.1.40"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
 description = "A cross platform application UI framework."
-license = "MIT"
 keywords = ["application", "framework", "graphics", "user-interface", "gui"]
-repository = "https://github.com/markusmoenig/theframework.git"
 exclude = ["Xcode"]
 
 [dependencies]

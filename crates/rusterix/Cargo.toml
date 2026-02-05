@@ -1,10 +1,11 @@
 [package]
 name = "rusterix"
-version = "0.2.8"
-edition = "2024"
-description = "Rusterix is a fast software renderer and game engine."
-license = "Apache-2.0 AND MIT"
-repository = "https://github.com/markusmoenig/Rusterix"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rusterix is the game engine of Eldiron."
 keywords = ["software", "rendering", "graphics", "game", "engine"]
 
 [dependencies]

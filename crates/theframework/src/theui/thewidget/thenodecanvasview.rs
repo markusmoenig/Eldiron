@@ -1078,11 +1078,7 @@ fn do_intersect(p1: (i32, i32), q1: (i32, i32), p2: (i32, i32), q2: (i32, i32)) 
         if val == 0 {
             return 0;
         } // collinear
-        if val > 0 {
-            1
-        } else {
-            2
-        } // clock or counterclock wise
+        if val > 0 { 1 } else { 2 } // clock or counterclock wise
     }
 
     // Check if line segments 'p1q1' and 'p2q2' intersect.

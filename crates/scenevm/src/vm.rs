@@ -136,7 +136,7 @@ const SCENE_LIGHT_WORDS: u32 =
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
- struct DynamicBillboardPod {
+struct DynamicBillboardPod {
     pub center: [f32; 4],     // xyz + width
     pub axis_right: [f32; 4], // xyz + height
     pub axis_up: [f32; 4],    // xyz + repeat_mode (as f32)

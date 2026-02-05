@@ -3,7 +3,7 @@ use std::ops::Range;
 #[cfg(not(target_arch = "wasm32"))]
 use arboard::Clipboard;
 
-use markdown::{mdast::Node, ParseOptions};
+use markdown::{ParseOptions, mdast::Node};
 use web_time::Instant;
 
 use crate::{

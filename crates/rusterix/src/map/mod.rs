@@ -755,16 +755,28 @@ impl Map {
             for linedef_id in linedef_ids {
                 if let Some(linedef) = self.find_linedef(linedef_id) {
                     // Check if this linedef is shared with other sectors
-                    let is_shared = linedef.sector_ids.len() > 1 ||
-                        self.sectors.iter().any(|s| s.id != sector_id && s.linedefs.contains(&linedef_id));
-                    
-                    let needs_vertex_change = linedef.start_vertex == old_vertex_id || linedef.end_vertex == old_vertex_id;
-                    
+                    let is_shared = linedef.sector_ids.len() > 1
+                        || self
+                            .sectors
+                            .iter()
+                            .any(|s| s.id != sector_id && s.linedefs.contains(&linedef_id));
+
+                    let needs_vertex_change = linedef.start_vertex == old_vertex_id
+                        || linedef.end_vertex == old_vertex_id;
+
                     if is_shared && needs_vertex_change {
                         // Linedef is shared - create a new linedef for this sector
-                        let new_start = if linedef.start_vertex == old_vertex_id { new_vertex_id } else { linedef.start_vertex };
-                        let new_end = if linedef.end_vertex == old_vertex_id { new_vertex_id } else { linedef.end_vertex };
-                        
+                        let new_start = if linedef.start_vertex == old_vertex_id {
+                            new_vertex_id
+                        } else {
+                            linedef.start_vertex
+                        };
+                        let new_end = if linedef.end_vertex == old_vertex_id {
+                            new_vertex_id
+                        } else {
+                            linedef.end_vertex
+                        };
+
                         if let Some(new_linedef_id) = self.find_free_linedef_id() {
                             let mut new_linedef = linedef.clone();
                             new_linedef.id = new_linedef_id;
@@ -772,15 +784,17 @@ impl Map {
                             new_linedef.end_vertex = new_end;
                             new_linedef.sector_ids = vec![sector_id];
                             self.linedefs.push(new_linedef);
-                            
+
                             // Remove sector_id from old linedef's sector_ids
                             if let Some(old_linedef) = self.find_linedef_mut(linedef_id) {
                                 old_linedef.sector_ids.retain(|&sid| sid != sector_id);
                             }
-                            
+
                             // Replace the linedef in sector's linedefs list
                             if let Some(sector) = self.find_sector_mut(sector_id) {
-                                if let Some(pos) = sector.linedefs.iter().position(|&id| id == linedef_id) {
+                                if let Some(pos) =
+                                    sector.linedefs.iter().position(|&id| id == linedef_id)
+                                {
                                     sector.linedefs[pos] = new_linedef_id;
                                 }
                             }

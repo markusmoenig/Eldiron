@@ -106,6 +106,8 @@ pub mod prelude {
     pub use crate::theui::thewidget::thetraybar::TheTraybar;
     pub use crate::theui::thewidget::thetraybarbutton::{TheTraybarButton, TheTraybarButtonTrait};
 
+    pub use crate::theui::thewidget::TheWidget;
+    pub use crate::theui::thewidget::TheWidgetState;
     pub use crate::theui::thewidget::thecolorpicker::{TheColorPicker, TheColorPickerTrait};
     pub use crate::theui::thewidget::thedirectionpicker::TheDirectionPicker;
     pub use crate::theui::thewidget::thenodecanvasview::{
@@ -114,8 +116,6 @@ pub mod prelude {
     pub use crate::theui::thewidget::thepalettepicker::{ThePalettePicker, ThePalettePickerTrait};
     pub use crate::theui::thewidget::theseparator::TheSeparator;
     pub use crate::theui::thewidget::thetimeslider::{TheTimeSlider, TheTimeSliderTrait};
-    pub use crate::theui::thewidget::TheWidget;
-    pub use crate::theui::thewidget::TheWidgetState;
 
     pub use crate::theui::thewidget::thetoollistbar::TheToolListBar;
     pub use crate::theui::thewidget::thetoollistbutton::*;

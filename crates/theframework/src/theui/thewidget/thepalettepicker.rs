@@ -296,7 +296,7 @@ impl ThePalettePickerTrait for ThePalettePicker {
 
         for cols in 1..=max_cols {
             let rows = (count as i32 + cols - 1) / cols; // ceil
-                                                         // width- and height-limited cell size for this grid
+            // width- and height-limited cell size for this grid
             let cell_w = (aw - (cols - 1) * SPACING) / cols;
             let cell_h = (ah - (rows - 1) * SPACING) / rows;
             let cell = cell_w.min(cell_h);

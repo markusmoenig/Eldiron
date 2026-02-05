@@ -23,7 +23,7 @@ pub mod thewidget;
 
 use ::serde::de::{self, Deserializer};
 use ::serde::ser::{self, Serializer};
-use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
+use flate2::{Compression, read::ZlibDecoder, write::ZlibEncoder};
 use std::io::{Read, Write};
 use std::sync::mpsc::{self, Receiver, Sender};
 
@@ -74,10 +74,10 @@ pub mod prelude {
     pub use crate::theui::thecanvas::*;
     pub use crate::theui::thecodehighlighter::{TheCodeHighlighter, TheCodeHighlighterTrait};
 
+    pub use crate::theui::TheUI;
     pub use crate::theui::thergbbuffer::TheRGBBuffer;
     pub use crate::theui::thesizelimiter::TheSizeLimiter;
     pub use crate::theui::theuicontext::*;
-    pub use crate::theui::TheUI;
 
     pub use crate::theui::thevalue::{TheValue, TheValueAssignment, TheValueComparison};
     pub use crate::theui::thevent::TheEvent;
@@ -85,8 +85,8 @@ pub mod prelude {
     pub use crate::theui::thewidget::prelude::*;
     pub use crate::theui::thewidget::thecolorbutton::*;
 
-    pub use crate::theui::thestyle::prelude::*;
     pub use crate::theui::thestyle::TheStyle;
+    pub use crate::theui::thestyle::prelude::*;
 
     pub use crate::theui::thetheme::prelude::*;
     pub use crate::theui::thetheme::{TheTheme, TheThemeColors, TheThemeColors::*};
@@ -103,13 +103,13 @@ pub mod prelude {
     pub use crate::theui::theundo::*;
 
     pub use crate::str;
+    pub use crate::theui::TheAccelerator;
+    pub use crate::theui::TheAcceleratorKey;
+    pub use crate::theui::TheDialogButtonRole;
     pub use crate::theui::thecollection::TheCollection;
     pub use crate::theui::theflattenedmap::{TheFlattenedMap, TheFlattenedMap3D};
     pub use crate::theui::thetilemask::TheTileMask;
     pub use crate::theui::thetimeline::{TheInterpolation, TheTimeline};
-    pub use crate::theui::TheAccelerator;
-    pub use crate::theui::TheAcceleratorKey;
-    pub use crate::theui::TheDialogButtonRole;
 
     pub use crate::theui::thenodeui::*;
 }

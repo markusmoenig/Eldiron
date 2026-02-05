@@ -367,7 +367,9 @@ impl TheWinitApp {
             } else {
                 println!(
                     "Warning: Buffer too small for scale_factor {}. Required: {}, Available: {}. Falling back to scale_factor = 1.0",
-                    desired_scale, required_size, buffer.len()
+                    desired_scale,
+                    required_size,
+                    buffer.len()
                 );
                 1.0
             }

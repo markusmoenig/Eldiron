@@ -3965,7 +3965,7 @@ dependencies = [
 
 [[package]]
 name = "rusterix"
-version = "0.2.8"
+version = "0.8.100"
 dependencies = [
  "bincode",
  "bvh",
@@ -4069,7 +4069,7 @@ dependencies = [
 
 [[package]]
 name = "scenevm"
-version = "0.1.0"
+version = "0.8.100"
 dependencies = [
  "bytemuck",
  "fontdue",
@@ -4640,7 +4640,7 @@ dependencies = [
 
 [[package]]
 name = "theframework"
-version = "0.1.40"
+version = "0.8.100"
 dependencies = [
  "arboard",
  "console_error_panic_hook",

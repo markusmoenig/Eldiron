@@ -56,25 +56,6 @@ impl Action for EditVertex {
         );
         nodeui.add_item(item);
 
-        nodeui.add_item(TheNodeUIItem::OpenTree(fl!("terrain")));
-
-        nodeui.add_item(TheNodeUIItem::Checkbox(
-            "actionVertexTerrain".into(),
-            fl!("action_edit_vertex_terrain_control"),
-            fl!("status_action_edit_vertex_terrain_control"),
-            false,
-        ));
-
-        let item = TheNodeUIItem::FloatEditSlider(
-            "actionVertexTerrainSmoothness".into(),
-            fl!("action_edit_vertex_terrain_smoothness"),
-            fl!("status_action_edit_vertex_terrain_smoothness"),
-            0.0,
-            0.0..=0.0,
-            false,
-        );
-        nodeui.add_item(item);
-
         let item = TheNodeUIItem::Icons(
             "actionVertexTile".into(),
             fl!("icons"),
@@ -92,6 +73,25 @@ impl Action for EditVertex {
             fl!("size"),
             fl!("status_action_edit_vertex_tile_size"),
             1.0,
+            0.0..=0.0,
+            false,
+        );
+        nodeui.add_item(item);
+
+        nodeui.add_item(TheNodeUIItem::OpenTree(fl!("terrain")));
+
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "actionVertexTerrain".into(),
+            fl!("action_edit_vertex_terrain_control"),
+            fl!("status_action_edit_vertex_terrain_control"),
+            false,
+        ));
+
+        let item = TheNodeUIItem::FloatEditSlider(
+            "actionVertexTerrainSmoothness".into(),
+            fl!("action_edit_vertex_terrain_smoothness"),
+            fl!("status_action_edit_vertex_terrain_smoothness"),
+            0.0,
             0.0..=0.0,
             false,
         );

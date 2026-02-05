@@ -19,3 +19,4 @@ version = "0.8.100"
 license = "MIT"
 authors = ["Markus Moenig"]
 description = "A game creator for classical RPGs."
+repository = "https://github.com/markusmoenig/Eldiron"

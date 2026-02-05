@@ -1,5 +1,5 @@
-use crate::prelude::*;
 use crate::Embedded;
+use crate::prelude::*;
 use fontdue::Font;
 
 use std::path::PathBuf;

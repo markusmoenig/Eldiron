@@ -13,6 +13,7 @@ pub struct EntityTool {
     hud: Hud,
 
     drag_state: Option<DragState>,
+    move_eps2: f32,
 }
 
 #[derive(Clone)]
@@ -20,6 +21,7 @@ struct DragState {
     target: DragTarget,
     start_pos: Vec2<f32>,
     changed: bool,
+    grab_offset: Vec2<f32>,
 }
 
 #[derive(Clone, Copy)]
@@ -38,6 +40,7 @@ impl Tool for EntityTool {
             hud: Hud::new(HudMode::Entity),
 
             drag_state: None,
+            move_eps2: 0.01, // squared distance in map units to consider as movement
         }
     }
 
@@ -96,16 +99,19 @@ impl Tool for EntityTool {
                     return None;
                 }
 
-                if let Some(grid_pos) = self.map_cell(ui, server_ctx, map, coord, 1.0) {
+                if let Some(click_pos) = self.map_pos_unsnapped(ui, server_ctx, map, coord) {
                     if server_ctx.get_map_context() == MapContext::Region {
-                        if let Some(hit) = self.pick_hit(map, grid_pos) {
+                        if let Some(hit) = self.pick_hit(map, click_pos) {
                             map.clear_selection();
                             map.selected_entity_item = Some(hit.id());
+
+                            let grab_offset = hit.pos - click_pos;
 
                             self.drag_state = Some(DragState {
                                 target: hit.target,
                                 start_pos: hit.pos,
                                 changed: false,
+                                grab_offset,
                             });
 
                             // Record original positions for movement tracking
@@ -147,30 +153,76 @@ impl Tool for EntityTool {
                     return None;
                 }
 
+                if let Some(state) = self.drag_state.take() {
+                    if state.changed {
+                        match state.target {
+                            DragTarget::Entity(id) => {
+                                if let Some(entity) =
+                                    map.entities.iter_mut().find(|e| e.creator_id == id)
+                                {
+                                    // Snap based on final dragged position, not pointer
+                                    let snapped = Self::snap_to_grid(
+                                        Vec2::new(entity.position.x, entity.position.z),
+                                        map.subdivisions,
+                                    );
+                                    entity.position.x = snapped.x;
+                                    entity.position.z = snapped.y;
+                                    server_ctx
+                                        .moved_entities
+                                        .entry(id)
+                                        .and_modify(|entry| entry.1 = entity.position)
+                                        .or_insert((entity.position, entity.position));
+                                }
+                            }
+                            DragTarget::Item(id) => {
+                                if let Some(item) =
+                                    map.items.iter_mut().find(|i| i.creator_id == id)
+                                {
+                                    let snapped = Self::snap_to_grid(
+                                        Vec2::new(item.position.x, item.position.z),
+                                        map.subdivisions,
+                                    );
+                                    item.position.x = snapped.x;
+                                    item.position.z = snapped.y;
+                                    server_ctx
+                                        .moved_items
+                                        .entry(id)
+                                        .and_modify(|entry| entry.1 = item.position)
+                                        .or_insert((item.position, item.position));
+                                }
+                            }
+                        }
+                    }
+                }
+
                 self.drag_state = None;
             }
             MapDragged(coord) => {
-                if let Some(render_view) = ui.get_render_view("PolyView") {
+                if let Some(_render_view) = ui.get_render_view("PolyView") {
                     if let Some(mut state) = self.drag_state.take() {
-                        let dim = *render_view.dim();
-                        let mut drag_pos = server_ctx.local_to_map_cell(
-                            Vec2::new(dim.width as f32, dim.height as f32),
-                            Vec2::new(coord.x as f32, coord.y as f32),
-                            map,
-                            map.subdivisions,
-                        );
-                        drag_pos += 0.5;
+                        // Keep drag freeform; no snapping while moving
+                        let pointer_pos = self
+                            .map_pos_unsnapped(ui, server_ctx, map, coord)
+                            .unwrap_or(Vec2::new(0.0, 0.0));
+                        let mut drag_pos = pointer_pos + state.grab_offset;
+
+                        // Ignore tiny mouse jitter so a pure click doesn't register as a move
+                        let delta = drag_pos - state.start_pos;
+                        let moved = delta.x * delta.x + delta.y * delta.y > self.move_eps2;
+                        if !moved {
+                            drag_pos = state.start_pos;
+                        }
 
                         match state.target {
                             DragTarget::Entity(id) => {
                                 if let Some(entity) =
                                     map.entities.iter_mut().find(|e| e.creator_id == id)
                                 {
-                                    entity.position.x = drag_pos.x;
-                                    entity.position.z = drag_pos.y;
-                                    state.changed = state.changed
-                                        || state.start_pos.x != drag_pos.x
-                                        || state.start_pos.y != drag_pos.y;
+                                    if moved {
+                                        entity.position.x = drag_pos.x;
+                                        entity.position.z = drag_pos.y;
+                                        state.changed = true;
+                                    }
 
                                     server_ctx
                                         .moved_entities
@@ -183,11 +235,11 @@ impl Tool for EntityTool {
                                 if let Some(item) =
                                     map.items.iter_mut().find(|i| i.creator_id == id)
                                 {
-                                    item.position.x = drag_pos.x;
-                                    item.position.z = drag_pos.y;
-                                    state.changed = state.changed
-                                        || state.start_pos.x != drag_pos.x
-                                        || state.start_pos.y != drag_pos.y;
+                                    if moved {
+                                        item.position.x = drag_pos.x;
+                                        item.position.z = drag_pos.y;
+                                        state.changed = true;
+                                    }
 
                                     server_ctx
                                         .moved_items
@@ -203,9 +255,9 @@ impl Tool for EntityTool {
                 }
             }
             MapHover(coord) => {
-                if let Some(grid_pos) = self.map_cell(ui, server_ctx, map, coord, 1.0) {
+                if let Some(hit_pos) = self.map_pos_unsnapped(ui, server_ctx, map, coord) {
                     if server_ctx.get_map_context() == MapContext::Region {
-                        if let Some(hit) = self.pick_hit(map, grid_pos) {
+                        if let Some(hit) = self.pick_hit(map, hit_pos) {
                             ctx.ui
                                 .send(TheEvent::SetStatusText(TheId::empty(), hit.status_text()));
                         } else {
@@ -275,31 +327,44 @@ impl Tool for EntityTool {
 }
 
 impl EntityTool {
-    fn map_cell(
+    /// Convert screen coords to map space without snapping so clicking doesn't move things
+    fn map_pos_unsnapped(
         &self,
         ui: &mut TheUI,
-        server_ctx: &ServerContext,
+        _server_ctx: &ServerContext,
         map: &Map,
         coord: Vec2<i32>,
-        subdivisions: f32,
     ) -> Option<Vec2<f32>> {
         ui.get_render_view("PolyView").map(|render_view| {
             let dim = *render_view.dim();
-            server_ctx.local_to_map_cell(
-                Vec2::new(dim.width as f32, dim.height as f32),
-                Vec2::new(coord.x as f32, coord.y as f32),
-                map,
-                subdivisions,
-            )
+            let grid_space_pos = Vec2::new(coord.x as f32, coord.y as f32)
+                - Vec2::new(dim.width as f32, dim.height as f32) / 2.0
+                - Vec2::new(map.offset.x, -map.offset.y);
+
+            grid_space_pos / map.grid_size
         })
     }
 
-    fn pick_hit(&self, map: &Map, grid_pos: Vec2<f32>) -> Option<Hit> {
-        if let Some(entity) = map
-            .entities
-            .iter()
-            .find(|e| e.get_pos_xz().floor() == grid_pos)
-        {
+    /// Snap a map position to the current grid/subdivision
+    fn snap_to_grid(pos: Vec2<f32>, subdivisions: f32) -> Vec2<f32> {
+        if subdivisions > 1.0 {
+            Vec2::new(
+                (pos.x * subdivisions).round() / subdivisions,
+                (pos.y * subdivisions).round() / subdivisions,
+            )
+        } else {
+            Vec2::new(pos.x.round(), pos.y.round())
+        }
+    }
+
+    fn pick_hit(&self, map: &Map, pos: Vec2<f32>) -> Option<Hit> {
+        // Allow picking even when subdivisions differ; use a small radius in map units
+        let radius2 = 0.16; // about 0.4 cell diameter
+
+        if let Some(entity) = map.entities.iter().find(|e| {
+            let d = e.get_pos_xz() - pos;
+            d.x * d.x + d.y * d.y < radius2
+        }) {
             return Some(Hit {
                 target: DragTarget::Entity(entity.creator_id),
                 name: entity
@@ -311,11 +376,10 @@ impl EntityTool {
             });
         }
 
-        if let Some(item) = map
-            .items
-            .iter()
-            .find(|i| i.get_pos_xz().floor() == grid_pos)
-        {
+        if let Some(item) = map.items.iter().find(|i| {
+            let d = i.get_pos_xz() - pos;
+            d.x * d.x + d.y * d.y < radius2
+        }) {
             return Some(Hit {
                 target: DragTarget::Item(item.creator_id),
                 name: item

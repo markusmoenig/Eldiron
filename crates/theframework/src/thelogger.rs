@@ -1,14 +1,14 @@
 use log::LevelFilter;
 #[cfg(not(target_arch = "wasm32"))]
 use log4rs::{
+    Config,
     append::rolling_file::{
-        policy::compound::{
-            roll::fixed_window::FixedWindowRoller, trigger::size::SizeTrigger, CompoundPolicy,
-        },
         RollingFileAppender,
+        policy::compound::{
+            CompoundPolicy, roll::fixed_window::FixedWindowRoller, trigger::size::SizeTrigger,
+        },
     },
     config::{Appender, Root},
-    Config,
 };
 
 #[cfg(not(target_arch = "wasm32"))]

@@ -50,7 +50,7 @@ pub enum TheKeyCode {
 
 use ::serde::de::{self, Deserializer};
 use ::serde::ser::{self, Serializer};
-use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
+use flate2::{Compression, read::ZlibDecoder, write::ZlibEncoder};
 use std::io::{Read, Write};
 
 fn compress<S>(data: &[u8], serializer: S) -> Result<S::Ok, S::Error>
@@ -101,8 +101,8 @@ pub mod prelude {
     pub use crate::thepalette::ThePalette;
     pub use crate::thetime::TheTime;
 
-    pub use crate::thetrait::TheTrait;
     pub use crate::TheKeyCode;
+    pub use crate::thetrait::TheTrait;
 
     //#[cfg(feature = "renderer")]
     //pub use therenderer::prelude::*;
