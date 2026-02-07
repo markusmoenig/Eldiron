@@ -61,11 +61,14 @@ long_description = """
 Create classical RPGs with Eldiron.
 """
 
-# [lib]
-# name = "rustapi"
-# crate-type = ["staticlib"]
+# cargo build -p eldiron-creator --lib --release --features staticlib
+[lib]
+name = "rustapi"
+path = "src/lib.rs"
+crate-type = ["lib", "staticlib"]
 
 [features]
 default = []
 log = ["theframework/log"]
 self-update = ["dep:self_update"]
+staticlib = []

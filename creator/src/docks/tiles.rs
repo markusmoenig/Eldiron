@@ -443,6 +443,9 @@ impl TilesDock {
                     }
                 }
 
+                if grid == 0 || width <= 0 {
+                    return;
+                }
                 let tiles_per_row = width / grid;
                 let lines = filtered_tiles.len() as i32 / tiles_per_row + 1;
 
