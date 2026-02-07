@@ -1,5 +1,5 @@
 [package]
-name = "creator"
+name = "eldiron-creator"
 edition = "2024"
 version = "0.8.100"
 license = "MIT"
