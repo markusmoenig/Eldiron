@@ -233,6 +233,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                         }
                     }
                 }
+                return Some(VMValue::zero());
             }
             "get_attr" => {
                 if let Some(key) = args.get(0).and_then(|v| v.as_string()) {
@@ -248,6 +249,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                         }
                     }
                 }
+                return Some(VMValue::zero());
             }
             "random" => {
                 // random(min, max) inclusive; fallback to 0..1 if missing args

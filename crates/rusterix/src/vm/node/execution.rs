@@ -23,6 +23,9 @@ pub struct Execution {
 
     /// Custom outputs set by special ops (legacy; prefer HostHandler)
     pub outputs: FxHashMap<String, VMValue>,
+
+    /// When true, print a trace of every op before execution.
+    pub debug: bool,
 }
 
 impl Execution {
@@ -35,6 +38,7 @@ impl Execution {
             return_value: None,
             time: VMValue::zero(),
             outputs: FxHashMap::default(),
+            debug: false,
         }
     }
 
@@ -51,6 +55,7 @@ impl Execution {
             return_value: None,
             time: VMValue::zero(),
             outputs: FxHashMap::default(),
+            debug: false,
         }
     }
 
@@ -137,6 +142,21 @@ impl Execution {
             NodeOp::Push(v) => self.stack.push(v.clone()),
             NodeOp::Clear => _ = self.stack.pop(),
             NodeOp::FunctionCall(arity, total_locals, index) => {
+                if self.debug {
+                    let name = program
+                        .user_functions_name_map
+                        .iter()
+                        .find(|(_, idx)| **idx == *index)
+                        .map(|(n, _)| n.as_str())
+                        .unwrap_or("<unknown>");
+                    eprintln!(
+                        "[VM] >>> call {}  arity={}  locals={}  stack_depth={}",
+                        name,
+                        arity,
+                        total_locals,
+                        self.stack.len()
+                    );
+                }
                 self.push_locals_state();
                 self.locals = vec![VMValue::zero(); *total_locals as usize];
 
@@ -169,9 +189,19 @@ impl Execution {
                 self.pop_locals_state();
 
                 // Push the return VMValue
+                if self.debug {
+                    eprintln!(
+                        "[VM] <<< returned {:?}  stack_depth={}",
+                        ret,
+                        self.stack.len()
+                    );
+                }
                 self.stack.push(ret);
             }
             NodeOp::Return => {
+                if self.debug {
+                    eprintln!("[VM] <<< return  stack_depth={}", self.stack.len());
+                }
                 let v = if let Some(top) = self.stack.pop() {
                     top
                 } else if let Some(prev) = self.return_value.take() {
@@ -652,6 +682,21 @@ impl Execution {
 
         match op {
             NodeOp::FunctionCall(arity, total_locals, index) => {
+                if self.debug {
+                    let name = program
+                        .user_functions_name_map
+                        .iter()
+                        .find(|(_, idx)| **idx == *index)
+                        .map(|(n, _)| n.as_str())
+                        .unwrap_or("<unknown>");
+                    eprintln!(
+                        "[VM] >>> call {}  arity={}  locals={}  stack_depth={}",
+                        name,
+                        arity,
+                        total_locals,
+                        self.stack.len()
+                    );
+                }
                 self.push_locals_state();
                 self.locals = vec![VMValue::zero(); *total_locals as usize];
 
@@ -675,6 +720,13 @@ impl Execution {
 
                 self.stack.truncate(stack_base);
                 self.pop_locals_state();
+                if self.debug {
+                    eprintln!(
+                        "[VM] <<< returned {:?}  stack_depth={}",
+                        ret,
+                        self.stack.len()
+                    );
+                }
                 self.stack.push(ret);
             }
             NodeOp::For(init, cond, incr, body) => {
@@ -717,10 +769,19 @@ impl Execution {
     }
 
     pub fn execute(&mut self, code: &[NodeOp], program: &Program) {
-        for op in code {
+        for (i, op) in code.iter().enumerate() {
             // Unwind if return is set
             if self.return_value.is_some() {
                 break;
+            }
+            if self.debug {
+                eprintln!(
+                    "[VM] op[{}]: {:?}  stack_depth={}  locals_count={}",
+                    i,
+                    op,
+                    self.stack.len(),
+                    self.locals.len(),
+                );
             }
             self.execute_op(op, program);
         }
@@ -732,9 +793,18 @@ impl Execution {
         program: &Program,
         host: &mut H,
     ) {
-        for op in code {
+        for (i, op) in code.iter().enumerate() {
             if self.return_value.is_some() {
                 break;
+            }
+            if self.debug {
+                eprintln!(
+                    "[VM] op[{}]: {:?}  stack_depth={}  locals_count={}",
+                    i,
+                    op,
+                    self.stack.len(),
+                    self.locals.len(),
+                );
             }
             self.execute_op_host(op, program, host);
         }

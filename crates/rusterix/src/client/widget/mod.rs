@@ -4,7 +4,7 @@ pub mod messages;
 pub mod screen;
 pub mod text;
 
-use crate::{Assets, Entity, Map, Rect, Texture, Value, client::draw2d};
+use crate::{Assets, Entity, Map, Pixel, Rect, Texture, Value, WHITE, client::draw2d};
 use draw2d::Draw2D;
 use theframework::prelude::*;
 
@@ -24,6 +24,8 @@ pub struct Widget {
     pub entity_clicked_cursor_id: Option<Uuid>,
     pub item_cursor_id: Option<Uuid>,
     pub item_clicked_cursor_id: Option<Uuid>,
+    pub border_color: Pixel,
+    pub border_size: i32,
 }
 
 impl Default for Widget {
@@ -49,6 +51,8 @@ impl Widget {
             entity_clicked_cursor_id: None,
             item_cursor_id: None,
             item_clicked_cursor_id: None,
+            border_color: WHITE,
+            border_size: 0,
         }
     }
 
@@ -108,6 +112,21 @@ impl Widget {
                     }
                 }
             }
+        }
+
+        if self.border_size > 0 {
+            draw2d.rect_outline_thickness(
+                buffer.pixels_mut(),
+                &(
+                    self.rect.x as usize,
+                    self.rect.y as usize,
+                    self.rect.width as usize,
+                    self.rect.height as usize,
+                ),
+                stride,
+                &self.border_color,
+                self.border_size as usize,
+            );
         }
     }
 }

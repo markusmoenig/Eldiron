@@ -726,6 +726,30 @@ impl Client {
             .and_then(|s| Uuid::parse_str(s).ok())
     }
 
+    fn hex_to_rgba_u8(hex: &str) -> [u8; 4] {
+        let hex = hex.trim_start_matches('#');
+        match hex.len() {
+            6 => match (
+                u8::from_str_radix(&hex[0..2], 16),
+                u8::from_str_radix(&hex[2..4], 16),
+                u8::from_str_radix(&hex[4..6], 16),
+            ) {
+                (Ok(r), Ok(g), Ok(b)) => [r, g, b, 255],
+                _ => [255, 255, 255, 255],
+            },
+            8 => match (
+                u8::from_str_radix(&hex[0..2], 16),
+                u8::from_str_radix(&hex[2..4], 16),
+                u8::from_str_radix(&hex[4..6], 16),
+                u8::from_str_radix(&hex[6..8], 16),
+            ) {
+                (Ok(r), Ok(g), Ok(b), Ok(a)) => [r, g, b, a],
+                _ => [255, 255, 255, 255],
+            },
+            _ => [255, 255, 255, 255],
+        }
+    }
+
     /// Setup the client with the given assets.
     pub fn setup(&mut self, assets: &mut Assets, scene_handler: &mut SceneHandler) -> Vec<Command> {
         let mut commands = vec![];
@@ -1040,8 +1064,8 @@ impl Client {
         } else {
             self.upscale_factor = 1.0;
             // "none" mode: center without scaling
+            buffer.fill(bg_color);
             if self.first_game_draw {
-                buffer.fill(bg_color);
                 let dim = buffer.dim();
                 if dim.width > self.viewport.x {
                     self.target_offset.x = (dim.width - self.viewport.x) / 2;
@@ -1601,6 +1625,8 @@ impl Client {
                             let mut entity_clicked_cursor_id = None;
                             let mut item_cursor_id = None;
                             let mut item_clicked_cursor_id = None;
+                            let mut border_size: i32 = 0;
+                            let mut border_color: [u8; 4] = [255, 255, 255, 255];
 
                             if let Some(ui) = table.get("ui").and_then(toml::Value::as_table) {
                                 // Check for action
@@ -1687,6 +1713,18 @@ impl Client {
                                 item_cursor_id = Self::get_uuid(ui, "item_cursor_id");
                                 item_clicked_cursor_id =
                                     Self::get_uuid(ui, "item_clicked_cursor_id");
+
+                                // Check for border
+                                if let Some(value) = ui.get("border_size") {
+                                    if let Some(v) = value.as_integer() {
+                                        border_size = v as i32;
+                                    }
+                                }
+                                if let Some(value) = ui.get("border_color") {
+                                    if let Some(v) = value.as_str() {
+                                        border_color = Self::hex_to_rgba_u8(v);
+                                    }
+                                }
                             }
 
                             let button_widget = Widget {
@@ -1704,6 +1742,8 @@ impl Client {
                                 entity_clicked_cursor_id,
                                 item_cursor_id,
                                 item_clicked_cursor_id,
+                                border_color,
+                                border_size,
                             };
 
                             self.button_widgets.insert(widget.id, button_widget);
