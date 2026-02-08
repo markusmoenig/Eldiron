@@ -5,8 +5,10 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage.workspace = true
 description = "Rusterix is the game engine of Eldiron."
 keywords = ["software", "rendering", "graphics", "game", "engine"]
+readme = "README.md"
 
 [dependencies]
 theframework.workspace = true

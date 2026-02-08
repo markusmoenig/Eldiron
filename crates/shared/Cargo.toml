@@ -4,7 +4,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Shared code and common types for the Eldiron applications."
+keywords = ["game", "rpg", "engine", "shared", "eldiron"]
+readme = "README.md"
 
 [dependencies]
 theframework.workspace = true

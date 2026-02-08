@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage.workspace = true
+description = "A GPU-based layer renderer with configurable compute shaders for Eldiron."
+keywords = ["gpu", "rendering", "wgpu", "game", "engine"]
+readme = "README.md"
 
 [dependencies]
 wgpu = "27.0.1"

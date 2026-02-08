@@ -20,3 +20,4 @@ license = "MIT"
 authors = ["Markus Moenig"]
 description = "A retro-style RPG game creator."
 repository = "https://github.com/markusmoenig/Eldiron"
+homepage = "https://eldiron.com"

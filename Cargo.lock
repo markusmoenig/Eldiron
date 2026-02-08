@@ -533,7 +533,7 @@ dependencies = [
 
 [[package]]
 name = "codegridfx"
-version = "0.1.0"
+version = "0.8.100"
 dependencies = [
  "indexmap 2.13.0",
  "rusteria",
@@ -3963,7 +3963,7 @@ dependencies = [
 
 [[package]]
 name = "rusteria"
-version = "0.1.0"
+version = "0.8.100"
 dependencies = [
  "image",
  "indexmap 2.13.0",

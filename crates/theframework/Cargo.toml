@@ -5,8 +5,10 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage.workspace = true
 description = "A cross platform application UI framework."
 keywords = ["application", "framework", "graphics", "user-interface", "gui"]
+readme = "README.md"
 exclude = ["Xcode"]
 
 [dependencies]

@@ -1,11 +1,14 @@
 [package]
 name = "rusteria"
-version = "0.1.0"
-edition = "2024"
-description = "Rusteria is a fast shader like programming language."
-license = "Apache-2.0 AND MIT"
-repository = "https://github.com/markusmoenig/Eldiron"
-keywords = ["software", "rendering", "graphics", "game", "3d", "doom", "engine"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Rusteria is a fast shader-like programming language."
+keywords = ["shader", "rendering", "graphics", "procedural", "texture"]
+readme = "README.md"
 
 [dependencies]
 theframework.workspace = true
