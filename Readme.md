@@ -47,10 +47,11 @@ Download the latest release for your platform from the [GitHub Releases](https:/
 
 ### Install via Cargo
 
-If you have [Rust installed](https://www.rust-lang.org/tools/install), you can install Eldiron Creator directly from the repository:
+If you have [Rust installed](https://www.rust-lang.org/tools/install), you can install Eldiron Creator and the Client directly from [crates.io](https://crates.io):
 
 ```bash
-cargo install --git https://github.com/markusmoenig/Eldiron --bin eldiron-creator
+cargo install eldiron-creator
+cargo install eldiron-client
 ```
 
 ### Building from Source

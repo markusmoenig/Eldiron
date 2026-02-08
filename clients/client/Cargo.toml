@@ -4,7 +4,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "The player client for games created with Eldiron."
+keywords = ["game", "rpg", "client", "player", "eldiron"]
+readme = "README.md"
 
 [[bin]]
 name = "eldiron-client"
@@ -14,7 +18,7 @@ path = "src/main.rs"
 theframework.workspace = true
 rusterix.workspace = true
 
-shared = { path = "../../crates/shared", package = "eldiron-shared" }
+shared = { path = "../../crates/shared", version = "0.8.100", package = "eldiron-shared" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 vectorize = "0.2.0"
