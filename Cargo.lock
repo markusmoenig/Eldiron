@@ -1079,6 +1079,7 @@ name = "eldiron-client"
 version = "0.8.100"
 dependencies = [
  "console_error_panic_hook",
+ "eldiron-shared",
  "fontdue",
  "instant",
  "png 0.17.16",
@@ -1086,7 +1087,6 @@ dependencies = [
  "rusterix",
  "serde",
  "serde_json",
- "shared",
  "theframework",
  "vectorize",
  "wasm-bindgen",
@@ -1099,6 +1099,7 @@ version = "0.8.100"
 dependencies = [
  "arboard",
  "codegridfx",
+ "eldiron-shared",
  "fontdue",
  "i18n-embed",
  "i18n-embed-fl",
@@ -1116,11 +1117,36 @@ dependencies = [
  "self_update",
  "serde",
  "serde_json",
- "shared",
  "theframework",
  "toml 0.8.23",
  "vectorize",
  "vek",
+]
+
+[[package]]
+name = "eldiron-shared"
+version = "0.8.100"
+dependencies = [
+ "codegridfx",
+ "earcutr",
+ "fontdue",
+ "indexmap 2.13.0",
+ "line_drawing",
+ "noiselib",
+ "num_cpus",
+ "rand",
+ "rayon",
+ "rect_packer",
+ "regex",
+ "rusterix",
+ "scenevm",
+ "serde",
+ "serde_json",
+ "theframework",
+ "vectorize",
+ "vek",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -4262,32 +4288,6 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
-]
-
-[[package]]
-name = "shared"
-version = "0.8.100"
-dependencies = [
- "codegridfx",
- "earcutr",
- "fontdue",
- "indexmap 2.13.0",
- "line_drawing",
- "noiselib",
- "num_cpus",
- "rand",
- "rayon",
- "rect_packer",
- "regex",
- "rusterix",
- "scenevm",
- "serde",
- "serde_json",
- "theframework",
- "vectorize",
- "vek",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]

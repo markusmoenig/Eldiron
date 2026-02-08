@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "Rusteria is a fast shader like programming language."
 license = "Apache-2.0 AND MIT"
-repository = "https://github.com/markusmoenig/Rusterix"
+repository = "https://github.com/markusmoenig/Eldiron"
 keywords = ["software", "rendering", "graphics", "game", "3d", "doom", "engine"]
 
 [dependencies]
