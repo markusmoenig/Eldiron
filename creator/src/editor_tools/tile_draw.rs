@@ -3,7 +3,10 @@ use crate::prelude::*;
 
 pub struct TileDrawTool {
     id: TheId,
+    /// For tile editing: snapshot of the entire tile before the stroke.
     before_tile: Option<rusterix::Tile>,
+    /// For non-tile editing (avatar frames, etc.): snapshot of the texture + context.
+    before_snapshot: Option<(PixelEditingContext, rusterix::Texture)>,
     changed: bool,
 }
 
@@ -15,6 +18,7 @@ impl EditorTool for TileDrawTool {
         Self {
             id: TheId::named("Tile Draw Tool"),
             before_tile: None,
+            before_snapshot: None,
             changed: false,
         }
     }
@@ -44,14 +48,24 @@ impl EditorTool for TileDrawTool {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
-        // println!("draw {:?}", event);
 
         match event {
             TheEvent::TileEditorClicked(id, coord) => {
                 if id.name == "Tile Editor Dock RGBA Layout View" {
-                    if let Some(tile_id) = server_ctx.curr_tile_id {
-                        if let Some(tile) = project.tiles.get_mut(&tile_id) {
-                            self.before_tile = Some(tile.clone());
+                    // Snapshot before we start drawing
+                    match server_ctx.editing_ctx {
+                        PixelEditingContext::Tile(tile_id, _) => {
+                            if let Some(tile) = project.tiles.get(&tile_id) {
+                                self.before_tile = Some(tile.clone());
+                            }
+                        }
+                        _ => {
+                            if let Some(texture) =
+                                project.get_editing_texture(&server_ctx.editing_ctx)
+                            {
+                                self.before_snapshot =
+                                    Some((server_ctx.editing_ctx, texture.clone()));
+                            }
                         }
                     }
 
@@ -67,10 +81,13 @@ impl EditorTool for TileDrawTool {
             }
             TheEvent::TileEditorUp(_) => {
                 if self.changed {
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Update Tilepicker"),
-                        TheValue::Empty,
-                    ));
+                    // For tiles, update the tile picker when the stroke finishes
+                    if matches!(server_ctx.editing_ctx, PixelEditingContext::Tile(..)) {
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Tilepicker"),
+                            TheValue::Empty,
+                        ));
+                    }
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Tile Editor Undo Available"),
                         TheValue::Empty,
@@ -85,14 +102,23 @@ impl EditorTool for TileDrawTool {
     }
 
     fn get_undo_atom(&mut self, project: &Project) -> Option<Box<dyn std::any::Any>> {
+        // For tiles, use the TileEdit atom (works with tile picker and map even when editor closed)
         if let Some(before) = self.before_tile.take() {
-            // Get the current (after) state from the project
             if let Some(tile) = project.tiles.get(&before.id) {
                 if !tile.textures.is_empty() {
                     let after = tile.clone();
                     let atom = TileEditorUndoAtom::TileEdit(before.id, before, after);
                     return Some(Box::new(atom));
                 }
+            }
+            return None;
+        }
+
+        // For non-tile contexts, use the generic TextureEdit atom
+        if let Some((editing_ctx, before)) = self.before_snapshot.take() {
+            if let Some(after) = project.get_editing_texture(&editing_ctx) {
+                let atom = TileEditorUndoAtom::TextureEdit(editing_ctx, before, after.clone());
+                return Some(Box::new(atom));
             }
         }
         None
@@ -108,41 +134,38 @@ impl TileDrawTool {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
-        if let Some(tile_id) = server_ctx.curr_tile_id {
-            if let Some(tile) = project.tiles.get_mut(&tile_id) {
-                let frame_index = server_ctx.curr_tile_frame_index;
-                if frame_index < tile.textures.len() {
-                    let width = tile.textures[frame_index].width as i32;
-                    let height = tile.textures[frame_index].height as i32;
+        let editing_ctx = server_ctx.editing_ctx;
 
-                    if pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height {
-                        // Get the selected palette color
-                        if let Some(color) = project.palette.get_current_color() {
-                            // Set the pixel
-                            let index = (pos.y * width + pos.x) as usize;
-                            if index < tile.textures[frame_index].data.len() {
-                                // Apply palette opacity to the color
-                                let mut color_array = color.to_u8_array();
-                                color_array[3] =
-                                    (color_array[3] as f32 * server_ctx.palette_opacity) as u8;
+        // Get the color from the editing context (resolves palette for tiles, abstract colors for avatars later)
+        let color_array = editing_ctx.get_draw_color(&project.palette, server_ctx.palette_opacity);
 
-                                tile.textures[frame_index].set_pixel(
-                                    pos.x as u32,
-                                    pos.y as u32,
-                                    color_array,
-                                );
+        if let Some(color_array) = color_array {
+            if let Some(texture) = project.get_editing_texture_mut(&editing_ctx) {
+                let width = texture.width as i32;
+                let height = texture.height as i32;
 
-                                tile.textures[frame_index].generate_normals(true);
+                if pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height {
+                    texture.set_pixel(pos.x as u32, pos.y as u32, color_array);
+                    texture.generate_normals(true);
 
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Tile Updated"),
-                                    TheValue::Id(tile_id),
-                                ));
-
-                                self.changed = true;
-                            }
+                    // Send context-appropriate update event
+                    match editing_ctx {
+                        PixelEditingContext::Tile(tile_id, _) => {
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Tile Updated"),
+                                TheValue::Id(tile_id),
+                            ));
                         }
+                        PixelEditingContext::AvatarFrame(..) => {
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Editing Texture Updated"),
+                                TheValue::Empty,
+                            ));
+                        }
+                        PixelEditingContext::None => {}
                     }
+
+                    self.changed = true;
                 }
             }
         }

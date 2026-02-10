@@ -7,10 +7,15 @@ pub struct TilesEditorDock {
     tile_node: Uuid,
     palette_node: Uuid,
 
-    // Per-tile undo stacks
+    // Per-context undo stacks (keyed by tile_id for tiles, avatar_id for avatar frames)
     tile_undos: FxHashMap<Uuid, TileEditorUndo>,
     current_tile_id: Option<Uuid>,
+    /// The current undo key — derived from the editing context.
+    current_undo_key: Option<Uuid>,
     max_undo: usize,
+
+    /// When true, the minimap cycles through animation frames.
+    anim_preview: bool,
 }
 
 impl Dock for TilesEditorDock {
@@ -24,7 +29,9 @@ impl Dock for TilesEditorDock {
             palette_node: Uuid::new_v4(),
             tile_undos: FxHashMap::default(),
             current_tile_id: None,
+            current_undo_key: None,
             max_undo: 30,
+            anim_preview: false,
         }
     }
 
@@ -120,19 +127,7 @@ impl Dock for TilesEditorDock {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
-        if let Some(tile_id) = server_ctx.curr_tile_id {
-            if let Some(tile) = project.tiles.get(&tile_id) {
-                self.set_tile(tile, ui, ctx, server_ctx, false);
-            }
-        }
-
-        // if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree") {
-        //     if let Some(palette_node) = tree_layout.get_node_by_id_mut(&self.palette_node) {
-        //         if let Some(widget) = palette_node.widgets[1].as_tree_icons() {
-        //             widget.set_palette(&project.palette);
-        //         }
-        //     }
-        // }
+        self.editing_context_changed(ui, ctx, project, server_ctx);
     }
 
     fn minimized(&mut self, _ui: &mut TheUI, ctx: &mut TheContext) {
@@ -150,7 +145,7 @@ impl Dock for TilesEditorDock {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let redraw = false;
+        let mut redraw = false;
 
         match event {
             TheEvent::Custom(id, value) => {
@@ -160,6 +155,7 @@ impl Dock for TilesEditorDock {
                     if let Some(tile) = project.tiles.get(tile_id) {
                         self.set_tile(tile, ui, ctx, server_ctx, false);
                     }
+                    self.editing_context_changed(ui, ctx, project, server_ctx);
                 } else if let TheValue::Id(tile_id) = value
                     && id.name == "Tile Updated"
                 {
@@ -183,6 +179,8 @@ impl Dock for TilesEditorDock {
                             }
                         }
                     }
+                } else if id.name == "Editing Texture Updated" {
+                    self.refresh_from_editing_context(project, ui, ctx, server_ctx);
                 } else if id.name == "Tile Editor Undo Available" {
                     if let Some(atom) = TOOLLIST
                         .write()
@@ -266,6 +264,74 @@ impl Dock for TilesEditorDock {
                     }
                 }
             }
+            TheEvent::Paste(_, _) => {
+                if server_ctx.editing_ctx != PixelEditingContext::None {
+                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                        if let Ok(img) = clipboard.get_image() {
+                            // Convert RGBA image data to a texture
+                            let width = img.width;
+                            let height = img.height;
+                            let data: Vec<u8> = img.bytes.into_owned();
+
+                            if width > 0 && height > 0 {
+                                let pasted = rusterix::Texture::new(data, width, height);
+
+                                // Snapshot for undo
+                                let editing_ctx = server_ctx.editing_ctx;
+                                let before = project.get_editing_texture(&editing_ctx).cloned();
+
+                                if let Some(texture) = project.get_editing_texture_mut(&editing_ctx)
+                                {
+                                    let before = before.unwrap();
+                                    // Resize pasted image to match current texture dimensions
+                                    *texture = pasted.resized(texture.width, texture.height);
+                                    texture.generate_normals(true);
+
+                                    let after = texture.clone();
+                                    let atom =
+                                        TileEditorUndoAtom::TextureEdit(editing_ctx, before, after);
+                                    self.add_undo(atom, ctx);
+
+                                    // Send update events
+                                    match editing_ctx {
+                                        PixelEditingContext::Tile(tile_id, _) => {
+                                            ctx.ui.send(TheEvent::Custom(
+                                                TheId::named("Tile Updated"),
+                                                TheValue::Id(tile_id),
+                                            ));
+                                            ctx.ui.send(TheEvent::Custom(
+                                                TheId::named("Update Tilepicker"),
+                                                TheValue::Empty,
+                                            ));
+                                        }
+                                        PixelEditingContext::AvatarFrame(..) => {
+                                            ctx.ui.send(TheEvent::Custom(
+                                                TheId::named("Editing Texture Updated"),
+                                                TheValue::Empty,
+                                            ));
+                                        }
+                                        PixelEditingContext::None => {}
+                                    }
+
+                                    redraw = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            TheEvent::KeyCodeDown(TheValue::KeyCode(key)) => {
+                if *key == TheKeyCode::Space && !ui.focus_widget_supports_text_input(ctx) {
+                    if server_ctx.editing_ctx != PixelEditingContext::None {
+                        self.anim_preview = !self.anim_preview;
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Minimap"),
+                            TheValue::Empty,
+                        ));
+                        redraw = true;
+                    }
+                }
+            }
             _ => {}
         }
 
@@ -288,8 +354,8 @@ impl Dock for TilesEditorDock {
         project: &mut Project,
         _server_ctx: &mut ServerContext,
     ) {
-        if let Some(tile_id) = self.current_tile_id {
-            if let Some(undo) = self.tile_undos.get_mut(&tile_id) {
+        if let Some(key) = self.current_undo_key {
+            if let Some(undo) = self.tile_undos.get_mut(&key) {
                 undo.undo(project, ui, ctx);
                 self.set_undo_state_to_ui(ctx);
             }
@@ -303,8 +369,8 @@ impl Dock for TilesEditorDock {
         project: &mut Project,
         _server_ctx: &mut ServerContext,
     ) {
-        if let Some(tile_id) = self.current_tile_id {
-            if let Some(undo) = self.tile_undos.get_mut(&tile_id) {
+        if let Some(key) = self.current_undo_key {
+            if let Some(undo) = self.tile_undos.get_mut(&key) {
                 undo.redo(project, ui, ctx);
                 self.set_undo_state_to_ui(ctx);
             }
@@ -312,8 +378,8 @@ impl Dock for TilesEditorDock {
     }
 
     fn set_undo_state_to_ui(&self, ctx: &mut TheContext) {
-        if let Some(tile_id) = self.current_tile_id {
-            if let Some(undo) = self.tile_undos.get(&tile_id) {
+        if let Some(key) = self.current_undo_key {
+            if let Some(undo) = self.tile_undos.get(&key) {
                 if undo.has_undo() {
                     ctx.ui.set_enabled("Undo");
                 } else {
@@ -351,48 +417,53 @@ impl Dock for TilesEditorDock {
     ) -> bool {
         buffer.fill(BLACK);
 
-        if let Some(tile_id) = self.current_tile_id {
-            if let Some(tile) = project.tiles.get(&tile_id) {
-                let index = server_ctx.curr_tile_frame_index;
-
-                let stride: usize = buffer.stride();
-
-                let src_pixels = &tile.textures[index].data;
-                let src_w = tile.textures[index].width as f32;
-                let src_h = tile.textures[index].height as f32;
-
-                let dim = buffer.dim();
-                let dst_w = dim.width as f32;
-                let dst_h = dim.height as f32;
-
-                // Compute scale
-                let scale = (dst_w / src_w).min(dst_h / src_h);
-
-                // Scaled dimensions
-                let draw_w = src_w * scale;
-                let draw_h = src_h * scale;
-
-                // Center
-                let offset_x = ((dst_w - draw_w) * 0.5).round() as usize;
-                let offset_y = ((dst_h - draw_h) * 0.5).round() as usize;
-
-                let dst_rect = (
-                    offset_x,
-                    offset_y,
-                    draw_w.round() as usize,
-                    draw_h.round() as usize,
-                );
-
-                ctx.draw.blend_scale_chunk(
-                    buffer.pixels_mut(),
-                    &dst_rect,
-                    stride,
-                    src_pixels,
-                    &(src_w as usize, src_h as usize),
-                );
-
-                return true;
+        // Determine which frame to display
+        let display_ctx = if self.anim_preview {
+            let frame_count = server_ctx.editing_ctx.get_frame_count(project);
+            if frame_count > 0 {
+                let frame = server_ctx.animation_counter % frame_count;
+                server_ctx.editing_ctx.with_frame(frame)
+            } else {
+                server_ctx.editing_ctx
             }
+        } else {
+            server_ctx.editing_ctx
+        };
+
+        if let Some(texture) = project.get_editing_texture(&display_ctx) {
+            let stride: usize = buffer.stride();
+
+            let src_pixels = &texture.data;
+            let src_w = texture.width as f32;
+            let src_h = texture.height as f32;
+
+            let dim = buffer.dim();
+            let dst_w = dim.width as f32;
+            let dst_h = dim.height as f32;
+
+            let scale = (dst_w / src_w).min(dst_h / src_h);
+            let draw_w = src_w * scale;
+            let draw_h = src_h * scale;
+
+            let offset_x = ((dst_w - draw_w) * 0.5).round() as usize;
+            let offset_y = ((dst_h - draw_h) * 0.5).round() as usize;
+
+            let dst_rect = (
+                offset_x,
+                offset_y,
+                draw_w.round() as usize,
+                draw_h.round() as usize,
+            );
+
+            ctx.draw.blend_scale_chunk(
+                buffer.pixels_mut(),
+                &dst_rect,
+                stride,
+                src_pixels,
+                &(src_w as usize, src_h as usize),
+            );
+
+            return true;
         }
         false
     }
@@ -411,11 +482,15 @@ impl TilesEditorDock {
         server_ctx: &mut ServerContext,
     ) {
         self.current_tile_id = Some(tile.id);
+        self.current_undo_key = Some(tile.id);
 
         // Verify frame index is valid for the new tile
         if server_ctx.curr_tile_frame_index >= tile.textures.len() {
             server_ctx.curr_tile_frame_index = 0;
         }
+
+        server_ctx.editing_ctx =
+            PixelEditingContext::Tile(tile.id, server_ctx.curr_tile_frame_index);
 
         self.set_undo_state_to_ui(ctx);
     }
@@ -434,6 +509,7 @@ impl TilesEditorDock {
             if let Some(tile) = project.tiles.get(&tile_id) {
                 if index < tile.textures.len() {
                     server_ctx.curr_tile_frame_index = index;
+                    server_ctx.editing_ctx = PixelEditingContext::Tile(tile_id, index);
 
                     // Update the TreeIcons selection
                     if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree") {
@@ -498,12 +574,20 @@ impl TilesEditorDock {
         }
     }
 
-    /// Add an undo atom to the current tile's undo stack
+    /// Add an undo atom to the appropriate undo stack (keyed by context)
     pub fn add_undo(&mut self, atom: TileEditorUndoAtom, ctx: &mut TheContext) {
-        if let Some(tile_id) = self.current_tile_id {
+        let key = match &atom {
+            TileEditorUndoAtom::TileEdit(tile_id, _, _) => Some(*tile_id),
+            TileEditorUndoAtom::TextureEdit(editing_ctx, _, _) => match editing_ctx {
+                PixelEditingContext::Tile(tile_id, _) => Some(*tile_id),
+                PixelEditingContext::AvatarFrame(avatar_id, _, _, _) => Some(*avatar_id),
+                PixelEditingContext::None => None,
+            },
+        };
+        if let Some(key) = key {
             let undo = self
                 .tile_undos
-                .entry(tile_id)
+                .entry(key)
                 .or_insert_with(TileEditorUndo::new);
             undo.add(atom);
             undo.truncate_to_limit(self.max_undo);
@@ -579,6 +663,84 @@ impl TilesEditorDock {
                 }
             }
             if !update_only {
+                editor.set_zoom(self.zoom);
+                editor.relayout(ctx);
+            }
+        }
+    }
+
+    /// Called whenever the editing context changes (activate, tile picked, avatar frame selected).
+    /// Use this to adjust UI elements based on the current PixelEditingContext.
+    pub fn editing_context_changed(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        match server_ctx.editing_ctx {
+            PixelEditingContext::Tile(tile_id, _) => {
+                if let Some(tile) = project.tiles.get(&tile_id) {
+                    self.set_tile(tile, ui, ctx, server_ctx, false);
+                }
+            }
+            PixelEditingContext::AvatarFrame(..) => {
+                self.set_undo_key_from_context(&server_ctx.editing_ctx);
+                self.refresh_from_editing_context(project, ui, ctx, server_ctx);
+            }
+            PixelEditingContext::None => {
+                if let Some(tile_id) = server_ctx.curr_tile_id {
+                    if let Some(tile) = project.tiles.get(&tile_id) {
+                        self.set_tile(tile, ui, ctx, server_ctx, false);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Set the undo key based on the current editing context.
+    pub fn set_undo_key_from_context(&mut self, editing_ctx: &PixelEditingContext) {
+        self.current_undo_key = match editing_ctx {
+            PixelEditingContext::None => None,
+            PixelEditingContext::Tile(tile_id, _) => Some(*tile_id),
+            PixelEditingContext::AvatarFrame(avatar_id, _, _, _) => Some(*avatar_id),
+        };
+    }
+
+    /// Refresh the editor display from the current editing context.
+    pub fn refresh_from_editing_context(
+        &mut self,
+        project: &Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+        if let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx) {
+            self.set_editing_texture(texture, ui, ctx);
+        }
+    }
+
+    /// Display the given texture in the editor.
+    pub fn set_editing_texture(
+        &mut self,
+        texture: &rusterix::Texture,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout") {
+            let view_width = editor.dim().width - 16;
+            let view_height = editor.dim().height - 16;
+
+            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                let buffer = texture.to_rgba();
+                let icon_width = texture.width;
+                let icon_height = texture.height;
+
+                self.zoom = (view_width as f32 / icon_width as f32)
+                    .min(view_height as f32 / icon_height as f32);
+
+                rgba_view.set_grid(Some(1));
+                rgba_view.set_buffer(buffer);
                 editor.set_zoom(self.zoom);
                 editor.relayout(ctx);
             }

@@ -4,8 +4,10 @@ use theframework::prelude::*;
 /// Undo atoms for tile editor operations
 #[derive(Clone, Debug)]
 pub enum TileEditorUndoAtom {
-    /// Tile texture edit: (tile_id, before_texture, after_texture)
+    /// Tile texture edit: (tile_id, before_tile, after_tile)
     TileEdit(Uuid, rusterix::Tile, rusterix::Tile),
+    /// Generic texture edit via PixelEditingContext: (context, before_texture, after_texture)
+    TextureEdit(PixelEditingContext, rusterix::Texture, rusterix::Texture),
 }
 
 impl TileEditorUndoAtom {
@@ -27,6 +29,12 @@ impl TileEditorUndoAtom {
                         TheValue::Empty,
                     ));
                 }
+            }
+            TileEditorUndoAtom::TextureEdit(editing_ctx, prev, _) => {
+                if let Some(texture) = project.get_editing_texture_mut(editing_ctx) {
+                    *texture = prev.clone();
+                }
+                Self::send_editing_context_update(editing_ctx, ctx);
             }
         }
     }
@@ -51,6 +59,35 @@ impl TileEditorUndoAtom {
                         ));
                     }
                 }
+            }
+            TileEditorUndoAtom::TextureEdit(editing_ctx, _, next) => {
+                if let Some(texture) = project.get_editing_texture_mut(editing_ctx) {
+                    *texture = next.clone();
+                }
+                Self::send_editing_context_update(editing_ctx, ctx);
+            }
+        }
+    }
+
+    /// Sends the appropriate UI update events after an editing context undo/redo.
+    fn send_editing_context_update(editing_ctx: &PixelEditingContext, ctx: &mut TheContext) {
+        match editing_ctx {
+            PixelEditingContext::None => {}
+            PixelEditingContext::Tile(tile_id, _) => {
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Tile Updated"),
+                    TheValue::Id(*tile_id),
+                ));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Tilepicker"),
+                    TheValue::Empty,
+                ));
+            }
+            PixelEditingContext::AvatarFrame(..) => {
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Editing Texture Updated"),
+                    TheValue::Empty,
+                ));
             }
         }
     }

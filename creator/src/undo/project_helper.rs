@@ -308,7 +308,7 @@ pub fn gen_avatar_animation_node(animation: &AvatarAnimation) -> TheTreeNode {
     node.add_widget(Box::new(item));
 
     // Perspective child nodes
-    for perspective in &animation.perspectives {
+    for (persp_index, perspective) in animation.perspectives.iter().enumerate() {
         let dir_name = match perspective.direction {
             AvatarDirection::Front => "Front",
             AvatarDirection::Back => "Back",
@@ -318,9 +318,10 @@ pub fn gen_avatar_animation_node(animation: &AvatarAnimation) -> TheTreeNode {
 
         let mut persp_node = TheTreeNode::new(TheId::named(dir_name));
         persp_node.set_root_mode(false);
+        persp_node.set_open(true);
 
         let mut icons = TheTreeIcons::new(TheId::named_with_reference(
-            "Avatar Perspective Icons",
+            &format!("Avatar Perspective Icons {}", persp_index),
             animation.id,
         ));
         icons.set_icon_size(24);

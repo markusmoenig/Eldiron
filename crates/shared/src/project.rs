@@ -182,6 +182,56 @@ impl Project {
             .find(|a| a.animations.iter().any(|anim| anim.id == *animation_id))
     }
 
+    /// Returns an immutable reference to the texture identified by the editing context.
+    pub fn get_editing_texture(
+        &self,
+        editing_ctx: &PixelEditingContext,
+    ) -> Option<&rusterix::Texture> {
+        match editing_ctx {
+            PixelEditingContext::None => None,
+            PixelEditingContext::Tile(tile_id, frame_index) => {
+                let tile = self.tiles.get(tile_id)?;
+                tile.textures.get(*frame_index)
+            }
+            PixelEditingContext::AvatarFrame(
+                avatar_id,
+                anim_id,
+                perspective_index,
+                frame_index,
+            ) => {
+                let avatar = self.avatars.get(avatar_id)?;
+                let anim = avatar.animations.iter().find(|a| a.id == *anim_id)?;
+                let perspective = anim.perspectives.get(*perspective_index)?;
+                perspective.frames.get(*frame_index)
+            }
+        }
+    }
+
+    /// Returns a mutable reference to the texture identified by the editing context.
+    pub fn get_editing_texture_mut(
+        &mut self,
+        editing_ctx: &PixelEditingContext,
+    ) -> Option<&mut rusterix::Texture> {
+        match editing_ctx {
+            PixelEditingContext::None => None,
+            PixelEditingContext::Tile(tile_id, frame_index) => {
+                let tile = self.tiles.get_mut(tile_id)?;
+                tile.textures.get_mut(*frame_index)
+            }
+            PixelEditingContext::AvatarFrame(
+                avatar_id,
+                anim_id,
+                perspective_index,
+                frame_index,
+            ) => {
+                let avatar = self.avatars.get_mut(avatar_id)?;
+                let anim = avatar.animations.iter_mut().find(|a| a.id == *anim_id)?;
+                let perspective = anim.perspectives.get_mut(*perspective_index)?;
+                perspective.frames.get_mut(*frame_index)
+            }
+        }
+    }
+
     /// Add Item
     pub fn add_item(&mut self, item: Item) {
         self.items.insert(item.id, item);

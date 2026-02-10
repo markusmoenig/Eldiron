@@ -4,6 +4,75 @@ pub use rusterix::{Value, VertexBlendPreset, map::*};
 use scenevm::GeoId;
 use theframework::prelude::*;
 
+/// Identifies which texture is currently being edited by editor tools.
+/// This abstraction allows the same draw/fill/pick tools to work on
+/// any paintable texture source (tiles, avatar frames, future types).
+/// Each variant also determines how colors are resolved for painting.
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum PixelEditingContext {
+    /// No active editing target.
+    None,
+    /// Editing a tile texture: (tile_id, frame_index).
+    Tile(Uuid, usize),
+    /// Editing an avatar animation frame: (avatar_id, anim_id, perspective_index, frame_index).
+    AvatarFrame(Uuid, Uuid, usize, usize),
+}
+
+impl Default for PixelEditingContext {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+impl PixelEditingContext {
+    /// Returns the [r, g, b, a] color to paint with for this context.
+    /// For tiles: uses the palette color with opacity applied.
+    /// For avatar frames: placeholder — uses palette for now, will use abstract body-part colors later.
+    pub fn get_draw_color(&self, palette: &ThePalette, opacity: f32) -> Option<[u8; 4]> {
+        match self {
+            PixelEditingContext::None => None,
+            PixelEditingContext::Tile(..) | PixelEditingContext::AvatarFrame(..) => {
+                if let Some(color) = palette.get_current_color() {
+                    let mut arr = color.to_u8_array();
+                    arr[3] = (arr[3] as f32 * opacity) as u8;
+                    Some(arr)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    /// Returns the number of animation frames for this context.
+    pub fn get_frame_count(&self, project: &Project) -> usize {
+        match self {
+            PixelEditingContext::None => 0,
+            PixelEditingContext::Tile(tile_id, _) => {
+                project.tiles.get(tile_id).map_or(0, |t| t.textures.len())
+            }
+            PixelEditingContext::AvatarFrame(avatar_id, anim_id, persp_index, _) => project
+                .avatars
+                .get(avatar_id)
+                .and_then(|a| a.animations.iter().find(|anim| anim.id == *anim_id))
+                .and_then(|anim| anim.perspectives.get(*persp_index))
+                .map_or(0, |p| p.frames.len()),
+        }
+    }
+
+    /// Returns a copy of this context with the frame index replaced.
+    pub fn with_frame(&self, frame_index: usize) -> Self {
+        match *self {
+            PixelEditingContext::None => PixelEditingContext::None,
+            PixelEditingContext::Tile(tile_id, _) => {
+                PixelEditingContext::Tile(tile_id, frame_index)
+            }
+            PixelEditingContext::AvatarFrame(avatar_id, anim_id, persp_index, _) => {
+                PixelEditingContext::AvatarFrame(avatar_id, anim_id, persp_index, frame_index)
+            }
+        }
+    }
+}
+
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum GizmoMode {
     XZ,
@@ -463,6 +532,9 @@ pub struct ServerContext {
 
     /// Help mode state
     pub help_mode: bool,
+
+    /// The current editing context for texture editor tools.
+    pub editing_ctx: PixelEditingContext,
 }
 
 impl Default for ServerContext {
@@ -571,6 +643,8 @@ impl ServerContext {
 
             game_input_mode: false,
             help_mode: false,
+
+            editing_ctx: PixelEditingContext::None,
         }
     }
 

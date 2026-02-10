@@ -385,6 +385,32 @@ impl Sidebar {
                             UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                         }
                     }
+                } else if id.name.starts_with("Avatar Perspective Icons ") {
+                    // Parse the perspective index from the widget name
+                    if let Some(persp_index_str) = id.name.strip_prefix("Avatar Perspective Icons ")
+                    {
+                        if let Ok(persp_index) = persp_index_str.parse::<usize>() {
+                            let anim_id = id.references;
+                            let frame_index = *index as usize;
+
+                            // Find the avatar that owns this animation
+                            if let Some(avatar) = project.find_avatar_for_animation(&anim_id) {
+                                let avatar_id = avatar.id;
+
+                                server_ctx.editing_ctx = PixelEditingContext::AvatarFrame(
+                                    avatar_id,
+                                    anim_id,
+                                    persp_index,
+                                    frame_index,
+                                );
+
+                                // Open the tile editor dock in editor mode
+                                let mut dm = DOCKMANAGER.write().unwrap();
+                                dm.set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+                                dm.edit_maximize(ui, ctx, project, server_ctx);
+                            }
+                        }
+                    }
                 }
             }
             TheEvent::RenderViewClicked(id, coord)
@@ -577,7 +603,55 @@ impl Sidebar {
                 }
             }
             TheEvent::Custom(id, _value) => {
-                if id.name == "Backup Editing Position" {
+                if id.name == "Editing Texture Updated" {
+                    // Update the avatar perspective icon in the Project Tree
+                    if let PixelEditingContext::AvatarFrame(
+                        avatar_id,
+                        anim_id,
+                        persp_index,
+                        frame_index,
+                    ) = server_ctx.editing_ctx
+                    {
+                        if let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx)
+                        {
+                            let icon_name = format!("Avatar Perspective Icons {}", persp_index);
+                            if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                                if let Some(avatars_node) =
+                                    tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id)
+                                {
+                                    // Find the avatar node
+                                    if let Some(avatar_node) = avatars_node
+                                        .childs
+                                        .iter_mut()
+                                        .find(|c| c.id.uuid == avatar_id)
+                                    {
+                                        // Find the animation node
+                                        if let Some(anim_node) = avatar_node
+                                            .childs
+                                            .iter_mut()
+                                            .find(|c| c.id.uuid == anim_id)
+                                        {
+                                            // Find the perspective node containing our icons widget
+                                            for persp_node in &mut anim_node.childs {
+                                                for widget in &mut persp_node.widgets {
+                                                    if widget.id().name == icon_name {
+                                                        if let Some(icons) = widget.as_tree_icons()
+                                                        {
+                                                            icons.set_icon(
+                                                                frame_index,
+                                                                texture.to_rgba(),
+                                                            );
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if id.name == "Backup Editing Position" {
                     if let Some(region) = project.get_region_ctx(server_ctx) {
                         server_ctx.editing_pos_buffer = Some(region.editing_position_3d);
                     }
