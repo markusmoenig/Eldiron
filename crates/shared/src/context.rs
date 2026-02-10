@@ -75,6 +75,8 @@ pub enum ProjectContext {
     Screen(Uuid),
     ScreenWidget(Uuid, Uuid),
     Asset(Uuid),
+    Avatar(Uuid),
+    AvatarAnimation(Uuid, Uuid, usize),
     ProjectSettings,
     DebugLog,
 }
@@ -100,7 +102,9 @@ impl ProjectContext {
             | ProjectContext::Tilemap(id)
             | ProjectContext::Screen(id)
             | ProjectContext::ScreenWidget(id, _)
-            | ProjectContext::Asset(id) => Some(id),
+            | ProjectContext::Asset(id)
+            | ProjectContext::Avatar(id)
+            | ProjectContext::AvatarAnimation(id, _, _) => Some(id),
         }
     }
 
@@ -287,6 +291,7 @@ pub struct ServerContext {
     pub tree_items_id: Uuid,
     pub tree_tilemaps_id: Uuid,
     pub tree_screens_id: Uuid,
+    pub tree_avatars_id: Uuid,
     pub tree_assets_id: Uuid,
     pub tree_assets_fonts_id: Uuid,
     pub tree_palette_id: Uuid,
@@ -476,6 +481,7 @@ impl ServerContext {
             tree_items_id: Uuid::new_v4(),
             tree_tilemaps_id: Uuid::new_v4(),
             tree_screens_id: Uuid::new_v4(),
+            tree_avatars_id: Uuid::new_v4(),
             tree_assets_id: Uuid::new_v4(),
             tree_assets_fonts_id: Uuid::new_v4(),
             tree_palette_id: Uuid::new_v4(),

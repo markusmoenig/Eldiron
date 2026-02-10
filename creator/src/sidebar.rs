@@ -90,6 +90,12 @@ impl Sidebar {
         ));
         root.add_child(screens_node);
 
+        let avatars_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
+            &fl!("avatars"),
+            server_ctx.tree_avatars_id,
+        ));
+        root.add_child(avatars_node);
+
         let mut assets_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             &fl!("assets"),
             server_ctx.tree_assets_id,
@@ -140,6 +146,7 @@ impl Sidebar {
                 TheContextMenuItem::new("Add Item".to_string(), TheId::named("Add Item")),
                 TheContextMenuItem::new("Add Tileset".to_string(), TheId::named("Add Tileset")),
                 TheContextMenuItem::new("Add Screen".to_string(), TheId::named("Add Screen")),
+                TheContextMenuItem::new("Add Avatar".to_string(), TheId::named("Add Avatar")),
                 TheContextMenuItem::new(
                     "Add Font Asset".to_string(),
                     TheId::named("Add Font Asset"),
@@ -361,6 +368,23 @@ impl Sidebar {
                     server_ctx.item_region_override = *index == 1;
                 } else if id.name == "Palette Item" {
                     project.palette.current_index = *index as u16;
+                } else if id.name == "Avatar Perspective Count" {
+                    let new_count = match index {
+                        0 => AvatarPerspectiveCount::One,
+                        _ => AvatarPerspectiveCount::Four,
+                    };
+                    if let Some(avatar) = project.avatars.get(&id.references) {
+                        let old_count = avatar.perspective_count;
+                        if old_count != new_count {
+                            let atom = ProjectUndoAtom::EditAvatarPerspectiveCount(
+                                id.references,
+                                old_count,
+                                new_count,
+                            );
+                            atom.redo(project, ui, ctx, server_ctx);
+                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        }
+                    }
                 }
             }
             TheEvent::RenderViewClicked(id, coord)
@@ -1056,6 +1080,37 @@ impl Sidebar {
                         let atom = ProjectUndoAtom::RenameAsset(id.uuid, old, name);
                         atom.redo(project, ui, ctx, server_ctx);
                         UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    }
+                } else if id.name.starts_with("Avatar Item Name Edit") {
+                    // Rename an Avatar
+                    let mut old = String::new();
+                    if let Some(avatar) = project.avatars.get(&id.uuid) {
+                        old = avatar.name.clone();
+                    }
+
+                    if let Some(name) = value.to_string()
+                        && old != name
+                    {
+                        let atom = ProjectUndoAtom::RenameAvatar(id.uuid, old, name);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    }
+                } else if id.name.starts_with("Avatar Item Resolution Edit") {
+                    // Change Avatar Resolution
+                    if let Some(new_res) = value.to_i32() {
+                        let new_res = new_res.max(1) as u16;
+                        if let Some(avatar) = project.avatars.get(&id.references) {
+                            let old_res = avatar.resolution;
+                            if old_res != new_res {
+                                let atom = ProjectUndoAtom::EditAvatarResolution(
+                                    id.references,
+                                    old_res,
+                                    new_res,
+                                );
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            }
+                        }
                     }
                 } else if let Some(action_id) = server_ctx.curr_action_id
                     && id.name.starts_with("action")
@@ -1775,6 +1830,11 @@ impl Sidebar {
                         .set_widget_state("Add Font Asset".to_string(), TheWidgetState::None);
                     ctx.ui.clear_hover();
                     redraw = true;
+                } else if id.name == "Add Avatar" {
+                    // Add Avatar
+                    let atom = ProjectUndoAtom::AddAvatar(Avatar::default());
+                    atom.redo(project, ui, ctx, server_ctx);
+                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                 } else if id.name == "Import Item" {
                     if let Some(id) = server_ctx.pc.id() {
                         ctx.ui.open_file_requester(
@@ -2195,6 +2255,43 @@ impl Sidebar {
                             server_ctx,
                             ProjectContext::Asset(id.references),
                         );
+                        redraw = true;
+                    }
+                } else if id.name == "Avatar Item"
+                    || id.name == "Avatar Item Name Edit"
+                    || id.name == "Avatar Item Resolution Edit"
+                {
+                    if let Some(_) = project.avatars.get(&id.references) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Avatar(id.references),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Avatar Animation Item"
+                    || id.name == "Avatar Animation Name Edit"
+                    || id.name == "Avatar Animation Frame Count Edit"
+                {
+                    let anim_id = id.references;
+                    if let Some(avatar) = project.find_avatar_for_animation(&anim_id) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::AvatarAnimation(avatar.id, anim_id, 0),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Avatar Add Animation" {
+                    if project.avatars.contains_key(&id.references) {
+                        let anim = AvatarAnimation::default();
+                        let atom = ProjectUndoAtom::AddAvatarAnimation(id.references, anim);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                         redraw = true;
                     }
                 } else if id.name == "Item Item Visual Code Edit" {

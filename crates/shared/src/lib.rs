@@ -1,4 +1,5 @@
 pub mod asset;
+pub mod avatar;
 pub mod character;
 pub mod context;
 pub mod effectwrapper;
@@ -18,6 +19,7 @@ pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
 
     pub use crate::asset::*;
+    pub use crate::avatar::*;
     pub use crate::character::Character;
     pub use crate::context::*;
     pub use crate::effectwrapper::*;

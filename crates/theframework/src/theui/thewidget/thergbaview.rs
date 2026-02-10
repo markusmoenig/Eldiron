@@ -178,7 +178,7 @@ impl TheWidget for TheRGBAView {
             zoom_modifier_down: false,
 
             show_transparency: false,
-            transparency_color: [255, 0, 255, 255], // Magenta - a cool default that stands out
+            transparency_color: [116, 116, 116, 255], // Magenta - a cool default that stands out
         }
     }
 

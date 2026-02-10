@@ -131,6 +131,142 @@ pub fn gen_item_tree_node(item_: &Item) -> TheTreeNode {
     node
 }
 
+/// Rebuilds the tree node for an avatar in the Project Tree.
+pub fn rebuild_avatar_tree_node(
+    avatar_id: &Uuid,
+    project: &Project,
+    ui: &mut TheUI,
+    server_ctx: &ServerContext,
+) {
+    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+        if let Some(avatars_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id) {
+            avatars_node.remove_child_by_uuid(avatar_id);
+        }
+        if let Some(avatar) = project.avatars.get(avatar_id) {
+            let mut node = gen_avatar_tree_node(avatar);
+            node.set_open(true);
+            if let Some(avatars_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id)
+            {
+                avatars_node.add_child(node);
+            }
+        }
+    }
+}
+
+/// Returns a TheTreeNode for the avatar item.
+pub fn gen_avatar_tree_node(avatar: &Avatar) -> TheTreeNode {
+    let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&avatar.name, avatar.id));
+    node.set_root_mode(false);
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Avatar Item", avatar.id));
+    item.set_text(fl!("name"));
+
+    let mut edit = TheTextLineEdit::new(TheId::named_with_id("Avatar Item Name Edit", avatar.id));
+    edit.set_text(avatar.name.clone());
+    item.add_widget_column(200, Box::new(edit));
+
+    node.add_widget(Box::new(item));
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference(
+        "Avatar Item Resolution",
+        avatar.id,
+    ));
+    item.set_text("Resolution".to_string());
+
+    let mut edit = TheTextLineEdit::new(TheId::named_with_reference(
+        "Avatar Item Resolution Edit",
+        avatar.id,
+    ));
+    edit.set_value(TheValue::Int(avatar.resolution as i32));
+    item.add_widget_column(200, Box::new(edit));
+
+    node.add_widget(Box::new(item));
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference(
+        "Avatar Perspectives",
+        avatar.id,
+    ));
+    item.set_text("Perspectives".to_string());
+
+    let mut drop_down = TheDropdownMenu::new(TheId::named_with_reference(
+        "Avatar Perspective Count",
+        avatar.id,
+    ));
+    drop_down.add_option("1".to_string());
+    drop_down.add_option("4".to_string());
+    drop_down.set_selected_index(match avatar.perspective_count {
+        AvatarPerspectiveCount::One => 0,
+        AvatarPerspectiveCount::Four => 1,
+    });
+    item.add_widget_column(200, Box::new(drop_down));
+
+    node.add_widget(Box::new(item));
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Avatar Animations", avatar.id));
+    item.set_text("Animations".to_string());
+
+    let mut add_button = TheTraybarButton::new(TheId::named_with_reference(
+        "Avatar Add Animation",
+        avatar.id,
+    ));
+    add_button.set_text("Add".to_string());
+    item.add_widget_column(200, Box::new(add_button));
+
+    node.add_widget(Box::new(item));
+
+    // Add existing animations as child nodes
+    for animation in &avatar.animations {
+        let anim_node = gen_avatar_animation_node(animation);
+        node.add_child(anim_node);
+    }
+
+    node
+}
+
+/// Returns a TheTreeNode for an avatar animation.
+pub fn gen_avatar_animation_node(animation: &AvatarAnimation) -> TheTreeNode {
+    let label = format!("{} - Animation", animation.name);
+    let mut node = TheTreeNode::new(TheId::named_with_id(&label, animation.id));
+    node.set_root_mode(false);
+
+    // Name
+    let mut item = TheTreeItem::new(TheId::named_with_reference(
+        "Avatar Animation Item",
+        animation.id,
+    ));
+    item.set_text(fl!("name"));
+
+    let mut edit = TheTextLineEdit::new(TheId::named_with_reference(
+        "Avatar Animation Name Edit",
+        animation.id,
+    ));
+    edit.set_text(animation.name.clone());
+    item.add_widget_column(200, Box::new(edit));
+    node.add_widget(Box::new(item));
+
+    // Frame count
+    let mut item = TheTreeItem::new(TheId::named_with_reference(
+        "Avatar Animation Frames",
+        animation.id,
+    ));
+    item.set_text("Frames".to_string());
+
+    let frame_count = if let Some(p) = animation.perspectives.first() {
+        p.frames.len() as i32
+    } else {
+        0
+    };
+    let mut edit = TheTextLineEdit::new(TheId::named_with_reference(
+        "Avatar Animation Frame Count Edit",
+        animation.id,
+    ));
+    edit.set_value(TheValue::Int(frame_count));
+    item.add_widget_column(200, Box::new(edit));
+    node.add_widget(Box::new(item));
+
+    node
+}
+
 /// Returns a TheTreeNode for the tilemap item.
 pub fn gen_tilemap_tree_node(tilemap: &Tilemap) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&tilemap.name, tilemap.id));
@@ -494,6 +630,37 @@ pub fn set_project_context(
                     ctx,
                     TheValue::Text(format!("Asset: {}", asset.name)),
                 );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::Avatar(id) => {
+            if let Some(avatar) = project.avatars.get(&id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Avatar: {}", avatar.name)),
+                );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::AvatarAnimation(avatar_id, anim_id, frame) => {
+            if let Some(avatar) = project.avatars.get(&avatar_id) {
+                if let Some(anim) = avatar.animations.iter().find(|a| a.id == anim_id) {
+                    ui.set_widget_value(
+                        "Project Context",
+                        ctx,
+                        TheValue::Text(format!(
+                            "{} - {} (Frame {})",
+                            avatar.name, anim.name, frame
+                        )),
+                    );
+                }
             }
             DOCKMANAGER
                 .write()

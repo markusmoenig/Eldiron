@@ -30,6 +30,13 @@ pub enum ProjectUndoAtom {
     AddAsset(Asset),
     RemoveAsset(usize, Asset),
     RenameAsset(Uuid, String, String),
+    AddAvatar(Avatar),
+    RemoveAvatar(usize, Avatar),
+    RenameAvatar(Uuid, String, String),
+    EditAvatarResolution(Uuid, u16, u16),
+    EditAvatarPerspectiveCount(Uuid, AvatarPerspectiveCount, AvatarPerspectiveCount),
+    AddAvatarAnimation(Uuid, AvatarAnimation),
+    RemoveAvatarAnimation(Uuid, usize, AvatarAnimation),
     PaletteEdit(ThePalette, ThePalette),
     TileEdit(rusterix::Tile, rusterix::Tile),
 }
@@ -84,6 +91,17 @@ impl ProjectUndoAtom {
             AddAsset(asset) => format!("Add Asset: {}", asset.name),
             RemoveAsset(_, asset) => format!("Remove Asset: {}", asset.name),
             RenameAsset(_, old, new) => format!("Rename Asset: {} -> {}", old, new),
+            AddAvatar(avatar) => format!("Add Avatar: {}", avatar.name),
+            RemoveAvatar(_, avatar) => format!("Remove Avatar: {}", avatar.name),
+            RenameAvatar(_, old, new) => format!("Rename Avatar: {} -> {}", old, new),
+            EditAvatarResolution(_, old, new) => {
+                format!("Edit Avatar Resolution: {} -> {}", old, new)
+            }
+            EditAvatarPerspectiveCount(_, old, new) => {
+                format!("Edit Avatar Perspectives: {:?} -> {:?}", old, new)
+            }
+            AddAvatarAnimation(_, anim) => format!("Add Animation: {}", anim.name),
+            RemoveAvatarAnimation(_, _, anim) => format!("Remove Animation: {}", anim.name),
             PaletteEdit(_old, _new) => format!("Palette Changed"),
             TileEdit(_old, _new) => format!("Tile Changed"),
         }
@@ -542,6 +560,101 @@ impl ProjectUndoAtom {
                             }
                         }
                     }
+                }
+            }
+            AddAvatar(avatar) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(avatar_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id)
+                    {
+                        project.remove_avatar(&avatar.id);
+                        avatar_node.remove_child_by_uuid(&avatar.id);
+                    }
+                }
+            }
+            RemoveAvatar(index, avatar) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    let avatar = avatar.clone();
+
+                    let mut node = gen_avatar_tree_node(&avatar);
+                    node.set_open(true);
+                    if let Some(avatar_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id)
+                    {
+                        avatar_node.add_child_at(*index, node);
+                    }
+                    let avatar_id: Uuid = avatar.id;
+                    project.avatars.insert_before(*index, avatar_id, avatar);
+
+                    set_project_context(
+                        ctx,
+                        ui,
+                        project,
+                        server_ctx,
+                        ProjectContext::Avatar(avatar_id),
+                    );
+                    update_region(ctx);
+                }
+            }
+            RenameAvatar(id, old, _new) => {
+                if let Some(avatar) = project.avatars.get_mut(id) {
+                    avatar.name = old.clone();
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(avatar_node) = tree_layout.get_node_by_id_mut(&avatar.id) {
+                            avatar_node.widget.set_value(TheValue::Text(old.clone()));
+                            if let Some(widget) = avatar_node.widgets[0].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Text(old.clone()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            EditAvatarResolution(id, old, _new) => {
+                if let Some(avatar) = project.avatars.get_mut(id) {
+                    avatar.set_resolution(*old);
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(avatar_node) = tree_layout.get_node_by_id_mut(id) {
+                            if let Some(widget) = avatar_node.widgets[1].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Int(*old as i32));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            EditAvatarPerspectiveCount(id, old, _new) => {
+                if let Some(avatar) = project.avatars.get_mut(id) {
+                    avatar.set_perspective_count(*old);
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(avatar_node) = tree_layout.get_node_by_id_mut(id) {
+                            if let Some(widget) = avatar_node.widgets[2].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Int(match old {
+                                        AvatarPerspectiveCount::One => 0,
+                                        AvatarPerspectiveCount::Four => 1,
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            AddAvatarAnimation(avatar_id, anim) => {
+                // Undo: remove the animation
+                if let Some(avatar) = project.avatars.get_mut(avatar_id) {
+                    avatar.animations.retain(|a| a.id != anim.id);
+                    rebuild_avatar_tree_node(avatar_id, project, ui, server_ctx);
+                }
+            }
+            RemoveAvatarAnimation(avatar_id, index, anim) => {
+                // Undo: re-insert the animation at its original index
+                if let Some(avatar) = project.avatars.get_mut(avatar_id) {
+                    let idx = (*index).min(avatar.animations.len());
+                    avatar.animations.insert(idx, anim.clone());
+                    rebuild_avatar_tree_node(avatar_id, project, ui, server_ctx);
                 }
             }
             PaletteEdit(old, _new) => {
@@ -1113,6 +1226,113 @@ impl ProjectUndoAtom {
                             }
                         }
                     }
+                }
+            }
+            AddAvatar(avatar) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id)
+                    {
+                        let avatar = avatar.clone();
+
+                        let mut avatar_node = gen_avatar_tree_node(&avatar);
+                        avatar_node.set_open(true);
+                        node.add_child(avatar_node);
+
+                        let avatar_id = avatar.id;
+                        project.add_avatar(avatar);
+
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Avatar(avatar_id),
+                        );
+                        update_region(ctx);
+                    }
+                }
+            }
+            RemoveAvatar(_, avatar) => {
+                if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                    if let Some(avatar_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id)
+                    {
+                        avatar_node.remove_child_by_uuid(&avatar.id);
+                    }
+                    project.remove_avatar(&avatar.id);
+
+                    if let Some(first_avatar) = project.avatars.first() {
+                        if let Some(avatar_node) = tree_layout.get_node_by_id_mut(first_avatar.0) {
+                            avatar_node.set_open(true);
+                        }
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::Avatar(*first_avatar.0),
+                        );
+                    }
+                }
+            }
+            RenameAvatar(id, _old, new) => {
+                if let Some(avatar) = project.avatars.get_mut(id) {
+                    avatar.name = new.clone();
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(avatar_node) = tree_layout.get_node_by_id_mut(id) {
+                            avatar_node.widget.set_value(TheValue::Text(new.clone()));
+                            if let Some(widget) = avatar_node.widgets[0].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Text(new.clone()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            EditAvatarResolution(id, _old, new) => {
+                if let Some(avatar) = project.avatars.get_mut(id) {
+                    avatar.set_resolution(*new);
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(avatar_node) = tree_layout.get_node_by_id_mut(id) {
+                            if let Some(widget) = avatar_node.widgets[1].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Int(*new as i32));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            EditAvatarPerspectiveCount(id, _old, new) => {
+                if let Some(avatar) = project.avatars.get_mut(id) {
+                    avatar.set_perspective_count(*new);
+                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+                        if let Some(avatar_node) = tree_layout.get_node_by_id_mut(id) {
+                            if let Some(widget) = avatar_node.widgets[2].as_tree_item() {
+                                if let Some(embedded) = widget.embedded_widget_mut() {
+                                    embedded.set_value(TheValue::Int(match new {
+                                        AvatarPerspectiveCount::One => 0,
+                                        AvatarPerspectiveCount::Four => 1,
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            AddAvatarAnimation(avatar_id, anim) => {
+                // Redo: add the animation
+                if let Some(avatar) = project.avatars.get_mut(avatar_id) {
+                    avatar.animations.push(anim.clone());
+                    rebuild_avatar_tree_node(avatar_id, project, ui, server_ctx);
+                }
+            }
+            RemoveAvatarAnimation(avatar_id, _, anim) => {
+                // Redo: remove the animation
+                if let Some(avatar) = project.avatars.get_mut(avatar_id) {
+                    avatar.animations.retain(|a| a.id != anim.id);
+                    rebuild_avatar_tree_node(avatar_id, project, ui, server_ctx);
                 }
             }
             PaletteEdit(_old, new) => {

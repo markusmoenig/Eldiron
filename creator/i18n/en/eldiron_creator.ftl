@@ -289,6 +289,7 @@ palette = Palette
 debug_log = Debug Log
 scale = Scale
 repeat = Repeat
+avatars = Avatars
 
 # Info
 info_server_started = Server has been started

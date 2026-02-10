@@ -69,6 +69,9 @@ pub struct Project {
     pub config: String,
 
     #[serde(default)]
+    pub avatars: IndexMap<Uuid, Avatar>,
+
+    #[serde(default)]
     pub render_graph: ShapeFXGraph,
 }
 
@@ -121,6 +124,8 @@ impl Project {
             target_fps: default_target_fps(),
             tick_ms: default_tick_ms(),
 
+            avatars: IndexMap::default(),
+
             config: String::new(),
             render_graph,
         }
@@ -158,6 +163,23 @@ impl Project {
 
         entries.sort_by(|a, b| a.1.cmp(&b.1));
         entries
+    }
+
+    /// Add Avatar
+    pub fn add_avatar(&mut self, avatar: Avatar) {
+        self.avatars.insert(avatar.id, avatar);
+    }
+
+    /// Removes the given avatar from the project.
+    pub fn remove_avatar(&mut self, id: &Uuid) {
+        self.avatars.shift_remove(id);
+    }
+
+    /// Finds the avatar that contains the given animation id.
+    pub fn find_avatar_for_animation(&self, animation_id: &Uuid) -> Option<&Avatar> {
+        self.avatars
+            .values()
+            .find(|a| a.animations.iter().any(|anim| anim.id == *animation_id))
     }
 
     /// Add Item
