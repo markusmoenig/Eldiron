@@ -106,4 +106,58 @@ impl Avatar {
         // TODO: add/remove perspective entries in each animation
         self.perspective_count = count;
     }
+
+    /// Sets the frame count for the given animation, allocating or truncating textures.
+    /// Frame count is clamped to a minimum of 1.
+    pub fn set_animation_frame_count(&mut self, animation_id: &Uuid, count: usize) {
+        let count = count.max(1);
+        let size = self.resolution as usize;
+
+        if let Some(anim) = self.animations.iter_mut().find(|a| a.id == *animation_id) {
+            // Ensure perspectives exist based on perspective_count
+            let needed: &[AvatarDirection] = match self.perspective_count {
+                AvatarPerspectiveCount::One => &[AvatarDirection::Front],
+                AvatarPerspectiveCount::Four => &[
+                    AvatarDirection::Front,
+                    AvatarDirection::Back,
+                    AvatarDirection::Left,
+                    AvatarDirection::Right,
+                ],
+            };
+
+            // Add missing perspectives
+            for dir in needed {
+                if !anim.perspectives.iter().any(|p| p.direction == *dir) {
+                    anim.perspectives.push(AvatarPerspective {
+                        direction: *dir,
+                        frames: vec![],
+                    });
+                }
+            }
+
+            // Resize frames in each perspective
+            for perspective in &mut anim.perspectives {
+                let current = perspective.frames.len();
+                if count > current {
+                    for _ in current..count {
+                        perspective
+                            .frames
+                            .push(Texture::new(vec![0; size * size * 4], size, size));
+                    }
+                } else if count < current {
+                    perspective.frames.truncate(count);
+                }
+            }
+        }
+    }
+
+    /// Returns the frame count for the given animation (from the first perspective, or 0).
+    pub fn get_animation_frame_count(&self, animation_id: &Uuid) -> usize {
+        self.animations
+            .iter()
+            .find(|a| a.id == *animation_id)
+            .and_then(|a| a.perspectives.first())
+            .map(|p| p.frames.len())
+            .unwrap_or(0)
+    }
 }

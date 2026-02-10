@@ -140,14 +140,57 @@ pub fn rebuild_avatar_tree_node(
 ) {
     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
         if let Some(avatars_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id) {
+            let index = avatars_node
+                .childs
+                .iter()
+                .position(|child| child.id.uuid == *avatar_id);
             avatars_node.remove_child_by_uuid(avatar_id);
+
+            if let Some(avatar) = project.avatars.get(avatar_id) {
+                let mut node = gen_avatar_tree_node(avatar);
+                node.set_open(true);
+                if let Some(idx) = index {
+                    avatars_node.add_child_at(idx, node);
+                } else {
+                    avatars_node.add_child(node);
+                }
+            }
         }
-        if let Some(avatar) = project.avatars.get(avatar_id) {
-            let mut node = gen_avatar_tree_node(avatar);
-            node.set_open(true);
-            if let Some(avatars_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id)
+    }
+}
+
+/// Rebuilds the tree node for an animation within its avatar node.
+pub fn rebuild_animation_tree_node(
+    avatar_id: &Uuid,
+    anim_id: &Uuid,
+    project: &Project,
+    ui: &mut TheUI,
+    server_ctx: &ServerContext,
+) {
+    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+        if let Some(avatars_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id) {
+            if let Some(avatar_node) = avatars_node
+                .childs
+                .iter_mut()
+                .find(|c| c.id.uuid == *avatar_id)
             {
-                avatars_node.add_child(node);
+                let index = avatar_node
+                    .childs
+                    .iter()
+                    .position(|child| child.id.uuid == *anim_id);
+                avatar_node.remove_child_by_uuid(anim_id);
+
+                if let Some(avatar) = project.avatars.get(avatar_id) {
+                    if let Some(anim) = avatar.animations.iter().find(|a| a.id == *anim_id) {
+                        let mut anim_node = gen_avatar_animation_node(anim);
+                        anim_node.set_open(true);
+                        if let Some(idx) = index {
+                            avatar_node.add_child_at(idx, anim_node);
+                        } else {
+                            avatar_node.add_child(anim_node);
+                        }
+                    }
+                }
             }
         }
     }
@@ -263,6 +306,36 @@ pub fn gen_avatar_animation_node(animation: &AvatarAnimation) -> TheTreeNode {
     edit.set_value(TheValue::Int(frame_count));
     item.add_widget_column(200, Box::new(edit));
     node.add_widget(Box::new(item));
+
+    // Perspective child nodes
+    for perspective in &animation.perspectives {
+        let dir_name = match perspective.direction {
+            AvatarDirection::Front => "Front",
+            AvatarDirection::Back => "Back",
+            AvatarDirection::Left => "Left",
+            AvatarDirection::Right => "Right",
+        };
+
+        let mut persp_node = TheTreeNode::new(TheId::named(dir_name));
+        persp_node.set_root_mode(false);
+
+        let mut icons = TheTreeIcons::new(TheId::named_with_reference(
+            "Avatar Perspective Icons",
+            animation.id,
+        ));
+        icons.set_icon_size(24);
+        icons.set_icons_per_row(10);
+        icons.set_icon_count(perspective.frames.len());
+        for (i, frame) in perspective.frames.iter().enumerate() {
+            icons.set_icon(i, frame.to_rgba());
+        }
+        if !perspective.frames.is_empty() {
+            icons.set_selected_index(Some(0));
+        }
+        persp_node.add_widget(Box::new(icons));
+
+        node.add_child(persp_node);
+    }
 
     node
 }

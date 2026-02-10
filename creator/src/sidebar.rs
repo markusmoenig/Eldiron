@@ -6,7 +6,7 @@ use crate::minimap::draw_minimap;
 use crate::prelude::*;
 use crate::undo::project_helper::*;
 use codegridfx::Module;
-use rusterix::TileRole;
+use rusterix::{Texture, TileRole};
 
 #[derive(PartialEq, Debug)]
 pub enum SidebarMode {
@@ -1106,6 +1106,42 @@ impl Sidebar {
                                     id.references,
                                     old_res,
                                     new_res,
+                                );
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            }
+                        }
+                    }
+                } else if id.name == "Avatar Animation Name Edit" {
+                    let anim_id = id.references;
+                    if let Some(avatar) = project.find_avatar_for_animation(&anim_id) {
+                        let avatar_id = avatar.id;
+                        let old = avatar
+                            .animations
+                            .iter()
+                            .find(|a| a.id == anim_id)
+                            .map(|a| a.name.clone())
+                            .unwrap_or_default();
+                        if let Some(name) = value.to_string() {
+                            if old != name {
+                                let atom = ProjectUndoAtom::RenameAvatarAnimation(
+                                    avatar_id, anim_id, old, name,
+                                );
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            }
+                        }
+                    }
+                } else if id.name == "Avatar Animation Frame Count Edit" {
+                    let anim_id = id.references;
+                    if let Some(new_count) = value.to_i32() {
+                        let new_count = (new_count.max(1)) as usize;
+                        if let Some(avatar) = project.find_avatar_for_animation(&anim_id) {
+                            let avatar_id = avatar.id;
+                            let old_count = avatar.get_animation_frame_count(&anim_id);
+                            if old_count != new_count {
+                                let atom = ProjectUndoAtom::EditAvatarAnimationFrameCount(
+                                    avatar_id, anim_id, old_count, new_count,
                                 );
                                 atom.redo(project, ui, ctx, server_ctx);
                                 UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
@@ -2287,8 +2323,29 @@ impl Sidebar {
                         redraw = true;
                     }
                 } else if id.name == "Avatar Add Animation" {
-                    if project.avatars.contains_key(&id.references) {
-                        let anim = AvatarAnimation::default();
+                    if let Some(avatar) = project.avatars.get(&id.references) {
+                        let resolution = avatar.resolution as usize;
+                        let directions: Vec<AvatarDirection> = match avatar.perspective_count {
+                            AvatarPerspectiveCount::One => vec![AvatarDirection::Front],
+                            AvatarPerspectiveCount::Four => vec![
+                                AvatarDirection::Front,
+                                AvatarDirection::Back,
+                                AvatarDirection::Left,
+                                AvatarDirection::Right,
+                            ],
+                        };
+                        let mut anim = AvatarAnimation::default();
+                        anim.perspectives = directions
+                            .into_iter()
+                            .map(|dir| AvatarPerspective {
+                                direction: dir,
+                                frames: vec![Texture::new(
+                                    vec![0; resolution * resolution * 4],
+                                    resolution,
+                                    resolution,
+                                )],
+                            })
+                            .collect();
                         let atom = ProjectUndoAtom::AddAvatarAnimation(id.references, anim);
                         atom.redo(project, ui, ctx, server_ctx);
                         UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
