@@ -27,11 +27,16 @@ impl Default for PixelEditingContext {
 impl PixelEditingContext {
     /// Returns the [r, g, b, a] color to paint with for this context.
     /// For tiles: uses the palette color with opacity applied.
-    /// For avatar frames: placeholder — uses palette for now, will use abstract body-part colors later.
-    pub fn get_draw_color(&self, palette: &ThePalette, opacity: f32) -> Option<[u8; 4]> {
+    /// For avatar frames: uses the selected body marker color.
+    pub fn get_draw_color(
+        &self,
+        palette: &ThePalette,
+        opacity: f32,
+        body_marker_color: Option<[u8; 4]>,
+    ) -> Option<[u8; 4]> {
         match self {
             PixelEditingContext::None => None,
-            PixelEditingContext::Tile(..) | PixelEditingContext::AvatarFrame(..) => {
+            PixelEditingContext::Tile(..) => {
                 if let Some(color) = palette.get_current_color() {
                     let mut arr = color.to_u8_array();
                     arr[3] = (arr[3] as f32 * opacity) as u8;
@@ -40,6 +45,7 @@ impl PixelEditingContext {
                     None
                 }
             }
+            PixelEditingContext::AvatarFrame(..) => body_marker_color,
         }
     }
 
@@ -535,6 +541,9 @@ pub struct ServerContext {
 
     /// The current editing context for texture editor tools.
     pub editing_ctx: PixelEditingContext,
+
+    /// The selected body marker color for avatar painting.
+    pub body_marker_color: Option<[u8; 4]>,
 }
 
 impl Default for ServerContext {
@@ -645,6 +654,7 @@ impl ServerContext {
             help_mode: false,
 
             editing_ctx: PixelEditingContext::None,
+            body_marker_color: None,
         }
     }
 

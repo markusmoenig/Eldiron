@@ -290,6 +290,15 @@ debug_log = Debug Log
 scale = Scale
 repeat = Repeat
 avatars = Avatars
+body_markers = Body Markers
+skin_light = Light Skin
+skin_dark = Dark Skin
+torso = Torso
+legs = Legs
+hair = Hair
+eyes = Eyes
+hands = Hands
+feet = Feet
 
 # Info
 info_server_started = Server has been started

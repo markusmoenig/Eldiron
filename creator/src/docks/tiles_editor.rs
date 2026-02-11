@@ -6,6 +6,7 @@ pub struct TilesEditorDock {
     zoom: f32,
     tile_node: Uuid,
     palette_node: Uuid,
+    body_markers_node: Uuid,
 
     // Per-context undo stacks (keyed by tile_id for tiles, avatar_id for avatar frames)
     tile_undos: FxHashMap<Uuid, TileEditorUndo>,
@@ -27,6 +28,7 @@ impl Dock for TilesEditorDock {
             zoom: 5.0,
             tile_node: Uuid::new_v4(),
             palette_node: Uuid::new_v4(),
+            body_markers_node: Uuid::new_v4(),
             tile_undos: FxHashMap::default(),
             current_tile_id: None,
             current_undo_key: None,
@@ -53,6 +55,10 @@ impl Dock for TilesEditorDock {
         }
 
         canvas.set_layout(rgba_layout);
+
+        let mut stack_canvas = TheCanvas::new();
+        let mut stack_layout = TheStackLayout::new(TheId::named("Pixel Editor Stack Layout"));
+        stack_layout.limiter_mut().set_max_width(305);
 
         // Tree
 
@@ -115,7 +121,83 @@ impl Dock for TilesEditorDock {
 
         palette_canvas.set_layout(palette_tree_layout);
 
-        canvas.set_left(palette_canvas);
+        stack_layout.add_canvas(palette_canvas);
+
+        // Avatar
+
+        let mut avatar_canvas = TheCanvas::default();
+        let mut avatar_tree_layout = TheTreeLayout::new(TheId::named("Avatar Editor Tree"));
+        avatar_tree_layout.limiter_mut().set_max_width(305);
+        let root = avatar_tree_layout.get_root();
+
+        let mut body_markers_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
+            &fl!("body_markers"),
+            self.body_markers_node,
+        ));
+        body_markers_node.set_open(true);
+
+        // •	Skin Light – rgb(255, 0, 255)
+        // •	Skin Dark – rgb(200, 0, 200)
+        // •	Torso / Chest – rgb(0, 0, 255)
+        // •	Legs / Pants – rgb(0, 255, 0)
+        // •	Hair – rgb(255, 255, 0)
+        // •	Eyes / Face Detail – rgb(0, 255, 255)
+        // •	Hands – rgb(255, 128, 0)
+        // •	Feet – rgb(255, 80, 0)
+
+        let mut item = TheTreeItem::new(TheId::named("Body: Skin Light"));
+        item.set_text(fl!("skin_light"));
+        item.set_background_color(TheColor::from_u8_array_3([255, 0, 255]));
+        body_markers_node.add_widget(Box::new(item));
+
+        let mut item = TheTreeItem::new(TheId::named("Body: Skin Dark"));
+        item.set_text(fl!("skin_dark"));
+        item.set_background_color(TheColor::from_u8_array_3([200, 0, 200]));
+        body_markers_node.add_widget(Box::new(item));
+
+        let mut item = TheTreeItem::new(TheId::named("Body: Torso"));
+        item.set_text(fl!("torso"));
+        item.set_background_color(TheColor::from_u8_array_3([0, 0, 255]));
+        body_markers_node.add_widget(Box::new(item));
+
+        let mut item = TheTreeItem::new(TheId::named("Body: Legs"));
+        item.set_text(fl!("legs"));
+        item.set_background_color(TheColor::from_u8_array_3([0, 255, 0]));
+        body_markers_node.add_widget(Box::new(item));
+
+        let mut item = TheTreeItem::new(TheId::named("Body: Hair"));
+        item.set_text(fl!("hair"));
+        item.set_background_color(TheColor::from_u8_array_3([255, 255, 0]));
+        body_markers_node.add_widget(Box::new(item));
+
+        let mut item = TheTreeItem::new(TheId::named("Body: Eyes"));
+        item.set_text(fl!("eyes"));
+        item.set_background_color(TheColor::from_u8_array_3([0, 255, 255]));
+        body_markers_node.add_widget(Box::new(item));
+
+        let mut item = TheTreeItem::new(TheId::named("Body: Hands"));
+        item.set_text(fl!("hands"));
+        item.set_background_color(TheColor::from_u8_array_3([255, 128, 0]));
+        body_markers_node.add_widget(Box::new(item));
+
+        let mut item = TheTreeItem::new(TheId::named("Body: Feet"));
+        item.set_text(fl!("feet"));
+        item.set_background_color(TheColor::from_u8_array_3([255, 80, 0]));
+        body_markers_node.add_widget(Box::new(item));
+
+        // let mut item = TheTreeItem::new(TheId::named("Body: Extra"));
+        // item.set_text(fl!("extra"));
+        // item.set_background_color(TheColor::from_u8_array_3([255, 0, 0]));
+        // body_markers_node.add_widget(Box::new(item));
+
+        root.add_child(body_markers_node);
+
+        avatar_canvas.set_layout(avatar_tree_layout);
+
+        stack_layout.add_canvas(avatar_canvas);
+
+        stack_canvas.set_layout(stack_layout);
+        canvas.set_left(stack_canvas);
 
         canvas
     }
@@ -254,6 +336,25 @@ impl Dock for TilesEditorDock {
                 //     project.palette.current_index = *index as u16;
                 // }
             }
+            TheEvent::StateChanged(id, TheWidgetState::Selected) => {
+                if id.name.starts_with("Body: ") {
+                    let color = match id.name.as_str() {
+                        "Body: Skin Light" => Some([255, 0, 255, 255]),
+                        "Body: Skin Dark" => Some([200, 0, 200, 255]),
+                        "Body: Torso" => Some([0, 0, 255, 255]),
+                        "Body: Legs" => Some([0, 255, 0, 255]),
+                        "Body: Hair" => Some([255, 255, 0, 255]),
+                        "Body: Eyes" => Some([0, 255, 255, 255]),
+                        "Body: Hands" => Some([255, 128, 0, 255]),
+                        "Body: Feet" => Some([255, 80, 0, 255]),
+                        _ => None,
+                    };
+                    if let Some(c) = color {
+                        server_ctx.body_marker_color = Some(c);
+                        redraw = true;
+                    }
+                }
+            }
             TheEvent::TileZoomBy(id, delta) => {
                 if id.name == "Tile Editor Dock RGBA Layout View" {
                     self.zoom += *delta * 0.5;
@@ -261,6 +362,20 @@ impl Dock for TilesEditorDock {
                     if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout") {
                         editor.set_zoom(self.zoom);
                         editor.relayout(ctx);
+                    }
+                }
+            }
+            TheEvent::Copy => {
+                if server_ctx.editing_ctx != PixelEditingContext::None {
+                    if let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx) {
+                        if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                            let img = arboard::ImageData {
+                                width: texture.width,
+                                height: texture.height,
+                                bytes: std::borrow::Cow::Borrowed(&texture.data),
+                            };
+                            let _ = clipboard.set_image(img);
+                        }
                     }
                 }
             }
@@ -682,11 +797,17 @@ impl TilesEditorDock {
             PixelEditingContext::Tile(tile_id, _) => {
                 if let Some(tile) = project.tiles.get(&tile_id) {
                     self.set_tile(tile, ui, ctx, server_ctx, false);
+                    if let Some(stack) = ui.get_stack_layout("Pixel Editor Stack Layout") {
+                        stack.set_index(0);
+                    }
                 }
             }
             PixelEditingContext::AvatarFrame(..) => {
                 self.set_undo_key_from_context(&server_ctx.editing_ctx);
                 self.refresh_from_editing_context(project, ui, ctx, server_ctx);
+                if let Some(stack) = ui.get_stack_layout("Pixel Editor Stack Layout") {
+                    stack.set_index(1);
+                }
             }
             PixelEditingContext::None => {
                 if let Some(tile_id) = server_ctx.curr_tile_id {

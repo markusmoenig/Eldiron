@@ -98,12 +98,50 @@ impl Avatar {
         self.resolution = new_resolution;
     }
 
-    /// Sets the perspective count. Will eventually add/remove perspectives in animations.
+    /// Sets the perspective count, adding or removing perspective entries in each animation.
     pub fn set_perspective_count(&mut self, count: AvatarPerspectiveCount) {
         if count == self.perspective_count {
             return;
         }
-        // TODO: add/remove perspective entries in each animation
+
+        let size = self.resolution as usize;
+
+        let needed: &[AvatarDirection] = match count {
+            AvatarPerspectiveCount::One => &[AvatarDirection::Front],
+            AvatarPerspectiveCount::Four => &[
+                AvatarDirection::Front,
+                AvatarDirection::Back,
+                AvatarDirection::Left,
+                AvatarDirection::Right,
+            ],
+        };
+
+        for anim in &mut self.animations {
+            // Determine frame count from existing perspectives (use first, fallback 1)
+            let frame_count = anim
+                .perspectives
+                .first()
+                .map(|p| p.frames.len())
+                .unwrap_or(1)
+                .max(1);
+
+            // Add missing perspectives with matching frame count
+            for dir in needed {
+                if !anim.perspectives.iter().any(|p| p.direction == *dir) {
+                    let frames = (0..frame_count)
+                        .map(|_| Texture::new(vec![0; size * size * 4], size, size))
+                        .collect();
+                    anim.perspectives.push(AvatarPerspective {
+                        direction: *dir,
+                        frames,
+                    });
+                }
+            }
+
+            // Remove perspectives not in the needed set
+            anim.perspectives.retain(|p| needed.contains(&p.direction));
+        }
+
         self.perspective_count = count;
     }
 

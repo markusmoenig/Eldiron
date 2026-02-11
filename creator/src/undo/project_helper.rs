@@ -330,9 +330,7 @@ pub fn gen_avatar_animation_node(animation: &AvatarAnimation) -> TheTreeNode {
         for (i, frame) in perspective.frames.iter().enumerate() {
             icons.set_icon(i, frame.to_rgba());
         }
-        if !perspective.frames.is_empty() {
-            icons.set_selected_index(Some(0));
-        }
+        icons.set_selected_index(None);
         persp_node.add_widget(Box::new(icons));
 
         node.add_child(persp_node);

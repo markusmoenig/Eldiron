@@ -636,19 +636,8 @@ impl ProjectUndoAtom {
             EditAvatarPerspectiveCount(id, old, _new) => {
                 if let Some(avatar) = project.avatars.get_mut(id) {
                     avatar.set_perspective_count(*old);
-                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-                        if let Some(avatar_node) = tree_layout.get_node_by_id_mut(id) {
-                            if let Some(widget) = avatar_node.widgets[2].as_tree_item() {
-                                if let Some(embedded) = widget.embedded_widget_mut() {
-                                    embedded.set_value(TheValue::Int(match old {
-                                        AvatarPerspectiveCount::One => 0,
-                                        AvatarPerspectiveCount::Four => 1,
-                                    }));
-                                }
-                            }
-                        }
-                    }
                 }
+                rebuild_avatar_tree_node(id, project, ui, server_ctx);
             }
             AddAvatarAnimation(avatar_id, anim) => {
                 // Undo: remove the animation
@@ -1343,19 +1332,8 @@ impl ProjectUndoAtom {
             EditAvatarPerspectiveCount(id, _old, new) => {
                 if let Some(avatar) = project.avatars.get_mut(id) {
                     avatar.set_perspective_count(*new);
-                    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-                        if let Some(avatar_node) = tree_layout.get_node_by_id_mut(id) {
-                            if let Some(widget) = avatar_node.widgets[2].as_tree_item() {
-                                if let Some(embedded) = widget.embedded_widget_mut() {
-                                    embedded.set_value(TheValue::Int(match new {
-                                        AvatarPerspectiveCount::One => 0,
-                                        AvatarPerspectiveCount::Four => 1,
-                                    }));
-                                }
-                            }
-                        }
-                    }
                 }
+                rebuild_avatar_tree_node(id, project, ui, server_ctx);
             }
             AddAvatarAnimation(avatar_id, anim) => {
                 // Redo: add the animation (already has correct perspectives/frames)
