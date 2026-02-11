@@ -1,4 +1,4 @@
-use rusterix::Texture;
+use crate::Texture;
 use theframework::prelude::*;
 
 /// Screen-relative direction for avatar perspectives.

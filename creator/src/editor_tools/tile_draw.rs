@@ -129,19 +129,23 @@ impl TileDrawTool {
     fn draw_pixel(
         &mut self,
         pos: Vec2<i32>,
-        _ui: &mut TheUI,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
         let editing_ctx = server_ctx.editing_ctx;
 
-        // Get the color from the editing context (resolves palette for tiles, abstract colors for avatars later)
-        let color_array = editing_ctx.get_draw_color(
-            &project.palette,
-            server_ctx.palette_opacity,
-            server_ctx.body_marker_color,
-        );
+        // Shift clears the pixel, otherwise use the context draw color
+        let color_array = if ui.shift {
+            Some([0, 0, 0, 0])
+        } else {
+            editing_ctx.get_draw_color(
+                &project.palette,
+                server_ctx.palette_opacity,
+                server_ctx.body_marker_color,
+            )
+        };
 
         if let Some(color_array) = color_array {
             if let Some(texture) = project.get_editing_texture_mut(&editing_ctx) {

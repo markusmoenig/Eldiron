@@ -1,6 +1,7 @@
 //! Rusterix is a fast software renderer for 2D and 3D triangles and lines.
 //! Its goals are to provide an easy and portable alternative to hardware rasterization for retro and low-poly games.
 
+pub mod avatar;
 pub mod batch;
 pub mod camera;
 pub mod chunk;
@@ -99,6 +100,7 @@ pub const WHITE: Pixel = [255, 255, 255, 255];
 
 // Re-exports
 pub use crate::{
+    avatar::{Avatar, AvatarAnimation, AvatarDirection, AvatarPerspective, AvatarPerspectiveCount},
     batch::{CullMode, GeometrySource, PrimitiveMode, batch2d::Batch2D, batch3d::Batch3D},
     camera::{D3Camera, d3firstp::D3FirstPCamera, d3iso::D3IsoCamera, d3orbit::D3OrbitCamera},
     chunk::{BillboardMetadata, Chunk},
@@ -182,6 +184,9 @@ pub mod prelude {
     pub use crate::Chunk;
     pub use crate::Client;
     pub use crate::IntoDataInput;
+    pub use crate::{
+        Avatar, AvatarAnimation, AvatarDirection, AvatarPerspective, AvatarPerspectiveCount,
+    };
     // pub use crate::MapScript;
     pub use crate::Rasterizer;
     pub use crate::RenderMode;

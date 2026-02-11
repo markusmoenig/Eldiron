@@ -1,5 +1,4 @@
 pub mod asset;
-pub mod avatar;
 pub mod character;
 pub mod context;
 pub mod effectwrapper;
@@ -19,7 +18,6 @@ pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
 
     pub use crate::asset::*;
-    pub use crate::avatar::*;
     pub use crate::character::Character;
     pub use crate::context::*;
     pub use crate::effectwrapper::*;
@@ -32,6 +30,9 @@ pub mod prelude {
     pub use crate::screen::*;
     pub use crate::tilemap::{Tile, Tilemap};
     pub use indexmap::IndexMap;
+    pub use rusterix::{
+        Avatar, AvatarAnimation, AvatarDirection, AvatarPerspective, AvatarPerspectiveCount,
+    };
 }
 
 use theframework::prelude::*;
