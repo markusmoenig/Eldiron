@@ -60,10 +60,10 @@ struct SceneDataHeader {
   lights_count: u32,
   billboard_cmd_offset_words: u32,
   billboard_cmd_count: u32,
-  billboard_poly_offset_words: u32,
-  billboard_poly_count: u32,
+  avatar_meta_offset_words: u32,
+  avatar_meta_count: u32,
+  avatar_pixel_offset_words: u32,
   data_word_count: u32,
-  _reserved: u32,
 };
 struct SceneData { header: SceneDataHeader, data: array<u32> };
 @group(0) @binding(9) var<storage, read> scene_data: SceneData;
@@ -71,6 +71,7 @@ struct SceneData { header: SceneDataHeader, data: array<u32> };
 const SCENE_LIGHT_WORDS: u32 = 20u;
 const SCENE_BILLBOARD_CMD_WORDS: u32 = 16u;
 const DYNAMIC_KIND_BILLBOARD_TILE: u32 = 0u;
+const DYNAMIC_KIND_BILLBOARD_AVATAR: u32 = 1u;
 
 fn sd_data_word(idx: u32) -> u32 {
   if (idx >= scene_data.header.data_word_count) {
@@ -149,7 +150,7 @@ fn sv_screen_from_world(world: vec3<f32>) -> vec2<f32> {
 
 fn sd_billboard_hit_screen(pix: vec2<f32>, cmd: DynBillboardCmd) -> DynBillboardHit2D {
   var hit = DynBillboardHit2D(false, 0u, vec2<f32>(0.0), 0u, 0u, 0u, 0u);
-  if (cmd.params.y != DYNAMIC_KIND_BILLBOARD_TILE) {
+  if (cmd.params.y != DYNAMIC_KIND_BILLBOARD_TILE && cmd.params.y != DYNAMIC_KIND_BILLBOARD_AVATAR) {
     return hit;
   }
   let axis_u = cmd.axis_right.xyz;
@@ -192,6 +193,38 @@ fn sd_billboard_hit_screen(pix: vec2<f32>, cmd: DynBillboardCmd) -> DynBillboard
   hit.tile_index = cmd.params.x;
   hit.repeat_mode = repeat_mode;
   return hit;
+}
+
+fn sd_unpack_rgba8(word: u32) -> vec4<f32> {
+  let r = f32((word >> 0u) & 0xffu) * (1.0 / 255.0);
+  let g = f32((word >> 8u) & 0xffu) * (1.0 / 255.0);
+  let b = f32((word >> 16u) & 0xffu) * (1.0 / 255.0);
+  let a = f32((word >> 24u) & 0xffu) * (1.0 / 255.0);
+  return vec4<f32>(r, g, b, a);
+}
+
+fn sd_sample_avatar(avatar_index: u32, uv: vec2<f32>) -> vec4<f32> {
+  if (avatar_index >= scene_data.header.avatar_meta_count) {
+    return vec4<f32>(0.0);
+  }
+  let meta_base = scene_data.header.avatar_meta_offset_words + avatar_index * 4u;
+  if (meta_base + 1u >= scene_data.header.data_word_count) {
+    return vec4<f32>(0.0);
+  }
+  let offset_pixels = sd_data_word(meta_base + 0u);
+  let size = sd_data_word(meta_base + 1u);
+  if (size == 0u) {
+    return vec4<f32>(0.0);
+  }
+  let u = clamp(uv.x, 0.0, 0.999999);
+  let v = clamp(uv.y, 0.0, 0.999999);
+  let x = u32(floor(u * f32(size)));
+  let y = u32(floor(v * f32(size)));
+  let idx = scene_data.header.avatar_pixel_offset_words + offset_pixels + y * size + x;
+  if (idx >= scene_data.header.data_word_count) {
+    return vec4<f32>(0.0);
+  }
+  return sd_unpack_rgba8(sd_data_word(idx));
 }
 struct TileAnimMeta {
   first_frame: u32,

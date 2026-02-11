@@ -2618,6 +2618,7 @@ impl Sidebar {
         self.apply_assets(ui, ctx, server_ctx, project);
         apply_palette(ui, ctx, server_ctx, project);
         self.apply_screen(ui, ctx, None);
+        self.apply_avatars(ui, ctx, server_ctx, project);
 
         if let Some(list_layout) = ui.get_list_layout("Screen List") {
             list_layout.clear();
@@ -2845,6 +2846,28 @@ impl Sidebar {
         }
 
         ctx.ui.relayout = true;
+    }
+
+    /// Apply the avatars
+    pub fn apply_avatars(
+        &mut self,
+        ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+    ) {
+        if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+            if let Some(avatar_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id) {
+                avatar_node.widgets.clear();
+                avatar_node.childs.clear();
+
+                for (_index, avatar) in project.avatars.iter() {
+                    let node = gen_avatar_tree_node(avatar);
+
+                    avatar_node.add_child(node);
+                }
+            }
+        }
     }
 
     /// Apply the current regions to the tree.

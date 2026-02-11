@@ -44,6 +44,9 @@ pub struct Assets {
 
     /// A map of locale names to their translations.
     pub locales: FxHashMap<String, FxHashMap<String, String>>,
+
+    /// The avatars
+    pub avatars: FxHashMap<String, Avatar>,
 }
 
 impl Default for Assets {
@@ -75,6 +78,7 @@ impl Assets {
             palette: ThePalette::default(),
             global: ShapeFXGraph::default(),
             locales: FxHashMap::default(),
+            avatars: FxHashMap::default(),
         }
     }
 

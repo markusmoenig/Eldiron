@@ -1,12 +1,13 @@
 use std::str::FromStr;
 
 use crate::{
-    Assets, BillboardAnimation, BillboardMetadata, D3Camera, Item, Map, PixelSource,
+    Assets, Avatar, AvatarBuildRequest, AvatarBuilder, AvatarDirection, AvatarMarkerColors,
+    BillboardAnimation, BillboardMetadata, D3Camera, Entity, Item, Map, PixelSource,
     RenderSettings, Texture, Tile, Value,
 };
 use indexmap::IndexMap;
 use rust_embed::EmbeddedFile;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Atom, Chunk, DynamicObject, GeoId, Light, SceneVM};
 use theframework::prelude::*;
 
@@ -22,6 +23,11 @@ pub(crate) struct BillboardAnimState {
 enum AnimationClock {
     Render,   // use render frames (~30 fps)
     GameTick, // use animation_frame ticks (~4 fps default)
+}
+
+struct CachedAvatarFrames {
+    frames: FxHashMap<(String, AvatarDirection, usize), (u32, Vec<u8>)>,
+    last_uploaded: Option<(String, AvatarDirection, usize)>,
 }
 
 impl BillboardAnimState {
@@ -77,6 +83,10 @@ pub struct SceneHandler {
 
     // Local render-frame counter for timing animations at fixed FPS
     frame_counter: usize,
+    // Latch for update_avatar=true edge detection.
+    avatar_rebuild_latch: FxHashSet<GeoId>,
+    // Per-entity built avatar frames (all anims/perspectives/frames).
+    avatar_frame_cache: FxHashMap<GeoId, CachedAvatarFrames>,
 
     // Timing parameters (configurable)
     render_fps: f32,
@@ -156,8 +166,365 @@ impl SceneHandler {
             billboards: FxHashMap::default(),
             billboard_anim_states: FxHashMap::default(),
             frame_counter: 0,
+            avatar_rebuild_latch: FxHashSet::default(),
+            avatar_frame_cache: FxHashMap::default(),
             render_fps: 30.0,
             game_tick_fps: 4.0, // default 250ms ticks
+        }
+    }
+
+    fn find_avatar_for_entity<'a>(entity: &Entity, assets: &'a Assets) -> Option<&'a Avatar> {
+        if let Some(avatar_id) = entity.attributes.get_id("avatar_id") {
+            if let Some(avatar) = assets.avatars.get(&avatar_id.to_string()) {
+                return Some(avatar);
+            }
+            for avatar in assets.avatars.values() {
+                if avatar.id == avatar_id {
+                    return Some(avatar);
+                }
+            }
+        }
+        if let Some(name) = entity.attributes.get_str("avatar") {
+            return assets.avatars.get(name);
+        }
+        None
+    }
+
+    fn avatar_direction_from_entity(entity: &Entity) -> AvatarDirection {
+        let dir = entity.orientation;
+        if dir.x.abs() >= dir.y.abs() {
+            if dir.x >= 0.0 {
+                AvatarDirection::Right
+            } else {
+                AvatarDirection::Left
+            }
+        } else if dir.y >= 0.0 {
+            AvatarDirection::Front
+        } else {
+            AvatarDirection::Back
+        }
+    }
+
+    fn marker_color_from_index(assets: &Assets, idx: i32, default: [u8; 4]) -> [u8; 4] {
+        if idx < 0 {
+            return default;
+        }
+        let i = idx as usize;
+        if i < assets.palette.colors.len() {
+            if let Some(col) = &assets.palette[i] {
+                return col.to_u8_array();
+            }
+        }
+        default
+    }
+
+    fn marker_color(
+        entity: &Entity,
+        assets: &Assets,
+        value_key: &str,
+        color_key: &str,
+        index_key: &str,
+        default: [u8; 4],
+    ) -> [u8; 4] {
+        if let Some(Value::Color(c)) = entity.attributes.get(value_key) {
+            return c.to_u8_array();
+        }
+        if let Some(hex) = entity.attributes.get_str(color_key) {
+            return TheColor::from_hex(hex).to_u8_array();
+        }
+        if let Some(idx) = entity.attributes.get_int(index_key) {
+            return Self::marker_color_from_index(assets, idx, default);
+        }
+        default
+    }
+
+    fn equipped_slot_color(item: &Item, assets: &Assets, default: [u8; 4]) -> [u8; 4] {
+        if let Some(Value::Color(c)) = item.attributes.get("avatar_color") {
+            return c.to_u8_array();
+        }
+        if let Some(hex) = item.attributes.get_str("avatar_color_hex") {
+            return TheColor::from_hex(hex).to_u8_array();
+        }
+        if let Some(idx) = item.attributes.get_int("avatar_color_index") {
+            return Self::marker_color_from_index(assets, idx, default);
+        }
+        default
+    }
+
+    fn slot_override_color(
+        entity: &Entity,
+        assets: &Assets,
+        slot_names: &[&str],
+        default: [u8; 4],
+    ) -> [u8; 4] {
+        for slot in slot_names {
+            if let Some(item) = entity.equipped.get(*slot) {
+                return Self::equipped_slot_color(item, assets, default);
+            }
+        }
+        default
+    }
+
+    fn marker_colors_for_entity(entity: &Entity, assets: &Assets) -> AvatarMarkerColors {
+        let defaults = AvatarMarkerColors::default();
+        let light_skin = Self::marker_color(
+            entity,
+            assets,
+            "avatar_skin_light",
+            "light_skin_color",
+            "light_skin_index",
+            defaults.skin_light,
+        );
+        AvatarMarkerColors {
+            // Base/default marker color for all slots is light_skin.
+            skin_light: light_skin,
+            skin_dark: Self::marker_color(
+                entity,
+                assets,
+                "avatar_skin_dark",
+                "dark_skin_color",
+                "dark_skin_index",
+                light_skin,
+            ),
+            torso: Self::slot_override_color(
+                entity,
+                assets,
+                &["torso", "chest", "armor"],
+                Self::marker_color(
+                    entity,
+                    assets,
+                    "avatar_torso",
+                    "torso_color",
+                    "torso_index",
+                    light_skin,
+                ),
+            ),
+            legs: Self::slot_override_color(
+                entity,
+                assets,
+                &["legs", "pants"],
+                Self::marker_color(
+                    entity,
+                    assets,
+                    "avatar_legs",
+                    "legs_color",
+                    "legs_index",
+                    light_skin,
+                ),
+            ),
+            hair: Self::slot_override_color(
+                entity,
+                assets,
+                &["head", "helmet", "hair"],
+                Self::marker_color(
+                    entity,
+                    assets,
+                    "avatar_hair",
+                    "hair_color",
+                    "hair_index",
+                    light_skin,
+                ),
+            ),
+            eyes: Self::slot_override_color(
+                entity,
+                assets,
+                &["head", "helmet", "eyes"],
+                Self::marker_color(
+                    entity,
+                    assets,
+                    "avatar_eyes",
+                    "eyes_color",
+                    "eyes_index",
+                    light_skin,
+                ),
+            ),
+            hands: Self::slot_override_color(
+                entity,
+                assets,
+                &["hands", "gloves"],
+                Self::marker_color(
+                    entity,
+                    assets,
+                    "avatar_hands",
+                    "hands_color",
+                    "hands_index",
+                    light_skin,
+                ),
+            ),
+            feet: Self::slot_override_color(
+                entity,
+                assets,
+                &["feet", "boots"],
+                Self::marker_color(
+                    entity,
+                    assets,
+                    "avatar_feet",
+                    "feet_color",
+                    "feet_index",
+                    light_skin,
+                ),
+            ),
+        }
+    }
+
+    fn resolve_avatar_selection<'a>(
+        avatar: &'a Avatar,
+        animation_name: Option<&str>,
+        direction: AvatarDirection,
+    ) -> Option<(&'a str, AvatarDirection)> {
+        let anim = animation_name
+            .and_then(|name| {
+                avatar
+                    .animations
+                    .iter()
+                    .find(|a| a.name.eq_ignore_ascii_case(name))
+            })
+            .or_else(|| avatar.animations.first())?;
+
+        let perspective = anim
+            .perspectives
+            .iter()
+            .find(|p| p.direction == direction)
+            .or_else(|| {
+                anim.perspectives
+                    .iter()
+                    .find(|p| p.direction == AvatarDirection::Front)
+            })
+            .or_else(|| anim.perspectives.first())?;
+
+        Some((anim.name.as_str(), perspective.direction))
+    }
+
+    fn rebuild_entity_avatar_cache(
+        &mut self,
+        entity: &Entity,
+        avatar: &Avatar,
+        assets: &Assets,
+        geo_id: GeoId,
+    ) -> bool {
+        let markers = Self::marker_colors_for_entity(entity, assets);
+        let mut frames: FxHashMap<(String, AvatarDirection, usize), (u32, Vec<u8>)> =
+            FxHashMap::default();
+
+        for anim in &avatar.animations {
+            for perspective in &anim.perspectives {
+                let frame_count = perspective.frames.len().max(1);
+                for frame_index in 0..frame_count {
+                    if let Some(out) = AvatarBuilder::build_current_stub(AvatarBuildRequest {
+                        avatar,
+                        animation_name: Some(anim.name.as_str()),
+                        direction: perspective.direction,
+                        frame_index,
+                        marker_colors: markers,
+                    }) {
+                        frames.insert(
+                            (anim.name.clone(), perspective.direction, frame_index),
+                            (out.size, out.rgba),
+                        );
+                    }
+                }
+            }
+        }
+
+        if frames.is_empty() {
+            self.avatar_frame_cache.remove(&geo_id);
+            self.vm
+                .execute(Atom::RemoveAvatarBillboardData { id: geo_id });
+            return false;
+        }
+
+        self.avatar_frame_cache.insert(
+            geo_id,
+            CachedAvatarFrames {
+                frames,
+                last_uploaded: None,
+            },
+        );
+        println!("rebuilt avatar entity {} cache", entity.id);
+        true
+    }
+
+    fn ensure_entity_avatar_uploaded(
+        &mut self,
+        entity: &Entity,
+        avatar: &Avatar,
+        assets: &Assets,
+        frame_index: usize,
+        geo_id: GeoId,
+    ) -> bool {
+        let update_avatar = entity.attributes.get_bool_default("update_avatar", false);
+        let needs_rebuild_edge = if update_avatar {
+            self.avatar_rebuild_latch.insert(geo_id)
+        } else {
+            self.avatar_rebuild_latch.remove(&geo_id);
+            false
+        };
+        let cache_missing = !self.avatar_frame_cache.contains_key(&geo_id);
+
+        if (needs_rebuild_edge || cache_missing)
+            && !self.rebuild_entity_avatar_cache(entity, avatar, assets, geo_id)
+        {
+            return false;
+        }
+
+        let direction = Self::avatar_direction_from_entity(entity);
+        let animation_name = entity.attributes.get_str("avatar_animation");
+        let Some((anim_name, persp_dir)) =
+            Self::resolve_avatar_selection(avatar, animation_name, direction)
+        else {
+            return false;
+        };
+        let anim = avatar
+            .animations
+            .iter()
+            .find(|a| a.name.eq_ignore_ascii_case(anim_name))
+            .or_else(|| avatar.animations.first());
+        let Some(anim) = anim else {
+            return false;
+        };
+        let frame_count = anim
+            .perspectives
+            .iter()
+            .find(|p| p.direction == persp_dir)
+            .or_else(|| anim.perspectives.first())
+            .map(|p| p.frames.len().max(1))
+            .unwrap_or(1);
+        let frame_idx = frame_index % frame_count;
+        let key = (anim_name.to_string(), persp_dir, frame_idx);
+
+        let Some(cache) = self.avatar_frame_cache.get_mut(&geo_id) else {
+            return false;
+        };
+        let Some((size, rgba)) = cache.frames.get(&key) else {
+            return false;
+        };
+
+        if cache.last_uploaded.as_ref() != Some(&key) {
+            println!(
+                "avatar entity {} -> anim='{}' perspective={:?}",
+                entity.id, anim_name, persp_dir
+            );
+            self.vm.execute(Atom::SetAvatarBillboardData {
+                id: geo_id,
+                size: *size,
+                rgba: rgba.clone(),
+            });
+            cache.last_uploaded = Some(key);
+        }
+        true
+    }
+
+    fn remove_stale_avatars(&mut self, active_avatar_geo: &FxHashSet<GeoId>) {
+        let stale: Vec<GeoId> = self
+            .avatar_frame_cache
+            .keys()
+            .copied()
+            .filter(|id| !active_avatar_geo.contains(id))
+            .collect();
+        for id in stale {
+            self.avatar_frame_cache.remove(&id);
+            self.avatar_rebuild_latch.remove(&id);
+            self.vm.execute(Atom::RemoveAvatarBillboardData { id });
         }
     }
 
@@ -349,6 +716,7 @@ impl SceneHandler {
     pub fn build_dynamics_2d(&mut self, map: &Map, assets: &Assets) {
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
+        let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
 
         for item in &map.items {
             let item_pos = Vec2::new(item.position.x, item.position.z);
@@ -413,21 +781,28 @@ impl SceneHandler {
                 }
             }
 
-            if let Some(Value::Source(source)) = entity.attributes.get("source") {
-                if entity.attributes.get_bool_default("visible", false) {
+            if entity.attributes.get_bool_default("visible", false) {
+                let geo_id = GeoId::Character(entity.id);
+                if let Some(avatar) = Self::find_avatar_for_entity(entity, assets) {
+                    if self.ensure_entity_avatar_uploaded(entity, avatar, assets, 0, geo_id) {
+                        active_avatar_geo.insert(geo_id);
+                        let dynamic = DynamicObject::billboard_avatar_2d(geo_id, pos, 1.0, 1.0);
+                        self.vm.execute(Atom::AddDynamic { object: dynamic });
+                        continue;
+                    }
+                }
+
+                if let Some(Value::Source(source)) = entity.attributes.get("source") {
                     if let Some(tile) = source.tile_from_tile_list(assets) {
-                        let dynamic = DynamicObject::billboard_tile_2d(
-                            GeoId::Character(entity.id),
-                            tile.id,
-                            pos,
-                            1.0,
-                            1.0,
-                        );
+                        let dynamic =
+                            DynamicObject::billboard_tile_2d(geo_id, tile.id, pos, 1.0, 1.0);
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                     }
                 }
             }
         }
+
+        self.remove_stale_avatars(&active_avatar_geo);
     }
 
     pub fn build_dynamics_3d(
@@ -442,6 +817,7 @@ impl SceneHandler {
 
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
+        let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
 
         let basis = camera.basis_vectors();
 
@@ -480,23 +856,43 @@ impl SceneHandler {
                     }
                 }
 
-                if let Some(Value::Source(source)) = entity.attributes.get("source") {
-                    if entity.attributes.get_bool_default("visible", false) {
-                        let size = 2.0;
-                        if let Some(tile) = source.tile_from_tile_list(assets) {
-                            let center3 =
-                                Vec3::new(entity.position.x, size * 0.5, entity.position.z);
-
-                            let dynamic = DynamicObject::billboard_tile(
-                                GeoId::Item(entity.id),
-                                tile.id,
-                                center3,
-                                basis.1,
-                                basis.2,
-                                size,
-                                size,
+                if entity.attributes.get_bool_default("visible", false) {
+                    let size = 2.0;
+                    let center3 = Vec3::new(entity.position.x, size * 0.5, entity.position.z);
+                    let geo_id = GeoId::Character(entity.id);
+                    let mut rendered_avatar = false;
+                    if let Some(avatar) = Self::find_avatar_for_entity(entity, assets) {
+                        // println!("found avatar");
+                        if self.ensure_entity_avatar_uploaded(
+                            entity,
+                            avatar,
+                            assets,
+                            _animation_frame,
+                            geo_id,
+                        ) {
+                            active_avatar_geo.insert(geo_id);
+                            let dynamic = DynamicObject::billboard_avatar(
+                                geo_id, center3, basis.1, basis.2, size, size,
                             );
                             self.vm.execute(Atom::AddDynamic { object: dynamic });
+                            rendered_avatar = true;
+                        }
+                    }
+
+                    if !rendered_avatar {
+                        if let Some(Value::Source(source)) = entity.attributes.get("source") {
+                            if let Some(tile) = source.tile_from_tile_list(assets) {
+                                let dynamic = DynamicObject::billboard_tile(
+                                    GeoId::Item(entity.id),
+                                    tile.id,
+                                    center3,
+                                    basis.1,
+                                    basis.2,
+                                    size,
+                                    size,
+                                );
+                                self.vm.execute(Atom::AddDynamic { object: dynamic });
+                            }
                         }
                     }
                 }
@@ -728,5 +1124,7 @@ impl SceneHandler {
             .with_opacity(opacity);
             self.vm.execute(Atom::AddDynamic { object: dynamic });
         }
+
+        self.remove_stale_avatars(&active_avatar_geo);
     }
 }

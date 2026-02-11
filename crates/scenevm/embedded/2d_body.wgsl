@@ -32,33 +32,38 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (dyn_count > 0u) {
         for (var di: u32 = 0u; di < dyn_count; di = di + 1u) {
             let cmd = sd_billboard_cmd(di);
-            if (cmd.params.y != DYNAMIC_KIND_BILLBOARD_TILE) {
+            if (cmd.params.y != DYNAMIC_KIND_BILLBOARD_TILE && cmd.params.y != DYNAMIC_KIND_BILLBOARD_AVATAR) {
                 continue;
             }
             let bh = sd_billboard_hit_screen(p, cmd);
             if (!bh.hit) { continue; }
 
-            // Sample based on repeat mode
-            let frame = sv_tile_frame(bh.tile_index);
-            var atlas_uv: vec2<f32>;
-
-            if (bh.repeat_mode == 1u) {
-                // Repeat mode: wrap UVs and map into atlas sub-rect
-                let uv_wrapped = fract(bh.uv);
-                atlas_uv = frame.ofs + uv_wrapped * frame.scale;
-
-                // Clamp to avoid bleeding from neighboring tiles
-                let atlas_dims = vec2<f32>(textureDimensions(atlas_tex, 0));
-                let pad_uv = vec2<f32>(0.5) / atlas_dims;
-                let uv_min = frame.ofs + pad_uv;
-                let uv_max = frame.ofs + frame.scale - pad_uv;
-                atlas_uv = clamp(atlas_uv, uv_min, uv_max);
+            var col = vec4<f32>(0.0);
+            if (cmd.params.y == DYNAMIC_KIND_BILLBOARD_AVATAR) {
+                col = sd_sample_avatar(cmd.params.x, bh.uv);
             } else {
-                // Scale mode: scale the tile to fit billboard size
-                atlas_uv = frame.ofs + bh.uv * frame.scale;
-            }
+                // Sample based on repeat mode
+                let frame = sv_tile_frame(bh.tile_index);
+                var atlas_uv: vec2<f32>;
 
-            let col = textureSampleLevel(atlas_tex, atlas_smp, atlas_uv, 0.0);
+                if (bh.repeat_mode == 1u) {
+                    // Repeat mode: wrap UVs and map into atlas sub-rect
+                    let uv_wrapped = fract(bh.uv);
+                    atlas_uv = frame.ofs + uv_wrapped * frame.scale;
+
+                    // Clamp to avoid bleeding from neighboring tiles
+                    let atlas_dims = vec2<f32>(textureDimensions(atlas_tex, 0));
+                    let pad_uv = vec2<f32>(0.5) / atlas_dims;
+                    let uv_min = frame.ofs + pad_uv;
+                    let uv_max = frame.ofs + frame.scale - pad_uv;
+                    atlas_uv = clamp(atlas_uv, uv_min, uv_max);
+                } else {
+                    // Scale mode: scale the tile to fit billboard size
+                    atlas_uv = frame.ofs + bh.uv * frame.scale;
+                }
+
+                col = textureSampleLevel(atlas_tex, atlas_smp, atlas_uv, 0.0);
+            }
             if (col.a < 0.01) { continue; }
             dyn_color = col;
             dyn_hit = true;

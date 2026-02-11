@@ -124,10 +124,10 @@ struct SceneDataHeaderPod {
     pub lights_count: u32,
     pub billboard_cmd_offset_words: u32,
     pub billboard_cmd_count: u32,
-    pub billboard_poly_offset_words: u32,
-    pub billboard_poly_count: u32,
+    pub avatar_meta_offset_words: u32,
+    pub avatar_meta_count: u32,
+    pub avatar_pixel_offset_words: u32,
     pub data_word_count: u32,
-    pub _reserved: u32,
 }
 
 #[allow(dead_code)]
@@ -141,6 +141,20 @@ struct DynamicBillboardPod {
     pub axis_right: [f32; 4], // xyz + height
     pub axis_up: [f32; 4],    // xyz + repeat_mode (as f32)
     pub params: [u32; 4],     // tile_index, kind, opacity_bits, unused
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable, Default)]
+struct DynamicAvatarMetaPod {
+    pub offset_pixels: u32,
+    pub size: u32,
+    pub _pad: [u32; 2],
+}
+
+#[derive(Clone, Debug, Default)]
+struct DynamicAvatarData {
+    size: u32,
+    rgba: Vec<u8>,
 }
 
 #[allow(dead_code)]
@@ -291,6 +305,18 @@ pub enum Atom {
     AddDynamic {
         object: DynamicObject,
     },
+    /// Set or replace avatar billboard RGBA data for a GeoId (square size x size).
+    SetAvatarBillboardData {
+        id: GeoId,
+        size: u32,
+        rgba: Vec<u8>,
+    },
+    /// Remove avatar billboard RGBA data for a GeoId.
+    RemoveAvatarBillboardData {
+        id: GeoId,
+    },
+    /// Clear all avatar billboard RGBA data.
+    ClearAvatarBillboardData,
     /// Set BVH leaf size (max triangles per leaf)
     SetBvhLeafSize {
         max_tris: u32,
@@ -615,6 +641,8 @@ pub struct VM {
 
     pub lights: FxHashMap<GeoId, Light>,
     dynamic_objects: Vec<DynamicObject>,
+    dynamic_avatar_objects: FxHashMap<GeoId, DynamicObject>,
+    dynamic_avatar_data: FxHashMap<GeoId, DynamicAvatarData>,
 
     pub current_layer: i32,
 
@@ -950,7 +978,11 @@ impl VM {
         let (axis_r, axis_u) = VM::sanitize_billboard_axes(object.view_right, object.view_up);
         object.view_right = axis_r;
         object.view_up = axis_u;
-        self.dynamic_objects.push(object);
+        if object.kind == DynamicKind::BillboardAvatar {
+            self.dynamic_avatar_objects.insert(object.id, object);
+        } else {
+            self.dynamic_objects.push(object);
+        }
     }
 
     fn build_2d_batches(
@@ -1243,7 +1275,14 @@ impl VM {
         }
 
         let mut billboard_cmds: Vec<DynamicBillboardPod> = Vec::new();
-        for obj in &self.dynamic_objects {
+        let mut avatar_metas: Vec<DynamicAvatarMetaPod> = Vec::new();
+        let mut avatar_pixels_rgba8: Vec<u32> = Vec::new();
+        let mut avatar_indices: FxHashMap<GeoId, u32> = FxHashMap::default();
+        for obj in self
+            .dynamic_objects
+            .iter()
+            .chain(self.dynamic_avatar_objects.values())
+        {
             match obj.kind {
                 DynamicKind::BillboardTile => {
                     let tile_id = match obj.tile_id {
@@ -1274,12 +1313,56 @@ impl VM {
                             axis_up.z,
                             obj.repeat_mode as u32 as f32,
                         ],
-                        params: [
-                            tile_index,
-                            DynamicKind::BillboardTile as u32,
-                            obj.opacity.to_bits(),
-                            0,
-                        ],
+                        params: [tile_index, obj.kind as u32, obj.opacity.to_bits(), 0],
+                    });
+                }
+                DynamicKind::BillboardAvatar => {
+                    let half_width = (obj.width * 0.5).max(0.0);
+                    let half_height = (obj.height * 0.5).max(0.0);
+                    if !half_width.is_finite()
+                        || half_width <= 0.0
+                        || !half_height.is_finite()
+                        || half_height <= 0.0
+                    {
+                        continue;
+                    }
+
+                    let avatar_index = if let Some(existing) = avatar_indices.get(&obj.id).copied()
+                    {
+                        existing
+                    } else {
+                        let Some(avatar) = self.dynamic_avatar_data.get(&obj.id) else {
+                            continue;
+                        };
+                        if avatar.size == 0 {
+                            continue;
+                        }
+                        let expected_len = avatar.size as usize * avatar.size as usize * 4;
+                        if avatar.rgba.len() != expected_len {
+                            continue;
+                        }
+                        let offset_pixels = avatar_pixels_rgba8.len() as u32;
+                        for px in avatar.rgba.chunks_exact(4) {
+                            avatar_pixels_rgba8
+                                .push(u32::from_le_bytes([px[0], px[1], px[2], px[3]]));
+                        }
+                        let index = avatar_metas.len() as u32;
+                        avatar_metas.push(DynamicAvatarMetaPod {
+                            offset_pixels,
+                            size: avatar.size,
+                            _pad: [0, 0],
+                        });
+                        avatar_indices.insert(obj.id, index);
+                        index
+                    };
+
+                    let axis_right = obj.view_right * half_width;
+                    let axis_up = obj.view_up * half_height;
+                    billboard_cmds.push(DynamicBillboardPod {
+                        center: [obj.center.x, obj.center.y, obj.center.z, obj.width],
+                        axis_right: [axis_right.x, axis_right.y, axis_right.z, obj.height],
+                        axis_up: [axis_up.x, axis_up.y, axis_up.z, 0.0],
+                        params: [avatar_index, obj.kind as u32, obj.opacity.to_bits(), 0],
                     });
                 }
             }
@@ -1300,6 +1383,23 @@ impl VM {
             }
         }
 
+        let avatar_meta_offset_words = if avatar_metas.is_empty() {
+            0
+        } else {
+            data_words.len() as u32
+        };
+        if !avatar_metas.is_empty() {
+            data_words.extend_from_slice(bytemuck::cast_slice(&avatar_metas));
+        }
+        let avatar_pixel_offset_words = if avatar_pixels_rgba8.is_empty() {
+            0
+        } else {
+            data_words.len() as u32
+        };
+        if !avatar_pixels_rgba8.is_empty() {
+            data_words.extend_from_slice(&avatar_pixels_rgba8);
+        }
+
         let logical_word_count = data_words.len() as u32;
         if data_words.is_empty() {
             // AMD fix: Ensure minimum 16-byte buffer size (wgpu validation + AMD compatibility)
@@ -1311,10 +1411,10 @@ impl VM {
             lights_count: lights_flat.len() as u32,
             billboard_cmd_offset_words,
             billboard_cmd_count: billboard_cmds.len() as u32,
-            billboard_poly_offset_words: 0,
-            billboard_poly_count: 0,
+            avatar_meta_offset_words,
+            avatar_meta_count: avatar_metas.len() as u32,
+            avatar_pixel_offset_words,
             data_word_count: logical_word_count,
-            _reserved: 0,
         };
 
         let header_bytes = bytemuck::bytes_of(&header);
@@ -1527,6 +1627,8 @@ impl VM {
             transform3d: Mat4::identity(),
             lights: FxHashMap::default(),
             dynamic_objects: Vec::new(),
+            dynamic_avatar_objects: FxHashMap::default(),
+            dynamic_avatar_data: FxHashMap::default(),
             current_layer: 0,
             scene_accel: SceneAccel::default(),
             accel_dirty: true,
@@ -1863,12 +1965,15 @@ impl VM {
                 self.sdf_data_dirty = true;
                 self.mark_all_geometry_dirty();
                 self.dynamic_objects.clear();
+                self.dynamic_avatar_objects.clear();
+                self.dynamic_avatar_data.clear();
             }
             Atom::ClearTiles => {
                 // Clear tile-related state and atlas pixels; keep scene/chunks
                 self.shared_atlas.clear();
                 self.mark_all_geometry_dirty();
                 self.dynamic_objects.clear();
+                self.dynamic_avatar_objects.clear();
             }
             Atom::ClearGeometry => {
                 // Remove all chunks and unset current chunk; keep tiles/atlas/state
@@ -1877,6 +1982,7 @@ impl VM {
                 self.accel_dirty = true;
                 self.mark_2d_dirty();
                 self.dynamic_objects.clear();
+                self.dynamic_avatar_objects.clear();
             }
             Atom::SetBackground(v) => {
                 self.background = v;
@@ -1925,9 +2031,24 @@ impl VM {
             }
             Atom::ClearDynamics => {
                 self.dynamic_objects.clear();
+                self.dynamic_avatar_objects.clear();
             }
             Atom::AddDynamic { object } => {
                 self.push_dynamic_object(object);
+            }
+            Atom::SetAvatarBillboardData { id, size, rgba } => {
+                let expected_len = size as usize * size as usize * 4;
+                if size == 0 || rgba.len() != expected_len {
+                    return;
+                }
+                self.dynamic_avatar_data
+                    .insert(id, DynamicAvatarData { size, rgba });
+            }
+            Atom::RemoveAvatarBillboardData { id } => {
+                self.dynamic_avatar_data.remove(&id);
+            }
+            Atom::ClearAvatarBillboardData => {
+                self.dynamic_avatar_data.clear();
             }
             Atom::SetCamera3D { camera } => {
                 self.camera3d = camera;
@@ -2743,13 +2864,13 @@ impl VM {
 
         use wgpu::util::DeviceExt;
 
-        let scene_data_blob = self.build_scene_data_blob();
+        let scene_data = self.build_scene_data_blob();
         {
             let g = self.gpu.as_mut().unwrap();
             g.scene_data_ssbo = Some(device.create_buffer_init(
                 &wgpu::util::BufferInitDescriptor {
                     label: Some("vm-scene-data-ssbo"),
-                    contents: &scene_data_blob,
+                    contents: &scene_data,
                     usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 },
             ));
@@ -3014,13 +3135,13 @@ impl VM {
             .expect("atlas GPU resources missing");
 
         use wgpu::util::DeviceExt;
-        let scene_data_blob = self.build_scene_data_blob();
+        let scene_data = self.build_scene_data_blob();
         {
             let g = self.gpu.as_mut().unwrap();
             g.scene_data_ssbo = Some(device.create_buffer_init(
                 &wgpu::util::BufferInitDescriptor {
                     label: Some("vm-scene-data-ssbo"),
-                    contents: &scene_data_blob,
+                    contents: &scene_data,
                     usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 },
             ));
@@ -3605,8 +3726,14 @@ impl VM {
 
         if include_billboards {
             // Include dynamic billboards in hit testing (camera-facing quads).
-            for obj in &self.dynamic_objects {
-                if obj.kind != DynamicKind::BillboardTile {
+            for obj in self
+                .dynamic_objects
+                .iter()
+                .chain(self.dynamic_avatar_objects.values())
+            {
+                if obj.kind != DynamicKind::BillboardTile
+                    && obj.kind != DynamicKind::BillboardAvatar
+                {
                     continue;
                 }
 

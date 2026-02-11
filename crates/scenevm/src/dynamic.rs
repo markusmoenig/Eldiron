@@ -7,6 +7,7 @@ use crate::vm::GeoId;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DynamicKind {
     BillboardTile = 0,
+    BillboardAvatar = 1,
 }
 
 impl Default for DynamicKind {
@@ -99,6 +100,42 @@ impl DynamicObject {
         Self::billboard_tile(
             id,
             tile_id,
+            Vec3::new(pos.x, pos.y, 0.0),
+            Vec3::unit_x(),
+            Vec3::unit_y(),
+            width,
+            height,
+        )
+    }
+
+    /// Convenience constructor for an avatar billboard that references a tile.
+    /// Avatar billboards are managed per GeoId and replace previous avatar data for the same id.
+    pub fn billboard_avatar(
+        id: GeoId,
+        center: Vec3<f32>,
+        view_right: Vec3<f32>,
+        view_up: Vec3<f32>,
+        width: f32,
+        height: f32,
+    ) -> Self {
+        Self {
+            id,
+            kind: DynamicKind::BillboardAvatar,
+            tile_id: None,
+            center,
+            view_right,
+            view_up,
+            width,
+            height,
+            repeat_mode: RepeatMode::Scale,
+            opacity: 1.0,
+        }
+    }
+
+    /// Convenience constructor for a 2D avatar billboard, supplying only the XY position and size.
+    pub fn billboard_avatar_2d(id: GeoId, pos: Vec2<f32>, width: f32, height: f32) -> Self {
+        Self::billboard_avatar(
+            id,
             Vec3::new(pos.x, pos.y, 0.0),
             Vec3::unit_x(),
             Vec3::unit_y(),

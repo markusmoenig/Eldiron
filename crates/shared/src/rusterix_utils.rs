@@ -68,6 +68,15 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
         );
     }
 
+    // Create the avatars
+    rusterix.assets.avatars.clear();
+    for avatar in &mut project.avatars.values() {
+        rusterix
+            .assets
+            .avatars
+            .insert(avatar.name.clone(), avatar.clone());
+    }
+
     // Wait for the region to be created
     #[cfg(not(target_arch = "wasm32"))]
     std::thread::sleep(std::time::Duration::from_millis(10));

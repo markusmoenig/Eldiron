@@ -45,7 +45,7 @@ impl Default for AvatarAnimation {
 }
 
 /// Number of perspective directions supported by an avatar.
-#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Debug, Hash)]
 pub enum AvatarPerspectiveCount {
     /// Single direction (Front only)
     One,
@@ -197,5 +197,137 @@ impl Avatar {
             .and_then(|a| a.perspectives.first())
             .map(|p| p.frames.len())
             .unwrap_or(0)
+    }
+}
+
+/// Marker recolor configuration used by avatar builds.
+#[derive(Clone, Copy, Debug)]
+pub struct AvatarMarkerColors {
+    pub skin_light: [u8; 4],
+    pub skin_dark: [u8; 4],
+    pub torso: [u8; 4],
+    pub legs: [u8; 4],
+    pub hair: [u8; 4],
+    pub eyes: [u8; 4],
+    pub hands: [u8; 4],
+    pub feet: [u8; 4],
+}
+
+impl Default for AvatarMarkerColors {
+    fn default() -> Self {
+        Self {
+            skin_light: [255, 224, 189, 255],
+            skin_dark: [205, 133, 63, 255],
+            torso: [70, 90, 140, 255],
+            legs: [50, 60, 90, 255],
+            hair: [70, 50, 30, 255],
+            eyes: [30, 80, 120, 255],
+            hands: [255, 210, 170, 255],
+            feet: [80, 70, 60, 255],
+        }
+    }
+}
+
+/// Output image data for an avatar frame.
+#[derive(Clone, Debug)]
+pub struct AvatarBuildOutput {
+    pub size: u32,
+    pub rgba: Vec<u8>,
+}
+
+/// Request for building a single avatar frame.
+pub struct AvatarBuildRequest<'a> {
+    pub avatar: &'a Avatar,
+    pub animation_name: Option<&'a str>,
+    pub direction: AvatarDirection,
+    pub frame_index: usize,
+    pub marker_colors: AvatarMarkerColors,
+}
+
+/// Stub avatar builder.
+/// This currently recolors marker pixels on selected frame data.
+pub struct AvatarBuilder;
+
+impl AvatarBuilder {
+    pub fn build_current_stub(req: AvatarBuildRequest<'_>) -> Option<AvatarBuildOutput> {
+        let anim = req
+            .animation_name
+            .and_then(|name| {
+                req.avatar
+                    .animations
+                    .iter()
+                    .find(|a| a.name.eq_ignore_ascii_case(name))
+            })
+            .or_else(|| req.avatar.animations.first())?;
+
+        let persp = anim
+            .perspectives
+            .iter()
+            .find(|p| p.direction == req.direction)
+            .or_else(|| {
+                anim.perspectives
+                    .iter()
+                    .find(|p| p.direction == AvatarDirection::Front)
+            })
+            .or_else(|| anim.perspectives.first())?;
+
+        if persp.frames.is_empty() {
+            return None;
+        }
+
+        let frame = persp.frames.get(req.frame_index % persp.frames.len())?;
+
+        // SceneVM avatar data is square; normalize here for the stub path.
+        let target_size = frame.width.max(frame.height);
+        let mut rgba = if frame.width == frame.height {
+            frame.data.clone()
+        } else {
+            frame.resized(target_size, target_size).data
+        };
+
+        Self::recolor_markers(&mut rgba, req.marker_colors);
+
+        Some(AvatarBuildOutput {
+            size: target_size as u32,
+            rgba,
+        })
+    }
+
+    fn recolor_markers(rgba: &mut [u8], colors: AvatarMarkerColors) {
+        const SKIN_LIGHT: [u8; 3] = [255, 0, 255];
+        const SKIN_DARK: [u8; 3] = [200, 0, 200];
+        const TORSO: [u8; 3] = [0, 0, 255];
+        const LEGS: [u8; 3] = [0, 255, 0];
+        const HAIR: [u8; 3] = [255, 255, 0];
+        const EYES: [u8; 3] = [0, 255, 255];
+        const HANDS: [u8; 3] = [255, 128, 0];
+        const FEET: [u8; 3] = [255, 80, 0];
+
+        for px in rgba.chunks_exact_mut(4) {
+            if px[3] == 0 {
+                continue;
+            }
+            let src = [px[0], px[1], px[2]];
+            let dst = if src == SKIN_LIGHT {
+                colors.skin_light
+            } else if src == SKIN_DARK {
+                colors.skin_dark
+            } else if src == TORSO {
+                colors.torso
+            } else if src == LEGS {
+                colors.legs
+            } else if src == HAIR {
+                colors.hair
+            } else if src == EYES {
+                colors.eyes
+            } else if src == HANDS {
+                colors.hands
+            } else if src == FEET {
+                colors.feet
+            } else {
+                continue;
+            };
+            px.copy_from_slice(&dst);
+        }
     }
 }

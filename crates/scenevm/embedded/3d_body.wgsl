@@ -240,15 +240,20 @@ fn intersect_billboard(ro: vec3<f32>, rd: vec3<f32>, center: vec3<f32>,
 /// Sample billboard color from atlas
 /// This is separated to allow future procedural effects (fire, smoke, etc.)
 fn sample_billboard(hit: BillboardHit) -> vec4<f32> {
+    let cmd = sd_billboard_cmd(hit.billboard_index);
+    let opacity = bitcast<f32>(cmd.params.z);
+    let uv = hit.uv;
+    if (cmd.params.y == DYNAMIC_KIND_BILLBOARD_AVATAR) {
+        var color = sd_sample_avatar(cmd.params.x, uv);
+        color = color * opacity;
+        return color;
+    }
+
     // Get tile frame information
     let frame = sv_tile_frame(hit.tile_index);
 
     // Map UV to atlas coordinates based on repeat mode
     var atlas_uv: vec2<f32>;
-
-    let cmd = sd_billboard_cmd(hit.billboard_index);
-    let opacity = bitcast<f32>(cmd.params.z);
-    let uv = hit.uv;
 
     if (hit.repeat_mode == 1u) {
         // Repeat mode: wrap UVs and map into atlas sub-rect
@@ -275,15 +280,19 @@ fn sample_billboard(hit: BillboardHit) -> vec4<f32> {
 
 /// Sample billboard material data (RMOE)
 fn sample_billboard_material(hit: BillboardHit) -> vec4<f32> {
+    let cmd = sd_billboard_cmd(hit.billboard_index);
+    if (cmd.params.y == DYNAMIC_KIND_BILLBOARD_AVATAR) {
+        // Default material for dynamic avatar textures.
+        return vec4<f32>(7.0 / 255.0, 15.0 / 255.0, 128.0 / 255.0, 128.0 / 255.0);
+    }
+
+    let uv = hit.uv;
+
     // Get tile frame information
     let frame = sv_tile_frame(hit.tile_index);
 
     // Map UV to atlas coordinates based on repeat mode
     var atlas_uv: vec2<f32>;
-
-    let cmd = sd_billboard_cmd(hit.billboard_index);
-    let opacity = bitcast<f32>(cmd.params.z);
-    let uv = hit.uv;
 
     if (hit.repeat_mode == 1u) {
         // Repeat mode: wrap UVs and map into atlas sub-rect
