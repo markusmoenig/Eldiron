@@ -1,6 +1,6 @@
 use crate::{
-    Assets, Avatar, AvatarBuildRequest, AvatarBuilder, AvatarDirection, AvatarMarkerColors, Entity,
-    Item, Value,
+    Assets, Avatar, AvatarBuildOutput, AvatarBuildRequest, AvatarBuilder, AvatarDirection,
+    AvatarMarkerColors, Entity, Item, PixelSource, Value,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Atom, GeoId, SceneVM};
@@ -65,153 +65,338 @@ impl AvatarRuntimeBuilder {
         default
     }
 
-    fn marker_color(
-        entity: &Entity,
+    fn marker_color_for_attrs(
+        attrs: &crate::ValueContainer,
         assets: &Assets,
-        value_key: &str,
+        value_key: Option<&str>,
         color_key: &str,
         index_key: &str,
         default: [u8; 4],
     ) -> [u8; 4] {
-        if let Some(Value::Color(c)) = entity.attributes.get(value_key) {
+        if let Some(value_key) = value_key
+            && let Some(Value::Color(c)) = attrs.get(value_key)
+        {
             return c.to_u8_array();
         }
-        if let Some(hex) = entity.attributes.get_str(color_key) {
+        if let Some(hex) = attrs.get_str(color_key) {
             return TheColor::from_hex(hex).to_u8_array();
         }
-        if let Some(idx) = entity.attributes.get_int(index_key) {
+        if let Some(idx) = attrs.get_int(index_key) {
             return Self::marker_color_from_index(assets, idx, default);
         }
         default
     }
 
-    fn equipped_slot_color(item: &Item, assets: &Assets, default: [u8; 4]) -> [u8; 4] {
-        if let Some(Value::Color(c)) = item.attributes.get("avatar_color") {
-            return c.to_u8_array();
-        }
-        if let Some(hex) = item.attributes.get_str("avatar_color_hex") {
-            return TheColor::from_hex(hex).to_u8_array();
-        }
-        if let Some(idx) = item.attributes.get_int("avatar_color_index") {
-            return Self::marker_color_from_index(assets, idx, default);
-        }
-        default
+    fn marker_color(entity: &Entity, assets: &Assets, key: &str, default: [u8; 4]) -> [u8; 4] {
+        Self::marker_color_for_attrs(
+            &entity.attributes,
+            assets,
+            Some(&format!("avatar_{key}")),
+            &format!("{key}_color"),
+            &format!("{key}_index"),
+            default,
+        )
     }
 
-    fn slot_override_color(
-        entity: &Entity,
-        assets: &Assets,
-        slot_names: &[&str],
-        default: [u8; 4],
-    ) -> [u8; 4] {
-        for slot in slot_names {
-            if let Some(item) = entity.equipped.get(*slot) {
-                return Self::equipped_slot_color(item, assets, default);
-            }
+    fn marker_color_from_item(item: &Item, assets: &Assets, key: &str) -> Option<[u8; 4]> {
+        if let Some(Value::Color(c)) = item.attributes.get(&format!("avatar_{key}")) {
+            return Some(c.to_u8_array());
         }
-        default
+        if let Some(Value::Color(c)) = item.attributes.get(key) {
+            return Some(c.to_u8_array());
+        }
+        if let Some(hex) = item.attributes.get_str(&format!("{key}_color")) {
+            return Some(TheColor::from_hex(hex).to_u8_array());
+        }
+        if let Some(idx) = item.attributes.get_int(&format!("{key}_index")) {
+            return Some(Self::marker_color_from_index(assets, idx, [0, 0, 0, 255]));
+        }
+        None
     }
 
     fn marker_colors_for_entity(entity: &Entity, assets: &Assets) -> AvatarMarkerColors {
         let defaults = AvatarMarkerColors::default();
-        let light_skin = Self::marker_color(
-            entity,
-            assets,
-            "avatar_skin_light",
-            "light_skin_color",
-            "light_skin_index",
-            defaults.skin_light,
-        );
-        AvatarMarkerColors {
+        let light_skin = Self::marker_color(entity, assets, "light_skin", defaults.skin_light);
+        let mut colors = AvatarMarkerColors {
             // Base/default marker color for all slots is light_skin.
             skin_light: light_skin,
-            skin_dark: Self::marker_color(
-                entity,
-                assets,
-                "avatar_skin_dark",
-                "dark_skin_color",
-                "dark_skin_index",
-                light_skin,
-            ),
-            torso: Self::slot_override_color(
-                entity,
-                assets,
-                &["torso", "chest", "armor"],
-                Self::marker_color(
-                    entity,
-                    assets,
-                    "avatar_torso",
-                    "torso_color",
-                    "torso_index",
-                    light_skin,
-                ),
-            ),
-            legs: Self::slot_override_color(
-                entity,
-                assets,
-                &["legs", "pants"],
-                Self::marker_color(
-                    entity,
-                    assets,
-                    "avatar_legs",
-                    "legs_color",
-                    "legs_index",
-                    light_skin,
-                ),
-            ),
-            hair: Self::slot_override_color(
-                entity,
-                assets,
-                &["head", "helmet", "hair"],
-                Self::marker_color(
-                    entity,
-                    assets,
-                    "avatar_hair",
-                    "hair_color",
-                    "hair_index",
-                    light_skin,
-                ),
-            ),
-            eyes: Self::slot_override_color(
-                entity,
-                assets,
-                &["head", "helmet", "eyes"],
-                Self::marker_color(
-                    entity,
-                    assets,
-                    "avatar_eyes",
-                    "eyes_color",
-                    "eyes_index",
-                    light_skin,
-                ),
-            ),
-            hands: Self::slot_override_color(
-                entity,
-                assets,
-                &["hands", "gloves"],
-                Self::marker_color(
-                    entity,
-                    assets,
-                    "avatar_hands",
-                    "hands_color",
-                    "hands_index",
-                    light_skin,
-                ),
-            ),
-            feet: Self::slot_override_color(
-                entity,
-                assets,
-                &["feet", "boots"],
-                Self::marker_color(
-                    entity,
-                    assets,
-                    "avatar_feet",
-                    "feet_color",
-                    "feet_index",
-                    light_skin,
-                ),
-            ),
+            skin_dark: Self::marker_color(entity, assets, "dark_skin", light_skin),
+            torso: Self::marker_color(entity, assets, "torso", light_skin),
+            legs: Self::marker_color(entity, assets, "legs", light_skin),
+            hair: Self::marker_color(entity, assets, "hair", light_skin),
+            eyes: Self::marker_color(entity, assets, "eyes", light_skin),
+            hands: Self::marker_color(entity, assets, "hands", light_skin),
+            feet: Self::marker_color(entity, assets, "feet", light_skin),
+        };
+
+        // Equipped items can override any marker channel (e.g. torso_color/index on armor).
+        for item in entity.equipped.values() {
+            if let Some(c) = Self::marker_color_from_item(item, assets, "light_skin") {
+                colors.skin_light = c;
+            }
+            if let Some(c) = Self::marker_color_from_item(item, assets, "dark_skin") {
+                colors.skin_dark = c;
+            }
+            if let Some(c) = Self::marker_color_from_item(item, assets, "torso") {
+                colors.torso = c;
+            }
+            if let Some(c) = Self::marker_color_from_item(item, assets, "legs") {
+                colors.legs = c;
+            }
+            if let Some(c) = Self::marker_color_from_item(item, assets, "hair") {
+                colors.hair = c;
+            }
+            if let Some(c) = Self::marker_color_from_item(item, assets, "eyes") {
+                colors.eyes = c;
+            }
+            if let Some(c) = Self::marker_color_from_item(item, assets, "hands") {
+                colors.hands = c;
+            }
+            if let Some(c) = Self::marker_color_from_item(item, assets, "feet") {
+                colors.feet = c;
+            }
         }
+        colors
+    }
+
+    fn item_tile_id_for_direction(item: &Item, direction: AvatarDirection) -> Option<Uuid> {
+        let suffix = match direction {
+            AvatarDirection::Front => "front",
+            AvatarDirection::Back => "back",
+            AvatarDirection::Left => "left",
+            AvatarDirection::Right => "right",
+        };
+        let directional_keys = [
+            format!("tile_id_{suffix}"),
+            format!("rig_tile_id_{suffix}"),
+            format!("tile_{suffix}"),
+        ];
+        let generic_keys = ["tile_id", "rig_tile_id", "tile"];
+
+        for key in directional_keys
+            .iter()
+            .map(|s| s.as_str())
+            .chain(generic_keys.iter().copied())
+        {
+            if let Some(id) = item.attributes.get_id(key) {
+                return Some(id);
+            }
+            if let Some(PixelSource::TileId(id)) = item.attributes.get_source(key) {
+                return Some(*id);
+            }
+            if let Some(raw) = item.attributes.get_str(key)
+                && let Ok(id) = Uuid::parse_str(raw)
+            {
+                return Some(id);
+            }
+        }
+        None
+    }
+
+    fn weapon_order_for_direction(direction: AvatarDirection) -> [(&'static str, bool); 2] {
+        match direction {
+            AvatarDirection::Front => [("off_hand", false), ("main_hand", true)],
+            AvatarDirection::Back => [("main_hand", true), ("off_hand", false)],
+            AvatarDirection::Left => [("off_hand", false), ("main_hand", true)],
+            AvatarDirection::Right => [("main_hand", true), ("off_hand", false)],
+        }
+    }
+
+    fn find_equipped_for_slot<'a>(entity: &'a Entity, canonical_slot: &str) -> Option<&'a Item> {
+        let aliases: &[&str] = match canonical_slot {
+            "main_hand" => &[
+                "main_hand",
+                "mainhand",
+                "weapon",
+                "weapon_main",
+                "hand_main",
+            ],
+            "off_hand" => &["off_hand", "offhand", "weapon_off", "hand_off", "shield"],
+            _ => &[],
+        };
+        for alias in aliases {
+            if let Some(item) = entity.equipped.get(*alias) {
+                return Some(item);
+            }
+        }
+        None
+    }
+
+    fn scaled_texture_rgba(
+        texture: &crate::Texture,
+        scale: f32,
+    ) -> Option<(Vec<u8>, usize, usize)> {
+        if texture.width == 0 || texture.height == 0 {
+            return None;
+        }
+        let scale = if scale.is_finite() {
+            scale.max(0.01)
+        } else {
+            1.0
+        };
+        let out_w = ((texture.width as f32) * scale).round().max(1.0) as usize;
+        let out_h = ((texture.height as f32) * scale).round().max(1.0) as usize;
+        let mut out = vec![0_u8; out_w * out_h * 4];
+        for y in 0..out_h {
+            let src_y = ((y as f32) / scale)
+                .floor()
+                .clamp(0.0, (texture.height.saturating_sub(1)) as f32)
+                as usize;
+            for x in 0..out_w {
+                let src_x = ((x as f32) / scale)
+                    .floor()
+                    .clamp(0.0, (texture.width.saturating_sub(1)) as f32)
+                    as usize;
+                let src_i = (src_y * texture.width + src_x) * 4;
+                let dst_i = (y * out_w + x) * 4;
+                out[dst_i..dst_i + 4].copy_from_slice(&texture.data[src_i..src_i + 4]);
+            }
+        }
+        Some((out, out_w, out_h))
+    }
+
+    fn alpha_blit_rgba(
+        dst: &mut [u8],
+        dst_w: usize,
+        dst_h: usize,
+        src: &[u8],
+        src_w: usize,
+        src_h: usize,
+        dst_x: i32,
+        dst_y: i32,
+    ) {
+        for sy in 0..src_h as i32 {
+            let dy = dst_y + sy;
+            if dy < 0 || dy >= dst_h as i32 {
+                continue;
+            }
+            for sx in 0..src_w as i32 {
+                let dx = dst_x + sx;
+                if dx < 0 || dx >= dst_w as i32 {
+                    continue;
+                }
+                let sidx = ((sy as usize) * src_w + (sx as usize)) * 4;
+                let didx = ((dy as usize) * dst_w + (dx as usize)) * 4;
+                let sa = src[sidx + 3] as f32 / 255.0;
+                if sa <= 0.0 {
+                    continue;
+                }
+                let da = dst[didx + 3] as f32 / 255.0;
+                let out_a = sa + da * (1.0 - sa);
+                if out_a <= 0.0 {
+                    continue;
+                }
+                for c in 0..3 {
+                    let sc = src[sidx + c] as f32 / 255.0;
+                    let dc = dst[didx + c] as f32 / 255.0;
+                    let out_c = (sc * sa + dc * da * (1.0 - sa)) / out_a;
+                    dst[didx + c] = (out_c.clamp(0.0, 1.0) * 255.0) as u8;
+                }
+                dst[didx + 3] = (out_a.clamp(0.0, 1.0) * 255.0) as u8;
+            }
+        }
+    }
+
+    fn compose_weapon_overlay(
+        out: &mut AvatarBuildOutput,
+        entity: &Entity,
+        assets: &Assets,
+        direction: AvatarDirection,
+        frame_index: usize,
+        main_anchor: Option<(i16, i16)>,
+        off_anchor: Option<(i16, i16)>,
+    ) {
+        for (slot, is_main) in Self::weapon_order_for_direction(direction) {
+            let anchor = if is_main { main_anchor } else { off_anchor };
+            let Some(anchor) = anchor else {
+                continue;
+            };
+            let Some(item) = Self::find_equipped_for_slot(entity, slot) else {
+                continue;
+            };
+            let Some(tile_id) = Self::item_tile_id_for_direction(item, direction) else {
+                continue;
+            };
+            let Some(tile) = assets.tiles.get(&tile_id) else {
+                continue;
+            };
+            if tile.textures.is_empty() {
+                continue;
+            }
+            let tex = &tile.textures[frame_index % tile.textures.len()];
+            let scale = item.attributes.get_float_default("rig_scale", 1.0);
+            let pivot = Self::item_rig_pivot(item);
+            let Some((scaled, sw, sh)) = Self::scaled_texture_rgba(tex, scale) else {
+                continue;
+            };
+            let px = (pivot[0].clamp(0.0, 1.0) * (sw as f32 - 1.0)).round() as i32;
+            let py = (pivot[1].clamp(0.0, 1.0) * (sh as f32 - 1.0)).round() as i32;
+            let dst_x = anchor.0 as i32 - px;
+            let dst_y = anchor.1 as i32 - py;
+            let size = out.size as usize;
+            Self::alpha_blit_rgba(&mut out.rgba, size, size, &scaled, sw, sh, dst_x, dst_y);
+        }
+    }
+
+    fn item_rig_pivot(item: &Item) -> [f32; 2] {
+        if let Some(v) = item.attributes.get_vec2("rig_pivot") {
+            return v;
+        }
+        if let Some(raw) = item.attributes.get_str("rig_pivot") {
+            let parts: Vec<&str> = raw
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect();
+            if parts.len() == 2
+                && let (Ok(x), Ok(y)) = (parts[0].parse::<f32>(), parts[1].parse::<f32>())
+            {
+                return [x, y];
+            }
+        }
+        [0.5, 0.5]
+    }
+
+    fn frame_anchors(
+        avatar: &Avatar,
+        animation_name: &str,
+        direction: AvatarDirection,
+        frame_index: usize,
+    ) -> (Option<(i16, i16)>, Option<(i16, i16)>) {
+        let Some(anim) = avatar
+            .animations
+            .iter()
+            .find(|a| a.name.eq_ignore_ascii_case(animation_name))
+            .or_else(|| avatar.animations.first())
+        else {
+            return (None, None);
+        };
+        let Some(perspective) = anim
+            .perspectives
+            .iter()
+            .find(|p| p.direction == direction)
+            .or_else(|| {
+                anim.perspectives
+                    .iter()
+                    .find(|p| p.direction == AvatarDirection::Front)
+            })
+            .or_else(|| anim.perspectives.first())
+        else {
+            return (None, None);
+        };
+        let Some(frame) = perspective
+            .frames
+            .get(frame_index % perspective.frames.len().max(1))
+        else {
+            return (
+                perspective.weapon_main_anchor,
+                perspective.weapon_off_anchor,
+            );
+        };
+        (
+            frame.weapon_main_anchor.or(perspective.weapon_main_anchor),
+            frame.weapon_off_anchor.or(perspective.weapon_off_anchor),
+        )
     }
 
     fn resolve_avatar_selection<'a>(
@@ -258,13 +443,60 @@ impl AvatarRuntimeBuilder {
             for perspective in &anim.perspectives {
                 let frame_count = perspective.frames.len().max(1);
                 for frame_index in 0..frame_count {
-                    if let Some(out) = AvatarBuilder::build_current_stub(AvatarBuildRequest {
+                    if let Some(mut out) = AvatarBuilder::build_current_stub(AvatarBuildRequest {
                         avatar,
                         animation_name: Some(anim.name.as_str()),
                         direction: perspective.direction,
                         frame_index,
                         marker_colors: markers,
                     }) {
+                        let (main_anchor, off_anchor) = Self::frame_anchors(
+                            avatar,
+                            anim.name.as_str(),
+                            perspective.direction,
+                            frame_index,
+                        );
+                        if perspective.direction == AvatarDirection::Back {
+                            // Back view: draw equipped overlays behind the body.
+                            let size = out.size as usize;
+                            let mut composed = vec![0_u8; size * size * 4];
+                            let mut overlay_out = AvatarBuildOutput {
+                                size: out.size,
+                                rgba: composed,
+                            };
+                            Self::compose_weapon_overlay(
+                                &mut overlay_out,
+                                entity,
+                                assets,
+                                perspective.direction,
+                                frame_index,
+                                main_anchor,
+                                off_anchor,
+                            );
+                            composed = overlay_out.rgba;
+                            Self::alpha_blit_rgba(
+                                &mut composed,
+                                size,
+                                size,
+                                &out.rgba,
+                                size,
+                                size,
+                                0,
+                                0,
+                            );
+                            out.rgba = composed;
+                        } else {
+                            // Front/side views: draw equipment on top of body.
+                            Self::compose_weapon_overlay(
+                                &mut out,
+                                entity,
+                                assets,
+                                perspective.direction,
+                                frame_index,
+                                main_anchor,
+                                off_anchor,
+                            );
+                        }
                         frames.insert(
                             (anim.name.clone(), perspective.direction, frame_index),
                             (out.size, out.rgba),
