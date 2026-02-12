@@ -39,6 +39,7 @@ pub enum ProjectUndoAtom {
     RemoveAvatarAnimation(Uuid, usize, AvatarAnimation),
     RenameAvatarAnimation(Uuid, Uuid, String, String),
     EditAvatarAnimationFrameCount(Uuid, Uuid, usize, usize),
+    EditAvatarAnimationSpeed(Uuid, Uuid, f32, f32),
     PaletteEdit(ThePalette, ThePalette),
     TileEdit(rusterix::Tile, rusterix::Tile),
 }
@@ -109,6 +110,9 @@ impl ProjectUndoAtom {
             }
             EditAvatarAnimationFrameCount(_, _, old, new) => {
                 format!("Edit Animation Frames: {} -> {}", old, new)
+            }
+            EditAvatarAnimationSpeed(_, _, old, new) => {
+                format!("Edit Animation Speed: {:.2} -> {:.2}", old, new)
             }
             PaletteEdit(_old, _new) => format!("Palette Changed"),
             TileEdit(_old, _new) => format!("Tile Changed"),
@@ -679,6 +683,14 @@ impl ProjectUndoAtom {
             EditAvatarAnimationFrameCount(avatar_id, anim_id, old, _new) => {
                 if let Some(avatar) = project.avatars.get_mut(avatar_id) {
                     avatar.set_animation_frame_count(anim_id, *old);
+                }
+                rebuild_animation_tree_node(avatar_id, anim_id, project, ui, server_ctx);
+            }
+            EditAvatarAnimationSpeed(avatar_id, anim_id, old, _new) => {
+                if let Some(avatar) = project.avatars.get_mut(avatar_id) {
+                    if let Some(anim) = avatar.animations.iter_mut().find(|a| a.id == *anim_id) {
+                        anim.speed = *old;
+                    }
                 }
                 rebuild_animation_tree_node(avatar_id, anim_id, project, ui, server_ctx);
             }
@@ -1374,6 +1386,14 @@ impl ProjectUndoAtom {
             EditAvatarAnimationFrameCount(avatar_id, anim_id, _old, new) => {
                 if let Some(avatar) = project.avatars.get_mut(avatar_id) {
                     avatar.set_animation_frame_count(anim_id, *new);
+                }
+                rebuild_animation_tree_node(avatar_id, anim_id, project, ui, server_ctx);
+            }
+            EditAvatarAnimationSpeed(avatar_id, anim_id, _old, new) => {
+                if let Some(avatar) = project.avatars.get_mut(avatar_id) {
+                    if let Some(anim) = avatar.animations.iter_mut().find(|a| a.id == *anim_id) {
+                        anim.speed = *new;
+                    }
                 }
                 rebuild_animation_tree_node(avatar_id, anim_id, project, ui, server_ctx);
             }

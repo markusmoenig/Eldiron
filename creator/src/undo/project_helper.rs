@@ -307,6 +307,21 @@ pub fn gen_avatar_animation_node(animation: &AvatarAnimation) -> TheTreeNode {
     item.add_widget_column(200, Box::new(edit));
     node.add_widget(Box::new(item));
 
+    // Speed
+    let mut item = TheTreeItem::new(TheId::named_with_reference(
+        "Avatar Animation Speed",
+        animation.id,
+    ));
+    item.set_text("Speed".to_string());
+
+    let mut edit = TheTextLineEdit::new(TheId::named_with_reference(
+        "Avatar Animation Speed Edit",
+        animation.id,
+    ));
+    edit.set_value(TheValue::Float(animation.speed));
+    item.add_widget_column(200, Box::new(edit));
+    node.add_widget(Box::new(item));
+
     // Perspective child nodes
     for (persp_index, perspective) in animation.perspectives.iter().enumerate() {
         let dir_name = match perspective.direction {

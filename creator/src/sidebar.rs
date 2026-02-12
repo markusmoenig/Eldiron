@@ -179,6 +179,7 @@ impl Sidebar {
                     TheId::named("Import Tileset"),
                 ),
                 TheContextMenuItem::new("Import Screen".to_string(), TheId::named("Import Screen")),
+                TheContextMenuItem::new("Import Avatar".to_string(), TheId::named("Import Avatar")),
                 TheContextMenuItem::new(
                     "Import Font Asset".to_string(),
                     TheId::named("Import Font Asset"),
@@ -1222,6 +1223,27 @@ impl Sidebar {
                             }
                         }
                     }
+                } else if id.name == "Avatar Animation Speed Edit" {
+                    let anim_id = id.references;
+                    if let Some(new_speed) = value.to_f32() {
+                        let new_speed = new_speed.clamp(0.01, 100.0);
+                        if let Some(avatar) = project.find_avatar_for_animation(&anim_id) {
+                            let avatar_id = avatar.id;
+                            let old_speed = avatar
+                                .animations
+                                .iter()
+                                .find(|a| a.id == anim_id)
+                                .map(|a| a.speed)
+                                .unwrap_or(1.0);
+                            if (old_speed - new_speed).abs() > f32::EPSILON {
+                                let atom = ProjectUndoAtom::EditAvatarAnimationSpeed(
+                                    avatar_id, anim_id, old_speed, new_speed,
+                                );
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            }
+                        }
+                    }
                 } else if let Some(action_id) = server_ctx.curr_action_id
                     && id.name.starts_with("action")
                 {
@@ -1478,6 +1500,21 @@ impl Sidebar {
                         atom.redo(project, ui, ctx, server_ctx);
                         UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                     }
+                } else if id.name == "Avatar Import" {
+                    for p in paths {
+                        let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
+                        let mut avatar: Avatar =
+                            serde_json::from_str(&contents).unwrap_or(Avatar::default());
+
+                        avatar.id = Uuid::new_v4();
+                        for animation in &mut avatar.animations {
+                            animation.id = Uuid::new_v4();
+                        }
+
+                        let atom = ProjectUndoAtom::AddAvatar(avatar);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    }
                 } else if id.name == "Character Export" {
                     if let Some(character) = project.characters.get(&id.uuid) {
                         let mut character = character.clone();
@@ -1493,6 +1530,30 @@ impl Sidebar {
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
                                         "Unable to save Character!".to_string(),
+                                    ))
+                                }
+                            }
+                        }
+                    }
+                } else if id.name == "Avatar Export" {
+                    if let Some(avatar) = project.avatars.get(&id.uuid) {
+                        let mut avatar = avatar.clone();
+                        for p in paths {
+                            avatar.id = Uuid::new_v4();
+                            for animation in &mut avatar.animations {
+                                animation.id = Uuid::new_v4();
+                            }
+
+                            if let Ok(json) = serde_json::to_string(&avatar) {
+                                if std::fs::write(p, json).is_ok() {
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Avatar saved successfully.".to_string(),
+                                    ))
+                                } else {
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Unable to save Avatar!".to_string(),
                                     ))
                                 }
                             }
@@ -1902,6 +1963,17 @@ impl Sidebar {
                             ),
                         );
                     }
+                } else if id.name == "Import Avatar" {
+                    if let Some(id) = server_ctx.pc.id() {
+                        ctx.ui.open_file_requester(
+                            TheId::named_with_id("Avatar Import", id),
+                            "Import Avatar".into(),
+                            TheFileExtension::new(
+                                "Eldiron Avatar".into(),
+                                vec!["eldiron_avatar".to_string()],
+                            ),
+                        );
+                    }
                 } else if id.name == "Add Item" {
                     // Add Item
                     let atom = ProjectUndoAtom::AddItem(Item::default());
@@ -2061,6 +2133,32 @@ impl Sidebar {
                                 UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                             }
                         }
+                    } else if let ProjectContext::AvatarAnimation(avatar_id, anim_id, _) =
+                        server_ctx.pc
+                    {
+                        // Remove Avatar Animation
+                        if let Some(avatar) = project.avatars.get(&avatar_id)
+                            && let Some(index) =
+                                avatar.animations.iter().position(|anim| anim.id == anim_id)
+                            && let Some(animation) = avatar.animations.get(index)
+                        {
+                            let atom = ProjectUndoAtom::RemoveAvatarAnimation(
+                                avatar_id,
+                                index,
+                                animation.clone(),
+                            );
+                            atom.redo(project, ui, ctx, server_ctx);
+                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        }
+                    } else if let ProjectContext::Avatar(avatar_id) = server_ctx.pc {
+                        // Remove Avatar
+                        if let Some(avatar) = project.avatars.get(&avatar_id).cloned()
+                            && let Some(index) = project.avatars.get_index_of(&avatar_id)
+                        {
+                            let atom = ProjectUndoAtom::RemoveAvatar(index, avatar);
+                            atom.redo(project, ui, ctx, server_ctx);
+                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        }
                     } else if server_ctx.pc.is_item() {
                         // Remove Item
                         let mut item: Item = Item::default();
@@ -2138,6 +2236,18 @@ impl Sidebar {
                                 TheFileExtension::new(
                                     "Eldiron Character".into(),
                                     vec!["eldiron_character".to_string()],
+                                ),
+                            );
+                        } else if matches!(
+                            server_ctx.pc,
+                            ProjectContext::Avatar(_) | ProjectContext::AvatarAnimation(_, _, _)
+                        ) {
+                            ctx.ui.save_file_requester(
+                                TheId::named_with_id("Avatar Export", id),
+                                "Export Avatar".into(),
+                                TheFileExtension::new(
+                                    "Eldiron Avatar".into(),
+                                    vec!["eldiron_avatar".to_string()],
                                 ),
                             );
                         } else if server_ctx.pc.is_item() {
@@ -2384,6 +2494,7 @@ impl Sidebar {
                 } else if id.name == "Avatar Animation Item"
                     || id.name == "Avatar Animation Name Edit"
                     || id.name == "Avatar Animation Frame Count Edit"
+                    || id.name == "Avatar Animation Speed Edit"
                 {
                     let anim_id = id.references;
                     if let Some(avatar) = project.find_avatar_for_animation(&anim_id) {

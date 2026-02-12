@@ -31,6 +31,9 @@ impl Default for AvatarPerspective {
 pub struct AvatarAnimation {
     pub id: Uuid,
     pub name: String,
+    /// Playback time scale: 1.0 = normal, >1.0 = slower, <1.0 = faster.
+    #[serde(default = "AvatarAnimation::default_speed")]
+    pub speed: f32,
     pub perspectives: Vec<AvatarPerspective>,
 }
 
@@ -39,8 +42,15 @@ impl Default for AvatarAnimation {
         Self {
             id: Uuid::new_v4(),
             name: "Unnamed".to_string(),
+            speed: 1.0,
             perspectives: vec![],
         }
+    }
+}
+
+impl AvatarAnimation {
+    fn default_speed() -> f32 {
+        1.0
     }
 }
 

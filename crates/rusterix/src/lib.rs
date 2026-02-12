@@ -2,6 +2,7 @@
 //! Its goals are to provide an easy and portable alternative to hardware rasterization for retro and low-poly games.
 
 pub mod avatar;
+pub mod avatar_builder;
 pub mod batch;
 pub mod camera;
 pub mod chunk;
