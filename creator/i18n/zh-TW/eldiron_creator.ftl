@@ -288,8 +288,27 @@ palette = 調色盤
 debug_log = 除錯日誌
 scale = 縮放
 repeat = 重複
+avatars = 頭像
+body_markers = 身體標記
+skin_light = 淺色皮膚
+skin_dark = 深色皮膚
+torso = 軀幹
+legs = 腿部
+hair = 頭髮
+eyes = 眼睛
+hands = 手部
+feet = 腳部
+enabled = 已啟用
 
 # Info
 info_server_started = 伺服器已啟動
 info_update_check = 正在檢查更新
 info_welcome = 歡迎使用 Eldiron 造訪 Eldiron.com 以取得資訊與示例專案
+
+status_tile_editor_copy_texture = Copied texture to clipboard.
+status_tile_editor_copy_selection = Copied selection to clipboard.
+status_tile_editor_cut_selection = Cut selection to clipboard.
+status_tile_editor_paste_preview_active = Paste preview active. Move mouse, Enter to apply, click or Escape to cancel.
+status_tile_editor_paste_preview_canceled = Paste preview canceled.
+status_tile_editor_paste_applied = Paste applied.
+status_tile_editor_paste_no_valid_target = Paste preview: no valid target pixels at this position.

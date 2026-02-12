@@ -19,6 +19,8 @@ pub struct TilesEditorDock {
 
     /// When true, the minimap cycles through animation frames.
     anim_preview: bool,
+    paste_preview_texture: Option<rusterix::Texture>,
+    paste_preview_pos: Option<Vec2<i32>>,
 }
 
 impl Dock for TilesEditorDock {
@@ -38,6 +40,8 @@ impl Dock for TilesEditorDock {
             current_undo_key: None,
             max_undo: 30,
             anim_preview: false,
+            paste_preview_texture: None,
+            paste_preview_pos: None,
         }
     }
 
@@ -396,6 +400,35 @@ impl Dock for TilesEditorDock {
                     }
                 }
             }
+            TheEvent::TileEditorHoverChanged(id, pos) => {
+                if id.name == "Tile Editor Dock RGBA Layout View"
+                    && self.paste_preview_texture.is_some()
+                {
+                    self.paste_preview_pos = Some(*pos);
+                    self.sync_paste_preview(ui, ctx);
+                    redraw = true;
+                }
+            }
+            TheEvent::TileEditorClicked(id, coord) => {
+                if id.name == "Tile Editor Dock RGBA Layout View"
+                    && self.paste_preview_texture.is_some()
+                {
+                    self.paste_preview_pos = Some(*coord);
+                    if self.apply_paste_at_preview(project, ui, ctx, server_ctx) {
+                        self.clear_paste_preview(ui, ctx);
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("status_tile_editor_paste_applied"),
+                        ));
+                    } else {
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("status_tile_editor_paste_no_valid_target"),
+                        ));
+                    }
+                    redraw = true;
+                }
+            }
             TheEvent::Copy => {
                 if server_ctx.editing_ctx != PixelEditingContext::None {
                     if let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx) {
@@ -419,6 +452,10 @@ impl Dock for TilesEditorDock {
                                     bytes: std::borrow::Cow::Borrowed(&texture.data),
                                 };
                                 let _ = clipboard.set_image(img);
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    fl!("status_tile_editor_copy_texture"),
+                                ));
                             } else {
                                 let min_x = selection.iter().map(|(x, _)| *x).min().unwrap_or(0);
                                 let max_x = selection.iter().map(|(x, _)| *x).max().unwrap_or(0);
@@ -451,6 +488,10 @@ impl Dock for TilesEditorDock {
                                     bytes: std::borrow::Cow::Owned(out),
                                 };
                                 let _ = clipboard.set_image(img);
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    fl!("status_tile_editor_copy_selection"),
+                                ));
                             }
                         }
                     }
@@ -506,6 +547,10 @@ impl Dock for TilesEditorDock {
                                 bytes: std::borrow::Cow::Owned(out),
                             };
                             let _ = clipboard.set_image(img);
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                fl!("status_tile_editor_cut_selection"),
+                            ));
                         }
                     }
 
@@ -573,98 +618,44 @@ impl Dock for TilesEditorDock {
 
                             if width > 0 && height > 0 {
                                 let pasted = rusterix::Texture::new(data, width, height);
-                                let selection = if let Some(editor) =
-                                    ui.get_rgba_layout("Tile Editor Dock RGBA Layout")
-                                {
-                                    if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
-                                        rgba_view.selection()
-                                    } else {
-                                        FxHashSet::default()
-                                    }
-                                } else {
-                                    FxHashSet::default()
-                                };
-
-                                // Snapshot for undo
-                                let editing_ctx = server_ctx.editing_ctx;
-                                let before = project.get_editing_texture(&editing_ctx).cloned();
-
-                                if let Some(texture) = project.get_editing_texture_mut(&editing_ctx)
-                                {
-                                    let before = before.unwrap();
-                                    let mut changed = false;
-
-                                    if selection.is_empty() {
-                                        // Fallback behavior: replace full texture with resized clipboard image.
-                                        *texture = pasted.resized(texture.width, texture.height);
-                                        changed = true;
-                                    } else {
-                                        let anchor_x =
-                                            selection.iter().map(|(x, _)| *x).min().unwrap_or(0);
-                                        let anchor_y =
-                                            selection.iter().map(|(_, y)| *y).min().unwrap_or(0);
-                                        for sy in 0..pasted.height {
-                                            for sx in 0..pasted.width {
-                                                let tx = anchor_x + sx as i32;
-                                                let ty = anchor_y + sy as i32;
-                                                if tx >= 0
-                                                    && ty >= 0
-                                                    && (tx as usize) < texture.width
-                                                    && (ty as usize) < texture.height
-                                                {
-                                                    let src_i = (sy * pasted.width + sx) * 4;
-                                                    let dst_i = ((ty as usize) * texture.width
-                                                        + (tx as usize))
-                                                        * 4;
-                                                    texture.data[dst_i..dst_i + 4].copy_from_slice(
-                                                        &pasted.data[src_i..src_i + 4],
-                                                    );
-                                                    changed = true;
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    if !changed {
-                                        return redraw;
-                                    }
-                                    texture.generate_normals(true);
-
-                                    let after = texture.clone();
-                                    let atom =
-                                        TileEditorUndoAtom::TextureEdit(editing_ctx, before, after);
-                                    self.add_undo(atom, ctx);
-
-                                    // Send update events
-                                    match editing_ctx {
-                                        PixelEditingContext::Tile(tile_id, _) => {
-                                            ctx.ui.send(TheEvent::Custom(
-                                                TheId::named("Tile Updated"),
-                                                TheValue::Id(tile_id),
-                                            ));
-                                            ctx.ui.send(TheEvent::Custom(
-                                                TheId::named("Update Tilepicker"),
-                                                TheValue::Empty,
-                                            ));
-                                        }
-                                        PixelEditingContext::AvatarFrame(..) => {
-                                            ctx.ui.send(TheEvent::Custom(
-                                                TheId::named("Editing Texture Updated"),
-                                                TheValue::Empty,
-                                            ));
-                                        }
-                                        PixelEditingContext::None => {}
-                                    }
-
-                                    redraw = true;
+                                self.paste_preview_texture = Some(pasted);
+                                if self.paste_preview_pos.is_none() {
+                                    self.paste_preview_pos = Some(Vec2::zero());
                                 }
+                                self.sync_paste_preview(ui, ctx);
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    fl!("status_tile_editor_paste_preview_active"),
+                                ));
+                                redraw = true;
                             }
                         }
                     }
                 }
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(key)) => {
-                if *key == TheKeyCode::Space && !ui.focus_widget_supports_text_input(ctx) {
+                if *key == TheKeyCode::Escape && self.paste_preview_texture.is_some() {
+                    self.clear_paste_preview(ui, ctx);
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        fl!("status_tile_editor_paste_preview_canceled"),
+                    ));
+                    redraw = true;
+                } else if *key == TheKeyCode::Return && self.paste_preview_texture.is_some() {
+                    if self.apply_paste_at_preview(project, ui, ctx, server_ctx) {
+                        self.clear_paste_preview(ui, ctx);
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("status_tile_editor_paste_applied"),
+                        ));
+                        redraw = true;
+                    } else {
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("status_tile_editor_paste_no_valid_target"),
+                        ));
+                    }
+                } else if *key == TheKeyCode::Space && !ui.focus_widget_supports_text_input(ctx) {
                     if server_ctx.editing_ctx != PixelEditingContext::None {
                         self.anim_preview = !self.anim_preview;
                         ctx.ui.send(TheEvent::Custom(
@@ -939,6 +930,133 @@ impl TilesEditorDock {
         }
     }
 
+    fn sync_paste_preview(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout")
+            && let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view()
+        {
+            if let (Some(texture), Some(pos)) =
+                (&self.paste_preview_texture, self.paste_preview_pos)
+            {
+                rgba_view.set_paste_preview(Some((texture.to_rgba(), pos)));
+            } else {
+                rgba_view.set_paste_preview(None);
+            }
+            editor.relayout(ctx);
+        }
+    }
+
+    fn clear_paste_preview(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.paste_preview_texture = None;
+        self.paste_preview_pos = None;
+        self.sync_paste_preview(ui, ctx);
+    }
+
+    fn apply_paste_at_preview(
+        &mut self,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        let Some(pasted) = self.paste_preview_texture.clone() else {
+            return false;
+        };
+        let Some(anchor) = self.paste_preview_pos else {
+            return false;
+        };
+
+        let selection = if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout") {
+            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                rgba_view.selection()
+            } else {
+                FxHashSet::default()
+            }
+        } else {
+            FxHashSet::default()
+        };
+
+        let editing_ctx = server_ctx.editing_ctx;
+        let before = project.get_editing_texture(&editing_ctx).cloned();
+        if let Some(texture) = project.get_editing_texture_mut(&editing_ctx) {
+            let before = if let Some(before) = before {
+                before
+            } else {
+                return false;
+            };
+            let mut changed = false;
+
+            if selection.is_empty() {
+                for sy in 0..pasted.height {
+                    for sx in 0..pasted.width {
+                        let tx = anchor.x + sx as i32;
+                        let ty = anchor.y + sy as i32;
+                        if tx >= 0
+                            && ty >= 0
+                            && (tx as usize) < texture.width
+                            && (ty as usize) < texture.height
+                        {
+                            let src_i = (sy * pasted.width + sx) * 4;
+                            let dst_i = ((ty as usize) * texture.width + (tx as usize)) * 4;
+                            texture.data[dst_i..dst_i + 4]
+                                .copy_from_slice(&pasted.data[src_i..src_i + 4]);
+                            changed = true;
+                        }
+                    }
+                }
+            } else {
+                for sy in 0..pasted.height {
+                    for sx in 0..pasted.width {
+                        let tx = anchor.x + sx as i32;
+                        let ty = anchor.y + sy as i32;
+                        if tx >= 0
+                            && ty >= 0
+                            && (tx as usize) < texture.width
+                            && (ty as usize) < texture.height
+                            && selection.contains(&(tx, ty))
+                        {
+                            let src_i = (sy * pasted.width + sx) * 4;
+                            let dst_i = ((ty as usize) * texture.width + (tx as usize)) * 4;
+                            texture.data[dst_i..dst_i + 4]
+                                .copy_from_slice(&pasted.data[src_i..src_i + 4]);
+                            changed = true;
+                        }
+                    }
+                }
+            }
+
+            if !changed {
+                return false;
+            }
+
+            texture.generate_normals(true);
+            let after = texture.clone();
+            let atom = TileEditorUndoAtom::TextureEdit(editing_ctx, before, after);
+            self.add_undo(atom, ctx);
+
+            match editing_ctx {
+                PixelEditingContext::Tile(tile_id, _) => {
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Tile Updated"),
+                        TheValue::Id(tile_id),
+                    ));
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Tilepicker"),
+                        TheValue::Empty,
+                    ));
+                }
+                PixelEditingContext::AvatarFrame(..) => {
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Editing Texture Updated"),
+                        TheValue::Empty,
+                    ));
+                }
+                PixelEditingContext::None => {}
+            }
+            return true;
+        }
+        false
+    }
+
     /// Set the tile for the editor.
     pub fn set_tile(
         &mut self,
@@ -1023,6 +1141,9 @@ impl TilesEditorDock {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
+        if self.paste_preview_texture.is_some() {
+            self.clear_paste_preview(ui, ctx);
+        }
         match server_ctx.editing_ctx {
             PixelEditingContext::Tile(tile_id, _) => {
                 if let Some(tile) = project.tiles.get(&tile_id) {

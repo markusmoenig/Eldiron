@@ -288,8 +288,27 @@ palette = 调色板
 debug_log = 调试日志
 scale = 缩放
 repeat = 重复
+avatars = 头像
+body_markers = 身体标记
+skin_light = 浅色皮肤
+skin_dark = 深色皮肤
+torso = 躯干
+legs = 腿部
+hair = 头发
+eyes = 眼睛
+hands = 手部
+feet = 脚部
+enabled = 已启用
 
 # Info
 info_server_started = 服务器已启动
 info_update_check = 正在检查更新
 info_welcome = 欢迎使用 Eldiron 访问 Eldiron.com 获取信息和示例项目
+
+status_tile_editor_copy_texture = Copied texture to clipboard.
+status_tile_editor_copy_selection = Copied selection to clipboard.
+status_tile_editor_cut_selection = Cut selection to clipboard.
+status_tile_editor_paste_preview_active = Paste preview active. Move mouse, Enter to apply, click or Escape to cancel.
+status_tile_editor_paste_preview_canceled = Paste preview canceled.
+status_tile_editor_paste_applied = Paste applied.
+status_tile_editor_paste_no_valid_target = Paste preview: no valid target pixels at this position.

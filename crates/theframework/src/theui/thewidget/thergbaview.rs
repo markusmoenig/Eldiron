@@ -78,6 +78,7 @@ pub struct TheRGBAView {
 
     show_transparency: bool,
     transparency_color: RGBA,
+    paste_preview: Option<(TheRGBABuffer, Vec2<i32>)>,
 }
 
 impl TheRGBAView {
@@ -250,6 +251,7 @@ impl TheWidget for TheRGBAView {
 
             show_transparency: false,
             transparency_color: [116, 116, 116, 255], // Magenta - a cool default that stands out
+            paste_preview: None,
         }
     }
 
@@ -567,7 +569,10 @@ impl TheWidget for TheRGBAView {
                 }
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Escape)) => {
-                if self.mode == TheRGBAViewMode::TileSelection && !self.selected.is_empty() {
+                if (self.mode == TheRGBAViewMode::TileSelection
+                    || self.mode == TheRGBAViewMode::TileEditor)
+                    && !self.selected.is_empty()
+                {
                     self.selected.clear();
                     self.rectangle_start = None;
                     self.selection_base = None;
@@ -853,6 +858,29 @@ impl TheWidget for TheRGBAView {
                             .copy_from_slice(&self.grid_color);
                     }
 
+                    // Paste preview overlay in image space.
+                    if let Some((preview, preview_pos)) = &self.paste_preview {
+                        let px = src_x - preview_pos.x;
+                        let py = src_y - preview_pos.y;
+                        if px >= 0
+                            && py >= 0
+                            && (px as usize) < preview.dim().width as usize
+                            && (py as usize) < preview.dim().height as usize
+                        {
+                            let p_i = ((py as usize) * preview.stride() + (px as usize)) * 4;
+                            let p = &preview.pixels()[p_i..p_i + 4];
+                            if p[3] > 0 {
+                                let a = (p[3] as f32 / 255.0) * 0.65;
+                                let inv_a = 1.0 - a;
+                                let dst = &mut target.pixels_mut()[target_index..target_index + 4];
+                                dst[0] = ((dst[0] as f32 * inv_a) + (p[0] as f32 * a)) as u8;
+                                dst[1] = ((dst[1] as f32 * inv_a) + (p[1] as f32 * a)) as u8;
+                                dst[2] = ((dst[2] as f32 * inv_a) + (p[2] as f32 * a)) as u8;
+                                dst[3] = 255;
+                            }
+                        }
+                    }
+
                     // In tile-selection or tile-editor mode, draw an outline around selected cells
                     // without tinting interior pixels.
                     if (self.mode == TheRGBAViewMode::TileSelection
@@ -974,6 +1002,8 @@ pub trait TheRGBAViewTrait: TheWidget {
     fn set_show_transparency(&mut self, show: bool);
     fn show_transparency(&self) -> bool;
     fn set_transparency_color(&mut self, color: RGBA);
+    fn set_paste_preview(&mut self, preview: Option<(TheRGBABuffer, Vec2<i32>)>);
+    fn has_paste_preview(&self) -> bool;
 }
 
 impl TheRGBAViewTrait for TheRGBAView {
@@ -1183,5 +1213,14 @@ impl TheRGBAViewTrait for TheRGBAView {
         if self.show_transparency {
             self.is_dirty = true;
         }
+    }
+
+    fn set_paste_preview(&mut self, preview: Option<(TheRGBABuffer, Vec2<i32>)>) {
+        self.paste_preview = preview;
+        self.is_dirty = true;
+    }
+
+    fn has_paste_preview(&self) -> bool {
+        self.paste_preview.is_some()
     }
 }

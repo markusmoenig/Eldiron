@@ -289,8 +289,27 @@ palette = Палитра
 debug_log = Журнал отладки
 scale = Масштаб
 repeat = Повтор
+avatars = Аватары
+body_markers = Маркеры тела
+skin_light = Светлая кожа
+skin_dark = Тёмная кожа
+torso = Торс
+legs = Ноги
+hair = Волосы
+eyes = Глаза
+hands = Руки
+feet = Ступни
+enabled = Включено
 
 # Info
 info_server_started = Сервер запущен
 info_update_check = Проверка обновлений...
 info_welcome = Добро пожаловать в Eldiron! Посетите Eldiron.com за информацией и примерами проектов.
+
+status_tile_editor_copy_texture = Copied texture to clipboard.
+status_tile_editor_copy_selection = Copied selection to clipboard.
+status_tile_editor_cut_selection = Cut selection to clipboard.
+status_tile_editor_paste_preview_active = Paste preview active. Move mouse, Enter to apply, click or Escape to cancel.
+status_tile_editor_paste_preview_canceled = Paste preview canceled.
+status_tile_editor_paste_applied = Paste applied.
+status_tile_editor_paste_no_valid_target = Paste preview: no valid target pixels at this position.

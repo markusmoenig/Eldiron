@@ -288,8 +288,27 @@ item_instance = Instancia de objeto
 debug_log = Registro de depuración
 scale = Escala
 repeat = Repetición
+avatars = Avatares
+body_markers = Marcadores corporales
+skin_light = Piel clara
+skin_dark = Piel oscura
+torso = Torso
+legs = Piernas
+hair = Cabello
+eyes = Ojos
+hands = Manos
+feet = Pies
+enabled = Activado
 
 # Info
 info_server_started = El servidor se ha iniciado
 info_update_check = Comprobando actualizaciones...
 info_welcome = ¡Bienvenido a Eldiron! Visita Eldiron.com para información y proyectos de ejemplo.
+
+status_tile_editor_copy_texture = Copied texture to clipboard.
+status_tile_editor_copy_selection = Copied selection to clipboard.
+status_tile_editor_cut_selection = Cut selection to clipboard.
+status_tile_editor_paste_preview_active = Paste preview active. Move mouse, Enter to apply, click or Escape to cancel.
+status_tile_editor_paste_preview_canceled = Paste preview canceled.
+status_tile_editor_paste_applied = Paste applied.
+status_tile_editor_paste_no_valid_target = Paste preview: no valid target pixels at this position.

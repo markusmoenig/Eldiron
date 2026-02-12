@@ -155,6 +155,9 @@ impl TileDrawTool {
             if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout")
                 && let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view()
             {
+                if rgba_view.has_paste_preview() {
+                    return;
+                }
                 let selection = rgba_view.selection();
                 if !selection.is_empty() && !selection.contains(&(pos.x, pos.y)) {
                     return;

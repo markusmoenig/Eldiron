@@ -240,6 +240,9 @@ impl MapEditor {
             }
 
             TheEvent::Copy => {
+                if !server_ctx.polyview_has_focus(ctx) {
+                    return false;
+                }
                 if let Some(map) = project.get_map_mut(server_ctx) {
                     if map.has_selection() {
                         server_ctx.clipboard = map.copy_selected(false);
@@ -256,6 +259,9 @@ impl MapEditor {
                 }
             }
             TheEvent::Cut => {
+                if !server_ctx.polyview_has_focus(ctx) {
+                    return false;
+                }
                 if let Some(map) = project.get_map_mut(server_ctx) {
                     if map.has_selection() {
                         let prev = map.clone();
