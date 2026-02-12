@@ -299,6 +299,7 @@ hair = Hair
 eyes = Eyes
 hands = Hands
 feet = Feet
+enabled = Enabled
 
 # Info
 info_server_started = Server has been started

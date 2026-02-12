@@ -25,6 +25,22 @@ impl Default for ToolList {
 }
 
 impl ToolList {
+    fn apply_editor_rgba_mode(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        if !self.editor_mode || self.curr_editor_tool >= self.editor_tools.len() {
+            return;
+        }
+
+        if let Some(mode) = self.editor_tools[self.curr_editor_tool].rgba_view_mode()
+            && let Some(layout) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout")
+            && let Some(rgba_view) = layout.rgba_view_mut().as_rgba_view()
+        {
+            let is_selection_mode = mode == TheRGBAViewMode::TileSelection;
+            rgba_view.set_mode(mode);
+            rgba_view.set_rectangular_selection(is_selection_mode);
+            layout.relayout(ctx);
+        }
+    }
+
     pub fn new() -> Self {
         let game_tools: Vec<Box<dyn Tool>> = vec![
             Box::new(SelectionTool::new()),
@@ -101,6 +117,7 @@ impl ToolList {
         // Activate first tool
         if !self.editor_tools.is_empty() {
             self.editor_tools[0].activate();
+            self.apply_editor_rgba_mode(ui, ctx);
         }
 
         // Update the toolbar
@@ -262,8 +279,16 @@ impl ToolList {
         server_ctx: &mut ServerContext,
     ) -> bool {
         if self.editor_mode && self.curr_editor_tool < self.editor_tools.len() {
-            return self.editor_tools[self.curr_editor_tool]
-                .handle_event(event, ui, ctx, project, server_ctx);
+            let should_forward_to_tool = match event {
+                // Keep tool switching and shortcuts handled by ToolList itself.
+                TheEvent::StateChanged(_, _) | TheEvent::KeyDown(_) => false,
+                TheEvent::Custom(id, _) if id.name == "Set Tool" => false,
+                _ => true,
+            };
+            if should_forward_to_tool {
+                return self.editor_tools[self.curr_editor_tool]
+                    .handle_event(event, ui, ctx, project, server_ctx);
+            }
         }
 
         let mut redraw = false;
@@ -1038,15 +1063,18 @@ impl ToolList {
                 }
             }
             if switched_tool {
-                for tool in self.editor_tools.iter() {
-                    if tool.id().uuid != tool_id {
-                        ctx.ui
-                            .set_widget_state(tool.id().name.clone(), TheWidgetState::None);
-                    }
+                for (index, tool) in self.editor_tools.iter().enumerate() {
+                    let state = if index == self.curr_editor_tool {
+                        TheWidgetState::Selected
+                    } else {
+                        TheWidgetState::None
+                    };
+                    ctx.ui.set_widget_state(tool.id().name.clone(), state);
                 }
 
                 self.editor_tools[old_tool_index].deactivate();
                 self.editor_tools[self.curr_editor_tool].activate();
+                self.apply_editor_rgba_mode(ui, ctx);
             }
         } else {
             // Handle game tool switching

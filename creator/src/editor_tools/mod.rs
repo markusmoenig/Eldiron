@@ -1,8 +1,10 @@
 pub mod tile_draw;
+pub mod tile_select;
 // pub mod tile_fill;
 // pub mod tile_picker;
 
 pub use tile_draw::*;
+pub use tile_select::*;
 // pub use tile_fill::*;
 // pub use tile_picker::*;
 
@@ -19,6 +21,9 @@ pub trait EditorTool: Send + Sync {
     fn id(&self) -> TheId;
     fn info(&self) -> String;
     fn icon_name(&self) -> String;
+    fn rgba_view_mode(&self) -> Option<TheRGBAViewMode> {
+        None
+    }
 
     fn accel(&self) -> Option<char> {
         None

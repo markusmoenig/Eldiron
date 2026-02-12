@@ -4,8 +4,10 @@ use crate::prelude::*;
 
 pub struct TilesEditorDock {
     zoom: f32,
+    show_grid: bool,
     tile_node: Uuid,
     palette_node: Uuid,
+    grid_node: Uuid,
     body_markers_node: Uuid,
 
     // Per-context undo stacks (keyed by tile_id for tiles, avatar_id for avatar frames)
@@ -26,8 +28,10 @@ impl Dock for TilesEditorDock {
     {
         Self {
             zoom: 5.0,
+            show_grid: true,
             tile_node: Uuid::new_v4(),
             palette_node: Uuid::new_v4(),
+            grid_node: Uuid::new_v4(),
             body_markers_node: Uuid::new_v4(),
             tile_undos: FxHashMap::default(),
             current_tile_id: None,
@@ -47,6 +51,7 @@ impl Dock for TilesEditorDock {
             // rgba_view.set_grid(Some(1));
             // rgba_view.set_grid_color([20, 20, 20, 255]);
             // rgba_view.set_dont_show_grid(true);
+            rgba_view.set_dont_show_grid(!self.show_grid);
             rgba_view.set_show_transparency(true);
             rgba_view.set_mode(TheRGBAViewMode::TileEditor);
             let mut c = WHITE;
@@ -118,6 +123,23 @@ impl Dock for TilesEditorDock {
 
         // palette_node.add_widget(Box::new(item));
         root.add_child(palette_node);
+
+        // Grid
+        let mut grid_node: TheTreeNode =
+            TheTreeNode::new(TheId::named_with_id("Grid", self.grid_node));
+        grid_node.set_open(true);
+
+        let mut item = TheTreeItem::new(TheId::named("Grid Enabled"));
+        let mut cb = TheCheckButton::new(TheId::named("Grid Enabled CB"));
+        cb.set_state(TheWidgetState::Selected);
+        item.add_widget_column(150, Box::new(cb));
+        item.set_text(fl!("enabled"));
+
+        grid_node.add_widget(Box::new(item));
+
+        root.add_child(grid_node);
+
+        //
 
         palette_canvas.set_layout(palette_tree_layout);
 
@@ -336,8 +358,17 @@ impl Dock for TilesEditorDock {
                 //     project.palette.current_index = *index as u16;
                 // }
             }
-            TheEvent::StateChanged(id, TheWidgetState::Selected) => {
-                if id.name.starts_with("Body: ") {
+            TheEvent::StateChanged(id, state) => {
+                if id.name == "Grid Enabled CB" {
+                    self.show_grid = *state == TheWidgetState::Selected;
+                    if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout")
+                        && let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view()
+                    {
+                        rgba_view.set_dont_show_grid(!self.show_grid);
+                        editor.relayout(ctx);
+                    }
+                    redraw = true;
+                } else if *state == TheWidgetState::Selected && id.name.starts_with("Body: ") {
                     let color = match id.name.as_str() {
                         "Body: Skin Light" => Some([255, 0, 255, 255]),
                         "Body: Skin Dark" => Some([200, 0, 200, 255]),
@@ -368,13 +399,165 @@ impl Dock for TilesEditorDock {
             TheEvent::Copy => {
                 if server_ctx.editing_ctx != PixelEditingContext::None {
                     if let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx) {
+                        let selection = if let Some(editor) =
+                            ui.get_rgba_layout("Tile Editor Dock RGBA Layout")
+                        {
+                            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                                rgba_view.selection()
+                            } else {
+                                FxHashSet::default()
+                            }
+                        } else {
+                            FxHashSet::default()
+                        };
+
                         if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                            if selection.is_empty() {
+                                let img = arboard::ImageData {
+                                    width: texture.width,
+                                    height: texture.height,
+                                    bytes: std::borrow::Cow::Borrowed(&texture.data),
+                                };
+                                let _ = clipboard.set_image(img);
+                            } else {
+                                let min_x = selection.iter().map(|(x, _)| *x).min().unwrap_or(0);
+                                let max_x = selection.iter().map(|(x, _)| *x).max().unwrap_or(0);
+                                let min_y = selection.iter().map(|(_, y)| *y).min().unwrap_or(0);
+                                let max_y = selection.iter().map(|(_, y)| *y).max().unwrap_or(0);
+
+                                let out_w = (max_x - min_x + 1).max(1) as usize;
+                                let out_h = (max_y - min_y + 1).max(1) as usize;
+                                let mut out = vec![0_u8; out_w * out_h * 4];
+
+                                for (x, y) in selection {
+                                    if x >= 0
+                                        && y >= 0
+                                        && (x as usize) < texture.width
+                                        && (y as usize) < texture.height
+                                    {
+                                        let src_i =
+                                            ((y as usize) * texture.width + (x as usize)) * 4;
+                                        let dx = (x - min_x) as usize;
+                                        let dy = (y - min_y) as usize;
+                                        let dst_i = (dy * out_w + dx) * 4;
+                                        out[dst_i..dst_i + 4]
+                                            .copy_from_slice(&texture.data[src_i..src_i + 4]);
+                                    }
+                                }
+
+                                let img = arboard::ImageData {
+                                    width: out_w,
+                                    height: out_h,
+                                    bytes: std::borrow::Cow::Owned(out),
+                                };
+                                let _ = clipboard.set_image(img);
+                            }
+                        }
+                    }
+                }
+            }
+            TheEvent::Cut => {
+                if server_ctx.editing_ctx != PixelEditingContext::None {
+                    let selection =
+                        if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout") {
+                            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                                rgba_view.selection()
+                            } else {
+                                FxHashSet::default()
+                            }
+                        } else {
+                            FxHashSet::default()
+                        };
+
+                    if selection.is_empty() {
+                        return redraw;
+                    }
+
+                    // Copy selected pixels first.
+                    if let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx) {
+                        if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                            let min_x = selection.iter().map(|(x, _)| *x).min().unwrap_or(0);
+                            let max_x = selection.iter().map(|(x, _)| *x).max().unwrap_or(0);
+                            let min_y = selection.iter().map(|(_, y)| *y).min().unwrap_or(0);
+                            let max_y = selection.iter().map(|(_, y)| *y).max().unwrap_or(0);
+
+                            let out_w = (max_x - min_x + 1).max(1) as usize;
+                            let out_h = (max_y - min_y + 1).max(1) as usize;
+                            let mut out = vec![0_u8; out_w * out_h * 4];
+
+                            for (x, y) in &selection {
+                                if *x >= 0
+                                    && *y >= 0
+                                    && (*x as usize) < texture.width
+                                    && (*y as usize) < texture.height
+                                {
+                                    let src_i = ((*y as usize) * texture.width + (*x as usize)) * 4;
+                                    let dx = (*x - min_x) as usize;
+                                    let dy = (*y - min_y) as usize;
+                                    let dst_i = (dy * out_w + dx) * 4;
+                                    out[dst_i..dst_i + 4]
+                                        .copy_from_slice(&texture.data[src_i..src_i + 4]);
+                                }
+                            }
+
                             let img = arboard::ImageData {
-                                width: texture.width,
-                                height: texture.height,
-                                bytes: std::borrow::Cow::Borrowed(&texture.data),
+                                width: out_w,
+                                height: out_h,
+                                bytes: std::borrow::Cow::Owned(out),
                             };
                             let _ = clipboard.set_image(img);
+                        }
+                    }
+
+                    let editing_ctx = server_ctx.editing_ctx;
+                    let before = project.get_editing_texture(&editing_ctx).cloned();
+                    if let Some(texture) = project.get_editing_texture_mut(&editing_ctx) {
+                        let before = if let Some(before) = before {
+                            before
+                        } else {
+                            return redraw;
+                        };
+                        let mut changed = false;
+                        for (x, y) in selection {
+                            if x >= 0
+                                && y >= 0
+                                && (x as usize) < texture.width
+                                && (y as usize) < texture.height
+                            {
+                                let i = ((y as usize) * texture.width + (x as usize)) * 4;
+                                if texture.data[i..i + 4] != [0, 0, 0, 0] {
+                                    texture.data[i..i + 4].copy_from_slice(&[0, 0, 0, 0]);
+                                    changed = true;
+                                }
+                            }
+                        }
+                        if changed {
+                            texture.generate_normals(true);
+                            let after = texture.clone();
+                            let atom = TileEditorUndoAtom::TextureEdit(editing_ctx, before, after);
+                            self.add_undo(atom, ctx);
+
+                            match editing_ctx {
+                                PixelEditingContext::Tile(tile_id, _) => {
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Tile Updated"),
+                                        TheValue::Id(tile_id),
+                                    ));
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Update Tilepicker"),
+                                        TheValue::Empty,
+                                    ));
+                                }
+                                PixelEditingContext::AvatarFrame(..) => {
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Editing Texture Updated"),
+                                        TheValue::Empty,
+                                    ));
+                                }
+                                PixelEditingContext::None => {}
+                            }
+
+                            redraw = true;
                         }
                     }
                 }
@@ -390,6 +573,17 @@ impl Dock for TilesEditorDock {
 
                             if width > 0 && height > 0 {
                                 let pasted = rusterix::Texture::new(data, width, height);
+                                let selection = if let Some(editor) =
+                                    ui.get_rgba_layout("Tile Editor Dock RGBA Layout")
+                                {
+                                    if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                                        rgba_view.selection()
+                                    } else {
+                                        FxHashSet::default()
+                                    }
+                                } else {
+                                    FxHashSet::default()
+                                };
 
                                 // Snapshot for undo
                                 let editing_ctx = server_ctx.editing_ctx;
@@ -398,8 +592,42 @@ impl Dock for TilesEditorDock {
                                 if let Some(texture) = project.get_editing_texture_mut(&editing_ctx)
                                 {
                                     let before = before.unwrap();
-                                    // Resize pasted image to match current texture dimensions
-                                    *texture = pasted.resized(texture.width, texture.height);
+                                    let mut changed = false;
+
+                                    if selection.is_empty() {
+                                        // Fallback behavior: replace full texture with resized clipboard image.
+                                        *texture = pasted.resized(texture.width, texture.height);
+                                        changed = true;
+                                    } else {
+                                        let anchor_x =
+                                            selection.iter().map(|(x, _)| *x).min().unwrap_or(0);
+                                        let anchor_y =
+                                            selection.iter().map(|(_, y)| *y).min().unwrap_or(0);
+                                        for sy in 0..pasted.height {
+                                            for sx in 0..pasted.width {
+                                                let tx = anchor_x + sx as i32;
+                                                let ty = anchor_y + sy as i32;
+                                                if tx >= 0
+                                                    && ty >= 0
+                                                    && (tx as usize) < texture.width
+                                                    && (ty as usize) < texture.height
+                                                {
+                                                    let src_i = (sy * pasted.width + sx) * 4;
+                                                    let dst_i = ((ty as usize) * texture.width
+                                                        + (tx as usize))
+                                                        * 4;
+                                                    texture.data[dst_i..dst_i + 4].copy_from_slice(
+                                                        &pasted.data[src_i..src_i + 4],
+                                                    );
+                                                    changed = true;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if !changed {
+                                        return redraw;
+                                    }
                                     texture.generate_normals(true);
 
                                     let after = texture.clone();
@@ -518,6 +746,7 @@ impl Dock for TilesEditorDock {
     fn editor_tools(&self) -> Option<Vec<Box<dyn EditorTool>>> {
         Some(vec![
             Box::new(TileDrawTool::new()),
+            Box::new(TileSelectTool::new()),
             // Box::new(TileFillTool::new()),
             // Box::new(TilePickerTool::new()),
         ])
@@ -767,6 +996,7 @@ impl TilesEditorDock {
 
                     if !update_only {
                         rgba_view.set_grid(Some(1));
+                        rgba_view.set_dont_show_grid(!self.show_grid);
 
                         let icon_width = tile.textures[frame_index].width;
                         let icon_height = tile.textures[frame_index].height;
@@ -861,6 +1091,7 @@ impl TilesEditorDock {
                     .min(view_height as f32 / icon_height as f32);
 
                 rgba_view.set_grid(Some(1));
+                rgba_view.set_dont_show_grid(!self.show_grid);
                 rgba_view.set_buffer(buffer);
                 editor.set_zoom(self.zoom);
                 editor.relayout(ctx);

@@ -16,7 +16,7 @@ impl EditorTool for TileDrawTool {
         Self: Sized,
     {
         Self {
-            id: TheId::named("Tile Draw Tool"),
+            id: TheId::named_with_id("Tile Draw Tool", Uuid::new_v4()),
             before_tile: None,
             before_snapshot: None,
             changed: false,
@@ -33,6 +33,10 @@ impl EditorTool for TileDrawTool {
 
     fn icon_name(&self) -> String {
         "draw".to_string()
+    }
+
+    fn rgba_view_mode(&self) -> Option<TheRGBAViewMode> {
+        Some(TheRGBAViewMode::TileEditor)
     }
 
     fn accel(&self) -> Option<char> {
@@ -148,6 +152,15 @@ impl TileDrawTool {
         };
 
         if let Some(color_array) = color_array {
+            if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout")
+                && let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view()
+            {
+                let selection = rgba_view.selection();
+                if !selection.is_empty() && !selection.contains(&(pos.x, pos.y)) {
+                    return;
+                }
+            }
+
             if let Some(texture) = project.get_editing_texture_mut(&editing_ctx) {
                 let width = texture.width as i32;
                 let height = texture.height as i32;

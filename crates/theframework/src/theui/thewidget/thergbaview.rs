@@ -13,6 +13,13 @@ pub enum TheRGBAViewMode {
     TilePicker,
 }
 
+#[derive(PartialEq, Clone, Copy, Debug)]
+enum SelectionOp {
+    Replace,
+    Add,
+    Subtract,
+}
+
 /// A widget for displaying and interacting with RGBA buffers with zoom and grid support
 pub struct TheRGBAView {
     id: TheId,
@@ -39,6 +46,8 @@ pub struct TheRGBAView {
 
     rectangular_selection: bool,
     rectangle_start: Option<(i32, i32)>,
+    selection_base: Option<FxHashSet<(i32, i32)>>,
+    selection_op: SelectionOp,
 
     last_loc: (i32, i32),
     float_pos: Vec2<f32>,
@@ -64,6 +73,8 @@ pub struct TheRGBAView {
 
     supports_external_zoom: bool,
     zoom_modifier_down: bool,
+    selection_add_down: bool,
+    selection_subtract_down: bool,
 
     show_transparency: bool,
     transparency_color: RGBA,
@@ -117,6 +128,62 @@ impl TheRGBAView {
             255,
         ]
     }
+
+    #[inline]
+    fn selection_op_from_modifiers(&self) -> SelectionOp {
+        if self.selection_subtract_down {
+            SelectionOp::Subtract
+        } else if self.selection_add_down {
+            SelectionOp::Add
+        } else {
+            SelectionOp::Replace
+        }
+    }
+
+    fn apply_rect_selection(
+        &mut self,
+        start: (i32, i32),
+        end: (i32, i32),
+        op: SelectionOp,
+        base: &FxHashSet<(i32, i32)>,
+    ) {
+        let mut min_x = start.0;
+        let mut min_y = start.1;
+        let mut max_x = end.0;
+        let mut max_y = end.1;
+
+        if min_x > max_x {
+            std::mem::swap(&mut min_x, &mut max_x);
+        }
+        if min_y > max_y {
+            std::mem::swap(&mut min_y, &mut max_y);
+        }
+
+        let mut rect = FxHashSet::default();
+        for x in min_x..=max_x {
+            for y in min_y..=max_y {
+                rect.insert((x, y));
+            }
+        }
+
+        match op {
+            SelectionOp::Replace => {
+                self.selected = rect;
+            }
+            SelectionOp::Add => {
+                self.selected = base.clone();
+                for p in rect {
+                    self.selected.insert(p);
+                }
+            }
+            SelectionOp::Subtract => {
+                self.selected = base.clone();
+                for p in rect {
+                    self.selected.remove(&p);
+                }
+            }
+        }
+    }
 }
 
 impl TheWidget for TheRGBAView {
@@ -151,6 +218,8 @@ impl TheWidget for TheRGBAView {
 
             rectangular_selection: false,
             rectangle_start: None,
+            selection_base: None,
+            selection_op: SelectionOp::Replace,
 
             last_loc: (0, 0),
             float_pos: Vec2::zero(),
@@ -176,6 +245,8 @@ impl TheWidget for TheRGBAView {
 
             supports_external_zoom: false,
             zoom_modifier_down: false,
+            selection_add_down: false,
+            selection_subtract_down: false,
 
             show_transparency: false,
             transparency_color: [116, 116, 116, 255], // Magenta - a cool default that stands out
@@ -194,8 +265,10 @@ impl TheWidget for TheRGBAView {
         let mut redraw = false;
 
         match event {
-            TheEvent::ModifierChanged(_shift, ctrl, _alt, logo) => {
+            TheEvent::ModifierChanged(shift, ctrl, alt, logo) => {
                 self.zoom_modifier_down = *ctrl || *logo;
+                self.selection_add_down = *shift;
+                self.selection_subtract_down = *alt;
             }
             TheEvent::Context(coord) => {
                 if let Some(context_menu) = &self.context_menu {
@@ -231,13 +304,22 @@ impl TheWidget for TheRGBAView {
                         if self.mode == TheRGBAViewMode::TileSelection {
                             if self.rectangular_selection {
                                 self.rectangle_start = Some(loc);
-                                self.selected.clear();
-                                self.selected.insert((loc.0, loc.1));
+                                self.selection_base = Some(self.selected.clone());
+                                self.selection_op = self.selection_op_from_modifiers();
+                                let base = self.selection_base.clone().unwrap_or_default();
+                                self.apply_rect_selection(loc, loc, self.selection_op, &base);
                             } else {
-                                if self.selected.contains(&(loc.0, loc.1)) {
-                                    self.selected.remove(&(loc.0, loc.1));
-                                } else {
-                                    self.selected.insert((loc.0, loc.1));
+                                match self.selection_op_from_modifiers() {
+                                    SelectionOp::Replace => {
+                                        self.selected.clear();
+                                        self.selected.insert((loc.0, loc.1));
+                                    }
+                                    SelectionOp::Add => {
+                                        self.selected.insert((loc.0, loc.1));
+                                    }
+                                    SelectionOp::Subtract => {
+                                        self.selected.remove(&(loc.0, loc.1));
+                                    }
                                 }
                                 ctx.ui.send(TheEvent::TileSelectionChanged(self.id.clone()));
                             }
@@ -296,31 +378,26 @@ impl TheWidget for TheRGBAView {
                             if self.mode == TheRGBAViewMode::TileSelection {
                                 if self.rectangular_selection {
                                     if let Some(rectangle_start) = self.rectangle_start {
-                                        let mut min_x = rectangle_start.0;
-                                        let mut min_y = rectangle_start.1;
-                                        let mut max_x = self.last_loc.0;
-                                        let mut max_y = self.last_loc.1;
-
-                                        if min_x > max_x {
-                                            std::mem::swap(&mut min_x, &mut max_x);
-                                        }
-                                        if min_y > max_y {
-                                            std::mem::swap(&mut min_y, &mut max_y);
-                                        }
-
-                                        self.selected.clear();
-
-                                        for x in min_x..=max_x {
-                                            for y in min_y..=max_y {
-                                                self.selected.insert((x, y));
-                                            }
-                                        }
+                                        let base = self.selection_base.clone().unwrap_or_default();
+                                        self.apply_rect_selection(
+                                            rectangle_start,
+                                            self.last_loc,
+                                            self.selection_op,
+                                            &base,
+                                        );
                                     }
                                 } else {
-                                    if self.selected.contains(&(loc.0, loc.1)) {
-                                        self.selected.remove(&(loc.0, loc.1));
-                                    } else {
-                                        self.selected.insert((loc.0, loc.1));
+                                    match self.selection_op_from_modifiers() {
+                                        SelectionOp::Replace => {
+                                            self.selected.clear();
+                                            self.selected.insert((loc.0, loc.1));
+                                        }
+                                        SelectionOp::Add => {
+                                            self.selected.insert((loc.0, loc.1));
+                                        }
+                                        SelectionOp::Subtract => {
+                                            self.selected.remove(&(loc.0, loc.1));
+                                        }
                                     }
                                     ctx.ui.send(TheEvent::TileSelectionChanged(self.id.clone()));
                                 }
@@ -349,27 +426,9 @@ impl TheWidget for TheRGBAView {
                 self.drop = None;
                 if self.mode == TheRGBAViewMode::TileSelection {
                     if self.rectangular_selection {
-                        if let Some(rectangle_start) = self.rectangle_start {
-                            let mut min_x = rectangle_start.0;
-                            let mut min_y = rectangle_start.1;
-                            let mut max_x = self.last_loc.0;
-                            let mut max_y = self.last_loc.1;
-
-                            if min_x > max_x {
-                                std::mem::swap(&mut min_x, &mut max_x);
-                            }
-                            if min_y > max_y {
-                                std::mem::swap(&mut min_y, &mut max_y);
-                            }
-
-                            for x in min_x..=max_x {
-                                for y in min_y..=max_y {
-                                    self.selected.insert((x, y));
-                                }
-                            }
-                            ctx.ui.send(TheEvent::TileSelectionChanged(self.id.clone()));
-                            self.rectangle_start = None;
-                        }
+                        ctx.ui.send(TheEvent::TileSelectionChanged(self.id.clone()));
+                        self.rectangle_start = None;
+                        self.selection_base = None;
                     }
                 } else if self.mode == TheRGBAViewMode::TileEditor {
                     ctx.ui.send(TheEvent::TileEditorUp(self.id.clone()));
@@ -507,6 +566,16 @@ impl TheWidget for TheRGBAView {
                     ));
                 }
             }
+            TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Escape)) => {
+                if self.mode == TheRGBAViewMode::TileSelection && !self.selected.is_empty() {
+                    self.selected.clear();
+                    self.rectangle_start = None;
+                    self.selection_base = None;
+                    ctx.ui.send(TheEvent::TileSelectionChanged(self.id.clone()));
+                    self.is_dirty = true;
+                    redraw = true;
+                }
+            }
             _ => {}
         }
         redraw
@@ -633,41 +702,13 @@ impl TheWidget for TheRGBAView {
                     continue;
                 }
 
-                // TileSelection mode - use original grid drawing logic
-                if !self.dont_show_grid && self.mode == TheRGBAViewMode::TileSelection {
-                    if let Some(grid) = self.grid {
-                        if src_x as i32 % grid == 0 || src_y as i32 % grid == 0 {
-                            if self.rectangular_selection {
-                                let (source_x, source_y) =
-                                    self.screen_to_buffer(Vec2::new(target_x, target_y));
-                                let source_x = source_x.round() as i32;
-                                let source_y = source_y.round() as i32;
-
-                                if source_x >= 0
-                                    && source_x < self.buffer.dim().width
-                                    && source_y >= 0
-                                    && source_y < self.buffer.dim().height
-                                {
-                                    target.pixels_mut()[target_index..target_index + 4]
-                                        .copy_from_slice(&self.grid_color);
-                                    continue;
-                                }
-                            } else {
-                                target.pixels_mut()[target_index..target_index + 4]
-                                    .copy_from_slice(&self.grid_color);
-                                continue;
-                            }
-                        }
-                    }
-                }
-
                 if src_x >= 0.0 && src_x < src_width && src_y >= 0.0 && src_y < src_height {
                     // Perform nearest neighbor interpolation
                     let src_x = src_x as i32;
                     let src_y = src_y as i32;
                     let src_index = (src_y * self.buffer.stride() as i32 + src_x) as usize * 4;
 
-                    // TileEditor mode - check if we should draw grid line instead of image
+                    // TileEditor mode - draw thin screen-space grid lines.
                     let mut draw_grid_line = false;
                     if !self.dont_show_grid && self.mode == TheRGBAViewMode::TileEditor {
                         if let Some(grid) = self.grid {
@@ -708,11 +749,7 @@ impl TheWidget for TheRGBAView {
                         }
                     }
 
-                    if draw_grid_line {
-                        target.pixels_mut()[target_index..target_index + 4]
-                            .copy_from_slice(&self.grid_color);
-                        continue;
-                    }
+                    let grid_overlay = draw_grid_line;
 
                     let mut copy = true;
                     if let Some(grid) = self.grid {
@@ -738,6 +775,7 @@ impl TheWidget for TheRGBAView {
                         } else
                         // Selected
                         if !self.icon_mode
+                            && self.mode == TheRGBAViewMode::TilePicker
                             && self.selected.contains(&(src_x / grid, src_y / grid))
                         {
                             let s = self.buffer.pixels();
@@ -807,6 +845,60 @@ impl TheWidget for TheRGBAView {
                         } else {
                             target.pixels_mut()[target_index..target_index + 4]
                                 .copy_from_slice(src_pixel);
+                        }
+                    }
+
+                    if grid_overlay {
+                        target.pixels_mut()[target_index..target_index + 4]
+                            .copy_from_slice(&self.grid_color);
+                    }
+
+                    // In tile-selection or tile-editor mode, draw an outline around selected cells
+                    // without tinting interior pixels.
+                    if (self.mode == TheRGBAViewMode::TileSelection
+                        || self.mode == TheRGBAViewMode::TileEditor)
+                        && !self.icon_mode
+                    {
+                        if let Some(grid) = self.grid {
+                            let cell_x = src_x / grid;
+                            let cell_y = src_y / grid;
+                            if self.selected.contains(&(cell_x, cell_y)) {
+                                let grid_size_pixels = grid as f32 * self.zoom;
+                                if grid_size_pixels >= 1.0 {
+                                    let mut pos_x = (target_x as f32 - offset_x) % grid_size_pixels;
+                                    let mut pos_y = (target_y as f32 - offset_y) % grid_size_pixels;
+                                    if pos_x < 0.0 {
+                                        pos_x += grid_size_pixels;
+                                    }
+                                    if pos_y < 0.0 {
+                                        pos_y += grid_size_pixels;
+                                    }
+
+                                    let near_left = pos_x < 1.0;
+                                    let near_top = pos_y < 1.0;
+                                    let near_right = pos_x >= grid_size_pixels - 1.0;
+                                    let near_bottom = pos_y >= grid_size_pixels - 1.0;
+
+                                    let left_selected =
+                                        self.selected.contains(&(cell_x - 1, cell_y));
+                                    let right_selected =
+                                        self.selected.contains(&(cell_x + 1, cell_y));
+                                    let top_selected =
+                                        self.selected.contains(&(cell_x, cell_y - 1));
+                                    let bottom_selected =
+                                        self.selected.contains(&(cell_x, cell_y + 1));
+
+                                    let draw_outline = (near_left && !left_selected)
+                                        || (near_right && !right_selected)
+                                        || (near_top && !top_selected)
+                                        || (near_bottom && !bottom_selected);
+
+                                    if draw_outline {
+                                        target.pixels_mut()[target_index..target_index + 4]
+                                            .copy_from_slice(&self.selection_color);
+                                    }
+                                }
+                            }
                         }
                     }
                 } else {
