@@ -102,8 +102,9 @@ pub const WHITE: Pixel = [255, 255, 255, 255];
 // Re-exports
 pub use crate::{
     avatar::{
-        Avatar, AvatarAnimation, AvatarBuildOutput, AvatarBuildRequest, AvatarBuilder,
-        AvatarDirection, AvatarMarkerColors, AvatarPerspective, AvatarPerspectiveCount,
+        Avatar, AvatarAnimation, AvatarAnimationFrame, AvatarBuildOutput, AvatarBuildRequest,
+        AvatarBuilder, AvatarDirection, AvatarMarkerColors, AvatarPerspective,
+        AvatarPerspectiveCount,
     },
     batch::{CullMode, GeometrySource, PrimitiveMode, batch2d::Batch2D, batch3d::Batch3D},
     camera::{D3Camera, d3firstp::D3FirstPCamera, d3iso::D3IsoCamera, d3orbit::D3OrbitCamera},
@@ -189,8 +190,9 @@ pub mod prelude {
     pub use crate::Client;
     pub use crate::IntoDataInput;
     pub use crate::{
-        Avatar, AvatarAnimation, AvatarBuildOutput, AvatarBuildRequest, AvatarBuilder,
-        AvatarDirection, AvatarMarkerColors, AvatarPerspective, AvatarPerspectiveCount,
+        Avatar, AvatarAnimation, AvatarAnimationFrame, AvatarBuildOutput, AvatarBuildRequest,
+        AvatarBuilder, AvatarDirection, AvatarMarkerColors, AvatarPerspective,
+        AvatarPerspectiveCount,
     };
     // pub use crate::MapScript;
     pub use crate::Rasterizer;

@@ -8,6 +8,14 @@ pub enum TileEditorUndoAtom {
     TileEdit(Uuid, rusterix::Tile, rusterix::Tile),
     /// Generic texture edit via PixelEditingContext: (context, before_texture, after_texture)
     TextureEdit(PixelEditingContext, rusterix::Texture, rusterix::Texture),
+    /// Avatar weapon attachment anchor edit for the currently edited frame.
+    AvatarAnchorEdit(
+        PixelEditingContext,
+        Option<(i16, i16)>,
+        Option<(i16, i16)>,
+        Option<(i16, i16)>,
+        Option<(i16, i16)>,
+    ),
 }
 
 impl TileEditorUndoAtom {
@@ -33,6 +41,13 @@ impl TileEditorUndoAtom {
             TileEditorUndoAtom::TextureEdit(editing_ctx, prev, _) => {
                 if let Some(texture) = project.get_editing_texture_mut(editing_ctx) {
                     *texture = prev.clone();
+                }
+                Self::send_editing_context_update(editing_ctx, ctx);
+            }
+            TileEditorUndoAtom::AvatarAnchorEdit(editing_ctx, prev_main, prev_off, _, _) => {
+                if let Some(frame) = project.get_editing_avatar_frame_mut(editing_ctx) {
+                    frame.weapon_main_anchor = *prev_main;
+                    frame.weapon_off_anchor = *prev_off;
                 }
                 Self::send_editing_context_update(editing_ctx, ctx);
             }
@@ -63,6 +78,13 @@ impl TileEditorUndoAtom {
             TileEditorUndoAtom::TextureEdit(editing_ctx, _, next) => {
                 if let Some(texture) = project.get_editing_texture_mut(editing_ctx) {
                     *texture = next.clone();
+                }
+                Self::send_editing_context_update(editing_ctx, ctx);
+            }
+            TileEditorUndoAtom::AvatarAnchorEdit(editing_ctx, _, _, next_main, next_off) => {
+                if let Some(frame) = project.get_editing_avatar_frame_mut(editing_ctx) {
+                    frame.weapon_main_anchor = *next_main;
+                    frame.weapon_off_anchor = *next_off;
                 }
                 Self::send_editing_context_update(editing_ctx, ctx);
             }

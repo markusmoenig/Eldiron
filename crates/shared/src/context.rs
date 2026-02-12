@@ -24,6 +24,19 @@ impl Default for PixelEditingContext {
     }
 }
 
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum AvatarAnchorEditSlot {
+    None,
+    Main,
+    Off,
+}
+
+impl Default for AvatarAnchorEditSlot {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
 impl PixelEditingContext {
     /// Returns the [r, g, b, a] color to paint with for this context.
     /// For tiles: uses the palette color with opacity applied.
@@ -544,6 +557,8 @@ pub struct ServerContext {
 
     /// The selected body marker color for avatar painting.
     pub body_marker_color: Option<[u8; 4]>,
+    /// Active avatar anchor edit slot for pixel editor clicks.
+    pub avatar_anchor_slot: AvatarAnchorEditSlot,
 }
 
 impl Default for ServerContext {
@@ -655,6 +670,7 @@ impl ServerContext {
 
             editing_ctx: PixelEditingContext::None,
             body_marker_color: None,
+            avatar_anchor_slot: AvatarAnchorEditSlot::None,
         }
     }
 

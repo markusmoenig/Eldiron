@@ -313,3 +313,11 @@ status_tile_editor_paste_preview_active = Paste preview active. Move mouse, Ente
 status_tile_editor_paste_preview_canceled = Paste preview canceled.
 status_tile_editor_paste_applied = Paste applied.
 status_tile_editor_paste_no_valid_target = Paste preview: no valid target pixels at this position.
+
+# Avatar Anchor
+status_avatar_anchor_set_main = Set main-hand anchor.
+status_avatar_anchor_set_off = Set off-hand anchor.
+status_avatar_anchor_clear_main = Cleared main-hand anchor.
+status_avatar_anchor_clear_off = Cleared off-hand anchor.
+avatar_anchor_main = Anchor: Main Hand
+avatar_anchor_off = Anchor: Off Hand

@@ -31,7 +31,8 @@ pub mod prelude {
     pub use crate::tilemap::{Tile, Tilemap};
     pub use indexmap::IndexMap;
     pub use rusterix::{
-        Avatar, AvatarAnimation, AvatarDirection, AvatarPerspective, AvatarPerspectiveCount,
+        Avatar, AvatarAnimation, AvatarAnimationFrame, AvatarDirection, AvatarPerspective,
+        AvatarPerspectiveCount,
     };
 }
 

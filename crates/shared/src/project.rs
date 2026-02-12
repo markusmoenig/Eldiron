@@ -202,7 +202,7 @@ impl Project {
                 let avatar = self.avatars.get(avatar_id)?;
                 let anim = avatar.animations.iter().find(|a| a.id == *anim_id)?;
                 let perspective = anim.perspectives.get(*perspective_index)?;
-                perspective.frames.get(*frame_index)
+                perspective.frames.get(*frame_index).map(|f| &f.texture)
             }
         }
     }
@@ -227,8 +227,83 @@ impl Project {
                 let avatar = self.avatars.get_mut(avatar_id)?;
                 let anim = avatar.animations.iter_mut().find(|a| a.id == *anim_id)?;
                 let perspective = anim.perspectives.get_mut(*perspective_index)?;
+                perspective
+                    .frames
+                    .get_mut(*frame_index)
+                    .map(|f| &mut f.texture)
+            }
+        }
+    }
+
+    /// Returns an immutable avatar frame for avatar frame editing contexts.
+    pub fn get_editing_avatar_frame(
+        &self,
+        editing_ctx: &PixelEditingContext,
+    ) -> Option<&rusterix::AvatarAnimationFrame> {
+        match editing_ctx {
+            PixelEditingContext::AvatarFrame(
+                avatar_id,
+                anim_id,
+                perspective_index,
+                frame_index,
+            ) => {
+                let avatar = self.avatars.get(avatar_id)?;
+                let anim = avatar.animations.iter().find(|a| a.id == *anim_id)?;
+                let perspective = anim.perspectives.get(*perspective_index)?;
+                perspective.frames.get(*frame_index)
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns a mutable avatar frame for avatar frame editing contexts.
+    pub fn get_editing_avatar_frame_mut(
+        &mut self,
+        editing_ctx: &PixelEditingContext,
+    ) -> Option<&mut rusterix::AvatarAnimationFrame> {
+        match editing_ctx {
+            PixelEditingContext::AvatarFrame(
+                avatar_id,
+                anim_id,
+                perspective_index,
+                frame_index,
+            ) => {
+                let avatar = self.avatars.get_mut(avatar_id)?;
+                let anim = avatar.animations.iter_mut().find(|a| a.id == *anim_id)?;
+                let perspective = anim.perspectives.get_mut(*perspective_index)?;
                 perspective.frames.get_mut(*frame_index)
             }
+            _ => None,
+        }
+    }
+
+    /// Returns an immutable avatar perspective for avatar frame editing contexts.
+    pub fn get_editing_avatar_perspective(
+        &self,
+        editing_ctx: &PixelEditingContext,
+    ) -> Option<&rusterix::AvatarPerspective> {
+        match editing_ctx {
+            PixelEditingContext::AvatarFrame(avatar_id, anim_id, perspective_index, _) => {
+                let avatar = self.avatars.get(avatar_id)?;
+                let anim = avatar.animations.iter().find(|a| a.id == *anim_id)?;
+                anim.perspectives.get(*perspective_index)
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns a mutable avatar perspective for avatar frame editing contexts.
+    pub fn get_editing_avatar_perspective_mut(
+        &mut self,
+        editing_ctx: &PixelEditingContext,
+    ) -> Option<&mut rusterix::AvatarPerspective> {
+        match editing_ctx {
+            PixelEditingContext::AvatarFrame(avatar_id, anim_id, perspective_index, _) => {
+                let avatar = self.avatars.get_mut(avatar_id)?;
+                let anim = avatar.animations.iter_mut().find(|a| a.id == *anim_id)?;
+                anim.perspectives.get_mut(*perspective_index)
+            }
+            _ => None,
         }
     }
 

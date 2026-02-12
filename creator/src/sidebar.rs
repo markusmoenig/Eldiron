@@ -2524,11 +2524,13 @@ impl Sidebar {
                             .into_iter()
                             .map(|dir| AvatarPerspective {
                                 direction: dir,
-                                frames: vec![Texture::new(
+                                frames: vec![AvatarAnimationFrame::new(Texture::new(
                                     vec![0; resolution * resolution * 4],
                                     resolution,
                                     resolution,
-                                )],
+                                ))],
+                                weapon_main_anchor: None,
+                                weapon_off_anchor: None,
                             })
                             .collect();
                         let atom = ProjectUndoAtom::AddAvatarAnimation(id.references, anim);

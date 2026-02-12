@@ -152,6 +152,11 @@ impl TileDrawTool {
         };
 
         if let Some(color_array) = color_array {
+            if matches!(editing_ctx, PixelEditingContext::AvatarFrame(..))
+                && server_ctx.avatar_anchor_slot != AvatarAnchorEditSlot::None
+            {
+                return;
+            }
             if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout")
                 && let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view()
             {

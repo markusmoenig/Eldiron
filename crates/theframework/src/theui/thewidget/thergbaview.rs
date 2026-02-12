@@ -79,6 +79,7 @@ pub struct TheRGBAView {
     show_transparency: bool,
     transparency_color: RGBA,
     paste_preview: Option<(TheRGBABuffer, Vec2<i32>)>,
+    anchor_points: Vec<(Vec2<i32>, RGBA)>,
 }
 
 impl TheRGBAView {
@@ -252,6 +253,7 @@ impl TheWidget for TheRGBAView {
             show_transparency: false,
             transparency_color: [116, 116, 116, 255], // Magenta - a cool default that stands out
             paste_preview: None,
+            anchor_points: vec![],
         }
     }
 
@@ -929,6 +931,50 @@ impl TheWidget for TheRGBAView {
                             }
                         }
                     }
+
+                    // Avatar anchor overlays.
+                    if self.mode == TheRGBAViewMode::TileEditor {
+                        for (anchor, color) in &self.anchor_points {
+                            if let Some(grid) = self.grid {
+                                let cell_x = src_x / grid;
+                                let cell_y = src_y / grid;
+                                if cell_x == anchor.x && cell_y == anchor.y {
+                                    let grid_size_pixels = grid as f32 * self.zoom;
+                                    if grid_size_pixels >= 1.0 {
+                                        let mut pos_x =
+                                            (target_x as f32 - offset_x) % grid_size_pixels;
+                                        let mut pos_y =
+                                            (target_y as f32 - offset_y) % grid_size_pixels;
+                                        if pos_x < 0.0 {
+                                            pos_x += grid_size_pixels;
+                                        }
+                                        if pos_y < 0.0 {
+                                            pos_y += grid_size_pixels;
+                                        }
+
+                                        let near_left = pos_x < 1.0;
+                                        let near_top = pos_y < 1.0;
+                                        let near_right = pos_x >= grid_size_pixels - 1.0;
+                                        let near_bottom = pos_y >= grid_size_pixels - 1.0;
+
+                                        let center_x = (pos_x - grid_size_pixels * 0.5).abs() < 1.0;
+                                        let center_y = (pos_y - grid_size_pixels * 0.5).abs() < 1.0;
+
+                                        if near_left
+                                            || near_top
+                                            || near_right
+                                            || near_bottom
+                                            || center_x
+                                            || center_y
+                                        {
+                                            target.pixels_mut()[target_index..target_index + 4]
+                                                .copy_from_slice(color);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 } else {
                     // Set the pixel to black if it's out of the source bounds
                     // target.pixels_mut()[target_index..target_index + 4].fill(0);
@@ -1004,6 +1050,7 @@ pub trait TheRGBAViewTrait: TheWidget {
     fn set_transparency_color(&mut self, color: RGBA);
     fn set_paste_preview(&mut self, preview: Option<(TheRGBABuffer, Vec2<i32>)>);
     fn has_paste_preview(&self) -> bool;
+    fn set_anchor_points(&mut self, points: Vec<(Vec2<i32>, RGBA)>);
 }
 
 impl TheRGBAViewTrait for TheRGBAView {
@@ -1222,5 +1269,10 @@ impl TheRGBAViewTrait for TheRGBAView {
 
     fn has_paste_preview(&self) -> bool {
         self.paste_preview.is_some()
+    }
+
+    fn set_anchor_points(&mut self, points: Vec<(Vec2<i32>, RGBA)>) {
+        self.anchor_points = points;
+        self.is_dirty = true;
     }
 }

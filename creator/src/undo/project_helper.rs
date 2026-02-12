@@ -343,7 +343,7 @@ pub fn gen_avatar_animation_node(animation: &AvatarAnimation) -> TheTreeNode {
         icons.set_icons_per_row(10);
         icons.set_icon_count(perspective.frames.len());
         for (i, frame) in perspective.frames.iter().enumerate() {
-            icons.set_icon(i, frame.to_rgba());
+            icons.set_icon(i, frame.texture.to_rgba());
         }
         icons.set_selected_index(None);
         persp_node.add_widget(Box::new(icons));

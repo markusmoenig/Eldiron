@@ -12,9 +12,54 @@ pub enum AvatarDirection {
 
 /// Frames for a single perspective direction.
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AvatarAnimationFrame {
+    pub texture: Texture,
+    #[serde(default)]
+    pub weapon_main_anchor: Option<(i16, i16)>,
+    #[serde(default)]
+    pub weapon_off_anchor: Option<(i16, i16)>,
+}
+
+impl AvatarAnimationFrame {
+    pub fn new(texture: Texture) -> Self {
+        Self {
+            texture,
+            weapon_main_anchor: None,
+            weapon_off_anchor: None,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum AvatarFrameSerde {
+    Texture(Texture),
+    Frame(AvatarAnimationFrame),
+}
+
+fn deserialize_avatar_frames<'de, D>(deserializer: D) -> Result<Vec<AvatarAnimationFrame>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let frames = Vec::<AvatarFrameSerde>::deserialize(deserializer)?;
+    Ok(frames
+        .into_iter()
+        .map(|f| match f {
+            AvatarFrameSerde::Texture(texture) => AvatarAnimationFrame::new(texture),
+            AvatarFrameSerde::Frame(frame) => frame,
+        })
+        .collect())
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AvatarPerspective {
     pub direction: AvatarDirection,
-    pub frames: Vec<Texture>,
+    #[serde(default, deserialize_with = "deserialize_avatar_frames")]
+    pub frames: Vec<AvatarAnimationFrame>,
+    #[serde(default)]
+    pub weapon_main_anchor: Option<(i16, i16)>,
+    #[serde(default)]
+    pub weapon_off_anchor: Option<(i16, i16)>,
 }
 
 impl Default for AvatarPerspective {
@@ -22,6 +67,8 @@ impl Default for AvatarPerspective {
         Self {
             direction: AvatarDirection::Front,
             frames: vec![],
+            weapon_main_anchor: None,
+            weapon_off_anchor: None,
         }
     }
 }
@@ -101,7 +148,7 @@ impl Avatar {
         for animation in &mut self.animations {
             for perspective in &mut animation.perspectives {
                 for frame in &mut perspective.frames {
-                    *frame = frame.resized(size, size);
+                    frame.texture = frame.texture.resized(size, size);
                 }
             }
         }
@@ -139,11 +186,19 @@ impl Avatar {
             for dir in needed {
                 if !anim.perspectives.iter().any(|p| p.direction == *dir) {
                     let frames = (0..frame_count)
-                        .map(|_| Texture::new(vec![0; size * size * 4], size, size))
+                        .map(|_| {
+                            AvatarAnimationFrame::new(Texture::new(
+                                vec![0; size * size * 4],
+                                size,
+                                size,
+                            ))
+                        })
                         .collect();
                     anim.perspectives.push(AvatarPerspective {
                         direction: *dir,
                         frames,
+                        weapon_main_anchor: None,
+                        weapon_off_anchor: None,
                     });
                 }
             }
@@ -179,6 +234,8 @@ impl Avatar {
                     anim.perspectives.push(AvatarPerspective {
                         direction: *dir,
                         frames: vec![],
+                        weapon_main_anchor: None,
+                        weapon_off_anchor: None,
                     });
                 }
             }
@@ -190,7 +247,11 @@ impl Avatar {
                     for _ in current..count {
                         perspective
                             .frames
-                            .push(Texture::new(vec![0; size * size * 4], size, size));
+                            .push(AvatarAnimationFrame::new(Texture::new(
+                                vec![0; size * size * 4],
+                                size,
+                                size,
+                            )));
                     }
                 } else if count < current {
                     perspective.frames.truncate(count);
@@ -288,11 +349,11 @@ impl AvatarBuilder {
         let frame = persp.frames.get(req.frame_index % persp.frames.len())?;
 
         // SceneVM avatar data is square; normalize here for the stub path.
-        let target_size = frame.width.max(frame.height);
-        let mut rgba = if frame.width == frame.height {
-            frame.data.clone()
+        let target_size = frame.texture.width.max(frame.texture.height);
+        let mut rgba = if frame.texture.width == frame.texture.height {
+            frame.texture.data.clone()
         } else {
-            frame.resized(target_size, target_size).data
+            frame.texture.resized(target_size, target_size).data
         };
 
         Self::recolor_markers(&mut rgba, req.marker_colors);

@@ -211,6 +211,14 @@ impl Dock for TilesEditorDock {
         item.set_background_color(TheColor::from_u8_array_3([255, 80, 0]));
         body_markers_node.add_widget(Box::new(item));
 
+        let mut item = TheTreeItem::new(TheId::named("Anchor: Main"));
+        item.set_text(fl!("avatar_anchor_main"));
+        body_markers_node.add_widget(Box::new(item));
+
+        let mut item = TheTreeItem::new(TheId::named("Anchor: Off"));
+        item.set_text(fl!("avatar_anchor_off"));
+        body_markers_node.add_widget(Box::new(item));
+
         // let mut item = TheTreeItem::new(TheId::named("Body: Extra"));
         // item.set_text(fl!("extra"));
         // item.set_background_color(TheColor::from_u8_array_3([255, 0, 0]));
@@ -373,6 +381,7 @@ impl Dock for TilesEditorDock {
                     }
                     redraw = true;
                 } else if *state == TheWidgetState::Selected && id.name.starts_with("Body: ") {
+                    server_ctx.avatar_anchor_slot = AvatarAnchorEditSlot::None;
                     let color = match id.name.as_str() {
                         "Body: Skin Light" => Some([255, 0, 255, 255]),
                         "Body: Skin Dark" => Some([200, 0, 200, 255]),
@@ -388,6 +397,14 @@ impl Dock for TilesEditorDock {
                         server_ctx.body_marker_color = Some(c);
                         redraw = true;
                     }
+                } else if *state == TheWidgetState::Selected && id.name == "Anchor: Main" {
+                    server_ctx.avatar_anchor_slot = AvatarAnchorEditSlot::Main;
+                    self.sync_anchor_overlay(project, ui, ctx, server_ctx);
+                    redraw = true;
+                } else if *state == TheWidgetState::Selected && id.name == "Anchor: Off" {
+                    server_ctx.avatar_anchor_slot = AvatarAnchorEditSlot::Off;
+                    self.sync_anchor_overlay(project, ui, ctx, server_ctx);
+                    redraw = true;
                 }
             }
             TheEvent::TileZoomBy(id, delta) => {
@@ -426,6 +443,13 @@ impl Dock for TilesEditorDock {
                             fl!("status_tile_editor_paste_no_valid_target"),
                         ));
                     }
+                    redraw = true;
+                } else if id.name == "Tile Editor Dock RGBA Layout View"
+                    && matches!(server_ctx.editing_ctx, PixelEditingContext::AvatarFrame(..))
+                    && server_ctx.avatar_anchor_slot != AvatarAnchorEditSlot::None
+                    && self.apply_avatar_anchor_at(*coord, project, ctx, server_ctx)
+                {
+                    self.sync_anchor_overlay(project, ui, ctx, server_ctx);
                     redraw = true;
                 }
             }
@@ -750,8 +774,6 @@ impl Dock for TilesEditorDock {
         Some(vec![
             Box::new(TileDrawTool::new()),
             Box::new(TileSelectTool::new()),
-            // Box::new(TileFillTool::new()),
-            // Box::new(TilePickerTool::new()),
         ])
     }
 
@@ -821,6 +843,105 @@ impl Dock for TilesEditorDock {
 }
 
 impl TilesEditorDock {
+    fn apply_avatar_anchor_at(
+        &mut self,
+        coord: Vec2<i32>,
+        project: &mut Project,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) -> bool {
+        let editing_ctx = server_ctx.editing_ctx;
+        let Some(before) = project.get_editing_avatar_frame(&editing_ctx) else {
+            return false;
+        };
+        let before_main = before.weapon_main_anchor;
+        let before_off = before.weapon_off_anchor;
+
+        let clicked = Some((coord.x as i16, coord.y as i16));
+        if let Some(frame) = project.get_editing_avatar_frame_mut(&editing_ctx) {
+            match server_ctx.avatar_anchor_slot {
+                AvatarAnchorEditSlot::Main => {
+                    if frame.weapon_main_anchor == clicked {
+                        frame.weapon_main_anchor = None;
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("status_avatar_anchor_clear_main"),
+                        ));
+                    } else {
+                        frame.weapon_main_anchor = clicked;
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("status_avatar_anchor_set_main"),
+                        ));
+                    }
+                }
+                AvatarAnchorEditSlot::Off => {
+                    if frame.weapon_off_anchor == clicked {
+                        frame.weapon_off_anchor = None;
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("status_avatar_anchor_clear_off"),
+                        ));
+                    } else {
+                        frame.weapon_off_anchor = clicked;
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("status_avatar_anchor_set_off"),
+                        ));
+                    }
+                }
+                AvatarAnchorEditSlot::None => return false,
+            }
+
+            let after_main = frame.weapon_main_anchor;
+            let after_off = frame.weapon_off_anchor;
+            if before_main != after_main || before_off != after_off {
+                let atom = TileEditorUndoAtom::AvatarAnchorEdit(
+                    editing_ctx,
+                    before_main,
+                    before_off,
+                    after_main,
+                    after_off,
+                );
+                self.add_undo(atom, ctx);
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Editing Texture Updated"),
+                    TheValue::Empty,
+                ));
+                return true;
+            }
+        }
+        false
+    }
+
+    fn sync_anchor_overlay(
+        &mut self,
+        project: &Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) {
+        if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout")
+            && let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view()
+        {
+            let points =
+                if let Some(frame) = project.get_editing_avatar_frame(&server_ctx.editing_ctx) {
+                    let mut p = vec![];
+                    if let Some((x, y)) = frame.weapon_main_anchor {
+                        p.push((Vec2::new(x as i32, y as i32), [255, 80, 80, 255]));
+                    }
+                    if let Some((x, y)) = frame.weapon_off_anchor {
+                        p.push((Vec2::new(x as i32, y as i32), [80, 200, 255, 255]));
+                    }
+                    p
+                } else {
+                    vec![]
+                };
+            rgba_view.set_anchor_points(points);
+            editor.relayout(ctx);
+        }
+    }
+
     fn apply_flip(
         &mut self,
         horizontal: bool,
@@ -973,6 +1094,7 @@ impl TilesEditorDock {
 
                     // Refresh the display with the new frame
                     self.update_editor_display(tile, ui, ctx, server_ctx);
+                    self.sync_anchor_overlay(project, ui, ctx, server_ctx);
                 }
             }
         }
@@ -1030,6 +1152,11 @@ impl TilesEditorDock {
         let key = match &atom {
             TileEditorUndoAtom::TileEdit(tile_id, _, _) => Some(*tile_id),
             TileEditorUndoAtom::TextureEdit(editing_ctx, _, _) => match editing_ctx {
+                PixelEditingContext::Tile(tile_id, _) => Some(*tile_id),
+                PixelEditingContext::AvatarFrame(avatar_id, _, _, _) => Some(*avatar_id),
+                PixelEditingContext::None => None,
+            },
+            TileEditorUndoAtom::AvatarAnchorEdit(editing_ctx, _, _, _, _) => match editing_ctx {
                 PixelEditingContext::Tile(tile_id, _) => Some(*tile_id),
                 PixelEditingContext::AvatarFrame(avatar_id, _, _, _) => Some(*avatar_id),
                 PixelEditingContext::None => None,
@@ -1262,6 +1389,7 @@ impl TilesEditorDock {
         }
         match server_ctx.editing_ctx {
             PixelEditingContext::Tile(tile_id, _) => {
+                server_ctx.avatar_anchor_slot = AvatarAnchorEditSlot::None;
                 if let Some(tile) = project.tiles.get(&tile_id) {
                     self.set_tile(tile, ui, ctx, server_ctx, false);
                     if let Some(stack) = ui.get_stack_layout("Pixel Editor Stack Layout") {
@@ -1277,6 +1405,7 @@ impl TilesEditorDock {
                 }
             }
             PixelEditingContext::None => {
+                server_ctx.avatar_anchor_slot = AvatarAnchorEditSlot::None;
                 if let Some(tile_id) = server_ctx.curr_tile_id {
                     if let Some(tile) = project.tiles.get(&tile_id) {
                         self.set_tile(tile, ui, ctx, server_ctx, false);
@@ -1284,6 +1413,7 @@ impl TilesEditorDock {
                 }
             }
         }
+        self.sync_anchor_overlay(project, ui, ctx, server_ctx);
     }
 
     /// Set the undo key based on the current editing context.
@@ -1306,6 +1436,7 @@ impl TilesEditorDock {
         if let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx) {
             self.set_editing_texture(texture, ui, ctx);
         }
+        self.sync_anchor_overlay(project, ui, ctx, server_ctx);
     }
 
     /// Display the given texture in the editor.
