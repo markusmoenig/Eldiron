@@ -6,6 +6,15 @@ use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
 use std::str::FromStr;
 use toml::*;
 
+pub fn default_preview_rigging_toml() -> String {
+    if let Some(bytes) = crate::Embedded::get("toml/preview_rigging.toml")
+        && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+    {
+        return source.to_string();
+    }
+    "# Editor-only preview. Runtime equipment/animation comes from server scripts.\nanimation = \"Idle\"\nperspective = \"Front\"\nplay = true\nspeed = 1.0\n\n[slots]\n# main_hand = \"Item Name\"\n# off_hand = \"Item Name\"\n".to_string()
+}
+
 pub fn update_region_settings(
     project: &mut Project,
     server_ctx: &ServerContext,

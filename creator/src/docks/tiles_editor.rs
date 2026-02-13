@@ -211,20 +211,25 @@ impl Dock for TilesEditorDock {
         item.set_background_color(TheColor::from_u8_array_3([255, 80, 0]));
         body_markers_node.add_widget(Box::new(item));
 
+        root.add_child(body_markers_node);
+
+        let mut anchors_node: TheTreeNode = TheTreeNode::new(TheId::named(&fl!("anchors")));
+        anchors_node.set_open(true);
+
         let mut item = TheTreeItem::new(TheId::named("Anchor: Main"));
         item.set_text(fl!("avatar_anchor_main"));
-        body_markers_node.add_widget(Box::new(item));
+        anchors_node.add_widget(Box::new(item));
 
         let mut item = TheTreeItem::new(TheId::named("Anchor: Off"));
         item.set_text(fl!("avatar_anchor_off"));
-        body_markers_node.add_widget(Box::new(item));
+        anchors_node.add_widget(Box::new(item));
 
         // let mut item = TheTreeItem::new(TheId::named("Body: Extra"));
         // item.set_text(fl!("extra"));
         // item.set_background_color(TheColor::from_u8_array_3([255, 0, 0]));
         // body_markers_node.add_widget(Box::new(item));
 
-        root.add_child(body_markers_node);
+        root.add_child(anchors_node);
 
         avatar_canvas.set_layout(avatar_tree_layout);
 

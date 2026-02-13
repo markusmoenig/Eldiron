@@ -20,6 +20,63 @@ pub struct AvatarRuntimeBuilder {
 }
 
 impl AvatarRuntimeBuilder {
+    pub fn build_preview_for_entity(
+        entity: &Entity,
+        avatar: &Avatar,
+        assets: &Assets,
+        animation_name: Option<&str>,
+        direction: AvatarDirection,
+        frame_index: usize,
+    ) -> Option<AvatarBuildOutput> {
+        let markers = Self::marker_colors_for_entity(entity, assets);
+        let anim_name = animation_name.or_else(|| entity.attributes.get_str("avatar_animation"));
+        let Some((resolved_anim, resolved_dir)) =
+            Self::resolve_avatar_selection(avatar, anim_name, direction)
+        else {
+            return None;
+        };
+        let mut out = AvatarBuilder::build_current_stub(AvatarBuildRequest {
+            avatar,
+            animation_name: Some(resolved_anim),
+            direction: resolved_dir,
+            frame_index,
+            marker_colors: markers,
+        })?;
+        let (main_anchor, off_anchor) =
+            Self::frame_anchors(avatar, resolved_anim, resolved_dir, frame_index);
+        if resolved_dir == AvatarDirection::Back {
+            let size = out.size as usize;
+            let mut composed = vec![0_u8; size * size * 4];
+            let mut overlay_out = AvatarBuildOutput {
+                size: out.size,
+                rgba: composed,
+            };
+            Self::compose_weapon_overlay(
+                &mut overlay_out,
+                entity,
+                assets,
+                resolved_dir,
+                frame_index,
+                main_anchor,
+                off_anchor,
+            );
+            composed = overlay_out.rgba;
+            Self::alpha_blit_rgba(&mut composed, size, size, &out.rgba, size, size, 0, 0);
+            out.rgba = composed;
+        } else {
+            Self::compose_weapon_overlay(
+                &mut out,
+                entity,
+                assets,
+                resolved_dir,
+                frame_index,
+                main_anchor,
+                off_anchor,
+            );
+        }
+        Some(out)
+    }
+
     pub fn find_avatar_for_entity<'a>(entity: &Entity, assets: &'a Assets) -> Option<&'a Avatar> {
         if let Some(avatar_id) = entity.attributes.get_id("avatar_id") {
             if let Some(avatar) = assets.avatars.get(&avatar_id.to_string()) {
@@ -297,6 +354,19 @@ impl AvatarRuntimeBuilder {
         }
     }
 
+    fn flip_rgba_horizontal(src: &[u8], w: usize, h: usize) -> Vec<u8> {
+        let mut out = vec![0_u8; src.len()];
+        for y in 0..h {
+            for x in 0..w {
+                let src_x = w - 1 - x;
+                let src_i = (y * w + src_x) * 4;
+                let dst_i = (y * w + x) * 4;
+                out[dst_i..dst_i + 4].copy_from_slice(&src[src_i..src_i + 4]);
+            }
+        }
+        out
+    }
+
     fn compose_weapon_overlay(
         out: &mut AvatarBuildOutput,
         entity: &Entity,
@@ -325,9 +395,15 @@ impl AvatarRuntimeBuilder {
             }
             let tex = &tile.textures[frame_index % tile.textures.len()];
             let scale = item.attributes.get_float_default("rig_scale", 1.0);
-            let pivot = Self::item_rig_pivot(item);
+            let mut pivot = Self::item_rig_pivot(item);
             let Some((scaled, sw, sh)) = Self::scaled_texture_rgba(tex, scale) else {
                 continue;
+            };
+            let scaled = if direction == AvatarDirection::Left {
+                pivot[0] = 1.0 - pivot[0];
+                Self::flip_rgba_horizontal(&scaled, sw, sh)
+            } else {
+                scaled
             };
             let px = (pivot[0].clamp(0.0, 1.0) * (sw as f32 - 1.0)).round() as i32;
             let py = (pivot[1].clamp(0.0, 1.0) * (sh as f32 - 1.0)).round() as i32;
@@ -435,7 +511,6 @@ impl AvatarRuntimeBuilder {
         assets: &Assets,
         geo_id: GeoId,
     ) -> bool {
-        let markers = Self::marker_colors_for_entity(entity, assets);
         let mut frames: FxHashMap<(String, AvatarDirection, usize), (u32, Vec<u8>)> =
             FxHashMap::default();
 
@@ -443,60 +518,14 @@ impl AvatarRuntimeBuilder {
             for perspective in &anim.perspectives {
                 let frame_count = perspective.frames.len().max(1);
                 for frame_index in 0..frame_count {
-                    if let Some(mut out) = AvatarBuilder::build_current_stub(AvatarBuildRequest {
+                    if let Some(out) = Self::build_preview_for_entity(
+                        entity,
                         avatar,
-                        animation_name: Some(anim.name.as_str()),
-                        direction: perspective.direction,
+                        assets,
+                        Some(anim.name.as_str()),
+                        perspective.direction,
                         frame_index,
-                        marker_colors: markers,
-                    }) {
-                        let (main_anchor, off_anchor) = Self::frame_anchors(
-                            avatar,
-                            anim.name.as_str(),
-                            perspective.direction,
-                            frame_index,
-                        );
-                        if perspective.direction == AvatarDirection::Back {
-                            // Back view: draw equipped overlays behind the body.
-                            let size = out.size as usize;
-                            let mut composed = vec![0_u8; size * size * 4];
-                            let mut overlay_out = AvatarBuildOutput {
-                                size: out.size,
-                                rgba: composed,
-                            };
-                            Self::compose_weapon_overlay(
-                                &mut overlay_out,
-                                entity,
-                                assets,
-                                perspective.direction,
-                                frame_index,
-                                main_anchor,
-                                off_anchor,
-                            );
-                            composed = overlay_out.rgba;
-                            Self::alpha_blit_rgba(
-                                &mut composed,
-                                size,
-                                size,
-                                &out.rgba,
-                                size,
-                                size,
-                                0,
-                                0,
-                            );
-                            out.rgba = composed;
-                        } else {
-                            // Front/side views: draw equipment on top of body.
-                            Self::compose_weapon_overlay(
-                                &mut out,
-                                entity,
-                                assets,
-                                perspective.direction,
-                                frame_index,
-                                main_anchor,
-                                off_anchor,
-                            );
-                        }
+                    ) {
                         frames.insert(
                             (anim.name.clone(), perspective.direction, frame_index),
                             (out.size, out.rgba),

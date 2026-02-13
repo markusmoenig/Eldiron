@@ -27,6 +27,10 @@ pub struct Character {
     #[serde(default)]
     pub data: String,
 
+    /// Editor-only rigging preview TOML data.
+    #[serde(default)]
+    pub preview_rigging: String,
+
     /// The initial position.
     pub position: Vec3<f32>,
 
@@ -52,6 +56,7 @@ impl Character {
             source: String::new(),
             source_debug: String::new(),
             data: String::new(),
+            preview_rigging: String::new(),
             position: zero(),
 
             character_id: Uuid::new_v4(),

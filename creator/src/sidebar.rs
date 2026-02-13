@@ -2384,6 +2384,23 @@ impl Sidebar {
                         );
                         redraw = true;
                     }
+                } else if id.name == "Character Item Preview Rigging Edit" {
+                    if let Some(character) = project.characters.get_mut(&id.references) {
+                        if character.preview_rigging.trim().is_empty() {
+                            character.preview_rigging = default_preview_rigging_toml();
+                        }
+                        server_ctx.curr_character =
+                            ContentContext::CharacterTemplate(id.references);
+                        server_ctx.cc = ContentContext::CharacterTemplate(id.references);
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::CharacterPreviewRigging(id.references),
+                        );
+                        redraw = true;
+                    }
                 } else if id.name == "Item Item" {
                     if let Some(_) = project.items.get(&id.references) {
                         server_ctx.curr_item = ContentContext::ItemTemplate(id.references);

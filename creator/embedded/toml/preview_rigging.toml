@@ -1,0 +1,10 @@
+# Editor-only preview. Runtime equipment/animation comes from server scripts.
+#
+animation = "Idle"
+perspective = "Front"
+play = true
+speed = 1.0
+
+[slots]
+# main_hand = "Item Name"
+# off_hand = "Item Name"

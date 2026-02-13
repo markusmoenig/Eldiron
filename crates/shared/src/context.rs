@@ -155,6 +155,7 @@ pub enum ProjectContext {
     CharacterVisualCode(Uuid),
     CharacterCode(Uuid),
     CharacterData(Uuid),
+    CharacterPreviewRigging(Uuid),
     Item(Uuid),
     ItemVisualCode(Uuid),
     ItemCode(Uuid),
@@ -183,6 +184,7 @@ impl ProjectContext {
             | ProjectContext::CharacterVisualCode(id)
             | ProjectContext::CharacterCode(id)
             | ProjectContext::CharacterData(id)
+            | ProjectContext::CharacterPreviewRigging(id)
             | ProjectContext::Item(id)
             | ProjectContext::ItemVisualCode(id)
             | ProjectContext::ItemCode(id)
@@ -225,7 +227,8 @@ impl ProjectContext {
             ProjectContext::Character(_)
             | ProjectContext::CharacterVisualCode(_)
             | ProjectContext::CharacterCode(_)
-            | ProjectContext::CharacterData(_) => true,
+            | ProjectContext::CharacterData(_)
+            | ProjectContext::CharacterPreviewRigging(_) => true,
             _ => false,
         }
     }
