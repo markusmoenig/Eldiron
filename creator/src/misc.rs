@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 pub struct UpdateTracker {
     //update_counter: u32,
     //last_fps_check: Instant,
-    last_redraw_update: Instant,
-    last_tick_update: Instant,
+    next_redraw_update: Instant,
+    next_tick_update: Instant,
 }
 
 impl Default for UpdateTracker {
@@ -17,17 +17,21 @@ impl Default for UpdateTracker {
 
 impl UpdateTracker {
     pub fn new() -> Self {
+        let now = Instant::now();
         UpdateTracker {
             //update_counter: 0,
             //last_fps_check: Instant::now(),
-            last_redraw_update: Instant::now(),
-            last_tick_update: Instant::now(),
+            next_redraw_update: now,
+            next_tick_update: now,
         }
     }
 
     pub fn update(&mut self, redraw_ms: u64, tick_ms: u64) -> (bool, bool) {
         let mut redraw_update = false;
         let mut tick_update = false;
+        let now = Instant::now();
+        let redraw_period = Duration::from_millis(redraw_ms.max(1));
+        let tick_period = Duration::from_millis(tick_ms.max(1));
 
         // self.update_counter += 1;
 
@@ -35,14 +39,18 @@ impl UpdateTracker {
         //     self.calculate_and_reset_fps();
         // }
 
-        if self.last_redraw_update.elapsed() >= Duration::from_millis(redraw_ms) {
-            self.last_redraw_update = Instant::now();
+        if now >= self.next_redraw_update {
             redraw_update = true;
+            while self.next_redraw_update <= now {
+                self.next_redraw_update += redraw_period;
+            }
         }
 
-        if self.last_tick_update.elapsed() >= Duration::from_millis(tick_ms) {
-            self.last_tick_update = Instant::now();
+        if now >= self.next_tick_update {
             tick_update = true;
+            while self.next_tick_update <= now {
+                self.next_tick_update += tick_period;
+            }
         }
 
         (redraw_update, tick_update)

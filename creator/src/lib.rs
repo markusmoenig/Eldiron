@@ -165,7 +165,7 @@ mod ffi {
 
     #[unsafe(no_mangle)]
     pub extern "C" fn rust_target_fps() -> u32 {
-        30
+        APP.lock().unwrap().target_fps().clamp(1.0, 120.0) as u32
     }
 
     #[unsafe(no_mangle)]

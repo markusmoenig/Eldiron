@@ -94,6 +94,7 @@ class Renderer: NSObject, MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
+        checkFramerate()
 
         rust_update()
 
@@ -162,22 +163,27 @@ class Renderer: NSObject, MTKViewDelegate {
 
     /// Checks the framerate and applies it
     func checkFramerate() {
-        let fps = UInt32(60);//rust_target_fps()
+        let fps = max(UInt32(1), rust_target_fps())
 
-        if fps > 0 {
+        if self.fps != fps {
             view.enableSetNeedsDisplay = false
             view.isPaused = false
             view.preferredFramesPerSecond = Int(fps)
-        } else {
-            //view.isPaused = true
-            //view.enableSetNeedsDisplay = true
+            self.fps = fps
         }
-        self.fps = fps
     }
 
     /// Called after a user event function returns true
     func needsUpdate() {
+        // Force one immediate frame, independent of the current preferredFramesPerSecond cadence.
+        let wasPaused = view.isPaused
+        let wasNeedsDisplay = view.enableSetNeedsDisplay
+        view.isPaused = true
+        view.enableSetNeedsDisplay = true
         updateOnce()
+        view.draw()
+        view.isPaused = wasPaused
+        view.enableSetNeedsDisplay = wasNeedsDisplay
         checkFramerate()
     }
 

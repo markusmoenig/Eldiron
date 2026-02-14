@@ -141,10 +141,10 @@ impl TheTrait for Client {
     fn update_ui(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) -> bool {
         let mut redraw = false;
 
-        let (redraw_update, tick_update) = self.update_tracker.update(
-            (1000 / self.rusterix.client.target_fps) as u64,
-            self.rusterix.client.game_tick_ms as u64,
-        );
+        let target_fps = self.rusterix.client.target_fps.max(1) as u64;
+        let game_tick_ms = self.rusterix.client.game_tick_ms.max(1) as u64;
+        let (redraw_update, tick_update) =
+            self.update_tracker.update(1000 / target_fps, game_tick_ms);
 
         if tick_update {
             self.rusterix.client.inc_animation_frame();

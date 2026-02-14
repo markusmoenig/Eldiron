@@ -12,13 +12,13 @@ public class RMTKView       : MTKView
     var renderer            : Renderer!
 
     var keysDown            : [Float] = []
-    
+
     var mouseIsDown         : Bool = false
     var mousePos            = float2(0, 0)
-    
+
     var hasTap              : Bool = false
     var hasDoubleTap        : Bool = false
-    
+
     var buttonDown          : String? = nil
     var swipeDirection      : String? = nil
 
@@ -33,7 +33,7 @@ public class RMTKView       : MTKView
     }
 
     #if os(OSX)
-    
+
     // --- Key States
     var shiftIsDown     : Bool = false
     var commandIsDown   : Bool = false
@@ -41,7 +41,7 @@ public class RMTKView       : MTKView
     var altIsDown       : Bool = false
 
     override public var acceptsFirstResponder: Bool { return true }
-    
+
     /// To get continuous mouse events on macOS
     override public func updateTrackingAreas()
     {
@@ -50,21 +50,21 @@ public class RMTKView       : MTKView
                                       owner: self, userInfo: nil)
         self.addTrackingArea(trackingArea)
     }
-    
+
     func platformInit()
     {
     }
-    
+
     func setMousePos(_ event: NSEvent)
     {
         var location = event.locationInWindow
         location.y = location.y - CGFloat(frame.height)
         location = convert(location, from: nil)
-        
+
         mousePos.x = Float(location.x)
         mousePos.y = -Float(location.y)
     }
-    
+
     override public func keyDown(with event: NSEvent)
     {
         if event.keyCode == Keycode.escape {
@@ -119,7 +119,7 @@ public class RMTKView       : MTKView
         }
         keysDown.append(Float(event.keyCode))
     }
-    
+
     override public func keyUp(with event: NSEvent)
     {
         if let c = event.characters {
@@ -129,35 +129,31 @@ public class RMTKView       : MTKView
         }
         keysDown.removeAll{$0 == Float(event.keyCode)}
     }
-        
+
     override public func mouseDown(with event: NSEvent) {
         setMousePos(event)
-        if rust_touch_down(mousePos.x, mousePos.y) {
-            renderer.needsUpdate()
-        }
+        _ = rust_touch_down(mousePos.x, mousePos.y)
+        renderer.needsUpdate()
     }
-    
+
     override public func mouseDragged(with event: NSEvent) {
         setMousePos(event)
-        if rust_touch_dragged(mousePos.x, mousePos.y) {
-            renderer.needsUpdate()
-        }
+        _ = rust_touch_dragged(mousePos.x, mousePos.y)
+        renderer.needsUpdate()
     }
-    
+
     override public func mouseMoved(with event: NSEvent) {
         setMousePos(event)
-        if rust_hover(mousePos.x, mousePos.y) {
-            renderer.needsUpdate()
-        }
+        _ = rust_hover(mousePos.x, mousePos.y)
+        renderer.needsUpdate()
     }
-    
+
     override public func mouseUp(with event: NSEvent) {
         setMousePos(event)
-        if rust_touch_up(mousePos.x, mousePos.y) {
-            renderer.needsUpdate()
-        }
+        _ = rust_touch_up(mousePos.x, mousePos.y)
+        renderer.needsUpdate()
     }
-    
+
     override public func flagsChanged(with event: NSEvent) {
         //https://stackoverflow.com/questions/9268045/how-can-i-detect-that-the-shift-key-has-been-pressed
         if event.modifierFlags.contains(.shift) {
@@ -180,31 +176,30 @@ public class RMTKView       : MTKView
         } else {
             commandIsDown = false
         }
-        
+
         if rust_key_modifier_changed(shiftIsDown, controlIsDown, altIsDown, commandIsDown) {
             renderer.needsUpdate()
         }
     }
-    
+
     override public func scrollWheel(with event: NSEvent) {
-        if rust_touch_wheel(Float(event.scrollingDeltaX), Float(event.scrollingDeltaY)) {
-            renderer.needsUpdate()
-        }
+        _ = rust_touch_wheel(Float(event.scrollingDeltaX), Float(event.scrollingDeltaY))
+        renderer.needsUpdate()
     }
     #elseif os(iOS)
-    
+
     func platformInit()
     {
         let tapRecognizer = UITapGestureRecognizer(target: self, action:(#selector(self.handleTapGesture(_:))))
         tapRecognizer.numberOfTapsRequired = 1
         addGestureRecognizer(tapRecognizer)
-        
+
         let pinchRecognizer = UIPinchGestureRecognizer(target: self, action:(#selector(self.handlePinchGesture(_:))))
         addGestureRecognizer(pinchRecognizer)
     }
-    
+
     var lastPinch : Float = 1
-    
+
     @objc func handlePinchGesture(_ recognizer: UIPinchGestureRecognizer)
     {
         /*
@@ -224,7 +219,7 @@ public class RMTKView       : MTKView
             }
         }*/
     }
-    
+
     @objc func handleTapGesture(_ recognizer: UITapGestureRecognizer)
     {
         if recognizer.numberOfTouches == 1 {
@@ -240,74 +235,71 @@ public class RMTKView       : MTKView
             }
         }
     }
-    
+
     func setMousePos(_ x: Float, _ y: Float)
     {
         mousePos.x = x
         mousePos.y = y
-        
+
         //mousePos.x /= Float(bounds.width) / game.texture!.width// / game.scaleFactor
         //mousePos.y /= Float(bounds.height) / game.texture!.height// / game.scaleFactor
     }
-    
+
     var firstTouch = float2(0,0)
     override public func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         mouseIsDown = true
         if let touch = touches.first {
             let point = touch.location(in: self)
             setMousePos(Float(point.x), Float(point.y))
-            if rust_touch_down(mousePos.x, mousePos.y) {
-                renderer.needsUpdate()
-            }
+            _ = rust_touch_down(mousePos.x, mousePos.y)
+            renderer.needsUpdate()
         }
     }
-    
+
     override public func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         if let touch = touches.first {
             let point = touch.location(in: self)
             setMousePos(Float(point.x), Float(point.y))
-            if rust_touch_dragged(mousePos.x, mousePos.y) {
-                renderer.needsUpdate()
-            }
+            _ = rust_touch_dragged(mousePos.x, mousePos.y)
+            renderer.needsUpdate()
         }
     }
-    
+
     override public func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         mouseIsDown = false
         if let touch = touches.first {
             let point = touch.location(in: self)
             setMousePos(Float(point.x), Float(point.y))
-            if rust_touch_up(mousePos.x, mousePos.y) {
-                renderer.needsUpdate()
-            }
+            _ = rust_touch_up(mousePos.x, mousePos.y)
+            renderer.needsUpdate()
         }
     }
-    
+
     #elseif os(tvOS)
-        
+
     func platformInit()
     {
         var swipeRecognizer = UISwipeGestureRecognizer(target: self, action: #selector(swipedRight))
         swipeRecognizer.direction = .right
         addGestureRecognizer(swipeRecognizer)
-        
+
         swipeRecognizer = UISwipeGestureRecognizer(target: self, action: #selector(swipedLeft))
         swipeRecognizer.direction = .left
         addGestureRecognizer(swipeRecognizer)
-        
+
         swipeRecognizer = UISwipeGestureRecognizer(target: self, action: #selector(swipedUp))
         swipeRecognizer.direction = .up
         addGestureRecognizer(swipeRecognizer)
-        
+
         swipeRecognizer = UISwipeGestureRecognizer(target: self, action: #selector(swipedDown))
         swipeRecognizer.direction = .down
         addGestureRecognizer(swipeRecognizer)
     }
-    
+
     public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?)
     {
         guard let buttonPress = presses.first?.type else { return }
-            
+
         switch(buttonPress) {
             case .menu:
                 buttonDown = "Menu"
@@ -327,28 +319,28 @@ public class RMTKView       : MTKView
                 print("Unkown Button", buttonPress)
         }
     }
-    
+
     public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?)
     {
         buttonDown = nil
     }
-    
+
     @objc func swipedUp() {
        swipeDirection = "up"
     }
-    
+
     @objc func swipedDown() {
        swipeDirection = "down"
     }
-        
+
     @objc func swipedRight() {
        swipeDirection = "right"
     }
-    
+
     @objc func swipedLeft() {
        swipeDirection = "left"
     }
 
-    
+
     #endif
 }

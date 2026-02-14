@@ -534,6 +534,21 @@ impl ApplicationHandler for TheWinitApp {
                 }
             }
             event => {
+                let user_driven_event = matches!(
+                    &event,
+                    WindowEvent::KeyboardInput { .. }
+                        | WindowEvent::ModifiersChanged(_)
+                        | WindowEvent::CursorMoved { .. }
+                        | WindowEvent::Touch(_)
+                        | WindowEvent::MouseInput { .. }
+                        | WindowEvent::MouseWheel { .. }
+                        | WindowEvent::DroppedFile(_)
+                );
+                if user_driven_event {
+                    // Wake the frame scheduler immediately on input even in low-FPS idle mode.
+                    self.next_frame_time = Instant::now();
+                }
+
                 let Some(ctx) = &mut self.ctx else {
                     return;
                 };
@@ -1115,22 +1130,46 @@ impl ApplicationHandler for TheWinitApp {
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         let now = Instant::now();
+        let fps = self.app.target_fps().max(1.0);
+        let target_frame_time = Duration::from_secs_f64(1.0 / fps);
+        if target_frame_time != self.target_frame_time {
+            self.target_frame_time = target_frame_time;
+            self.next_frame_time = now + self.target_frame_time;
+        }
+
         let should_redraw = now >= self.next_frame_time;
         if should_redraw {
             if let Some(ctx) = &self.ctx {
                 ctx.window.request_redraw();
             }
-            self.next_frame_time = now + self.target_frame_time;
+            // Keep a stable cadence instead of resetting from `now`, which accumulates jitter.
+            while self.next_frame_time <= now {
+                self.next_frame_time += self.target_frame_time;
+            }
         }
 
-        // #[cfg(target_arch = "wasm32")]
-        // {
-        //     // Avoid WaitUntil on wasm to sidestep duration underflow; simple Wait keeps CPU low.
-        //     event_loop.set_control_flow(ControlFlow::Wait);
-        // }
+        #[cfg(target_arch = "wasm32")]
+        {
+            // Web timers don't behave like desktop sleep timers; polling aligns better with rAF cadence.
+            event_loop.set_control_flow(ControlFlow::Poll);
+        }
 
-        // #[cfg(not(target_arch = "wasm32"))]
-        event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_frame_time));
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let now_after_schedule = Instant::now();
+            let wake_ahead = Duration::from_millis(2);
+            if self.next_frame_time > now_after_schedule + wake_ahead {
+                event_loop
+                    .set_control_flow(ControlFlow::WaitUntil(self.next_frame_time - wake_ahead));
+            } else {
+                // Short pre-frame poll burst improves frame deadline accuracy without full-time polling.
+                event_loop.set_control_flow(ControlFlow::Poll);
+            }
+        }
+
+        if !should_redraw {
+            return;
+        }
 
         let Some(ctx) = &mut self.ctx else {
             return;

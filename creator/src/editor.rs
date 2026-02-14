@@ -95,6 +95,22 @@ pub struct Editor {
     build_values: ValueContainer,
 }
 
+impl Editor {
+    fn is_realtime_mode(&self) -> bool {
+        self.server_ctx.game_mode
+            || RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running
+    }
+
+    fn redraw_interval_ms(&self) -> u64 {
+        let config = CONFIGEDITOR.read().unwrap();
+        if self.is_realtime_mode() {
+            (1000 / config.target_fps.clamp(1, 60)) as u64
+        } else {
+            config.game_tick_ms.max(1) as u64
+        }
+    }
+}
+
 impl TheTrait for Editor {
     fn new() -> Self
     where
@@ -167,6 +183,10 @@ impl TheTrait for Editor {
 
     fn window_title(&self) -> String {
         "Eldiron Creator".to_string()
+    }
+
+    fn target_fps(&self) -> f64 {
+        1000.0 / self.redraw_interval_ms() as f64
     }
 
     fn fonts_to_load(&self) -> Vec<TheFontScript> {
@@ -680,10 +700,20 @@ impl TheTrait for Editor {
         }
 
         // Check for redraw (30fps) and tick updates
-        let (redraw_update, tick_update) = self.update_tracker.update(
-            (1000 / CONFIGEDITOR.read().unwrap().target_fps.clamp(1, 60)) as u64,
-            CONFIGEDITOR.read().unwrap().game_tick_ms as u64,
-        );
+        let redraw_ms = self.redraw_interval_ms();
+        let tick_ms = CONFIGEDITOR.read().unwrap().game_tick_ms.max(1) as u64;
+        let (mut redraw_update, tick_update) = self.update_tracker.update(redraw_ms, tick_ms);
+
+        // Handle queued UI events in the same update pass so input can trigger immediate redraw work.
+        let mut pending_events = Vec::new();
+        if let Some(receiver) = &mut self.event_receiver {
+            while let Ok(event) = receiver.try_recv() {
+                pending_events.push(event);
+            }
+        }
+        if !pending_events.is_empty() {
+            redraw_update = true;
+        }
 
         if tick_update {
             RUSTERIX.write().unwrap().client.inc_animation_frame();
@@ -1075,835 +1105,583 @@ impl TheTrait for Editor {
             redraw = true;
         }
 
-        if let Some(receiver) = &mut self.event_receiver {
-            while let Ok(event) = receiver.try_recv() {
-                if self.server_ctx.game_input_mode {
-                    // In game input mode send events to the game tool
-                    if let Some(game_tool) =
-                        TOOLLIST.write().unwrap().get_game_tool_of_name("Game Tool")
-                    {
-                        redraw = game_tool.handle_event(
-                            &event,
-                            ui,
-                            ctx,
-                            &mut self.project,
-                            &mut self.server_ctx,
-                        );
-                    }
+        for event in pending_events {
+            if self.server_ctx.game_input_mode {
+                // In game input mode send events to the game tool
+                if let Some(game_tool) =
+                    TOOLLIST.write().unwrap().get_game_tool_of_name("Game Tool")
+                {
+                    redraw = game_tool.handle_event(
+                        &event,
+                        ui,
+                        ctx,
+                        &mut self.project,
+                        &mut self.server_ctx,
+                    );
                 }
-                if self.sidebar.handle_event(
-                    &event,
-                    ui,
-                    ctx,
-                    &mut self.project,
-                    &mut self.server_ctx,
-                ) {
-                    redraw = true;
-                }
-                if TOOLLIST.write().unwrap().handle_event(
-                    &event,
-                    ui,
-                    ctx,
-                    &mut self.project,
-                    &mut self.server_ctx,
-                ) {
-                    redraw = true;
-                }
-                if DOCKMANAGER.write().unwrap().handle_event(
-                    &event,
-                    ui,
-                    ctx,
-                    &mut self.project,
-                    &mut self.server_ctx,
-                ) {
-                    redraw = true;
-                }
-                if self.mapeditor.handle_event(
-                    &event,
-                    ui,
-                    ctx,
-                    &mut self.project,
-                    &mut self.server_ctx,
-                ) {
-                    redraw = true;
-                }
-                if TILEMAPEDITOR.write().unwrap().handle_event(
-                    &event,
-                    ui,
-                    ctx,
-                    &mut self.project,
-                    &mut self.server_ctx,
-                ) {
-                    redraw = true;
-                }
-                match event {
-                    TheEvent::CustomUndo(id, p, n) => {
-                        if id.name == "ModuleUndo" {
-                            if CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Shade {
-                                let prev = Module::from_json(&p);
-                                let next = Module::from_json(&n);
+            }
+            if self
+                .sidebar
+                .handle_event(&event, ui, ctx, &mut self.project, &mut self.server_ctx)
+            {
+                redraw = true;
+            }
+            if TOOLLIST.write().unwrap().handle_event(
+                &event,
+                ui,
+                ctx,
+                &mut self.project,
+                &mut self.server_ctx,
+            ) {
+                redraw = true;
+            }
+            if DOCKMANAGER.write().unwrap().handle_event(
+                &event,
+                ui,
+                ctx,
+                &mut self.project,
+                &mut self.server_ctx,
+            ) {
+                redraw = true;
+            }
+            if self
+                .mapeditor
+                .handle_event(&event, ui, ctx, &mut self.project, &mut self.server_ctx)
+            {
+                redraw = true;
+            }
+            if TILEMAPEDITOR.write().unwrap().handle_event(
+                &event,
+                ui,
+                ctx,
+                &mut self.project,
+                &mut self.server_ctx,
+            ) {
+                redraw = true;
+            }
+            match event {
+                TheEvent::CustomUndo(id, p, n) => {
+                    if id.name == "ModuleUndo" {
+                        if CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Shade {
+                            let prev = Module::from_json(&p);
+                            let next = Module::from_json(&n);
 
-                                let atom = MaterialUndoAtom::ShaderEdit(prev, next);
-                                UNDOMANAGER.write().unwrap().add_material_undo(atom, ctx);
-                            } else if CODEEDITOR.read().unwrap().active_panel
-                                == VisibleCodePanel::Code
-                            {
-                                let prev = Module::from_json(&p);
-                                let next = Module::from_json(&n);
-                                match CODEEDITOR.read().unwrap().code_content {
-                                    ContentContext::CharacterTemplate(id) => {
-                                        let atom =
-                                            CharacterUndoAtom::TemplateModuleEdit(id, prev, next);
-                                        UNDOMANAGER.write().unwrap().add_character_undo(atom, ctx);
-                                    }
-                                    ContentContext::CharacterInstance(id) => {
-                                        let atom = CharacterUndoAtom::InstanceModuleEdit(
-                                            self.server_ctx.curr_region,
-                                            id,
-                                            prev,
-                                            next,
-                                        );
-                                        UNDOMANAGER.write().unwrap().add_character_undo(atom, ctx);
-                                    }
-                                    ContentContext::ItemTemplate(id) => {
-                                        let atom: ItemUndoAtom =
-                                            ItemUndoAtom::TemplateModuleEdit(id, prev, next);
-                                        UNDOMANAGER.write().unwrap().add_item_undo(atom, ctx);
-                                    }
-                                    ContentContext::ItemInstance(id) => {
-                                        let atom = ItemUndoAtom::InstanceModuleEdit(
-                                            self.server_ctx.curr_region,
-                                            id,
-                                            prev,
-                                            next,
-                                        );
-                                        UNDOMANAGER.write().unwrap().add_item_undo(atom, ctx);
-                                    }
-                                    _ => {}
+                            let atom = MaterialUndoAtom::ShaderEdit(prev, next);
+                            UNDOMANAGER.write().unwrap().add_material_undo(atom, ctx);
+                        } else if CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Code
+                        {
+                            let prev = Module::from_json(&p);
+                            let next = Module::from_json(&n);
+                            match CODEEDITOR.read().unwrap().code_content {
+                                ContentContext::CharacterTemplate(id) => {
+                                    let atom =
+                                        CharacterUndoAtom::TemplateModuleEdit(id, prev, next);
+                                    UNDOMANAGER.write().unwrap().add_character_undo(atom, ctx);
                                 }
-                            }
-                        }
-                    }
-                    TheEvent::Custom(id, value) => {
-                        if id.name == "Show Help" {
-                            if let TheValue::Text(url) = value {
-                                _ = open::that(format!("https://www.eldiron.com/{}", url));
-                                ctx.ui
-                                    .set_widget_state("Help".to_string(), TheWidgetState::None);
-                                ctx.ui.clear_hover();
-                                self.server_ctx.help_mode = false;
-                                redraw = true;
-                            }
-                        }
-                        if id.name == "Set Project Undo State" {
-                            UNDOMANAGER.read().unwrap().set_undo_state_to_ui(ctx);
-                        } else if id.name == "Render SceneManager Map" {
-                            if self.server_ctx.pc.is_region() {
-                                if self.server_ctx.editor_view_mode == EditorViewMode::D2
-                                    && self.server_ctx.profile_view.is_some()
-                                {
-                                } else {
-                                    crate::utils::scenemanager_render_map(
-                                        &self.project,
-                                        &self.server_ctx,
+                                ContentContext::CharacterInstance(id) => {
+                                    let atom = CharacterUndoAtom::InstanceModuleEdit(
+                                        self.server_ctx.curr_region,
+                                        id,
+                                        prev,
+                                        next,
                                     );
-                                    if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                        TOOLLIST.write().unwrap().update_geometry_overlay_3d(
-                                            &mut self.project,
-                                            &mut self.server_ctx,
-                                        );
-                                    }
+                                    UNDOMANAGER.write().unwrap().add_character_undo(atom, ctx);
                                 }
+                                ContentContext::ItemTemplate(id) => {
+                                    let atom: ItemUndoAtom =
+                                        ItemUndoAtom::TemplateModuleEdit(id, prev, next);
+                                    UNDOMANAGER.write().unwrap().add_item_undo(atom, ctx);
+                                }
+                                ContentContext::ItemInstance(id) => {
+                                    let atom = ItemUndoAtom::InstanceModuleEdit(
+                                        self.server_ctx.curr_region,
+                                        id,
+                                        prev,
+                                        next,
+                                    );
+                                    UNDOMANAGER.write().unwrap().add_item_undo(atom, ctx);
+                                }
+                                _ => {}
                             }
-                        } else if id.name == "Tool Changed" {
-                            TOOLLIST.write().unwrap().update_geometry_overlay_3d(
-                                &mut self.project,
-                                &mut self.server_ctx,
-                            );
-                        } else if id.name == "Update Client Properties" {
-                            let mut rusterix = RUSTERIX.write().unwrap();
-                            self.build_values.set(
-                                "no_rect_geo",
-                                rusterix::Value::Bool(self.server_ctx.no_rect_geo_on_map),
-                            );
-                            self.build_values.set(
-                                "editing_slice",
-                                rusterix::Value::Float(self.server_ctx.editing_slice),
-                            );
-                            rusterix
-                                .client
-                                .builder_d2
-                                .set_properties(&self.build_values);
-                            rusterix.set_dirty();
                         }
                     }
-
-                    TheEvent::DialogValueOnClose(role, name, uuid, _value) => {
-                        if name == "Delete Character Instance ?" {
-                            if role == TheDialogButtonRole::Delete {
-                                if let Some(region) =
-                                    self.project.get_region_mut(&self.server_ctx.curr_region)
-                                {
-                                    let character_id = uuid;
-                                    if region.characters.shift_remove(&character_id).is_some() {
-                                        self.server_ctx.curr_region_content =
-                                            ContentContext::Unknown;
-                                        region.map.selected_entity_item = None;
-                                        redraw = true;
-
-                                        // Remove from the content list
-                                        if let Some(list) =
-                                            ui.get_list_layout("Region Content List")
-                                        {
-                                            list.remove(TheId::named_with_id(
-                                                "Region Content List Item",
-                                                character_id,
-                                            ));
-                                            ui.select_first_list_item("Region Content List", ctx);
-                                            ctx.ui.relayout = true;
-                                        }
-                                        insert_content_into_maps(&mut self.project);
-                                        RUSTERIX.write().unwrap().set_dirty();
-                                    }
-                                }
-                            }
-                        } else if name == "Delete Item Instance ?" {
-                            if role == TheDialogButtonRole::Delete {
-                                if let Some(region) =
-                                    self.project.get_region_mut(&self.server_ctx.curr_region)
-                                {
-                                    let item_id = uuid;
-                                    if region.items.shift_remove(&item_id).is_some() {
-                                        self.server_ctx.curr_region_content =
-                                            ContentContext::Unknown;
-                                        redraw = true;
-
-                                        // Remove from the content list
-                                        if let Some(list) =
-                                            ui.get_list_layout("Region Content List")
-                                        {
-                                            list.remove(TheId::named_with_id(
-                                                "Region Content List Item",
-                                                item_id,
-                                            ));
-                                            ui.select_first_list_item("Region Content List", ctx);
-                                            ctx.ui.relayout = true;
-                                        }
-                                        insert_content_into_maps(&mut self.project);
-                                        RUSTERIX.write().unwrap().set_dirty();
-                                    }
-                                }
-                            }
-                        } else if name == "Update Eldiron" && role == TheDialogButtonRole::Accept {
-                            #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+                }
+                TheEvent::Custom(id, value) => {
+                    if id.name == "Show Help" {
+                        if let TheValue::Text(url) = value {
+                            _ = open::that(format!("https://www.eldiron.com/{}", url));
+                            ctx.ui
+                                .set_widget_state("Help".to_string(), TheWidgetState::None);
+                            ctx.ui.clear_hover();
+                            self.server_ctx.help_mode = false;
+                            redraw = true;
+                        }
+                    }
+                    if id.name == "Set Project Undo State" {
+                        UNDOMANAGER.read().unwrap().set_undo_state_to_ui(ctx);
+                    } else if id.name == "Render SceneManager Map" {
+                        if self.server_ctx.pc.is_region() {
+                            if self.server_ctx.editor_view_mode == EditorViewMode::D2
+                                && self.server_ctx.profile_view.is_some()
                             {
-                                let updater = self.self_updater.lock().unwrap();
+                            } else {
+                                crate::utils::scenemanager_render_map(
+                                    &self.project,
+                                    &self.server_ctx,
+                                );
+                                if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                    TOOLLIST.write().unwrap().update_geometry_overlay_3d(
+                                        &mut self.project,
+                                        &mut self.server_ctx,
+                                    );
+                                }
+                            }
+                        }
+                    } else if id.name == "Tool Changed" {
+                        TOOLLIST
+                            .write()
+                            .unwrap()
+                            .update_geometry_overlay_3d(&mut self.project, &mut self.server_ctx);
+                    } else if id.name == "Update Client Properties" {
+                        let mut rusterix = RUSTERIX.write().unwrap();
+                        self.build_values.set(
+                            "no_rect_geo",
+                            rusterix::Value::Bool(self.server_ctx.no_rect_geo_on_map),
+                        );
+                        self.build_values.set(
+                            "editing_slice",
+                            rusterix::Value::Float(self.server_ctx.editing_slice),
+                        );
+                        rusterix
+                            .client
+                            .builder_d2
+                            .set_properties(&self.build_values);
+                        rusterix.set_dirty();
+                    }
+                }
 
-                                if updater.has_newer_release() {
-                                    let release = updater.latest_release().cloned().unwrap();
+                TheEvent::DialogValueOnClose(role, name, uuid, _value) => {
+                    if name == "Delete Character Instance ?" {
+                        if role == TheDialogButtonRole::Delete {
+                            if let Some(region) =
+                                self.project.get_region_mut(&self.server_ctx.curr_region)
+                            {
+                                let character_id = uuid;
+                                if region.characters.shift_remove(&character_id).is_some() {
+                                    self.server_ctx.curr_region_content = ContentContext::Unknown;
+                                    region.map.selected_entity_item = None;
+                                    redraw = true;
 
-                                    let updater = Arc::clone(&self.self_updater);
-                                    let tx = self.self_update_tx.clone();
+                                    // Remove from the content list
+                                    if let Some(list) = ui.get_list_layout("Region Content List") {
+                                        list.remove(TheId::named_with_id(
+                                            "Region Content List Item",
+                                            character_id,
+                                        ));
+                                        ui.select_first_list_item("Region Content List", ctx);
+                                        ctx.ui.relayout = true;
+                                    }
+                                    insert_content_into_maps(&mut self.project);
+                                    RUSTERIX.write().unwrap().set_dirty();
+                                }
+                            }
+                        }
+                    } else if name == "Delete Item Instance ?" {
+                        if role == TheDialogButtonRole::Delete {
+                            if let Some(region) =
+                                self.project.get_region_mut(&self.server_ctx.curr_region)
+                            {
+                                let item_id = uuid;
+                                if region.items.shift_remove(&item_id).is_some() {
+                                    self.server_ctx.curr_region_content = ContentContext::Unknown;
+                                    redraw = true;
 
-                                    self.self_update_tx
-                                        .send(SelfUpdateEvent::UpdateStart(release.clone()))
-                                        .unwrap();
+                                    // Remove from the content list
+                                    if let Some(list) = ui.get_list_layout("Region Content List") {
+                                        list.remove(TheId::named_with_id(
+                                            "Region Content List Item",
+                                            item_id,
+                                        ));
+                                        ui.select_first_list_item("Region Content List", ctx);
+                                        ctx.ui.relayout = true;
+                                    }
+                                    insert_content_into_maps(&mut self.project);
+                                    RUSTERIX.write().unwrap().set_dirty();
+                                }
+                            }
+                        }
+                    } else if name == "Update Eldiron" && role == TheDialogButtonRole::Accept {
+                        #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+                        {
+                            let updater = self.self_updater.lock().unwrap();
 
-                                    thread::spawn(move || {
-                                        match updater.lock().unwrap().update_latest() {
-                                            Ok(status) => match status {
-                                                self_update::Status::UpToDate(_) => {
-                                                    tx.send(SelfUpdateEvent::AlreadyUpToDate)
-                                                        .unwrap();
-                                                }
-                                                self_update::Status::Updated(_) => {
-                                                    tx.send(SelfUpdateEvent::UpdateCompleted(
-                                                        release,
-                                                    ))
+                            if updater.has_newer_release() {
+                                let release = updater.latest_release().cloned().unwrap();
+
+                                let updater = Arc::clone(&self.self_updater);
+                                let tx = self.self_update_tx.clone();
+
+                                self.self_update_tx
+                                    .send(SelfUpdateEvent::UpdateStart(release.clone()))
+                                    .unwrap();
+
+                                thread::spawn(move || {
+                                    match updater.lock().unwrap().update_latest() {
+                                        Ok(status) => match status {
+                                            self_update::Status::UpToDate(_) => {
+                                                tx.send(SelfUpdateEvent::AlreadyUpToDate).unwrap();
+                                            }
+                                            self_update::Status::Updated(_) => {
+                                                tx.send(SelfUpdateEvent::UpdateCompleted(release))
                                                     .unwrap();
-                                                }
-                                            },
-                                            Err(err) => {
-                                                tx.send(SelfUpdateEvent::UpdateError(
-                                                    err.to_string(),
-                                                ))
+                                            }
+                                        },
+                                        Err(err) => {
+                                            tx.send(SelfUpdateEvent::UpdateError(err.to_string()))
                                                 .unwrap();
-                                            }
                                         }
-                                    });
-                                } else {
-                                    self.self_update_tx
-                                        .send(SelfUpdateEvent::AlreadyUpToDate)
-                                        .unwrap();
-                                }
+                                    }
+                                });
+                            } else {
+                                self.self_update_tx
+                                    .send(SelfUpdateEvent::AlreadyUpToDate)
+                                    .unwrap();
                             }
                         }
                     }
-                    TheEvent::RenderViewDrop(_id, location, drop) => {
-                        if drop.id.name.starts_with("Shader") {
-                            if self.server_ctx.curr_map_tool_helper == MapToolHelper::ShaderEditor
-                                && CODEEDITOR.read().unwrap().active_panel
-                                    == VisibleCodePanel::Shade
-                            {
-                                if matches!(
-                                    CODEEDITOR.read().unwrap().shader_content,
-                                    ContentContext::Sector(_)
-                                ) {
-                                    if let Some(shader) = self.project.shaders.get(&drop.id.uuid) {
-                                        let prev = SHADEGRIDFX.read().unwrap().clone();
-                                        if SHADEGRIDFX
-                                            .write()
-                                            .unwrap()
-                                            .insert_module(shader, location)
-                                        {
-                                            ctx.ui.send(TheEvent::Custom(
-                                                TheId::named("ModuleChanged"),
-                                                TheValue::Empty,
-                                            ));
-                                            ctx.ui.send(TheEvent::CustomUndo(
-                                                TheId::named("ModuleUndo"),
-                                                prev.to_json(),
-                                                SHADEGRIDFX.read().unwrap().to_json(),
-                                            ));
-                                        }
-                                    }
-                                }
-                            }
-
-                            return true;
-                        }
-
-                        let mut grid_pos = Vec2::zero();
-
-                        if let Some(map) = self.project.get_map(&self.server_ctx) {
-                            if let Some(render_view) = ui.get_render_view("PolyView") {
-                                let dim = *render_view.dim();
-                                grid_pos = self.server_ctx.local_to_map_cell(
-                                    Vec2::new(dim.width as f32, dim.height as f32),
-                                    Vec2::new(location.x as f32, location.y as f32),
-                                    map,
-                                    map.subdivisions,
-                                );
-                                grid_pos += 0.5;
-                            }
-                        }
-
-                        if drop.id.name.starts_with("Character") {
-                            let mut instance = Character {
-                                character_id: drop.id.references,
-                                position: Vec3::new(grid_pos.x, 1.5, grid_pos.y),
-                                ..Default::default()
-                            };
-
-                            if let Some(bytes) = crate::Embedded::get("python/instcharacter.py") {
-                                if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
-                                    instance.source = source.to_string();
-                                }
-                            }
-
-                            let mut name = "Character".to_string();
-                            if let Some(character) =
-                                self.project.characters.get(&drop.id.references)
-                            {
-                                name.clone_from(&character.name);
-                            }
-                            instance.name = name.clone();
-
-                            let atom = ProjectUndoAtom::AddRegionCharacterInstance(
-                                self.server_ctx.curr_region,
-                                instance,
-                            );
-                            atom.redo(&mut self.project, ui, ctx, &mut self.server_ctx);
-                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
-                        } else if drop.id.name.starts_with("Item") {
-                            let mut instance = Item {
-                                item_id: drop.id.references,
-                                position: Vec3::new(grid_pos.x, 1.5, grid_pos.y),
-                                ..Default::default()
-                            };
-
-                            if let Some(bytes) = crate::Embedded::get("python/institem.py") {
-                                if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
-                                    instance.source = source.to_string();
-                                }
-                            }
-
-                            let mut name = "Item".to_string();
-                            if let Some(item) = self.project.items.get(&drop.id.references) {
-                                name.clone_from(&item.name);
-                            }
-                            instance.name = name;
-
-                            let atom = ProjectUndoAtom::AddRegionItemInstance(
-                                self.server_ctx.curr_region,
-                                instance,
-                            );
-                            atom.redo(&mut self.project, ui, ctx, &mut self.server_ctx);
-                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
-                        }
-                    }
-                    /*
-                    TheEvent::TileEditorDrop(_id, location, drop) => {
-                        if drop.id.name.starts_with("Character") {
-                            let mut instance = TheCodeBundle::new();
-
-                            let mut init = TheCodeGrid {
-                                name: "init".into(),
-                                ..Default::default()
-                            };
-                            init.insert_atom(
-                                (0, 0),
-                                TheCodeAtom::Set(
-                                    "@self.position".to_string(),
-                                    TheValueAssignment::Assign,
-                                ),
-                            );
-                            init.insert_atom(
-                                (1, 0),
-                                TheCodeAtom::Assignment(TheValueAssignment::Assign),
-                            );
-                            init.insert_atom(
-                                (2, 0),
-                                TheCodeAtom::Value(TheValue::Position(Vec3::new(
-                                    location.x as f32,
-                                    0.0,
-                                    location.y as f32,
-                                ))),
-                            );
-                            instance.insert_grid(init);
-
-                            // Set the character instance bundle, disabled for now
-
-                            // self.sidebar.code_editor.set_bundle(
-                            //     instance.clone(),
-                            //     ctx,
-                            //     self.sidebar.width,
-                            // );
-
-                            let character = Character {
-                                id: instance.id,
-                                character_id: drop.id.uuid,
-                                instance,
-                            };
-
-                            // Add the character instance to the region content list
-
-                            let mut name = "Character".to_string();
-                            if let Some(character) = self.project.characters.get(&drop.id.uuid) {
-                                name.clone_from(&character.name);
-                            }
-
-                            if let Some(list) = ui.get_list_layout("Region Content List") {
-                                let mut item = TheListItem::new(TheId::named_with_id(
-                                    "Region Content List Item",
-                                    character.id,
-                                ));
-                                item.set_text(name);
-                                item.set_state(TheWidgetState::Selected);
-                                item.add_value_column(100, TheValue::Text("Character".to_string()));
-
-                                list.deselect_all();
-                                item.set_context_menu(Some(TheContextMenu {
-                                    items: vec![TheContextMenuItem::new(
-                                        "Delete Character...".to_string(),
-                                        TheId::named("Sidebar Delete Character Instance"),
-                                    )],
-                                    ..Default::default()
-                                }));
-                                list.add_item(item, ctx);
-                                list.select_item(character.id, ctx, true);
-                            }
-
-                            // Add the character instance to the project
-
-                            if let Some(region) =
-                                self.project.get_region_mut(&self.server_ctx.curr_region)
-                            {
-                                region.characters.insert(character.id, character.clone());
-                            }
-
-                            // Add the character instance to the server
-
-                            self.server_ctx.curr_character = Some(character.character_id);
-                            self.server_ctx.curr_character_instance = Some(character.id);
-                            self.server_ctx.curr_area = None;
-                            //self.sidebar.deselect_all("Character List", ui);
-
-                            self.server_ctx.curr_grid_id =
-                                self.server.add_character_instance_to_region(
-                                    self.server_ctx.curr_region,
-                                    character,
-                                    None,
-                                );
-
-                            // Set the character instance debug info, disabled for now
-
-                            // if let Some(curr_grid_id) = self.server_ctx.curr_grid_id {
-                            //     let debug_module = self.server.get_region_debug_module(
-                            //         self.server_ctx.curr_region,
-                            //         curr_grid_id,
-                            //     );
-
-                            //     self.sidebar.code_editor.set_debug_module(debug_module, ui);
-                            // }
-                        } else if drop.id.name.starts_with("Item") {
-                            let mut instance = TheCodeBundle::new();
-
-                            let mut init = TheCodeGrid {
-                                name: "init".into(),
-                                ..Default::default()
-                            };
-                            init.insert_atom(
-                                (0, 0),
-                                TheCodeAtom::Set(
-                                    "@self.position".to_string(),
-                                    TheValueAssignment::Assign,
-                                ),
-                            );
-                            init.insert_atom(
-                                (1, 0),
-                                TheCodeAtom::Assignment(TheValueAssignment::Assign),
-                            );
-                            init.insert_atom(
-                                (2, 0),
-                                TheCodeAtom::Value(TheValue::Position(Vec3::new(
-                                    location.x as f32,
-                                    0.0,
-                                    location.y as f32,
-                                ))),
-                            );
-                            instance.insert_grid(init);
-
-                            // Set the character instance bundle, disabled for now
-
-                            // self.sidebar.code_editor.set_bundle(
-                            //     instance.clone(),
-                            //     ctx,
-                            //     self.sidebar.width,
-                            // );
-
-                            let item = Item {
-                                id: instance.id,
-                                item_id: drop.id.uuid,
-                                instance,
-                            };
-
-                            // Add the item instance to the region content list
-
-                            let mut name = "Item".to_string();
-                            if let Some(item) = self.project.items.get(&drop.id.uuid) {
-                                name.clone_from(&item.name);
-                            }
-
-                            if let Some(list) = ui.get_list_layout("Region Content List") {
-                                let mut list_item = TheListItem::new(TheId::named_with_id(
-                                    "Region Content List Item",
-                                    item.id,
-                                ));
-                                list_item.set_text(name);
-                                list_item.set_state(TheWidgetState::Selected);
-                                list_item.add_value_column(100, TheValue::Text("Item".to_string()));
-
-                                list.deselect_all();
-                                list.add_item(list_item, ctx);
-                                list.select_item(item.id, ctx, true);
-                            }
-
-                            // Add the item instance to the project
-
-                            if let Some(region) =
-                                self.project.get_region_mut(&self.server_ctx.curr_region)
-                            {
-                                region.items.insert(item.id, item.clone());
-                            }
-
-                            // Add the character instance to the server
-
-                            self.server_ctx.curr_character = None;
-                            self.server_ctx.curr_character_instance = None;
-                            self.server_ctx.curr_item = Some(item.item_id);
-                            self.server_ctx.curr_item_instance = Some(item.id);
-                            self.server_ctx.curr_area = None;
-
-                            self.server_ctx.curr_grid_id = self
-                                .server
-                                .add_item_instance_to_region(self.server_ctx.curr_region, item);
-
-                            // Set the character instance debug info, disabled for now
-
-                            // if let Some(curr_grid_id) = self.server_ctx.curr_grid_id {
-                            //     let debug_module = self.server.get_region_debug_module(
-                            //         self.server_ctx.curr_region,
-                            //         curr_grid_id,
-                            //     );
-
-                            //     self.sidebar.code_editor.set_debug_module(debug_module, ui);
-                            // }
-                        }
-                    }*/
-                    TheEvent::FileRequesterResult(id, paths) => {
-                        // Load a palette from a file
-                        if id.name == "Palette Import" {
-                            for p in paths {
-                                let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
-                                let prev = self.project.palette.clone();
-                                self.project.palette.load_from_txt(contents);
-                                *PALETTE.write().unwrap() = self.project.palette.clone();
-
-                                if let Some(palette_picker) =
-                                    ui.get_palette_picker("Palette Picker")
-                                {
-                                    let index = palette_picker.index();
-
-                                    palette_picker.set_palette(self.project.palette.clone());
-                                    if let Some(widget) = ui.get_widget("Palette Color Picker") {
-                                        if let Some(color) = &self.project.palette[index] {
-                                            widget.set_value(TheValue::ColorObject(color.clone()));
-                                        }
-                                    }
-                                    if let Some(widget) = ui.get_widget("Palette Hex Edit") {
-                                        if let Some(color) = &self.project.palette[index] {
-                                            widget.set_value(TheValue::Text(color.to_hex()));
-                                        }
-                                    }
-                                }
-                                redraw = true;
-
-                                let undo =
-                                    PaletteUndoAtom::Edit(prev, self.project.palette.clone());
-                                UNDOMANAGER.write().unwrap().add_palette_undo(undo, ctx);
-                            }
-                        } else
-                        // Open
-                        if id.name == "Open" {
-                            for p in paths {
-                                self.project_path = Some(p.clone());
-                                self.update_counter = 0;
-                                self.sidebar.startup = true;
-
-                                // ctx.ui.set_disabled("Save");
-                                // ctx.ui.set_disabled("Save As");
-                                ctx.ui.set_disabled("Undo");
-                                ctx.ui.set_disabled("Redo");
-                                *UNDOMANAGER.write().unwrap() = UndoManager::default();
-
-                                // let contents =
-                                //     std::fs::read_to_string(p.clone()).unwrap_or("".to_string());
-                                // // if let Ok(contents) = std::fs::read(p) {
-                                // let pr: Result<Project, serde_json::Error> =
-                                //     serde_json::from_str(&contents);
-                                // println!("{:?}", pr.err());
-                                if let Ok(contents) = std::fs::read_to_string(p) {
-                                    if let Ok(project) = serde_json::from_str(&contents) {
-                                        self.project = project;
-                                        self.project.palette.current_index = 0;
-
-                                        insert_content_into_maps(&mut self.project);
-
-                                        // Rename and remove legacy attributes
-                                        for r in &mut self.project.regions {
-                                            for s in &mut r.map.sectors {
-                                                if let Some(floor) =
-                                                    s.properties.get("floor_source")
-                                                {
-                                                    s.properties.set("source", floor.clone());
-                                                }
-
-                                                if s.properties.contains("rect_rendering") {
-                                                    s.properties.set("rect", Value::Bool(true));
-                                                }
-
-                                                s.properties.remove("floor_source");
-                                                s.properties.remove("rect_rendering");
-                                                s.properties.remove("ceiling_source");
-                                            }
-                                        }
-
-                                        // Map names of characters to instances
-                                        let mut hash = FxHashMap::default();
-                                        for c in &self.project.characters {
-                                            hash.insert(c.0, c.1.name.clone());
-                                        }
-                                        for r in &mut self.project.regions {
-                                            for c in &mut r.characters {
-                                                if let Some(n) = hash.get(&c.1.character_id) {
-                                                    c.1.name = n.clone();
-                                                }
-                                            }
-                                        }
-
-                                        // Map names of items to instances
-                                        let mut hash = FxHashMap::default();
-                                        for c in &self.project.items {
-                                            hash.insert(c.0, c.1.name.clone());
-                                        }
-
-                                        // Apply names and sanitize map and its profiles
-                                        for r in &mut self.project.regions {
-                                            for c in &mut r.items {
-                                                if let Some(n) = hash.get(&c.1.item_id) {
-                                                    c.1.name = n.clone();
-                                                }
-                                            }
-                                            for (_, p) in &mut r.map.profiles {
-                                                p.sanitize();
-                                            }
-                                            r.map.sanitize();
-                                        }
-
-                                        // Sanitize screens
-                                        for (_, screen) in &mut self.project.screens {
-                                            screen.map.sanitize();
-                                        }
-
-                                        // Convert old tile refs to new tiles
-                                        if self.project.tiles.is_empty() {
-                                            let tiles = self.project.extract_tiles();
-
-                                            for (id, t) in tiles.iter() {
-                                                let mut texture_array: Vec<Texture> = vec![];
-                                                for b in &t.buffer {
-                                                    let mut texture = Texture::new(
-                                                        b.pixels().to_vec(),
-                                                        b.dim().width as usize,
-                                                        b.dim().height as usize,
-                                                    );
-                                                    texture.generate_normals(true);
-                                                    texture_array.push(texture);
-                                                }
-                                                let tile = rusterix::Tile {
-                                                    id: t.id,
-                                                    role: rusterix::TileRole::from_index(t.role),
-                                                    textures: texture_array.clone(),
-                                                    module: None,
-                                                    blocking: t.blocking,
-                                                    scale: t.scale,
-                                                    tags: t.name.clone(),
-                                                };
-                                                self.project.tiles.insert(*id, tile);
-                                            }
-                                        }
-
-                                        // Generate all tile normals
-                                        for (_, tile) in self.project.tiles.iter_mut() {
-                                            for texture in &mut tile.textures {
-                                                texture.generate_normals(true);
-                                            }
-                                        }
-
-                                        // Recompile character visual codes if scripts have Python code
-                                        for (_, character) in self.project.characters.iter_mut() {
-                                            if character.source.starts_with("class") {
-                                                character.source = character.module.build(false);
-                                                character.source_debug =
-                                                    character.module.build(true);
-                                            }
-                                        }
-
-                                        // Recompile entity visual codes if scripts have Python code
-                                        for (_, item) in self.project.items.iter_mut() {
-                                            if item.source.starts_with("class") {
-                                                item.source = item.module.build(false);
-                                                item.source_debug = item.module.build(true);
-                                            }
-                                        }
-
-                                        // Set the project time to the server time slider widget
-                                        if let Some(widget) = ui.get_widget("Server Time Slider") {
-                                            widget.set_value(TheValue::Time(self.project.time));
-                                        }
-
-                                        // Set the server time to the client (and if running to the server)
-                                        {
-                                            let mut rusterix = RUSTERIX.write().unwrap();
-                                            rusterix.client.set_server_time(self.project.time);
-                                            rusterix.client.global =
-                                                self.project.render_graph.clone();
-                                            if rusterix.server.state
-                                                == rusterix::ServerState::Running
-                                            {
-                                                if let Some(map) =
-                                                    self.project.get_map(&self.server_ctx)
-                                                {
-                                                    rusterix
-                                                        .server
-                                                        .set_time(&map.id, self.project.time);
-                                                }
-                                            }
-                                        }
-
-                                        self.server_ctx.clear();
-                                        if let Some(first) = self.project.regions.first() {
-                                            self.server_ctx.curr_region = first.id;
-                                        }
-
-                                        self.sidebar.load_from_project(
-                                            ui,
-                                            ctx,
-                                            &mut self.server_ctx,
-                                            &mut self.project,
-                                        );
-                                        self.mapeditor.load_from_project(ui, ctx, &self.project);
-                                        update_server_icons = true;
-                                        redraw = true;
-
-                                        // Set palette and textures
-                                        *PALETTE.write().unwrap() = self.project.palette.clone();
-
-                                        SCENEMANAGER
-                                            .write()
-                                            .unwrap()
-                                            .set_palette(self.project.palette.clone());
-
-                                        ctx.ui.send(TheEvent::SetStatusText(
-                                            TheId::empty(),
-                                            "Project loaded successfully.".to_string(),
+                }
+                TheEvent::RenderViewDrop(_id, location, drop) => {
+                    if drop.id.name.starts_with("Shader") {
+                        if self.server_ctx.curr_map_tool_helper == MapToolHelper::ShaderEditor
+                            && CODEEDITOR.read().unwrap().active_panel == VisibleCodePanel::Shade
+                        {
+                            if matches!(
+                                CODEEDITOR.read().unwrap().shader_content,
+                                ContentContext::Sector(_)
+                            ) {
+                                if let Some(shader) = self.project.shaders.get(&drop.id.uuid) {
+                                    let prev = SHADEGRIDFX.read().unwrap().clone();
+                                    if SHADEGRIDFX.write().unwrap().insert_module(shader, location)
+                                    {
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("ModuleChanged"),
+                                            TheValue::Empty,
+                                        ));
+                                        ctx.ui.send(TheEvent::CustomUndo(
+                                            TheId::named("ModuleUndo"),
+                                            prev.to_json(),
+                                            SHADEGRIDFX.read().unwrap().to_json(),
                                         ));
                                     }
                                 }
                             }
-                        } else if id.name == "Save As" {
-                            for p in paths {
-                                let json = serde_json::to_string(&self.project);
-                                if let Ok(json) = json {
-                                    if std::fs::write(p.clone(), json).is_ok() {
-                                        self.project_path = Some(p);
-                                        ctx.ui.send(TheEvent::SetStatusText(
-                                            TheId::empty(),
-                                            "Project saved successfully.".to_string(),
-                                        ))
-                                    } else {
-                                        ctx.ui.send(TheEvent::SetStatusText(
-                                            TheId::empty(),
-                                            "Unable to save project!".to_string(),
-                                        ))
-                                    }
-                                }
-                            }
+                        }
+
+                        return true;
+                    }
+
+                    let mut grid_pos = Vec2::zero();
+
+                    if let Some(map) = self.project.get_map(&self.server_ctx) {
+                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                            let dim = *render_view.dim();
+                            grid_pos = self.server_ctx.local_to_map_cell(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                Vec2::new(location.x as f32, location.y as f32),
+                                map,
+                                map.subdivisions,
+                            );
+                            grid_pos += 0.5;
                         }
                     }
-                    TheEvent::StateChanged(id, state) => {
-                        if id.name == "Help" {
-                            self.server_ctx.help_mode = state == TheWidgetState::Clicked;
-                        }
-                        if id.name == "GameInput" {
-                            self.server_ctx.game_input_mode = state == TheWidgetState::Clicked;
-                        } else if id.name == "New" {
-                            self.project_path = None;
-                            self.update_counter = 0;
-                            self.sidebar.startup = true;
-                            self.project = Project::default();
 
-                            if let Some(bytes) = crate::Embedded::get("starter_project.eldiron") {
-                                if let Ok(project_string) = std::str::from_utf8(bytes.data.as_ref())
-                                {
-                                    if let Ok(project) =
-                                        serde_json::from_str(&project_string.to_string())
-                                    {
-                                        self.project = project;
+                    if drop.id.name.starts_with("Character") {
+                        let mut instance = Character {
+                            character_id: drop.id.references,
+                            position: Vec3::new(grid_pos.x, 1.5, grid_pos.y),
+                            ..Default::default()
+                        };
+
+                        if let Some(bytes) = crate::Embedded::get("python/instcharacter.py") {
+                            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                                instance.source = source.to_string();
+                            }
+                        }
+
+                        let mut name = "Character".to_string();
+                        if let Some(character) = self.project.characters.get(&drop.id.references) {
+                            name.clone_from(&character.name);
+                        }
+                        instance.name = name.clone();
+
+                        let atom = ProjectUndoAtom::AddRegionCharacterInstance(
+                            self.server_ctx.curr_region,
+                            instance,
+                        );
+                        atom.redo(&mut self.project, ui, ctx, &mut self.server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    } else if drop.id.name.starts_with("Item") {
+                        let mut instance = Item {
+                            item_id: drop.id.references,
+                            position: Vec3::new(grid_pos.x, 1.5, grid_pos.y),
+                            ..Default::default()
+                        };
+
+                        if let Some(bytes) = crate::Embedded::get("python/institem.py") {
+                            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                                instance.source = source.to_string();
+                            }
+                        }
+
+                        let mut name = "Item".to_string();
+                        if let Some(item) = self.project.items.get(&drop.id.references) {
+                            name.clone_from(&item.name);
+                        }
+                        instance.name = name;
+
+                        let atom = ProjectUndoAtom::AddRegionItemInstance(
+                            self.server_ctx.curr_region,
+                            instance,
+                        );
+                        atom.redo(&mut self.project, ui, ctx, &mut self.server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    }
+                }
+                /*
+                TheEvent::TileEditorDrop(_id, location, drop) => {
+                    if drop.id.name.starts_with("Character") {
+                        let mut instance = TheCodeBundle::new();
+
+                        let mut init = TheCodeGrid {
+                            name: "init".into(),
+                            ..Default::default()
+                        };
+                        init.insert_atom(
+                            (0, 0),
+                            TheCodeAtom::Set(
+                                "@self.position".to_string(),
+                                TheValueAssignment::Assign,
+                            ),
+                        );
+                        init.insert_atom(
+                            (1, 0),
+                            TheCodeAtom::Assignment(TheValueAssignment::Assign),
+                        );
+                        init.insert_atom(
+                            (2, 0),
+                            TheCodeAtom::Value(TheValue::Position(Vec3::new(
+                                location.x as f32,
+                                0.0,
+                                location.y as f32,
+                            ))),
+                        );
+                        instance.insert_grid(init);
+
+                        // Set the character instance bundle, disabled for now
+
+                        // self.sidebar.code_editor.set_bundle(
+                        //     instance.clone(),
+                        //     ctx,
+                        //     self.sidebar.width,
+                        // );
+
+                        let character = Character {
+                            id: instance.id,
+                            character_id: drop.id.uuid,
+                            instance,
+                        };
+
+                        // Add the character instance to the region content list
+
+                        let mut name = "Character".to_string();
+                        if let Some(character) = self.project.characters.get(&drop.id.uuid) {
+                            name.clone_from(&character.name);
+                        }
+
+                        if let Some(list) = ui.get_list_layout("Region Content List") {
+                            let mut item = TheListItem::new(TheId::named_with_id(
+                                "Region Content List Item",
+                                character.id,
+                            ));
+                            item.set_text(name);
+                            item.set_state(TheWidgetState::Selected);
+                            item.add_value_column(100, TheValue::Text("Character".to_string()));
+
+                            list.deselect_all();
+                            item.set_context_menu(Some(TheContextMenu {
+                                items: vec![TheContextMenuItem::new(
+                                    "Delete Character...".to_string(),
+                                    TheId::named("Sidebar Delete Character Instance"),
+                                )],
+                                ..Default::default()
+                            }));
+                            list.add_item(item, ctx);
+                            list.select_item(character.id, ctx, true);
+                        }
+
+                        // Add the character instance to the project
+
+                        if let Some(region) =
+                            self.project.get_region_mut(&self.server_ctx.curr_region)
+                        {
+                            region.characters.insert(character.id, character.clone());
+                        }
+
+                        // Add the character instance to the server
+
+                        self.server_ctx.curr_character = Some(character.character_id);
+                        self.server_ctx.curr_character_instance = Some(character.id);
+                        self.server_ctx.curr_area = None;
+                        //self.sidebar.deselect_all("Character List", ui);
+
+                        self.server_ctx.curr_grid_id =
+                            self.server.add_character_instance_to_region(
+                                self.server_ctx.curr_region,
+                                character,
+                                None,
+                            );
+
+                        // Set the character instance debug info, disabled for now
+
+                        // if let Some(curr_grid_id) = self.server_ctx.curr_grid_id {
+                        //     let debug_module = self.server.get_region_debug_module(
+                        //         self.server_ctx.curr_region,
+                        //         curr_grid_id,
+                        //     );
+
+                        //     self.sidebar.code_editor.set_debug_module(debug_module, ui);
+                        // }
+                    } else if drop.id.name.starts_with("Item") {
+                        let mut instance = TheCodeBundle::new();
+
+                        let mut init = TheCodeGrid {
+                            name: "init".into(),
+                            ..Default::default()
+                        };
+                        init.insert_atom(
+                            (0, 0),
+                            TheCodeAtom::Set(
+                                "@self.position".to_string(),
+                                TheValueAssignment::Assign,
+                            ),
+                        );
+                        init.insert_atom(
+                            (1, 0),
+                            TheCodeAtom::Assignment(TheValueAssignment::Assign),
+                        );
+                        init.insert_atom(
+                            (2, 0),
+                            TheCodeAtom::Value(TheValue::Position(Vec3::new(
+                                location.x as f32,
+                                0.0,
+                                location.y as f32,
+                            ))),
+                        );
+                        instance.insert_grid(init);
+
+                        // Set the character instance bundle, disabled for now
+
+                        // self.sidebar.code_editor.set_bundle(
+                        //     instance.clone(),
+                        //     ctx,
+                        //     self.sidebar.width,
+                        // );
+
+                        let item = Item {
+                            id: instance.id,
+                            item_id: drop.id.uuid,
+                            instance,
+                        };
+
+                        // Add the item instance to the region content list
+
+                        let mut name = "Item".to_string();
+                        if let Some(item) = self.project.items.get(&drop.id.uuid) {
+                            name.clone_from(&item.name);
+                        }
+
+                        if let Some(list) = ui.get_list_layout("Region Content List") {
+                            let mut list_item = TheListItem::new(TheId::named_with_id(
+                                "Region Content List Item",
+                                item.id,
+                            ));
+                            list_item.set_text(name);
+                            list_item.set_state(TheWidgetState::Selected);
+                            list_item.add_value_column(100, TheValue::Text("Item".to_string()));
+
+                            list.deselect_all();
+                            list.add_item(list_item, ctx);
+                            list.select_item(item.id, ctx, true);
+                        }
+
+                        // Add the item instance to the project
+
+                        if let Some(region) =
+                            self.project.get_region_mut(&self.server_ctx.curr_region)
+                        {
+                            region.items.insert(item.id, item.clone());
+                        }
+
+                        // Add the character instance to the server
+
+                        self.server_ctx.curr_character = None;
+                        self.server_ctx.curr_character_instance = None;
+                        self.server_ctx.curr_item = Some(item.item_id);
+                        self.server_ctx.curr_item_instance = Some(item.id);
+                        self.server_ctx.curr_area = None;
+
+                        self.server_ctx.curr_grid_id = self
+                            .server
+                            .add_item_instance_to_region(self.server_ctx.curr_region, item);
+
+                        // Set the character instance debug info, disabled for now
+
+                        // if let Some(curr_grid_id) = self.server_ctx.curr_grid_id {
+                        //     let debug_module = self.server.get_region_debug_module(
+                        //         self.server_ctx.curr_region,
+                        //         curr_grid_id,
+                        //     );
+
+                        //     self.sidebar.code_editor.set_debug_module(debug_module, ui);
+                        // }
+                    }
+                }*/
+                TheEvent::FileRequesterResult(id, paths) => {
+                    // Load a palette from a file
+                    if id.name == "Palette Import" {
+                        for p in paths {
+                            let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
+                            let prev = self.project.palette.clone();
+                            self.project.palette.load_from_txt(contents);
+                            *PALETTE.write().unwrap() = self.project.palette.clone();
+
+                            if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
+                                let index = palette_picker.index();
+
+                                palette_picker.set_palette(self.project.palette.clone());
+                                if let Some(widget) = ui.get_widget("Palette Color Picker") {
+                                    if let Some(color) = &self.project.palette[index] {
+                                        widget.set_value(TheValue::ColorObject(color.clone()));
+                                    }
+                                }
+                                if let Some(widget) = ui.get_widget("Palette Hex Edit") {
+                                    if let Some(color) = &self.project.palette[index] {
+                                        widget.set_value(TheValue::Text(color.to_hex()));
                                     }
                                 }
                             }
+                            redraw = true;
+
+                            let undo = PaletteUndoAtom::Edit(prev, self.project.palette.clone());
+                            UNDOMANAGER.write().unwrap().add_palette_undo(undo, ctx);
+                        }
+                    } else
+                    // Open
+                    if id.name == "Open" {
+                        for p in paths {
+                            self.project_path = Some(p.clone());
+                            self.update_counter = 0;
+                            self.sidebar.startup = true;
 
                             // ctx.ui.set_disabled("Save");
                             // ctx.ui.set_disabled("Save As");
@@ -1911,332 +1689,537 @@ impl TheTrait for Editor {
                             ctx.ui.set_disabled("Redo");
                             *UNDOMANAGER.write().unwrap() = UndoManager::default();
 
-                            insert_content_into_maps(&mut self.project);
+                            // let contents =
+                            //     std::fs::read_to_string(p.clone()).unwrap_or("".to_string());
+                            // // if let Ok(contents) = std::fs::read(p) {
+                            // let pr: Result<Project, serde_json::Error> =
+                            //     serde_json::from_str(&contents);
+                            // println!("{:?}", pr.err());
+                            if let Ok(contents) = std::fs::read_to_string(p) {
+                                if let Ok(project) = serde_json::from_str(&contents) {
+                                    self.project = project;
+                                    self.project.palette.current_index = 0;
 
-                            // Set the project time to the server time slider widget
-                            if let Some(widget) = ui.get_widget("Server Time Slider") {
-                                widget.set_value(TheValue::Time(self.project.time));
-                            }
+                                    insert_content_into_maps(&mut self.project);
 
-                            // Set the server time to the client (and if running to the server)
-                            {
-                                let mut rusterix = RUSTERIX.write().unwrap();
-                                rusterix.client.set_server_time(self.project.time);
-                                if rusterix.server.state == rusterix::ServerState::Running {
-                                    if let Some(map) = self.project.get_map(&self.server_ctx) {
-                                        rusterix.server.set_time(&map.id, self.project.time);
-                                    }
-                                }
-                            }
-
-                            self.server_ctx.clear();
-                            self.sidebar.load_from_project(
-                                ui,
-                                ctx,
-                                &mut self.server_ctx,
-                                &mut self.project,
-                            );
-                            self.mapeditor.load_from_project(ui, ctx, &self.project);
-                            update_server_icons = true;
-                            redraw = true;
-
-                            // Set palette and textures
-                            *PALETTE.write().unwrap() = self.project.palette.clone();
-
-                            ctx.ui.send(TheEvent::SetStatusText(
-                                TheId::empty(),
-                                "New project successfully initialized.".to_string(),
-                            ));
-                        } else if id.name == "Logo" {
-                            _ = open::that("https://eldiron.com");
-                            ctx.ui
-                                .set_widget_state("Logo".to_string(), TheWidgetState::None);
-                            ctx.ui.clear_hover();
-                            redraw = true;
-                        } else if id.name == "Patreon" {
-                            _ = open::that("https://www.patreon.com/eldiron");
-                            ctx.ui
-                                .set_widget_state("Patreon".to_string(), TheWidgetState::None);
-                            ctx.ui.clear_hover();
-                            redraw = true;
-                        } else if id.name == "Update" {
-                            #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
-                            {
-                                let updater = self.self_updater.lock().unwrap();
-
-                                if updater.has_newer_release() {
-                                    self.self_update_tx
-                                        .send(SelfUpdateEvent::UpdateConfirm(
-                                            updater.latest_release().cloned().unwrap(),
-                                        ))
-                                        .unwrap();
-                                } else {
-                                    if let Some(statusbar) = ui.get_widget("Statusbar") {
-                                        statusbar
-                                            .as_statusbar()
-                                            .unwrap()
-                                            .set_text(fl!("info_update_check"));
-                                    }
-
-                                    let updater = Arc::clone(&self.self_updater);
-                                    let tx = self.self_update_tx.clone();
-
-                                    thread::spawn(move || {
-                                        let mut updater = updater.lock().unwrap();
-
-                                        match updater.fetch_release_list() {
-                                            Ok(_) => {
-                                                if updater.has_newer_release() {
-                                                    tx.send(SelfUpdateEvent::UpdateConfirm(
-                                                        updater.latest_release().cloned().unwrap(),
-                                                    ))
-                                                    .unwrap();
-                                                } else {
-                                                    tx.send(SelfUpdateEvent::AlreadyUpToDate)
-                                                        .unwrap();
-                                                }
+                                    // Rename and remove legacy attributes
+                                    for r in &mut self.project.regions {
+                                        for s in &mut r.map.sectors {
+                                            if let Some(floor) = s.properties.get("floor_source") {
+                                                s.properties.set("source", floor.clone());
                                             }
-                                            Err(err) => {
-                                                tx.send(SelfUpdateEvent::UpdateError(
-                                                    err.to_string(),
-                                                ))
-                                                .unwrap();
+
+                                            if s.properties.contains("rect_rendering") {
+                                                s.properties.set("rect", Value::Bool(true));
+                                            }
+
+                                            s.properties.remove("floor_source");
+                                            s.properties.remove("rect_rendering");
+                                            s.properties.remove("ceiling_source");
+                                        }
+                                    }
+
+                                    // Map names of characters to instances
+                                    let mut hash = FxHashMap::default();
+                                    for c in &self.project.characters {
+                                        hash.insert(c.0, c.1.name.clone());
+                                    }
+                                    for r in &mut self.project.regions {
+                                        for c in &mut r.characters {
+                                            if let Some(n) = hash.get(&c.1.character_id) {
+                                                c.1.name = n.clone();
                                             }
                                         }
-                                    });
-                                }
-
-                                ctx.ui
-                                    .set_widget_state("Update".to_string(), TheWidgetState::None);
-                                ctx.ui.clear_hover();
-                                redraw = true;
-                            }
-                        } else if id.name == "Open" {
-                            ctx.ui.open_file_requester(
-                                TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
-                                "Open".into(),
-                                TheFileExtension::new(
-                                    "Eldiron".into(),
-                                    vec!["eldiron".to_string()],
-                                ),
-                            );
-                            ctx.ui
-                                .set_widget_state("Open".to_string(), TheWidgetState::None);
-                            ctx.ui.clear_hover();
-                            redraw = true;
-                        } else if id.name == "Save" {
-                            if let Some(path) = &self.project_path {
-                                let mut success = false;
-                                // if let Ok(output) = postcard::to_allocvec(&self.project) {
-                                if let Ok(output) = serde_json::to_string(&self.project) {
-                                    if std::fs::write(path, output).is_ok() {
-                                        ctx.ui.send(TheEvent::SetStatusText(
-                                            TheId::empty(),
-                                            "Project saved successfully.".to_string(),
-                                        ));
-                                        success = true;
                                     }
-                                }
 
-                                if !success {
+                                    // Map names of items to instances
+                                    let mut hash = FxHashMap::default();
+                                    for c in &self.project.items {
+                                        hash.insert(c.0, c.1.name.clone());
+                                    }
+
+                                    // Apply names and sanitize map and its profiles
+                                    for r in &mut self.project.regions {
+                                        for c in &mut r.items {
+                                            if let Some(n) = hash.get(&c.1.item_id) {
+                                                c.1.name = n.clone();
+                                            }
+                                        }
+                                        for (_, p) in &mut r.map.profiles {
+                                            p.sanitize();
+                                        }
+                                        r.map.sanitize();
+                                    }
+
+                                    // Sanitize screens
+                                    for (_, screen) in &mut self.project.screens {
+                                        screen.map.sanitize();
+                                    }
+
+                                    // Convert old tile refs to new tiles
+                                    if self.project.tiles.is_empty() {
+                                        let tiles = self.project.extract_tiles();
+
+                                        for (id, t) in tiles.iter() {
+                                            let mut texture_array: Vec<Texture> = vec![];
+                                            for b in &t.buffer {
+                                                let mut texture = Texture::new(
+                                                    b.pixels().to_vec(),
+                                                    b.dim().width as usize,
+                                                    b.dim().height as usize,
+                                                );
+                                                texture.generate_normals(true);
+                                                texture_array.push(texture);
+                                            }
+                                            let tile = rusterix::Tile {
+                                                id: t.id,
+                                                role: rusterix::TileRole::from_index(t.role),
+                                                textures: texture_array.clone(),
+                                                module: None,
+                                                blocking: t.blocking,
+                                                scale: t.scale,
+                                                tags: t.name.clone(),
+                                            };
+                                            self.project.tiles.insert(*id, tile);
+                                        }
+                                    }
+
+                                    // Generate all tile normals
+                                    for (_, tile) in self.project.tiles.iter_mut() {
+                                        for texture in &mut tile.textures {
+                                            texture.generate_normals(true);
+                                        }
+                                    }
+
+                                    // Recompile character visual codes if scripts have Python code
+                                    for (_, character) in self.project.characters.iter_mut() {
+                                        if character.source.starts_with("class") {
+                                            character.source = character.module.build(false);
+                                            character.source_debug = character.module.build(true);
+                                        }
+                                    }
+
+                                    // Recompile entity visual codes if scripts have Python code
+                                    for (_, item) in self.project.items.iter_mut() {
+                                        if item.source.starts_with("class") {
+                                            item.source = item.module.build(false);
+                                            item.source_debug = item.module.build(true);
+                                        }
+                                    }
+
+                                    // Set the project time to the server time slider widget
+                                    if let Some(widget) = ui.get_widget("Server Time Slider") {
+                                        widget.set_value(TheValue::Time(self.project.time));
+                                    }
+
+                                    // Set the server time to the client (and if running to the server)
+                                    {
+                                        let mut rusterix = RUSTERIX.write().unwrap();
+                                        rusterix.client.set_server_time(self.project.time);
+                                        rusterix.client.global = self.project.render_graph.clone();
+                                        if rusterix.server.state == rusterix::ServerState::Running {
+                                            if let Some(map) =
+                                                self.project.get_map(&self.server_ctx)
+                                            {
+                                                rusterix
+                                                    .server
+                                                    .set_time(&map.id, self.project.time);
+                                            }
+                                        }
+                                    }
+
+                                    self.server_ctx.clear();
+                                    if let Some(first) = self.project.regions.first() {
+                                        self.server_ctx.curr_region = first.id;
+                                    }
+
+                                    self.sidebar.load_from_project(
+                                        ui,
+                                        ctx,
+                                        &mut self.server_ctx,
+                                        &mut self.project,
+                                    );
+                                    self.mapeditor.load_from_project(ui, ctx, &self.project);
+                                    update_server_icons = true;
+                                    redraw = true;
+
+                                    // Set palette and textures
+                                    *PALETTE.write().unwrap() = self.project.palette.clone();
+
+                                    SCENEMANAGER
+                                        .write()
+                                        .unwrap()
+                                        .set_palette(self.project.palette.clone());
+
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Project loaded successfully.".to_string(),
+                                    ));
+                                }
+                            }
+                        }
+                    } else if id.name == "Save As" {
+                        for p in paths {
+                            let json = serde_json::to_string(&self.project);
+                            if let Ok(json) = json {
+                                if std::fs::write(p.clone(), json).is_ok() {
+                                    self.project_path = Some(p);
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Project saved successfully.".to_string(),
+                                    ))
+                                } else {
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
                                         "Unable to save project!".to_string(),
                                     ))
                                 }
-                            } else {
-                                ctx.ui.send(TheEvent::StateChanged(
-                                    TheId::named("Save As"),
-                                    TheWidgetState::Clicked,
-                                ));
-                                ctx.ui
-                                    .set_widget_state("Save".to_string(), TheWidgetState::None);
                             }
-                        } else if id.name == "Save As" {
-                            ctx.ui.save_file_requester(
-                                TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
-                                "Save".into(),
-                                TheFileExtension::new(
-                                    "Eldiron".into(),
-                                    vec!["eldiron".to_string()],
-                                ),
-                            );
+                        }
+                    }
+                }
+                TheEvent::StateChanged(id, state) => {
+                    if id.name == "Help" {
+                        self.server_ctx.help_mode = state == TheWidgetState::Clicked;
+                    }
+                    if id.name == "GameInput" {
+                        self.server_ctx.game_input_mode = state == TheWidgetState::Clicked;
+                    } else if id.name == "New" {
+                        self.project_path = None;
+                        self.update_counter = 0;
+                        self.sidebar.startup = true;
+                        self.project = Project::default();
+
+                        if let Some(bytes) = crate::Embedded::get("starter_project.eldiron") {
+                            if let Ok(project_string) = std::str::from_utf8(bytes.data.as_ref()) {
+                                if let Ok(project) =
+                                    serde_json::from_str(&project_string.to_string())
+                                {
+                                    self.project = project;
+                                }
+                            }
+                        }
+
+                        // ctx.ui.set_disabled("Save");
+                        // ctx.ui.set_disabled("Save As");
+                        ctx.ui.set_disabled("Undo");
+                        ctx.ui.set_disabled("Redo");
+                        *UNDOMANAGER.write().unwrap() = UndoManager::default();
+
+                        insert_content_into_maps(&mut self.project);
+
+                        // Set the project time to the server time slider widget
+                        if let Some(widget) = ui.get_widget("Server Time Slider") {
+                            widget.set_value(TheValue::Time(self.project.time));
+                        }
+
+                        // Set the server time to the client (and if running to the server)
+                        {
+                            let mut rusterix = RUSTERIX.write().unwrap();
+                            rusterix.client.set_server_time(self.project.time);
+                            if rusterix.server.state == rusterix::ServerState::Running {
+                                if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                    rusterix.server.set_time(&map.id, self.project.time);
+                                }
+                            }
+                        }
+
+                        self.server_ctx.clear();
+                        self.sidebar.load_from_project(
+                            ui,
+                            ctx,
+                            &mut self.server_ctx,
+                            &mut self.project,
+                        );
+                        self.mapeditor.load_from_project(ui, ctx, &self.project);
+                        update_server_icons = true;
+                        redraw = true;
+
+                        // Set palette and textures
+                        *PALETTE.write().unwrap() = self.project.palette.clone();
+
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            "New project successfully initialized.".to_string(),
+                        ));
+                    } else if id.name == "Logo" {
+                        _ = open::that("https://eldiron.com");
+                        ctx.ui
+                            .set_widget_state("Logo".to_string(), TheWidgetState::None);
+                        ctx.ui.clear_hover();
+                        redraw = true;
+                    } else if id.name == "Patreon" {
+                        _ = open::that("https://www.patreon.com/eldiron");
+                        ctx.ui
+                            .set_widget_state("Patreon".to_string(), TheWidgetState::None);
+                        ctx.ui.clear_hover();
+                        redraw = true;
+                    } else if id.name == "Update" {
+                        #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+                        {
+                            let updater = self.self_updater.lock().unwrap();
+
+                            if updater.has_newer_release() {
+                                self.self_update_tx
+                                    .send(SelfUpdateEvent::UpdateConfirm(
+                                        updater.latest_release().cloned().unwrap(),
+                                    ))
+                                    .unwrap();
+                            } else {
+                                if let Some(statusbar) = ui.get_widget("Statusbar") {
+                                    statusbar
+                                        .as_statusbar()
+                                        .unwrap()
+                                        .set_text(fl!("info_update_check"));
+                                }
+
+                                let updater = Arc::clone(&self.self_updater);
+                                let tx = self.self_update_tx.clone();
+
+                                thread::spawn(move || {
+                                    let mut updater = updater.lock().unwrap();
+
+                                    match updater.fetch_release_list() {
+                                        Ok(_) => {
+                                            if updater.has_newer_release() {
+                                                tx.send(SelfUpdateEvent::UpdateConfirm(
+                                                    updater.latest_release().cloned().unwrap(),
+                                                ))
+                                                .unwrap();
+                                            } else {
+                                                tx.send(SelfUpdateEvent::AlreadyUpToDate).unwrap();
+                                            }
+                                        }
+                                        Err(err) => {
+                                            tx.send(SelfUpdateEvent::UpdateError(err.to_string()))
+                                                .unwrap();
+                                        }
+                                    }
+                                });
+                            }
+
                             ctx.ui
-                                .set_widget_state("Save As".to_string(), TheWidgetState::None);
+                                .set_widget_state("Update".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
                         }
-                        // Server
-                        else if id.name == "Play" {
-                            let state = RUSTERIX.read().unwrap().server.state;
-                            if state == rusterix::ServerState::Paused {
-                                RUSTERIX.write().unwrap().server.continue_instances();
-                                update_server_icons = true;
-                            } else {
-                                if state == rusterix::ServerState::Off {
-                                    start_server(
-                                        &mut RUSTERIX.write().unwrap(),
-                                        &mut self.project,
-                                        true,
-                                    );
-                                    let commands = setup_client(
-                                        &mut RUSTERIX.write().unwrap(),
-                                        &mut self.project,
-                                    );
-                                    RUSTERIX
-                                        .write()
-                                        .unwrap()
-                                        .server
-                                        .process_client_commands(commands);
+                    } else if id.name == "Open" {
+                        ctx.ui.open_file_requester(
+                            TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
+                            "Open".into(),
+                            TheFileExtension::new("Eldiron".into(), vec!["eldiron".to_string()]),
+                        );
+                        ctx.ui
+                            .set_widget_state("Open".to_string(), TheWidgetState::None);
+                        ctx.ui.clear_hover();
+                        redraw = true;
+                    } else if id.name == "Save" {
+                        if let Some(path) = &self.project_path {
+                            let mut success = false;
+                            // if let Ok(output) = postcard::to_allocvec(&self.project) {
+                            if let Ok(output) = serde_json::to_string(&self.project) {
+                                if std::fs::write(path, output).is_ok() {
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
-                                        "Server has been started.".to_string(),
+                                        "Project saved successfully.".to_string(),
                                     ));
-                                    // ui.set_widget_value("LogEdit", ctx, TheValue::Text(String::new()));
-                                    // ctx.ui.send(TheEvent::StateChanged(
-                                    //     TheId::named("Debug Log"),
-                                    //     TheWidgetState::Clicked,
-                                    // ));
-                                    RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
+                                    success = true;
                                 }
-                                /*
-                                self.server.start();
-                                self.client.reset();
-                                self.client.set_project(self.project.clone());
-                                self.server_ctx.clear_interactions();
+                            }
+
+                            if !success {
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    "Unable to save project!".to_string(),
+                                ))
+                            }
+                        } else {
+                            ctx.ui.send(TheEvent::StateChanged(
+                                TheId::named("Save As"),
+                                TheWidgetState::Clicked,
+                            ));
+                            ctx.ui
+                                .set_widget_state("Save".to_string(), TheWidgetState::None);
+                        }
+                    } else if id.name == "Save As" {
+                        ctx.ui.save_file_requester(
+                            TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
+                            "Save".into(),
+                            TheFileExtension::new("Eldiron".into(), vec!["eldiron".to_string()]),
+                        );
+                        ctx.ui
+                            .set_widget_state("Save As".to_string(), TheWidgetState::None);
+                        ctx.ui.clear_hover();
+                        redraw = true;
+                    }
+                    // Server
+                    else if id.name == "Play" {
+                        let state = RUSTERIX.read().unwrap().server.state;
+                        if state == rusterix::ServerState::Paused {
+                            RUSTERIX.write().unwrap().server.continue_instances();
+                            update_server_icons = true;
+                        } else {
+                            if state == rusterix::ServerState::Off {
+                                start_server(
+                                    &mut RUSTERIX.write().unwrap(),
+                                    &mut self.project,
+                                    true,
+                                );
+                                let commands =
+                                    setup_client(&mut RUSTERIX.write().unwrap(), &mut self.project);
+                                RUSTERIX
+                                    .write()
+                                    .unwrap()
+                                    .server
+                                    .process_client_commands(commands);
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
                                     "Server has been started.".to_string(),
                                 ));
-                                self.sidebar.clear_debug_messages(ui, ctx);
-                                */
-                                update_server_icons = true;
-                            }
-                        } else if id.name == "Pause" {
-                            let state = RUSTERIX.read().unwrap().server.state;
-                            if state == rusterix::ServerState::Running {
-                                RUSTERIX.write().unwrap().server.pause();
-                                update_server_icons = true;
+                                // ui.set_widget_value("LogEdit", ctx, TheValue::Text(String::new()));
+                                // ctx.ui.send(TheEvent::StateChanged(
+                                //     TheId::named("Debug Log"),
+                                //     TheWidgetState::Clicked,
+                                // ));
+                                RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
                             }
                             /*
-                            if self.server.state == ServerState::Running {
-                                self.server.state = ServerState::Paused;
-                                ctx.ui.send(TheEvent::SetStatusText(
-                                    TheId::empty(),
-                                    "Server has been paused.".to_string(),
-                                ));
-                                update_server_icons = true;
-                            } else if self.server.state == ServerState::Paused {
-                                self.client.tick(
-                                    *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::GameEditor,
-                                );
-                                let debug = self.server.tick();
-                                if !debug.is_empty() {
-                                    self.sidebar.add_debug_messages(debug, ui, ctx);
-                                }
-                                let interactions = self.server.get_interactions();
-                                self.server_ctx.add_interactions(interactions);
-                            }*/
-                        } else if id.name == "Stop" {
-                            RUSTERIX.write().unwrap().server.stop();
-                            RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
-
-                            ui.set_widget_value("InfoView", ctx, TheValue::Text("".into()));
-                            /*
-                            _ = self.server.set_project(self.project.clone());
-                            self.server.stop();*/
-                            insert_content_into_maps(&mut self.project);
-                            update_server_icons = true;
-
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Render SceneManager Map"),
-                                TheValue::Empty,
+                            self.server.start();
+                            self.client.reset();
+                            self.client.set_project(self.project.clone());
+                            self.server_ctx.clear_interactions();
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                "Server has been started.".to_string(),
                             ));
-                        } else if id.name == "Undo" || id.name == "Redo" {
-                            if ui.focus_widget_supports_undo_redo(ctx) {
-                                if id.name == "Undo" {
-                                    ui.undo(ctx);
-                                } else {
-                                    ui.redo(ctx);
-                                }
-                            } else if DOCKMANAGER.read().unwrap().current_dock_supports_undo() {
-                                if id.name == "Undo" {
-                                    DOCKMANAGER.write().unwrap().undo(
-                                        ui,
-                                        ctx,
-                                        &mut self.project,
-                                        &mut self.server_ctx,
-                                    );
-                                } else {
-                                    DOCKMANAGER.write().unwrap().redo(
-                                        ui,
-                                        ctx,
-                                        &mut self.project,
-                                        &mut self.server_ctx,
-                                    );
-                                }
-                            } else {
-                                let mut manager = UNDOMANAGER.write().unwrap();
+                            self.sidebar.clear_debug_messages(ui, ctx);
+                            */
+                            update_server_icons = true;
+                        }
+                    } else if id.name == "Pause" {
+                        let state = RUSTERIX.read().unwrap().server.state;
+                        if state == rusterix::ServerState::Running {
+                            RUSTERIX.write().unwrap().server.pause();
+                            update_server_icons = true;
+                        }
+                        /*
+                        if self.server.state == ServerState::Running {
+                            self.server.state = ServerState::Paused;
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                "Server has been paused.".to_string(),
+                            ));
+                            update_server_icons = true;
+                        } else if self.server.state == ServerState::Paused {
+                            self.client.tick(
+                                *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::GameEditor,
+                            );
+                            let debug = self.server.tick();
+                            if !debug.is_empty() {
+                                self.sidebar.add_debug_messages(debug, ui, ctx);
+                            }
+                            let interactions = self.server.get_interactions();
+                            self.server_ctx.add_interactions(interactions);
+                        }*/
+                    } else if id.name == "Stop" {
+                        RUSTERIX.write().unwrap().server.stop();
+                        RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
 
-                                if id.name == "Undo" {
-                                    manager.undo(&mut self.server_ctx, &mut self.project, ui, ctx);
-                                } else {
-                                    manager.redo(&mut self.server_ctx, &mut self.project, ui, ctx);
-                                }
-                            }
-                        } else if id.name == "Cut" {
-                            if ui.focus_widget_supports_clipboard(ctx) {
-                                // Widget specific
-                                ui.cut(ctx);
+                        ui.set_widget_value("InfoView", ctx, TheValue::Text("".into()));
+                        /*
+                        _ = self.server.set_project(self.project.clone());
+                        self.server.stop();*/
+                        insert_content_into_maps(&mut self.project);
+                        update_server_icons = true;
+
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Render SceneManager Map"),
+                            TheValue::Empty,
+                        ));
+                    } else if id.name == "Undo" || id.name == "Redo" {
+                        if ui.focus_widget_supports_undo_redo(ctx) {
+                            if id.name == "Undo" {
+                                ui.undo(ctx);
                             } else {
-                                // Global
-                                ctx.ui.send(TheEvent::Cut);
+                                ui.redo(ctx);
                             }
-                        } else if id.name == "Copy" {
-                            if ui.focus_widget_supports_clipboard(ctx) {
-                                // Widget specific
-                                ui.copy(ctx);
+                        } else if DOCKMANAGER.read().unwrap().current_dock_supports_undo() {
+                            if id.name == "Undo" {
+                                DOCKMANAGER.write().unwrap().undo(
+                                    ui,
+                                    ctx,
+                                    &mut self.project,
+                                    &mut self.server_ctx,
+                                );
                             } else {
-                                // Global
-                                ctx.ui.send(TheEvent::Copy);
+                                DOCKMANAGER.write().unwrap().redo(
+                                    ui,
+                                    ctx,
+                                    &mut self.project,
+                                    &mut self.server_ctx,
+                                );
                             }
-                        } else if id.name == "Paste" {
-                            if ui.focus_widget_supports_clipboard(ctx) {
-                                // Widget specific
-                                ui.paste(ctx);
+                        } else {
+                            let mut manager = UNDOMANAGER.write().unwrap();
+
+                            if id.name == "Undo" {
+                                manager.undo(&mut self.server_ctx, &mut self.project, ui, ctx);
                             } else {
-                                // Global
-                                if let Some(value) = &ctx.ui.clipboard {
-                                    ctx.ui.send(TheEvent::Paste(
-                                        value.clone(),
-                                        ctx.ui.clipboard_app_type.clone(),
-                                    ));
-                                } else {
-                                    ctx.ui.send(TheEvent::Paste(
-                                        TheValue::Empty,
-                                        ctx.ui.clipboard_app_type.clone(),
-                                    ));
-                                }
+                                manager.redo(&mut self.server_ctx, &mut self.project, ui, ctx);
+                            }
+                        }
+                    } else if id.name == "Cut" {
+                        if ui.focus_widget_supports_clipboard(ctx) {
+                            // Widget specific
+                            ui.cut(ctx);
+                        } else {
+                            // Global
+                            ctx.ui.send(TheEvent::Cut);
+                        }
+                    } else if id.name == "Copy" {
+                        if ui.focus_widget_supports_clipboard(ctx) {
+                            // Widget specific
+                            ui.copy(ctx);
+                        } else {
+                            // Global
+                            ctx.ui.send(TheEvent::Copy);
+                        }
+                    } else if id.name == "Paste" {
+                        if ui.focus_widget_supports_clipboard(ctx) {
+                            // Widget specific
+                            ui.paste(ctx);
+                        } else {
+                            // Global
+                            if let Some(value) = &ctx.ui.clipboard {
+                                ctx.ui.send(TheEvent::Paste(
+                                    value.clone(),
+                                    ctx.ui.clipboard_app_type.clone(),
+                                ));
+                            } else {
+                                ctx.ui.send(TheEvent::Paste(
+                                    TheValue::Empty,
+                                    ctx.ui.clipboard_app_type.clone(),
+                                ));
                             }
                         }
                     }
-                    TheEvent::ValueChanged(id, value) => {
-                        if id.name == "Server Time Slider" {
-                            if let TheValue::Time(time) = value {
-                                self.project.time = time;
-                                let mut rusterix = RUSTERIX.write().unwrap();
-                                rusterix.client.set_server_time(time);
-
-                                if rusterix.server.state == rusterix::ServerState::Running {
-                                    if let Some(map) = self.project.get_map(&self.server_ctx) {
-                                        rusterix.server.set_time(&map.id, time);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
                 }
+                TheEvent::ValueChanged(id, value) => {
+                    if id.name == "Server Time Slider" {
+                        if let TheValue::Time(time) = value {
+                            self.project.time = time;
+                            let mut rusterix = RUSTERIX.write().unwrap();
+                            rusterix.client.set_server_time(time);
+
+                            if rusterix.server.state == rusterix::ServerState::Running {
+                                if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                    rusterix.server.set_time(&map.id, time);
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 
