@@ -255,119 +255,101 @@ impl TheTrait for Editor {
 
         ui.set_statusbar_name("Statusbar".to_string());
 
-        // Menu
-
-        let mut menu_canvas = TheCanvas::new();
-        let mut menu = TheMenu::new(TheId::named("Menu"));
-
-        let mut file_menu = TheContextMenu::named(fl!("menu_file"));
-        file_menu.add(TheContextMenuItem::new(
-            fl!("menu_new"),
-            TheId::named("New"),
-        ));
-        file_menu.add_separator();
-        file_menu.add(TheContextMenuItem::new_with_accel(
-            fl!("menu_open"),
-            TheId::named("Open"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'o'),
-        ));
-        file_menu.add(TheContextMenuItem::new_with_accel(
-            fl!("menu_save"),
-            TheId::named("Save"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 's'),
-        ));
-        file_menu.add(TheContextMenuItem::new_with_accel(
-            fl!("menu_save_as"),
-            TheId::named("Save As"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'a'),
-        ));
-        let mut edit_menu = TheContextMenu::named(fl!("menu_edit"));
-        edit_menu.add(TheContextMenuItem::new_with_accel(
-            fl!("menu_undo"),
-            TheId::named("Undo"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'z'),
-        ));
-        edit_menu.add(TheContextMenuItem::new_with_accel(
-            fl!("menu_redo"),
-            TheId::named("Redo"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT, 'z'),
-        ));
-        edit_menu.add_separator();
-        edit_menu.add(TheContextMenuItem::new_with_accel(
-            fl!("menu_cut"),
-            TheId::named("Cut"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'x'),
-        ));
-        edit_menu.add(TheContextMenuItem::new_with_accel(
-            fl!("menu_copy"),
-            TheId::named("Copy"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'c'),
-        ));
-        edit_menu.add(TheContextMenuItem::new_with_accel(
-            fl!("menu_paste"),
-            TheId::named("Paste"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'v'),
-        ));
-        edit_menu.add_separator();
-        edit_menu.add(TheContextMenuItem::new_with_accel(
-            fl!("menu_apply_action"),
-            TheId::named("Action Apply"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'p'),
-        ));
-        // let mut view_menu = TheContextMenu::named(str!("View"));
-        // view_menu.add(TheContextMenuItem::new_with_accel(
-        //     str!("2D Map"),
-        //     TheId::named("2DMap"),
-        //     TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '2'),
-        // ));
-        // view_menu.add(TheContextMenuItem::new_with_accel(
-        //     str!("3D Map"),
-        //     TheId::named("3DMap"),
-        //     TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '3'),
-        // ));
-        // view_menu.add(TheContextMenuItem::new_with_accel(
-        //     str!("Shared Map"),
-        //     TheId::named("2D3DMap"),
-        //     TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '0'),
-        // ));
-        // let mut tools_menu = TheContextMenu::named(str!("Tools"));
-        // tools_menu.add(TheContextMenuItem::new_with_accel(
-        //     str!("Rerender 3D Map"),
-        //     TheId::named("Rerender"),
-        //     TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'r'),
-        // ));
-        let mut game_menu = TheContextMenu::named(fl!("game"));
-        game_menu.add(TheContextMenuItem::new_with_accel(
-            fl!("menu_play"),
-            TheId::named("Play"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'p'),
-        ));
-        game_menu.add(TheContextMenuItem::new_with_accel(
-            fl!("menu_pause"),
-            TheId::named("Pause"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'o'),
-        ));
-        game_menu.add(TheContextMenuItem::new_with_accel(
-            fl!("menu_stop"),
-            TheId::named("Stop"),
-            TheAccelerator::new(TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT, 'p'),
-        ));
-
-        file_menu.register_accel(ctx);
-        edit_menu.register_accel(ctx);
-        game_menu.register_accel(ctx);
-        // view_menu.register_accel(ctx);
-        // tools_menu.register_accel(ctx);
-
-        menu.add_context_menu(file_menu);
-        menu.add_context_menu(edit_menu);
-        menu.add_context_menu(game_menu);
-        menu_canvas.set_widget(menu);
-
-        // Menubar
         let mut top_canvas = TheCanvas::new();
+        // Internal file/edit/game menu is hidden for the Xcode staticlib wrapper
+        // where native menu handling is expected.
+        #[cfg(not(feature = "staticlib"))]
+        {
+            let mut menu_canvas = TheCanvas::new();
+            let mut menu = TheMenu::new(TheId::named("Menu"));
+
+            let mut file_menu = TheContextMenu::named(fl!("menu_file"));
+            file_menu.add(TheContextMenuItem::new(
+                fl!("menu_new"),
+                TheId::named("New"),
+            ));
+            file_menu.add_separator();
+            file_menu.add(TheContextMenuItem::new_with_accel(
+                fl!("menu_open"),
+                TheId::named("Open"),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'o'),
+            ));
+            file_menu.add(TheContextMenuItem::new_with_accel(
+                fl!("menu_save"),
+                TheId::named("Save"),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 's'),
+            ));
+            file_menu.add(TheContextMenuItem::new_with_accel(
+                fl!("menu_save_as"),
+                TheId::named("Save As"),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'a'),
+            ));
+            let mut edit_menu = TheContextMenu::named(fl!("menu_edit"));
+            edit_menu.add(TheContextMenuItem::new_with_accel(
+                fl!("menu_undo"),
+                TheId::named("Undo"),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'z'),
+            ));
+            edit_menu.add(TheContextMenuItem::new_with_accel(
+                fl!("menu_redo"),
+                TheId::named("Redo"),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT, 'z'),
+            ));
+            edit_menu.add_separator();
+            edit_menu.add(TheContextMenuItem::new_with_accel(
+                fl!("menu_cut"),
+                TheId::named("Cut"),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'x'),
+            ));
+            edit_menu.add(TheContextMenuItem::new_with_accel(
+                fl!("menu_copy"),
+                TheId::named("Copy"),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'c'),
+            ));
+            edit_menu.add(TheContextMenuItem::new_with_accel(
+                fl!("menu_paste"),
+                TheId::named("Paste"),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'v'),
+            ));
+            edit_menu.add_separator();
+            edit_menu.add(TheContextMenuItem::new_with_accel(
+                fl!("menu_apply_action"),
+                TheId::named("Action Apply"),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'p'),
+            ));
+
+            let mut game_menu = TheContextMenu::named(fl!("game"));
+            game_menu.add(TheContextMenuItem::new_with_accel(
+                fl!("menu_play"),
+                TheId::named("Play"),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'p'),
+            ));
+            game_menu.add(TheContextMenuItem::new_with_accel(
+                fl!("menu_pause"),
+                TheId::named("Pause"),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'o'),
+            ));
+            game_menu.add(TheContextMenuItem::new_with_accel(
+                fl!("menu_stop"),
+                TheId::named("Stop"),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT, 'p'),
+            ));
+
+            file_menu.register_accel(ctx);
+            edit_menu.register_accel(ctx);
+            game_menu.register_accel(ctx);
+
+            menu.add_context_menu(file_menu);
+            menu.add_context_menu(edit_menu);
+            menu.add_context_menu(game_menu);
+            menu_canvas.set_widget(menu);
+            top_canvas.set_top(menu_canvas);
+        }
 
         let mut menubar = TheMenubar::new(TheId::named("Menubar"));
+        #[cfg(feature = "staticlib")]
+        menubar.limiter_mut().set_max_height(43);
+        #[cfg(not(feature = "staticlib"))]
         menubar.limiter_mut().set_max_height(43 + 22);
 
         let mut logo_button = TheMenubarButton::new(TheId::named("Logo"));
@@ -477,7 +459,6 @@ impl TheTrait for Editor {
 
         top_canvas.set_widget(menubar);
         top_canvas.set_layout(hlayout);
-        top_canvas.set_top(menu_canvas);
         ui.canvas.set_top(top_canvas);
 
         // Sidebar

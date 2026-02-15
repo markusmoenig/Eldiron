@@ -117,6 +117,7 @@ mod ffi {
 
     use std::ffi::{CStr, CString};
     use std::os::raw::c_char;
+    use std::ptr;
 
     use lazy_static::lazy_static;
     use std::sync::Mutex;
@@ -293,30 +294,91 @@ mod ffi {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn rust_new() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("New"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_play() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Play"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_pause() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Pause"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_stop() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Stop"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn rust_open() {
-        APP.lock().unwrap().open();
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Open"),
+            TheWidgetState::Clicked,
+        ));
     }
 
     #[unsafe(no_mangle)]
     pub extern "C" fn rust_save() {
-        APP.lock().unwrap().save();
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Save"),
+            TheWidgetState::Clicked,
+        ));
     }
 
     #[unsafe(no_mangle)]
     pub extern "C" fn rust_save_as() {
-        APP.lock().unwrap().save_as();
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Save As"),
+            TheWidgetState::Clicked,
+        ));
     }
 
     #[unsafe(no_mangle)]
     pub extern "C" fn rust_cut() -> *mut c_char {
-        let text = APP.lock().unwrap().cut();
-        CString::new(text).unwrap().into_raw()
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Cut"),
+            TheWidgetState::Clicked,
+        ));
+        APP.lock()
+            .unwrap()
+            .update_ui(&mut UI.lock().unwrap(), &mut CTX.lock().unwrap());
+
+        if let Some(TheValue::Text(text)) = &CTX.lock().unwrap().ui.clipboard {
+            return CString::new(text.clone()).unwrap().into_raw();
+        }
+        ptr::null_mut()
     }
 
     #[unsafe(no_mangle)]
     pub extern "C" fn rust_copy() -> *mut c_char {
-        let text = APP.lock().unwrap().copy();
-        CString::new(text).unwrap().into_raw()
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Copy"),
+            TheWidgetState::Clicked,
+        ));
+        APP.lock()
+            .unwrap()
+            .update_ui(&mut UI.lock().unwrap(), &mut CTX.lock().unwrap());
+
+        if let Some(TheValue::Text(text)) = &CTX.lock().unwrap().ui.clipboard {
+            return CString::new(text.clone()).unwrap().into_raw();
+        }
+        ptr::null_mut()
     }
 
     /// # Safety
@@ -324,17 +386,41 @@ mod ffi {
     pub unsafe extern "C" fn rust_paste(p: *const c_char) {
         let text_str = unsafe { CStr::from_ptr(p) };
         if let Ok(text) = text_str.to_str() {
-            APP.lock().unwrap().paste(text.to_string());
+            {
+                let mut ctx = CTX.lock().unwrap();
+                ctx.ui.clipboard = Some(TheValue::Text(text.to_string()));
+                ctx.ui.clipboard_app_type = Some("text/plain".to_string());
+            }
+
+            CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+                TheId::named("Paste"),
+                TheWidgetState::Clicked,
+            ));
+
+            APP.lock()
+                .unwrap()
+                .update_ui(&mut UI.lock().unwrap(), &mut CTX.lock().unwrap());
         }
     }
 
     #[unsafe(no_mangle)]
     pub extern "C" fn rust_undo() {
-        APP.lock().unwrap().undo();
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Undo"),
+            TheWidgetState::Clicked,
+        ));
     }
 
     #[unsafe(no_mangle)]
     pub extern "C" fn rust_redo() {
-        APP.lock().unwrap().redo();
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Redo"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_has_changes() -> bool {
+        APP.lock().unwrap().has_changes()
     }
 }

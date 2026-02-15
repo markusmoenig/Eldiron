@@ -30,6 +30,10 @@
 void rust_init();
 void rust_draw(uint8_t *pixels, uint32_t width, uint32_t height, uintptr_t anim_counter);
 void rust_update();
+void rust_new();
+void rust_play();
+void rust_pause();
+void rust_stop();
 
 //void rust_init(const char *r, const char *p);
 
@@ -49,6 +53,8 @@ bool rust_key_down(const char *);
 bool rust_special_key_down(uint32_t key);
 
 void rust_open();
+void rust_save();
+void rust_save_as();
 
 void rust_undo();
 void rust_redo();

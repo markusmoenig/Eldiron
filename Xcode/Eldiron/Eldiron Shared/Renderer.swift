@@ -32,6 +32,7 @@ class Renderer: NSObject, MTKViewDelegate {
     var scissorRect                             : MTLScissorRect? = nil
 
     var fps                                     : UInt32 = 0
+    var hasChanges                              : Bool = false
 
     var anim_counter                            : UInt = 0
     var last_time                               : Double = 0
@@ -97,6 +98,13 @@ class Renderer: NSObject, MTKViewDelegate {
         checkFramerate()
 
         rust_update()
+        #if os(OSX)
+        let currentHasChanges = rust_has_changes()
+        if currentHasChanges != hasChanges {
+            hasChanges = currentHasChanges
+            self.view.window?.isDocumentEdited = currentHasChanges
+        }
+        #endif
 
         checkTexture()
         //print(screenWidth, screenHeight)
