@@ -44,8 +44,6 @@ jobs:
 
       - name: Build website
         run: npm run build
-        env:
-          DOCS_GH_PAGES: "1"
 
       - name: Upload pages artifact
         if: github.event_name != 'pull_request'

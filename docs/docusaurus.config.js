@@ -219,6 +219,9 @@ const config = {
     ({
       // Replace with your project's social card
       image: "img/eldiron-banner.png",
+      colorMode: {
+        respectPrefersColorScheme: true,
+      },
       navbar: {
         title: "Retro RPG Creator",
         logo: {
