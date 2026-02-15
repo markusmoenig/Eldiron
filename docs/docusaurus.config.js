@@ -145,6 +145,7 @@ const gruvboxDarkTheme = {
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const isGhPages = process.env.DOCS_GH_PAGES === "1";
+const isProd = process.env.NODE_ENV === "production";
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -206,10 +207,14 @@ const config = {
         theme: {
           customCss: "./src/css/custom.css",
         },
-        gtag: {
-          trackingID: "G-35R29223CG",
-          anonymizeIP: true,
-        },
+        ...(isProd
+          ? {
+              gtag: {
+                trackingID: "G-35R29223CG",
+                anonymizeIP: true,
+              },
+            }
+          : {}),
       }),
     ],
   ],
