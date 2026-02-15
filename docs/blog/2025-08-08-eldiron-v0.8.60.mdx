@@ -1,0 +1,55 @@
+---
+title: Eldiron v0.8.60 Released
+authors: [markusm]
+tags: [releases]
+---
+
+<!-- truncate -->
+
+This release features some important new mechanics like the new vendor / multiple choice system, a new text formatting and localization system for messages and new inventory screen widgets. Also a major refactoring of the server code to increase performance and make it Web compliant.
+
+As well as many other new features and fixes. As always you can try all new features in the updated Hideout2D example.
+
+I will update the documentation on the Website in the next days and create a new video.
+
+## New Features
+
+### Creator
+
+- The `Data Tool` now supports direct sector selections in the map. Making it easier to select and edit widgets who are mostly data driven.
+- Button widgets have new capabilities
+  - **active** - Boolean, switch if the widget is active by default
+  - **show** - String array of widgets to show when clicked
+  - **hide** - String array of widgets to hide when clicked
+  - **deactivate** - String array of button widgets to deactivate when clicked
+- New `inventory_index` attribute for button widgets to display the inventory item at the given index.
+- Intent based actions now also work on items in the inventory (when an intent is active and an inventory button is clicked).
+- Material node graphs can now be created for screen widgets, allowing procedural borders and content for screen widgets.
+
+### Client
+
+- Messages widgets now support some new config strings: `multiple_choice` the color for multiple choice items (like inventory sales) and `column_width` to define the maximum size of item columns for multiple choice items.
+- New localisation and text formatting system, the server may now generate strings like ```{you_bought} {I:{}.name, article=indef, case=lower}``` which gets automatically resolved by the client. Characters and items also can send strings like this now, allowing for powerful in-game text formatting and localization.
+
+### Server
+
+- New `drop` function to drop a specific item with the given id.
+- Refactored some code to make sure all actions / intent are executed correctly on items on the map **and** on items in inventories.
+- **Major refactoring of the server instancing code. Removes the ref_thread_local dependency and enables rayon parallelism, which in turn finally enables web deployment**.
+- New `wealth` attribute for entities which defines the initial characters wealth in the base currency.
+- New multiple choice system, implemented right now for inventory sales which vendors can initiate via the new `offer_inventory` command after receiving an intent. `offer_inventory` takes two arguments, the target entity id and a filter string, if empty, i.e. "", all items are offered.
+- block_events() now supports specific intents via "intent: attack", this allows for blocking specific intents for a given amount of time. Previously it was only possible to block all intents via "intent".
+
+## Bug Fixes
+
+- Rect tool content was not shown in the screen editor.
+- Items in an inventory had a bug during creation which prevented them to be used with events later on.
+
+---
+
+![Gameplay](/img/solo_screen_v0860.png)
+
+The next version (probably v0.90) will entirely focus on the new node system, long awaited and much requested.
+
+Take care,
+Markus

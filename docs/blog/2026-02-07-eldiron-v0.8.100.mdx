@@ -1,0 +1,65 @@
+---
+title: Eldiron v0.8.100
+authors: [markusm]
+tags: [development update]
+---
+
+<!-- truncate -->
+
+![Eldiron v0.8.100](/img/Eldironv0.8.100.png)
+
+Eldiron v0.8.100 introduces many new features and bug fixes.
+
+The main new changes are the foundation of a new terrain system, and the replacement of **Python** with the new, custom **Eldrin** scripting language.
+
+But this release also includes dozens of smaller features. I tried to make **Eldiron Creator** easier to use and fixed many bugs as well.
+
+The documentation on this website has been nearly completely rewritten and should now reflect the current state of **Eldiron**.
+
+Hope you enjoy the update!
+
+## New Features
+
+### Creator
+
+#### New Terrain System
+
+  - Region settings turn terrain on / off and set a default tile_id.
+  - Vertices control height and terrain smoothness and can be associated with a billboard tile (of configurable size).
+  - Sectors can either exclude (cut out) terrain (for houses etc) or create ridges of varying height, width and steepness.
+  - Rect tool now paints on terrain.
+
+- "Edit Sector" action can now apply tags to sectors.
+- Geometry can now be made visible / invisible without rebuilding the BVH. This lays the foundation to be able to hide roofs and other geometry in-game on the fly.
+- 'Shift' + Click in the vertex tool now adds vertices in both 2D and 3D.
+- Rectangle selection mode now works with all 3D cameras (previously only worked in 2D).
+- New 3D Gizmo for moving vertices / linedefs and sectors along the current plane in 3D camera modes (previously only worked in 2D).
+- "Automatic" mode for Actions. Apply actions automatically when clicked (or a parameter changes).
+- New Azimuth / Elevation settings for the Isometric camera.
+- Palette now has its own entry in the project root
+  - **Clear Palette** action
+  - **Import Palette...** action
+  - **Remap Tile** action (Remaps a tile to the current palette)
+- Pressing Cmd / Ctrl during dragging of **sectors** moves all embedded sectors with the sector. Useful for moving complete houses etc (in 2D).
+- Sector creation with the linedef tool: By default manual mode is used which only closes polygons based on the click history. When Cmd / Ctrl is pressed auto mode is used which tries to close polygons automatically (also allows closing of old polygons). Auto mode however fails when operating in a grid (Rect tool).
+- New **Debug Log** project tree item. Shows debug output from the server when running.
+- New **Entity Tool** to move and delete entity and item instances on the map.
+- New **Game Input** switch to send keyboard events directly to the running game from within the editor.
+- New **Apply Tile** action now has a repeat mode setting (repeat / scale).
+
+- **Items** can now be associated to Door / Gates (i.e. profile cutouts), controlling blocking states, visibility and more. The item name can be entered in the sector settings.
+- Door / Gate billboards can now be animated when visibility changes, with scrolling up /down, left / right or fading in / out.
+
+- Switched from Python to my own scripting language: **Eldrin**. Old projects will need minor adjustments to work again.
+
+### Renderer
+
+Rendering improvements and fixes:
+
+- Support for **vertex-weighted texture blending**.
+- Fixed a bug where transparent billboards would prevent proper ambient occlusion / shadow tracing.
+
+---
+
+Take care,
+Markus

@@ -1,0 +1,46 @@
+---
+title: Eldiron v0.8.90 Released
+authors: [markusm]
+tags: [releases]
+---
+
+<!-- truncate -->
+
+Eldiron v0.8.90 introduces a completely new UI concept; transitions from CPU‑ to GPU‑based rendering (including PBR and ray tracing); and adds features like an integrated tile editor and 3D painting of tiles via an improved Rect Tool, among many other improvements.
+
+![Eldiron Screenshot](/img/Eldironv0.8.90_iso.png)
+
+## New Tree View Based UI Concept
+
+Previously, Eldiron Creator relied on a tool‑based system to drive context‑based editing for the current content. However, that led to a lot of ambiguity, as tools could work on different kinds of content. Now, with Eldiron v0.8.90, a new tree view–based widget directly connects content with the correct dock editor, making editing much more intuitive.
+
+## Integrated Tile Editor
+
+Docks can now also be maximized. For example, maximizing the tile picker brings up the new integrated tile editor. **When you draw tiles in this editor, the results are shown on the map in real time, so you can immediately see how they look without switching to an external tool.** Currently, the tile editor only has a drawing tool; more tools—such as selection and bucket—will be added in future releases.
+
+![Eldiron Screenshot](/img/Eldironv0.8.90_tile_editor.png)
+
+## GPU Rendering
+
+Previous releases of Eldiron used a software renderer for both 2D and 3D, and these have been replaced with a modern, GPU‑based renderer. This enables better performance, especially on older and embedded devices, while unlocking many new possibilities. For example, the 3D renderer now supports ray tracing and PBR materials in tiles, ambient occlusion and shadows, daylight simulation, and much more.
+
+All this helps you make your pixel art tiles look great in both 2D and 3D. These modern technologies enable recreating the retro look of beloved games in real time without having to create tiles in isometric perspective. This also means tiles can now even have material properties—roughness, metallic, opacity, and emission. These can currently be set per tile, but soon the tile editor will allow you to paint material properties with pixel perfection.
+
+![Eldiron Screenshot](/img/Eldironv0.8.90_firstp.png)
+
+## 3D Editing
+
+3D editing has been improved and refined but will still be a work in progress for some time. The biggest change in this release is the Rect Tool, which can now paint tiles directly on 3D surfaces in 3D view.
+
+## Localization
+
+Eldiron Creator has been localized into Chinese, German, Spanish, and Taiwanese. These localizations have been created using AI. If you find any inconsistencies or ambiguities, please report them.
+
+## Patron Shop
+
+The Patreon shop has a new, fairly large 3D tileset for $15, and it’s free for Dragon Slayer Patrons. Some of the tiles are shown in the above screenshots. Buying tilesets on Patreon helps the project. For me, Eldiron is still a hobby project, but I hope I can work on it half‑time or even full‑time one day.
+
+---
+
+Take care,  
+Markus

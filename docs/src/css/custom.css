@@ -1,0 +1,426 @@
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* Gruvbox Light Theme */
+
+/* Gruvbox Light Theme */
+:root {
+    /* Gruvbox light color palette */
+    --ifm-color-primary: #458588; /* Gruvbox blue - primary accent */
+    --ifm-color-primary-dark: #427b58; /* Gruvbox green */
+    --ifm-color-primary-darker: #076678; /* Darker blue */
+    --ifm-color-primary-darkest: #665c54; /* Gruvbox gray */
+    --ifm-color-primary-light: #689d6a; /* Light green */
+    --ifm-color-primary-lighter: #7c6f64; /* Light gray */
+    --ifm-color-primary-lightest: #928374; /* Lightest gray */
+
+    /* Background and text colors */
+    --ifm-background-color: #fbf1c7; /* Gruvbox light background */
+    --ifm-background-surface-color: #f9f5d7; /* Slightly darker background */
+    --ifm-font-color-base: #3c3836; /* Gruvbox dark gray text */
+    --ifm-font-color-secondary: #665c54; /* Secondary text */
+
+    /* Navbar */
+    --ifm-navbar-background-color: #fbf1c7;
+    --ifm-navbar-link-color: #3c3836;
+    --ifm-navbar-link-hover-color: #458588;
+    --ifm-navbar-shadow: 0 2px 4px rgba(60, 56, 54, 0.1);
+
+    /* Footer */
+    --ifm-footer-background-color: #ebdbb2; /* Gruvbox light footer */
+    --ifm-footer-color: #3c3836;
+    --ifm-footer-link-color: #458588;
+    --ifm-footer-link-hover-color: #427b58;
+
+    /* Code and syntax */
+    --docusaurus-highlighted-code-line-bg: rgba(69, 133, 136, 0.1);
+    --ifm-code-font-size: 95%;
+
+    /* Cards and surfaces */
+    --ifm-card-background-color: #f9f5d7;
+    --ifm-table-border-color: #d5c4a1;
+
+    /* Buttons */
+    --ifm-button-background-color: #458588;
+    --ifm-button-color: #fbf1c7;
+}
+
+/* Gruvbox Dark Theme */
+[data-theme="dark"] {
+    /* Gruvbox dark color palette */
+    --ifm-color-primary: #83a598; /* Gruvbox blue-green - primary accent */
+    --ifm-color-primary-dark: #8ec07c; /* Gruvbox green */
+    --ifm-color-primary-darker: #689d6a; /* Darker green */
+    --ifm-color-primary-darkest: #d3869b; /* Gruvbox pink */
+    --ifm-color-primary-light: #b8bb26; /* Gruvbox yellow */
+    --ifm-color-primary-lighter: #fabd2f; /* Light yellow */
+    --ifm-color-primary-lightest: #fe8019; /* Orange */
+
+    /* Background and text colors */
+    --ifm-background-color: #282828; /* Gruvbox dark background */
+    --ifm-background-surface-color: #3c3836; /* Slightly lighter background */
+    --ifm-font-color-base: #ebdbb2; /* Gruvbox light text */
+    --ifm-font-color-secondary: #d5c4a1; /* Secondary text */
+
+    /* Navbar */
+    --ifm-navbar-background-color: #1d2021; /* Darker navbar */
+    --ifm-navbar-link-color: #ebdbb2;
+    --ifm-navbar-link-hover-color: #83a598;
+    --ifm-navbar-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+
+    /* Footer */
+    --ifm-footer-background-color: #1d2021; /* Dark footer */
+    --ifm-footer-color: #ebdbb2;
+    --ifm-footer-link-color: #83a598;
+    --ifm-footer-link-hover-color: #8ec07c;
+
+    /* Code and syntax */
+    --docusaurus-highlighted-code-line-bg: rgba(131, 165, 152, 0.15);
+
+    /* Cards and surfaces */
+    --ifm-card-background-color: #3c3836;
+    --ifm-table-border-color: #504945;
+
+    /* Buttons */
+    --ifm-button-background-color: #83a598;
+    --ifm-button-color: #282828;
+}
+
+/* Apply background colors to main elements */
+[data-theme="dark"] body {
+    background-color: #282828 !important;
+}
+
+[data-theme="dark"] .main-wrapper {
+    background-color: #282828 !important;
+}
+
+[data-theme="dark"] .docusaurus-wrapper {
+    background-color: #282828 !important;
+}
+
+[data-theme="dark"] .theme-doc-page {
+    background-color: #282828 !important;
+}
+
+/* Footer styling */
+.footer {
+    background-color: var(--ifm-footer-background-color) !important;
+    color: var(--ifm-footer-color) !important;
+    border-top: 2px solid var(--ifm-table-border-color);
+}
+
+.footer a {
+    color: var(--ifm-footer-link-color) !important;
+}
+
+.footer a:hover {
+    color: var(--ifm-footer-link-hover-color) !important;
+}
+
+.footer .footer__title {
+    color: var(--ifm-footer-color) !important;
+}
+
+/* Homepage features section */
+.features {
+    background-color: #f2e5bc !important; /* Gruvbox light features */
+    border-bottom: 2px solid #d5c4a1;
+}
+
+[data-theme="dark"] .features {
+    background-color: #32302f !important; /* Gruvbox dark features */
+    border-bottom: 2px solid #504945;
+}
+
+/* Play button overlay styles */
+.playWrap {
+    position: relative;
+    display: inline-block;
+}
+
+.playWrap a img {
+    display: block;
+    border-radius: 8px;
+    transition: filter 0.15s ease;
+}
+
+.playWrap a:hover img {
+    filter: brightness(0.9);
+}
+
+.playWrap a::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 64px;
+    height: 64px;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.playWrap a::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-40%, -50%);
+    width: 0;
+    height: 0;
+    border-left: 18px solid #fff;
+    border-top: 12px solid transparent;
+    border-bottom: 12px solid transparent;
+    pointer-events: none;
+}
+
+/* Carousel dots */
+.carousel .control-dots .dot {
+    box-shadow: none !important;
+    background: #a89984 !important; /* Gruvbox gray */
+    opacity: 1;
+    transition: background 0.3s ease;
+}
+
+.carousel .control-dots .dot.selected {
+    background: var(--ifm-color-primary) !important;
+}
+
+/* Additional gruvbox-inspired elements */
+.theme-doc-sidebar {
+    background-color: var(--ifm-background-surface-color) !important;
+}
+
+.menu {
+    background-color: var(--ifm-background-surface-color) !important;
+}
+
+/* TOML syntax colors aligned with Eldiron highlighter */
+:root .language-toml .token.comment {
+    color: #928374;
+    font-style: italic;
+}
+:root .language-toml .token.string {
+    color: #d6a46f;
+}
+:root .language-toml .token.number,
+:root .language-toml .token.boolean,
+:root .language-toml .token.date {
+    color: #d3869b;
+}
+:root .language-toml .token.table {
+    color: #fabd2f;
+}
+:root .language-toml .token.key {
+    color: #5d9ad6;
+}
+:root .language-toml .token.punctuation {
+    color: #3c3836;
+}
+[data-theme="dark"] .language-toml .token.punctuation {
+    color: #ebdbb2;
+}
+
+/* Table styling */
+table {
+    border-color: var(--ifm-table-border-color) !important;
+}
+
+/* Code blocks */
+.prism-code {
+    background-color: var(--ifm-background-surface-color) !important;
+}
+
+/* Alert boxes */
+.alert {
+    border-color: var(--ifm-table-border-color);
+    background-color: var(--ifm-background-surface-color);
+}
+
+/* Breadcrumb */
+.breadcrumbs {
+    background-color: var(--ifm-background-surface-color);
+}
+
+/* Hero section */
+.hero {
+    background-color: var(--ifm-background-color) !important;
+}
+
+.hero--primary {
+    --ifm-hero-background-color: var(--ifm-background-color);
+    --ifm-hero-text-color: var(--ifm-font-color-base);
+}
+
+/* Cards */
+.card {
+    background-color: var(--ifm-card-background-color) !important;
+    border-color: var(--ifm-table-border-color) !important;
+}
+
+/* Pagination */
+.pagination-nav__link {
+    background-color: var(--ifm-card-background-color) !important;
+    border-color: var(--ifm-table-border-color) !important;
+}
+
+.pagination-nav__link:hover {
+    background-color: var(--ifm-color-primary) !important;
+    color: var(--ifm-button-color) !important;
+}
+
+/* Tabs */
+.tabs {
+    border-color: var(--ifm-table-border-color) !important;
+}
+
+.tabs__item {
+    color: var(--ifm-font-color-base) !important;
+}
+
+.tabs__item--active {
+    color: var(--ifm-color-primary) !important;
+    border-color: var(--ifm-color-primary) !important;
+}
+
+/* Buttons */
+.button {
+    background-color: var(--ifm-button-background-color) !important;
+    color: var(--ifm-button-color) !important;
+    border-color: var(--ifm-button-background-color) !important;
+}
+
+.button--secondary {
+    background-color: var(--ifm-background-surface-color) !important;
+    color: var(--ifm-font-color-base) !important;
+    border-color: var(--ifm-table-border-color) !important;
+}
+
+.button--secondary:hover {
+    background-color: var(--ifm-color-primary) !important;
+    color: var(--ifm-button-color) !important;
+}
+
+/* Navbar dropdown */
+.dropdown__menu {
+    background-color: var(--ifm-background-surface-color) !important;
+    border-color: var(--ifm-table-border-color) !important;
+}
+
+.dropdown__link {
+    color: var(--ifm-font-color-base) !important;
+}
+
+.dropdown__link:hover {
+    background-color: var(--ifm-color-primary) !important;
+    color: var(--ifm-button-color) !important;
+}
+
+/* Search */
+.DocSearch {
+    --docsearch-text-color: var(--ifm-font-color-base);
+    --docsearch-muted-color: var(--ifm-font-color-secondary);
+    --docsearch-container-background: rgba(60, 56, 54, 0.8);
+    --docsearch-modal-background: var(--ifm-background-color);
+    --docsearch-searchbox-background: var(--ifm-background-surface-color);
+    --docsearch-searchbox-focus-background: var(--ifm-background-surface-color);
+    --docsearch-hit-color: var(--ifm-font-color-base);
+    --docsearch-hit-background: var(--ifm-background-surface-color);
+    --docsearch-hit-active-color: var(--ifm-button-color);
+    --docsearch-footer-background: var(--ifm-background-surface-color);
+}
+
+[data-theme="dark"] .DocSearch {
+    --docsearch-container-background: rgba(40, 40, 40, 0.8);
+}
+
+/* Sidebar */
+.menu__link {
+    color: var(--ifm-font-color-base) !important;
+}
+
+.menu__link--active {
+    color: var(--ifm-color-primary) !important;
+}
+
+.menu__link:hover {
+    color: var(--ifm-color-primary) !important;
+}
+
+/* Markdown content */
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+    color: var(--ifm-font-color-base);
+}
+
+.markdown a {
+    color: var(--ifm-color-primary);
+}
+
+.markdown a:hover {
+    color: var(--ifm-color-primary-light);
+}
+
+.markdown blockquote {
+    border-color: var(--ifm-color-primary);
+    background-color: var(--ifm-background-surface-color);
+}
+
+.markdown hr {
+    border-color: var(--ifm-table-border-color);
+}
+
+/* Navbar icons styling */
+.navbar-icon {
+    display: inline-flex;
+    align-items: center;
+    color: var(--ifm-navbar-link-color);
+    transition: all 0.2s ease;
+    padding: 4px 2px;
+    border-radius: 6px;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.navbar-icon:hover {
+    color: var(--ifm-color-primary);
+    background-color: var(--ifm-background-surface-color);
+    text-decoration: none;
+}
+
+/* FontAwesome icon sizing */
+.navbar-icon i {
+    font-size: 18px;
+}
+
+/* GitHub stars badge styling */
+.navbar-icon img {
+    filter: grayscale(20%);
+    transition: all 0.2s ease;
+    vertical-align: middle;
+    display: inline-block;
+    margin-top: 4px;
+}
+
+.navbar-icon img:hover {
+    filter: grayscale(0%);
+    opacity: 0.9;
+}
+
+/* Adjust badge to match Gruvbox theme */
+[data-theme="dark"] .navbar-icon img {
+    filter: brightness(0.9) grayscale(20%);
+}
+
+[data-theme="dark"] .navbar-icon img:hover {
+    filter: brightness(1) grayscale(0%);
+}

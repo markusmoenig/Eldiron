@@ -1,0 +1,39 @@
+---
+title: Eldiron - End of Year Update
+authors: [markusm]
+tags: [development update]
+---
+
+<!-- truncate -->
+
+## Happy New Year
+
+I hope everyone had a good 2025, and I wish all of you the best for 2026. I was not able to work too much on Eldiron in the last 2-3 weeks, but I managed to implement some new features, which I explain below.
+
+My goal is to get a new version out between the middle and the end of January and focus on Dungeons, 3D mechanics (opening of gates, etc.), and a working first-person Dungeon example. I know this is what a lot of you want, so I better get going. I also have to finally update the documentation and focus a bit more on videos.
+
+![Eldiron Screenshot](/img/eldiron-first-terrain.png)
+
+## New: Vertex - Weighted Texture Blending
+
+Below the tilepicker you now have a toolbar that allows you to blend tiles. You can draw with the primary tile in the **Rect** tool or blend a secondary tile on the edges/sides, resulting in smooth tile transitions (for example, the transition from terrain to the floor at the walkway entrance).
+
+## New: Terrain System
+
+In previous versions of Eldiron I had a brush-based painting system for terrain, but I felt that this was not a good fit. It was hard to connect the generated heightmap to the user-created 3D geometry. Brush-based systems are more useful for large terrain scales, whereas in our retro-inspired style the terrain is more up close and personal in the scene.
+
+So I decided to control terrain directly via vertices, linedefs and sectors. First of all, you have to enable Terrain in the *Region Settings*, which also lets you define a default tile. After that, you can paint the terrain with tiles in the **Rect** tool the same way as you can with 3D geometry.
+
+Vertices can now optionally define terrain height and smoothness, allowing you to create small local features like in the screenshot as well as large mountains. Sectors can now create ridges and plateaus, like the one in the lower right in the screenshot, while linedefs cut out smooth roads (currently in development).
+
+You can visually control all of this by painting and blending with the **Rect** tool.
+
+For good measure, vertices can now also spawn custom-sized billboards, like the tree in the screenshot.
+
+---
+
+That's it from me in 2025; see you all on the other side.
+
+
+Take care,  
+Markus

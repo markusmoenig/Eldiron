@@ -1,0 +1,51 @@
+---
+title: Eldiron 3D Progress
+authors: [markusm]
+tags: [releases]
+---
+
+<!-- truncate -->
+
+# **3D Progress Update**
+
+It’s been a while since the last update, so I wanted to share where things are at — and it’s big!
+
+I’ve been deep in building out the **3D editing layer** of Eldiron, and I can honestly say I’m more excited about it now than when I started. The original goal was “basic 3D support,” but the system that’s emerging is **far more powerful** — without sacrificing any of Eldiron’s 2D strengths.
+
+That said: **it needs a bit more time**. But it’s worth it.
+
+---
+
+## 🚧 What I’m currently building
+
+### ✅ **3D Editing — Fully Integrated**
+3D editing is coming **directly inside the main editor**, not as a separate mode or tool.  
+You’ll be able to edit **2D and 3D geometry using the same workflow**, with support for:
+
+- Arbitrary 3D surfaces (floors, roofs, sloped walls, anything)
+- Local profile editing in 2D projection space
+- **Cutouts, windows, recesses, and surface extrusions** — fully procedural per surface
+
+### ⚙️ **Action System**
+A new **Actions** panel will allow you to apply operations (like Extrude, Apply Tile, Cutout, Inset, Align, etc.) to whatever is currently selected.
+
+It’s modular and future-proof — every editing capability becomes an **Action** you can apply to **sectors, surfaces, linedefs, vertices**, or profile geometry.
+
+### 🎨 **Visual Shader Editor**
+A node-based shader system is in the works, allowing you to build **fully programmable materials** — usable on both 2D and 3D surfaces. Its like the visual behavior system just for shaders.
+
+---
+
+## 🎬 The Vision
+> *"The goal isn’t to become a general-purpose modeling tool like Blender, but to keep the **clarity and immediacy of classic level editors** while adding **procedural surface editing**, **profile-driven geometry**, and **UV-based cutouts** — all directly inside Eldiron’s mapping workflow."*
+
+This means fast, focused world building — but with enough depth to create detailed structures, recesses, trims, and layered surfaces without leaving the editor.
+
+---
+
+## ⏳ Timeline
+A **first usable version of 3D editing + Actions system** should land **in the next few weeks**.
+
+Thanks a lot for your patience — this is a big step forward, and I want it to land right.
+
+— Markus

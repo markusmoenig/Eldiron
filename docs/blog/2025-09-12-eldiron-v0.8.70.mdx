@@ -1,0 +1,42 @@
+---
+title: Eldiron v0.8.70 Released
+authors: [markusm]
+tags: [releases]
+---
+
+<!-- truncate -->
+
+The main new feature of this release is the new **grid based node system** for coding character and item behavior via drag and drop!
+
+The new video is now live [here](https://youtu.be/UBq5kWRjBTw).
+
+## Advantages of the Grid Node System
+
+* Break complex behavior down into individual cells.
+* Type-check values and arguments.
+* Fast-code creation.
+* Visual feedback for function results and errors during runtime.
+
+![Nodes](/img/creator_nodes_v0870.png)
+
+---
+
+## New Features
+
+### Creator
+
+- Character and item classes can now be renamed via their context menus.
+- New grid based node editor for coding entity and item behavior in the code tool. **The main new feature for this release.**
+
+### Server
+
+- Removed `get_entity_attr` and `get_item_attr` and replaced it with `get_attr_of` which works for both entities and items.
+
+## Bug Fixes
+
+- Fixed deletion of character and item instances in the map (the map would not immediately update sometimes).
+
+---
+
+Take care,
+Markus

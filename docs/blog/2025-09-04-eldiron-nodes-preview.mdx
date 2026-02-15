@@ -1,0 +1,47 @@
+---
+title: Eldiron Nodes Sneak Peek
+authors: [markusm]
+tags: [sneak peek]
+---
+
+<!-- truncate -->
+
+The big feature for the upcoming next release is the new node system for Eldiron. Previously it was only possible to code behavior for entities and items by programming directly in Python. Now, with the upcoming node system you have an easy-to-use mechanism to define behavior via a grid based node system.
+
+This breaks complex mechanisms into small, easily editable components and even provides feedback and / or errors during runtime.
+
+![Nodes](/img/eldiron-nodes-preview.png)
+
+## How it works
+
+You can drag and drop instructions, values or new events into the code grid (in the *Code Tool*). In the screenshot you can see the **startup** and **intent** events.
+
+The **startup** event here has two instructions, **random_walk_in_sector** and **add_item**. You can see that each argument of the instruction is individually selectable and has its own descriptive text. This makes it possible to easily enter the values via the user-interface and to type-check that values are of the correct type.
+
+When the server is running, each instruction optionally provides feedback of its status and / or error. For example in the screenshot we typed the name of the *GoldenKey* item wrong and **add_item** complains that it cannot find the item which it is supposed to add to the entities inventory.
+
+## A slightly more complex example
+
+![Nodes](/img/eldiron-nodes-preview2.png)
+
+Here we create a random value between 1 and 10 and if the value is greater than or equal to 5 we add a torch to the inventory. Note that the **random** instruction visually displays during runtime that the resulting number was *6* and **add_item** displays *Ok* to indicate that the item was added successfully.
+
+## Automatic creation of grid elements and code
+
+When you drag an *assignment*, *conditional* or *function* into the grid, the basic grid structure is filled out automatically, you just need to enter values or replace values via drag and drop, it's that easy.
+
+The nodes are converted to type-checked **Python** code on the fly.
+
+## Advantages of the Grid Node System
+
+* Break complex behavior down into individual cells.
+* Type-check values and arguments.
+* Fast-code creation.
+* Visual feedback for function results and errors during runtime.
+
+---
+
+I am currently working on porting the Hideout2D example to the new node system and will then release a new version with an explainer video. The new version will probably be ready in 1-2 weeks.
+
+Take care,
+Markus

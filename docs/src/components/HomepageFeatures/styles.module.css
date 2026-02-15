@@ -1,0 +1,28 @@
+.features {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    width: 100%;
+    padding: 3rem 0;
+    background-color: #f2e5bc; /* Gruvbox light background for features */
+    border-bottom: 2px solid #d5c4a1; /* Gruvbox light border */
+}
+
+.featuresInner {
+    max-width: 1000px;
+    width: 100%;
+    margin: 0 auto;
+    text-align: left;
+    padding: 0 1rem;
+}
+
+.featureSvg {
+    height: 200px;
+    width: 200px;
+}
+
+[data-theme="dark"] .features {
+    background-color: #32302f; /* Gruvbox dark background for features */
+    border-bottom: 2px solid #504945; /* Gruvbox dark border */
+}

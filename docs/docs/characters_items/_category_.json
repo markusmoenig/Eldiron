@@ -1,0 +1,8 @@
+{
+  "label": "Characters and Items",
+  "position": 5,
+  "link": {
+    "type": "generated-index",
+    "description": "This chapter is how to define behavior of characters and item."
+  }
+}

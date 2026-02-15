@@ -1,0 +1,36 @@
+---
+title: "2D or 3D Maps ?"
+sidebar_position: 2
+---
+
+import Admonition from '@theme/Admonition';
+
+You can create both 2D and 3D games with **Eldiron**. The difference is mostly in how maps are built and rendered; character, item, and screen behavior stay the same, so you don’t need to relearn anything when switching.
+
+## 2D Games
+
+![2D Game](/img/docs/2d_game.png)
+
+2D games use top-down tiles which are painted onto the map. This way you can create games similar to Ultima 4 and 5. Use this mode when you want to create tiles in a rectangular grid.
+
+2D games support light sources and day / night time simulation and more.
+
+The screenshot above shows the **Hideout 2D** example game created with **Eldiron**. You can play it [online](https://hideout.eldiron.com).
+
+## 3D Games
+
+![3D Game](/img/docs/3d_game.png)
+
+**Eldiron** has inbuilt 3D editing to easily create geometry for dungeons, towns, houses and more. This geometry interacts with an integrated terrain system. Other 3D features include day / night time simulation (including the sun) and powerful 3D rendering. 
+
+Tiles in 3D support PBR materials and can be painted on 3D surfaces as well as on the terrain.
+
+The camera you choose for your game defines the perspective, you can either use a configurable orthographic / isometric camera or a first person camera.
+
+<Admonition type="note" title="Isometric Tiles">
+Eldiron always uses non-perspective tiles in 3D. Some engines support pre-rendered isometric tiles; Eldiron does not. Instead, you build the isometric look with geometry plus tiles, viewed through an isometric camera—far more flexible than stitching isometric tiles together.
+</Admonition>
+
+---
+
+In the following chapters we will discuss both 2D and 3D game map creation.

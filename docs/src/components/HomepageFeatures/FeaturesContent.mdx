@@ -1,0 +1,73 @@
+import Admonition from '@theme/Admonition';
+
+<Admonition type="warning" title="Development Status">
+Eldiron is in active development. I work on it regularly—often weekly, sometimes almost daily. It’s a big project and very much a hobby and passion project at the moment.
+
+Because of that, I can’t give fixed dates for when you’ll be able to ship a finished game. I want to keep development sustainable and enjoyable, and not turn it into a source of stress. That said, things are moving forward steadily, and with high probability Eldiron will reach v1 sometime in 2026.
+
+Thank you to everyone who supports the project and follows along on this journey.
+</Admonition>
+
+## 📰 Latest News
+
+> **Feb 7, 2026** Eldiron v0.8.100 has been released. Read the blog [here](blog/2026/02/07/eldiron-v0.8.100).
+>
+> **Feb 7, 2026** - The documentation has been rewritten and should now reflect the current state of **Eldiron**.
+>
+> **Dec 29, 2025** - My end of year development update and plans for the start of 2026. [→ Read the end of year blog](/blog/2025/12/29/end-of-year-update)
+>
+> **Dec 10, 2025** [→ New video now live](https://www.youtube.com/watch?v=xtk1JL-jCWw)
+>
+> **Dec 6, 2025** – **Eldiron v0.8.90 released!**
+> New UI System, New GPU Rendering with Raytracing, Integrated Tile Editor and more!
+>
+> [→ Read the full post](/blog/2025/12/07/eldiron-v0.8.90)
+>
+> [UPDATE] 0.8.91 with a fix for correct support of Windows Monitor Scales > 100%.
+>
+
+<img src="/img/farmer.png" alt="Farmer" style={{ float: 'right', marginLeft: '1rem', borderRadius: '8px' }} />
+
+# General Features
+
+- Design 2D maps in a Doom-style editor using vertices, linedefs, and sectors to create textured polygons.
+- Quickly *paint* with tiles using the **Rect** tool, which automatically generates the necessary geometry as you work.
+- Import your **tilesets**, define **animations** and **metadata**, and expand your tile collection. You can easily set tile properties—such as whether a tile is blocking—at any time. Visit our [Patreon Shop](https://www.patreon.com/c/eldiron/shop) for a growing collection of **tilesets**; your support helps the project thrive.
+- Access all commands in Eldiron Creator through the **Action list**. Available actions update automatically based on your geometry selection or UI state, ensuring you always know which commands are ready to use.
+- Define character and item behaviors with an intuitive **visual node editor** or the inbuilt custom scripting language called **Eldrin**.
+- Eldiron Creator is **cross-platform**, available for **Windows**, **Linux**, and **macOS** in the download section of the [GitHub repo](https://github.com/markusmoenig/Eldiron/releases). Each release includes builds for all platforms, including the **Web**. An **Xcode project** is also provided for specialized **iOS**, **macOS**, and **iPadOS** builds.
+
+Eldiron Creator currently ships with localizations for Chinese (Mandarin), German, Russian, Spanish and Taiwanese.
+
+Eldiron is free and open source under the MIT license — your [support](sponsor) is greatly appreciated.
+
+<img src="/img/adventurer.png" alt="Adventurer" style={{ float: 'right', marginLeft: '1rem', borderRadius: '8px' }} />
+
+# 3D Features
+
+- **3D editing** is seamlessly integrated into the editor, allowing you to **create new geometry** or **extrude** and edit **surface profiles** **non-destructively**.
+- Render your scenes in 3D using the new **GPU-based raytracer**, featuring ambient occlusion, shadows, transparency, PBR materials, and day/night time simulation.
+- The **Action** system is fully integrated with the **geometry workflow**, displaying all available actions for your **current selection**.
+- **Edit** and **extrude** surfaces **non-destructively**, including carving holes for **windows**, **recesses**, and **reliefs**.
+- Choose from **isometric**, **first-person**, or **orbit** cameras for flexible editing views.
+- Paint with tiles on 3D surfaces using the **Rect** tool.
+
+With Eldiron you can **create great looking 3D geometry** without any prior 3D modelling experience.
+
+# (Visual) Scripting
+
+- Create behavior visually with a **node-based event system** using simple drag and drop. The node system generates **Eldrin** code.
+- React to **world events** (like a character entering a sector or a conversation starting) by breaking complex logic into small, manageable tasks.
+- Choose from a wide range of built-in **events** and **commands**.
+- See real-time feedback on whether commands succeeded or failed.
+- You can also program directly in the inbuilt, custom scripting language **Eldrin**.
+
+<img src="/img/dragonslayer.png" alt="Dragon Slayer" style={{ float: 'right', marginLeft: '1rem', borderRadius: '8px' }} />
+
+# Tiles, Tiles and more Tiles
+
+- **Pixel art** tiles are the foundation of all your projects, in both 2D and 3D. Import them from your tilesets or create and edit them in the **integrated** tile editor.
+- Draw with tiles using the **Rect** tool—even in 3D, you can paint directly on 3D surfaces and the terrain.
+- Tiles in 3D are rendered with PBR materials (**Roughness**, **Metallic**, **Opacity**, **Emissive**).
+- Focusing on tiles makes Eldiron both **easy-to-use** and powerful, recreating the look of those beloved games from the late 80s and 90s.
+- The tile editor will support procedural tile creation for fireballs, explosions, bricks, and more soon.

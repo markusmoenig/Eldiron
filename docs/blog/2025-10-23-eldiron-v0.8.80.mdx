@@ -1,0 +1,53 @@
+---
+title: Eldiron v0.8.80 Released
+authors: [markusm]
+tags: [releases]
+---
+
+<!-- truncate -->
+
+Eldiron v0.8.80 marks a major step forward in 3D editing. You can now view, select, and build geometry directly in 3D — making level design faster, more visual, and more intuitive.
+
+![Eldiron Screenshot](/img/Eldironv0.8.80_3D.png)
+
+## Integrated 3D Workflow
+
+The 3D perspective is now part of Eldiron’s standard editing process. You can move freely between 2D and 3D views to create and refine geometry with true spatial context. While the system is still evolving, it already transforms how you approach world-building and scene layout.
+
+## Actions
+
+A new **Action System** makes editing geometry and applying properties effortless. The available actions update automatically depending on your selection and current editing mode, so you always see just what you need.
+
+**Current geometry actions include:**
+
+- **Add Arch** – Creates an arch structure on a linedef.  
+- **Apply Shader** – Assigns a shader to the selected surface or sector.  
+- **Apply Tile** – Applies a texture tile to the selected surface.  
+- **Clear Shader** – Removes any assigned shader from the selection.  
+- **Clear Tile** – Clears the applied texture tile.  
+- **Create Center Vertex** – Adds a vertex at the geometric center of a shape.  
+- **Create Linedef** – Draws new line definitions between vertices.  
+- **Create Sector** – Generates a polygonal area from enclosed linedefs.  
+- **Edit Linedef / Sector / Vertex** – Adjusts geometry interactively.  
+- **Extrude Linedef / Sector** – Creates 3D walls or volumes from 2D geometry.  
+- **Recess / Relief** – Adds depth or raised details to surfaces.  
+- **Load / New Shader** – Manage shader assets directly within the editor.  
+- **Set Editing Surface** – Switch between floor, wall, and ceiling editing.  
+- **Split** – Divides geometry into smaller segments for fine-grained control.
+
+## Non-Destructive Surface Profiles
+
+Surfaces can now be modified non-destructively. You can cut holes, add recesses, or raise reliefs while keeping the original geometry intact. Extrusions also stay linked, automatically updating when the base surface changes.
+
+## Visual Shading System
+
+The new **visual shader editor** lets you build materials through an intuitive, node-based interface. It includes a GLSL-style math system and a library of procedural patterns — giving you powerful creative control right inside Eldiron.
+
+## Client Build System
+
+Eldiron now ships with complete builds for **Mac, Windows, Linux, and Web**. The new web client supports fully playable browser-based games — try the [Hideout example](https://hideout.eldiron.com) to see it in action.
+
+---
+
+Take care,  
+Markus

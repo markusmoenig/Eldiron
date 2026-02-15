@@ -1,0 +1,8 @@
+{
+  "label": "Building Maps",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "description": "Create regional maps in 2D and 3D using geometry tools and tiles."
+  }
+}
