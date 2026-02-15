@@ -144,6 +144,8 @@ const gruvboxDarkTheme = {
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
+const isGhPages = process.env.DOCS_GH_PAGES === "1";
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "Eldiron",
@@ -151,10 +153,10 @@ const config = {
   favicon: "img/favicon.svg",
 
   // Set the production url of your site here
-  url: "https://eldiron.com",
+  url: isGhPages ? "https://markusmoenig.github.io" : "https://eldiron.com",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: "/",
+  baseUrl: isGhPages ? "/Eldiron/" : "/",
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
