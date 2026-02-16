@@ -26,6 +26,7 @@ impl ActionList {
             Box::new(crate::tools::create_linedef::CreateLinedef::new()),
             Box::new(crate::tools::create_sector::CreateSector::new()),
             Box::new(crate::tools::clear_palette::ClearPalette::new()),
+            Box::new(crate::tools::duplicate::Duplicate::new()),
             Box::new(crate::tools::duplicate_tile::DuplicateTile::new()),
             Box::new(crate::tools::edit_maximize::EditMaximize::new()),
             Box::new(crate::tools::edit_linedef::EditLinedef::new()),

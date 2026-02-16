@@ -1,3 +1,15 @@
+# Eldiron v0.9.0
+
+## New Features
+
+### Creator
+
+- New **Avatar** based character *skinning system*.
+- New *Duplicate* tool for vertices, lines, sectors.
+- New paint tools: *Selection, Paint Bucket, Eraser*.
+
+---
+
 # Eldiron v0.8.100
 
 ## New Features

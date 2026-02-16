@@ -225,3 +225,5 @@ status_avatar_anchor_set_main = Set main-hand anchor.
 status_avatar_anchor_set_off = Set off-hand anchor.
 status_avatar_anchor_clear_main = Cleared main-hand anchor.
 status_avatar_anchor_clear_off = Cleared off-hand anchor.
+action_duplicate = Duplicate
+action_duplicate_desc = Duplicate selected geometry with an XYZ offset.

@@ -778,6 +778,8 @@ impl Dock for TilesEditorDock {
     fn editor_tools(&self) -> Option<Vec<Box<dyn EditorTool>>> {
         Some(vec![
             Box::new(TileDrawTool::new()),
+            Box::new(TileFillTool::new()),
+            Box::new(TileEraserTool::new()),
             Box::new(TileSelectTool::new()),
         ])
     }

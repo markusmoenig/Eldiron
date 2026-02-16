@@ -16,7 +16,7 @@ impl Action for IsoCamera {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
 
         let item = TheNodeUIItem::FloatEditSlider(
-            "actionIsoCameraAzimuth".into(),
+            "actionIsoAzimuth".into(),
             "".into(),
             "".into(),
             135.0,
@@ -26,7 +26,7 @@ impl Action for IsoCamera {
         nodeui.add_item(item);
 
         let item = TheNodeUIItem::FloatEditSlider(
-            "actionIsoCameraElevation".into(),
+            "actionIsoElevation".into(),
             "".into(),
             "".into(),
             35.264,
@@ -35,7 +35,14 @@ impl Action for IsoCamera {
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown("desc".into(), "".into());
+        let item = TheNodeUIItem::FloatEditSlider(
+            "actionIsoScale".into(),
+            "".into(),
+            "".into(),
+            4.0,
+            2.0..=70.0,
+            true,
+        );
         nodeui.add_item(item);
 
         Self {
@@ -74,15 +81,14 @@ impl Action for IsoCamera {
     ) -> Option<ProjectUndoAtom> {
         server_ctx.editor_view_mode = EditorViewMode::Iso;
 
-        let azimuth = self
-            .nodeui
-            .get_f32_value("actionIsoCameraAzimuth")
-            .unwrap_or(0.0);
+        let azimuth = self.nodeui.get_f32_value("actionIsoAzimuth").unwrap_or(0.0);
 
         let elevation = self
             .nodeui
-            .get_f32_value("actionIsoCameraElevation")
+            .get_f32_value("actionIsoElevation")
             .unwrap_or(0.0);
+
+        let scale = self.nodeui.get_f32_value("actionIsoScale").unwrap_or(4.0);
 
         EDITCAMERA
             .write()
@@ -95,6 +101,12 @@ impl Action for IsoCamera {
             .unwrap()
             .iso_camera
             .set_parameter_f32("elevation_deg", elevation);
+
+        EDITCAMERA
+            .write()
+            .unwrap()
+            .iso_camera
+            .set_parameter_f32("scale", scale);
 
         if server_ctx.editing_surface.is_some() {
             ctx.ui.send(TheEvent::Custom(

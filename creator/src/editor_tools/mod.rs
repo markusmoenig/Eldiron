@@ -1,11 +1,13 @@
 pub mod tile_draw;
+pub mod tile_eraser;
+pub mod tile_fill;
 pub mod tile_select;
-// pub mod tile_fill;
 // pub mod tile_picker;
 
 pub use tile_draw::*;
+pub use tile_eraser::*;
+pub use tile_fill::*;
 pub use tile_select::*;
-// pub use tile_fill::*;
 // pub use tile_picker::*;
 
 use shared::prelude::*;

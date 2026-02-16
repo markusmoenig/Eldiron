@@ -17,6 +17,7 @@ pub mod set_tile_material;
 // pub mod gen_stone_trim;
 pub mod clear_palette;
 pub mod copy_tile_id;
+pub mod duplicate;
 pub mod duplicate_tile;
 pub mod edit_tile_meta;
 pub mod editing_camera;
