@@ -31,6 +31,8 @@ pub struct D3IsoCamera {
     /// Ortho near/far planes
     pub near: f32,
     pub far: f32,
+    /// Vertical headroom above center.y that should stay visible when zooming out.
+    pub height_clearance: f32,
 }
 
 impl D3IsoCamera {
@@ -62,8 +64,24 @@ impl D3IsoCamera {
     #[inline]
     fn position(&self) -> Vec3<f32> {
         let (forward, _right, _up) = self.basis();
-        // Camera position is behind the center along -forward
-        self.center + forward * self.distance
+        // Keep the ortho slab from cutting through the focus region when zooming out.
+        // This avoids losing geometry at the lower edge in steep isometric views.
+        self.center + forward * self.effective_distance()
+    }
+
+    #[inline]
+    fn effective_distance(&self) -> f32 {
+        let (forward_to_camera, _right, up) = self.basis();
+        let axis = Vec3::unit_y();
+        let up_proj = up.dot(axis).abs();
+        let forward_proj = forward_to_camera.dot(axis).abs();
+        if forward_proj > 1e-4 {
+            self.distance.max(
+                (self.scale * up_proj + self.height_clearance + self.near.max(1e-4)) / forward_proj,
+            )
+        } else {
+            self.distance
+        }
     }
 }
 
@@ -80,6 +98,7 @@ impl D3Camera for D3IsoCamera {
 
             near: 0.1,
             far: 100.0,
+            height_clearance: 9.0,
         }
     }
 
@@ -109,13 +128,15 @@ impl D3Camera for D3IsoCamera {
     fn projection_matrix(&self, width: f32, height: f32) -> Mat4<f32> {
         let half_h = self.scale;
         let half_w = half_h * (width / height).max(1e-6);
+        let near = self.near.max(1e-4);
+        let far = self.effective_far().max(near + 1e-3);
         Mat4::orthographic_rh_no(FrustumPlanes {
             left: -half_w,
             right: half_w,
             bottom: -half_h,
             top: half_h,
-            near: self.near,
-            far: self.far,
+            near,
+            far,
         })
     }
 
@@ -123,6 +144,7 @@ impl D3Camera for D3IsoCamera {
         match key {
             "azimuth_deg" | "yaw_deg" => self.azimuth_deg,
             "elevation_deg" | "pitch_deg" => self.elevation_deg,
+            "height_clearance" => self.height_clearance,
             _ => 0.0,
         }
     }
@@ -135,6 +157,7 @@ impl D3Camera for D3IsoCamera {
             "elevation_deg" | "pitch_deg" => self.elevation_deg = value.clamp(-89.9, 89.9),
             "near" => self.near = value.max(1e-4),
             "far" => self.far = value.max(self.near + 1e-3),
+            "height_clearance" => self.height_clearance = value.max(0.0),
             _ => {}
         }
     }
@@ -187,19 +210,7 @@ impl D3Camera for D3IsoCamera {
         let forward_to_camera = forward_to_camera.normalized();
         let right_to_camera = right_to_camera.normalized();
         let up = up_orig.normalized();
-
-        // Ensure the exported camera stays far enough so that the bottom of the ortho slab
-        // does not drop below the focus point when zooming out.
-        let axis = Vec3::unit_y();
-        let up_proj = up.dot(axis).abs();
-        let forward_proj = forward_to_camera.dot(axis).abs();
-        let required_distance = if forward_proj > 1e-4 {
-            self.distance.max((self.scale * up_proj) / forward_proj)
-        } else {
-            self.distance
-        };
-
-        let pos = self.center + forward_to_camera * required_distance;
+        let pos = self.position();
         let forward = -forward_to_camera;
         let right = -right_to_camera;
 
@@ -211,8 +222,17 @@ impl D3Camera for D3IsoCamera {
             up,
             ortho_half_h: self.scale,
             near: self.near,
-            far: self.far,
+            far: self.effective_far(),
             ..Default::default()
         }
+    }
+}
+
+impl D3IsoCamera {
+    #[inline]
+    fn effective_far(&self) -> f32 {
+        // Keep enough depth budget around the center plane as zoom/distance grow.
+        self.far
+            .max(self.effective_distance() + self.scale * 4.0 + self.height_clearance)
     }
 }

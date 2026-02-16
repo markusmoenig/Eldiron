@@ -32,12 +32,6 @@ fn hash13(p3: vec3<f32>) -> f32 {
     return fract((p.x + p.y) * p.z);
 }
 
-fn hash33(p3: vec3<f32>) -> vec3<f32> {
-    var p = fract(p3 * vec3<f32>(0.1031, 0.1030, 0.0973));
-    p += dot(p, p.yxz + 33.33);
-    return fract((p.xxy + p.yxx) * p.zyx);
-}
-
 // ===== Cosine-weighted hemisphere sampling =====
 fn cosine_sample_hemisphere(u1: f32, u2: f32) -> vec3<f32> {
     let r = sqrt(u1);
@@ -54,23 +48,6 @@ fn build_onb(N: vec3<f32>) -> mat3x3<f32> {
     let T = normalize(cross(up, N));
     let B = cross(N, T);
     return mat3x3<f32>(T, B, N);
-}
-
-// ===== GGX Importance Sampling =====
-// Sample a microfacet normal based on GGX distribution
-fn sample_ggx(u1: f32, u2: f32, roughness: f32) -> vec3<f32> {
-    let a = roughness * roughness;
-    let a2 = a * a;
-
-    let phi = 2.0 * PI * u1;
-    let cos_theta = sqrt((1.0 - u2) / (1.0 + (a2 - 1.0) * u2));
-    let sin_theta = sqrt(1.0 - cos_theta * cos_theta);
-
-    return vec3<f32>(
-        cos(phi) * sin_theta,
-        sin(phi) * sin_theta,
-        cos_theta
-    );
 }
 
 // ===== PBR Helper Functions =====
@@ -485,142 +462,31 @@ fn trace_unified(ro: vec3<f32>, rd: vec3<f32>, tmin: f32, tmax: f32) -> UnifiedH
     );
 }
 
-// ===== Unified Shadow Trace (lightweight, no full materials for performance) =====
-// Traces and finds the first OPAQUE surface, skipping very transparent ones
+// ===== Unified Shadow Trace =====
+// Single-hit shadow test: only mostly opaque surfaces cast shadows.
 fn trace_shadow_unified(ro: vec3<f32>, rd: vec3<f32>, tmax: f32) -> f32 {
-    var current_ro = ro;
-    var remaining_dist = tmax;
-
-    // Search up to 4 times for an opaque surface (skipping transparent billboard pixels)
-    for (var iter: u32 = 0u; iter < 4u; iter = iter + 1u) {
-        let geo_hit = sv_trace_grid(current_ro, rd, 0.0, remaining_dist);
-        let billboard_hit = trace_billboards(current_ro, rd, remaining_dist);
-
-        let use_billboard = billboard_hit.hit && (!geo_hit.hit || billboard_hit.t < geo_hit.t);
-
-        if (use_billboard) {
-            // For billboards, we need to check all billboards at this distance
-            // because multiple billboards might be overlapping at the same position
-            let hit_t = billboard_hit.t;
-            let threshold = 0.001; // Distance threshold for "same position"
-            var max_opacity = 0.0;
-
-            let billboard_count = scene_data.header.billboard_cmd_count;
-            for (var i: u32 = 0u; i < billboard_count; i = i + 1u) {
-                let cmd = sd_billboard_cmd(i);
-                let center = cmd.center.xyz;
-                let width = cmd.center.w;
-                let axis_right = cmd.axis_right.xyz;
-                let height = cmd.axis_right.w;
-                let axis_up = cmd.axis_up.xyz;
-                let repeat_mode = u32(cmd.axis_up.w);
-                let tile_index = cmd.params.x;
-
-                let hit = intersect_billboard(current_ro, rd, center, axis_right, axis_up, tile_index, i, repeat_mode, width, height);
-
-                // Check if this billboard is at approximately the same distance
-                if (hit.hit && abs(hit.t - hit_t) < threshold) {
-                    let albedo = sample_billboard(hit);
-                    let mat_data = sample_billboard_material(hit);
-                    let mat = unpack_material(mat_data);
-                    let opacity = mat.opacity * albedo.a;
-
-                    // Keep track of the maximum opacity at this position
-                    max_opacity = max(max_opacity, opacity);
-                }
-            }
-
-            // If any billboard at this position has a mostly opaque pixel, return it
-            if (max_opacity > 0.5) {
-                return max_opacity;
-            }
-
-            // All billboards at this position have transparent pixels at their UVs
-            // Advance past them to check what's behind
-            let epsilon = 0.001;
-            current_ro = current_ro + rd * (hit_t + epsilon);
-            remaining_dist = max(remaining_dist - hit_t - epsilon, 0.0);
-        } else if (geo_hit.hit) {
-            // Sample geometry material opacity
-            let tri = geo_hit.tri;
-            let i0 = indices3d.data[3u * tri + 0u];
-            let i1 = indices3d.data[3u * tri + 1u];
-            let i2 = indices3d.data[3u * tri + 2u];
-            let mat_data = sv_tri_sample_rmoe_blended(i0, i1, i2, geo_hit.u, geo_hit.v);
-            let mat = unpack_material(mat_data);
-            return mat.opacity;
-        } else {
-            // No more hits
-            return 0.0;
-        }
+    let hit = trace_unified(ro, rd, 0.0, tmax);
+    if (hit.hit_type == HIT_TYPE_NONE) {
+        return 0.0;
     }
 
-    return 0.0;
+    let layer_opacity = clamp(hit.albedo.a * hit.material.opacity, 0.0, 1.0);
+    // Single-hit transmittance: shadow strength follows opacity continuously.
+    return layer_opacity;
 }
 
-// ===== Ray-traced shadows with opacity support =====
+// ===== Ray-traced shadows =====
 fn trace_shadow(P: vec3<f32>, L: vec3<f32>, max_dist: f32) -> f32 {
-    let shadow_bias = 0.01; // Increased from 0.001 to avoid edge artifacts
-    let max_shadow_steps = u32(select(0.0, U.gp6.z, U.gp6.z >= 0.0));
-
-    // Minimum distance to light to avoid self-shadowing when light is near/in geometry
+    let shadow_bias = 0.01;
     let min_light_dist = 0.1;
-
-    // Fast path: Binary shadow test
-    if (max_shadow_steps == 0u) {
-        let opacity = trace_shadow_unified(P + L * shadow_bias, L, max_dist - min_light_dist);
-        // Only cast shadow if mostly opaque (ignore transparent billboards)
-        if (opacity > 0.5) {
-            return 0.0; // Shadow
-        }
-        return 1.0; // lit
+    if (max_dist <= min_light_dist) {
+        return 1.0;
     }
-
-    // Slow path: Multi-step transparency-aware shadows
-    var current_pos = P + L * shadow_bias;
-    var remaining_dist = max_dist;
-    var transparency = 1.0;
-
-    for (var step: u32 = 0u; step < max_shadow_steps; step = step + 1u) {
-        let opacity = trace_shadow_unified(current_pos, L, remaining_dist);
-
-        // Get the actual hit distance to advance the ray
-        let geo_hit = sv_trace_grid(current_pos, L, 0.0, remaining_dist);
-        let billboard_hit = trace_billboards(current_pos, L, remaining_dist);
-        let use_billboard = billboard_hit.hit && (!geo_hit.hit || billboard_hit.t < geo_hit.t);
-        let hit_t = select(geo_hit.t, billboard_hit.t, use_billboard);
-
-        // No hit found - fully lit
-        if (!geo_hit.hit && !billboard_hit.hit) {
-            break;
-        }
-
-        if (remaining_dist - hit_t < min_light_dist) {
-            break;
-        }
-
-        // Only accumulate opacity from surfaces that are somewhat opaque
-        if (opacity > 0.1) {
-            transparency *= (1.0 - opacity);
-
-            if (transparency < 0.01) {
-                return 0.0;
-            }
-        }
-
-        // Always advance the ray past the current hit (whether transparent or not)
-        current_pos = current_pos + L * (hit_t + shadow_bias);
-        remaining_dist = remaining_dist - hit_t - shadow_bias;
-
-        if (remaining_dist <= 0.0) {
-            break;
-        }
-    }
-
-    return transparency;
+    let opacity = trace_shadow_unified(P + L * shadow_bias, L, max_dist - min_light_dist);
+    return 1.0 - opacity;
 }
 
-// ===== Ambient Occlusion with opacity support =====
+// ===== Ambient Occlusion =====
 fn compute_ao(P: vec3<f32>, N: vec3<f32>, seed: vec3<f32>) -> f32 {
     // Read AO parameters from GP5 (negative = use default, 0.0 = disable/off)
     let ao_samples = u32(select(8.0, U.gp5.x, U.gp5.x >= 0.0));
@@ -643,18 +509,13 @@ fn compute_ao(P: vec3<f32>, N: vec3<f32>, seed: vec3<f32>) -> f32 {
         let local_dir = cosine_sample_hemisphere(u1, u2);
         let world_dir = onb * local_dir;
 
-        let opacity = trace_shadow_unified(P + N * 0.001, world_dir, ao_radius);
-
-        // Only count mostly opaque surfaces for AO (skip transparent billboards/glass)
-        if (opacity > 0.5) {
-            // Get hit distance for distance-based falloff
-            let geo_hit = sv_trace_grid(P + N * 0.001, world_dir, 0.0, ao_radius);
-            let billboard_hit = trace_billboards(P + N * 0.001, world_dir, ao_radius);
-            let use_billboard = billboard_hit.hit && (!geo_hit.hit || billboard_hit.t < geo_hit.t);
-            let hit_t = select(geo_hit.t, billboard_hit.t, use_billboard);
-
-            let dist_factor = 1.0 - (hit_t / ao_radius);
-            occlusion += dist_factor * opacity;
+        let hit = trace_unified(P + N * 0.001, world_dir, 0.0, ao_radius);
+        if (hit.hit_type != HIT_TYPE_NONE) {
+            let opacity = hit.albedo.a * hit.material.opacity;
+            if (opacity > 0.5) {
+                let dist_factor = clamp(1.0 - (hit.t / ao_radius), 0.0, 1.0);
+                occlusion += dist_factor * opacity;
+            }
         }
     }
 
@@ -768,6 +629,44 @@ fn pbr_lighting(P: vec3<f32>, N: vec3<f32>, V: vec3<f32>, albedo: vec3<f32>, mat
     return Lo;
 }
 
+fn shade_surface(
+    hit: UnifiedHit,
+    rd: vec3<f32>,
+    px: u32,
+    py: u32,
+    sky_rgb: vec3<f32>,
+    ambient_strength: f32
+) -> vec3<f32> {
+    let P = hit.position;
+    let N = hit.normal;
+    let albedo = hit.albedo;
+    let mat = hit.material;
+    let V = -rd;
+
+    if (mat.emissive > 0.99) {
+        return albedo.rgb * 2.0;
+    }
+
+    let ao = compute_ao(P, N, P + vec3<f32>(f32(px), f32(py), 0.0));
+    let direct = pbr_lighting(P, N, V, albedo.rgb, mat);
+
+    let ambient_color = U.gp3.xyz;
+    let sky_factor = max(dot(N, vec3<f32>(0.0, 1.0, 0.0)), 0.0);
+    let max_sky_dist = select(50.0, U.gp6.y, U.gp6.y >= 0.0);
+
+    var sky_contribution = vec3<f32>(0.0);
+    if (max_sky_dist > 0.0 && sky_factor > 0.0) {
+        let sky_dir = reflect(rd, N);
+        let sky_dir_up = max(dot(sky_dir, vec3<f32>(0.0, 1.0, 0.0)), 0.0);
+        let sky_visibility = select(0.0, trace_shadow(P, sky_dir, max_sky_dist), sky_dir_up > 0.0);
+        sky_contribution = sky_rgb * sky_factor * sky_visibility;
+    }
+
+    let ambient = (ambient_color * ambient_strength + sky_contribution) * albedo.rgb * ao;
+    let emissive = albedo.rgb * mat.emissive * 2.0;
+    return direct + ambient + emissive;
+}
+
 // ===== Main Compute Shader =====
 @compute @workgroup_size(8,8,1)
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -781,190 +680,78 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         (f32(py) + 0.5) / f32(U.fb_size.y)
     );
     let ray = cam_ray(cam_uv);
-    var ro = ray.ro;
+    let ro = ray.ro;
     let rd = normalize(ray.rd);
-
-    // Accumulated color (front to back compositing)
-    var accum_color = vec3<f32>(0.0);
-    var accum_alpha = 0.0;
-    var fog_distance = 0.0; // Track distance from camera for fog (set on first hit)
-    var first_hit = true;
 
     // Sky color for background (already in linear space from CPU)
     let sky_rgb = select(U.background.rgb, U.gp0.xyz, length(U.gp0.xyz) > 0.01);
     let ambient_strength = U.gp3.w; // User-defined, no default
+    var final_color = sky_rgb;
+    var fog_distance = 0.0;
+    var has_surface = false;
+    var surface_hit = trace_unified(ro, rd, 0.001, 1e6);
+    var trace_origin = ro;
+    var traveled = 0.0;
 
-    // Trace through transparent layers
-    let max_bounces = u32(max(1.0, select(8.0, U.gp5.w, U.gp5.w >= 0.0)));
-    for (var bounce: u32 = 0u; bounce < max_bounces; bounce = bounce + 1u) {
-        // First ray uses epsilon, continuation uses 0 to avoid self-intersection vs gaps
-        let tmin = select(0.0, 0.001, bounce == 0u);
-
-        // Unified trace for both geometry and billboards
-        let unified_hit = trace_unified(ro, rd, tmin, 1e6);
-
-        // No hit - sky
-        if (unified_hit.hit_type == HIT_TYPE_NONE) {
-            let sky_color = sky_rgb * (1.0 - accum_alpha);
-            accum_color += sky_color;
-            accum_alpha = 1.0;
+    // Keep rays passing through fully transparent texels (e.g. cutout billboards).
+    for (var iter: u32 = 0u; iter < 6u; iter = iter + 1u) {
+        let hit = trace_unified(trace_origin, rd, 0.001, 1e6);
+        if (hit.hit_type == HIT_TYPE_NONE) {
             break;
         }
 
-        // Alpha test - skip fully transparent pixels
-        if (unified_hit.albedo.a < 0.01) {
-            ro = ro + rd * (unified_hit.t + 0.001);
-            continue;
-        }
-
-        // Track fog distance on first hit
-        if (first_hit) {
-            fog_distance = unified_hit.t;
-            first_hit = false;
-        }
-
-        // Extract common hit data (already computed in trace_unified)
-        let P = unified_hit.position;
-        let N = unified_hit.normal;
-        let albedo = unified_hit.albedo;
-        let mat = unified_hit.material;
-        let V = -rd;
-
-        // Calculate final color based on emissive value
-        var layer_color: vec3<f32>;
-
-        if (mat.emissive > 0.99) {
-            // Fully emissive (e.g., light billboards) - skip all lighting, just glow
-            layer_color = albedo.rgb * 2.0;
-        } else {
-            // Regular surface with lighting
-
-            // Compute ambient occlusion
-            let ao = compute_ao(P, N, P + vec3<f32>(f32(px), f32(py), f32(bounce)));
-
-            // PBR direct lighting
-            let direct = pbr_lighting(P, N, V, albedo.rgb, mat);
-
-            // Ambient contribution (already in linear space from CPU)
-            let ambient_color = U.gp3.xyz;
-
-            // Sky contribution: combine orientation and occlusion
-            let sky_factor = max(dot(N, vec3<f32>(0.0, 1.0, 0.0)), 0.0);
-            let max_sky_dist = select(50.0, U.gp6.y, U.gp6.y >= 0.0);
-
-            var sky_contribution = vec3<f32>(0.0);
-            // If reflection sampling is on, avoid double-counting sky for highly specular surfaces
-            let reflections_on = U.gp6.w > 0.0;
-            let skip_sky_for_mirror = reflections_on && mat.metallic > 0.5;
-            if (!skip_sky_for_mirror && max_sky_dist > 0.0 && sky_factor > 0.0) {
-                let sky_dir = reflect(rd, N);
-                let sky_dir_up = max(dot(sky_dir, vec3<f32>(0.0, 1.0, 0.0)), 0.0);
-                let sky_visibility = select(0.0, trace_shadow(P, sky_dir, max_sky_dist), sky_dir_up > 0.0);
-                sky_contribution = sky_rgb * sky_factor * sky_visibility;
-            }
-
-            // Combine ambient (uniform) and sky (directional based on upward facing)
-            let ambient = (ambient_color * ambient_strength + sky_contribution) * albedo.rgb * ao;
-
-            // Emissive contribution (self-illumination)
-            let emissive = albedo.rgb * mat.emissive * 2.0;
-
-            // PBR Reflections (GGX importance sampled, gp6.w = sample count)
-            var reflections = vec3<f32>(0.0);
-            let reflection_samples = u32(max(U.gp6.w, 0.0));
-
-            if (reflection_samples > 0u) {
-                let F0 = mix(vec3<f32>(0.04), albedo.rgb, mat.metallic);
-                let roughness = clamp(mat.roughness, MIN_ROUGHNESS, 1.0);
-                let onb = build_onb(N);
-                let sample_count = max(reflection_samples, 1u);
-                let max_refl_dist = select(50.0, U.gp6.y, U.gp6.y >= 0.0);
-
-                var refl_accum = vec3<f32>(0.0);
-                var weight_sum = 0.0;
-
-                for (var s: u32 = 0u; s < sample_count; s = s + 1u) {
-                    let rand = hash33(P + vec3<f32>(
-                        f32(px) * 0.5 + f32(s),
-                        f32(py) * 0.5 + f32(bounce) * 0.73,
-                        f32(s) * 7.31
-                    ));
-
-                    // Sample microfacet normal and build reflection direction
-                    let H_sample = sample_ggx(rand.x, rand.y, roughness);
-                    let H = normalize(onb * H_sample);
-                    let L = reflect(-V, H);
-                    let NdotL = max(dot(N, L), 0.0);
-                    if (NdotL <= 0.0) { continue; }
-
-                    let refl_hit = trace_unified(P + N * 0.01, L, 0.0, max_refl_dist);
-
-                    var sample_color = vec3<f32>(0.0);
-                    if (refl_hit.hit_type == HIT_TYPE_NONE) {
-                        // Reflect sky
-                        sample_color = select(U.background.rgb, U.gp0.xyz, length(U.gp0.xyz) > 0.01);
-                    } else {
-                        // Get reflected surface properties
-                        let refl_P = refl_hit.position;
-                        let refl_N = refl_hit.normal;
-                        let refl_V = -L;
-                        let refl_albedo = refl_hit.albedo.rgb;
-                        let refl_mat = refl_hit.material;
-
-                        if (refl_mat.emissive > 0.99) {
-                            sample_color = refl_albedo * 2.0;
-                        } else {
-                            let refl_direct = pbr_lighting(refl_P, refl_N, refl_V, refl_albedo, refl_mat);
-                            let refl_ambient = (ambient_color * ambient_strength) * refl_albedo;
-                            let refl_emissive = refl_albedo * refl_mat.emissive * 2.0;
-                            sample_color = refl_direct + refl_ambient + refl_emissive;
-                        }
-                    }
-
-                    let F = fresnel_schlick(max(dot(H, V), 0.0), F0);
-                    refl_accum += sample_color * F * NdotL;
-                    weight_sum += NdotL;
-                }
-
-                if (weight_sum > 0.0) {
-                    reflections = refl_accum / weight_sum;
-                }
-            }
-
-            // Combine lighting for this layer
-            layer_color = direct + ambient + emissive + reflections;
-        }
-
-        // Calculate layer opacity (from material and texture alpha)
-        let layer_opacity = albedo.a * mat.opacity;
-
-        // Handle opaque vs transparent surfaces differently
-        if (layer_opacity >= 0.99) {
-            // Fully opaque - blend any previous transparent layers and use this color
-            accum_color += layer_color * (1.0 - accum_alpha);
-            accum_alpha = 1.0;
+        let layer_opacity = hit.albedo.a * hit.material.opacity;
+        if (layer_opacity > 0.01) {
+            surface_hit = hit;
+            fog_distance = traveled + hit.t;
+            has_surface = true;
             break;
-        } else {
-            // Transparent - front-to-back alpha compositing
-            accum_color += layer_color * layer_opacity * (1.0 - accum_alpha);
-            accum_alpha += layer_opacity * (1.0 - accum_alpha);
+        }
 
-            // Check if we've accumulated enough opacity to stop
-            if (accum_alpha >= 0.99) {
-                accum_alpha = 1.0;
-                break;
+        trace_origin = hit.position + rd * 0.001;
+        traveled += hit.t + 0.001;
+    }
+
+    if (has_surface) {
+        let front_color = shade_surface(surface_hit, rd, px, py, sky_rgb, ambient_strength);
+        let front_opacity = clamp(surface_hit.albedo.a * surface_hit.material.opacity, 0.0, 1.0);
+
+        var background_color = sky_rgb;
+        // Only blend a second layer behind transparent billboards.
+        // This prevents partially transparent geometry materials from leaking hidden billboards.
+        if (surface_hit.hit_type == HIT_TYPE_BILLBOARD && front_opacity < 0.99) {
+            var back_has_surface = false;
+            var back_hit = surface_hit;
+            var back_origin = surface_hit.position + rd * 0.001;
+
+            // Find a single visible surface behind the front transparent layer.
+            for (var iter: u32 = 0u; iter < 6u; iter = iter + 1u) {
+                let hit = trace_unified(back_origin, rd, 0.001, 1e6);
+                if (hit.hit_type == HIT_TYPE_NONE) {
+                    break;
+                }
+                let opacity = hit.albedo.a * hit.material.opacity;
+                if (opacity > 0.01) {
+                    back_hit = hit;
+                    back_has_surface = true;
+                    break;
+                }
+                back_origin = hit.position + rd * 0.001;
             }
 
-            // Continue ray from just past this surface
-            ro = P + rd * 0.001;
+            if (back_has_surface) {
+                let back_color = shade_surface(back_hit, rd, px, py, sky_rgb, ambient_strength);
+                let back_opacity = clamp(back_hit.albedo.a * back_hit.material.opacity, 0.0, 1.0);
+                background_color = mix(sky_rgb, back_color, back_opacity);
+            }
         }
+
+        final_color = mix(background_color, front_color, front_opacity);
     }
 
     // Apply fog based on distance traveled
-    var final_color = accum_color;
-
     let fog_density = U.gp4.w;
-    if (fog_density > 0.0) {
+    if (fog_density > 0.0 && has_surface) {
         // Exponential squared fog: fog_amount = density * distance²
         let fog_amount = fog_density * fog_distance * fog_distance;
         let fog_factor = clamp(exp(-fog_amount), 0.0, 1.0);
@@ -979,5 +766,5 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     final_color = final_color / (final_color + vec3<f32>(1.0));
     final_color = pow(final_color, vec3<f32>(1.0 / 2.2));
 
-    sv_write(px, py, vec4<f32>(final_color, accum_alpha));
+    sv_write(px, py, vec4<f32>(final_color, 1.0));
 }
