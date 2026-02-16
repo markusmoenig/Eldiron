@@ -14,8 +14,8 @@ impl Action for AddArch {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionArchHeight".into(),
-            fl!("height"),
-            fl!("status_action_add_arch_height"),
+            "".into(),
+            "".into(),
             1.0,
             0.1..=2.0,
             false,
@@ -24,18 +24,15 @@ impl Action for AddArch {
 
         let item = TheNodeUIItem::IntEditSlider(
             "actionArchSegments".into(),
-            fl!("segments"),
-            fl!("status_action_add_arch_segment"),
+            "".into(),
+            "".into(),
             12,
             4..=64,
             false,
         );
         nodeui.add_item(item);
 
-        nodeui.add_item(TheNodeUIItem::Markdown(
-            "desc".into(),
-            fl!("action_add_arch_desc"),
-        ));
+        nodeui.add_item(TheNodeUIItem::Markdown("desc".into(), "".into()));
 
         Self {
             id: TheId::named(&fl!("action_add_arch")),

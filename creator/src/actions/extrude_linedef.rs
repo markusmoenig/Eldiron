@@ -80,8 +80,8 @@ impl Action for ExtrudeLinedef {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionDistance".into(),
-            fl!("distance"),
-            fl!("status_action_extrude_linedef_distance"),
+            "".into(),
+            "".into(),
             2.0,
             0.0..=0.0,
             false,
@@ -90,15 +90,15 @@ impl Action for ExtrudeLinedef {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionAngle".into(),
-            fl!("angle"),
-            fl!("status_action_extrude_linedef_angle"),
+            "".into(),
+            "".into(),
             0.0,
             0.0..=360.0,
             false,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_extrude_linedef_desc"));
+        let item = TheNodeUIItem::Markdown("desc".into(), "".into());
         nodeui.add_item(item);
 
         Self {

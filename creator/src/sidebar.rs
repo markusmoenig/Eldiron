@@ -238,24 +238,25 @@ impl Sidebar {
         minimap.limiter_mut().set_max_width(self.width);
         minimap_canvas.set_widget(minimap);
 
-        let mut node_settings_canvas = TheCanvas::default();
-        let mut tree_layout = TheTreeLayout::new(TheId::named("Node Settings"));
-        tree_layout.limiter_mut().set_max_width(self.width);
-        let root = tree_layout.get_root();
-
-        //text_layout.set_fixed_text_width(110);
-        // text_layout.set_text_margin(20);
-        // text_layout.set_text_align(TheHorizontalAlign::Right);
-        let mut settings_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
-            "Settings",
-            server_ctx.tree_settings_id,
-        ));
-        settings_node.set_root_mode(false);
-        settings_node.set_open(true);
-
-        root.add_child(settings_node);
-
-        node_settings_canvas.set_layout(tree_layout);
+        let mut action_params_canvas = TheCanvas::default();
+        let mut textedit = TheTextAreaEdit::new(TheId::named("Action Params TOML"));
+        if let Some(bytes) = crate::Embedded::get("parser/TOML.sublime-syntax")
+            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+        {
+            textedit.add_syntax_from_string(source);
+            textedit.set_code_type("TOML");
+        }
+        if let Some(bytes) = crate::Embedded::get("parser/gruvbox-dark.tmTheme")
+            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+        {
+            textedit.add_theme_from_string(source);
+            textedit.set_code_theme("Gruvbox Dark");
+        }
+        textedit.set_continuous(true);
+        textedit.display_line_number(false);
+        textedit.use_global_statusbar(true);
+        textedit.set_font_size(13.5);
+        action_params_canvas.set_widget(textedit);
 
         // let mut header = TheCanvas::new();
         // let mut switchbar = TheSwitchbar::new(TheId::named("Action Header"));
@@ -264,7 +265,7 @@ impl Sidebar {
 
         // nodes_minimap_canvas.set_top(header);
 
-        nodes_minimap_shared.add_canvas(node_settings_canvas);
+        nodes_minimap_shared.add_canvas(action_params_canvas);
         nodes_minimap_shared.add_canvas(minimap_canvas);
         nodes_minimap_canvas.set_layout(nodes_minimap_shared);
 
@@ -668,23 +669,7 @@ impl Sidebar {
                                 action.load_params(map);
                             }
                             action.load_params_project(project, server_ctx);
-
-                            if let Some(layout) = ui.get_tree_layout("Node Settings") {
-                                let mut text = action.id().name.clone();
-                                if let Some(accel) = action.accel() {
-                                    text += &format!(" ({})", accel.description());
-                                }
-
-                                if let Some(node) =
-                                    layout.get_node_by_id_mut(&server_ctx.tree_settings_id)
-                                {
-                                    let nodeui = action.params();
-                                    nodeui.apply_to_tree_node(node);
-                                    node.widget.set_value(TheValue::Text(text));
-                                    layout.relayout(ctx);
-                                    ctx.ui.relayout = true;
-                                }
-                            }
+                            self.show_action_toml_params(ui, ctx, server_ctx, action.as_ref());
                         }
                     }
                 } else if id.name == "Update Action List" {
@@ -703,17 +688,7 @@ impl Sidebar {
                     }
                     self.show_actions(ui, ctx, project, server_ctx);
                     if server_ctx.curr_action_id.is_none() {
-                        if let Some(layout) = ui.get_tree_layout("Node Settings") {
-                            if let Some(node) =
-                                layout.get_node_by_id_mut(&server_ctx.tree_settings_id)
-                            {
-                                node.childs.clear();
-                                node.widgets.clear();
-                                node.widget.set_value(TheValue::Text(fl!("settings")));
-                                layout.relayout(ctx);
-                                ctx.ui.relayout = true;
-                            }
-                        }
+                        self.show_empty_action_toml(ui, ctx);
                     }
                 } else if id.name == "Nodegraph Id Changed" {
                     if let Some(map) = project.get_map(server_ctx) {
@@ -1058,7 +1033,28 @@ impl Sidebar {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name.starts_with("Region Item Name Edit") {
+                if id.name == "Action Params TOML" {
+                    if let Some(action_id) = server_ctx.curr_action_id
+                        && let Some(source) = value.to_string()
+                        && let Some(action) =
+                            ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
+                    {
+                        let mut nodeui = action.params();
+                        if apply_toml_to_nodeui(&mut nodeui, &source).is_ok() {
+                            for (key, val) in nodeui_to_value_pairs(&nodeui) {
+                                let ev = TheEvent::ValueChanged(TheId::named(&key), val);
+                                let _ = action.handle_event(&ev, project, ui, ctx, server_ctx);
+                            }
+
+                            if server_ctx.auto_action {
+                                ctx.ui.send(TheEvent::StateChanged(
+                                    TheId::named("Action Apply"),
+                                    TheWidgetState::Clicked,
+                                ));
+                            }
+                        }
+                    }
+                } else if id.name.starts_with("Region Item Name Edit") {
                     // Rename a region
                     let mut old = String::new();
                     if let Some(region) = project.get_region_mut(&id.uuid) {
@@ -1792,32 +1788,17 @@ impl Sidebar {
                     //             nodeui.apply_to_tree_node(node);
                     //             ctx.ui.relayout = true;
 
-                    if let Some(layout) = ui.get_tree_layout("Node Settings") {
-                        if let Some(map) = project.get_map_mut(&server_ctx) {
-                            action.load_params(map);
-                        }
-                        action.load_params_project(project, server_ctx);
+                    if let Some(map) = project.get_map_mut(&server_ctx) {
+                        action.load_params(map);
+                    }
+                    action.load_params_project(project, server_ctx);
+                    self.show_action_toml_params(ui, ctx, server_ctx, action.as_ref());
 
-                        let mut text = action.id().name.clone();
-                        if let Some(accel) = action.accel() {
-                            text += &format!(" ({})", accel.description());
-                        }
-
-                        if let Some(node) = layout.get_node_by_id_mut(&server_ctx.tree_settings_id)
-                        {
-                            let nodeui = action.params();
-                            nodeui.apply_to_tree_node(node);
-                            node.widget.set_value(TheValue::Text(text));
-                            layout.relayout(ctx);
-                            ctx.ui.relayout = true;
-                        }
-
-                        if server_ctx.auto_action {
-                            ctx.ui.send(TheEvent::StateChanged(
-                                TheId::named("Action Apply"),
-                                TheWidgetState::None,
-                            ));
-                        }
+                    if server_ctx.auto_action {
+                        ctx.ui.send(TheEvent::StateChanged(
+                            TheId::named("Action Apply"),
+                            TheWidgetState::None,
+                        ));
                     }
                 } else if id.name == "Action Apply" {
                     if let Some(action_id) = server_ctx.curr_action_id {
@@ -3520,6 +3501,52 @@ impl Sidebar {
         ui.select_first_list_item("Tilemap Tile List", ctx);
     }
 
+    fn show_empty_action_toml(&self, ui: &mut TheUI, _ctx: &mut TheContext) {
+        if let Some(widget) = ui.get_widget("Action Params TOML")
+            && let Some(edit) = widget.as_text_area_edit()
+            && !edit.text().is_empty()
+        {
+            edit.set_text(String::new());
+            let mut state = edit.get_state();
+            state.cursor.row = 0;
+            state.cursor.column = 0;
+            state.selection.reset();
+            TheTextAreaEditTrait::set_state(edit, state);
+        }
+    }
+
+    fn show_action_toml_params(
+        &self,
+        ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _server_ctx: &ServerContext,
+        action: &dyn Action,
+    ) {
+        let toml_text = nodeui_to_toml(&action.params());
+        if let Some(widget) = ui.get_widget("Action Params TOML")
+            && let Some(edit) = widget.as_text_area_edit()
+        {
+            let previous = edit.get_state();
+            if edit.text() != toml_text {
+                edit.set_text(toml_text);
+
+                let mut state = edit.get_state();
+                let row_max = state.rows.len().saturating_sub(1);
+                let row = previous.cursor.row.min(row_max);
+                let col_max = state
+                    .rows
+                    .get(row)
+                    .map(|line| line.chars().count())
+                    .unwrap_or(0);
+
+                state.cursor.row = row;
+                state.cursor.column = previous.cursor.column.min(col_max);
+                state.selection.reset();
+                TheTextAreaEditTrait::set_state(edit, state);
+            }
+        }
+    }
+
     /// Shows the filtered actions for the current selection.
     pub fn show_actions(
         &mut self,
@@ -3594,24 +3621,19 @@ impl Sidebar {
             }
         }
 
-        if let Some(layout) = ui.get_tree_layout("Node Settings") {
-            if let Some(node) = layout.get_node_by_id_mut(&server_ctx.tree_settings_id) {
-                if let Some(action_id) = server_ctx.curr_action_id {
-                    if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id) {
-                        let nodeui = action.params();
-                        nodeui.apply_to_tree_node(node);
-
-                        let mut text = action.id().name.clone();
-                        if let Some(accel) = action.accel() {
-                            text += &format!(" ({})", accel.description());
-                        }
-
-                        node.widget.set_value(TheValue::Text(text));
-                        layout.relayout(ctx);
-                        ctx.ui.relayout = true;
-                    }
+        if let Some(action_id) = server_ctx.curr_action_id {
+            if let Some(action) = ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id) {
+                if let Some(map) = project.get_map(server_ctx) {
+                    action.load_params(map);
+                } else {
+                    let default_map = Map::default();
+                    action.load_params(&default_map);
                 }
+                action.load_params_project(project, server_ctx);
+                self.show_action_toml_params(ui, ctx, server_ctx, action.as_ref());
             }
+        } else {
+            self.show_empty_action_toml(ui, ctx);
         }
     }
 

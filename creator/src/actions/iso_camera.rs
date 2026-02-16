@@ -17,8 +17,8 @@ impl Action for IsoCamera {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionIsoCameraAzimuth".into(),
-            fl!("action_iso_camera_azimuth"),
-            fl!("status_action_iso_camera_azimuth"),
+            "".into(),
+            "".into(),
             135.0,
             0.0..=360.0,
             true,
@@ -27,15 +27,15 @@ impl Action for IsoCamera {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionIsoCameraElevation".into(),
-            fl!("action_iso_camera_elevation"),
-            fl!("status_action_iso_camera_elevation"),
+            "".into(),
+            "".into(),
             35.264,
             0.0..=90.0,
             true,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_iso_camera_desc"));
+        let item = TheNodeUIItem::Markdown("desc".into(), "".into());
         nodeui.add_item(item);
 
         Self {

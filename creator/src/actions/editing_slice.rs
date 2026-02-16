@@ -14,15 +14,15 @@ impl Action for EditingSlice {
 
         let item = TheNodeUIItem::IntEditSlider(
             "actionEditingSlicePos".into(),
-            fl!("action_editing_slice_pos"),
-            fl!("status_action_editing_slice_pos"),
+            "".into(),
+            "".into(),
             0,
             -5..=5,
             false,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_editing_slice_desc"));
+        let item = TheNodeUIItem::Markdown("desc".into(), "".into());
         nodeui.add_item(item);
 
         Self {

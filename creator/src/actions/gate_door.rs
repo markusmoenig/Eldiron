@@ -15,8 +15,8 @@ impl Action for GateDoor {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionGateDoorInset".into(),
-            fl!("inset"),
-            fl!("status_action_gate_door_inset"),
+            "".into(),
+            "".into(),
             0.1,
             0.0..=1.0,
             false,
@@ -25,17 +25,17 @@ impl Action for GateDoor {
 
         let item = TheNodeUIItem::Selector(
             "actionGateDoorRepeatMode".into(),
-            fl!("repeat_mode"),
-            fl!("status_action_gate_door_repeat_mode"),
-            vec![fl!("repeat"), fl!("scale")],
+            "".into(),
+            "".into(),
+            vec!["repeat".into(), "scale".into()],
             1,
         );
         nodeui.add_item(item);
 
         let item = TheNodeUIItem::Icons(
             "actionGateDoorTile".into(),
-            fl!("icons"),
-            fl!("status_action_gate_door_tile"),
+            "".into(),
+            "".into(),
             vec![(
                 TheRGBABuffer::new(TheDim::sized(36, 36)),
                 "".to_string(),
@@ -44,7 +44,7 @@ impl Action for GateDoor {
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_gate_door_desc"));
+        let item = TheNodeUIItem::Markdown("desc".into(), "".into());
         nodeui.add_item(item);
 
         Self {

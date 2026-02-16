@@ -18,19 +18,13 @@ impl Action for EditTileMeta {
         for dir in TileRole::iterator() {
             roles.push(dir.to_string().to_string());
         }
-        let item = TheNodeUIItem::Selector(
-            "actionTileRole".into(),
-            fl!("role"),
-            fl!("status_action_edit_tile_role"),
-            roles,
-            1,
-        );
+        let item = TheNodeUIItem::Selector("actionTileRole".into(), "".into(), "".into(), roles, 1);
         nodeui.add_item(item);
 
         let item = TheNodeUIItem::Selector(
             "actionTileBlocking".into(),
-            fl!("blocking"),
-            fl!("status_action_edit_tile_blocking"),
+            "".into(),
+            "".into(),
             vec!["No".to_string(), "Yes".to_string()],
             0,
         );
@@ -38,15 +32,15 @@ impl Action for EditTileMeta {
 
         let item = TheNodeUIItem::Text(
             "actionTileTags".into(),
-            fl!("tags"),
-            fl!("status_action_edit_tile_tags"),
+            "".into(),
+            "".into(),
             "".into(),
             None,
             false,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_tile_desc"));
+        let item = TheNodeUIItem::Markdown("desc".into(), "".into());
         nodeui.add_item(item);
 
         Self {

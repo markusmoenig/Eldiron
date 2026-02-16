@@ -17,8 +17,8 @@ impl Action for NewTile {
 
         let item = TheNodeUIItem::IntEditSlider(
             "actionNewTileSize".into(),
-            fl!("size"),
-            fl!("status_action_new_tile_size"),
+            "".into(),
+            "".into(),
             16,
             8..=64,
             false,
@@ -27,15 +27,15 @@ impl Action for NewTile {
 
         let item = TheNodeUIItem::IntEditSlider(
             "actionNewTileFrames".into(),
-            fl!("frames"),
-            fl!("status_action_new_tile_frames"),
+            "".into(),
+            "".into(),
             1,
             1..=8,
             false,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_new_tile_desc"));
+        let item = TheNodeUIItem::Markdown("desc".into(), "".into());
         nodeui.add_item(item);
 
         Self {

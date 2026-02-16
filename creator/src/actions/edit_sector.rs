@@ -17,8 +17,8 @@ impl Action for EditSector {
 
         let item = TheNodeUIItem::Text(
             "actionSectorName".into(),
-            fl!("action_edit_sector_name"),
-            fl!("status_action_edit_sector_name"),
+            "".into(),
+            "".into(),
             "".into(),
             None,
             false,
@@ -27,8 +27,8 @@ impl Action for EditSector {
 
         let item = TheNodeUIItem::Text(
             "actionSectorItem".into(),
-            fl!("action_edit_sector_item"),
-            fl!("status_action_edit_sector_item"),
+            "".into(),
+            "".into(),
             "".into(),
             None,
             false,
@@ -37,30 +37,26 @@ impl Action for EditSector {
 
         nodeui.add_item(TheNodeUIItem::Checkbox(
             "actionSectorVisible".into(),
-            fl!("action_edit_sector_visible"),
-            fl!("status_action_edit_sector_visible"),
+            "".into(),
+            "".into(),
             true,
         ));
 
-        nodeui.add_item(TheNodeUIItem::OpenTree(fl!("terrain")));
+        nodeui.add_item(TheNodeUIItem::OpenTree("terrain".into()));
 
         let item = TheNodeUIItem::Selector(
             "actionSectorTerrain".into(),
-            fl!("action_edit_sector_terrain"),
-            fl!("status_action_edit_sector_terrain"),
-            vec![
-                fl!("action_edit_sector_terrain_none"),
-                fl!("action_edit_sector_terrain_exclude"),
-                fl!("action_edit_sector_terrain_ridge"),
-            ],
+            "".into(),
+            "".into(),
+            vec!["None".into(), "Exclude".into(), "Ridge".into()],
             0,
         );
         nodeui.add_item(item);
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionSectorTerrainRidgeHeight".into(),
-            fl!("action_edit_sector_terrain_ridge_height"),
-            fl!("status_action_edit_sector_terrain_ridge_height"),
+            "".into(),
+            "".into(),
             1.0,
             0.0..=0.0,
             false,
@@ -69,8 +65,8 @@ impl Action for EditSector {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionSectorTerrainRidgePlateau".into(),
-            fl!("action_edit_sector_terrain_ridge_plateau"),
-            fl!("status_action_edit_sector_terrain_ridge_plateau"),
+            "".into(),
+            "".into(),
             0.0,
             0.0..=0.0,
             false,
@@ -79,8 +75,8 @@ impl Action for EditSector {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionSectorTerrainRidgeFalloff".into(),
-            fl!("action_edit_sector_terrain_ridge_falloff"),
-            fl!("status_action_edit_sector_terrain_ridge_falloff"),
+            "".into(),
+            "".into(),
             5.0,
             0.0..=0.0,
             false,

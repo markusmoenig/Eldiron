@@ -16,14 +16,14 @@ impl Action for ApplyTile {
 
         let item = TheNodeUIItem::Selector(
             "actionApplyTileMode".into(),
-            fl!("repeat_mode"),
-            fl!("status_action_apply_tile_mode"),
-            vec![fl!("repeat"), fl!("scale")],
+            "".into(),
+            "".into(),
+            vec!["repeat".into(), "scale".into()],
             0,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_apply_tile_desc"));
+        let item = TheNodeUIItem::Markdown("desc".into(), "".into());
         nodeui.add_item(item);
 
         Self {

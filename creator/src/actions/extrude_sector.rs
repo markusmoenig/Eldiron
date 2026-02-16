@@ -16,15 +16,15 @@ impl Action for ExtrudeSector {
         // Surface extrusion settings
         nodeui.add_item(TheNodeUIItem::Checkbox(
             "actionSurfEnable".into(),
-            fl!("action_extrude_sector_surface_extrusion"),
-            fl!("status_action_extrude_sector_surface_extrusion"),
+            "".into(),
+            "".into(),
             true,
         ));
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionDepth".into(),
-            fl!("depth"),
-            fl!("status_action_extrude_sector_depth"),
+            "".into(),
+            "".into(),
             0.2,
             0.0..=1.0,
             false,
@@ -33,12 +33,12 @@ impl Action for ExtrudeSector {
 
         nodeui.add_item(TheNodeUIItem::Checkbox(
             "actionBackOpen".into(),
-            fl!("action_extrude_sector_open_back"),
-            fl!("status_action_extrude_sector_open_back"),
+            "".into(),
+            "".into(),
             false,
         ));
 
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_extrude_sector_desc"));
+        let item = TheNodeUIItem::Markdown("desc".into(), "".into());
         nodeui.add_item(item);
 
         Self {

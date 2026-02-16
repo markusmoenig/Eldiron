@@ -17,15 +17,15 @@ impl Action for EditLinedef {
 
         let item = TheNodeUIItem::Text(
             "actionLinedefName".into(),
-            fl!("action_edit_linedef_name"),
-            fl!("status_action_edit_linedef_name"),
+            "".into(),
+            "".into(),
             "".into(),
             None,
             false,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_linedef_desc"));
+        let item = TheNodeUIItem::Markdown("desc".into(), "".into());
         nodeui.add_item(item);
 
         Self {

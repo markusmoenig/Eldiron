@@ -2118,6 +2118,7 @@ impl TheTrait for Editor {
                             TheValue::Empty,
                         ));
                     } else if id.name == "Undo" || id.name == "Redo" {
+                        let mut refresh_action_ui = false;
                         if ui.focus_widget_supports_undo_redo(ctx) {
                             if id.name == "Undo" {
                                 ui.undo(ctx);
@@ -2140,6 +2141,7 @@ impl TheTrait for Editor {
                                     &mut self.server_ctx,
                                 );
                             }
+                            refresh_action_ui = true;
                         } else {
                             let mut manager = UNDOMANAGER.write().unwrap();
 
@@ -2148,6 +2150,19 @@ impl TheTrait for Editor {
                             } else {
                                 manager.redo(&mut self.server_ctx, &mut self.project, ui, ctx);
                             }
+                            refresh_action_ui = true;
+                        }
+
+                        // Keep action list and TOML params in sync only when project/dock state changed.
+                        if refresh_action_ui {
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Update Action List"),
+                                TheValue::Empty,
+                            ));
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Update Action Parameters"),
+                                TheValue::Empty,
+                            ));
                         }
                     } else if id.name == "Cut" {
                         if ui.focus_widget_supports_clipboard(ctx) {

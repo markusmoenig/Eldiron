@@ -15,8 +15,8 @@ impl Action for SetTileMaterial {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionSetTileMaterialRoughness".into(),
-            fl!("roughness"),
-            fl!("status_action_set_tile_material_roughness"),
+            "".into(),
+            "".into(),
             0.5,
             0.0..=1.0,
             false,
@@ -25,8 +25,8 @@ impl Action for SetTileMaterial {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionSetTileMaterialMetallic".into(),
-            fl!("metallic"),
-            fl!("status_action_set_tile_material_metallic"),
+            "".into(),
+            "".into(),
             0.0,
             0.0..=1.0,
             false,
@@ -35,8 +35,8 @@ impl Action for SetTileMaterial {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionSetTileMaterialOpacity".into(),
-            fl!("opacity"),
-            fl!("status_action_set_tile_material_opacity"),
+            "".into(),
+            "".into(),
             1.0,
             0.0..=1.0,
             false,
@@ -45,15 +45,15 @@ impl Action for SetTileMaterial {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionSetTileMaterialEmissive".into(),
-            fl!("emissive"),
-            fl!("status_action_set_tile_material_emissive"),
+            "".into(),
+            "".into(),
             0.0,
             0.0..=1.0,
             false,
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_set_tile_material_desc"));
+        let item = TheNodeUIItem::Markdown("desc".into(), "".into());
         nodeui.add_item(item);
 
         Self {

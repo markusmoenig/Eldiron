@@ -18,8 +18,8 @@ impl Action for EditVertex {
 
         let item = TheNodeUIItem::Text(
             "actionVertexName".into(),
-            fl!("action_edit_vertex_name"),
-            fl!("status_action_edit_vertex_name"),
+            "".into(),
+            "".into(),
             "".into(),
             None,
             false,
@@ -28,8 +28,8 @@ impl Action for EditVertex {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionVertexX".into(),
-            fl!("action_edit_vertex_x"),
-            fl!("status_action_edit_vertex_x"),
+            "".into(),
+            "".into(),
             0.0,
             0.0..=0.0,
             false,
@@ -38,8 +38,8 @@ impl Action for EditVertex {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionVertexY".into(),
-            fl!("action_edit_vertex_y"),
-            fl!("status_action_edit_vertex_y"),
+            "".into(),
+            "".into(),
             0.0,
             0.0..=0.0,
             false,
@@ -48,8 +48,8 @@ impl Action for EditVertex {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionVertexZ".into(),
-            fl!("action_edit_vertex_z"),
-            fl!("status_action_edit_vertex_z"),
+            "".into(),
+            "".into(),
             0.0,
             0.0..=0.0,
             false,
@@ -58,8 +58,8 @@ impl Action for EditVertex {
 
         let item = TheNodeUIItem::Icons(
             "actionVertexTile".into(),
-            fl!("icons"),
-            fl!("status_action_edit_vertex_tile"),
+            "".into(),
+            "".into(),
             vec![(
                 TheRGBABuffer::new(TheDim::sized(36, 36)),
                 "".to_string(),
@@ -70,27 +70,27 @@ impl Action for EditVertex {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionVertexTileSize".into(),
-            fl!("size"),
-            fl!("status_action_edit_vertex_tile_size"),
+            "".into(),
+            "".into(),
             1.0,
             0.0..=0.0,
             false,
         );
         nodeui.add_item(item);
 
-        nodeui.add_item(TheNodeUIItem::OpenTree(fl!("terrain")));
+        nodeui.add_item(TheNodeUIItem::OpenTree("terrain".into()));
 
         nodeui.add_item(TheNodeUIItem::Checkbox(
             "actionVertexTerrain".into(),
-            fl!("action_edit_vertex_terrain_control"),
-            fl!("status_action_edit_vertex_terrain_control"),
+            "".into(),
+            "".into(),
             false,
         ));
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionVertexTerrainSmoothness".into(),
-            fl!("action_edit_vertex_terrain_smoothness"),
-            fl!("status_action_edit_vertex_terrain_smoothness"),
+            "".into(),
+            "".into(),
             0.0,
             0.0..=0.0,
             false,

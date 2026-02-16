@@ -15,8 +15,8 @@ impl Action for Recess {
 
         let item = TheNodeUIItem::FloatEditSlider(
             "actionRecessDepth".into(),
-            fl!("depth"),
-            fl!("status_action_recess_depth"),
+            "".into(),
+            "".into(),
             0.1,
             0.0..=1.0,
             false,
@@ -25,8 +25,8 @@ impl Action for Recess {
 
         let item = TheNodeUIItem::Selector(
             "actionRecessTarget".into(),
-            fl!("target"),
-            fl!("status_action_recess_target"),
+            "".into(),
+            "".into(),
             vec!["Front".to_string(), "Back".to_string()],
             1,
         );
@@ -34,8 +34,8 @@ impl Action for Recess {
 
         let item = TheNodeUIItem::Icons(
             "actionRecessTiles".into(),
-            fl!("icons"),
-            fl!("status_action_recess_tiles"),
+            "".into(),
+            "".into(),
             vec![
                 (
                     TheRGBABuffer::new(TheDim::sized(36, 36)),
@@ -51,7 +51,7 @@ impl Action for Recess {
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_recess_desc"));
+        let item = TheNodeUIItem::Markdown("desc".into(), "".into());
         nodeui.add_item(item);
 
         Self {
