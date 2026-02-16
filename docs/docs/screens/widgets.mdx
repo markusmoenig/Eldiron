@@ -24,25 +24,45 @@ Use a widget with **role = "game"** to render the game inside a screen. The game
 - **grid_size** (2D): pixel size of one tile (zoom level); if omitted, it falls back to **[viewport].grid_size**.
 - **upscale** (3D): render at **(widget size ÷ upscale)** and scale back up; **1** keeps native size, higher values soften, lower values sharpen.
 
-### Camera Cection
+### Camera Section
 
 - **type**: Rendering camera mode; **iso**, **firstp**, or **2D**.
+- **azimuth_deg** (iso, optional): horizontal rotation in degrees. If omitted, camera default is used.
+- **elevation_deg** (iso, optional): vertical angle in degrees. Higher values look more top-down and help seeing inside buildings. If omitted, camera default is used.
+- **scale** (iso, optional): orthographic half-height (zoom). Larger values zoom out. If omitted, camera default is used.
+
+Aliases are also accepted:
+
+- **azimuth** (same as `azimuth_deg`)
+- **elevation** (same as `elevation_deg`)
  
 <Admonition type="note" title="player input controls">
 This setting only affects **rendering**. It does **not** change how player input controls the camera.  
 To define player camera behavior, see [set_player_camera](/docs/characters_items/server_commands/#set_player_camera).
 </Admonition>
 
-### Example
+### Examples
 
 ```toml
 [ui]
 role = "game"
-grid_size = "40"
+grid_size = 40
 upscale = 1.5
 
 [camera]
 type = "firstp"
+```
+
+```toml
+[ui]
+role = "game"
+grid_size = 40
+
+[camera]
+type = "iso"
+azimuth_deg = 135.0
+elevation_deg = 50.0
+scale = 6.0
 ```
 
 ---

@@ -85,9 +85,31 @@ impl GameWidget {
                 let camera_type = camera.get_str_default("type".into(), "2d".into());
                 if camera_type == "iso" {
                     self.camera = PlayerCamera::D3Iso;
-                    self.camera_d3 = Box::new(D3IsoCamera::new());
+                    let mut iso = D3IsoCamera::new();
+
+                    // Optional camera overrides from TOML (keep camera defaults if missing).
+                    let default_azimuth = iso.get_parameter_f32("azimuth_deg");
+                    let default_elevation = iso.get_parameter_f32("elevation_deg");
+                    let default_scale = iso.scale();
+
+                    let azimuth = camera.get_float_default(
+                        "azimuth_deg",
+                        camera.get_float_default("azimuth", default_azimuth),
+                    );
+                    let elevation = camera.get_float_default(
+                        "elevation_deg",
+                        camera.get_float_default("elevation", default_elevation),
+                    );
+                    let scale = camera.get_float_default("scale", default_scale);
+
+                    iso.set_parameter_f32("azimuth_deg", azimuth);
+                    iso.set_parameter_f32("elevation_deg", elevation);
+                    iso.set_parameter_f32("scale", scale);
+
+                    self.camera_d3 = Box::new(iso);
                 } else if camera_type == "firstp" {
                     self.camera = PlayerCamera::D3FirstP;
+                    self.camera_d3 = Box::new(D3FirstPCamera::new());
                 }
             }
             self.table = groups;
