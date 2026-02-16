@@ -32,7 +32,7 @@ impl EditorTool for TileDrawTool {
     }
 
     fn icon_name(&self) -> String {
-        "draw".to_string()
+        "paint-brush".to_string()
     }
 
     fn rgba_view_mode(&self) -> Option<TheRGBAViewMode> {
