@@ -1,5 +1,5 @@
 use crate::actions::edit_vertex::EDIT_VERTEX_ACTION_ID;
-use crate::editor::{NODEEDITOR, RUSTERIX};
+use crate::editor::RUSTERIX;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -62,14 +62,13 @@ impl Tool for VertexTool {
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,
-        ui: &mut TheUI,
+        _ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
             Activate => {
-                self.activate_map_tool_helper(ui, ctx, project, server_ctx);
                 server_ctx.curr_map_tool_type = MapToolType::Vertex;
 
                 if let Some(map) = project.get_map_mut(server_ctx) {
@@ -656,104 +655,5 @@ impl Tool for VertexTool {
             None
         };
         self.hud.draw(buffer, map, ctx, server_ctx, id, assets);
-    }
-
-    fn handle_event(
-        &mut self,
-        event: &TheEvent,
-        _ui: &mut TheUI,
-        ctx: &mut TheContext,
-        project: &mut Project,
-        server_ctx: &mut ServerContext,
-    ) -> bool {
-        let redraw = false;
-        #[allow(clippy::single_match)]
-        match event {
-            TheEvent::StateChanged(id, state) => {
-                #[allow(clippy::collapsible_if)]
-                if id.name == "Apply Map Properties" && *state == TheWidgetState::Clicked {
-                    // Apply a source
-                    let mut source: Option<Value> = None;
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-                        let node_editor = NODEEDITOR.read().unwrap();
-                        if !node_editor.graph.nodes.is_empty() {
-                            source = Some(Value::Source(PixelSource::ShapeFXGraphId(
-                                node_editor.graph.id,
-                            )));
-                        }
-                    }
-
-                    if let Some(source) = source {
-                        if let Some(map) = project.get_map_mut(server_ctx) {
-                            let prev = map.clone();
-                            let context = NODEEDITOR.read().unwrap().context;
-                            for vertex_id in map.selected_vertices.clone() {
-                                if let Some(vertex) = map.find_vertex_mut(vertex_id) {
-                                    if context == NodeContext::Region {
-                                        vertex.properties.set("region_graph", source.clone());
-                                    } else if context == NodeContext::Shape {
-                                        vertex.properties.set("shape_graph", source.clone());
-                                    }
-                                }
-                            }
-
-                            // Force node update
-                            if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-                                NODEEDITOR.read().unwrap().force_update(ctx, map);
-                            }
-
-                            let undo_atom =
-                                RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-
-                            crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
-                                &server_ctx.curr_region,
-                                undo_atom,
-                                ctx,
-                            );
-                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                        }
-                    }
-                } else if id.name == "Remove Map Properties" && *state == TheWidgetState::Clicked {
-                    if let Some(map) = project.get_map_mut(server_ctx) {
-                        let prev = map.clone();
-                        let context = NODEEDITOR.read().unwrap().context;
-                        for vertex_id in map.selected_vertices.clone() {
-                            if let Some(vertex) = map.find_vertex_mut(vertex_id) {
-                                if context == NodeContext::Region
-                                    && server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor
-                                {
-                                    vertex.properties.remove("region_graph");
-                                } else if context == NodeContext::Shape
-                                    && server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor
-                                {
-                                    vertex.properties.remove("shape_graph");
-                                }
-                            }
-                        }
-
-                        // Force node update
-                        if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-                            NODEEDITOR.read().unwrap().force_update(ctx, map);
-                        }
-
-                        let undo_atom =
-                            RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-
-                        crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
-                            &server_ctx.curr_region,
-                            undo_atom,
-                            ctx,
-                        );
-                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Map Selection Changed"),
-                            TheValue::Empty,
-                        ));
-                    }
-                }
-            }
-            _ => {}
-        }
-        redraw
     }
 }

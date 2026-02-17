@@ -1,4 +1,4 @@
-use crate::editor::{RUSTERIX, UNDOMANAGER};
+use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use shared::prelude::*;
 
@@ -125,11 +125,9 @@ impl NodeEditor {
         }
         /*else if self.context == NodeContext::Material {
             if let Some(map) = project.get_map_mut(server_ctx) {
-                let prev = map.clone();
+                let _prev = map.clone();
                 map.changed += 1;
                 map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
-                let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-                UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
                 self.create_material_preview(map, &RUSTERIX.read().unwrap().assets);
 
                 ctx.ui.send(TheEvent::Custom(
@@ -140,14 +138,8 @@ impl NodeEditor {
         }*/
         else if self.context == NodeContext::Shape {
             if let Some(map) = project.get_map_mut(server_ctx) {
-                let prev = map.clone();
                 map.changed += 1;
                 map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
-                let undo = RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-                UNDOMANAGER
-                    .write()
-                    .unwrap()
-                    .add_region_undo(&map.id, undo, ctx);
                 self.create_shape_preview(map, &RUSTERIX.read().unwrap().assets);
             }
         }
@@ -397,7 +389,6 @@ impl NodeEditor {
                         // let prev = map.clone();
                         map.changed += 1;
                         map.shapefx_graphs.insert(self.graph.id, self.graph.clone());
-                        // let undo = MaterialUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
                         // UNDOMANAGER.write().unwrap().add_material_undo(undo, ctx);
                     }
                 }

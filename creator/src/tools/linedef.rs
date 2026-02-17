@@ -1,5 +1,5 @@
 use crate::actions::edit_linedef::EDIT_LINEDEF_ACTION_ID;
-use crate::editor::{NODEEDITOR, RUSTERIX};
+use crate::editor::RUSTERIX;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -87,8 +87,6 @@ impl Tool for LinedefTool {
                     TheId::named("Map Selection Changed"),
                     TheValue::Empty,
                 ));
-
-                self.activate_map_tool_helper(ui, ctx, project, server_ctx);
 
                 return true;
             }
@@ -767,39 +765,21 @@ impl Tool for LinedefTool {
                 if id.name == "Apply Map Properties" && *state == TheWidgetState::Clicked {
                     // Apply a source
                     let mut source: Option<Value> = None;
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-                        if let Some(id) = server_ctx.curr_tile_id {
-                            source = Some(Value::Source(PixelSource::TileId(id)));
-                        }
+                    if let Some(id) = server_ctx.curr_tile_id {
+                        source = Some(Value::Source(PixelSource::TileId(id)));
                     }
+
                     /*else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
                         if let Some(id) = server_ctx.curr_material_id {
                             source = Some(Value::Source(PixelSource::MaterialId(id)));
                         }
                     } */
-                    else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-                        let node_editor = NODEEDITOR.read().unwrap();
-                        if !node_editor.graph.nodes.is_empty() {
-                            source = Some(Value::Source(PixelSource::ShapeFXGraphId(
-                                node_editor.graph.id,
-                            )));
-                        }
-                    }
-
                     if let Some(source) = source {
                         if let Some(map) = project.get_map_mut(server_ctx) {
-                            let prev = map.clone();
-                            let context = NODEEDITOR.read().unwrap().context;
+                            let _prev = map.clone();
                             for linedef_id in map.selected_linedefs.clone() {
                                 if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                                    if context == NodeContext::Region
-                                        && server_ctx.curr_map_tool_helper
-                                            == MapToolHelper::NodeEditor
-                                    {
-                                        linedef.properties.set("region_graph", source.clone());
-                                    } else if context == NodeContext::Shape {
-                                        linedef.properties.set("shape_graph", source.clone());
-                                    } else if self.hud.selected_icon_index == 0 {
+                                    if self.hud.selected_icon_index == 0 {
                                         linedef.properties.set("row1_source", source.clone());
                                     } else if self.hud.selected_icon_index == 1 {
                                         linedef.properties.set("row2_source", source.clone());
@@ -810,20 +790,6 @@ impl Tool for LinedefTool {
                                     }
                                 }
                             }
-
-                            // Force node update
-                            if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-                                NODEEDITOR.read().unwrap().force_update(ctx, map);
-                            }
-
-                            let undo_atom =
-                                RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-
-                            crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
-                                &server_ctx.curr_region,
-                                undo_atom,
-                                ctx,
-                            );
 
                             if server_ctx.get_map_context() == MapContext::Region {
                                 ctx.ui.send(TheEvent::Custom(
@@ -837,20 +803,10 @@ impl Tool for LinedefTool {
                     }
                 } else if id.name == "Remove Map Properties" && *state == TheWidgetState::Clicked {
                     if let Some(map) = project.get_map_mut(server_ctx) {
-                        let prev = map.clone();
-                        let context = NODEEDITOR.read().unwrap().context;
+                        let _prev = map.clone();
                         for linedef_id in map.selected_linedefs.clone() {
                             if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                                if context == NodeContext::Region
-                                    && server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor
-                                {
-                                    linedef.properties.remove("region_graph");
-                                }
-                                if context == NodeContext::Shape
-                                    && server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor
-                                {
-                                    linedef.properties.remove("shape_graph");
-                                } else if self.hud.selected_icon_index == 0 {
+                                if self.hud.selected_icon_index == 0 {
                                     if linedef.properties.contains("row1_light") {
                                         linedef.properties.remove("row1_light");
                                     } else {
@@ -886,19 +842,6 @@ impl Tool for LinedefTool {
                             }
                         }
 
-                        // Force node update
-                        if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-                            NODEEDITOR.read().unwrap().force_update(ctx, map);
-                        }
-
-                        let undo_atom =
-                            RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-
-                        crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
-                            &server_ctx.curr_region,
-                            undo_atom,
-                            ctx,
-                        );
                         crate::editor::RUSTERIX.write().unwrap().set_dirty();
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Map Selection Changed"),

@@ -50,8 +50,9 @@ impl Dock for VisualCodeDock {
                 if let Some(region) = project.get_region(&id) {
                     if let Some(character_instance) = region.characters.get(&instance_id) {
                         self.module = character_instance.module.clone();
-                        self.module
-                            .set_module_type(codegridfx::ModuleType::CharacterInstance);
+                        // Keep stored routines as-is; avoid re-running default-routine insertion
+                        // on each dock activation.
+                        self.module.module_type = codegridfx::ModuleType::CharacterInstance;
                         self.module.view_name = "DockVisualScripting".into();
                         self.module.redraw(ui, ctx);
                         // Switch to this entity's undo stack
@@ -61,8 +62,9 @@ impl Dock for VisualCodeDock {
             } else if server_ctx.pc.is_character() {
                 if let Some(character) = project.characters.get(&id) {
                     self.module = character.module.clone();
-                    self.module
-                        .set_module_type(codegridfx::ModuleType::CharacterTemplate);
+                    // Keep stored routines as-is; avoid re-running default-routine insertion
+                    // on each dock activation.
+                    self.module.module_type = codegridfx::ModuleType::CharacterTemplate;
                     self.module.view_name = "DockVisualScripting".into();
                     self.module.redraw(ui, ctx);
                     // Switch to this entity's undo stack
@@ -71,8 +73,9 @@ impl Dock for VisualCodeDock {
             } else if server_ctx.pc.is_item() {
                 if let Some(item) = project.items.get(&id) {
                     self.module = item.module.clone();
-                    self.module
-                        .set_module_type(codegridfx::ModuleType::ItemTemplate);
+                    // Keep stored routines as-is; avoid re-running default-routine insertion
+                    // on each dock activation.
+                    self.module.module_type = codegridfx::ModuleType::ItemTemplate;
                     self.module.view_name = "DockVisualScripting".into();
                     self.module.redraw(ui, ctx);
                     // Switch to this entity's undo stack
@@ -123,9 +126,12 @@ impl Dock for VisualCodeDock {
                 if id.name == "ModuleChanged" {
                     // Add undo atom before applying the change
                     if let Some(prev) = &self.prev_module {
-                        let atom =
-                            VisualCodeUndoAtom::ModuleEdit(prev.clone(), self.module.clone());
-                        self.add_undo(atom, ctx);
+                        // Guard against duplicate "ModuleChanged" emissions with unchanged state.
+                        if prev.to_json() != self.module.to_json() {
+                            let atom =
+                                VisualCodeUndoAtom::ModuleEdit(prev.clone(), self.module.clone());
+                            self.add_undo(atom, ctx);
+                        }
                     }
 
                     // Store current module as previous for next change

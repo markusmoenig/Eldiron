@@ -290,88 +290,8 @@ impl ProjectContext {
 pub enum MapContext {
     Region,
     Screen,
-    Model,
-    Shader,
     Character,
     Item,
-}
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-pub enum MapToolHelper {
-    TilePicker,
-    NodeEditor,
-    ShaderEditor,
-    ShapePicker,
-}
-
-impl MapToolHelper {
-    pub fn set_from_index(&mut self, index: usize) {
-        match index {
-            1 => *self = MapToolHelper::NodeEditor,
-            2 => *self = MapToolHelper::ShaderEditor,
-            3 => *self = MapToolHelper::ShapePicker,
-            _ => *self = MapToolHelper::TilePicker,
-        }
-    }
-}
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-pub enum RenderToolHelper {
-    GlobalRender,
-    LocalRender,
-    Tracer,
-}
-
-impl RenderToolHelper {
-    pub fn set_from_index(&mut self, index: usize) {
-        match index {
-            // 1 => *self = RenderToolHelper::LocalRender,
-            1 => *self = RenderToolHelper::Tracer,
-            _ => *self = RenderToolHelper::GlobalRender,
-        }
-    }
-}
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-pub enum WorldToolHelper {
-    Brushes,
-    TilePicker,
-    MaterialPicker,
-    GlobalRender,
-}
-
-impl WorldToolHelper {
-    pub fn set_from_index(&mut self, index: usize) {
-        match index {
-            1 => *self = WorldToolHelper::TilePicker,
-            2 => *self = WorldToolHelper::MaterialPicker,
-            3 => *self = WorldToolHelper::GlobalRender,
-            _ => *self = WorldToolHelper::Brushes,
-        }
-    }
-}
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-pub enum WorldToolCamera {
-    Orbit,
-    FirstP,
-}
-
-impl WorldToolCamera {
-    pub fn set_from_index(&mut self, index: usize) {
-        match index {
-            1 => *self = WorldToolCamera::FirstP,
-            _ => *self = WorldToolCamera::Orbit,
-        }
-    }
-}
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-pub enum MapTextureMode {
-    Preview,
-    Floor,
-    Wall,
-    Ceiling,
 }
 
 /// This gives context to the server of the editing state for live highlighting.
@@ -430,8 +350,6 @@ pub struct ServerContext {
     /// The currently selected material
     pub curr_material_id: Option<Uuid>,
 
-    pub curr_effect: Option<EffectWrapper>,
-
     /// The screen editor drawing mode.
     pub screen_editor_mode_foreground: bool,
 
@@ -452,21 +370,6 @@ pub struct ServerContext {
 
     /// Current Map Context
     curr_map_context: MapContext,
-
-    /// For map tools, indicates which helper is active
-    pub curr_map_tool_helper: MapToolHelper,
-
-    /// For render tools, indicates which helper is active
-    pub curr_render_tool_helper: RenderToolHelper,
-
-    /// For world tools, indicates which helper is active
-    pub curr_world_tool_helper: WorldToolHelper,
-
-    /// For world tools, indicates which camera is active
-    pub curr_world_tool_camera: WorldToolCamera,
-
-    /// Map texture mode
-    pub curr_texture_mode: MapTextureMode,
 
     /// A click on map content originated from the map
     pub content_click_from_map: bool,
@@ -607,8 +510,6 @@ impl ServerContext {
             curr_model_id: None,
             curr_material_id: None,
 
-            curr_effect: None,
-
             screen_editor_mode_foreground: false,
 
             hover: (None, None, None),
@@ -618,11 +519,6 @@ impl ServerContext {
 
             curr_map_tool_type: MapToolType::Linedef,
             curr_map_context: MapContext::Region,
-            curr_map_tool_helper: MapToolHelper::TilePicker,
-            curr_render_tool_helper: RenderToolHelper::GlobalRender,
-            curr_world_tool_helper: WorldToolHelper::Brushes,
-            curr_world_tool_camera: WorldToolCamera::Orbit,
-            curr_texture_mode: MapTextureMode::Floor,
 
             content_click_from_map: false,
             no_rect_geo_on_map: true,

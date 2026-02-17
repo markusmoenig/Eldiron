@@ -49,13 +49,12 @@ impl Tool for SelectionTool {
         &mut self,
         tool_event: ToolEvent,
         ui: &mut TheUI,
-        ctx: &mut TheContext,
-        project: &mut Project,
+        _ctx: &mut TheContext,
+        _project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
             Activate => {
-                self.activate_map_tool_helper(ui, ctx, project, server_ctx);
                 server_ctx.curr_map_tool_type = MapToolType::Selection;
 
                 return true;

@@ -52,6 +52,7 @@ pub struct TheTextLineEdit {
 
     is_dirty: bool,
     embedded: bool,
+    frameless: bool,
     parent_id: Option<TheId>,
     cursor_icon: Option<TheCursorIcon>,
 
@@ -103,6 +104,7 @@ impl TheWidget for TheTextLineEdit {
 
             is_dirty: false,
             embedded: false,
+            frameless: false,
             parent_id: None,
             cursor_icon: Some(TheCursorIcon::Text),
 
@@ -873,9 +875,9 @@ impl TheWidget for TheTextLineEdit {
         self.renderer.render_widget(
             &mut shrinker,
             self.is_disabled,
-            self.embedded,
+            self.embedded || self.frameless,
             true,
-            !self.embedded,
+            !(self.embedded || self.frameless),
             self,
             buffer,
             style,
@@ -1005,6 +1007,7 @@ pub trait TheTextLineEditTrait: TheWidget {
     fn set_text(&mut self, text: String);
     fn set_info_text(&mut self, text: Option<String>);
     fn set_font_size(&mut self, font_size: f32);
+    fn set_frameless(&mut self, frameless: bool);
     fn set_range(&mut self, range: TheValue);
     fn set_associated_layout(&mut self, id: TheId);
     fn set_continuous(&mut self, continuous: bool);
@@ -1039,6 +1042,12 @@ impl TheTextLineEditTrait for TheTextLineEdit {
         self.renderer.set_font_size(font_size);
         self.modified_since_last_tick = true;
         self.is_dirty = true;
+    }
+    fn set_frameless(&mut self, frameless: bool) {
+        if self.frameless != frameless {
+            self.frameless = frameless;
+            self.is_dirty = true;
+        }
     }
     fn set_range(&mut self, range: TheValue) {
         if Some(range.clone()) != self.range {
@@ -1088,5 +1097,10 @@ impl TheTextLineEdit {
         let padding = ((self.dim.height as f32 - self.renderer.font_size as f32) * 0.5) as i32
             - (self.renderer.actual_size.y as f32 - self.renderer.font_size) as i32;
         self.renderer.padding.1 = padding.max(0);
+
+        // Frameless mode uses embedded visuals; nudge baseline slightly lower for toolbar readability.
+        if self.frameless && !self.embedded {
+            self.renderer.padding.1 += 1;
+        }
     }
 }

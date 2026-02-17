@@ -2,27 +2,25 @@ pub use crate::prelude::*;
 
 pub mod add_arch;
 pub mod apply_tile;
+pub mod clear_palette;
 pub mod clear_profile;
 pub mod clear_tile;
+pub mod copy_tile_id;
 pub mod create_center_vertex;
 pub mod create_linedef;
 pub mod create_sector;
+pub mod duplicate;
+pub mod duplicate_tile;
 pub mod edit_linedef;
 pub mod edit_maximize;
 pub mod edit_sector;
-pub mod edit_vertex;
-pub mod extrude_linedef;
-pub mod extrude_sector;
-pub mod set_tile_material;
-// pub mod gen_stone_trim;
-pub mod clear_palette;
-pub mod copy_tile_id;
-pub mod duplicate;
-pub mod duplicate_tile;
 pub mod edit_tile_meta;
+pub mod edit_vertex;
 pub mod editing_camera;
 pub mod editing_slice;
 pub mod export_vcode;
+pub mod extrude_linedef;
+pub mod extrude_sector;
 pub mod firstp_camera;
 pub mod gate_door;
 pub mod import_palette;
@@ -35,6 +33,7 @@ pub mod recess;
 pub mod relief;
 pub mod remap_tile;
 pub mod set_editing_surface;
+pub mod set_tile_material;
 pub mod split;
 pub mod toggle_editing_geo;
 pub mod toggle_rect_geo;
@@ -258,18 +257,35 @@ fn section_table<'a>(table: &'a toml::Table, path: &[String]) -> Option<&'a toml
 /// Converts action parameter UI to TOML.
 /// OpenTree / CloseTree items define nested TOML sections.
 pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
-    fn upsert(entries: &mut Vec<(String, toml::Value)>, key: String, value: toml::Value) {
-        if let Some((_, existing)) = entries.iter_mut().find(|(k, _)| *k == key) {
+    fn upsert(
+        entries: &mut Vec<(String, toml::Value, Option<String>)>,
+        key: String,
+        value: toml::Value,
+        comment: Option<String>,
+    ) {
+        if let Some((_, existing, existing_comment)) =
+            entries.iter_mut().find(|(k, _, _)| *k == key)
+        {
             *existing = value;
+            *existing_comment = comment;
         } else {
-            entries.push((key, value));
+            entries.push((key, value, comment));
         }
     }
 
+    fn selector_options_comment(values: &[String]) -> String {
+        let quoted = values
+            .iter()
+            .map(|v| format!("\"{}\"", v.replace('"', "\\\"")))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("# {quoted}")
+    }
+
     fn section_entries_mut<'a>(
-        sections: &'a mut Vec<(String, Vec<(String, toml::Value)>)>,
+        sections: &'a mut Vec<(String, Vec<(String, toml::Value, Option<String>)>)>,
         name: &str,
-    ) -> &'a mut Vec<(String, toml::Value)> {
+    ) -> &'a mut Vec<(String, toml::Value, Option<String>)> {
         if let Some(index) = sections.iter().position(|(n, _)| n == name) {
             return &mut sections[index].1;
         }
@@ -278,8 +294,8 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
         &mut sections[last].1
     }
 
-    let mut root_action_entries: Vec<(String, toml::Value)> = vec![];
-    let mut sections: Vec<(String, Vec<(String, toml::Value)>)> = vec![];
+    let mut root_action_entries: Vec<(String, toml::Value, Option<String>)> = vec![];
+    let mut sections: Vec<(String, Vec<(String, toml::Value, Option<String>)>)> = vec![];
     let mut section_stack: Vec<String> = vec![];
     let mut has_editable_values = false;
     let root_prefix = root_table_prefix(nodeui);
@@ -298,11 +314,11 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
                     display_key_for_storage(&action_key, &section_stack, root_prefix.as_deref());
                 let val = toml::Value::String(value.clone());
                 if section_stack.is_empty() {
-                    upsert(&mut root_action_entries, key, val);
+                    upsert(&mut root_action_entries, key, val, None);
                 } else {
                     let section_name = section_stack.join(".");
                     let entries = section_entries_mut(&mut sections, &section_name);
-                    upsert(entries, key, val);
+                    upsert(entries, key, val, None);
                 }
                 has_editable_values = true;
             }
@@ -315,12 +331,13 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
                 } else {
                     toml::Value::Integer(*index as i64)
                 };
+                let comment = Some(selector_options_comment(values));
                 if section_stack.is_empty() {
-                    upsert(&mut root_action_entries, key, selected);
+                    upsert(&mut root_action_entries, key, selected, comment);
                 } else {
                     let section_name = section_stack.join(".");
                     let entries = section_entries_mut(&mut sections, &section_name);
-                    upsert(entries, key, selected);
+                    upsert(entries, key, selected, comment);
                 }
                 has_editable_values = true;
             }
@@ -331,11 +348,11 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
                     display_key_for_storage(&action_key, &section_stack, root_prefix.as_deref());
                 let val = toml::Value::Float(round_f64_3(*value as f64));
                 if section_stack.is_empty() {
-                    upsert(&mut root_action_entries, key, val);
+                    upsert(&mut root_action_entries, key, val, None);
                 } else {
                     let section_name = section_stack.join(".");
                     let entries = section_entries_mut(&mut sections, &section_name);
-                    upsert(entries, key, val);
+                    upsert(entries, key, val, None);
                 }
                 has_editable_values = true;
             }
@@ -347,11 +364,11 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
                     display_key_for_storage(&action_key, &section_stack, root_prefix.as_deref());
                 let val = toml::Value::Integer(*value as i64);
                 if section_stack.is_empty() {
-                    upsert(&mut root_action_entries, key, val);
+                    upsert(&mut root_action_entries, key, val, None);
                 } else {
                     let section_name = section_stack.join(".");
                     let entries = section_entries_mut(&mut sections, &section_name);
-                    upsert(entries, key, val);
+                    upsert(entries, key, val, None);
                 }
                 has_editable_values = true;
             }
@@ -361,11 +378,11 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
                     display_key_for_storage(&action_key, &section_stack, root_prefix.as_deref());
                 let val = toml::Value::String(value.to_hex());
                 if section_stack.is_empty() {
-                    upsert(&mut root_action_entries, key, val);
+                    upsert(&mut root_action_entries, key, val, None);
                 } else {
                     let section_name = section_stack.join(".");
                     let entries = section_entries_mut(&mut sections, &section_name);
-                    upsert(entries, key, val);
+                    upsert(entries, key, val, None);
                 }
                 has_editable_values = true;
             }
@@ -375,11 +392,11 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
                     display_key_for_storage(&action_key, &section_stack, root_prefix.as_deref());
                 let val = toml::Value::Boolean(*value);
                 if section_stack.is_empty() {
-                    upsert(&mut root_action_entries, key, val);
+                    upsert(&mut root_action_entries, key, val, None);
                 } else {
                     let section_name = section_stack.join(".");
                     let entries = section_entries_mut(&mut sections, &section_name);
-                    upsert(entries, key, val);
+                    upsert(entries, key, val, None);
                 }
                 has_editable_values = true;
             }
@@ -398,7 +415,11 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
 
     if !root_action_entries.is_empty() {
         out.push_str("[action]\n");
-        for (key, value) in &root_action_entries {
+        for (key, value, comment) in &root_action_entries {
+            if let Some(comment) = comment {
+                out.push_str(comment);
+                out.push('\n');
+            }
             out.push_str(&format!("{key} = {value}\n"));
         }
     }
@@ -411,7 +432,11 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
             out.push('\n');
         }
         out.push_str(&format!("[{section}]\n"));
-        for (key, value) in entries {
+        for (key, value, comment) in entries {
+            if let Some(comment) = comment {
+                out.push_str(comment);
+                out.push('\n');
+            }
             out.push_str(&format!("{key} = {value}\n"));
         }
     }

@@ -1,4 +1,4 @@
-use crate::editor::{CODEEDITOR, CONFIGEDITOR, PALETTE, SCENEMANAGER};
+use crate::editor::{CONFIGEDITOR, PALETTE, SCENEMANAGER};
 use crate::prelude::*;
 use codegridfx::{Module, ModuleType};
 use rusteria::{RenderBuffer, Rusteria};
@@ -82,12 +82,6 @@ pub fn set_code(
                         ctx,
                         TheValue::Text(character_instance.source.clone()),
                     );
-
-                    CODEEDITOR.write().unwrap().set_module_character_instance(
-                        ui,
-                        ctx,
-                        character_instance,
-                    );
                     success = true;
                 }
             }
@@ -108,7 +102,6 @@ pub fn set_code(
                     }
                 }
             }
-            CODEEDITOR.write().unwrap().clear_module(ui, ctx);
         }
         ContentContext::CharacterTemplate(uuid) => {
             if let Some(character) = project.characters.get_mut(&uuid) {
@@ -117,10 +110,6 @@ pub fn set_code(
                 character
                     .module
                     .set_module_type(ModuleType::CharacterTemplate);
-                CODEEDITOR
-                    .write()
-                    .unwrap()
-                    .set_module_character(ui, ctx, character);
                 success = true;
             }
         }
@@ -129,7 +118,6 @@ pub fn set_code(
                 ui.set_widget_value("CodeEdit", ctx, TheValue::Text(item.source.clone()));
                 ui.set_widget_value("DataEdit", ctx, TheValue::Text(item.data.clone()));
                 item.module.set_module_type(ModuleType::ItemTemplate);
-                CODEEDITOR.write().unwrap().set_module_item(ui, ctx, item);
                 success = true;
             }
         }
@@ -147,7 +135,6 @@ pub fn set_code(
                     ui.set_widget_value("CodeEdit", ctx, TheValue::Text(item.source.clone()));
                     ui.set_widget_value("DataEdit", ctx, TheValue::Text(item.data.clone()));
                     item.module.set_module_type(ModuleType::ItemTemplate);
-                    CODEEDITOR.write().unwrap().set_module_item(ui, ctx, item);
                     success = true;
                 }
             }
@@ -196,22 +183,9 @@ pub fn set_code(
 pub fn get_source(_ui: &mut TheUI, server_ctx: &ServerContext) -> Option<PixelSource> {
     let mut source: Option<PixelSource> = None;
 
-    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-        if let Some(id) = server_ctx.curr_tile_id {
-            source = Some(PixelSource::TileId(id));
-        }
-    } /*else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-    if let Some(id) = server_ctx.curr_material {
-    source = Some(Value::Source(PixelSource::MaterialId(id)));
+    if let Some(id) = server_ctx.curr_tile_id {
+        source = Some(PixelSource::TileId(id));
     }
-    }
-    else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-    if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker") {
-    if let Some(color) = &PALETTE.read().unwrap().colors[palette_picker.index()] {
-    source = Some(Value::Source(PixelSource::Color(color.clone())));
-    }
-    }
-    }*/
 
     source
 }

@@ -322,7 +322,7 @@ impl Tool for RectTool {
                         if let Some((x, z)) = server_ctx.rect_terrain_id {
                             // Terrain
 
-                            let prev = map.clone();
+                            let _prev = map.clone();
 
                             let mut tiles = match map.properties.get("tiles") {
                                 Some(Value::TileOverrides(existing)) => existing.clone(),
@@ -645,7 +645,7 @@ impl Tool for RectTool {
         &mut self,
         event: &TheEvent,
         _ui: &mut TheUI,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
@@ -657,22 +657,13 @@ impl Tool for RectTool {
                 if id.name == "Apply Map Properties" && *state == TheWidgetState::Clicked {
                     let mut source: Option<Value> = None;
 
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-                        if let Some(id) = server_ctx.curr_tile_id {
-                            source = Some(Value::Source(PixelSource::TileId(id)));
-                        }
-                    } /*else if server_ctx.curr_map_tool_helper == MapToolHelper::ColorPicker {
-                    if let Some(palette_picker) = ui.get_palette_picker("Panel Palette Picker")
-                    {
-                    if let Some(color) = &project.palette.colors[palette_picker.index()] {
-                    source = Some(Value::Source(PixelSource::Color(color.clone())));
+                    if let Some(id) = server_ctx.curr_tile_id {
+                        source = Some(Value::Source(PixelSource::TileId(id)));
                     }
-                    }
-                    }*/
 
                     if let Some(source) = source {
                         if let Some(map) = project.get_map_mut(server_ctx) {
-                            let prev = map.clone();
+                            let _prev = map.clone();
 
                             for linedef_id in map.selected_linedefs.clone() {
                                 if let Some(linedef) = map.find_linedef_mut(linedef_id) {
@@ -689,20 +680,12 @@ impl Tool for RectTool {
                                 }
                             }
 
-                            let undo_atom =
-                                RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-
-                            crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
-                                &server_ctx.curr_region,
-                                undo_atom,
-                                ctx,
-                            );
                             crate::editor::RUSTERIX.write().unwrap().set_dirty();
                         }
                     }
                 } else if id.name == "Remove Map Properties" && *state == TheWidgetState::Clicked {
                     if let Some(map) = project.get_map_mut(server_ctx) {
-                        let prev = map.clone();
+                        let _prev = map.clone();
 
                         for linedef_id in map.selected_linedefs.clone() {
                             if let Some(linedef) = map.find_linedef_mut(linedef_id) {
@@ -727,14 +710,6 @@ impl Tool for RectTool {
                             }
                         }
 
-                        let undo_atom =
-                            RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-
-                        crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
-                            &server_ctx.curr_region,
-                            undo_atom,
-                            ctx,
-                        );
                         crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     }
                 }

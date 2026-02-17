@@ -122,6 +122,179 @@ pub struct Module {
 }
 
 impl Module {
+    /// Replace persisted module data while keeping runtime-only UI state
+    /// (selection, scroll, view binding, filter text) intact.
+    pub fn replace_preserving_runtime(&mut self, next: &Module) {
+        let selected_routine_name = self
+            .grid_ctx
+            .selected_routine
+            .and_then(|id| self.routines.get(&id))
+            .map(|r| r.name.clone());
+        let grid_ctx = self.grid_ctx.clone();
+        let view_name = self.view_name.clone();
+        let filter_text = self.filter_text.clone();
+
+        *self = next.clone();
+
+        self.grid_ctx = grid_ctx;
+        self.view_name = view_name;
+        self.filter_text = filter_text;
+
+        // Reselect routine by name if UUID changed across undo/redo snapshots.
+        if let Some(selected_id) = self.grid_ctx.selected_routine
+            && !self.routines.contains_key(&selected_id)
+        {
+            self.grid_ctx.selected_routine = selected_routine_name.as_ref().and_then(|name| {
+                self.routines
+                    .iter()
+                    .find(|(_, routine)| routine.name == *name)
+                    .map(|(id, _)| *id)
+            });
+        }
+    }
+
+    fn toolbar_layout_id(&self) -> String {
+        format!("{} Toolbar", self.view_name)
+    }
+
+    fn add_toolbar_filter_controls(&self, hlayout: &mut dyn TheHLayoutTrait) {
+        let mut filter_text = TheText::new(TheId::empty());
+        filter_text.set_text("Filter".to_string());
+        hlayout.add_widget(Box::new(filter_text));
+
+        let mut filter_edit = TheTextLineEdit::new(TheId::named("Code Editor Filter Edit"));
+        filter_edit.set_text(self.filter_text.clone());
+        filter_edit.limiter_mut().set_max_size(Vec2::new(120, 18));
+        filter_edit.set_font_size(12.5);
+        filter_edit.set_frameless(true);
+        filter_edit.set_status_text("Show content containing the given text.");
+        filter_edit.set_continuous(true);
+        hlayout.add_widget(Box::new(filter_edit));
+    }
+
+    fn apply_toolbar_settings(&self, ui: &mut TheUI, ctx: &mut TheContext, nodeui: &TheNodeUI) {
+        if let Some(layout) = ui.get_layout(&self.toolbar_layout_id())
+            && let Some(hlayout) = layout.as_hlayout()
+        {
+            hlayout.clear();
+            self.add_toolbar_filter_controls(hlayout);
+            hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+
+            for (_, item) in nodeui.list_items() {
+                match item {
+                    TheNodeUIItem::Text(id, name, status, value, default_value, continous) => {
+                        if !name.is_empty() {
+                            let mut label = TheText::new(TheId::empty());
+                            label.set_text(name.clone());
+                            hlayout.add_widget(Box::new(label));
+                        }
+                        let mut edit = TheTextLineEdit::new(TheId::named(id));
+                        edit.set_text(value.clone());
+                        edit.set_continuous(*continous);
+                        edit.set_status_text(status);
+                        edit.set_info_text(default_value.clone());
+                        edit.set_font_size(12.5);
+                        edit.set_frameless(true);
+                        edit.limiter_mut().set_max_size(Vec2::new(280, 18));
+                        hlayout.add_widget(Box::new(edit));
+                    }
+                    TheNodeUIItem::Selector(id, name, status, values, value) => {
+                        if !name.is_empty() {
+                            let mut label = TheText::new(TheId::empty());
+                            label.set_text(name.clone());
+                            hlayout.add_widget(Box::new(label));
+                        }
+                        let mut dropdown = TheDropdownMenu::new(TheId::named(id));
+                        for option in values {
+                            dropdown.add_option(option.clone());
+                        }
+                        dropdown.set_selected_index(*value);
+                        dropdown.set_status_text(status);
+                        dropdown.limiter_mut().set_max_size(Vec2::new(165, 18));
+                        hlayout.add_widget(Box::new(dropdown));
+                    }
+                    TheNodeUIItem::FloatEditSlider(id, name, status, value, range, continous) => {
+                        if !name.is_empty() {
+                            let mut label = TheText::new(TheId::empty());
+                            label.set_text(name.clone());
+                            hlayout.add_widget(Box::new(label));
+                        }
+                        let mut edit = TheTextLineEdit::new(TheId::named(id));
+                        edit.set_value(TheValue::Float(*value));
+                        if *range.start() != 0.0 || *range.end() != 0.0 {
+                            edit.set_range(TheValue::RangeF32(range.clone()));
+                        }
+                        edit.set_continuous(*continous);
+                        edit.set_status_text(status);
+                        edit.set_font_size(12.5);
+                        edit.set_frameless(true);
+                        edit.limiter_mut().set_max_size(Vec2::new(120, 18));
+                        hlayout.add_widget(Box::new(edit));
+                    }
+                    TheNodeUIItem::IntEditSlider(id, name, status, value, range, continous) => {
+                        if !name.is_empty() {
+                            let mut label = TheText::new(TheId::empty());
+                            label.set_text(name.clone());
+                            hlayout.add_widget(Box::new(label));
+                        }
+                        let mut edit = TheTextLineEdit::new(TheId::named(id));
+                        edit.set_value(TheValue::Int(*value));
+                        if *range.start() != 0 || *range.end() != 0 {
+                            edit.set_range(TheValue::RangeI32(range.clone()));
+                        }
+                        edit.set_continuous(*continous);
+                        edit.set_status_text(status);
+                        edit.set_font_size(12.5);
+                        edit.set_frameless(true);
+                        edit.limiter_mut().set_max_size(Vec2::new(100, 18));
+                        hlayout.add_widget(Box::new(edit));
+                    }
+                    TheNodeUIItem::PaletteSlider(id, name, status, value, palette, continous) => {
+                        if !name.is_empty() {
+                            let mut label = TheText::new(TheId::empty());
+                            label.set_text(name.clone());
+                            hlayout.add_widget(Box::new(label));
+                        }
+                        let mut edit = TheTextLineEdit::new(TheId::named(id));
+                        edit.set_value(TheValue::Int(*value));
+                        edit.set_range(TheValue::RangeI32(0..=255));
+                        edit.set_continuous(*continous);
+                        edit.set_status_text(status);
+                        edit.set_palette(palette.clone());
+                        edit.set_font_size(12.5);
+                        edit.set_frameless(true);
+                        edit.limiter_mut().set_max_size(Vec2::new(100, 18));
+                        hlayout.add_widget(Box::new(edit));
+                    }
+                    TheNodeUIItem::Checkbox(id, name, status, value) => {
+                        if !name.is_empty() {
+                            let mut label = TheText::new(TheId::empty());
+                            label.set_text(name.clone());
+                            hlayout.add_widget(Box::new(label));
+                        }
+                        let mut cb = TheCheckButton::new(TheId::named(id));
+                        cb.set_value(TheValue::Bool(*value));
+                        cb.set_status_text(status);
+                        hlayout.add_widget(Box::new(cb));
+                    }
+                    _ => {}
+                }
+            }
+            hlayout.relayout(ctx);
+        }
+    }
+
+    /// Reset toolbar to filter-only controls (drops any stale value widgets).
+    pub fn clear_toolbar_settings(&self, ui: &mut TheUI, ctx: &mut TheContext) {
+        if let Some(layout) = ui.get_layout(&self.toolbar_layout_id())
+            && let Some(hlayout) = layout.as_hlayout()
+        {
+            hlayout.clear();
+            self.add_toolbar_filter_controls(hlayout);
+            hlayout.relayout(ctx);
+        }
+    }
+
     pub fn new(name: &str) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -209,34 +382,13 @@ impl Module {
     // }
 
     pub fn build_canvas(&mut self, ctx: &mut TheContext, name: &str) -> TheCanvas {
+        self.view_name = name.to_string();
+
         let mut canvas = TheCanvas::new();
 
         // Left code list
 
         let mut list_canvas: TheCanvas = TheCanvas::new();
-
-        let mut list_toolbar_canvas = TheCanvas::new();
-
-        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
-        toolbar_hlayout.set_margin(Vec4::new(5, 2, 5, 2));
-        toolbar_hlayout.set_background_color(None);
-
-        // let mut filter_text = TheText::new(TheId::empty());
-        // filter_text.set_text("Filter".to_string());
-        // toolbar_hlayout.add_widget(Box::new(filter_text));
-
-        let mut filter_edit = TheTextLineEdit::new(TheId::named("Code Editor Filter Edit"));
-        filter_edit.set_text("".to_string());
-        filter_edit.limiter_mut().set_max_size(Vec2::new(140, 22)); // 95
-        filter_edit.set_font_size(12.5);
-        filter_edit.set_embedded(true);
-        filter_edit.set_status_text("Show content containing the given text.");
-        filter_edit.set_continuous(true);
-        filter_edit.set_info_text(Some("Filter".into()));
-        toolbar_hlayout.add_widget(Box::new(filter_edit));
-        list_toolbar_canvas.set_layout(toolbar_hlayout);
-        list_toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
-        list_canvas.set_top(list_toolbar_canvas);
 
         let mut code_layout = TheListLayout::new(TheId::named("Code Editor Code List"));
         code_layout.limiter_mut().set_max_width(180);
@@ -260,9 +412,19 @@ impl Module {
         // file_menu.add_separator();
         //render_view.set_context_menu(Some(context_menu));
 
-        canvas.set_widget(render_view);
+        let mut module_toolbar_canvas = TheCanvas::default();
+        module_toolbar_canvas.limiter_mut().set_max_height(28);
+        module_toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
 
-        self.view_name = name.to_string();
+        let mut module_toolbar_hlayout = TheHLayout::new(TheId::named(&self.toolbar_layout_id()));
+        module_toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
+        module_toolbar_hlayout.set_padding(3);
+        module_toolbar_hlayout.set_background_color(None);
+        self.add_toolbar_filter_controls(&mut module_toolbar_hlayout);
+        module_toolbar_canvas.set_layout(module_toolbar_hlayout);
+
+        canvas.set_top(module_toolbar_canvas);
+        canvas.set_widget(render_view);
 
         canvas
     }
@@ -537,6 +699,9 @@ impl Module {
                 }
             }
             TheEvent::KeyCodeDown(key) => {
+                if ui.focus_widget_supports_text_input(ctx) {
+                    return redraw;
+                }
                 if let Some(focus) = &ctx.ui.focus {
                     if focus.name == self.get_view_name() {
                         let prev = self.to_json();
@@ -635,19 +800,42 @@ impl Module {
                     }
                 } else if id.name == "cgfxEventName" {
                     if let Some(text) = value.to_string() {
-                        let mut exists = false;
-
-                        for r in self.routines.values_mut() {
-                            if r.name == text {
-                                exists = true;
-                                break;
+                        if self.grid_ctx.selected_routine.is_none() {
+                            if let Some((id, _)) = self.routines.first() {
+                                self.grid_ctx.selected_routine = Some(*id);
                             }
                         }
 
-                        if !exists {
-                            if let Some(r) = self.get_selected_routine_mut() {
-                                r.name = text;
-                                self.redraw(ui, ctx);
+                        if let Some(selected_id) = self.grid_ctx.selected_routine {
+                            // Only block duplicates from other routines; allow keeping current name.
+                            let exists_elsewhere = self
+                                .routines
+                                .iter()
+                                .any(|(id, routine)| *id != selected_id && routine.name == text);
+
+                            if !exists_elsewhere {
+                                let prev = self.to_json();
+                                let mut changed = false;
+                                if let Some(routine) = self.routines.get_mut(&selected_id) {
+                                    if routine.name != text {
+                                        routine.name = text;
+                                        changed = true;
+                                    }
+                                }
+
+                                if changed {
+                                    self.redraw(ui, ctx);
+                                    self.show_event_settings(ui, ctx);
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("ModuleChanged"),
+                                        TheValue::Empty,
+                                    ));
+                                    ctx.ui.send(TheEvent::CustomUndo(
+                                        TheId::named("ModuleUndo"),
+                                        prev,
+                                        self.to_json(),
+                                    ));
+                                }
                             }
                         }
                     }
@@ -763,6 +951,7 @@ impl Module {
             TheEvent::Drop(coord, drop) => {
                 let mut handled = false;
                 let prev = self.to_json();
+                let mut settings: Option<TheNodeUI> = None;
                 let content_x = coord.x as i32 - self.grid_ctx.offset_x;
                 let content_y = coord.y as i32 - self.grid_ctx.offset_y;
 
@@ -804,12 +993,12 @@ impl Module {
                             }
                             handled = r.drop_at(
                                 Vec2::new(content_x.max(0) as u32, local_y as u32),
-                                ui,
                                 ctx,
                                 &mut self.grid_ctx,
                                 drop,
                                 self.module_type,
                                 palette,
+                                &mut settings,
                             );
                             if handled {
                                 break;
@@ -819,6 +1008,11 @@ impl Module {
                 }
 
                 if handled {
+                    if let Some(settings) = &settings {
+                        self.apply_toolbar_settings(ui, ctx, settings);
+                    } else if self.grid_ctx.current_cell.is_none() {
+                        self.show_event_settings(ui, ctx);
+                    }
                     self.redraw(ui, ctx);
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("ModuleChanged"),
@@ -880,6 +1074,7 @@ impl Module {
             }
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == self.get_view_name() {
+                    let mut settings: Option<TheNodeUI> = None;
                     let content_x = coord.x as i32 - self.grid_ctx.offset_x;
                     let content_y = coord.y as i32 - self.grid_ctx.offset_y;
                     let mut handled = false;
@@ -891,15 +1086,17 @@ impl Module {
                             }
                             handled = r.click_at(
                                 Vec2::new(content_x.max(0) as u32, local_y as u32),
-                                ui,
                                 ctx,
                                 &mut self.grid_ctx,
                                 self.module_type,
                                 palette,
+                                &mut settings,
                             );
                             if handled {
                                 if self.grid_ctx.current_cell == None {
                                     self.show_event_settings(ui, ctx);
+                                } else if let Some(settings) = &settings {
+                                    self.apply_toolbar_settings(ui, ctx, settings);
                                 }
                                 break;
                             }
@@ -920,35 +1117,27 @@ impl Module {
         redraw
     }
 
-    /// Show the current settings
-    pub fn show_settings(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext) {
-        return;
-        /*
+    /// Refresh the current toolbar settings from the selected cell or event.
+    pub fn show_settings(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        let palette = ThePalette::default();
         let mut handled = false;
-        for r in self.routines.values() {
+
+        for r in self.routines.values_mut() {
             if Some(r.id) == self.grid_ctx.selected_routine {
                 if let Some(pos) = self.grid_ctx.current_cell {
                     if let Some(item) = r.grid.grid.get(&pos) {
-                        let nodeui: TheNodeUI = item.create_settings();
-                        if let Some(layout) = ui.get_text_layout("Node Settings") {
-                            nodeui.apply_to_text_layout(layout);
-                            ctx.ui.relayout = true;
-
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Show Node Settings"),
-                                TheValue::Text(format!("{} Settings", item.cell.description())),
-                            ));
-
-                            handled = true;
-                        }
+                        let nodeui = item.create_settings(&palette, self.module_type);
+                        self.apply_toolbar_settings(ui, ctx, &nodeui);
+                        handled = true;
                     }
                 }
+                break;
             }
         }
 
         if !handled {
             self.show_event_settings(ui, ctx);
-        }*/
+        }
     }
 
     /// Show the settings for the current event.
@@ -1030,15 +1219,7 @@ impl Module {
             nodeui.add_item(item);
         }
 
-        if let Some(layout) = ui.get_tree_layout("Node Settings") {
-            let root = layout.get_root();
-            if !root.childs.is_empty() {
-                nodeui.apply_to_tree_node(&mut root.childs[0]);
-                root.childs[0]
-                    .widget
-                    .set_value(TheValue::Text("Event Settings".into()));
-            }
-        }
+        self.apply_toolbar_settings(ui, _ctx, &nodeui);
     }
 
     /// Returns the total height

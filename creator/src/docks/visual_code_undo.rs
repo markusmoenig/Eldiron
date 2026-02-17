@@ -12,8 +12,9 @@ impl VisualCodeUndoAtom {
     pub fn undo(&self, module: &mut Module, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             VisualCodeUndoAtom::ModuleEdit(prev, _) => {
-                *module = prev.clone();
+                module.replace_preserving_runtime(prev);
                 module.redraw(ui, ctx);
+                module.show_settings(ui, ctx);
             }
         }
     }
@@ -21,8 +22,9 @@ impl VisualCodeUndoAtom {
     pub fn redo(&self, module: &mut Module, ui: &mut TheUI, ctx: &mut TheContext) {
         match self {
             VisualCodeUndoAtom::ModuleEdit(_, next) => {
-                *module = next.clone();
+                module.replace_preserving_runtime(next);
                 module.redraw(ui, ctx);
+                module.show_settings(ui, ctx);
             }
         }
     }

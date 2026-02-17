@@ -209,12 +209,12 @@ impl Routine {
     pub fn drop_at(
         &mut self,
         loc: Vec2<u32>,
-        ui: &mut TheUI,
         ctx: &mut TheContext,
         grid_ctx: &mut GridCtx,
         drop: &TheDrop,
         module_type: ModuleType,
         palette: &ThePalette,
+        settings: &mut Option<TheNodeUI>,
     ) -> bool {
         let mut handled = false;
         let mut pos: Option<(u32, u32)> = None;
@@ -317,15 +317,7 @@ impl Routine {
         if let Some(pos) = pos {
             if let Some(item) = self.grid.grid.get(&pos) {
                 let nodeui: TheNodeUI = item.create_settings(palette, module_type);
-                if let Some(layout) = ui.get_tree_layout("Node Settings") {
-                    let root = layout.get_root();
-                    if !root.childs.is_empty() {
-                        nodeui.apply_to_tree_node(&mut root.childs[0]);
-                        root.childs[0]
-                            .widget
-                            .set_value(TheValue::Text("Cell Settings".into()));
-                    }
-                }
+                *settings = Some(nodeui);
             }
 
             self.grid.insert_empty();
@@ -339,11 +331,11 @@ impl Routine {
     pub fn click_at(
         &mut self,
         loc: Vec2<u32>,
-        ui: &mut TheUI,
         ctx: &mut TheContext,
         grid_ctx: &mut GridCtx,
         module_type: ModuleType,
         palette: &ThePalette,
+        settings: &mut Option<TheNodeUI>,
     ) -> bool {
         let mut handled = false;
         let header_height = 35;
@@ -368,15 +360,7 @@ impl Routine {
                             grid_ctx.current_cell = Some(coord.clone());
 
                             let nodeui: TheNodeUI = cell.create_settings(palette, module_type);
-                            if let Some(layout) = ui.get_tree_layout("Node Settings") {
-                                let root = layout.get_root();
-                                if !root.childs.is_empty() {
-                                    nodeui.apply_to_tree_node(&mut root.childs[0]);
-                                    root.childs[0]
-                                        .widget
-                                        .set_value(TheValue::Text("Cell Settings".into()));
-                                }
-                            }
+                            *settings = Some(nodeui);
 
                             self.draw(ctx, grid_ctx, 0, None);
                         }

@@ -4,35 +4,25 @@ mod macros;
 
 pub mod actionlist;
 pub mod actions;
-pub mod codeeditor;
 pub mod configeditor;
 pub mod dockmanager;
 pub mod docks;
 pub mod editcamera;
 pub mod editor;
 pub mod editor_tools;
-pub mod effectpicker;
 pub mod hud;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod i18n;
-pub mod infoviewer;
 pub mod mapeditor;
 pub mod minimap;
 pub mod misc;
-pub mod nodeeditor;
-pub mod panels;
-pub mod rendereditor;
 #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
 pub mod self_update;
-pub mod shapepicker;
 pub mod sidebar;
-pub mod tilemapeditor;
-pub mod tilepicker;
 pub mod toollist;
 pub mod tools;
 pub mod undo;
 pub mod utils;
-pub mod worldeditor;
 
 use rust_embed::RustEmbed;
 #[derive(RustEmbed)]
@@ -51,24 +41,15 @@ pub mod prelude {
     pub use std::sync::{LazyLock, RwLock};
     pub use theframework::prelude::*;
 
-    pub use crate::codeeditor::*;
-    // pub use crate::effectpicker::*;
     pub use crate::mapeditor::*;
     pub use crate::misc::*;
-    pub use crate::panels::*;
     // pub use crate::previewview::*;
     pub use crate::actionlist::*;
-    pub use crate::shapepicker::*;
     pub use crate::sidebar::*;
-    pub use crate::tilemapeditor::*;
-    pub use crate::tilepicker::*;
     pub use crate::toollist::*;
-    pub use crate::undo::material_undo::*;
-    pub use crate::undo::palette_undo::*;
     pub use crate::undo::project_atoms::*;
     pub use crate::undo::project_helper::*;
     pub use crate::undo::project_undo::*;
-    pub use crate::undo::region_undo::*;
     pub use crate::undo::*;
     pub use crate::utils::*;
 
@@ -88,10 +69,6 @@ pub mod prelude {
 
     pub use crate::configeditor::ConfigEditor;
     pub use crate::editcamera::{CustomMoveAction, EditCamera};
-    pub use crate::infoviewer::InfoViewer;
-    pub use crate::nodeeditor::{NodeContext, NodeEditor};
-    pub use crate::rendereditor::{RenderEditor, RenderMoveAction};
-    pub use crate::worldeditor::WorldEditor;
 
     pub use crate::dockmanager::{DockManager, DockManagerState};
 

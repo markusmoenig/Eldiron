@@ -1,5 +1,5 @@
 use crate::actions::edit_sector::EDIT_SECTOR_ACTION_ID;
-use crate::editor::{NODEEDITOR, RUSTERIX};
+use crate::editor::RUSTERIX;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -93,8 +93,6 @@ impl Tool for SectorTool {
                     TheId::named("Map Selection Changed"),
                     TheValue::Empty,
                 ));
-
-                self.activate_map_tool_helper(ui, ctx, project, server_ctx);
 
                 return true;
             }
@@ -855,79 +853,21 @@ impl Tool for SectorTool {
                 if id.name == "Apply Map Properties" && *state == TheWidgetState::Clicked {
                     let mut source: Option<Value> = None;
 
-                    if server_ctx.curr_map_tool_helper == MapToolHelper::TilePicker {
-                        if let Some(id) = server_ctx.curr_tile_id {
-                            source = Some(Value::Source(PixelSource::TileId(id)));
-                        }
-                    }
-                    /*else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
-                        if let Some(id) = server_ctx.curr_material_id {
-                            source = Some(Value::Source(PixelSource::MaterialId(id)));
-                        }
-                    }*/
-                    else if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-                        let node_editor = NODEEDITOR.read().unwrap();
-                        if !node_editor.graph.nodes.is_empty() {
-                            source = Some(Value::Source(PixelSource::ShapeFXGraphId(
-                                node_editor.graph.id,
-                            )));
-                        }
+                    if let Some(id) = server_ctx.curr_tile_id {
+                        source = Some(Value::Source(PixelSource::TileId(id)));
                     }
 
                     if let Some(source) = source {
                         if let Some(map) = project.get_map_mut(server_ctx) {
-                            let prev = map.clone();
-                            let context = NODEEDITOR.read().unwrap().context;
+                            let _prev = map.clone();
                             for sector_id in &map.selected_sectors.clone() {
                                 if let Some(sector) = map.find_sector_mut(*sector_id) {
-                                    if context == NodeContext::Screen
-                                        && server_ctx.curr_map_tool_helper
-                                            == MapToolHelper::NodeEditor
-                                    {
-                                        sector.properties.set("screen_graph", source.clone());
-                                    } else if context == NodeContext::Region
-                                        && server_ctx.curr_map_tool_helper
-                                            == MapToolHelper::NodeEditor
-                                    {
-                                        sector.properties.set("region_graph", source.clone());
-                                    } else if context == NodeContext::Shape {
-                                        sector.properties.set("shape_graph", source.clone());
-                                    } else if self.hud.selected_icon_index == 0
-                                        || context == NodeContext::Material
-                                    {
+                                    if self.hud.selected_icon_index == 0 {
                                         sector.properties.set("source", source.clone());
                                     } else if self.hud.selected_icon_index == 1 {
                                         sector.properties.set("ceiling_source", source.clone());
                                     }
                                 }
-                            }
-
-                            // Force update
-                            if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-                                NODEEDITOR.read().unwrap().force_update(ctx, map);
-                            }
-
-                            let undo_atom =
-                                RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-
-                            if server_ctx.get_map_context() == MapContext::Region {
-                                crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
-                                    &server_ctx.curr_region,
-                                    undo_atom,
-                                    ctx,
-                                );
-                            } else if server_ctx.get_map_context() == MapContext::Model {
-                                /*
-                                if let Some(material_undo_atom) = undo_atom.to_material_atom() {
-                                    crate::editor::UNDOMANAGER
-                                        .write()
-                                        .unwrap()
-                                        .add_material_undo(material_undo_atom, ctx);
-                                    ctx.ui.send(TheEvent::Custom(
-                                        TheId::named("Update Materialpicker"),
-                                        TheValue::Empty,
-                                    ));
-                                }*/
                             }
 
                             if server_ctx.get_map_context() == MapContext::Region {
@@ -942,19 +882,10 @@ impl Tool for SectorTool {
                     }
                 } else if id.name == "Remove Map Properties" && *state == TheWidgetState::Clicked {
                     if let Some(map) = project.get_map_mut(server_ctx) {
-                        let prev = map.clone();
-                        let context = NODEEDITOR.read().unwrap().context;
+                        let _prev = map.clone();
                         for sector_id in map.selected_sectors.clone() {
                             if let Some(sector) = map.find_sector_mut(sector_id) {
-                                if context == NodeContext::Region
-                                    && server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor
-                                {
-                                    sector.properties.remove("region_graph");
-                                } else if context == NodeContext::Screen
-                                    && server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor
-                                {
-                                    sector.properties.remove("screen_graph");
-                                } else if self.hud.selected_icon_index == 0 {
+                                if self.hud.selected_icon_index == 0 {
                                     if sector.properties.contains("floor_light") {
                                         sector.properties.remove("floor_light");
                                     } else {
@@ -972,34 +903,6 @@ impl Tool for SectorTool {
                                     }
                                 }
                             }
-                        }
-
-                        // Force node update
-                        if server_ctx.curr_map_tool_helper == MapToolHelper::NodeEditor {
-                            NODEEDITOR.read().unwrap().force_update(ctx, map);
-                        }
-
-                        let undo_atom =
-                            RegionUndoAtom::MapEdit(Box::new(prev), Box::new(map.clone()));
-
-                        if server_ctx.get_map_context() == MapContext::Region {
-                            crate::editor::UNDOMANAGER.write().unwrap().add_region_undo(
-                                &server_ctx.curr_region,
-                                undo_atom,
-                                ctx,
-                            );
-                        } else if server_ctx.get_map_context() == MapContext::Model {
-                            /*
-                            if let Some(material_undo_atom) = undo_atom.to_material_atom() {
-                                crate::editor::UNDOMANAGER
-                                    .write()
-                                    .unwrap()
-                                    .add_material_undo(material_undo_atom, ctx);
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Update Materialpicker"),
-                                    TheValue::Empty,
-                                ));
-                            }*/
                         }
 
                         if server_ctx.get_map_context() == MapContext::Region {

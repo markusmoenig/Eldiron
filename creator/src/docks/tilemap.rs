@@ -263,9 +263,6 @@ impl Dock for TilemapDock {
                         }
                     }
                     redraw = true;
-
-                    // let undo = PaletteUndoAtom::Edit(prev, project.palette.clone());
-                    // UNDOMANAGER.write().unwrap().add_palette_undo(undo, ctx);
                 }
             }
             TheEvent::TileSelectionChanged(id) => {

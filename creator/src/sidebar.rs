@@ -1,6 +1,6 @@
 use crate::editor::{
-    ACTIONLIST, CODEEDITOR, CONFIG, CONFIGEDITOR, DOCKMANAGER, PALETTE, RUSTERIX, SCENEMANAGER,
-    SHADEGRIDFX, SIDEBARMODE, TOOLLIST, UNDOMANAGER,
+    ACTIONLIST, CONFIG, CONFIGEDITOR, DOCKMANAGER, PALETTE, RUSTERIX, SCENEMANAGER, SIDEBARMODE,
+    TOOLLIST, UNDOMANAGER,
 };
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
@@ -444,14 +444,11 @@ impl Sidebar {
                                             redraw = true;
                                             project.palette[palette_picker.index()] = Some(color);
 
-                                            let undo = PaletteUndoAtom::Edit(
+                                            let undo = ProjectUndoAtom::PaletteEdit(
                                                 prev,
                                                 project.palette.clone(),
                                             );
-                                            UNDOMANAGER
-                                                .write()
-                                                .unwrap()
-                                                .add_palette_undo(undo, ctx);
+                                            UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
                                         }
 
                                         ctx.ui.send(TheEvent::Custom(
@@ -786,31 +783,7 @@ impl Sidebar {
                 }
             }
             TheEvent::DialogValueOnClose(role, name, uuid, value) => {
-                if name == "Add Shader To Library" && *role == TheDialogButtonRole::Accept {
-                    let mut material = SHADEGRIDFX.read().unwrap().clone();
-                    if let Some(routine) = material.get_selected_routine_mut() {
-                        let mut routine_clone = routine.clone();
-                        routine.id = Uuid::new_v4();
-                        routine_clone.name = "shader".to_string();
-                        let mut module: Module = Module::as_type(codegridfx::ModuleType::Shader);
-                        if let Some(name) = value.to_string() {
-                            module.name = name;
-                            module.routines.insert(routine.id, routine_clone);
-                            server_ctx.curr_material_id = Some(module.id);
-                            project.shaders.insert(module.id, module);
-                            self.show_filtered_materials(ui, ctx, project, server_ctx);
-                            RUSTERIX.write().unwrap().set_dirty();
-
-                            ctx.ui.send(TheEvent::StateChanged(
-                                TheId::named_with_id(
-                                    "Shader Item",
-                                    server_ctx.curr_material_id.unwrap(),
-                                ),
-                                TheWidgetState::Selected,
-                            ));
-                        }
-                    }
-                } else if name == "Rename Region" && *role == TheDialogButtonRole::Accept {
+                if name == "Rename Region" && *role == TheDialogButtonRole::Accept {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         region.name = value.describe();
                         region.map.name = value.describe();
@@ -1277,8 +1250,9 @@ impl Sidebar {
                                 palette_picker.set_color(color.clone());
                                 redraw = true;
                                 project.palette[palette_picker.index()] = Some(color.clone());
-                                let undo = PaletteUndoAtom::Edit(prev, project.palette.clone());
-                                UNDOMANAGER.write().unwrap().add_palette_undo(undo, ctx);
+                                let undo =
+                                    ProjectUndoAtom::PaletteEdit(prev, project.palette.clone());
+                                UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
 
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Soft Update Minimap"),
@@ -1829,17 +1803,6 @@ impl Sidebar {
                 } else if id.name == "Shader Item" {
                     let material_id = id.uuid;
                     server_ctx.curr_material_id = Some(material_id);
-                    if let Some(material) = project.shaders.get(&id.uuid) {
-                        let prev = SHADEGRIDFX.read().unwrap().clone();
-
-                        CODEEDITOR
-                            .write()
-                            .unwrap()
-                            .set_shader_material(ui, ctx, material);
-
-                        let atom = MaterialUndoAtom::ShaderEdit(prev, material.clone());
-                        UNDOMANAGER.write().unwrap().add_material_undo(atom, ctx);
-                    }
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Update Minimap"),
                         TheValue::Empty,
@@ -1859,8 +1822,8 @@ impl Sidebar {
                     }
                     redraw = true;
 
-                    let undo = PaletteUndoAtom::Edit(prev, project.palette.clone());
-                    UNDOMANAGER.write().unwrap().add_palette_undo(undo, ctx);
+                    let undo = ProjectUndoAtom::PaletteEdit(prev, project.palette.clone());
+                    UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
                 } else if id.name == "Palette Import" {
                     ctx.ui.open_file_requester(
                         TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
