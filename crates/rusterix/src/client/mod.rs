@@ -59,6 +59,7 @@ pub struct Client {
     player_entities: Vec<String>,
 
     pub current_map: String,
+    pub current_sector: String,
     current_screen: String,
 
     config: toml::Table,
@@ -199,6 +200,7 @@ impl Client {
             player_entities: Vec::new(),
 
             current_map: String::new(),
+            current_sector: String::new(),
             current_screen: String::new(),
 
             config: toml::Table::default(),
@@ -894,9 +896,18 @@ impl Client {
         scene_handler.set_timings(self.target_fps as f32, self.game_tick_ms);
 
         // Reset the intent to the server value
+        self.current_sector.clear();
         for entity in map.entities.iter() {
             if entity.is_player() {
                 self.intent = entity.get_attr_string("intent").unwrap_or_default();
+                self.current_sector = entity
+                    .get_attr_string("sector")
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| {
+                        map.find_sector_at(entity.get_pos_xz())
+                            .map(|s| s.name.clone())
+                    })
+                    .unwrap_or_default();
                 player_entity = entity.clone();
             }
         }

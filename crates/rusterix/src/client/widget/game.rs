@@ -35,6 +35,9 @@ pub struct GameWidget {
     pub upscale: f32,
     // Secondary buffer for rendering at lower resolution when upscale > 1
     pub upscale_buffer: TheRGBABuffer,
+
+    pub current_sector_name: String,
+    pub iso_hidden_sectors: FxHashSet<u32>,
 }
 
 impl Default for GameWidget {
@@ -73,6 +76,8 @@ impl GameWidget {
 
             upscale: 1.0,
             upscale_buffer: TheRGBABuffer::default(),
+            current_sector_name: String::new(),
+            iso_hidden_sectors: FxHashSet::default(),
         }
     }
 
@@ -144,6 +149,7 @@ impl GameWidget {
 
         self.scenemanager.send(SceneManagerCmd::SetMap(map.clone()));
         self.build_region_name = map.name.clone();
+        self.iso_hidden_sectors.clear();
     }
 
     pub fn apply_entities(
@@ -172,6 +178,11 @@ impl GameWidget {
                 }
 
                 self.player_pos = entity.get_pos_xz();
+                self.current_sector_name = entity
+                    .get_attr_string("sector")
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| map.find_sector_at(self.player_pos).map(|s| s.name.clone()))
+                    .unwrap_or_default();
                 break;
             }
         }
@@ -197,9 +208,11 @@ impl GameWidget {
         self.scenemanager.tick();
 
         // Apply scene manager chunks
+        let mut geometry_changed = false;
         while let Some(result) = self.scenemanager.receive() {
             match result {
                 SceneManagerResult::Chunk(chunk, _togo, _total, billboards) => {
+                    geometry_changed = true;
                     scene_handler.vm.execute(scenevm::Atom::RemoveChunkAt {
                         origin: chunk.origin,
                     });
@@ -215,6 +228,7 @@ impl GameWidget {
                     }
                 }
                 SceneManagerResult::Clear => {
+                    geometry_changed = true;
                     scene_handler.vm.execute(scenevm::Atom::ClearGeometry);
                     scene_handler.billboards.clear();
                     scene_handler.billboard_anim_states.clear();
@@ -222,6 +236,8 @@ impl GameWidget {
                 _ => {}
             }
         }
+
+        self.apply_iso_sector_visibility(map, scene_handler, geometry_changed);
 
         if scene_handler.vm.vm_layer_count() > 1 {
             scene_handler.vm.set_layer_enabled(1, false);
@@ -490,6 +506,68 @@ impl GameWidget {
                 .vm
                 .render_frame(self.buffer.pixels_mut(), width as u32, height as u32);
         }
+    }
+
+    fn apply_iso_sector_visibility(
+        &mut self,
+        map: &Map,
+        scene_handler: &mut SceneHandler,
+        force_reapply: bool,
+    ) {
+        fn matches_pattern(name: &str, pattern: &str) -> bool {
+            let name = name.trim().to_ascii_lowercase();
+            let pattern = pattern.trim().to_ascii_lowercase();
+            if pattern.is_empty() {
+                return false;
+            }
+            if let Some(prefix) = pattern.strip_suffix('*') {
+                name.starts_with(prefix)
+            } else {
+                name == pattern
+            }
+        }
+
+        let mut target_hidden: FxHashSet<u32> = FxHashSet::default();
+
+        let current_sector = map.find_sector_at(self.player_pos).or_else(|| {
+            map.sectors
+                .iter()
+                .find(|sector| sector.name == self.current_sector_name)
+        });
+        if self.camera == PlayerCamera::D3Iso
+            && let Some(current_sector) = current_sector
+            && let Some(Value::StrArray(patterns)) =
+                current_sector.properties.get("iso_hide_on_enter")
+        {
+            for sector in &map.sectors {
+                if patterns
+                    .iter()
+                    .any(|pattern| matches_pattern(&sector.name, pattern))
+                {
+                    target_hidden.insert(sector.id);
+                }
+            }
+        }
+
+        let unchanged = target_hidden == self.iso_hidden_sectors;
+        if !force_reapply && unchanged {
+            return;
+        }
+
+        scene_handler.vm.set_active_vm(0);
+        for sector in &map.sectors {
+            let was_hidden = self.iso_hidden_sectors.contains(&sector.id);
+            let should_hide = target_hidden.contains(&sector.id);
+            if was_hidden != should_hide {
+                let base_visible = sector.properties.get_bool_default("visible", true);
+                scene_handler.vm.execute(scenevm::Atom::SetGeoVisible {
+                    id: scenevm::GeoId::Sector(sector.id),
+                    visible: if should_hide { false } else { base_visible },
+                });
+            }
+        }
+
+        self.iso_hidden_sectors = target_hidden;
     }
 
     /// Upscale the source buffer into the destination buffer using nearest-neighbor sampling.

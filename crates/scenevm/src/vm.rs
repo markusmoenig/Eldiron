@@ -3149,6 +3149,7 @@ impl VM {
 
         // --- Build 3D geometry only when accel_dirty says so ---
         let mut geometry_changed = false;
+        let mut visibility_changed = false;
         if self.accel_dirty || self.cached_v3.is_empty() {
             let mut v3: Vec<Vert3DPod> = Vec::new();
             let mut i3: Vec<u32> = Vec::new();
@@ -3288,6 +3289,7 @@ impl VM {
             self.cached_tri_visibility = visibility_bits;
 
             geometry_changed = true;
+            visibility_changed = true;
             self.visibility_dirty = false; // Reset since we just rebuilt everything
         }
 
@@ -3323,6 +3325,7 @@ impl VM {
                 }
             }
             self.cached_tri_visibility = visibility_bits;
+            visibility_changed = true;
             self.visibility_dirty = false;
         }
 
@@ -3339,7 +3342,8 @@ impl VM {
         let mut uploaded_geom = false;
         {
             let g = self.gpu.as_mut().unwrap();
-            let need_grid_upload = grid_changed || g.grid_hdr.is_none() || g.grid_data.is_none();
+            let need_grid_upload =
+                grid_changed || visibility_changed || g.grid_hdr.is_none() || g.grid_data.is_none();
             if need_grid_upload {
                 let node_data: Vec<u32> = if gr.nodes.is_empty() {
                     vec![0]

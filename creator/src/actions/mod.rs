@@ -243,6 +243,13 @@ fn candidate_input_keys(
     keys
 }
 
+fn special_action_section_key(action_key: &str) -> Option<(&'static str, &'static str)> {
+    match action_key {
+        "iso_hide_on_enter" => Some(("iso", "hide_on_enter")),
+        _ => None,
+    }
+}
+
 fn section_table<'a>(table: &'a toml::Table, path: &[String]) -> Option<&'a toml::Table> {
     if path.is_empty() {
         return Some(table);
@@ -282,6 +289,28 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
         format!("# {quoted}")
     }
 
+    fn parse_string_array(value: &str) -> Vec<String> {
+        if let Ok(toml_value) = value.parse::<toml::Value>()
+            && let toml::Value::Array(items) = toml_value
+        {
+            let parsed: Vec<String> = items
+                .iter()
+                .filter_map(|item| item.as_str().map(|s| s.trim().to_string()))
+                .filter(|s| !s.is_empty())
+                .collect();
+            if !parsed.is_empty() {
+                return parsed;
+            }
+        }
+
+        value
+            .split(',')
+            .map(|item| item.trim())
+            .filter(|item| !item.is_empty())
+            .map(|item| item.trim_matches('"').to_string())
+            .collect()
+    }
+
     fn section_entries_mut<'a>(
         sections: &'a mut Vec<(String, Vec<(String, toml::Value, Option<String>)>)>,
         name: &str,
@@ -310,15 +339,44 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
             }
             TheNodeUIItem::Text(id, _, _, value, _, _) => {
                 let action_key = action_param_key(id);
-                let key =
-                    display_key_for_storage(&action_key, &section_stack, root_prefix.as_deref());
-                let val = toml::Value::String(value.clone());
-                if section_stack.is_empty() {
-                    upsert(&mut root_action_entries, key, val, None);
+                let (target_section, key) = if section_stack.is_empty() {
+                    if let Some((section, special_key)) = special_action_section_key(&action_key) {
+                        (Some(section.to_string()), special_key.to_string())
+                    } else {
+                        (
+                            None,
+                            display_key_for_storage(
+                                &action_key,
+                                &section_stack,
+                                root_prefix.as_deref(),
+                            ),
+                        )
+                    }
                 } else {
-                    let section_name = section_stack.join(".");
+                    (
+                        Some(section_stack.join(".")),
+                        display_key_for_storage(
+                            &action_key,
+                            &section_stack,
+                            root_prefix.as_deref(),
+                        ),
+                    )
+                };
+                let val = if action_key == "iso_hide_on_enter" {
+                    toml::Value::Array(
+                        parse_string_array(value)
+                            .into_iter()
+                            .map(toml::Value::String)
+                            .collect(),
+                    )
+                } else {
+                    toml::Value::String(value.clone())
+                };
+                if let Some(section_name) = target_section {
                     let entries = section_entries_mut(&mut sections, &section_name);
                     upsert(entries, key, val, None);
+                } else {
+                    upsert(&mut root_action_entries, key, val, None);
                 }
                 has_editable_values = true;
             }
@@ -467,18 +525,43 @@ pub fn apply_toml_to_nodeui(nodeui: &mut TheNodeUI, source: &str) -> Result<(), 
             TheNodeUIItem::Text(id, _, _, _, _, _) => {
                 let action_key = action_param_key(&id);
                 let table = if section_stack.is_empty() {
-                    Some(action_root)
+                    if let Some((section, _)) = special_action_section_key(&action_key) {
+                        section_table(&root, &[section.to_string()]).or(Some(action_root))
+                    } else {
+                        Some(action_root)
+                    }
                 } else {
                     section_table(&root, &section_stack)
                         .or_else(|| section_table(action_root, &section_stack))
                 };
                 if let Some(table) = table {
-                    for key in
-                        candidate_input_keys(&action_key, &section_stack, root_prefix.as_deref())
+                    let mut keys =
+                        candidate_input_keys(&action_key, &section_stack, root_prefix.as_deref());
+                    if section_stack.is_empty()
+                        && let Some((_, special_key)) = special_action_section_key(&action_key)
                     {
-                        if let Some(toml::Value::String(v)) = table.get(&key) {
-                            nodeui.set_text_value(&id, v.clone());
-                            break;
+                        keys.push(special_key.to_string());
+                        keys.sort();
+                        keys.dedup();
+                    }
+                    for key in keys {
+                        if let Some(value) = table.get(&key) {
+                            match value {
+                                toml::Value::String(v) => {
+                                    nodeui.set_text_value(&id, v.clone());
+                                    break;
+                                }
+                                toml::Value::Array(items) if action_key == "iso_hide_on_enter" => {
+                                    let joined = items
+                                        .iter()
+                                        .filter_map(|item| item.as_str())
+                                        .collect::<Vec<_>>()
+                                        .join(", ");
+                                    nodeui.set_text_value(&id, joined);
+                                    break;
+                                }
+                                _ => {}
+                            }
                         }
                     }
                 }

@@ -548,7 +548,7 @@ impl AvatarRuntimeBuilder {
                 last_uploaded: None,
             },
         );
-        println!("rebuilt avatar entity {} cache", entity.id);
+        // println!("rebuilt avatar entity {} cache", entity.id);
         true
     }
 
@@ -616,10 +616,10 @@ impl AvatarRuntimeBuilder {
         };
 
         if cache.last_uploaded.as_ref() != Some(&key) {
-            println!(
-                "avatar entity {} -> anim='{}' perspective={:?}",
-                entity.id, anim_name, persp_dir
-            );
+            // println!(
+            //     "avatar entity {} -> anim='{}' perspective={:?}",
+            //     entity.id, anim_name, persp_dir
+            // );
             vm.execute(Atom::SetAvatarBillboardData {
                 id: geo_id,
                 size: *size,

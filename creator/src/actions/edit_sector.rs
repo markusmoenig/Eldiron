@@ -9,6 +9,15 @@ pub struct EditSector {
     show_terrain: bool,
 }
 
+fn parse_hide_patterns(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.trim_matches('"').to_string())
+        .collect()
+}
+
 impl EditSector {
     fn build_nodeui(show_terrain: bool) -> TheNodeUI {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
@@ -83,6 +92,15 @@ impl EditSector {
             nodeui.add_item(item);
 
             nodeui.add_item(TheNodeUIItem::CloseTree);
+
+            nodeui.add_item(TheNodeUIItem::Text(
+                "actionIsoHideOnEnter".into(),
+                "".into(),
+                "".into(),
+                "".into(),
+                None,
+                false,
+            ));
         }
 
         nodeui
@@ -160,6 +178,13 @@ impl Action for EditSector {
                     .get_float_default("ridge_falloff_distance", 5.0);
                 self.nodeui
                     .set_f32_value("actionSectorTerrainRidgeFalloff", ridge_falloff);
+
+                let iso_hide_on_enter = match sector.properties.get("iso_hide_on_enter") {
+                    Some(Value::StrArray(values)) => values.join(", "),
+                    _ => String::new(),
+                };
+                self.nodeui
+                    .set_text_value("actionIsoHideOnEnter", iso_hide_on_enter);
             }
         }
     }
@@ -195,6 +220,10 @@ impl Action for EditSector {
                 .nodeui
                 .get_f32_value("actionSectorTerrainRidgeFalloff")
                 .unwrap_or(5.0);
+            let iso_hide_on_enter = self
+                .nodeui
+                .get_text_value("actionIsoHideOnEnter")
+                .unwrap_or_default();
 
             self.nodeui = Self::build_nodeui(show_terrain);
             self.show_terrain = show_terrain;
@@ -210,6 +239,8 @@ impl Action for EditSector {
                 .set_f32_value("actionSectorTerrainRidgePlateau", ridge_plateau);
             self.nodeui
                 .set_f32_value("actionSectorTerrainRidgeFalloff", ridge_falloff);
+            self.nodeui
+                .set_text_value("actionIsoHideOnEnter", iso_hide_on_enter);
         }
     }
 
@@ -254,6 +285,11 @@ impl Action for EditSector {
             .nodeui
             .get_f32_value("actionSectorTerrainRidgeFalloff")
             .unwrap_or(5.0);
+        let iso_hide_on_enter = self
+            .nodeui
+            .get_text_value("actionIsoHideOnEnter")
+            .unwrap_or_default();
+        let iso_hide_patterns = parse_hide_patterns(&iso_hide_on_enter);
 
         if let Some(sector_id) = map.selected_sectors.first() {
             if let Some(sector) = map.find_sector_mut(*sector_id) {
@@ -308,6 +344,22 @@ impl Action for EditSector {
                         sector
                             .properties
                             .set("ridge_falloff_distance", Value::Float(ridge_falloff));
+                        changed = true;
+                    }
+
+                    let curr_iso_hide = match sector.properties.get("iso_hide_on_enter") {
+                        Some(Value::StrArray(values)) => values.clone(),
+                        _ => Vec::new(),
+                    };
+                    if curr_iso_hide != iso_hide_patterns {
+                        if iso_hide_patterns.is_empty() {
+                            sector.properties.remove("iso_hide_on_enter");
+                        } else {
+                            sector.properties.set(
+                                "iso_hide_on_enter",
+                                Value::StrArray(iso_hide_patterns.clone()),
+                            );
+                        }
                         changed = true;
                     }
                 }

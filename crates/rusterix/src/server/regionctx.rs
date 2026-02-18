@@ -186,29 +186,30 @@ impl RegionCtx {
     pub fn check_player_for_section_change(&mut self, entity: &mut Entity) {
         // Determine, set and notify the entity about the sector it is in.
         if let Some(sector) = self.map.find_sector_at(entity.get_pos_xz()) {
-            if let Some(Value::Str(old_sector_name)) = entity.attributes.get("sector") {
-                if sector.name != *old_sector_name {
-                    // Send entered event
-                    if !sector.name.is_empty() {
-                        self.to_execute_entity.push((
-                            entity.id,
-                            "entered".into(),
-                            VMValue::from(sector.name.clone()),
-                        ));
-                    }
-                    // Send left event
-                    if !old_sector_name.is_empty() {
-                        self.to_execute_entity.push((
-                            entity.id,
-                            "left".into(),
-                            VMValue::from(old_sector_name.clone()),
-                        ));
-                    }
-
-                    entity
-                        .attributes
-                        .set("sector", Value::Str(sector.name.clone()));
+            let old_sector_name = entity
+                .attributes
+                .get_str("sector")
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            if sector.name != old_sector_name {
+                // Send entered event
+                if !sector.name.is_empty() {
+                    self.to_execute_entity.push((
+                        entity.id,
+                        "entered".into(),
+                        VMValue::from(sector.name.clone()),
+                    ));
                 }
+                // Send left event
+                if !old_sector_name.is_empty() {
+                    self.to_execute_entity.push((
+                        entity.id,
+                        "left".into(),
+                        VMValue::from(old_sector_name.clone()),
+                    ));
+                }
+
+                entity.set_attribute("sector", Value::Str(sector.name.clone()));
             }
         } else if let Some(Value::Str(old_sector_name)) = entity.attributes.get("sector") {
             // Send left event
@@ -223,7 +224,7 @@ impl RegionCtx {
                     ));
                 }
             }
-            entity.attributes.set("sector", Value::Str(String::new()));
+            entity.set_attribute("sector", Value::Str(String::new()));
         }
     }
 
@@ -257,9 +258,7 @@ impl RegionCtx {
                                 VMValue::from(old_sector.clone()),
                             ));
                         }
-                        entity
-                            .attributes
-                            .set("sector", Value::Str(sector_name.clone()));
+                        entity.set_attribute("sector", Value::Str(sector_name.clone()));
                     }
                 } else {
                     if !old_sector.is_empty() {
@@ -269,7 +268,7 @@ impl RegionCtx {
                             VMValue::from(old_sector.clone()),
                         ));
                     }
-                    entity.attributes.set("sector", Value::Str(String::new()));
+                    entity.set_attribute("sector", Value::Str(String::new()));
                 }
             }
         }
