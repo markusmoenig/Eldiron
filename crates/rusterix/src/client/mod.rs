@@ -1353,17 +1353,18 @@ impl Client {
             if widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
                 self.activated_widgets.push(*id);
 
+                // Action buttons should work in both 2D and 3D. Intent (if present) sets
+                // the active intent state and only becomes a one-shot action in 2D when no
+                // directional action is defined.
+                let parsed_action = EntityAction::from_str(&widget.action).ok();
+                if let Some(act) = parsed_action.clone() {
+                    action = Some(act);
+                }
                 if let Some(intent) = &widget.intent {
                     self.intent = intent.clone();
-                    if self.game_widget_is_2d() {
+                    if parsed_action.is_none() && self.game_widget_is_2d() {
                         action = Some(EntityAction::Intent(intent.clone()));
                     }
-                    // break;
-                } else if let Ok(act) = EntityAction::from_str(&widget.action) {
-                    if self.game_widget_is_2d() {
-                        action = Some(act);
-                    }
-                    // break;
                 }
 
                 if let Some(hide) = &widget.hide {
@@ -1869,11 +1870,21 @@ impl Client {
 
     /// Returns the intent of the currently activated button
     fn get_current_intent(&self) -> Option<String> {
-        for button_id in &self.activated_widgets {
+        // Newer activations should win, and non-intent buttons (e.g. camera toggles)
+        // must not mask an existing intent.
+        for button_id in self.activated_widgets.iter().rev() {
             if let Some(widget) = self.button_widgets.get(button_id) {
-                return widget.intent.clone();
+                if let Some(intent) = &widget.intent
+                    && !intent.is_empty()
+                {
+                    return Some(intent.clone());
+                }
             }
         }
-        None
+        if self.intent.is_empty() {
+            None
+        } else {
+            Some(self.intent.clone())
+        }
     }
 }

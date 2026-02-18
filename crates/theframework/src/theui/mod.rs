@@ -185,7 +185,6 @@ impl TheAccelerator {
 
     /// Test if we match the given modifiers and key.
     pub fn matches(&self, shift: bool, ctrl: bool, alt: bool, logo: bool, key: char) -> bool {
-        #[allow(clippy::if_same_then_else)]
         // We assume that accelerators are always case-insensitive.
         if self.key == key.to_ascii_lowercase() {
             if shift || ctrl || alt || logo {
@@ -196,27 +195,19 @@ impl TheAccelerator {
                 {
                     ok = false;
                 }
-                // Check Ctrl: Allow for cases where either Ctrl or Cmd is part of CtrlCmd
-                if (ctrl
-                    && !(self.accel.contains(TheAcceleratorKey::CTRL)
-                        || self.accel.contains(TheAcceleratorKey::CMD)))
-                    || (!ctrl
-                        && self.accel.contains(TheAcceleratorKey::CTRL)
-                        && !self.accel.contains(TheAcceleratorKey::CMD))
-                {
-                    ok = false;
-                }
                 if alt && !self.accel.contains(TheAcceleratorKey::ALT) {
                     ok = false;
                 }
-                // Check Cmd (Logo): Allow for cases where either Ctrl or Cmd is part of CtrlCmd
-                if (logo
-                    && !(self.accel.contains(TheAcceleratorKey::CMD)
-                        || self.accel.contains(TheAcceleratorKey::CTRL)))
-                    || (!logo
-                        && self.accel.contains(TheAcceleratorKey::CMD)
-                        && !self.accel.contains(TheAcceleratorKey::CTRL))
-                {
+
+                let wants_ctrl = self.accel.contains(TheAcceleratorKey::CTRL);
+                let wants_cmd = self.accel.contains(TheAcceleratorKey::CMD);
+                if wants_ctrl || wants_cmd {
+                    // For CTRLCMD we accept either Ctrl or Cmd, but at least one must be pressed.
+                    if !(wants_ctrl && ctrl || wants_cmd && logo) {
+                        ok = false;
+                    }
+                } else if ctrl || logo {
+                    // No Ctrl/Cmd expected but one was pressed.
                     ok = false;
                 }
 
