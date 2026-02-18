@@ -1728,6 +1728,11 @@ impl Sidebar {
                                     .unwrap()
                                     .update_geometry_overlay_3d(project, server_ctx);
                             }
+                            // Keep applicability in sync after every apply.
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Update Action List"),
+                                TheValue::Empty,
+                            ));
                         }
                     }
                 } else if id.name == "Shader Item" {

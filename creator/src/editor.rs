@@ -552,6 +552,10 @@ impl TheTrait for Editor {
             .builder_d2
             .set_properties(&self.build_values);
         RUSTERIX.write().unwrap().set_d2();
+        SCENEMANAGER
+            .write()
+            .unwrap()
+            .set_apply_preview_filters(true);
         SCENEMANAGER.write().unwrap().startup();
 
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));

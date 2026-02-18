@@ -433,6 +433,10 @@ pub struct ServerContext {
 
     /// Temporary storage for the editing positon
     pub editing_pos_buffer: Option<Vec3<f32>>,
+    /// Per-map, per-3D-view camera anchor (editing position).
+    pub editing_view_pos_by_map: FxHashMap<(Uuid, i32), Vec3<f32>>,
+    /// Per-map, per-3D-view look target.
+    pub editing_view_look_by_map: FxHashMap<(Uuid, i32), Vec3<f32>>,
 
     /// The index of the selected icon in the hud
     pub selected_hud_icon_index: i32,
@@ -552,6 +556,8 @@ impl ServerContext {
             geo_hit_pos: Vec3::zero(),
 
             editing_pos_buffer: None,
+            editing_view_pos_by_map: FxHashMap::default(),
+            editing_view_look_by_map: FxHashMap::default(),
 
             selected_hud_icon_index: 0,
             show_editing_geometry: true,
@@ -606,6 +612,40 @@ impl ServerContext {
         self.curr_map_context = map_context;
     }
 
+    #[inline]
+    fn view_key(map_id: Uuid, mode: EditorViewMode) -> (Uuid, i32) {
+        (map_id, mode.to_index())
+    }
+
+    pub fn store_edit_view_for_map(
+        &mut self,
+        map_id: Uuid,
+        mode: EditorViewMode,
+        pos: Vec3<f32>,
+        look: Vec3<f32>,
+    ) {
+        if mode == EditorViewMode::D2 {
+            return;
+        }
+        let key = Self::view_key(map_id, mode);
+        self.editing_view_pos_by_map.insert(key, pos);
+        self.editing_view_look_by_map.insert(key, look);
+    }
+
+    pub fn load_edit_view_for_map(
+        &self,
+        map_id: Uuid,
+        mode: EditorViewMode,
+    ) -> Option<(Vec3<f32>, Vec3<f32>)> {
+        if mode == EditorViewMode::D2 {
+            return None;
+        }
+        let key = Self::view_key(map_id, mode);
+        let pos = self.editing_view_pos_by_map.get(&key).copied()?;
+        let look = self.editing_view_look_by_map.get(&key).copied()?;
+        Some((pos, look))
+    }
+
     /// Clears all state data.
     pub fn clear(&mut self) {
         self.curr_region_content = ContentContext::Unknown;
@@ -619,6 +659,8 @@ impl ServerContext {
         self.interactions.clear();
         self.moved_entities.clear();
         self.moved_items.clear();
+        self.editing_view_pos_by_map.clear();
+        self.editing_view_look_by_map.clear();
     }
 
     pub fn clear_interactions(&mut self) {

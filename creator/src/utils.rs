@@ -57,6 +57,28 @@ pub fn update_region_settings(
                         region.map.properties.remove("default_terrain_tile");
                     }
                 }
+
+                if let Some(section) = parsed.get("preview").and_then(toml::Value::as_table) {
+                    region.map.properties.remove("preview_hide");
+                    if let Some(values) = section.get("hide").and_then(toml::Value::as_array) {
+                        let hide: Vec<String> = values
+                            .iter()
+                            .filter_map(toml::Value::as_str)
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty())
+                            .map(str::to_string)
+                            .collect();
+                        if !hide.is_empty() {
+                            region
+                                .map
+                                .properties
+                                .set("preview_hide", Value::StrArray(hide));
+                        }
+                    }
+                    changed = true;
+                } else {
+                    region.map.properties.remove("preview_hide");
+                }
             }
         }
     }
@@ -208,6 +230,9 @@ pub fn extract_build_values_from_config(values: &mut ValueContainer) {
 
 /// Reads map relevant region settings from the TOML config and stores it in the map.
 pub fn apply_region_config(map: &mut Map, config: String) {
+    // Reset editor-only preview filters and repopulate from config if present.
+    map.properties.remove("preview_hide");
+
     if let Ok(table) = config.parse::<Table>() {
         if let Some(rendering) = table.get("rendering").and_then(toml::Value::as_table) {
             // Daylight
@@ -246,6 +271,20 @@ pub fn apply_region_config(map: &mut Map, config: String) {
                 "fog_color",
                 Value::Vec4([fog_color.x, fog_color.y, fog_color.z, fog_color.w]),
             );
+        }
+
+        if let Some(preview) = table.get("preview").and_then(toml::Value::as_table)
+            && let Some(hide_values) = preview.get("hide").and_then(toml::Value::as_array)
+        {
+            let hide: Vec<String> = hide_values
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(str::to_string)
+                .filter(|s| !s.is_empty())
+                .collect();
+            if !hide.is_empty() {
+                map.properties.set("preview_hide", Value::StrArray(hide));
+            }
         }
     }
 }

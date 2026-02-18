@@ -108,13 +108,11 @@ impl Action for IsoCamera {
             .iso_camera
             .set_parameter_f32("scale", scale);
 
-        if server_ctx.editing_surface.is_some() {
-            ctx.ui.send(TheEvent::Custom(
-                TheId::named("Render SceneManager Map"),
-                TheValue::Empty,
-            ));
-            server_ctx.editing_surface = None;
-        }
+        server_ctx.editing_surface = None;
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Render SceneManager Map"),
+            TheValue::Empty,
+        ));
 
         None
     }

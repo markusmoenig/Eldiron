@@ -43,6 +43,7 @@ pub struct SceneManager {
 
     chunk_builder_d2: Option<Box<dyn ChunkBuilder>>,
     chunk_builder_d3: Option<Box<dyn ChunkBuilder>>,
+    apply_preview_filters: bool,
 
     // Results queue
     results: Vec<SceneManagerResult>,
@@ -73,6 +74,7 @@ impl SceneManager {
 
             chunk_builder_d2: Some(Box::new(D2ChunkBuilder::new())),
             chunk_builder_d3: Some(Box::new(D3ChunkBuilder::new())),
+            apply_preview_filters: false,
 
             results: Vec::new(),
 
@@ -109,7 +111,10 @@ impl SceneManager {
                 self.dirty = Self::generate_chunk_coords(&self.map.bbox(), self.chunk_size);
                 self.all = self.dirty.clone();
             }
-            SceneManagerCmd::SetMap(new_map) => {
+            SceneManagerCmd::SetMap(mut new_map) => {
+                if !self.apply_preview_filters {
+                    new_map.properties.remove("preview_hide");
+                }
                 if self.map.id != new_map.id {
                     self.results.push(SceneManagerResult::Clear);
                 }
@@ -175,6 +180,13 @@ impl SceneManager {
 
     pub fn set_map(&mut self, map: Map) {
         self.send(SceneManagerCmd::SetMap(map));
+    }
+
+    pub fn set_apply_preview_filters(&mut self, apply: bool) {
+        self.apply_preview_filters = apply;
+        if !apply {
+            self.map.properties.remove("preview_hide");
+        }
     }
 
     pub fn add_dirty(&mut self, dirty: Vec<(i32, i32)>) {

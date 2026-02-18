@@ -706,6 +706,9 @@ pub fn set_project_context(
                 .set_dock("Tilemap".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::Screen(id) => {
+            // Screens are always edited in 2D preview mode.
+            server_ctx.editor_view_mode = EditorViewMode::D2;
+            ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(0));
             if let Some(screen) = project.screens.get(&id) {
                 ui.set_widget_value(
                     "Project Context",
@@ -719,6 +722,9 @@ pub fn set_project_context(
                 .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::ScreenWidget(id, _widget_id) => {
+            // Screens are always edited in 2D preview mode.
+            server_ctx.editor_view_mode = EditorViewMode::D2;
+            ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(0));
             if let Some(screen) = project.screens.get(&id) {
                 ui.set_widget_value(
                     "Project Context",

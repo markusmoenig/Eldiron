@@ -206,9 +206,34 @@ impl ToolList {
         match event {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Editor View Switch" {
-                    let old = server_ctx.editor_view_mode.is_3d();
+                    let prev_mode = server_ctx.editor_view_mode;
+                    let old = prev_mode.is_3d();
+
+                    // Persist region camera anchor per 3D view mode before switching.
+                    if prev_mode != EditorViewMode::D2
+                        && let Some(region) = project.get_region_ctx_mut(server_ctx)
+                    {
+                        server_ctx.store_edit_view_for_map(
+                            region.map.id,
+                            prev_mode,
+                            region.editing_position_3d,
+                            region.editing_look_at_3d,
+                        );
+                    }
+
                     server_ctx.editor_view_mode = EditorViewMode::from_index(*index as i32);
-                    let new = server_ctx.editor_view_mode.is_3d();
+                    let new_mode = server_ctx.editor_view_mode;
+                    let new = new_mode.is_3d();
+
+                    // Restore region camera anchor for the selected 3D view mode.
+                    if new_mode != EditorViewMode::D2
+                        && let Some(region) = project.get_region_ctx_mut(server_ctx)
+                        && let Some((pos, look)) =
+                            server_ctx.load_edit_view_for_map(region.map.id, new_mode)
+                    {
+                        region.editing_position_3d = pos;
+                        region.editing_look_at_3d = look;
+                    }
 
                     if server_ctx.editor_view_mode == EditorViewMode::D2 {
                         if let Some(map) = project.get_map_mut(server_ctx) {
@@ -346,6 +371,26 @@ impl ToolList {
                 }
             }
             TheEvent::StateChanged(id, state) => {
+                if id.name == "Editor View Switch"
+                    && *state == TheWidgetState::Clicked
+                    && server_ctx.editor_view_mode == EditorViewMode::D2
+                    && server_ctx.editing_surface.is_some()
+                {
+                    // Re-clicking 2D while editing a profile/surface should exit surface mode.
+                    server_ctx.editing_surface = None;
+                    RUSTERIX.write().unwrap().client.scene.d2_static.clear();
+                    RUSTERIX.write().unwrap().client.scene.d2_dynamic.clear();
+                    RUSTERIX.write().unwrap().set_dirty();
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Render SceneManager Map"),
+                        TheValue::Empty,
+                    ));
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Action List"),
+                        TheValue::Empty,
+                    ));
+                    redraw = true;
+                }
                 if id.name.contains("Tool") && *state == TheWidgetState::Selected {
                     if server_ctx.help_mode {
                         if self.editor_mode {

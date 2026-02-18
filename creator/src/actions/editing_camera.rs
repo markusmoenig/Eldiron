@@ -37,7 +37,7 @@ impl Action for EditingCamera {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.editor_view_mode != EditorViewMode::D2
+        (server_ctx.editor_view_mode != EditorViewMode::D2 || server_ctx.editing_surface.is_some())
             && server_ctx.get_map_context() == MapContext::Region
     }
 
@@ -45,10 +45,15 @@ impl Action for EditingCamera {
         &self,
         _map: &mut Map,
         _ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         server_ctx.editor_view_mode = EditorViewMode::D2;
+        server_ctx.editing_surface = None;
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Render SceneManager Map"),
+            TheValue::Empty,
+        ));
 
         None
     }

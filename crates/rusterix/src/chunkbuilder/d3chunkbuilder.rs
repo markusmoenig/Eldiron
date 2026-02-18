@@ -18,6 +18,20 @@ pub const DEFAULT_TILE_ID: &str = "27826750-a9e7-4346-994b-fb318b238452";
 
 pub struct D3ChunkBuilder {}
 
+fn matches_preview_hide_pattern(name: &str, pattern: &str) -> bool {
+    let name = name.trim();
+    let pattern = pattern.trim();
+    if pattern.is_empty() {
+        return false;
+    }
+    let name_l = name.to_lowercase();
+    let pattern_l = pattern.to_lowercase();
+    if let Some(prefix) = pattern_l.strip_suffix('*') {
+        return name_l.starts_with(prefix);
+    }
+    name_l == pattern_l
+}
+
 fn profile_sector_item(map: &Map, profile_id: Uuid, sector_id: u32) -> Option<&Item> {
     let profile_map = map.profiles.get(&profile_id)?;
     profile_map
@@ -385,6 +399,10 @@ impl ChunkBuilder for D3ChunkBuilder {
         vmchunk: &mut scenevm::Chunk,
     ) {
         let mut hidden: FxHashSet<GeoId> = FxHashSet::default();
+        let preview_hide_patterns: Vec<String> = match map.properties.get("preview_hide") {
+            Some(Value::StrArray(values)) => values.clone(),
+            _ => Vec::new(),
+        };
 
         // For each surface in the map
         for surface in map.surfaces.values() {
@@ -410,7 +428,10 @@ impl ChunkBuilder for D3ChunkBuilder {
 
             // Keep track of hidden sectors so that we can set them as not visible later
             let visible = sector.properties.get_bool_default("visible", true);
-            if !visible {
+            let hidden_by_preview = preview_hide_patterns
+                .iter()
+                .any(|pattern| matches_preview_hide_pattern(&sector.name, pattern));
+            if !visible || hidden_by_preview {
                 hidden.insert(GeoId::Sector(sector.id));
             }
 
