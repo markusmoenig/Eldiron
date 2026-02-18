@@ -26,8 +26,25 @@ const PI: f32 = 3.14159265359;
 const MIN_ROUGHNESS: f32 = 0.04;
 // Treat very low-alpha billboard texels as cutout to avoid bright fringes/halos.
 const BILLBOARD_ALPHA_CUTOFF: f32 = 0.08;
+const AVATAR_ALPHA_CUTOFF: f32 = 0.5;
 const SHADOW_OPAQUE_THRESHOLD: f32 = 0.5;
 const BILLBOARD_DEPTH_EPS: f32 = 0.002;
+// Debug isolation toggles for billboard artifact triage.
+const DEBUG_BB_FLAT_UNLIT: bool = false;
+const DEBUG_BB_NO_SHADOW_CAST: bool = false;
+
+fn effective_alpha_for_hit(hit: UnifiedHit) -> f32 {
+    if (hit.hit_type != HIT_TYPE_BILLBOARD) {
+        return hit.albedo.a;
+    }
+    let cmd = sd_billboard_cmd(hit.billboard_index);
+    if (cmd.params.y == DYNAMIC_KIND_BILLBOARD_AVATAR) {
+        // Treat avatars as strict cutout to avoid translucent edge glow over shadows.
+        return select(0.0, 1.0, hit.albedo.a >= AVATAR_ALPHA_CUTOFF);
+    }
+    // Use cutout for all billboards in hit compositing to avoid halo from partial alpha.
+    return select(0.0, 1.0, hit.albedo.a >= BILLBOARD_ALPHA_CUTOFF);
+}
 
 // Ordered-ish stochastic cutout for geometry fade.
 // Prevents semi-transparent blending against sky during visibility fades.
@@ -236,7 +253,9 @@ fn sample_billboard(hit: BillboardHit) -> vec4<f32> {
     let uv = hit.uv;
     if (cmd.params.y == DYNAMIC_KIND_BILLBOARD_AVATAR) {
         var color = sd_sample_avatar(cmd.params.x, uv);
-        color = color * opacity;
+        // Treat avatars as cutout sprites to prevent lit alpha fringes over shadowed ground.
+        let a = select(0.0, 1.0, color.a >= AVATAR_ALPHA_CUTOFF);
+        color = vec4<f32>(color.rgb * a, a) * opacity;
         return color;
     }
 
@@ -264,6 +283,17 @@ fn sample_billboard(hit: BillboardHit) -> vec4<f32> {
 
     // Sample albedo from atlas
     var color = textureSampleLevel(atlas_tex, atlas_smp, atlas_uv, 0.0);
+    if (cmd.params.w == DYNAMIC_ALPHA_CHROMA_KEY) {
+        // Use top-left texel as chroma key for legacy opaque character sheets.
+        let atlas_dims = vec2<f32>(textureDimensions(atlas_tex, 0));
+        let pad_uv = vec2<f32>(0.5) / atlas_dims;
+        let key_uv = frame.ofs + pad_uv;
+        let key = textureSampleLevel(atlas_tex, atlas_smp, key_uv, 0.0);
+        let d = abs(color.r - key.r) + abs(color.g - key.g) + abs(color.b - key.b);
+        if (d < 0.08) {
+            color.a = 0.0;
+        }
+    }
     color = color * opacity;
 
     return color;
@@ -395,13 +425,9 @@ fn trace_unified_skip_billboards_with_hidden(
         let mat_data = sample_billboard_material(billboard_hit);
         let mat = unpack_material(mat_data);
 
-        // Convert albedo to linear
+        // Convert albedo to linear and premultiply to suppress alpha fringes.
         albedo = vec4<f32>(pow(albedo.rgb, vec3<f32>(2.2)), albedo.a);
-        // Premultiply avatars in linear space to avoid bright fringes from straight-alpha edges.
-        let billboard_cmd = sd_billboard_cmd(billboard_hit.billboard_index);
-        if (billboard_cmd.params.y == DYNAMIC_KIND_BILLBOARD_AVATAR) {
-            albedo = vec4<f32>(albedo.rgb * albedo.a, albedo.a);
-        }
+        albedo = vec4<f32>(albedo.rgb * albedo.a, albedo.a);
 
         // Compute billboard normal
         let cmd = sd_billboard_cmd(billboard_hit.billboard_index);
@@ -455,15 +481,20 @@ fn trace_unified_skip_billboards_with_hidden(
             0.0,
             1.0
         );
-        albedo.a = albedo.a * fade_cutout_alpha(P, geo_opacity);
+        // Shadow path (include_hidden_geo=true) must ignore runtime fade opacity so
+        // roofs keep blocking light while fading and when hidden.
+        if (!include_hidden_geo) {
+            albedo.a = albedo.a * fade_cutout_alpha(P, geo_opacity);
+        }
         albedo = vec4<f32>(pow(albedo.rgb, vec3<f32>(2.2)), albedo.a);
 
         let mat_data = sv_tri_sample_rmoe_blended(i0, i1, i2, geo_hit.u, geo_hit.v);
         let mat = unpack_material(mat_data);
 
-        // Apply bump mapping
+        // Apply bump mapping only when the normal map actually perturbs XY.
         let bump_strength = select(1.0, U.gp5.z, U.gp5.z >= 0.0);
-        if (bump_strength > 0.0 && length(mat.normal) > 0.1) {
+        let has_normal_perturbation = abs(mat.normal.x) + abs(mat.normal.y) > 0.01;
+        if (bump_strength > 0.0 && has_normal_perturbation) {
             let TBN = sv_tri_tbn(v0.pos, v1.pos, v2.pos, v0.uv, v1.uv, v2.uv);
             let N_ts = mat.normal;
             let N_ws = normalize(TBN * N_ts);
@@ -533,6 +564,46 @@ fn trace_unified(ro: vec3<f32>, rd: vec3<f32>, tmin: f32, tmax: f32) -> UnifiedH
     return trace_unified_skip_billboards(ro, rd, tmin, tmax, 0u, 0xFFFFFFFFu);
 }
 
+fn trace_geometry_only(
+    ro: vec3<f32>,
+    rd: vec3<f32>,
+    tmin: f32,
+    tmax: f32,
+    include_hidden_geo: bool
+) -> UnifiedHit {
+    var geo_hit = sv_trace_grid(ro, rd, tmin, tmax);
+    if (include_hidden_geo) {
+        geo_hit = sv_trace_grid_all(ro, rd, tmin, tmax);
+    }
+    if (!geo_hit.hit) {
+        return UnifiedHit(
+            HIT_TYPE_NONE,
+            tmax,
+            0u,
+            0u,
+            vec3<f32>(0.0),
+            0.0,
+            vec3<f32>(0.0, 1.0, 0.0),
+            0.0,
+            vec4<f32>(0.0),
+            Material(0.0, 0.0, 0.0, 0.0, vec3<f32>(0.0), 0.0),
+            0u,
+            0u,
+            0u,
+            0u
+        );
+    }
+    return trace_unified_skip_billboards_with_hidden(
+        ro,
+        rd,
+        tmin,
+        tmax,
+        0xFFFFFFFFu,
+        0xFFFFFFFFu,
+        include_hidden_geo
+    );
+}
+
 // ===== Unified Shadow Trace =====
 // Skip transparent/cutout hits and find the first opaque blocker.
 fn trace_shadow_unified(ro: vec3<f32>, rd: vec3<f32>, tmax: f32) -> f32 {
@@ -541,7 +612,44 @@ fn trace_shadow_unified(ro: vec3<f32>, rd: vec3<f32>, tmax: f32) -> f32 {
     var skip_mask: u32 = 0u;
     var skip_billboard_index: u32 = 0xFFFFFFFFu;
 
-    for (var iter: u32 = 0u; iter < 6u; iter = iter + 1u) {
+    // gp5.w: max transparency bounces for shadows. 0 = single-hit fast path.
+    let max_shadow_bounces = u32(clamp(select(6.0, U.gp5.w, U.gp5.w >= 0.0), 0.0, 8.0));
+    if (max_shadow_bounces == 0u) {
+        let hit = trace_unified_skip_billboards_with_hidden(
+            trace_origin,
+            rd,
+            0.0,
+            remaining,
+            skip_mask,
+            skip_billboard_index,
+            true
+        );
+        if (hit.hit_type == HIT_TYPE_NONE) {
+            return 0.0;
+        }
+        let alpha = select(
+            effective_alpha_for_hit(hit),
+            0.0,
+            DEBUG_BB_NO_SHADOW_CAST && hit.hit_type == HIT_TYPE_BILLBOARD
+        );
+        let layer_opacity = clamp(alpha * hit.material.opacity, 0.0, 1.0);
+        if (layer_opacity > SHADOW_OPAQUE_THRESHOLD) {
+            return 1.0;
+        }
+        // Fast path fallback: if first hit is transparent (often a billboard texel),
+        // still test geometry so we don't punch a lit rectangle into existing shadows.
+        if (hit.hit_type == HIT_TYPE_BILLBOARD) {
+            let geo_hit = trace_geometry_only(trace_origin, rd, 0.001, remaining, true);
+            if (geo_hit.hit_type == HIT_TYPE_NONE) {
+                return 0.0;
+            }
+            let geo_opacity = clamp(geo_hit.albedo.a * geo_hit.material.opacity, 0.0, 1.0);
+            return select(0.0, 1.0, geo_opacity > SHADOW_OPAQUE_THRESHOLD);
+        }
+        return 0.0;
+    }
+
+    for (var iter: u32 = 0u; iter < max_shadow_bounces; iter = iter + 1u) {
         let hit = trace_unified_skip_billboards_with_hidden(
             trace_origin,
             rd,
@@ -556,9 +664,9 @@ fn trace_shadow_unified(ro: vec3<f32>, rd: vec3<f32>, tmax: f32) -> f32 {
         }
 
         let alpha = select(
-            hit.albedo.a,
+            effective_alpha_for_hit(hit),
             0.0,
-            hit.hit_type == HIT_TYPE_BILLBOARD && hit.albedo.a < BILLBOARD_ALPHA_CUTOFF
+            DEBUG_BB_NO_SHADOW_CAST && hit.hit_type == HIT_TYPE_BILLBOARD
         );
         let layer_opacity = clamp(alpha * hit.material.opacity, 0.0, 1.0);
         if (layer_opacity > SHADOW_OPAQUE_THRESHOLD) {
@@ -676,6 +784,7 @@ fn pbr_lighting(P: vec3<f32>, N: vec3<f32>, V: vec3<f32>, albedo: vec3<f32>, mat
     }
 
     // ===== Point Lights =====
+    let max_shadow_dist_global = select(10.0, U.gp6.x, U.gp6.x >= 0.0);
     for (var li: u32 = 0u; li < U.lights_count; li = li + 1u) {
         let light = sd_light(li);
 
@@ -704,9 +813,13 @@ fn pbr_lighting(P: vec3<f32>, N: vec3<f32>, V: vec3<f32>, albedo: vec3<f32>, mat
         let range_factor = smoothstep(end_d, start_d, dist);
         let attenuation = (Li * range_factor) / dist2;
 
-        // Ray-traced shadow
-        let shadow = trace_shadow(P, L, dist);
-        if (shadow < 0.01) { continue; }
+        // Ray-traced shadow (can be disabled globally by setting max_shadow_distance <= 0)
+        var shadow = 1.0;
+        if (max_shadow_dist_global > 0.0) {
+            let shadow_dist = min(dist, max_shadow_dist_global);
+            shadow = trace_shadow(P, L, shadow_dist);
+            if (shadow < 0.01) { continue; }
+        }
 
         let radiance = Lc * attenuation * shadow;
 
@@ -750,6 +863,10 @@ fn shade_surface(
     let albedo = hit.albedo;
     let mat = hit.material;
     let V = -rd;
+
+    if (DEBUG_BB_FLAT_UNLIT && hit.hit_type == HIT_TYPE_BILLBOARD) {
+        return albedo.rgb;
+    }
 
     if (mat.emissive > 0.99) {
         return albedo.rgb * 2.0;
@@ -817,7 +934,7 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
             break;
         }
 
-        let alpha = select(hit.albedo.a, 0.0, hit.hit_type == HIT_TYPE_BILLBOARD && hit.albedo.a < BILLBOARD_ALPHA_CUTOFF);
+        let alpha = effective_alpha_for_hit(hit);
         let layer_opacity = alpha * hit.material.opacity;
         if (layer_opacity > 0.01) {
             surface_hit = hit;
@@ -839,86 +956,25 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     if (has_surface) {
         let front_color = shade_surface(surface_hit, rd, px, py, sky_rgb, ambient_strength);
-        let front_alpha = select(
-            surface_hit.albedo.a,
-            0.0,
-            surface_hit.hit_type == HIT_TYPE_BILLBOARD && surface_hit.albedo.a < BILLBOARD_ALPHA_CUTOFF
-        );
+        let front_alpha = effective_alpha_for_hit(surface_hit);
         let front_opacity = clamp(front_alpha * surface_hit.material.opacity, 0.0, 1.0);
 
         var background_color = sky_rgb;
-        // Only blend a second layer behind transparent billboards.
-        // This prevents partially transparent geometry materials from leaking hidden billboards.
+        // Transparent billboard pixels should reveal world geometry (not layered billboards).
         if (surface_hit.hit_type == HIT_TYPE_BILLBOARD && front_opacity < 0.99) {
-            var back_has_surface = false;
-            var back_hit = surface_hit;
-            var back_origin = surface_hit.position;
-            var back_skip_mask: u32 = 0u;
-            var back_skip_billboard_index: u32 = surface_hit.billboard_index;
-            if (surface_hit.billboard_index < 32u) {
-                back_skip_mask = back_skip_mask | (1u << surface_hit.billboard_index);
-            }
-
-            // Find a single visible surface behind the front transparent layer.
-            for (var iter: u32 = 0u; iter < 6u; iter = iter + 1u) {
-                let hit = trace_unified_skip_billboards(
-                    back_origin,
-                    rd,
-                    0.0,
-                    1e6,
-                    back_skip_mask,
-                    back_skip_billboard_index
-                );
-                if (hit.hit_type == HIT_TYPE_NONE) {
-                    break;
-                }
-                let alpha = select(
-                    hit.albedo.a,
-                    0.0,
-                    hit.hit_type == HIT_TYPE_BILLBOARD && hit.albedo.a < BILLBOARD_ALPHA_CUTOFF
-                );
-                let opacity = alpha * hit.material.opacity;
-                if (opacity > 0.01) {
-                    back_hit = hit;
-                    back_has_surface = true;
-                    break;
-                }
-                if (hit.hit_type == HIT_TYPE_BILLBOARD && hit.billboard_index < 32u) {
-                    back_skip_mask = back_skip_mask | (1u << hit.billboard_index);
-                }
-                if (hit.hit_type == HIT_TYPE_BILLBOARD) {
-                    back_skip_billboard_index = hit.billboard_index;
-                }
-                back_origin = hit.position;
-            }
-
-            if (back_has_surface) {
-                let back_color = shade_surface(back_hit, rd, px, py, sky_rgb, ambient_strength);
-                let back_alpha = select(
-                    back_hit.albedo.a,
-                    0.0,
-                    back_hit.hit_type == HIT_TYPE_BILLBOARD && back_hit.albedo.a < BILLBOARD_ALPHA_CUTOFF
-                );
-                let back_opacity = clamp(back_alpha * back_hit.material.opacity, 0.0, 1.0);
-                background_color = mix(sky_rgb, back_color, back_opacity);
-            } else {
-                // Fallback: if billboard back-trace misses due to precision, sample geometry-only.
-                let geo_hit = trace_unified_skip_billboards(
-                    surface_hit.position,
-                    rd,
-                    0.0,
-                    1e6,
-                    0xFFFFFFFFu,
-                    0xFFFFFFFFu
-                );
-                if (geo_hit.hit_type != HIT_TYPE_NONE) {
-                    let geo_color = shade_surface(geo_hit, rd, px, py, sky_rgb, ambient_strength);
-                    let geo_opacity = clamp(geo_hit.albedo.a * geo_hit.material.opacity, 0.0, 1.0);
-                    background_color = mix(sky_rgb, geo_color, geo_opacity);
-                }
+            let geo_hit = trace_geometry_only(
+                ro,
+                rd,
+                0.0,
+                1e6,
+                false
+            );
+            if (geo_hit.hit_type != HIT_TYPE_NONE) {
+                let geo_color = shade_surface(geo_hit, rd, px, py, sky_rgb, ambient_strength);
+                let geo_opacity = clamp(geo_hit.albedo.a * geo_hit.material.opacity, 0.0, 1.0);
+                background_color = mix(sky_rgb, geo_color, geo_opacity);
             }
         }
-
         final_color = mix(background_color, front_color, front_opacity);
     }
 

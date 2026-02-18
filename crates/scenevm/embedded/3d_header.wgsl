@@ -58,6 +58,8 @@ const SCENE_LIGHT_WORDS: u32 = 20u;
 const SCENE_BILLBOARD_CMD_WORDS: u32 = 16u;
 const DYNAMIC_KIND_BILLBOARD_TILE: u32 = 0u;
 const DYNAMIC_KIND_BILLBOARD_AVATAR: u32 = 1u;
+const DYNAMIC_ALPHA_TEXTURE: u32 = 0u;
+const DYNAMIC_ALPHA_CHROMA_KEY: u32 = 1u;
 
 fn sd_data_word(idx: u32) -> u32 {
   if (idx >= scene_data.header.data_word_count) {
@@ -94,7 +96,7 @@ struct DynBillboardCmd {
   center: vec4<f32>,       // xyz + width
   axis_right: vec4<f32>,   // xyz + height
   axis_up: vec4<f32>,      // xyz + repeat_mode
-  params: vec4<u32>,       // tile_index, kind, opacity_bits, unused
+  params: vec4<u32>,       // tile_index, kind, opacity_bits, alpha_mode
 };
 
 struct DynBillboardHit {

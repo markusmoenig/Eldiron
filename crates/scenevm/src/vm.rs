@@ -332,6 +332,23 @@ pub enum Atom {
     },
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct VMDebugStats {
+    pub chunks: usize,
+    pub polys2d: usize,
+    pub polys3d: usize,
+    pub tris3d: usize,
+    pub lines2d: usize,
+    pub dynamics: usize,
+    pub lights: usize,
+    pub cached_v3: usize,
+    pub cached_i3: usize,
+    pub accel_dirty: bool,
+    pub visibility_dirty: bool,
+    pub geometry3d_dirty: bool,
+    pub geometry2d_dirty: bool,
+}
+
 /// Screen-space line strip description (width in pixels; rendered as quads built in screen space).
 #[derive(Debug, Clone)]
 pub struct LineStrip2D {
@@ -380,6 +397,7 @@ pub struct VMGpu {
     pub tile_frames_ssbo: Option<wgpu::Buffer>,
     // Scene-wide data (lights, billboards, ...)
     pub scene_data_ssbo: Option<wgpu::Buffer>,
+    pub scene_data_ssbo_size: usize,
     // --- Scene-wide uniform grid buffers (3D)
     pub grid_hdr: Option<wgpu::Buffer>,
     pub grid_data: Option<wgpu::Buffer>,
@@ -691,6 +709,33 @@ impl VM {
 
     pub fn is_enabled(&self) -> bool {
         self.enabled
+    }
+
+    pub fn debug_stats(&self) -> VMDebugStats {
+        let mut stats = VMDebugStats {
+            chunks: self.chunks_map.len(),
+            dynamics: self.dynamic_objects.len(),
+            lights: self.lights.len(),
+            cached_v3: self.cached_v3.len(),
+            cached_i3: self.cached_i3.len(),
+            accel_dirty: self.accel_dirty,
+            visibility_dirty: self.visibility_dirty,
+            geometry3d_dirty: self.geometry3d_dirty,
+            geometry2d_dirty: self.geometry2d_dirty,
+            ..Default::default()
+        };
+
+        for ch in self.chunks_map.values() {
+            stats.polys2d += ch.polys_map.len();
+            stats.lines2d += ch.lines2d_px.len();
+            for polys in ch.polys3d_map.values() {
+                stats.polys3d += polys.len();
+                for poly in polys {
+                    stats.tris3d += poly.indices.len();
+                }
+            }
+        }
+        stats
     }
 
     /// Enable/disable ping-pong rendering for this VM. Disabling drops the extra textures.
@@ -1319,7 +1364,12 @@ impl VM {
                             axis_up.z,
                             obj.repeat_mode as u32 as f32,
                         ],
-                        params: [tile_index, obj.kind as u32, obj.opacity.to_bits(), 0],
+                        params: [
+                            tile_index,
+                            obj.kind as u32,
+                            obj.opacity.to_bits(),
+                            obj.alpha_mode as u32,
+                        ],
                     });
                 }
                 DynamicKind::BillboardAvatar => {
@@ -1368,7 +1418,12 @@ impl VM {
                         center: [obj.center.x, obj.center.y, obj.center.z, obj.width],
                         axis_right: [axis_right.x, axis_right.y, axis_right.z, obj.height],
                         axis_up: [axis_up.x, axis_up.y, axis_up.z, 0.0],
-                        params: [avatar_index, obj.kind as u32, obj.opacity.to_bits(), 0],
+                        params: [
+                            avatar_index,
+                            obj.kind as u32,
+                            obj.opacity.to_bits(),
+                            obj.alpha_mode as u32,
+                        ],
                     });
                 }
             }
@@ -1429,6 +1484,31 @@ impl VM {
         blob.extend_from_slice(header_bytes);
         blob.extend_from_slice(data_bytes);
         blob
+    }
+
+    fn upload_scene_data_ssbo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        use wgpu::util::DeviceExt;
+
+        let scene_data = self.build_scene_data_blob();
+        let needs_recreate = if let Some(g) = self.gpu.as_ref() {
+            g.scene_data_ssbo.is_none() || g.scene_data_ssbo_size != scene_data.len()
+        } else {
+            true
+        };
+
+        let g = self.gpu.as_mut().unwrap();
+        if needs_recreate {
+            g.scene_data_ssbo = Some(device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some("vm-scene-data-ssbo"),
+                    contents: &scene_data,
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                },
+            ));
+            g.scene_data_ssbo_size = scene_data.len();
+        } else if let Some(buf) = g.scene_data_ssbo.as_ref() {
+            queue.write_buffer(buf, 0, &scene_data);
+        }
     }
 
     #[inline]
@@ -2231,6 +2311,7 @@ impl VM {
             tile_meta_ssbo: None,
             tile_frames_ssbo: None,
             scene_data_ssbo: None,
+            scene_data_ssbo_size: 0,
             grid_hdr: None,
             grid_data: None,
             sdf_data_ssbo: None,
@@ -2887,18 +2968,7 @@ impl VM {
         }
 
         use wgpu::util::DeviceExt;
-
-        let scene_data = self.build_scene_data_blob();
-        {
-            let g = self.gpu.as_mut().unwrap();
-            g.scene_data_ssbo = Some(device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("vm-scene-data-ssbo"),
-                    contents: &scene_data,
-                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                },
-            ));
-        }
+        self.upload_scene_data_ssbo(device, queue);
 
         let mut uploaded_geometry = false;
         {
@@ -3159,17 +3229,7 @@ impl VM {
             .expect("atlas GPU resources missing");
 
         use wgpu::util::DeviceExt;
-        let scene_data = self.build_scene_data_blob();
-        {
-            let g = self.gpu.as_mut().unwrap();
-            g.scene_data_ssbo = Some(device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("vm-scene-data-ssbo"),
-                    contents: &scene_data,
-                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                },
-            ));
-        }
+        self.upload_scene_data_ssbo(device, queue);
 
         // --- Build 3D geometry only when accel_dirty says so ---
         let mut geometry_changed = false;

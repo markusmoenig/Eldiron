@@ -616,10 +616,12 @@ impl AvatarRuntimeBuilder {
         };
 
         if cache.last_uploaded.as_ref() != Some(&key) {
-            // println!(
-            //     "avatar entity {} -> anim='{}' perspective={:?}",
-            //     entity.id, anim_name, persp_dir
-            // );
+            let has_visible_alpha = rgba.chunks_exact(4).any(|px| px[3] > 0);
+            // Some avatar frames resolve to fully transparent data; avoid uploading those
+            // so we don't flash/replace with an empty billboard frame.
+            if !has_visible_alpha {
+                return cache.last_uploaded.is_some();
+            }
             vm.execute(Atom::SetAvatarBillboardData {
                 id: geo_id,
                 size: *size,

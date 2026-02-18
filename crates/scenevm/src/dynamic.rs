@@ -31,6 +31,21 @@ impl Default for RepeatMode {
     }
 }
 
+/// Alpha handling for billboard tiles.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AlphaMode {
+    /// Use texture alpha as-is.
+    Texture = 0,
+    /// Treat pixels matching the tile's top-left color as transparent.
+    ChromaKey = 1,
+}
+
+impl Default for AlphaMode {
+    fn default() -> Self {
+        AlphaMode::Texture
+    }
+}
+
 /// Per-frame dynamic object description (billboards, particles, etc.).
 #[derive(Clone, Debug)]
 pub struct DynamicObject {
@@ -43,6 +58,7 @@ pub struct DynamicObject {
     pub width: f32,
     pub height: f32,
     pub repeat_mode: RepeatMode,
+    pub alpha_mode: AlphaMode,
     /// Per-billboard opacity (1.0 = fully opaque).
     pub opacity: f32,
 }
@@ -59,6 +75,7 @@ impl Default for DynamicObject {
             width: 1.0,
             height: 1.0,
             repeat_mode: RepeatMode::Scale,
+            alpha_mode: AlphaMode::Texture,
             opacity: 1.0,
         }
     }
@@ -85,6 +102,7 @@ impl DynamicObject {
             width,
             height,
             repeat_mode: RepeatMode::Scale,
+            alpha_mode: AlphaMode::Texture,
             opacity: 1.0,
         }
     }
@@ -128,6 +146,7 @@ impl DynamicObject {
             width,
             height,
             repeat_mode: RepeatMode::Scale,
+            alpha_mode: AlphaMode::Texture,
             opacity: 1.0,
         }
     }
@@ -147,6 +166,12 @@ impl DynamicObject {
     /// Set the repeat mode for this billboard.
     pub fn with_repeat_mode(mut self, mode: RepeatMode) -> Self {
         self.repeat_mode = mode;
+        self
+    }
+
+    /// Set alpha handling mode.
+    pub fn with_alpha_mode(mut self, mode: AlphaMode) -> Self {
+        self.alpha_mode = mode;
         self
     }
 

@@ -127,8 +127,8 @@ impl SceneHandler {
     }
 
     pub fn empty() -> Self {
-        let vm = SceneVM::default();
-        // vm.set_layer_activity_logging(true);
+        let mut vm = SceneVM::default();
+        vm.set_layer_activity_logging(false);
 
         Self {
             vm,
@@ -505,7 +505,7 @@ impl SceneHandler {
                     // Convert eye-height to billboard center so feet stay anchored to terrain/floor.
                     let center3 = Vec3::new(
                         entity.position.x,
-                        entity.position.y - 0.5,
+                        entity.position.y - 0.75,
                         entity.position.z,
                     );
                     let geo_id = GeoId::Character(entity.id);
