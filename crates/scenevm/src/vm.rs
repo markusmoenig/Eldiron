@@ -75,7 +75,7 @@ pub struct Vert3DPod {
     pub tile_index: u32,   // Primary texture
     pub tile_index2: u32,  // Secondary texture (for blending)
     pub blend_factor: f32, // 0.0=all primary, 1.0=all secondary
-    pub _pad_blend: f32,   // Padding
+    pub opacity: f32,      // Per-geometry opacity (0.0..1.0)
     pub normal: [f32; 3],
     pub _pad_n: f32, // +16 = 64 total (SAME SIZE!)
 }
@@ -270,6 +270,11 @@ pub enum Atom {
     SetGeoVisible {
         id: GeoId,
         visible: bool,
+    },
+    /// Set opacity for a specific geometry id across all chunks (0.0..1.0).
+    SetGeoOpacity {
+        id: GeoId,
+        opacity: f32,
     },
     /// Provide a custom WGSL body for the 2D compute shader. The VM will prepend a header and compile at runtime.
     SetSource2D(String),
@@ -654,6 +659,7 @@ pub struct VM {
     cached_i3: Vec<u32>,
     cached_tri_visibility: Vec<u32>, // Per-triangle visibility bitmask (1 bit per triangle)
     visibility_dirty: bool,          // True when only visibility changed (no BVH rebuild needed)
+    geometry3d_dirty: bool,          // True when 3D vertex attributes changed (e.g. opacity)
     geometry2d_dirty: bool,
     cached_v2: Vec<Vert2DPod>,
     cached_i2: Vec<u32>,
@@ -1637,6 +1643,7 @@ impl VM {
             cached_i3: Vec::new(),
             cached_tri_visibility: Vec::new(),
             visibility_dirty: false,
+            geometry3d_dirty: false,
             geometry2d_dirty: true,
             cached_v2: Vec::new(),
             cached_i2: Vec::new(),
@@ -1679,6 +1686,23 @@ impl VM {
                     // Only mark visibility dirty, NOT accel_dirty
                     // This avoids rebuilding the BVH structure
                     self.visibility_dirty = true;
+                }
+            }
+            Atom::SetGeoOpacity { id, opacity } => {
+                let clamped = opacity.clamp(0.0, 1.0);
+                let mut dirty_3d = false;
+                for ch in self.chunks_map.values_mut() {
+                    if let Some(p3_vec) = ch.polys3d_map.get_mut(&id) {
+                        for p3 in p3_vec.iter_mut() {
+                            if (p3.opacity - clamped).abs() > 1e-6 {
+                                p3.opacity = clamped;
+                                dirty_3d = true;
+                            }
+                        }
+                    }
+                }
+                if dirty_3d {
+                    self.geometry3d_dirty = true;
                 }
             }
             Atom::AddTile {
@@ -3150,7 +3174,7 @@ impl VM {
         // --- Build 3D geometry only when accel_dirty says so ---
         let mut geometry_changed = false;
         let mut visibility_changed = false;
-        if self.accel_dirty || self.cached_v3.is_empty() {
+        if self.accel_dirty || self.geometry3d_dirty || self.cached_v3.is_empty() {
             let mut v3: Vec<Vert3DPod> = Vec::new();
             let mut i3: Vec<u32> = Vec::new();
             let mut tri_visibility: Vec<bool> = Vec::new();
@@ -3233,7 +3257,7 @@ impl VM {
                                 tile_index,
                                 tile_index2,
                                 blend_factor,
-                                _pad_blend: 0.0,
+                                opacity: poly.opacity,
                                 normal: [n[0], n[1], n[2]],
                                 _pad_n: 0.0,
                             });
@@ -3261,7 +3285,7 @@ impl VM {
                     tile_index: 0,
                     tile_index2: 0,
                     blend_factor: 0.0,
-                    _pad_blend: 0.0,
+                    opacity: 1.0,
                     normal: [0.0, 0.0, 1.0],
                     _pad_n: 0.0,
                 });
@@ -3291,6 +3315,7 @@ impl VM {
             geometry_changed = true;
             visibility_changed = true;
             self.visibility_dirty = false; // Reset since we just rebuilt everything
+            self.geometry3d_dirty = false;
         }
 
         // --- Update visibility buffer if only visibility changed (no geometry rebuild) ---

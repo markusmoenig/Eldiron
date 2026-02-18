@@ -11,6 +11,7 @@ pub struct Poly3D {
     pub indices: Vec<(usize, usize, usize)>,
     pub layer: i32, // for future (not used by ray depth)
     pub visible: bool,
+    pub opacity: f32,
     // Vertex blending support (optional)
     pub tile_id2: Option<uuid::Uuid>, // Secondary texture for blending
     pub blend_weights: Vec<f32>,      // Per-vertex blend factor (0.0=primary, 1.0=secondary)
@@ -34,6 +35,7 @@ impl Poly3D {
             indices,
             layer: 0,
             visible: true,
+            opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
         }
@@ -103,6 +105,7 @@ impl Poly3D {
             indices,
             layer: 0,
             visible: true,
+            opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
         }
@@ -182,6 +185,7 @@ impl Poly3D {
             indices,
             layer: 0,
             visible: true,
+            opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
         }
@@ -241,6 +245,7 @@ impl Poly3D {
             indices,
             layer: 0,
             visible: true,
+            opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
         }
@@ -255,6 +260,12 @@ impl Poly3D {
     #[inline]
     pub fn with_visible(mut self, visible: bool) -> Self {
         self.visible = visible;
+        self
+    }
+
+    #[inline]
+    pub fn with_opacity(mut self, opacity: f32) -> Self {
+        self.opacity = opacity.clamp(0.0, 1.0);
         self
     }
 

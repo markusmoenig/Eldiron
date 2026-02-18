@@ -207,7 +207,7 @@ struct Vert3D {
   tile_index: u32,                          // offset 32, size 4 (primary texture)
   tile_index2: u32,                         // offset 36, size 4 (secondary texture for blending)
   blend_factor: f32,                        // offset 40, size 4 (0.0=primary, 1.0=secondary)
-  _pad_blend: f32,                          // offset 44, size 4
+  opacity: f32,                             // offset 44, size 4 (per-geometry fade)
   normal: vec3<f32>, _pad2: f32             // offset 48, size 16
 };
 struct Verts3D { data: array<Vert3D> };
@@ -581,7 +581,14 @@ fn ray_box(ro: vec3<f32>, rd: vec3<f32>, bmin: vec3<f32>, bmax: vec3<f32>) -> ve
 }
 
 // BVH traversal. tmin/tmax clip the segment (e.g., near/far planes).
-fn sv_trace_grid(ro: vec3<f32>, rd: vec3<f32>, tmin: f32, tmax: f32) -> TraceHit {
+// include_hidden controls whether invisible triangles should still be considered hits.
+fn sv_trace_grid_with_visibility(
+  ro: vec3<f32>,
+  rd: vec3<f32>,
+  tmin: f32,
+  tmax: f32,
+  include_hidden: bool
+) -> TraceHit {
   let node_count = bvh_node_count();
   if (node_count == 0u) { return TraceHit(false, 0.0, 0u, 0.0, 0.0, 0u, 0u, 0u, vec3<f32>(0.0), 0.0); }
 
@@ -623,8 +630,8 @@ fn sv_trace_grid(ro: vec3<f32>, rd: vec3<f32>, tmin: f32, tmax: f32) -> TraceHit
         if (tri >= bvh_tri_count()) { continue; }
         if (tri * 3u + 2u >= arrayLength(&indices3d.data)) { continue; }
 
-        // Skip invisible triangles
-        if (!is_tri_visible(tri)) { continue; }
+        // Skip invisible triangles unless explicitly requested (e.g. for shadowing).
+        if (!include_hidden && !is_tri_visible(tri)) { continue; }
 
         let i0 = indices3d.data[3u*tri + 0u];
         let i1 = indices3d.data[3u*tri + 1u];
@@ -687,6 +694,14 @@ fn sv_trace_grid(ro: vec3<f32>, rd: vec3<f32>, tmin: f32, tmax: f32) -> TraceHit
   }
 
   return TraceHit(false, 0.0, 0u, 0.0, 0.0, 0u, 0u, 0u, vec3<f32>(0.0), 0.0);
+}
+
+fn sv_trace_grid(ro: vec3<f32>, rd: vec3<f32>, tmin: f32, tmax: f32) -> TraceHit {
+  return sv_trace_grid_with_visibility(ro, rd, tmin, tmax, false);
+}
+
+fn sv_trace_grid_all(ro: vec3<f32>, rd: vec3<f32>, tmin: f32, tmax: f32) -> TraceHit {
+  return sv_trace_grid_with_visibility(ro, rd, tmin, tmax, true);
 }
 // ===== end BVH =====
 

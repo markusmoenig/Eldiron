@@ -38,6 +38,7 @@ pub struct GameWidget {
 
     pub current_sector_name: String,
     pub iso_hidden_sectors: FxHashSet<u32>,
+    pub iso_sector_fade: FxHashMap<u32, f32>,
 }
 
 impl Default for GameWidget {
@@ -78,6 +79,7 @@ impl GameWidget {
             upscale_buffer: TheRGBABuffer::default(),
             current_sector_name: String::new(),
             iso_hidden_sectors: FxHashSet::default(),
+            iso_sector_fade: FxHashMap::default(),
         }
     }
 
@@ -150,6 +152,7 @@ impl GameWidget {
         self.scenemanager.send(SceneManagerCmd::SetMap(map.clone()));
         self.build_region_name = map.name.clone();
         self.iso_hidden_sectors.clear();
+        self.iso_sector_fade.clear();
     }
 
     pub fn apply_entities(
@@ -514,6 +517,7 @@ impl GameWidget {
         scene_handler: &mut SceneHandler,
         force_reapply: bool,
     ) {
+        const FADE_STEP: f32 = 0.08;
         fn matches_pattern(name: &str, pattern: &str) -> bool {
             let name = name.trim().to_ascii_lowercase();
             let pattern = pattern.trim().to_ascii_lowercase();
@@ -550,7 +554,23 @@ impl GameWidget {
         }
 
         let unchanged = target_hidden == self.iso_hidden_sectors;
-        if !force_reapply && unchanged {
+        let mut has_active_fade = false;
+        for sector in &map.sectors {
+            let target_alpha = if target_hidden.contains(&sector.id) {
+                0.0
+            } else {
+                1.0
+            };
+            let current = *self
+                .iso_sector_fade
+                .get(&sector.id)
+                .unwrap_or(&target_alpha);
+            if (current - target_alpha).abs() > 1e-3 {
+                has_active_fade = true;
+                break;
+            }
+        }
+        if !force_reapply && unchanged && !has_active_fade {
             return;
         }
 
@@ -558,13 +578,44 @@ impl GameWidget {
         for sector in &map.sectors {
             let was_hidden = self.iso_hidden_sectors.contains(&sector.id);
             let should_hide = target_hidden.contains(&sector.id);
-            if was_hidden != should_hide {
-                let base_visible = sector.properties.get_bool_default("visible", true);
+            let base_visible = sector.properties.get_bool_default("visible", true);
+            let target_alpha = if should_hide { 0.0 } else { 1.0 };
+
+            let current_alpha = self
+                .iso_sector_fade
+                .get(&sector.id)
+                .copied()
+                .unwrap_or(if was_hidden { 0.0 } else { 1.0 });
+
+            let next_alpha = if current_alpha < target_alpha {
+                (current_alpha + FADE_STEP).min(target_alpha)
+            } else if current_alpha > target_alpha {
+                (current_alpha - FADE_STEP).max(target_alpha)
+            } else {
+                current_alpha
+            };
+
+            // Ensure geometry is visible while fading in.
+            if target_alpha > 0.0 && next_alpha > 0.0 {
                 scene_handler.vm.execute(scenevm::Atom::SetGeoVisible {
                     id: scenevm::GeoId::Sector(sector.id),
-                    visible: if should_hide { false } else { base_visible },
+                    visible: base_visible,
                 });
             }
+
+            scene_handler.vm.execute(scenevm::Atom::SetGeoOpacity {
+                id: scenevm::GeoId::Sector(sector.id),
+                opacity: next_alpha,
+            });
+
+            if next_alpha <= 0.001 {
+                scene_handler.vm.execute(scenevm::Atom::SetGeoVisible {
+                    id: scenevm::GeoId::Sector(sector.id),
+                    visible: false,
+                });
+            }
+
+            self.iso_sector_fade.insert(sector.id, next_alpha);
         }
 
         self.iso_hidden_sectors = target_hidden;

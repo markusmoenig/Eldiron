@@ -29,6 +29,16 @@ const BILLBOARD_ALPHA_CUTOFF: f32 = 0.08;
 const SHADOW_OPAQUE_THRESHOLD: f32 = 0.5;
 const BILLBOARD_DEPTH_EPS: f32 = 0.002;
 
+// Ordered-ish stochastic cutout for geometry fade.
+// Prevents semi-transparent blending against sky during visibility fades.
+fn fade_cutout_alpha(pos: vec3<f32>, alpha: f32) -> f32 {
+    let a = clamp(alpha, 0.0, 1.0);
+    if (a <= 0.0) { return 0.0; }
+    if (a >= 1.0) { return 1.0; }
+    let n = hash13(pos * 13.37 + vec3<f32>(0.17, 0.73, 0.31));
+    return select(0.0, 1.0, n <= a);
+}
+
 // ===== Hash functions for random sampling =====
 fn hash13(p3: vec3<f32>) -> f32 {
     var p = fract(p3 * 0.1031);
@@ -352,16 +362,20 @@ fn trace_billboards(ro: vec3<f32>, rd: vec3<f32>, max_t: f32) -> BillboardHit {
 
 // ===== Unified Trace Function =====
 // Traces both geometry and billboards, returns complete hit with materials
-fn trace_unified_skip_billboards(
+fn trace_unified_skip_billboards_with_hidden(
     ro: vec3<f32>,
     rd: vec3<f32>,
     tmin: f32,
     tmax: f32,
     skip_mask: u32,
-    skip_billboard_index: u32
+    skip_billboard_index: u32,
+    include_hidden_geo: bool
 ) -> UnifiedHit {
     // Trace geometry
-    let geo_hit = sv_trace_grid(ro, rd, tmin, tmax);
+    var geo_hit = sv_trace_grid(ro, rd, tmin, tmax);
+    if (include_hidden_geo) {
+        geo_hit = sv_trace_grid_all(ro, rd, tmin, tmax);
+    }
 
     // Trace billboards
     let billboard_hit = trace_billboards_skip(ro, rd, tmax, skip_mask, skip_billboard_index);
@@ -436,6 +450,12 @@ fn trace_unified_skip_billboards(
 
         // Sample albedo and material
         var albedo = sv_tri_sample_albedo_blended(i0, i1, i2, geo_hit.u, geo_hit.v);
+        let geo_opacity = clamp(
+            v0.opacity * w + v1.opacity * geo_hit.u + v2.opacity * geo_hit.v,
+            0.0,
+            1.0
+        );
+        albedo.a = albedo.a * fade_cutout_alpha(P, geo_opacity);
         albedo = vec4<f32>(pow(albedo.rgb, vec3<f32>(2.2)), albedo.a);
 
         let mat_data = sv_tri_sample_rmoe_blended(i0, i1, i2, geo_hit.u, geo_hit.v);
@@ -490,6 +510,25 @@ fn trace_unified_skip_billboards(
     );
 }
 
+fn trace_unified_skip_billboards(
+    ro: vec3<f32>,
+    rd: vec3<f32>,
+    tmin: f32,
+    tmax: f32,
+    skip_mask: u32,
+    skip_billboard_index: u32
+) -> UnifiedHit {
+    return trace_unified_skip_billboards_with_hidden(
+        ro,
+        rd,
+        tmin,
+        tmax,
+        skip_mask,
+        skip_billboard_index,
+        false
+    );
+}
+
 fn trace_unified(ro: vec3<f32>, rd: vec3<f32>, tmin: f32, tmax: f32) -> UnifiedHit {
     return trace_unified_skip_billboards(ro, rd, tmin, tmax, 0u, 0xFFFFFFFFu);
 }
@@ -503,13 +542,14 @@ fn trace_shadow_unified(ro: vec3<f32>, rd: vec3<f32>, tmax: f32) -> f32 {
     var skip_billboard_index: u32 = 0xFFFFFFFFu;
 
     for (var iter: u32 = 0u; iter < 6u; iter = iter + 1u) {
-        let hit = trace_unified_skip_billboards(
+        let hit = trace_unified_skip_billboards_with_hidden(
             trace_origin,
             rd,
             0.0,
             remaining,
             skip_mask,
-            skip_billboard_index
+            skip_billboard_index,
+            true
         );
         if (hit.hit_type == HIT_TYPE_NONE) {
             return 0.0;

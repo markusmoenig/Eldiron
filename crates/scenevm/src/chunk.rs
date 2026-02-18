@@ -215,6 +215,7 @@ impl Chunk {
             indices,
             layer,
             visible,
+            opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
         });
@@ -241,6 +242,7 @@ impl Chunk {
             indices,
             layer,
             visible,
+            opacity: 1.0,
             tile_id2: Some(tile_id2),
             blend_weights,
         });
@@ -314,6 +316,7 @@ impl Chunk {
             indices,
             layer: 0,
             visible,
+            opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
         };
@@ -405,6 +408,7 @@ impl Chunk {
             indices,
             layer,
             visible: true,
+            opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
         };
