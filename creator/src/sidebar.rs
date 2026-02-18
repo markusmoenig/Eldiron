@@ -5,7 +5,6 @@ use crate::editor::{
 use crate::minimap::draw_minimap;
 use crate::prelude::*;
 use crate::undo::project_helper::*;
-use codegridfx::Module;
 use rusterix::{Texture, TileRole};
 
 #[derive(PartialEq, Debug)]
@@ -577,7 +576,6 @@ impl Sidebar {
             }
             TheEvent::Resize => {
                 ctx.ui.redraw_all = true;
-                self.show_filtered_materials(ui, ctx, project, server_ctx);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimap"),
                     TheValue::Empty,
@@ -782,6 +780,7 @@ impl Sidebar {
                     ));
                 }
             }
+            /*
             TheEvent::DialogValueOnClose(role, name, uuid, value) => {
                 if name == "Rename Region" && *role == TheDialogButtonRole::Accept {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -832,18 +831,8 @@ impl Sidebar {
                         asset.name = value.describe();
                         ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
                     }
-                } else if name == "Rename Model" && *role == TheDialogButtonRole::Accept {
-                    if let Some(model) = project.models.get_mut(uuid) {
-                        model.name = value.describe();
-                        ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
-                    }
-                } else if name == "Rename Shader" && *role == TheDialogButtonRole::Accept {
-                    if let Some(material) = project.shaders.get_mut(uuid) {
-                        material.name = value.describe();
-                        ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
-                    }
                 }
-            }
+            }*/
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
                 if item_id.name == "Add Image" {
                     ctx.ui.open_file_requester(
@@ -947,24 +936,6 @@ impl Sidebar {
                             ui,
                             ctx,
                         );
-                    }
-                } else if item_id.name == "Rename Shader" {
-                    if let Some(material) = project.shaders.get(&widget_id.uuid) {
-                        open_text_dialog(
-                            "Rename Shader",
-                            "Shader Name",
-                            &material.name,
-                            widget_id.uuid,
-                            ui,
-                            ctx,
-                        );
-                    }
-                } else if item_id.name == "Duplicate Shader" {
-                    if let Some(mut material) = project.shaders.get(&widget_id.uuid).cloned() {
-                        material.name = format!("Duplicate of {}", material.name);
-                        material.id = Uuid::new_v4();
-                        project.shaders.insert(material.id, material);
-                        self.show_filtered_materials(ui, ctx, project, server_ctx);
                     }
                 }
             }
@@ -1267,8 +1238,6 @@ impl Sidebar {
                     if let Some(id) = self.curr_tilemap_uuid {
                         self.show_filtered_tiles(ui, ctx, project.get_tilemap(id).as_deref())
                     }
-                } else if id.name == "Shader Filter Edit" {
-                    self.show_filtered_materials(ui, ctx, project, server_ctx);
                 } else if id.name == "Tilemap Editor Zoom" {
                     if let Some(v) = value.to_f32() {
                         if let Some(layout) = ui.get_rgba_layout("Tilemap Editor") {
@@ -1382,45 +1351,6 @@ impl Sidebar {
                                     }
                                 }
                                 project.add_asset(asset);
-                            }
-                        }
-                    }
-                } else if id.name == "Shader Import" {
-                    for p in paths {
-                        let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
-                        let mut module: Module =
-                            serde_json::from_str(&contents).unwrap_or(Module::default());
-                        module.id = Uuid::new_v4();
-                        if module.name.is_empty() {
-                            module.name = "Unnamed".into();
-                        }
-
-                        project.shaders.insert(module.id, module);
-                        self.show_filtered_materials(ui, ctx, project, server_ctx);
-
-                        ctx.ui.send(TheEvent::SetStatusText(
-                            TheId::empty(),
-                            "Shader loaded successfully.".to_string(),
-                        ))
-                    }
-                } else if id.name == "Shader Export" {
-                    if let Some(curr_material_id) = server_ctx.curr_material_id {
-                        if let Some(material) = project.shaders.get(&curr_material_id) {
-                            for p in paths {
-                                let json = serde_json::to_string(&material);
-                                if let Ok(json) = json {
-                                    if std::fs::write(p, json).is_ok() {
-                                        ctx.ui.send(TheEvent::SetStatusText(
-                                            TheId::empty(),
-                                            "Shader saved successfully.".to_string(),
-                                        ))
-                                    } else {
-                                        ctx.ui.send(TheEvent::SetStatusText(
-                                            TheId::empty(),
-                                            "Unable to save Material!".to_string(),
-                                        ))
-                                    }
-                                }
                             }
                         }
                     }
@@ -2550,56 +2480,6 @@ impl Sidebar {
                 } else if id.name == "Debug Log" {
                     set_project_context(ctx, ui, project, server_ctx, ProjectContext::DebugLog);
                     redraw = true;
-                } else if id.name == "Shader Add" {
-                    let mut module: Module = Module::as_type(codegridfx::ModuleType::Shader);
-                    module.update_routines();
-                    module.name = "New Shader".into();
-                    server_ctx.curr_material_id = Some(module.id);
-                    project.shaders.insert(module.id, module);
-                    self.show_filtered_materials(ui, ctx, project, server_ctx);
-                    RUSTERIX.write().unwrap().set_dirty();
-
-                    ctx.ui.send(TheEvent::StateChanged(
-                        TheId::named_with_id("Shader Item", server_ctx.curr_material_id.unwrap()),
-                        TheWidgetState::Selected,
-                    ));
-                } else if id.name == "Shader Remove" {
-                    if let Some(list_layout) = ui.get_list_layout("Shader List") {
-                        if let Some(curr_material) = server_ctx.curr_material_id {
-                            project.shaders.shift_remove(&curr_material);
-                            list_layout.select_first_item(ctx);
-                        }
-                    }
-                    self.show_filtered_materials(ui, ctx, project, &server_ctx);
-                } else if id.name == "Shader Import" {
-                    ctx.ui.open_file_requester(
-                        TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
-                        "Open".into(),
-                        TheFileExtension::new(
-                            "Eldiron Material".into(),
-                            vec!["eldiron_shader".to_string()],
-                        ),
-                    );
-                    ctx.ui
-                        .set_widget_state("".to_string(), TheWidgetState::None);
-                    ctx.ui.clear_hover();
-                    redraw = true;
-                }
-                if id.name == "Shader Export" {
-                    if let Some(curr_tilemap_uuid) = server_ctx.curr_material_id {
-                        ctx.ui.save_file_requester(
-                            TheId::named_with_id(id.name.as_str(), curr_tilemap_uuid),
-                            "Save".into(),
-                            TheFileExtension::new(
-                                "Eldiron Material".into(),
-                                vec!["eldiron_shader".to_string()],
-                            ),
-                        );
-                        ctx.ui
-                            .set_widget_state("Save As".to_string(), TheWidgetState::None);
-                        ctx.ui.clear_hover();
-                        redraw = true;
-                    }
                 } else if id.name == "Tileset Item" {
                     // Display the tileset editor
                     if let Some(t) = project.get_tilemap(id.references) {
@@ -2768,19 +2648,7 @@ impl Sidebar {
         //     TheValue::Empty,
         // ));
 
-        // Set the current material
-        let selected_material = if project.shaders.is_empty() {
-            None
-        } else if let Some((id, _)) = project.shaders.get_index(0) {
-            Some(*id)
-        } else {
-            None
-        };
-
-        server_ctx.curr_material_id = selected_material;
-
         self.show_actions(ui, ctx, project, server_ctx);
-        // self.show_filtered_materials(ui, ctx, project, server_ctx);
         self.update_tiles(ui, ctx, project);
 
         TOOLLIST.write().unwrap().get_current_tool().tool_event(
@@ -3598,89 +3466,6 @@ impl Sidebar {
         } else {
             self.show_empty_action_toml(ui, ctx);
         }
-    }
-
-    /// Shows the filtered materials of the project.
-    pub fn show_filtered_materials(
-        &mut self,
-        ui: &mut TheUI,
-        ctx: &mut TheContext,
-        project: &Project,
-        server_ctx: &ServerContext,
-    ) {
-        let mut filter_text = if let Some(widget) = ui
-            .canvas
-            .get_widget(Some(&"Shader Filter Edit".to_string()), None)
-        {
-            widget.value().to_string().unwrap_or_default()
-        } else {
-            "".to_string()
-        };
-
-        let _filter_role = if let Some(widget) = ui
-            .canvas
-            .get_widget(Some(&"Shader Filter Role".to_string()), None)
-        {
-            if let Some(drop_down_menu) = widget.as_drop_down_menu() {
-                drop_down_menu.selected_index()
-            } else {
-                0
-            }
-        } else {
-            0
-        };
-
-        filter_text = filter_text.to_lowercase();
-
-        if let Some(layout) = ui.canvas.get_layout(Some(&"Shader List".to_string()), None) {
-            if let Some(list_layout) = layout.as_list_layout() {
-                list_layout.clear();
-
-                for material in project.shaders.values() {
-                    if filter_text.is_empty() || material.name.to_lowercase().contains(&filter_text)
-                    //&& (filter_role == 0
-                    //    || tile.role == TileRole::from_index(filter_role as u8 - 1).unwrap())
-                    {
-                        let mut item =
-                            TheListItem::new(TheId::named_with_id("Shader Item", material.id));
-                        item.set_text(material.name.clone());
-                        //let sub_text = format!("Index: {index}");
-                        // item.set_sub_text(sub_text);
-                        // item.set_size(42);
-                        if Some(material.id) == server_ctx.curr_material_id {
-                            item.set_state(TheWidgetState::Selected);
-                        }
-
-                        /*
-                        if let Some(Value::Texture(texture)) = material.properties.get("Shader") {
-                            let resized = texture.resized(36, 36);
-                            let rgba = TheRGBABuffer::from(
-                                resized.data.clone(),
-                                resized.width as u32,
-                                resized.height as u32,
-                            );
-                            item.set_icon(rgba);
-                        }*/
-
-                        item.set_context_menu(Some(TheContextMenu {
-                            items: vec![
-                                TheContextMenuItem::new(
-                                    "Rename Shader...".to_string(),
-                                    TheId::named("Rename Shader"),
-                                ),
-                                TheContextMenuItem::new(
-                                    "Duplicate Shader".to_string(),
-                                    TheId::named("Duplicate Shader"),
-                                ),
-                            ],
-                            ..Default::default()
-                        }));
-                        list_layout.add_item(item, ctx);
-                    }
-                }
-            }
-        }
-        //ui.select_first_list_item("Shader List", ctx);
     }
 
     /// Apply the given asset to the UI

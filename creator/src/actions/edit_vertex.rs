@@ -7,13 +7,11 @@ pub const EDIT_VERTEX_ACTION_ID: &str = "260fcd81-c456-4ad4-894c-85e7552c856f";
 pub struct EditVertex {
     id: TheId,
     nodeui: TheNodeUI,
+    show_terrain: bool,
 }
 
-impl Action for EditVertex {
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
+impl EditVertex {
+    fn build_nodeui(show_terrain: bool) -> TheNodeUI {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
 
         let item = TheNodeUIItem::Text(
@@ -78,26 +76,39 @@ impl Action for EditVertex {
         );
         nodeui.add_item(item);
 
-        nodeui.add_item(TheNodeUIItem::OpenTree("terrain".into()));
+        if show_terrain {
+            nodeui.add_item(TheNodeUIItem::OpenTree("terrain".into()));
 
-        nodeui.add_item(TheNodeUIItem::Checkbox(
-            "actionVertexTerrain".into(),
-            "".into(),
-            "".into(),
-            false,
-        ));
+            nodeui.add_item(TheNodeUIItem::Checkbox(
+                "actionVertexTerrain".into(),
+                "".into(),
+                "".into(),
+                false,
+            ));
 
-        let item = TheNodeUIItem::FloatEditSlider(
-            "actionVertexTerrainSmoothness".into(),
-            "".into(),
-            "".into(),
-            0.0,
-            0.0..=0.0,
-            false,
-        );
-        nodeui.add_item(item);
+            let item = TheNodeUIItem::FloatEditSlider(
+                "actionVertexTerrainSmoothness".into(),
+                "".into(),
+                "".into(),
+                0.0,
+                0.0..=0.0,
+                false,
+            );
+            nodeui.add_item(item);
 
-        nodeui.add_item(TheNodeUIItem::CloseTree);
+            nodeui.add_item(TheNodeUIItem::CloseTree);
+        }
+
+        nodeui
+    }
+}
+
+impl Action for EditVertex {
+    fn new() -> Self
+    where
+        Self: Sized,
+    {
+        let nodeui = Self::build_nodeui(true);
 
         // let item = TheNodeUIItem::Markdown("desc".into(), fl!("action_edit_vertex_desc"));
         // nodeui.add_item(item);
@@ -108,6 +119,7 @@ impl Action for EditVertex {
                 Uuid::from_str(EDIT_VERTEX_ACTION_ID).unwrap(),
             ),
             nodeui,
+            show_terrain: true,
         }
     }
 
@@ -158,6 +170,42 @@ impl Action for EditVertex {
     }
 
     fn load_params_project(&mut self, project: &Project, server_ctx: &mut ServerContext) {
+        let show_terrain = server_ctx.get_map_context() == MapContext::Region;
+        if show_terrain != self.show_terrain {
+            let name = self
+                .nodeui
+                .get_text_value("actionVertexName")
+                .unwrap_or_default();
+            let x = self.nodeui.get_f32_value("actionVertexX").unwrap_or(0.0);
+            let y = self.nodeui.get_f32_value("actionVertexY").unwrap_or(0.0);
+            let z = self.nodeui.get_f32_value("actionVertexZ").unwrap_or(0.0);
+            let tile_size = self
+                .nodeui
+                .get_f32_value("actionVertexTileSize")
+                .unwrap_or(1.0);
+            let terrain_control = self
+                .nodeui
+                .get_bool_value("actionVertexTerrain")
+                .unwrap_or(false);
+            let terrain_smoothness = self
+                .nodeui
+                .get_f32_value("actionVertexTerrainSmoothness")
+                .unwrap_or(1.0);
+
+            self.nodeui = Self::build_nodeui(show_terrain);
+            self.show_terrain = show_terrain;
+
+            self.nodeui.set_text_value("actionVertexName", name);
+            self.nodeui.set_f32_value("actionVertexX", x);
+            self.nodeui.set_f32_value("actionVertexY", y);
+            self.nodeui.set_f32_value("actionVertexZ", z);
+            self.nodeui.set_f32_value("actionVertexTileSize", tile_size);
+            self.nodeui
+                .set_bool_value("actionVertexTerrain", terrain_control);
+            self.nodeui
+                .set_f32_value("actionVertexTerrainSmoothness", terrain_smoothness);
+        }
+
         let mut tile_icon = TheRGBABuffer::new(TheDim::sized(36, 36));
         let mut tile_id = Uuid::nil();
 
@@ -215,6 +263,7 @@ impl Action for EditVertex {
             .nodeui
             .get_f32_value("actionVertexTerrainSmoothness")
             .unwrap_or(1.0);
+        let is_region_mode = server_ctx.get_map_context() == MapContext::Region;
 
         let tile_size = self
             .nodeui
@@ -229,22 +278,25 @@ impl Action for EditVertex {
 
         if let Some(vertex_id) = map.selected_vertices.first() {
             if let Some(vertex) = map.find_vertex_mut(*vertex_id) {
-                let ex_terrain_control =
-                    vertex.properties.get_bool_default("terrain_control", false);
+                if is_region_mode {
+                    let ex_terrain_control =
+                        vertex.properties.get_bool_default("terrain_control", false);
 
-                if ex_terrain_control != terrain_control {
-                    vertex
-                        .properties
-                        .set("terrain_control", Value::Bool(terrain_control));
-                    changed = true;
-                }
+                    if ex_terrain_control != terrain_control {
+                        vertex
+                            .properties
+                            .set("terrain_control", Value::Bool(terrain_control));
+                        changed = true;
+                    }
 
-                let ex_terrain_smoothness = vertex.properties.get_float_default("smoothness", 1.0);
-                if ex_terrain_smoothness != terrain_smoothness {
-                    vertex
-                        .properties
-                        .set("smoothness", Value::Float(terrain_smoothness));
-                    changed = true;
+                    let ex_terrain_smoothness =
+                        vertex.properties.get_float_default("smoothness", 1.0);
+                    if ex_terrain_smoothness != terrain_smoothness {
+                        vertex
+                            .properties
+                            .set("smoothness", Value::Float(terrain_smoothness));
+                        changed = true;
+                    }
                 }
 
                 let ex_tile_size = vertex.properties.get_float_default("source_size", 1.0);

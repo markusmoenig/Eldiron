@@ -821,7 +821,7 @@ impl MapEditor {
                 if !map.selected_sectors.is_empty() {
                     if let Some(sector) = map.find_sector_mut(map.selected_sectors[0]) {
                         if sector.name.is_empty() {
-                            sector.name = "Unnamed".to_string();
+                            // sector.name = "Unnamed".to_string();
                             ctx.ui.send(TheEvent::StateChanged(
                                 TheId::named_with_id_and_reference(
                                     "Screen Content List Item",

@@ -185,8 +185,11 @@ fn sd_sample_avatar(avatar_index: u32, uv: vec2<f32>) -> vec4<f32> {
   if (size == 0u) {
     return vec4<f32>(0.0);
   }
-  let u = clamp(uv.x, 0.0, 0.999999);
-  let v = clamp(uv.y, 0.0, 0.999999);
+  // Inset UV by half a texel to avoid sampling outer border pixels, which can
+  // create top/bottom fringe lines at grazing intersections.
+  let texel = 0.5 / f32(size);
+  let u = clamp(uv.x, texel, 1.0 - texel);
+  let v = clamp(uv.y, texel, 1.0 - texel);
   let x = u32(floor(u * f32(size)));
   let y = u32(floor(v * f32(size)));
   let idx = scene_data.header.avatar_pixel_offset_words + offset_pixels + y * size + x;

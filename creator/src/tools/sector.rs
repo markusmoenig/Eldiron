@@ -717,6 +717,7 @@ impl Tool for SectorTool {
                 }
                 self.drag_changed = false;
                 self.click_selected = false;
+                self.was_clicked = false;
             }
             MapHover(coord) => {
                 if self.hud.hovered(coord.x, coord.y, map, ui, ctx, server_ctx) {
@@ -816,6 +817,7 @@ impl Tool for SectorTool {
                     ));
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
                 }
+                self.was_clicked = false;
             }
         }
         undo_atom

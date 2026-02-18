@@ -6,7 +6,6 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     rusterix.server.clear();
     rusterix.server.debug_mode = debug;
     rusterix.server.log_changed = true;
-    rusterix.assets.global = project.render_graph.clone();
 
     insert_content_into_maps(project);
 

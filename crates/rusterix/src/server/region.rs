@@ -1283,6 +1283,21 @@ impl RegionInstance {
                             }
                         });
                     }
+                    SetPlayerCamera(player_camera) => {
+                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            if let Some(entity) = ctx
+                                .map
+                                .entities
+                                .iter_mut()
+                                .find(|entity| entity.id == entity_id)
+                            {
+                                entity.set_attribute(
+                                    "player_camera",
+                                    Value::PlayerCamera(player_camera),
+                                );
+                            }
+                        });
+                    }
                     Choice(choice) => match &choice {
                         Choice::ItemToSell(item_id, seller_id, buyer_id) => {
                             with_regionctx(self.id, |ctx: &mut RegionCtx| {

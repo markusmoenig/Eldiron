@@ -27,14 +27,11 @@ Use a widget with **role = "game"** to render the game inside a screen. The game
 ### Camera Section
 
 - **type**: Rendering camera mode; **iso**, **firstp**, or **2D**.
-- **azimuth_deg** (iso, optional): horizontal rotation in degrees. If omitted, camera default is used.
-- **elevation_deg** (iso, optional): vertical angle in degrees. Higher values look more top-down and help seeing inside buildings. If omitted, camera default is used.
+- **azimuth** (iso, optional): horizontal rotation in degrees. If omitted, camera default is used.
+- **elevation** (iso, optional): vertical angle in degrees. Higher values look more top-down and help seeing inside buildings. If omitted, camera default is used.
 - **scale** (iso, optional): orthographic half-height (zoom). Larger values zoom out. If omitted, camera default is used.
 
-Aliases are also accepted:
-
-- **azimuth** (same as `azimuth_deg`)
-- **elevation** (same as `elevation_deg`)
+Legacy aliases are still accepted for compatibility: `azimuth_deg`, `elevation_deg`.
  
 <Admonition type="note" title="player input controls">
 This setting only affects **rendering**. It does **not** change how player input controls the camera.  
@@ -60,8 +57,8 @@ grid_size = 40
 
 [camera]
 type = "iso"
-azimuth_deg = 135.0
-elevation_deg = 50.0
+azimuth = 135.0
+elevation = 50.0
 scale = 6.0
 ```
 
@@ -86,6 +83,9 @@ In the HUD you can select between two icons per sector:
 - **show / hide** - Toggle specific widgets when clicked.
 - **deactivate** - Turn off other buttons when clicked.
 - **active** - Set this button’s state to active by default.
+- **camera** - Switch game widget rendering camera: `2d`, `iso`, `firstp`.
+- **player_camera** - Switch player input mapping camera mode on the server: `2d`, `iso`, `firstp`.
+- **camera_target** - Optional target game widget name; if omitted, applies to all game widgets.
 - **border_size** - An optional border for the button. Default size is 0 (no border).
 - **border_color** - The color for the border. Default is white ("#FFFFFF").
 
@@ -132,6 +132,18 @@ hide = ["Inventory*"]
 deactivate = ["Show Inventory"]
 
 active = true
+```
+
+### Example 3
+
+This button switches both rendering camera and player input mapping to first-person.
+
+```toml
+[ui]
+role = "button"
+camera = "firstp"
+player_camera = "firstp"
+# camera_target = "Game View"
 ```
 
 ---

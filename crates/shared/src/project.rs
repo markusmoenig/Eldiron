@@ -1,8 +1,6 @@
 use crate::prelude::*;
-use codegridfx::Module;
 use indexmap::IndexMap;
 pub use rusterix::map::*;
-use rusterix::{ShapeFX, ShapeFXGraph, ShapeFXRole};
 use theframework::prelude::*;
 
 /// The default target fps for the game.
@@ -13,14 +11,6 @@ fn default_target_fps() -> u32 {
 /// The default ms per tick for the game.
 fn default_tick_ms() -> u32 {
     250
-}
-
-#[derive(Serialize, Deserialize, Default, Copy, Clone, Debug)]
-pub enum MapMode {
-    #[default]
-    TwoD,
-    Mixed,
-    ThreeD,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -37,9 +27,6 @@ pub struct Project {
     pub time: TheTime,
 
     #[serde(default)]
-    pub map_mode: MapMode,
-
-    #[serde(default)]
     pub characters: IndexMap<Uuid, Character>,
     #[serde(default)]
     pub items: IndexMap<Uuid, Item>,
@@ -53,12 +40,6 @@ pub struct Project {
     #[serde(default)]
     pub palette: ThePalette,
 
-    #[serde(default)]
-    pub models: IndexMap<Uuid, Map>,
-
-    #[serde(default)]
-    pub shaders: IndexMap<Uuid, Module>,
-
     #[serde(default = "default_target_fps")]
     pub target_fps: u32,
 
@@ -70,9 +51,6 @@ pub struct Project {
 
     #[serde(default)]
     pub avatars: IndexMap<Uuid, Avatar>,
-
-    #[serde(default)]
-    pub render_graph: ShapeFXGraph,
 }
 
 impl Default for Project {
@@ -85,21 +63,6 @@ impl Project {
     pub fn new() -> Self {
         let region = Region::default();
 
-        let mut sky = ShapeFX::new(ShapeFXRole::Sky);
-        sky.position.x = 200;
-        let render_graph = ShapeFXGraph {
-            nodes: vec![ShapeFX::new(ShapeFXRole::Render), sky],
-            connections: vec![(0, 1, 1, 0)],
-            ..Default::default()
-        };
-
-        let mut models = IndexMap::default();
-        let map = Map {
-            name: "Unnamed Model".to_string(),
-            ..Default::default()
-        };
-        models.insert(map.id, map);
-
         Self {
             name: String::new(),
 
@@ -109,7 +72,6 @@ impl Project {
             tiles: IndexMap::default(),
 
             time: TheTime::default(),
-            map_mode: MapMode::default(),
 
             characters: IndexMap::default(),
             items: IndexMap::default(),
@@ -118,8 +80,6 @@ impl Project {
             assets: IndexMap::default(),
 
             palette: ThePalette::default(),
-            models,
-            shaders: IndexMap::default(),
 
             target_fps: default_target_fps(),
             tick_ms: default_tick_ms(),
@@ -127,7 +87,6 @@ impl Project {
             avatars: IndexMap::default(),
 
             config: String::new(),
-            render_graph,
         }
     }
 
@@ -375,12 +334,6 @@ impl Project {
     /// Remove a region
     pub fn remove_region(&mut self, id: &Uuid) {
         self.regions.retain(|item| item.id != *id);
-    }
-
-    /// Remove a model
-    pub fn remove_model(&mut self, id: &Uuid) {
-        #[allow(deprecated)]
-        self.models.remove(id);
     }
 
     /// Get the map of the current context.

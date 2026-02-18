@@ -69,6 +69,8 @@ pub enum EntityAction {
     Goto(Vec2<f32>, f32),
     /// CloseIn: Move within a radius of a target entity with a given speed
     CloseIn(u32, f32, f32),
+    /// Set how player input is mapped to movement
+    SetPlayerCamera(PlayerCamera),
     /// A multiple choice item was selected by the user
     Choice(Choice),
 }

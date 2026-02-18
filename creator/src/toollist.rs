@@ -457,46 +457,78 @@ impl ToolList {
                                 if let Some(paste) = &server_ctx.paste_clipboard {
                                     if let Some(hover) = server_ctx.hover_cursor {
                                         let prev = map.clone();
-
+                                        let prev_counts = (
+                                            map.vertices.len(),
+                                            map.linedefs.len(),
+                                            map.sectors.len(),
+                                        );
                                         map.paste_at_position(paste, hover);
+                                        let post_counts = (
+                                            map.vertices.len(),
+                                            map.linedefs.len(),
+                                            map.sectors.len(),
+                                        );
+                                        let inserted = post_counts != prev_counts;
 
-                                        if server_ctx.curr_map_tool_type == MapToolType::Vertex {
-                                            map.selected_linedefs.clear();
-                                            map.selected_sectors.clear();
-                                        } else if server_ctx.curr_map_tool_type
-                                            == MapToolType::Linedef
-                                        {
-                                            map.selected_vertices.clear();
-                                            map.selected_sectors.clear();
-                                        } else if server_ctx.curr_map_tool_type
-                                            == MapToolType::Sector
-                                        {
-                                            map.selected_vertices.clear();
-                                            map.selected_linedefs.clear();
+                                        if inserted {
+                                            if server_ctx.curr_map_tool_type == MapToolType::Vertex
+                                            {
+                                                map.selected_linedefs.clear();
+                                                map.selected_sectors.clear();
+                                            } else if server_ctx.curr_map_tool_type
+                                                == MapToolType::Linedef
+                                            {
+                                                map.selected_vertices.clear();
+                                                map.selected_sectors.clear();
+                                            } else if server_ctx.curr_map_tool_type
+                                                == MapToolType::Sector
+                                            {
+                                                map.selected_vertices.clear();
+                                                map.selected_linedefs.clear();
+                                            }
+
+                                            // Paste bypasses normal tool finalize paths; rebuild
+                                            // associations + surfaces so overlays and rendering
+                                            // use a fully consistent map immediately.
+                                            map.sanitize();
+                                            map.changed += 1;
+                                            server_ctx.paste_clipboard = None;
+
+                                            let undo_atom = ProjectUndoAtom::MapEdit(
+                                                server_ctx.pc,
+                                                Box::new(prev),
+                                                Box::new(map.clone()),
+                                            );
+
+                                            // We bypass normal tool click/drag flow during paste.
+                                            // Reset any stale drag state in the active tool so a
+                                            // following drag/up event cannot restore an old map snapshot.
+                                            let _ = self.get_current_tool().map_event(
+                                                MapEvent::MapUp(*coord),
+                                                ui,
+                                                ctx,
+                                                map,
+                                                server_ctx,
+                                            );
+
+                                            self.update_map_context(
+                                                ui,
+                                                ctx,
+                                                project,
+                                                server_ctx,
+                                                Some(undo_atom),
+                                            );
+                                            ctx.ui.send(TheEvent::Custom(
+                                                TheId::named("Map Selection Changed"),
+                                                TheValue::Empty,
+                                            ));
+                                            ctx.ui.send(TheEvent::Custom(
+                                                TheId::named("Render SceneManager Map"),
+                                                TheValue::Empty,
+                                            ));
+
+                                            return true;
                                         }
-
-                                        // if server_ctx.curr_map_tool_helper
-                                        //     != MapToolHelper::ShapePicker
-                                        // {
-                                        // }
-
-                                        server_ctx.paste_clipboard = None;
-
-                                        let undo_atom = ProjectUndoAtom::MapEdit(
-                                            server_ctx.pc,
-                                            Box::new(prev),
-                                            Box::new(map.clone()),
-                                        );
-
-                                        self.update_map_context(
-                                            ui,
-                                            ctx,
-                                            project,
-                                            server_ctx,
-                                            Some(undo_atom),
-                                        );
-
-                                        return true;
                                     }
                                 }
                             }

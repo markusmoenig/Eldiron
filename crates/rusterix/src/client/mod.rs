@@ -11,8 +11,8 @@ use std::str::FromStr;
 
 use crate::prelude::*;
 use crate::{
-    AccumBuffer, BrushPreview, Command, D2PreviewBuilder, EntityAction, Rect, SceneHandler,
-    ShapeFXGraph, Surface, Tracer, Value,
+    AccumBuffer, BrushPreview, Command, D2PreviewBuilder, EntityAction, PlayerCamera, Rect,
+    SceneHandler, ShapeFXGraph, Surface, Tracer, Value,
     client::action::ClientAction,
     client::widget::{
         Widget, deco::DecoWidget, game::GameWidget, messages::MessagesWidget, screen::ScreenWidget,
@@ -147,6 +147,26 @@ impl Default for Client {
 }
 
 impl Client {
+    fn parse_player_camera_mode(camera: &str) -> Option<PlayerCamera> {
+        match camera.to_ascii_lowercase().as_str() {
+            "2d" => Some(PlayerCamera::D2),
+            "iso" => Some(PlayerCamera::D3Iso),
+            "firstp" => Some(PlayerCamera::D3FirstP),
+            _ => None,
+        }
+    }
+
+    fn set_game_widget_camera_mode(&mut self, target: Option<&str>, camera: PlayerCamera) {
+        for widget in self.game_widgets.values_mut() {
+            if match target {
+                Some(name) => widget.name == name,
+                None => true,
+            } {
+                widget.set_camera_mode(camera.clone());
+            }
+        }
+    }
+
     pub fn new() -> Self {
         Self {
             curr_map_id: Uuid::default(),
@@ -1307,6 +1327,8 @@ impl Client {
     /// Click / touch down event
     pub fn touch_down(&mut self, coord: Vec2<i32>, map: &Map) -> Option<EntityAction> {
         let mut action = None;
+        let mut camera_action = None;
+        let mut render_camera_switches: Vec<(Option<String>, PlayerCamera)> = Vec::new();
 
         // Adjust cursor
         if self.curr_clicked_intent_cursor.is_some() {
@@ -1368,6 +1390,13 @@ impl Client {
                     }
                 }
 
+                if let Some(camera) = &widget.camera {
+                    render_camera_switches.push((widget.camera_target.clone(), camera.clone()));
+                }
+                if let Some(player_camera) = &widget.player_camera {
+                    camera_action = Some(EntityAction::SetPlayerCamera(player_camera.clone()));
+                }
+
                 // Deactivate the widgets and activate this widget
                 if !widget.deactivate.is_empty() {
                     for widget_to_deactivate in &widget.deactivate {
@@ -1382,6 +1411,13 @@ impl Client {
                     self.permanently_activated_widgets.push(widget.id);
                 }
             }
+        }
+        for (target, camera) in render_camera_switches {
+            self.set_game_widget_camera_mode(target.as_deref(), camera);
+        }
+
+        if camera_action.is_some() {
+            action = camera_action;
         }
 
         // Test against clicks on interactive messages (multiple choice)
@@ -1598,6 +1634,7 @@ impl Client {
 
                         if role == "game" {
                             let mut game_widget = GameWidget {
+                                name: widget.name.clone(),
                                 rect: Rect::new(x, y, width, height),
                                 toml_str: data.clone(),
                                 buffer: TheRGBABuffer::new(TheDim::sized(
@@ -1619,6 +1656,9 @@ impl Client {
                             let mut show: Option<Vec<String>> = None;
                             let mut hide: Option<Vec<String>> = None;
                             let mut deactivate: Vec<String> = vec![];
+                            let mut camera: Option<PlayerCamera> = None;
+                            let mut player_camera: Option<PlayerCamera> = None;
+                            let mut camera_target: Option<String> = None;
                             let mut inventory_index: Option<usize> = None;
 
                             let mut entity_cursor_id = None;
@@ -1686,6 +1726,28 @@ impl Client {
                                     }
                                 }
 
+                                // Check camera mode switch for game widget rendering
+                                if let Some(value) = ui.get("camera")
+                                    && let Some(v) = value.as_str()
+                                {
+                                    camera = Self::parse_player_camera_mode(v);
+                                }
+
+                                // Check player camera mapping switch for server controls.
+                                if let Some(value) = ui.get("player_camera")
+                                    && let Some(v) = value.as_str()
+                                {
+                                    player_camera = Self::parse_player_camera_mode(v);
+                                }
+
+                                // Optional game widget name target (defaults to all game widgets)
+                                if let Some(value) = ui.get("camera_target")
+                                    && let Some(v) = value.as_str()
+                                    && !v.is_empty()
+                                {
+                                    camera_target = Some(v.to_string());
+                                }
+
                                 // Check for active
                                 if let Some(value) = ui.get("active") {
                                     if let Some(v) = value.as_bool()
@@ -1736,6 +1798,9 @@ impl Client {
                                 show,
                                 hide,
                                 deactivate,
+                                camera,
+                                player_camera,
+                                camera_target,
                                 inventory_index,
                                 textures,
                                 entity_cursor_id,

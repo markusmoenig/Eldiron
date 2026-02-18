@@ -5,6 +5,7 @@ use theframework::prelude::*;
 use vek::Vec2;
 
 pub struct GameWidget {
+    pub name: String,
     pub scenemanager: SceneManager,
 
     pub camera_d3: Box<dyn D3Camera>,
@@ -45,6 +46,7 @@ impl Default for GameWidget {
 impl GameWidget {
     pub fn new() -> Self {
         Self {
+            name: String::new(),
             scenemanager: SceneManager::default(),
 
             camera_d3: Box::new(D3FirstPCamera::new()),
@@ -74,6 +76,43 @@ impl GameWidget {
         }
     }
 
+    fn apply_iso_camera_overrides(&self, iso: &mut D3IsoCamera) {
+        if let Some(camera) = self.table.get("camera") {
+            let default_azimuth = iso.get_parameter_f32("azimuth_deg");
+            let default_elevation = iso.get_parameter_f32("elevation_deg");
+            let default_scale = iso.scale();
+
+            let azimuth = camera.get_float_default(
+                "azimuth",
+                camera.get_float_default("azimuth_deg", default_azimuth),
+            );
+            let elevation = camera.get_float_default(
+                "elevation",
+                camera.get_float_default("elevation_deg", default_elevation),
+            );
+            let scale = camera.get_float_default("scale", default_scale);
+
+            iso.set_parameter_f32("azimuth_deg", azimuth);
+            iso.set_parameter_f32("elevation_deg", elevation);
+            iso.set_parameter_f32("scale", scale);
+        }
+    }
+
+    pub fn set_camera_mode(&mut self, camera: PlayerCamera) {
+        self.camera = camera;
+        match self.camera {
+            PlayerCamera::D2 => {}
+            PlayerCamera::D3Iso => {
+                let mut iso = D3IsoCamera::new();
+                self.apply_iso_camera_overrides(&mut iso);
+                self.camera_d3 = Box::new(iso);
+            }
+            PlayerCamera::D3FirstP => {
+                self.camera_d3 = Box::new(D3FirstPCamera::new());
+            }
+        }
+    }
+
     pub fn init(&mut self) {
         // Parse UI settings via the shared TOML loader to stay consistent.
         if let Ok(groups) = ValueTomlLoader::from_str(&self.toml_str) {
@@ -81,38 +120,17 @@ impl GameWidget {
                 self.grid_size = ui.get_float_default("grid_size", self.grid_size);
                 self.upscale = ui.get_float_default("upscale", 1.0).max(1.0);
             }
-            if let Some(camera) = groups.get("camera") {
+            self.table = groups;
+            if let Some(camera) = self.table.get("camera") {
                 let camera_type = camera.get_str_default("type".into(), "2d".into());
                 if camera_type == "iso" {
-                    self.camera = PlayerCamera::D3Iso;
-                    let mut iso = D3IsoCamera::new();
-
-                    // Optional camera overrides from TOML (keep camera defaults if missing).
-                    let default_azimuth = iso.get_parameter_f32("azimuth_deg");
-                    let default_elevation = iso.get_parameter_f32("elevation_deg");
-                    let default_scale = iso.scale();
-
-                    let azimuth = camera.get_float_default(
-                        "azimuth_deg",
-                        camera.get_float_default("azimuth", default_azimuth),
-                    );
-                    let elevation = camera.get_float_default(
-                        "elevation_deg",
-                        camera.get_float_default("elevation", default_elevation),
-                    );
-                    let scale = camera.get_float_default("scale", default_scale);
-
-                    iso.set_parameter_f32("azimuth_deg", azimuth);
-                    iso.set_parameter_f32("elevation_deg", elevation);
-                    iso.set_parameter_f32("scale", scale);
-
-                    self.camera_d3 = Box::new(iso);
+                    self.set_camera_mode(PlayerCamera::D3Iso);
                 } else if camera_type == "firstp" {
-                    self.camera = PlayerCamera::D3FirstP;
-                    self.camera_d3 = Box::new(D3FirstPCamera::new());
+                    self.set_camera_mode(PlayerCamera::D3FirstP);
+                } else {
+                    self.set_camera_mode(PlayerCamera::D2);
                 }
             }
-            self.table = groups;
         }
     }
 

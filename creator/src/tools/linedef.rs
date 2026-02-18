@@ -619,6 +619,7 @@ impl Tool for LinedefTool {
                 }
                 self.drag_changed = false;
                 self.click_selected = false;
+                self.was_clicked = false;
             }
             MapHover(coord) => {
                 if self.hud.hovered(coord.x, coord.y, map, ui, ctx, server_ctx) {
@@ -727,6 +728,7 @@ impl Tool for LinedefTool {
                         TheValue::Empty,
                     ));
                 }
+                self.was_clicked = false;
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
         }

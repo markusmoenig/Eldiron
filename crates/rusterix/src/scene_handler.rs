@@ -501,7 +501,13 @@ impl SceneHandler {
 
                 if entity.attributes.get_bool_default("visible", false) {
                     let size = 2.0;
-                    let center3 = Vec3::new(entity.position.x, size * 0.5, entity.position.z);
+                    // Entity Y stores world-space vertical position (typically eye height).
+                    // Convert eye-height to billboard center so feet stay anchored to terrain/floor.
+                    let center3 = Vec3::new(
+                        entity.position.x,
+                        entity.position.y - 0.5,
+                        entity.position.z,
+                    );
                     let geo_id = GeoId::Character(entity.id);
                     let mut rendered_avatar = false;
                     if let Some(avatar) =

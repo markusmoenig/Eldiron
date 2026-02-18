@@ -1715,6 +1715,7 @@ impl Map {
     pub fn paste_at_position(&mut self, local_map: &Map, position: Vec2<f32>) {
         let mut vertex_map = FxHashMap::default();
         let mut linedef_map = FxHashMap::default();
+        let mut pasted_sector_ids: Vec<u32> = Vec::new();
 
         self.clear_selection();
 
@@ -1736,6 +1737,7 @@ impl Map {
             if let Some(new_id) = self.find_free_linedef_id() {
                 let mut new_l = l.clone();
                 new_l.id = new_id;
+                new_l.creator_id = Uuid::new_v4();
                 new_l.start_vertex = *vertex_map.get(&l.start_vertex).unwrap();
                 new_l.end_vertex = *vertex_map.get(&l.end_vertex).unwrap();
                 // Reset front/back sector and sector_ids
@@ -1751,6 +1753,7 @@ impl Map {
             if let Some(new_id) = self.find_free_sector_id() {
                 let mut new_s = s.clone();
                 new_s.id = new_id;
+                new_s.creator_id = Uuid::new_v4();
                 new_s.linedefs = s
                     .linedefs
                     .iter()
@@ -1771,6 +1774,16 @@ impl Map {
 
                 self.sectors.push(new_s);
                 self.selected_sectors.push(new_id);
+                pasted_sector_ids.push(new_id);
+            }
+        }
+
+        // Pasted sectors need matching surfaces so 3D chunk building can render them.
+        for sector_id in pasted_sector_ids {
+            if self.get_surface_for_sector_id(sector_id).is_none() {
+                let mut surface = Surface::new(sector_id);
+                surface.calculate_geometry(self);
+                self.surfaces.insert(surface.id, surface);
             }
         }
     }

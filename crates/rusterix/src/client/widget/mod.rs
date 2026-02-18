@@ -4,7 +4,9 @@ pub mod messages;
 pub mod screen;
 pub mod text;
 
-use crate::{Assets, Entity, Map, Pixel, Rect, Texture, Value, WHITE, client::draw2d};
+use crate::{
+    Assets, Entity, Map, Pixel, PlayerCamera, Rect, Texture, Value, WHITE, client::draw2d,
+};
 use draw2d::Draw2D;
 use theframework::prelude::*;
 
@@ -18,6 +20,9 @@ pub struct Widget {
     pub show: Option<Vec<String>>,
     pub hide: Option<Vec<String>>,
     pub deactivate: Vec<String>,
+    pub camera: Option<PlayerCamera>,
+    pub player_camera: Option<PlayerCamera>,
+    pub camera_target: Option<String>,
     pub inventory_index: Option<usize>,
     pub textures: Vec<Texture>,
     pub entity_cursor_id: Option<Uuid>,
@@ -45,6 +50,9 @@ impl Widget {
             show: None,
             hide: None,
             deactivate: vec![],
+            camera: None,
+            player_camera: None,
+            camera_target: None,
             inventory_index: None,
             textures: vec![],
             entity_cursor_id: None,
