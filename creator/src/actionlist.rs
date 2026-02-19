@@ -23,6 +23,7 @@ impl ActionList {
             Box::new(crate::tools::clear_tile::ClearTile::new()),
             Box::new(crate::tools::copy_tile_id::CopyTileID::new()),
             Box::new(crate::tools::create_center_vertex::CreateCenterVertex::new()),
+            Box::new(crate::tools::create_fence::CreateFence::new()),
             Box::new(crate::tools::create_linedef::CreateLinedef::new()),
             Box::new(crate::tools::create_palisade::CreatePalisade::new()),
             Box::new(crate::tools::create_prop::CreateProp::new()),

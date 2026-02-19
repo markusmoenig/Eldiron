@@ -1962,7 +1962,7 @@ fn generate_linedef_features(
         let feature = linedef
             .properties
             .get_str_default("linedef_feature", "None".to_string());
-        if feature != "Palisade" {
+        if feature != "Palisade" && feature != "Fence" {
             continue;
         }
 
@@ -1985,20 +1985,15 @@ fn generate_linedef_features(
         }
         let forward = line_flat / line_len;
         let right = Vec3::new(-forward.z, 0.0, forward.x);
+        let up = Vec3::new(0.0, 1.0, 0.0);
 
         let spacing = linedef
             .properties
-            .get_float_default("feature_layout_spacing", 1.0)
+            .get_float_default(
+                "feature_layout_spacing",
+                if feature == "Fence" { 1.5 } else { 1.0 },
+            )
             .max(0.1);
-        let segment_size = linedef
-            .properties
-            .get_float_default("feature_segment_size", 0.75)
-            .max(0.05);
-        let shape = linedef.properties.get_int_default("feature_shape", 1);
-        let depth = linedef
-            .properties
-            .get_float_default("feature_depth", 0.12)
-            .max(0.02);
         let round_segments = linedef
             .properties
             .get_int_default("feature_round_segments", 8)
@@ -2014,7 +2009,10 @@ fn generate_linedef_features(
             .max(0.0);
         let height_variation = linedef
             .properties
-            .get_float_default("feature_height_variation", 0.35)
+            .get_float_default(
+                "feature_height_variation",
+                if feature == "Fence" { 0.0 } else { 0.35 },
+            )
             .max(0.0);
         let lean_amount = linedef
             .properties
@@ -2040,6 +2038,7 @@ fn generate_linedef_features(
         let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
         let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
         let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
+        let mut post_points: Vec<(Vec3<f32>, Vec3<f32>)> = Vec::new();
 
         for i in 0..count {
             let t = if count <= 1 {
@@ -2072,65 +2071,217 @@ fn generate_linedef_features(
                 top_mode
             };
 
-            match shape {
-                2 => {
-                    let radius = (segment_size * 0.5).max(depth * 0.5);
-                    add_round_stake(
-                        &mut mesh_vertices,
-                        &mut mesh_uvs,
-                        &mut mesh_indices,
-                        base_center,
-                        top_center,
-                        right,
-                        forward,
-                        radius,
-                        round_segments,
-                        stake_top_mode,
-                        top_height,
-                    );
+            if feature == "Palisade" {
+                let segment_size = linedef
+                    .properties
+                    .get_float_default("feature_segment_size", 0.75)
+                    .max(0.05);
+                let shape = linedef.properties.get_int_default("feature_shape", 1);
+                let depth = linedef
+                    .properties
+                    .get_float_default("feature_depth", 0.12)
+                    .max(0.02);
+
+                match shape {
+                    2 => {
+                        let radius = (segment_size * 0.5).max(depth * 0.5);
+                        add_round_stake(
+                            &mut mesh_vertices,
+                            &mut mesh_uvs,
+                            &mut mesh_indices,
+                            base_center,
+                            top_center,
+                            right,
+                            forward,
+                            radius,
+                            round_segments,
+                            stake_top_mode,
+                            top_height,
+                        );
+                    }
+                    1 => {
+                        let half = (segment_size * 0.5).max(depth * 0.5);
+                        add_prism_stake(
+                            &mut mesh_vertices,
+                            &mut mesh_uvs,
+                            &mut mesh_indices,
+                            base_center,
+                            top_center,
+                            right,
+                            forward,
+                            half,
+                            half,
+                            stake_top_mode,
+                            top_height,
+                        );
+                    }
+                    _ => {
+                        let half_w = segment_size * 0.5;
+                        let half_d = (depth * 0.5).max(0.01);
+                        add_prism_stake(
+                            &mut mesh_vertices,
+                            &mut mesh_uvs,
+                            &mut mesh_indices,
+                            base_center,
+                            top_center,
+                            right,
+                            forward,
+                            half_w,
+                            half_d,
+                            stake_top_mode,
+                            top_height,
+                        );
+                    }
                 }
-                1 => {
-                    let half = (segment_size * 0.5).max(depth * 0.5);
-                    add_prism_stake(
-                        &mut mesh_vertices,
-                        &mut mesh_uvs,
-                        &mut mesh_indices,
-                        base_center,
-                        top_center,
-                        right,
-                        forward,
-                        half,
-                        half,
-                        stake_top_mode,
-                        top_height,
-                    );
+            } else {
+                let post_size = linedef
+                    .properties
+                    .get_float_default("feature_post_size", 0.18)
+                    .max(0.02);
+                let post_shape = linedef.properties.get_int_default("feature_post_shape", 0);
+                let half = post_size * 0.5;
+
+                match post_shape {
+                    1 => {
+                        add_round_stake(
+                            &mut mesh_vertices,
+                            &mut mesh_uvs,
+                            &mut mesh_indices,
+                            base_center,
+                            top_center,
+                            right,
+                            forward,
+                            half,
+                            round_segments,
+                            0,
+                            0.0,
+                        );
+                    }
+                    _ => {
+                        add_prism_stake(
+                            &mut mesh_vertices,
+                            &mut mesh_uvs,
+                            &mut mesh_indices,
+                            base_center,
+                            top_center,
+                            right,
+                            forward,
+                            half,
+                            half,
+                            0,
+                            0.0,
+                        );
+                    }
                 }
-                _ => {
-                    let half_w = segment_size * 0.5;
-                    let half_d = (depth * 0.5).max(0.01);
-                    add_prism_stake(
-                        &mut mesh_vertices,
-                        &mut mesh_uvs,
-                        &mut mesh_indices,
-                        base_center,
-                        top_center,
-                        right,
-                        forward,
-                        half_w,
-                        half_d,
-                        stake_top_mode,
-                        top_height,
-                    );
+                post_points.push((base_center, top_center));
+            }
+        }
+
+        if feature == "Fence" {
+            let connector_count = linedef
+                .properties
+                .get_int_default("feature_connector_count", 2)
+                .max(0) as usize;
+            let connector_style = linedef
+                .properties
+                .get_int_default("feature_connector_style", 0);
+            let connector_size = linedef
+                .properties
+                .get_float_default("feature_connector_size", 0.12)
+                .max(0.01);
+            let connector_drop = linedef
+                .properties
+                .get_float_default("feature_connector_drop", 1.2)
+                .max(0.0);
+
+            if connector_count > 0 && post_points.len() >= 2 {
+                for pair in post_points.windows(2) {
+                    let (base_a, top_a) = pair[0];
+                    let (base_b, top_b) = pair[1];
+
+                    let min_top = top_a.y.min(top_b.y);
+                    let min_base = base_a.y.min(base_b.y);
+                    let first_y = min_top - connector_size * 0.5 - 0.05;
+                    let step = if connector_count > 1 {
+                        connector_drop / (connector_count.saturating_sub(1) as f32)
+                    } else {
+                        0.0
+                    };
+
+                    for ci in 0..connector_count {
+                        let y = first_y - step * ci as f32;
+                        if y <= min_base + connector_size {
+                            continue;
+                        }
+
+                        let start = Vec3::new(base_a.x, y, base_a.z);
+                        let end = Vec3::new(base_b.x, y, base_b.z);
+
+                        match connector_style {
+                            2 => {
+                                add_round_stake(
+                                    &mut mesh_vertices,
+                                    &mut mesh_uvs,
+                                    &mut mesh_indices,
+                                    start,
+                                    end,
+                                    up,
+                                    right,
+                                    connector_size * 0.5,
+                                    round_segments.max(6),
+                                    0,
+                                    0.0,
+                                );
+                            }
+                            1 => {
+                                add_prism_stake(
+                                    &mut mesh_vertices,
+                                    &mut mesh_uvs,
+                                    &mut mesh_indices,
+                                    start,
+                                    end,
+                                    up,
+                                    right,
+                                    connector_size * 0.5,
+                                    connector_size * 0.5,
+                                    0,
+                                    0.0,
+                                );
+                            }
+                            _ => {
+                                add_prism_stake(
+                                    &mut mesh_vertices,
+                                    &mut mesh_uvs,
+                                    &mut mesh_indices,
+                                    start,
+                                    end,
+                                    up,
+                                    right,
+                                    connector_size * 0.5,
+                                    (connector_size * 0.2).max(0.01),
+                                    0,
+                                    0.0,
+                                );
+                            }
+                        }
+                    }
                 }
             }
         }
 
         if !mesh_indices.is_empty() {
+            // Orient UVs to the feature direction instead of world X/Z so texture flow
+            // stays continuous along the linedef.
+            let mut oriented_uvs: Vec<[f32; 2]> = Vec::with_capacity(mesh_vertices.len());
+            for v in &mesh_vertices {
+                let p = Vec3::new(v[0], v[1], v[2]);
+                oriented_uvs.push([p.dot(forward), p.y]);
+            }
             vmchunk.add_poly_3d(
                 GeoId::Linedef(linedef.id),
                 tile_id,
                 mesh_vertices,
-                mesh_uvs,
+                oriented_uvs,
                 mesh_indices,
                 0,
                 true,

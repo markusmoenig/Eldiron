@@ -97,6 +97,25 @@ Create a non-destructive palisade along selected linedefs. You can re-open the a
 - `[top].height`: extra height used by spike/bevel tops.
 - `[lean].amount`: max lean offset.
 - `[lean].randomness`: 0..1 multiplier for random lean variation.
+- UVs follow the linedef direction (continuous flow along the feature, not world X/Z projection).
+
+### Create Fence
+
+Create a non-destructive fence along selected linedefs.
+
+- `[material].tile_id`: tile used by posts and connectors.
+- `[layout].spacing`: distance between posts.
+- `[posts].shape`: `square` or `round`.
+- `[posts].size`: post thickness.
+- `[posts].height`: post height. `0.0` disables generation.
+- `[posts].round_segments`: radial complexity for round posts.
+- `[connectors].count`: number of horizontal connectors between posts.
+- `[connectors].style`: `plank`, `square`, or `round`.
+- `[connectors].size`: connector thickness.
+- `[connectors].drop`: how far connectors step down from the top.
+- `[lean].amount`: max lean offset.
+- `[lean].randomness`: 0..1 multiplier for random lean variation.
+- UVs follow the linedef direction (continuous flow along the feature, not world X/Z projection).
 
 ### Extrude Sector
 
