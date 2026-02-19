@@ -1640,6 +1640,7 @@ impl Sidebar {
             TheEvent::KeyDown(TheValue::Char(c)) => {
                 let action_list = ACTIONLIST.write().unwrap();
                 let mut needs_scene_redraw: bool = false;
+                let mut action_applied = false;
                 for action in &action_list.actions {
                     if let Some(accel) = action.accel() {
                         if accel.matches(ui.shift, ui.ctrl, ui.alt, ui.logo, *c) {
@@ -1648,6 +1649,7 @@ impl Sidebar {
                                     println!("{}", action.id().name);
                                     needs_scene_redraw =
                                         self.apply_action(action, map, ui, ctx, server_ctx, true);
+                                    action_applied = true;
                                 }
                             }
                             action.apply_project(project, ui, ctx, server_ctx);
@@ -1660,6 +1662,12 @@ impl Sidebar {
                         .write()
                         .unwrap()
                         .update_geometry_overlay_3d(project, server_ctx);
+                }
+                if action_applied {
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Action List"),
+                        TheValue::Empty,
+                    ));
                 }
             }
             TheEvent::StateChanged(id, state) => {

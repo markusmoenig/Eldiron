@@ -268,8 +268,8 @@ impl Action for ExtrudeLinedef {
     }
 
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        if server_ctx.editor_view_mode == EditorViewMode::D2 && server_ctx.editing_surface.is_some()
-        {
+        // 3D-only extrusion action.
+        if server_ctx.editor_view_mode == EditorViewMode::D2 {
             return false;
         }
 
