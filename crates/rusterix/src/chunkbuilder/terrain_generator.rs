@@ -12,7 +12,7 @@
 //! - Deterministic edge matching between chunks
 //! - Tile assignment from nearest geometry
 
-use crate::{Assets, BBox, Chunk, Map, PixelSource};
+use crate::{Assets, BBox, Chunk, Map, PixelSource, Value};
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 use vek::{Vec2, Vec3};
@@ -261,6 +261,7 @@ impl TerrainGenerator {
 
         // 3. Collect terrain linedefs for road smoothing
         let terrain_linedefs = self.collect_terrain_linedefs(map);
+        let terrain_tile_linedefs = self.collect_terrain_tile_linedefs(map);
 
         // 4. Identify sectors marked for terrain exclusion
         let excluded_sectors = self.collect_excluded_sectors(map, &chunk.bbox);
@@ -310,6 +311,7 @@ impl TerrainGenerator {
             assets,
             default_tile_id,
             tile_overrides,
+            &terrain_tile_linedefs,
         );
 
         if meshes_by_tile.is_empty() {
@@ -432,6 +434,46 @@ impl TerrainGenerator {
         }
 
         terrain_lines
+    }
+
+    /// Collect terrain-linedef tile overrides for road texturing.
+    /// Returns: Vec<(start_pos, end_pos, width, falloff, smooth, tile_id)>
+    fn collect_terrain_tile_linedefs(
+        &self,
+        map: &Map,
+    ) -> Vec<(Vec2<f32>, Vec2<f32>, f32, f32, bool, Uuid)> {
+        let mut out = Vec::new();
+
+        for linedef in &map.linedefs {
+            let Some(Value::Source(PixelSource::TileId(tile_id))) =
+                linedef.properties.get("terrain_source")
+            else {
+                continue;
+            };
+
+            let Some(start_vert) = map.vertices.iter().find(|v| v.id == linedef.start_vertex)
+            else {
+                continue;
+            };
+            let Some(end_vert) = map.vertices.iter().find(|v| v.id == linedef.end_vertex) else {
+                continue;
+            };
+
+            let start_pos = Vec2::new(start_vert.x, start_vert.y);
+            let end_pos = Vec2::new(end_vert.x, end_vert.y);
+            let width = linedef
+                .properties
+                .get_float_default("terrain_width", 2.0)
+                .max(0.0);
+            let falloff = linedef
+                .properties
+                .get_float_default("terrain_tile_falloff", 1.0)
+                .max(0.0);
+            let smooth = linedef.properties.get_bool_default("terrain_smooth", false);
+            out.push((start_pos, end_pos, width, falloff, smooth, *tile_id));
+        }
+
+        out
     }
 
     /// Collect sectors marked for terrain exclusion
@@ -959,6 +1001,7 @@ impl TerrainGenerator {
         assets: &Assets,
         default_tile_id: Uuid,
         tile_overrides: Option<&FxHashMap<(i32, i32), PixelSource>>,
+        terrain_tile_linedefs: &[(Vec2<f32>, Vec2<f32>, f32, f32, bool, Uuid)],
     ) -> Vec<(Uuid, Vec<Vec3<f32>>, Vec<u32>, Vec<[f32; 2]>)> {
         let mut per_tile: FxHashMap<Uuid, Vec<u32>> = FxHashMap::default();
 
@@ -978,9 +1021,14 @@ impl TerrainGenerator {
             let center_u = (uv0[0] + uv1[0] + uv2[0]) / 3.0;
             let center_v = (uv0[1] + uv1[1] + uv2[1]) / 3.0;
             let tile_cell = (center_u.floor() as i32, center_v.floor() as i32);
+            let center = Vec2::new(center_u, center_v);
 
-            // Look up tile override for this cell
-            let tile_id = if let Some(overrides) = tile_overrides {
+            // First, prefer linedef road tile override (if any).
+            let tile_id = if let Some(road_tile_id) =
+                Self::road_tile_for_point(center, terrain_tile_linedefs)
+            {
+                road_tile_id
+            } else if let Some(overrides) = tile_overrides {
                 if let Some(pixel_source) = overrides.get(&tile_cell) {
                     if let Some(tile) = pixel_source.tile_from_tile_list(assets) {
                         tile.id
@@ -1031,6 +1079,29 @@ impl TerrainGenerator {
         }
 
         result
+    }
+
+    /// Returns a road tile id for this point if it lies inside any terrain-linedef road width.
+    /// If multiple roads overlap, the nearest linedef wins.
+    fn road_tile_for_point(
+        point: Vec2<f32>,
+        terrain_tile_linedefs: &[(Vec2<f32>, Vec2<f32>, f32, f32, bool, Uuid)],
+    ) -> Option<Uuid> {
+        let mut best: Option<(f32, Uuid)> = None;
+        for &(start, end, width, falloff, smooth, tile_id) in terrain_tile_linedefs {
+            if width <= 0.0 {
+                continue;
+            }
+            let effective_width = if smooth { width + falloff } else { width };
+            let dist = Self::distance_point_to_segment(point, start, end);
+            if dist <= effective_width {
+                match best {
+                    Some((best_dist, _)) if dist >= best_dist => {}
+                    _ => best = Some((dist, tile_id)),
+                }
+            }
+        }
+        best.map(|(_, tile_id)| tile_id)
     }
 
     /// Calculate distance from a point to a line segment

@@ -1712,6 +1712,34 @@ fn generate_terrain(
     let config = TerrainConfig::default();
     let generator = TerrainGenerator::new(config);
 
+    // Collect road tile definitions from linedefs.
+    let mut road_tile_linedefs: Vec<(Vec2<f32>, Vec2<f32>, f32, f32, Uuid, bool)> = Vec::new();
+    for linedef in &map.linedefs {
+        let Some(Value::Source(PixelSource::TileId(tile_id))) =
+            linedef.properties.get("terrain_source")
+        else {
+            continue;
+        };
+        let Some(start_vert) = map.vertices.iter().find(|v| v.id == linedef.start_vertex) else {
+            continue;
+        };
+        let Some(end_vert) = map.vertices.iter().find(|v| v.id == linedef.end_vertex) else {
+            continue;
+        };
+        let start = Vec2::new(start_vert.x, start_vert.y);
+        let end = Vec2::new(end_vert.x, end_vert.y);
+        let width = linedef
+            .properties
+            .get_float_default("terrain_width", 2.0)
+            .max(0.0);
+        let falloff = linedef
+            .properties
+            .get_float_default("terrain_tile_falloff", 1.0)
+            .max(0.0);
+        let smooth = linedef.properties.get_bool_default("terrain_smooth", false);
+        road_tile_linedefs.push((start, end, width, falloff, *tile_id, smooth));
+    }
+
     // Generate terrain meshes for this chunk (grouped by tile)
     if let Some(meshes) = generator.generate(map, chunk, assets, default_tile_id, tile_overrides) {
         // Process each mesh (one per tile)
@@ -1810,6 +1838,93 @@ fn generate_terrain(
                             );
                             continue;
                         }
+                    }
+                }
+
+                // Automatic distance-based edge blend for smoothed road linedefs.
+                let road_tile_id = *tile_id;
+                let has_smooth_road =
+                    road_tile_linedefs
+                        .iter()
+                        .any(|(_, _, width, _, tid, smooth)| {
+                            *tid == road_tile_id && *smooth && *width > 0.0
+                        });
+                if has_smooth_road {
+                    let bg_tile = if let Some(overrides) = tile_overrides {
+                        if let Some(ps) = overrides.get(&(tile_x, tile_z)) {
+                            ps.tile_from_tile_list(assets)
+                                .map(|t| t.id)
+                                .unwrap_or(default_tile_id)
+                        } else {
+                            default_tile_id
+                        }
+                    } else {
+                        default_tile_id
+                    };
+
+                    if bg_tile != road_tile_id {
+                        let mut blend_weights = Vec::new();
+                        let mut blended_verts = Vec::new();
+                        let mut blended_uvs = Vec::new();
+                        let mut blended_indices = Vec::new();
+
+                        for &(i0, i1, i2) in &triangles {
+                            let base_idx = blended_verts.len();
+                            blended_verts.push(vertices_4d[i0]);
+                            blended_verts.push(vertices_4d[i1]);
+                            blended_verts.push(vertices_4d[i2]);
+
+                            blended_uvs.push([uvs[i0][0], 1.0 - uvs[i0][1]]);
+                            blended_uvs.push([uvs[i1][0], 1.0 - uvs[i1][1]]);
+                            blended_uvs.push([uvs[i2][0], 1.0 - uvs[i2][1]]);
+
+                            blended_indices.push((base_idx, base_idx + 1, base_idx + 2));
+
+                            for &vi in &[i0, i1, i2] {
+                                let p = Vec2::new(uvs[vi][0], uvs[vi][1]);
+                                let mut w = 0.0f32;
+                                for &(a, b, width, falloff, tile_id, line_smooth) in
+                                    &road_tile_linedefs
+                                {
+                                    if !line_smooth || tile_id != road_tile_id || width <= 0.0 {
+                                        continue;
+                                    }
+                                    let ab = b - a;
+                                    let len_sq = ab.magnitude_squared();
+                                    let dist = if len_sq < 1e-8 {
+                                        (p - a).magnitude()
+                                    } else {
+                                        let t = ((p - a).dot(ab) / len_sq).clamp(0.0, 1.0);
+                                        let q = a + ab * t;
+                                        (p - q).magnitude()
+                                    };
+
+                                    let this_w = if dist <= width {
+                                        1.0
+                                    } else if falloff > 0.0 && dist <= width + falloff {
+                                        1.0 - ((dist - width) / falloff)
+                                    } else {
+                                        0.0
+                                    };
+                                    if this_w > w {
+                                        w = this_w;
+                                    }
+                                }
+                                blend_weights.push(w.clamp(0.0, 1.0));
+                            }
+                        }
+                        vmchunk.add_poly_3d_blended(
+                            GeoId::Terrain(tile_x, tile_z),
+                            bg_tile,
+                            road_tile_id,
+                            blended_verts,
+                            blended_uvs,
+                            blend_weights,
+                            blended_indices,
+                            0,
+                            true,
+                        );
+                        continue;
                     }
                 }
 

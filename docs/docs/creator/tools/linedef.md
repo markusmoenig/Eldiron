@@ -31,3 +31,16 @@ This manual mode creates sectors by keeping a history of vertex clicks. You can 
  Hold **Command (macOS) / Ctrl** while clicking on vertices; on every click, the automatic mode checks if it can close an existing polygon. For example, if you have a shape that is not closed, you can add linedefs to this shape to close the shape and create a **sector**.
 
 This mode fails if you have a grid of existing geometry created by the [Rect Tool](rect).
+
+## Terrain (Region Maps)
+
+In Region map context, **Edit Linedef** includes a **terrain** section for roads/paths:
+
+- `terrain_smooth`: enable terrain smoothing along the linedef.
+- `terrain_source`: optional road tile override for this linedef corridor.
+- `terrain_width`: full influence width.
+- `terrain_falloff_distance`: additional blend distance beyond the width.
+- `terrain_falloff_steepness`: falloff curve sharpness.
+- `terrain_tile_falloff`: texture fade distance for smoothed roads (default `1.0`).
+
+The target road height is interpolated from the start/end vertex `z` values.

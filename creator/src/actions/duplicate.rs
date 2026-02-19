@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use rusterix::{Linedef, Sector, Surface};
 
 pub const DUPLICATE_ACTION_ID: &str = "1468f85f-ef66-49f9-8c3f-54fbde6e3d9c";
 
@@ -26,7 +27,7 @@ impl Action for Duplicate {
             "actionDuplicateY".into(),
             "".into(),
             "".into(),
-            0.0,
+            1.0,
             -1000.0..=1000.0,
             false,
         ));
@@ -34,10 +35,18 @@ impl Action for Duplicate {
             "actionDuplicateZ".into(),
             "".into(),
             "".into(),
-            1.0,
+            0.0,
             -1000.0..=1000.0,
             false,
         ));
+        nodeui.add_item(TheNodeUIItem::OpenTree("sector".into()));
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "actionSectorConnect".into(),
+            "".into(),
+            "".into(),
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
 
         Self {
             id: TheId::named_with_id(
@@ -86,6 +95,10 @@ impl Action for Duplicate {
         let offset_x = self.nodeui.get_f32_value("actionDuplicateX").unwrap_or(0.0);
         let offset_y = self.nodeui.get_f32_value("actionDuplicateY").unwrap_or(0.0);
         let offset_z = self.nodeui.get_f32_value("actionDuplicateZ").unwrap_or(1.0);
+        let connect_sectors = self
+            .nodeui
+            .get_bool_value("actionSectorConnect")
+            .unwrap_or(false);
 
         let mut selected_sector_ids = map.selected_sectors.clone();
         selected_sector_ids.sort_unstable();
@@ -134,6 +147,7 @@ impl Action for Duplicate {
         let mut new_vertices = Vec::new();
         let mut new_linedefs = Vec::new();
         let mut new_sectors = Vec::new();
+        let mut sector_map: FxHashMap<u32, u32> = FxHashMap::default();
 
         for old_vid in sorted_vertex_ids {
             if let Some(old_vertex) = map.find_vertex(old_vid).cloned() {
@@ -168,8 +182,8 @@ impl Action for Duplicate {
             }
         }
 
-        for old_sid in selected_sector_ids {
-            if let Some(old_sector) = map.find_sector(old_sid).cloned() {
+        for old_sid in &selected_sector_ids {
+            if let Some(old_sector) = map.find_sector(*old_sid).cloned() {
                 next_sector_id = next_sector_id.saturating_add(1);
                 let new_id = next_sector_id;
                 let mut new_sector = old_sector;
@@ -180,7 +194,85 @@ impl Action for Duplicate {
                     .filter_map(|id| linedef_map.get(id).copied())
                     .collect();
                 new_sectors.push(new_sector);
+                sector_map.insert(*old_sid, new_id);
             }
+        }
+
+        if connect_sectors {
+            let selected_sector_set: FxHashSet<u32> = selected_sector_ids.iter().copied().collect();
+            let mut connector_linedefs = Vec::new();
+            let mut connector_sectors = Vec::new();
+
+            for old_sid in &selected_sector_ids {
+                let Some(old_sector) = map.find_sector(*old_sid).cloned() else {
+                    continue;
+                };
+                if !sector_map.contains_key(old_sid) {
+                    continue;
+                }
+
+                for old_linedef_id in old_sector.linedefs {
+                    let Some(old_linedef) = map.find_linedef(old_linedef_id) else {
+                        continue;
+                    };
+                    // Skip interior edges when duplicating multiple touching sectors.
+                    let is_internal = old_linedef.sector_ids.len() > 1
+                        && old_linedef
+                            .sector_ids
+                            .iter()
+                            .all(|sid| selected_sector_set.contains(sid));
+                    if is_internal {
+                        continue;
+                    }
+
+                    let Some(&new_start) = vertex_map.get(&old_linedef.start_vertex) else {
+                        continue;
+                    };
+                    let Some(&new_end) = vertex_map.get(&old_linedef.end_vertex) else {
+                        continue;
+                    };
+
+                    next_linedef_id = next_linedef_id.saturating_add(1);
+                    let bridge_side_a_id = next_linedef_id;
+                    let mut bridge_side_a =
+                        Linedef::new(bridge_side_a_id, old_linedef.end_vertex, new_end);
+
+                    next_linedef_id = next_linedef_id.saturating_add(1);
+                    let bridge_side_b_id = next_linedef_id;
+                    let mut bridge_side_b =
+                        Linedef::new(bridge_side_b_id, new_start, old_linedef.start_vertex);
+
+                    // Use a dedicated reversed copy of the duplicated top edge so the connector
+                    // sector keeps a proper vertex loop order (A -> B -> B' -> A').
+                    next_linedef_id = next_linedef_id.saturating_add(1);
+                    let bridge_top_id = next_linedef_id;
+                    let mut bridge_top = Linedef::new(bridge_top_id, new_end, new_start);
+
+                    next_sector_id = next_sector_id.saturating_add(1);
+                    let connector_sector_id = next_sector_id;
+                    bridge_side_a.sector_ids.push(connector_sector_id);
+                    bridge_side_b.sector_ids.push(connector_sector_id);
+                    bridge_top.sector_ids.push(connector_sector_id);
+
+                    let connector_sector = Sector::new(
+                        connector_sector_id,
+                        vec![
+                            old_linedef_id,
+                            bridge_side_a_id,
+                            bridge_top_id,
+                            bridge_side_b_id,
+                        ],
+                    );
+
+                    connector_linedefs.push(bridge_side_a);
+                    connector_linedefs.push(bridge_side_b);
+                    connector_linedefs.push(bridge_top);
+                    connector_sectors.push(connector_sector);
+                }
+            }
+
+            new_linedefs.extend(connector_linedefs);
+            new_sectors.extend(connector_sectors);
         }
 
         for new_sector in &new_sectors {
@@ -189,6 +281,10 @@ impl Action for Duplicate {
                     && !new_linedef.sector_ids.contains(&new_sector.id)
                 {
                     new_linedef.sector_ids.push(new_sector.id);
+                } else if let Some(existing_linedef) = map.find_linedef_mut(*new_linedef_id)
+                    && !existing_linedef.sector_ids.contains(&new_sector.id)
+                {
+                    existing_linedef.sector_ids.push(new_sector.id);
                 }
             }
         }
@@ -200,6 +296,29 @@ impl Action for Duplicate {
         map.vertices.extend(new_vertices.clone());
         map.linedefs.extend(new_linedefs.clone());
         map.sectors.extend(new_sectors.clone());
+
+        // Ensure duplicated/connector sectors have matching surfaces so they render in 3D.
+        for sector in &new_sectors {
+            if map.get_surface_for_sector_id(sector.id).is_none() {
+                let mut surface = if let Some((&old_sid, _)) = sector_map
+                    .iter()
+                    .find(|(_, new_sid)| **new_sid == sector.id)
+                {
+                    if let Some(src_surface) = map.get_surface_for_sector_id(old_sid) {
+                        let mut cloned = src_surface.clone();
+                        cloned.id = Uuid::new_v4();
+                        cloned.sector_id = sector.id;
+                        cloned
+                    } else {
+                        Surface::new(sector.id)
+                    }
+                } else {
+                    Surface::new(sector.id)
+                };
+                surface.calculate_geometry(map);
+                map.surfaces.insert(surface.id, surface);
+            }
+        }
 
         map.selected_vertices = selected_vertex_ids
             .iter()
