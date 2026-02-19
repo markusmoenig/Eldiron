@@ -32,8 +32,9 @@ impl Action for GateDoor {
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Icons(
-            "actionGateDoorTile".into(),
+        nodeui.add_item(TheNodeUIItem::OpenTree("billboard".into()));
+        nodeui.add_item(TheNodeUIItem::Icons(
+            "actionBillboardTile".into(),
             "".into(),
             "".into(),
             vec![(
@@ -41,8 +42,16 @@ impl Action for GateDoor {
                 "".to_string(),
                 Uuid::nil(),
             )],
-        );
-        nodeui.add_item(item);
+        ));
+        nodeui.add_item(TheNodeUIItem::Text(
+            "actionBillboardTileId".into(),
+            "".into(),
+            "".into(),
+            "".into(),
+            None,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
 
         let item = TheNodeUIItem::Markdown("desc".into(), "".into());
         nodeui.add_item(item);
@@ -114,7 +123,16 @@ impl Action for GateDoor {
             }
         }
 
-        if let Some(item) = self.nodeui.get_item_mut("actionGateDoorTile") {
+        self.nodeui.set_text_value(
+            "actionBillboardTileId",
+            if cap_id == Uuid::nil() {
+                String::new()
+            } else {
+                cap_id.to_string()
+            },
+        );
+
+        if let Some(item) = self.nodeui.get_item_mut("actionBillboardTile") {
             match item {
                 TheNodeUIItem::Icons(_, _, _, items) => {
                     if items.len() == 1 {
@@ -147,7 +165,19 @@ impl Action for GateDoor {
             .get_i32_value("actionGateDoorRepeatMode")
             .unwrap_or(1);
 
-        let cap = self.nodeui.get_tile_id("actionGateDoorTile", 0);
+        let cap = self
+            .nodeui
+            .get_tile_id("actionBillboardTile", 0)
+            .unwrap_or(Uuid::nil());
+        let cap_text = self
+            .nodeui
+            .get_text_value("actionBillboardTileId")
+            .unwrap_or_default();
+        let cap = if let Ok(id) = Uuid::parse_str(cap_text.trim()) {
+            id
+        } else {
+            cap
+        };
 
         for sector_id in &map.selected_sectors.clone() {
             if let Some(sector) = map.find_sector_mut(*sector_id) {
@@ -157,13 +187,13 @@ impl Action for GateDoor {
                     .properties
                     .set("billboard_repeat_mode", Value::Int(repeat_mode));
 
-                if let Some(cap) = cap
-                    && cap != Uuid::nil()
-                {
+                if cap != Uuid::nil() {
                     sector.properties.set(
                         "billboard_source",
                         Value::Source(rusterix::PixelSource::TileId(cap)),
                     );
+                } else {
+                    sector.properties.remove("billboard_source");
                 }
                 changed = true;
             }
@@ -202,6 +232,12 @@ impl Action for GateDoor {
                             {
                                 items[*index].0 = tile.textures[0].to_rgba();
                                 items[*index].2 = *tile_id;
+                                if id.name == "actionBillboardTile" {
+                                    self.nodeui.set_text_value(
+                                        "actionBillboardTileId",
+                                        tile_id.to_string(),
+                                    );
+                                }
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Update Action List"),
                                     TheValue::Empty,

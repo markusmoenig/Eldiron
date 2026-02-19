@@ -85,6 +85,14 @@ Push selected sectors along their normal. Params: toggle *surface extrusion* (on
 
 Bend each selected linedef into a quadratic arch. Params: *height* (bulge) and *segments* (curve resolution).
 
+### Duplicate
+
+Duplicate the current selection with XYZ offsets.
+- `x`: horizontal world offset on the map X axis.
+- `y`: vertical offset (applied to vertex height / elevation).
+- `z`: depth offset on the map Z axis.
+- `[sector].connect`: when duplicating sectors, auto-create connector sectors between old and new boundaries (useful for walls/bridges between levels).
+
 ### Recess
 
 *Shortcut: Alt + R*
@@ -125,15 +133,57 @@ Show or hide the 3D editing overlay geometry. Toggling this also refreshes the o
 
 ### Edit Vertex
 
-Single-vertex editor. Params: *name*, *X/Y/Z*, *terrain control* toggle, *terrain smoothness* radius (wider, smoother terrain influence), *tile* picker for a billboard at the vertex, and *tile size*. Writes `terrain_control`, `smoothness`, `source`, and `source_size` into vertex properties.
+Single-vertex editor with three parameter groups:
+- `[action]`: `name`, `x`, `y`, `z`
+- `[terrain]`: `terrain`, `smoothness`, `tile_id`, `tile_falloff`
+- `[billboard]`: `tile_id`, `size`
+
+Parameter meaning:
+- `[action].name`: display name for the vertex.
+- `[action].x`, `[action].z`: planar map position.
+- `[action].y`: vertex elevation (height).
+- `[terrain].terrain`: marks this vertex as a terrain control point.
+- `[terrain].smoothness`: influence radius of this control point (higher = broader hill/valley).
+- `[terrain].tile_id`: optional terrain tile override centered on this control point.
+- `[terrain].tile_falloff`: blend distance outside the control-point radius for terrain texturing.
+- `[billboard].tile_id`: optional sprite/billboard tile attached to the vertex.
+- `[billboard].size`: billboard size scale.
+
+This writes to vertex properties `terrain_control`, `smoothness`, `terrain_source`, `terrain_tile_falloff`, `source`, and `source_size`.
 
 ### Edit Linedef
 
-Rename the selected linedef (keeps geometry intact).
+Single/multi-linedef editor:
+- `[action]`: `name`
+- `[terrain]`: `smooth`, `width`, `falloff_distance`, `falloff_steepness`, `tile_id`, `tile_falloff`
+
+Parameter meaning:
+- `[action].name`: linedef name.
+- `[terrain].smooth`: enables terrain smoothing/deformation along the linedef corridor.
+- `[terrain].width`: full-effect corridor width around the linedef.
+- `[terrain].falloff_distance`: distance beyond width where deformation fades out.
+- `[terrain].falloff_steepness`: falloff curve sharpness (higher = harder edge).
+- `[terrain].tile_id`: optional road tile for this corridor.
+- `[terrain].tile_falloff`: texture blend distance from road tile into surrounding terrain.
 
 ### Edit Sector
 
-Edit one selected sector. Params: *name*, *item* string (spawned content), *visible* toggle, *terrain mode* (none / exclude / ridge), and ridge shaping params: *ridge height*, *ridge plateau width*, *ridge falloff distance*. Ridge options control crest height, flat top width, and smoothing distance for terrain deformation.
+Single-sector editor:
+- `[action]`: `name`, `item`, `visible`
+- `[terrain]`: `terrain`, `ridge_height`, `ridge_plateau`, `ridge_falloff`, `tile_id`, `tile_falloff`
+- `[iso]`: `hide_on_enter` pattern list
+
+Parameter meaning:
+- `[action].name`: sector name.
+- `[action].item`: optional item/source reference associated with the sector.
+- `[action].visible`: editor/runtime visibility flag.
+- `[terrain].terrain`: terrain mode (`None`, `Exclude`, `Ridge`).
+- `[terrain].ridge_height`: ridge elevation above base terrain.
+- `[terrain].ridge_plateau`: flat top width of the ridge before falloff starts.
+- `[terrain].ridge_falloff`: distance over which ridge height fades to surrounding terrain.
+- `[terrain].tile_id`: optional tile used for ridge terrain texturing.
+- `[terrain].tile_falloff`: blend distance from ridge tile into neighboring terrain tiles.
+- `[iso].hide_on_enter`: wildcard sector-name patterns to hide while the player is inside this sector in iso gameplay preview.
 
 ---
 

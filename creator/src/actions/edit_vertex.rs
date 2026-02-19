@@ -54,40 +54,17 @@ impl EditVertex {
         );
         nodeui.add_item(item);
 
-        let item = TheNodeUIItem::Icons(
-            "actionVertexTile".into(),
-            "".into(),
-            "".into(),
-            vec![(
-                TheRGBABuffer::new(TheDim::sized(36, 36)),
-                "".to_string(),
-                Uuid::nil(),
-            )],
-        );
-        nodeui.add_item(item);
-
-        let item = TheNodeUIItem::FloatEditSlider(
-            "actionVertexTileSize".into(),
-            "".into(),
-            "".into(),
-            1.0,
-            0.0..=0.0,
-            false,
-        );
-        nodeui.add_item(item);
-
         if show_terrain {
             nodeui.add_item(TheNodeUIItem::OpenTree("terrain".into()));
-
             nodeui.add_item(TheNodeUIItem::Checkbox(
-                "actionVertexTerrain".into(),
+                "actionTerrain".into(),
                 "".into(),
                 "".into(),
                 false,
             ));
 
             let item = TheNodeUIItem::FloatEditSlider(
-                "actionVertexTerrainSmoothness".into(),
+                "actionTerrainSmoothness".into(),
                 "".into(),
                 "".into(),
                 0.0,
@@ -96,8 +73,65 @@ impl EditVertex {
             );
             nodeui.add_item(item);
 
+            nodeui.add_item(TheNodeUIItem::Icons(
+                "actionTerrainTile".into(),
+                "".into(),
+                "".into(),
+                vec![(
+                    TheRGBABuffer::new(TheDim::sized(36, 36)),
+                    "".to_string(),
+                    Uuid::nil(),
+                )],
+            ));
+
+            nodeui.add_item(TheNodeUIItem::Text(
+                "actionTerrainTileId".into(),
+                "".into(),
+                "".into(),
+                "".into(),
+                None,
+                false,
+            ));
+
+            nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                "actionTerrainTileFalloff".into(),
+                "".into(),
+                "".into(),
+                1.0,
+                0.0..=16.0,
+                false,
+            ));
             nodeui.add_item(TheNodeUIItem::CloseTree);
         }
+
+        nodeui.add_item(TheNodeUIItem::OpenTree("billboard".into()));
+        nodeui.add_item(TheNodeUIItem::Icons(
+            "actionTile".into(),
+            "".into(),
+            "".into(),
+            vec![(
+                TheRGBABuffer::new(TheDim::sized(36, 36)),
+                "".to_string(),
+                Uuid::nil(),
+            )],
+        ));
+        nodeui.add_item(TheNodeUIItem::Text(
+            "actionTileId".into(),
+            "".into(),
+            "".into(),
+            "".into(),
+            None,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            "actionSize".into(),
+            "".into(),
+            "".into(),
+            1.0,
+            0.0..=0.0,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
 
         nodeui
     }
@@ -149,18 +183,66 @@ impl Action for EditVertex {
                 self.nodeui
                     .set_text_value("actionVertexName", vertex.name.clone());
                 self.nodeui.set_bool_value(
-                    "actionVertexTerrain",
+                    "actionTerrain",
                     vertex.properties.get_bool_default("terrain_control", false),
                 );
                 self.nodeui.set_f32_value(
-                    "actionVertexTerrainSmoothness",
+                    "actionTerrainSmoothness",
                     vertex.properties.get_float_default("smoothness", 1.0),
                 );
+                self.nodeui.set_f32_value(
+                    "actionTerrainTileFalloff",
+                    vertex
+                        .properties
+                        .get_float_default("terrain_tile_falloff", 1.0),
+                );
+                let terrain_tile_id = if let Some(Value::Source(PixelSource::TileId(id))) =
+                    vertex.properties.get("terrain_source")
+                {
+                    *id
+                } else {
+                    Uuid::nil()
+                };
+                self.nodeui.set_text_value(
+                    "actionTerrainTileId",
+                    if terrain_tile_id == Uuid::nil() {
+                        String::new()
+                    } else {
+                        terrain_tile_id.to_string()
+                    },
+                );
+                if let Some(item) = self.nodeui.get_item_mut("actionTerrainTile")
+                    && let TheNodeUIItem::Icons(_, _, _, items) = item
+                    && items.len() == 1
+                {
+                    items[0].2 = terrain_tile_id;
+                }
 
                 self.nodeui.set_f32_value(
-                    "actionVertexTileSize",
+                    "actionSize",
                     vertex.properties.get_float_default("source_size", 1.0),
                 );
+                let billboard_tile_id = if let Some(Value::Source(PixelSource::TileId(id))) =
+                    vertex.properties.get("source")
+                {
+                    *id
+                } else {
+                    Uuid::nil()
+                };
+                self.nodeui.set_text_value(
+                    "actionTileId",
+                    if billboard_tile_id == Uuid::nil() {
+                        String::new()
+                    } else {
+                        billboard_tile_id.to_string()
+                    },
+                );
+                if let Some(item) = self.nodeui.get_item_mut("actionTile")
+                    && let TheNodeUIItem::Icons(_, _, _, items) = item
+                    && items.len() == 1
+                {
+                    items[0].2 = billboard_tile_id;
+                }
 
                 self.nodeui.set_f32_value("actionVertexX", vertex.x);
                 self.nodeui.set_f32_value("actionVertexY", vertex.z);
@@ -179,18 +261,32 @@ impl Action for EditVertex {
             let x = self.nodeui.get_f32_value("actionVertexX").unwrap_or(0.0);
             let y = self.nodeui.get_f32_value("actionVertexY").unwrap_or(0.0);
             let z = self.nodeui.get_f32_value("actionVertexZ").unwrap_or(0.0);
-            let tile_size = self
+            let tile_size = self.nodeui.get_f32_value("actionSize").unwrap_or(1.0);
+            let tile_id_text = self
                 .nodeui
-                .get_f32_value("actionVertexTileSize")
-                .unwrap_or(1.0);
-            let terrain_control = self
+                .get_text_value("actionTileId")
+                .unwrap_or_default();
+            let tile_id = self
                 .nodeui
-                .get_bool_value("actionVertexTerrain")
-                .unwrap_or(false);
+                .get_tile_id("actionTile", 0)
+                .unwrap_or(Uuid::nil());
+            let terrain_control = self.nodeui.get_bool_value("actionTerrain").unwrap_or(false);
             let terrain_smoothness = self
                 .nodeui
-                .get_f32_value("actionVertexTerrainSmoothness")
+                .get_f32_value("actionTerrainSmoothness")
                 .unwrap_or(1.0);
+            let terrain_tile_falloff = self
+                .nodeui
+                .get_f32_value("actionTerrainTileFalloff")
+                .unwrap_or(1.0);
+            let terrain_tile_id_text = self
+                .nodeui
+                .get_text_value("actionTerrainTileId")
+                .unwrap_or_default();
+            let terrain_tile_id = self
+                .nodeui
+                .get_tile_id("actionTerrainTile", 0)
+                .unwrap_or(Uuid::nil());
 
             self.nodeui = Self::build_nodeui(show_terrain);
             self.show_terrain = show_terrain;
@@ -199,15 +295,33 @@ impl Action for EditVertex {
             self.nodeui.set_f32_value("actionVertexX", x);
             self.nodeui.set_f32_value("actionVertexY", y);
             self.nodeui.set_f32_value("actionVertexZ", z);
-            self.nodeui.set_f32_value("actionVertexTileSize", tile_size);
+            self.nodeui.set_f32_value("actionSize", tile_size);
+            self.nodeui.set_text_value("actionTileId", tile_id_text);
+            if let Some(item) = self.nodeui.get_item_mut("actionTile")
+                && let TheNodeUIItem::Icons(_, _, _, items) = item
+                && items.len() == 1
+            {
+                items[0].2 = tile_id;
+            }
+            self.nodeui.set_bool_value("actionTerrain", terrain_control);
             self.nodeui
-                .set_bool_value("actionVertexTerrain", terrain_control);
+                .set_f32_value("actionTerrainSmoothness", terrain_smoothness);
             self.nodeui
-                .set_f32_value("actionVertexTerrainSmoothness", terrain_smoothness);
+                .set_f32_value("actionTerrainTileFalloff", terrain_tile_falloff);
+            self.nodeui
+                .set_text_value("actionTerrainTileId", terrain_tile_id_text);
+            if let Some(item) = self.nodeui.get_item_mut("actionTerrainTile")
+                && let TheNodeUIItem::Icons(_, _, _, items) = item
+                && items.len() == 1
+            {
+                items[0].2 = terrain_tile_id;
+            }
         }
 
         let mut tile_icon = TheRGBABuffer::new(TheDim::sized(36, 36));
         let mut tile_id = Uuid::nil();
+        let mut terrain_tile_icon = TheRGBABuffer::new(TheDim::sized(36, 36));
+        let mut terrain_tile_id = Uuid::nil();
 
         if let Some(map) = project.get_map(server_ctx) {
             if let Some(vertex_id) = map.selected_vertices.first() {
@@ -222,16 +336,38 @@ impl Action for EditVertex {
                             tile_id = *id;
                         }
                     }
+                    if let Some(Value::Source(PixelSource::TileId(id))) =
+                        vertex.properties.get("terrain_source")
+                    {
+                        if let Some(tile) = project.tiles.get(id)
+                            && !tile.is_empty()
+                        {
+                            terrain_tile_icon = tile.textures[0].to_rgba();
+                            terrain_tile_id = *id;
+                        }
+                    }
                 }
             }
         }
 
-        if let Some(item) = self.nodeui.get_item_mut("actionVertexTile") {
+        if let Some(item) = self.nodeui.get_item_mut("actionTile") {
             match item {
                 TheNodeUIItem::Icons(_, _, _, items) => {
                     if items.len() == 1 {
                         items[0].0 = tile_icon;
                         items[0].2 = tile_id;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if let Some(item) = self.nodeui.get_item_mut("actionTerrainTile") {
+            match item {
+                TheNodeUIItem::Icons(_, _, _, items) => {
+                    if items.len() == 1 {
+                        items[0].0 = terrain_tile_icon;
+                        items[0].2 = terrain_tile_id;
                     }
                 }
                 _ => {}
@@ -254,23 +390,46 @@ impl Action for EditVertex {
             .get_text_value("actionVertexName")
             .unwrap_or(String::new());
 
-        let terrain_control = self
-            .nodeui
-            .get_bool_value("actionVertexTerrain")
-            .unwrap_or(false);
+        let terrain_control = self.nodeui.get_bool_value("actionTerrain").unwrap_or(false);
 
         let terrain_smoothness = self
             .nodeui
-            .get_f32_value("actionVertexTerrainSmoothness")
+            .get_f32_value("actionTerrainSmoothness")
             .unwrap_or(1.0);
+        let terrain_tile_falloff = self
+            .nodeui
+            .get_f32_value("actionTerrainTileFalloff")
+            .unwrap_or(1.0);
+        let terrain_tile_id = self
+            .nodeui
+            .get_tile_id("actionTerrainTile", 0)
+            .unwrap_or(Uuid::nil());
+        let terrain_tile_id_text = self
+            .nodeui
+            .get_text_value("actionTerrainTileId")
+            .unwrap_or_default();
+        let terrain_tile_id = if let Ok(id) = Uuid::parse_str(terrain_tile_id_text.trim()) {
+            id
+        } else {
+            terrain_tile_id
+        };
         let is_region_mode = server_ctx.get_map_context() == MapContext::Region;
 
-        let tile_size = self
-            .nodeui
-            .get_f32_value("actionVertexTileSize")
-            .unwrap_or(1.0);
+        let tile_size = self.nodeui.get_f32_value("actionSize").unwrap_or(1.0);
 
-        let tile_id = self.nodeui.get_tile_id("actionVertexTile", 0);
+        let tile_id = self
+            .nodeui
+            .get_tile_id("actionTile", 0)
+            .unwrap_or(Uuid::nil());
+        let tile_id_text = self
+            .nodeui
+            .get_text_value("actionTileId")
+            .unwrap_or_default();
+        let tile_id = if let Ok(id) = Uuid::parse_str(tile_id_text.trim()) {
+            id
+        } else {
+            tile_id
+        };
 
         let x = self.nodeui.get_f32_value("actionVertexX").unwrap_or(0.0);
         let y = self.nodeui.get_f32_value("actionVertexY").unwrap_or(0.0);
@@ -297,6 +456,40 @@ impl Action for EditVertex {
                             .set("smoothness", Value::Float(terrain_smoothness));
                         changed = true;
                     }
+
+                    let ex_terrain_tile_falloff = vertex
+                        .properties
+                        .get_float_default("terrain_tile_falloff", 1.0);
+                    if (ex_terrain_tile_falloff - terrain_tile_falloff).abs() > f32::EPSILON {
+                        vertex.properties.set(
+                            "terrain_tile_falloff",
+                            Value::Float(terrain_tile_falloff.max(0.0)),
+                        );
+                        changed = true;
+                    }
+
+                    match terrain_tile_id {
+                        id if id != Uuid::nil() => {
+                            let has_changed = match vertex.properties.get("terrain_source") {
+                                Some(Value::Source(PixelSource::TileId(existing))) => {
+                                    *existing != id
+                                }
+                                _ => true,
+                            };
+                            if has_changed {
+                                vertex
+                                    .properties
+                                    .set("terrain_source", Value::Source(PixelSource::TileId(id)));
+                                changed = true;
+                            }
+                        }
+                        _ => {
+                            if vertex.properties.contains("terrain_source") {
+                                vertex.properties.remove("terrain_source");
+                                changed = true;
+                            }
+                        }
+                    }
                 }
 
                 let ex_tile_size = vertex.properties.get_float_default("source_size", 1.0);
@@ -307,13 +500,21 @@ impl Action for EditVertex {
                     changed = true;
                 }
 
-                if let Some(tile_id) = tile_id
-                    && tile_id != Uuid::nil()
-                {
-                    vertex.properties.set(
-                        "source",
-                        Value::Source(rusterix::PixelSource::TileId(tile_id)),
-                    );
+                if tile_id != Uuid::nil() {
+                    let has_changed = match vertex.properties.get("source") {
+                        Some(Value::Source(PixelSource::TileId(existing))) => *existing != tile_id,
+                        _ => true,
+                    };
+                    if has_changed {
+                        vertex.properties.set(
+                            "source",
+                            Value::Source(rusterix::PixelSource::TileId(tile_id)),
+                        );
+                        changed = true;
+                    }
+                } else if vertex.properties.contains("source") {
+                    vertex.properties.remove("source");
+                    changed = true;
                 }
 
                 if name != vertex.name {
@@ -369,6 +570,14 @@ impl Action for EditVertex {
                             {
                                 items[*index].0 = tile.textures[0].to_rgba();
                                 items[*index].2 = *tile_id;
+                                if id.name == "actionTile" {
+                                    self.nodeui
+                                        .set_text_value("actionTileId", tile_id.to_string());
+                                }
+                                if id.name == "actionTerrainTile" {
+                                    self.nodeui
+                                        .set_text_value("actionTerrainTileId", tile_id.to_string());
+                                }
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Update Action List"),
                                     TheValue::Empty,

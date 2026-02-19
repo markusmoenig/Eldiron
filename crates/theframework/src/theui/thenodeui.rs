@@ -83,7 +83,24 @@ impl TheNodeUI {
 
     /// Adds a new item to the UI
     pub fn add_item(&mut self, item: TheNodeUIItem) -> Option<TheNodeUIItem> {
-        self.items.insert(item.id().into(), item)
+        let base_key = item.id().to_string();
+
+        // Tree structure markers (and separators) can appear multiple times.
+        // Give them stable unique keys so insertion order is preserved.
+        if matches!(
+            item,
+            TheNodeUIItem::OpenTree(_) | TheNodeUIItem::CloseTree | TheNodeUIItem::Separator(_)
+        ) {
+            let mut key = base_key.clone();
+            let mut i = 1usize;
+            while self.items.contains_key(&key) {
+                key = format!("{base_key}#{i}");
+                i += 1;
+            }
+            self.items.insert(key, item)
+        } else {
+            self.items.insert(base_key, item)
+        }
     }
 
     /// Removes an item by its ID

@@ -262,6 +262,8 @@ impl TerrainGenerator {
         // 3. Collect terrain linedefs for road smoothing
         let terrain_linedefs = self.collect_terrain_linedefs(map);
         let terrain_tile_linedefs = self.collect_terrain_tile_linedefs(map);
+        let ridge_tile_sectors = self.collect_ridge_tile_sectors(map);
+        let vertex_tile_controls = self.collect_vertex_tile_controls(map);
 
         // 4. Identify sectors marked for terrain exclusion
         let excluded_sectors = self.collect_excluded_sectors(map, &chunk.bbox);
@@ -308,10 +310,13 @@ impl TerrainGenerator {
             &vertices,
             &indices,
             &uvs,
+            map,
             assets,
             default_tile_id,
             tile_overrides,
             &terrain_tile_linedefs,
+            &ridge_tile_sectors,
+            &vertex_tile_controls,
         );
 
         if meshes_by_tile.is_empty() {
@@ -471,6 +476,72 @@ impl TerrainGenerator {
                 .max(0.0);
             let smooth = linedef.properties.get_bool_default("terrain_smooth", false);
             out.push((start_pos, end_pos, width, falloff, smooth, *tile_id));
+        }
+
+        out
+    }
+
+    /// Collect ridge sector tile overrides.
+    /// Returns: Vec<(sector_id, plateau_width, tile_falloff, tile_id)>
+    fn collect_ridge_tile_sectors(&self, map: &Map) -> Vec<(u32, f32, f32, Uuid)> {
+        let mut out = Vec::new();
+
+        for sector in &map.sectors {
+            let terrain_mode = sector.properties.get_int_default("terrain_mode", 0);
+            if terrain_mode != 2 {
+                continue;
+            }
+
+            let Some(Value::Source(PixelSource::TileId(tile_id))) =
+                sector.properties.get("terrain_source")
+            else {
+                continue;
+            };
+
+            let plateau_width = sector
+                .properties
+                .get_float_default("ridge_plateau_width", 0.0)
+                .max(0.0);
+            let tile_falloff = sector
+                .properties
+                .get_float_default("terrain_tile_falloff", 1.0)
+                .max(0.0);
+
+            out.push((sector.id, plateau_width, tile_falloff, *tile_id));
+        }
+
+        out
+    }
+
+    /// Collect vertex hill tile overrides.
+    /// Returns: Vec<(position, radius, tile_falloff, tile_id)>
+    fn collect_vertex_tile_controls(&self, map: &Map) -> Vec<(Vec2<f32>, f32, f32, Uuid)> {
+        let mut out = Vec::new();
+
+        for vertex in &map.vertices {
+            if !vertex.properties.get_bool_default("terrain_control", false) {
+                continue;
+            }
+            let Some(Value::Source(PixelSource::TileId(tile_id))) =
+                vertex.properties.get("terrain_source")
+            else {
+                continue;
+            };
+            let smoothness = vertex
+                .properties
+                .get_float_default("smoothness", self.config.smoothness)
+                .max(0.0);
+            let radius = smoothness * 2.0;
+            let tile_falloff = vertex
+                .properties
+                .get_float_default("terrain_tile_falloff", 1.0)
+                .max(0.0);
+            out.push((
+                Vec2::new(vertex.x, vertex.y),
+                radius,
+                tile_falloff,
+                *tile_id,
+            ));
         }
 
         out
@@ -998,10 +1069,13 @@ impl TerrainGenerator {
         vertices: &[Vec3<f32>],
         indices: &[u32],
         uvs: &[[f32; 2]],
+        map: &Map,
         assets: &Assets,
         default_tile_id: Uuid,
         tile_overrides: Option<&FxHashMap<(i32, i32), PixelSource>>,
         terrain_tile_linedefs: &[(Vec2<f32>, Vec2<f32>, f32, f32, bool, Uuid)],
+        ridge_tile_sectors: &[(u32, f32, f32, Uuid)],
+        vertex_tile_controls: &[(Vec2<f32>, f32, f32, Uuid)],
     ) -> Vec<(Uuid, Vec<Vec3<f32>>, Vec<u32>, Vec<[f32; 2]>)> {
         let mut per_tile: FxHashMap<Uuid, Vec<u32>> = FxHashMap::default();
 
@@ -1021,25 +1095,96 @@ impl TerrainGenerator {
             let center_u = (uv0[0] + uv1[0] + uv2[0]) / 3.0;
             let center_v = (uv0[1] + uv1[1] + uv2[1]) / 3.0;
             let tile_cell = (center_u.floor() as i32, center_v.floor() as i32);
-            let center = Vec2::new(center_u, center_v);
-
-            // First, prefer linedef road tile override (if any).
-            let tile_id = if let Some(road_tile_id) =
-                Self::road_tile_for_point(center, terrain_tile_linedefs)
-            {
-                road_tile_id
-            } else if let Some(overrides) = tile_overrides {
+            // Priority:
+            // 1) Manually painted map tile overrides
+            // 2) Linedef road tile overrides
+            // 3) Ridge sector tile overrides
+            // 4) Vertex hill tile overrides
+            // 5) Default terrain tile
+            let tile_id = if let Some(overrides) = tile_overrides {
                 if let Some(pixel_source) = overrides.get(&tile_cell) {
                     if let Some(tile) = pixel_source.tile_from_tile_list(assets) {
                         tile.id
                     } else {
+                        if let Some(road_tile_id) = Self::road_tile_for_triangle(
+                            Vec2::new(uv0[0], uv0[1]),
+                            Vec2::new(uv1[0], uv1[1]),
+                            Vec2::new(uv2[0], uv2[1]),
+                            terrain_tile_linedefs,
+                        ) {
+                            road_tile_id
+                        } else if let Some(ridge_tile_id) = self.ridge_tile_for_triangle(
+                            map,
+                            Vec2::new(uv0[0], uv0[1]),
+                            Vec2::new(uv1[0], uv1[1]),
+                            Vec2::new(uv2[0], uv2[1]),
+                            ridge_tile_sectors,
+                        ) {
+                            ridge_tile_id
+                        } else if let Some(vertex_tile_id) = Self::vertex_tile_for_triangle(
+                            Vec2::new(uv0[0], uv0[1]),
+                            Vec2::new(uv1[0], uv1[1]),
+                            Vec2::new(uv2[0], uv2[1]),
+                            vertex_tile_controls,
+                        ) {
+                            vertex_tile_id
+                        } else {
+                            default_tile_id
+                        }
+                    }
+                } else {
+                    if let Some(road_tile_id) = Self::road_tile_for_triangle(
+                        Vec2::new(uv0[0], uv0[1]),
+                        Vec2::new(uv1[0], uv1[1]),
+                        Vec2::new(uv2[0], uv2[1]),
+                        terrain_tile_linedefs,
+                    ) {
+                        road_tile_id
+                    } else if let Some(ridge_tile_id) = self.ridge_tile_for_triangle(
+                        map,
+                        Vec2::new(uv0[0], uv0[1]),
+                        Vec2::new(uv1[0], uv1[1]),
+                        Vec2::new(uv2[0], uv2[1]),
+                        ridge_tile_sectors,
+                    ) {
+                        ridge_tile_id
+                    } else if let Some(vertex_tile_id) = Self::vertex_tile_for_triangle(
+                        Vec2::new(uv0[0], uv0[1]),
+                        Vec2::new(uv1[0], uv1[1]),
+                        Vec2::new(uv2[0], uv2[1]),
+                        vertex_tile_controls,
+                    ) {
+                        vertex_tile_id
+                    } else {
                         default_tile_id
                     }
+                }
+            } else {
+                if let Some(road_tile_id) = Self::road_tile_for_triangle(
+                    Vec2::new(uv0[0], uv0[1]),
+                    Vec2::new(uv1[0], uv1[1]),
+                    Vec2::new(uv2[0], uv2[1]),
+                    terrain_tile_linedefs,
+                ) {
+                    road_tile_id
+                } else if let Some(ridge_tile_id) = self.ridge_tile_for_triangle(
+                    map,
+                    Vec2::new(uv0[0], uv0[1]),
+                    Vec2::new(uv1[0], uv1[1]),
+                    Vec2::new(uv2[0], uv2[1]),
+                    ridge_tile_sectors,
+                ) {
+                    ridge_tile_id
+                } else if let Some(vertex_tile_id) = Self::vertex_tile_for_triangle(
+                    Vec2::new(uv0[0], uv0[1]),
+                    Vec2::new(uv1[0], uv1[1]),
+                    Vec2::new(uv2[0], uv2[1]),
+                    vertex_tile_controls,
+                ) {
+                    vertex_tile_id
                 } else {
                     default_tile_id
                 }
-            } else {
-                default_tile_id
             };
 
             // Add triangle indices to this tile's batch
@@ -1102,6 +1247,122 @@ impl TerrainGenerator {
             }
         }
         best.map(|(_, tile_id)| tile_id)
+    }
+
+    /// Robust road-tile selection for a terrain triangle.
+    /// Samples center and all triangle vertices, then picks the most frequent road tile.
+    fn road_tile_for_triangle(
+        p0: Vec2<f32>,
+        p1: Vec2<f32>,
+        p2: Vec2<f32>,
+        terrain_tile_linedefs: &[(Vec2<f32>, Vec2<f32>, f32, f32, bool, Uuid)],
+    ) -> Option<Uuid> {
+        let center = (p0 + p1 + p2) / 3.0;
+        let mut counts: FxHashMap<Uuid, i32> = FxHashMap::default();
+
+        for sample in [center, p0, p1, p2] {
+            if let Some(tile_id) = Self::road_tile_for_point(sample, terrain_tile_linedefs) {
+                *counts.entry(tile_id).or_insert(0) += 1;
+            }
+        }
+
+        counts
+            .into_iter()
+            .max_by_key(|(_, count)| *count)
+            .map(|(tile_id, _)| tile_id)
+    }
+
+    /// Returns a ridge tile id for this point if it lies in any ridge tile zone.
+    /// If multiple sectors overlap, the nearest sector edge wins.
+    fn ridge_tile_for_point(
+        &self,
+        map: &Map,
+        point: Vec2<f32>,
+        ridge_tile_sectors: &[(u32, f32, f32, Uuid)],
+    ) -> Option<Uuid> {
+        let mut best: Option<(f32, Uuid)> = None;
+        for &(sector_id, plateau, tile_falloff, tile_id) in ridge_tile_sectors {
+            let Some(sector) = map.find_sector(sector_id) else {
+                continue;
+            };
+            let dist = self.distance_to_polygon_edge(point, sector, map);
+            let effective = plateau.max(0.0) + tile_falloff.max(0.0);
+            if dist <= effective {
+                match best {
+                    Some((best_dist, _)) if dist >= best_dist => {}
+                    _ => best = Some((dist, tile_id)),
+                }
+            }
+        }
+        best.map(|(_, tile_id)| tile_id)
+    }
+
+    /// Robust ridge-tile selection for a terrain triangle.
+    /// Samples center + vertices, then picks the most frequent ridge tile.
+    fn ridge_tile_for_triangle(
+        &self,
+        map: &Map,
+        p0: Vec2<f32>,
+        p1: Vec2<f32>,
+        p2: Vec2<f32>,
+        ridge_tile_sectors: &[(u32, f32, f32, Uuid)],
+    ) -> Option<Uuid> {
+        let center = (p0 + p1 + p2) / 3.0;
+        let mut counts: FxHashMap<Uuid, i32> = FxHashMap::default();
+
+        for sample in [center, p0, p1, p2] {
+            if let Some(tile_id) = self.ridge_tile_for_point(map, sample, ridge_tile_sectors) {
+                *counts.entry(tile_id).or_insert(0) += 1;
+            }
+        }
+
+        counts
+            .into_iter()
+            .max_by_key(|(_, count)| *count)
+            .map(|(tile_id, _)| tile_id)
+    }
+
+    /// Returns a vertex-hill tile id for this point if it lies inside any configured
+    /// hill texture radius (+ falloff). If multiple overlap, nearest control vertex wins.
+    fn vertex_tile_for_point(
+        point: Vec2<f32>,
+        vertex_tile_controls: &[(Vec2<f32>, f32, f32, Uuid)],
+    ) -> Option<Uuid> {
+        let mut best: Option<(f32, Uuid)> = None;
+        for &(center, radius, falloff, tile_id) in vertex_tile_controls {
+            let dist = (point - center).magnitude();
+            let effective = radius.max(0.0) + falloff.max(0.0);
+            if dist <= effective {
+                match best {
+                    Some((best_dist, _)) if dist >= best_dist => {}
+                    _ => best = Some((dist, tile_id)),
+                }
+            }
+        }
+        best.map(|(_, tile_id)| tile_id)
+    }
+
+    /// Robust vertex-hill tile selection for a terrain triangle.
+    /// Samples center + vertices, then picks the most frequent vertex tile.
+    fn vertex_tile_for_triangle(
+        p0: Vec2<f32>,
+        p1: Vec2<f32>,
+        p2: Vec2<f32>,
+        vertex_tile_controls: &[(Vec2<f32>, f32, f32, Uuid)],
+    ) -> Option<Uuid> {
+        let center = (p0 + p1 + p2) / 3.0;
+        let mut counts: FxHashMap<Uuid, i32> = FxHashMap::default();
+
+        for sample in [center, p0, p1, p2] {
+            if let Some(tile_id) = Self::vertex_tile_for_point(sample, vertex_tile_controls) {
+                *counts.entry(tile_id).or_insert(0) += 1;
+            }
+        }
+
+        counts
+            .into_iter()
+            .max_by_key(|(_, count)| *count)
+            .map(|(tile_id, _)| tile_id)
     }
 
     /// Calculate distance from a point to a line segment

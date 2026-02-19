@@ -56,14 +56,6 @@ impl EditLinedef {
                 0.1..=16.0,
                 false,
             ));
-            nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-                "actionTerrainTileFalloff".into(),
-                "".into(),
-                "".into(),
-                1.0,
-                0.0..=16.0,
-                false,
-            ));
             nodeui.add_item(TheNodeUIItem::Icons(
                 "actionTerrainTile".into(),
                 "".into(),
@@ -80,6 +72,14 @@ impl EditLinedef {
                 "".into(),
                 "".into(),
                 None,
+                false,
+            ));
+            nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                "actionTerrainTileFalloff".into(),
+                "".into(),
+                "".into(),
+                1.0,
+                0.0..=16.0,
                 false,
             ));
             nodeui.add_item(TheNodeUIItem::CloseTree);
@@ -126,7 +126,7 @@ impl Action for EditLinedef {
     }
 
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
-        map.selected_linedefs.len() == 1
+        !map.selected_linedefs.is_empty()
     }
 
     fn load_params(&mut self, map: &Map) {
@@ -312,10 +312,10 @@ impl Action for EditLinedef {
             terrain_tile_id
         };
 
-        if let Some(linedef_id) = map.selected_linedefs.first() {
-            if let Some(linedef) = map.find_linedef_mut(*linedef_id) {
+        for linedef_id in map.selected_linedefs.clone() {
+            if let Some(linedef) = map.find_linedef_mut(linedef_id) {
                 if name != linedef.name {
-                    linedef.name = name;
+                    linedef.name = name.clone();
                     changed = true;
                 }
                 if linedef.properties.get_bool_default("terrain_smooth", false) != terrain_smooth {

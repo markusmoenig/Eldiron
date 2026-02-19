@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use rusterix::PixelSource;
 use std::str::FromStr;
 
 pub const EDIT_SECTOR_ACTION_ID: &str = "1a1dea50-0181-46d9-acd6-913755c915e0";
@@ -91,6 +92,35 @@ impl EditSector {
             );
             nodeui.add_item(item);
 
+            nodeui.add_item(TheNodeUIItem::Icons(
+                "actionSectorTerrainTile".into(),
+                "".into(),
+                "".into(),
+                vec![(
+                    TheRGBABuffer::new(TheDim::sized(36, 36)),
+                    "".to_string(),
+                    Uuid::nil(),
+                )],
+            ));
+
+            nodeui.add_item(TheNodeUIItem::Text(
+                "actionSectorTileId".into(),
+                "".into(),
+                "".into(),
+                "".into(),
+                None,
+                false,
+            ));
+
+            nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                "actionSectorTerrainTileFalloff".into(),
+                "".into(),
+                "".into(),
+                1.0,
+                0.0..=16.0,
+                false,
+            ));
+
             nodeui.add_item(TheNodeUIItem::CloseTree);
 
             nodeui.add_item(TheNodeUIItem::Text(
@@ -178,6 +208,33 @@ impl Action for EditSector {
                     .get_float_default("ridge_falloff_distance", 5.0);
                 self.nodeui
                     .set_f32_value("actionSectorTerrainRidgeFalloff", ridge_falloff);
+                self.nodeui.set_f32_value(
+                    "actionSectorTerrainTileFalloff",
+                    sector
+                        .properties
+                        .get_float_default("terrain_tile_falloff", 1.0),
+                );
+                let terrain_tile_id = if let Some(Value::Source(PixelSource::TileId(id))) =
+                    sector.properties.get("terrain_source")
+                {
+                    *id
+                } else {
+                    Uuid::nil()
+                };
+                self.nodeui.set_text_value(
+                    "actionSectorTileId",
+                    if terrain_tile_id == Uuid::nil() {
+                        String::new()
+                    } else {
+                        terrain_tile_id.to_string()
+                    },
+                );
+                if let Some(item) = self.nodeui.get_item_mut("actionSectorTerrainTile")
+                    && let TheNodeUIItem::Icons(_, _, _, items) = item
+                    && items.len() == 1
+                {
+                    items[0].2 = terrain_tile_id;
+                }
 
                 let iso_hide_on_enter = match sector.properties.get("iso_hide_on_enter") {
                     Some(Value::StrArray(values)) => values.join(", "),
@@ -220,6 +277,18 @@ impl Action for EditSector {
                 .nodeui
                 .get_f32_value("actionSectorTerrainRidgeFalloff")
                 .unwrap_or(5.0);
+            let terrain_tile_falloff = self
+                .nodeui
+                .get_f32_value("actionSectorTerrainTileFalloff")
+                .unwrap_or(1.0);
+            let tile_id_text = self
+                .nodeui
+                .get_text_value("actionSectorTileId")
+                .unwrap_or_default();
+            let terrain_tile_id = self
+                .nodeui
+                .get_tile_id("actionSectorTerrainTile", 0)
+                .unwrap_or(Uuid::nil());
             let iso_hide_on_enter = self
                 .nodeui
                 .get_text_value("actionIsoHideOnEnter")
@@ -239,6 +308,16 @@ impl Action for EditSector {
                 .set_f32_value("actionSectorTerrainRidgePlateau", ridge_plateau);
             self.nodeui
                 .set_f32_value("actionSectorTerrainRidgeFalloff", ridge_falloff);
+            self.nodeui
+                .set_f32_value("actionSectorTerrainTileFalloff", terrain_tile_falloff);
+            self.nodeui
+                .set_text_value("actionSectorTileId", tile_id_text);
+            if let Some(item) = self.nodeui.get_item_mut("actionSectorTerrainTile")
+                && let TheNodeUIItem::Icons(_, _, _, items) = item
+                && items.len() == 1
+            {
+                items[0].2 = terrain_tile_id;
+            }
             self.nodeui
                 .set_text_value("actionIsoHideOnEnter", iso_hide_on_enter);
         }
@@ -285,6 +364,23 @@ impl Action for EditSector {
             .nodeui
             .get_f32_value("actionSectorTerrainRidgeFalloff")
             .unwrap_or(5.0);
+        let terrain_tile_falloff = self
+            .nodeui
+            .get_f32_value("actionSectorTerrainTileFalloff")
+            .unwrap_or(1.0);
+        let terrain_tile_id = self
+            .nodeui
+            .get_tile_id("actionSectorTerrainTile", 0)
+            .unwrap_or(Uuid::nil());
+        let tile_id_text = self
+            .nodeui
+            .get_text_value("actionSectorTileId")
+            .unwrap_or_default();
+        let terrain_tile_id = if let Ok(id) = Uuid::parse_str(tile_id_text.trim()) {
+            id
+        } else {
+            terrain_tile_id
+        };
         let iso_hide_on_enter = self
             .nodeui
             .get_text_value("actionIsoHideOnEnter")
@@ -345,6 +441,40 @@ impl Action for EditSector {
                             .properties
                             .set("ridge_falloff_distance", Value::Float(ridge_falloff));
                         changed = true;
+                    }
+
+                    let r_tile_falloff = sector
+                        .properties
+                        .get_float_default("terrain_tile_falloff", 1.0);
+                    if (r_tile_falloff - terrain_tile_falloff).abs() > f32::EPSILON {
+                        sector.properties.set(
+                            "terrain_tile_falloff",
+                            Value::Float(terrain_tile_falloff.max(0.0)),
+                        );
+                        changed = true;
+                    }
+
+                    match terrain_tile_id {
+                        id if id != Uuid::nil() => {
+                            let has_changed = match sector.properties.get("terrain_source") {
+                                Some(Value::Source(PixelSource::TileId(existing))) => {
+                                    *existing != id
+                                }
+                                _ => true,
+                            };
+                            if has_changed {
+                                sector
+                                    .properties
+                                    .set("terrain_source", Value::Source(PixelSource::TileId(id)));
+                                changed = true;
+                            }
+                        }
+                        _ => {
+                            if sector.properties.contains("terrain_source") {
+                                sector.properties.remove("terrain_source");
+                                changed = true;
+                            }
+                        }
                     }
 
                     let curr_iso_hide = match sector.properties.get("iso_hide_on_enter") {
@@ -408,11 +538,28 @@ impl Action for EditSector {
     fn handle_event(
         &mut self,
         event: &TheEvent,
-        _project: &mut Project,
+        project: &mut Project,
         _ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         _server_ctx: &mut ServerContext,
     ) -> bool {
+        if let TheEvent::TileDropped(id, tile_id, index) = event
+            && id.name == "actionSectorTerrainTile"
+            && let Some(tile) = project.tiles.get(tile_id)
+            && !tile.is_empty()
+            && let Some(TheNodeUIItem::Icons(_, _, _, items)) =
+                self.nodeui.get_item_mut("actionSectorTerrainTile")
+        {
+            items[*index].0 = tile.textures[0].to_rgba();
+            items[*index].2 = *tile_id;
+            self.nodeui
+                .set_text_value("actionSectorTileId", tile_id.to_string());
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Update Action List"),
+                TheValue::Empty,
+            ));
+            return true;
+        }
         self.nodeui.handle_event(event)
     }
 }

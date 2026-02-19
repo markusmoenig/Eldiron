@@ -317,29 +317,43 @@ impl Tool for RectTool {
                 } else {
                     let prev = map.clone();
                     self.is_terrain = false;
+                    let curr_tile_id = server_ctx.curr_tile_id;
 
-                    if let Some(tile_id) = server_ctx.curr_tile_id {
-                        if let Some((x, z)) = server_ctx.rect_terrain_id {
-                            // Terrain
+                    if let Some((x, z)) = server_ctx.rect_terrain_id {
+                        // Terrain
 
-                            let _prev = map.clone();
+                        let _prev = map.clone();
 
-                            let mut tiles = match map.properties.get("tiles") {
-                                Some(Value::TileOverrides(existing)) => existing.clone(),
-                                _ => FxHashMap::default(),
-                            };
+                        let mut tiles = match map.properties.get("tiles") {
+                            Some(Value::TileOverrides(existing)) => existing.clone(),
+                            _ => FxHashMap::default(),
+                        };
 
-                            let mut blend_tiles = match map.properties.get("blend_tiles") {
-                                Some(Value::BlendOverrides(existing)) => existing.clone(),
-                                _ => FxHashMap::default(),
-                            };
+                        let mut blend_tiles = match map.properties.get("blend_tiles") {
+                            Some(Value::BlendOverrides(existing)) => existing.clone(),
+                            _ => FxHashMap::default(),
+                        };
 
+                        if ui.shift {
+                            // Deleting terrain paint removes both the base tile and any blend override.
+                            tiles.remove(&(x, z));
+                            blend_tiles.remove(&(x, z));
+
+                            if tiles.is_empty() {
+                                map.properties.remove("tiles");
+                            } else {
+                                map.properties.set("tiles", Value::TileOverrides(tiles));
+                            }
+
+                            if blend_tiles.is_empty() {
+                                map.properties.remove("blend_tiles");
+                            } else {
+                                map.properties
+                                    .set("blend_tiles", Value::BlendOverrides(blend_tiles));
+                            }
+                        } else if let Some(tile_id) = curr_tile_id {
                             if server_ctx.rect_blend_preset == VertexBlendPreset::Solid {
-                                if ui.shift {
-                                    tiles.remove(&(x, z));
-                                } else {
-                                    tiles.insert((x, z), PixelSource::TileId(tile_id));
-                                }
+                                tiles.insert((x, z), PixelSource::TileId(tile_id));
 
                                 if tiles.is_empty() {
                                     map.properties.remove("tiles");
@@ -366,33 +380,53 @@ impl Tool for RectTool {
                                         .set("blend_tiles", Value::BlendOverrides(blend_tiles));
                                 }
                             }
+                        } else {
+                            return None;
+                        }
 
-                            undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                server_ctx.pc,
-                                Box::new(prev),
-                                Box::new(map.clone()),
-                            ));
+                        undo_atom = Some(ProjectUndoAtom::MapEdit(
+                            server_ctx.pc,
+                            Box::new(prev),
+                            Box::new(map.clone()),
+                        ));
 
-                            self.is_terrain = true;
-                            self.processed.insert(Vec2::new(x, z));
-                        } else if let Some(sector_id) = server_ctx.rect_sector_id_3d {
-                            if let Some(sector) = map.find_sector_mut(sector_id) {
-                                // Sector / Surface
+                        self.is_terrain = true;
+                        self.processed.insert(Vec2::new(x, z));
+                    } else if let Some(sector_id) = server_ctx.rect_sector_id_3d {
+                        if let Some(sector) = map.find_sector_mut(sector_id) {
+                            // Sector / Surface
 
-                                let mut tiles = match sector.properties.get("tiles") {
-                                    Some(Value::TileOverrides(existing)) => existing.clone(),
-                                    _ => FxHashMap::default(),
-                                };
+                            let mut tiles = match sector.properties.get("tiles") {
+                                Some(Value::TileOverrides(existing)) => existing.clone(),
+                                _ => FxHashMap::default(),
+                            };
 
-                                let mut blend_tiles = match sector.properties.get("blend_tiles") {
-                                    Some(Value::BlendOverrides(existing)) => existing.clone(),
-                                    _ => FxHashMap::default(),
-                                };
+                            let mut blend_tiles = match sector.properties.get("blend_tiles") {
+                                Some(Value::BlendOverrides(existing)) => existing.clone(),
+                                _ => FxHashMap::default(),
+                            };
 
+                            if ui.shift {
+                                // Deleting surface paint removes both base tile and blend override.
+                                tiles.remove(&server_ctx.rect_tile_id_3d);
+                                blend_tiles.remove(&server_ctx.rect_tile_id_3d);
+
+                                if tiles.is_empty() {
+                                    sector.properties.remove("tiles");
+                                } else {
+                                    sector.properties.set("tiles", Value::TileOverrides(tiles));
+                                }
+
+                                if blend_tiles.is_empty() {
+                                    sector.properties.remove("blend_tiles");
+                                } else {
+                                    sector
+                                        .properties
+                                        .set("blend_tiles", Value::BlendOverrides(blend_tiles));
+                                }
+                            } else if let Some(tile_id) = curr_tile_id {
                                 if server_ctx.rect_blend_preset == VertexBlendPreset::Solid {
-                                    if ui.shift {
-                                        tiles.remove(&server_ctx.rect_tile_id_3d);
-                                    } else {
+                                    {
                                         tiles.insert(
                                             server_ctx.rect_tile_id_3d,
                                             PixelSource::TileId(tile_id),
@@ -425,18 +459,20 @@ impl Tool for RectTool {
                                             .set("blend_tiles", Value::BlendOverrides(blend_tiles));
                                     }
                                 }
-
-                                undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                    server_ctx.pc,
-                                    Box::new(prev),
-                                    Box::new(map.clone()),
-                                ));
-
-                                self.processed.insert(Vec2::new(
-                                    server_ctx.rect_tile_id_3d.0,
-                                    server_ctx.rect_tile_id_3d.1,
-                                ));
+                            } else {
+                                return None;
                             }
+
+                            undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                server_ctx.pc,
+                                Box::new(prev),
+                                Box::new(map.clone()),
+                            ));
+
+                            self.processed.insert(Vec2::new(
+                                server_ctx.rect_tile_id_3d.0,
+                                server_ctx.rect_tile_id_3d.1,
+                            ));
                         }
                     }
                 }
@@ -468,6 +504,7 @@ impl Tool for RectTool {
                         if let Some((x, z)) = server_ctx.rect_terrain_id {
                             if !self.processed.contains(&Vec2::new(x, z)) {
                                 let prev = map.clone();
+                                let curr_tile_id = server_ctx.curr_tile_id;
 
                                 let mut tiles = match map.properties.get("tiles") {
                                     Some(Value::TileOverrides(existing)) => existing.clone(),
@@ -479,31 +516,17 @@ impl Tool for RectTool {
                                     _ => FxHashMap::default(),
                                 };
 
-                                if let Some(tile_id) = server_ctx.curr_tile_id {
-                                    if server_ctx.rect_blend_preset == VertexBlendPreset::Solid {
-                                        if ui.shift {
-                                            tiles.remove(&(x, z));
-                                        } else {
-                                            tiles.insert((x, z), PixelSource::TileId(tile_id));
-                                        }
+                                if ui.shift || curr_tile_id.is_some() {
+                                    if ui.shift {
+                                        // Deleting terrain paint removes both the base tile and any blend override.
+                                        tiles.remove(&(x, z));
+                                        blend_tiles.remove(&(x, z));
 
                                         if tiles.is_empty() {
                                             map.properties.remove("tiles");
                                         } else {
                                             map.properties
                                                 .set("tiles", Value::TileOverrides(tiles));
-                                        }
-                                    } else {
-                                        if ui.shift {
-                                            blend_tiles.remove(&(x, z));
-                                        } else {
-                                            blend_tiles.insert(
-                                                (x, z),
-                                                (
-                                                    server_ctx.rect_blend_preset,
-                                                    PixelSource::TileId(tile_id),
-                                                ),
-                                            );
                                         }
 
                                         if blend_tiles.is_empty() {
@@ -513,6 +536,35 @@ impl Tool for RectTool {
                                                 "blend_tiles",
                                                 Value::BlendOverrides(blend_tiles),
                                             );
+                                        }
+                                    } else if let Some(tile_id) = curr_tile_id {
+                                        if server_ctx.rect_blend_preset == VertexBlendPreset::Solid
+                                        {
+                                            tiles.insert((x, z), PixelSource::TileId(tile_id));
+
+                                            if tiles.is_empty() {
+                                                map.properties.remove("tiles");
+                                            } else {
+                                                map.properties
+                                                    .set("tiles", Value::TileOverrides(tiles));
+                                            }
+                                        } else {
+                                            blend_tiles.insert(
+                                                (x, z),
+                                                (
+                                                    server_ctx.rect_blend_preset,
+                                                    PixelSource::TileId(tile_id),
+                                                ),
+                                            );
+
+                                            if blend_tiles.is_empty() {
+                                                map.properties.remove("blend_tiles");
+                                            } else {
+                                                map.properties.set(
+                                                    "blend_tiles",
+                                                    Value::BlendOverrides(blend_tiles),
+                                                );
+                                            }
                                         }
                                     }
 
@@ -533,33 +585,24 @@ impl Tool for RectTool {
                         )) {
                             if let Some(sector_id) = server_ctx.rect_sector_id_3d {
                                 let prev = map.clone();
-                                if let Some(tile_id) = server_ctx.curr_tile_id {
-                                    if let Some(sector) = map.find_sector_mut(sector_id) {
-                                        let mut tiles = match sector.properties.get("tiles") {
-                                            Some(Value::TileOverrides(existing)) => {
-                                                existing.clone()
-                                            }
-                                            _ => FxHashMap::default(),
-                                        };
+                                let curr_tile_id = server_ctx.curr_tile_id;
+                                if let Some(sector) = map.find_sector_mut(sector_id) {
+                                    let mut tiles = match sector.properties.get("tiles") {
+                                        Some(Value::TileOverrides(existing)) => existing.clone(),
+                                        _ => FxHashMap::default(),
+                                    };
 
-                                        let mut blend_tiles =
-                                            match sector.properties.get("blend_tiles") {
-                                                Some(Value::BlendOverrides(existing)) => {
-                                                    existing.clone()
-                                                }
-                                                _ => FxHashMap::default(),
-                                            };
+                                    let mut blend_tiles = match sector.properties.get("blend_tiles")
+                                    {
+                                        Some(Value::BlendOverrides(existing)) => existing.clone(),
+                                        _ => FxHashMap::default(),
+                                    };
 
-                                        if server_ctx.rect_blend_preset == VertexBlendPreset::Solid
-                                        {
-                                            if ui.shift {
-                                                tiles.remove(&server_ctx.rect_tile_id_3d);
-                                            } else {
-                                                tiles.insert(
-                                                    server_ctx.rect_tile_id_3d,
-                                                    PixelSource::TileId(tile_id),
-                                                );
-                                            }
+                                    if ui.shift || curr_tile_id.is_some() {
+                                        if ui.shift {
+                                            // Deleting surface paint removes both base tile and blend override.
+                                            tiles.remove(&server_ctx.rect_tile_id_3d);
+                                            blend_tiles.remove(&server_ctx.rect_tile_id_3d);
 
                                             if tiles.is_empty() {
                                                 sector.properties.remove("tiles");
@@ -567,18 +610,6 @@ impl Tool for RectTool {
                                                 sector
                                                     .properties
                                                     .set("tiles", Value::TileOverrides(tiles));
-                                            }
-                                        } else {
-                                            if ui.shift {
-                                                blend_tiles.remove(&server_ctx.rect_tile_id_3d);
-                                            } else {
-                                                blend_tiles.insert(
-                                                    server_ctx.rect_tile_id_3d,
-                                                    (
-                                                        server_ctx.rect_blend_preset,
-                                                        PixelSource::TileId(tile_id),
-                                                    ),
-                                                );
                                             }
 
                                             if blend_tiles.is_empty() {
@@ -588,6 +619,40 @@ impl Tool for RectTool {
                                                     "blend_tiles",
                                                     Value::BlendOverrides(blend_tiles),
                                                 );
+                                            }
+                                        } else if let Some(tile_id) = curr_tile_id {
+                                            if server_ctx.rect_blend_preset
+                                                == VertexBlendPreset::Solid
+                                            {
+                                                tiles.insert(
+                                                    server_ctx.rect_tile_id_3d,
+                                                    PixelSource::TileId(tile_id),
+                                                );
+
+                                                if tiles.is_empty() {
+                                                    sector.properties.remove("tiles");
+                                                } else {
+                                                    sector
+                                                        .properties
+                                                        .set("tiles", Value::TileOverrides(tiles));
+                                                }
+                                            } else {
+                                                blend_tiles.insert(
+                                                    server_ctx.rect_tile_id_3d,
+                                                    (
+                                                        server_ctx.rect_blend_preset,
+                                                        PixelSource::TileId(tile_id),
+                                                    ),
+                                                );
+
+                                                if blend_tiles.is_empty() {
+                                                    sector.properties.remove("blend_tiles");
+                                                } else {
+                                                    sector.properties.set(
+                                                        "blend_tiles",
+                                                        Value::BlendOverrides(blend_tiles),
+                                                    );
+                                                }
                                             }
                                         }
 

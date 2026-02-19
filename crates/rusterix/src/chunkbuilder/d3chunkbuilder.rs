@@ -110,6 +110,42 @@ fn shrink_polygon(points: &mut [Vec2<f32>], amount: f32) {
     }
 }
 
+fn distance_point_to_segment_2d(point: Vec2<f32>, seg_start: Vec2<f32>, seg_end: Vec2<f32>) -> f32 {
+    let seg = seg_end - seg_start;
+    let len_sq = seg.magnitude_squared();
+
+    if len_sq < 1e-8 {
+        return (point - seg_start).magnitude();
+    }
+
+    let t = ((point - seg_start).dot(seg) / len_sq).clamp(0.0, 1.0);
+    let projection = seg_start + seg * t;
+    (point - projection).magnitude()
+}
+
+fn distance_to_sector_edge_2d(point: Vec2<f32>, sector: &Sector, map: &Map) -> f32 {
+    let mut min_dist = f32::INFINITY;
+
+    for &linedef_id in &sector.linedefs {
+        let Some(linedef) = map.find_linedef(linedef_id) else {
+            continue;
+        };
+        let Some(v0) = map.get_vertex(linedef.start_vertex) else {
+            continue;
+        };
+        let Some(v1) = map.get_vertex(linedef.end_vertex) else {
+            continue;
+        };
+
+        let a = Vec2::new(v0.x, v0.y);
+        let b = Vec2::new(v1.x, v1.y);
+        let dist = distance_point_to_segment_2d(point, a, b);
+        min_dist = min_dist.min(dist);
+    }
+
+    min_dist
+}
+
 /// Split triangles into per-tile batches using 1x1 UV cells. Only routes a triangle
 /// to an override if all three vertices fall into the same overridden cell.
 fn partition_triangles_with_tile_and_blend_overrides(
@@ -1740,6 +1776,56 @@ fn generate_terrain(
         road_tile_linedefs.push((start, end, width, falloff, *tile_id, smooth));
     }
 
+    // Collect ridge tile definitions from sectors.
+    let mut ridge_tile_sectors: Vec<(u32, f32, f32, Uuid)> = Vec::new();
+    for sector in &map.sectors {
+        if sector.properties.get_int_default("terrain_mode", 0) != 2 {
+            continue;
+        }
+        let Some(Value::Source(PixelSource::TileId(tile_id))) =
+            sector.properties.get("terrain_source")
+        else {
+            continue;
+        };
+        let plateau = sector
+            .properties
+            .get_float_default("ridge_plateau_width", 0.0)
+            .max(0.0);
+        let tile_falloff = sector
+            .properties
+            .get_float_default("terrain_tile_falloff", 1.0)
+            .max(0.0);
+        ridge_tile_sectors.push((sector.id, plateau, tile_falloff, *tile_id));
+    }
+
+    // Collect vertex hill tile definitions.
+    let mut vertex_tile_controls: Vec<(Vec2<f32>, f32, f32, Uuid)> = Vec::new();
+    for vertex in &map.vertices {
+        if !vertex.properties.get_bool_default("terrain_control", false) {
+            continue;
+        }
+        let Some(Value::Source(PixelSource::TileId(tile_id))) =
+            vertex.properties.get("terrain_source")
+        else {
+            continue;
+        };
+        let smoothness = vertex
+            .properties
+            .get_float_default("smoothness", 1.0)
+            .max(0.0);
+        let radius = smoothness * 2.0;
+        let tile_falloff = vertex
+            .properties
+            .get_float_default("terrain_tile_falloff", 1.0)
+            .max(0.0);
+        vertex_tile_controls.push((
+            Vec2::new(vertex.x, vertex.y),
+            radius,
+            tile_falloff,
+            *tile_id,
+        ));
+    }
+
     // Generate terrain meshes for this chunk (grouped by tile)
     if let Some(meshes) = generator.generate(map, chunk, assets, default_tile_id, tile_overrides) {
         // Process each mesh (one per tile)
@@ -1783,72 +1869,46 @@ fn generate_terrain(
 
             // Process each tile batch
             for ((tile_x, tile_z), triangles) in tile_batches {
-                // Check if this tile has blend overrides
-                if let Some(blend_map) = blend_overrides {
-                    if let Some((preset, ps)) = blend_map.get(&(tile_x, tile_z)) {
-                        if let Some(tile2) = ps.tile_from_tile_list(assets) {
-                            // Build blend weights for each vertex
-                            let weights_4 = preset.weights();
-                            let mut blend_weights = Vec::new();
-                            let mut blended_verts = Vec::new();
-                            let mut blended_uvs = Vec::new();
-                            let mut blended_indices = Vec::new();
+                let has_manual_tile_override = if let Some(overrides) = tile_overrides {
+                    overrides
+                        .get(&(tile_x, tile_z))
+                        .and_then(|ps| ps.tile_from_tile_list(assets))
+                        .is_some()
+                } else {
+                    false
+                };
 
-                            for &(i0, i1, i2) in &triangles {
-                                let base_idx = blended_verts.len();
-
-                                // Add vertices
-                                blended_verts.push(vertices_4d[i0]);
-                                blended_verts.push(vertices_4d[i1]);
-                                blended_verts.push(vertices_4d[i2]);
-
-                                // Add UVs (flipped V)
-                                blended_uvs.push([uvs[i0][0], 1.0 - uvs[i0][1]]);
-                                blended_uvs.push([uvs[i1][0], 1.0 - uvs[i1][1]]);
-                                blended_uvs.push([uvs[i2][0], 1.0 - uvs[i2][1]]);
-
-                                // Add triangle indices
-                                blended_indices.push((base_idx, base_idx + 1, base_idx + 2));
-
-                                // Calculate blend weights for each vertex
-                                for &vi in &[i0, i1, i2] {
-                                    let u = (uvs[vi][0] - tile_x as f32).clamp(0.0, 1.0);
-                                    let v = (uvs[vi][1] - tile_z as f32).clamp(0.0, 1.0);
-
-                                    // Bilinear interpolation: TL, TR, BR, BL
-                                    let top = weights_4[0] * (1.0 - u) + weights_4[1] * u;
-                                    let bottom = weights_4[3] * (1.0 - u) + weights_4[2] * u;
-                                    let weight = top * (1.0 - v) + bottom * v;
-
-                                    blend_weights.push(weight);
-                                }
-                            }
-
-                            // Add blended poly
-                            vmchunk.add_poly_3d_blended(
-                                GeoId::Terrain(tile_x, tile_z),
-                                *tile_id,
-                                tile2.id,
-                                blended_verts,
-                                blended_uvs,
-                                blend_weights,
-                                blended_indices,
-                                0,
-                                true,
-                            );
-                            continue;
-                        }
-                    }
-                }
-
-                // Automatic distance-based edge blend for smoothed road linedefs.
+                // Road terrain should win over generic map blend overrides.
                 let road_tile_id = *tile_id;
+                let has_road_tile = road_tile_linedefs
+                    .iter()
+                    .any(|(_, _, width, _, tid, _)| *tid == road_tile_id && *width > 0.0)
+                    && !has_manual_tile_override;
                 let has_smooth_road =
                     road_tile_linedefs
                         .iter()
                         .any(|(_, _, width, _, tid, smooth)| {
                             *tid == road_tile_id && *smooth && *width > 0.0
-                        });
+                        })
+                        && !has_manual_tile_override;
+                let has_ridge_tile = ridge_tile_sectors
+                    .iter()
+                    .any(|(_, _, _, tid)| *tid == road_tile_id)
+                    && !has_manual_tile_override;
+                let has_smooth_ridge = ridge_tile_sectors
+                    .iter()
+                    .any(|(_, _, tile_falloff, tid)| *tid == road_tile_id && *tile_falloff > 0.0)
+                    && !has_manual_tile_override;
+                let has_vertex_tile = vertex_tile_controls
+                    .iter()
+                    .any(|(_, _, _, tid)| *tid == road_tile_id)
+                    && !has_manual_tile_override;
+                let has_smooth_vertex = vertex_tile_controls
+                    .iter()
+                    .any(|(_, _, tile_falloff, tid)| *tid == road_tile_id && *tile_falloff > 0.0)
+                    && !has_manual_tile_override;
+
+                // Automatic distance-based edge blend for smoothed road linedefs.
                 if has_smooth_road {
                     let bg_tile = if let Some(overrides) = tile_overrides {
                         if let Some(ps) = overrides.get(&(tile_x, tile_z)) {
@@ -1925,6 +1985,213 @@ fn generate_terrain(
                             true,
                         );
                         continue;
+                    }
+                }
+
+                // Distance-based edge blend for ridge terrain tiles.
+                if has_smooth_ridge {
+                    let bg_tile = if let Some(overrides) = tile_overrides {
+                        if let Some(ps) = overrides.get(&(tile_x, tile_z)) {
+                            ps.tile_from_tile_list(assets)
+                                .map(|t| t.id)
+                                .unwrap_or(default_tile_id)
+                        } else {
+                            default_tile_id
+                        }
+                    } else {
+                        default_tile_id
+                    };
+
+                    if bg_tile != road_tile_id {
+                        let mut blend_weights = Vec::new();
+                        let mut blended_verts = Vec::new();
+                        let mut blended_uvs = Vec::new();
+                        let mut blended_indices = Vec::new();
+
+                        for &(i0, i1, i2) in &triangles {
+                            let base_idx = blended_verts.len();
+                            blended_verts.push(vertices_4d[i0]);
+                            blended_verts.push(vertices_4d[i1]);
+                            blended_verts.push(vertices_4d[i2]);
+
+                            blended_uvs.push([uvs[i0][0], 1.0 - uvs[i0][1]]);
+                            blended_uvs.push([uvs[i1][0], 1.0 - uvs[i1][1]]);
+                            blended_uvs.push([uvs[i2][0], 1.0 - uvs[i2][1]]);
+
+                            blended_indices.push((base_idx, base_idx + 1, base_idx + 2));
+
+                            for &vi in &[i0, i1, i2] {
+                                let p = Vec2::new(uvs[vi][0], uvs[vi][1]);
+                                let mut w = 0.0f32;
+                                for &(sector_id, plateau, tile_falloff, tile_id) in
+                                    &ridge_tile_sectors
+                                {
+                                    if tile_id != road_tile_id {
+                                        continue;
+                                    }
+                                    let Some(sector) = map.find_sector(sector_id) else {
+                                        continue;
+                                    };
+                                    let dist = distance_to_sector_edge_2d(p, sector, map);
+                                    let this_w = if dist <= plateau {
+                                        1.0
+                                    } else if tile_falloff > 0.0 && dist <= plateau + tile_falloff {
+                                        1.0 - ((dist - plateau) / tile_falloff)
+                                    } else {
+                                        0.0
+                                    };
+                                    if this_w > w {
+                                        w = this_w;
+                                    }
+                                }
+                                blend_weights.push(w.clamp(0.0, 1.0));
+                            }
+                        }
+
+                        vmchunk.add_poly_3d_blended(
+                            GeoId::Terrain(tile_x, tile_z),
+                            bg_tile,
+                            road_tile_id,
+                            blended_verts,
+                            blended_uvs,
+                            blend_weights,
+                            blended_indices,
+                            0,
+                            true,
+                        );
+                        continue;
+                    }
+                }
+
+                // Distance-based edge blend for vertex hill terrain tiles.
+                if has_smooth_vertex {
+                    let bg_tile = if let Some(overrides) = tile_overrides {
+                        if let Some(ps) = overrides.get(&(tile_x, tile_z)) {
+                            ps.tile_from_tile_list(assets)
+                                .map(|t| t.id)
+                                .unwrap_or(default_tile_id)
+                        } else {
+                            default_tile_id
+                        }
+                    } else {
+                        default_tile_id
+                    };
+
+                    if bg_tile != road_tile_id {
+                        let mut blend_weights = Vec::new();
+                        let mut blended_verts = Vec::new();
+                        let mut blended_uvs = Vec::new();
+                        let mut blended_indices = Vec::new();
+
+                        for &(i0, i1, i2) in &triangles {
+                            let base_idx = blended_verts.len();
+                            blended_verts.push(vertices_4d[i0]);
+                            blended_verts.push(vertices_4d[i1]);
+                            blended_verts.push(vertices_4d[i2]);
+
+                            blended_uvs.push([uvs[i0][0], 1.0 - uvs[i0][1]]);
+                            blended_uvs.push([uvs[i1][0], 1.0 - uvs[i1][1]]);
+                            blended_uvs.push([uvs[i2][0], 1.0 - uvs[i2][1]]);
+
+                            blended_indices.push((base_idx, base_idx + 1, base_idx + 2));
+
+                            for &vi in &[i0, i1, i2] {
+                                let p = Vec2::new(uvs[vi][0], uvs[vi][1]);
+                                let mut w = 0.0f32;
+                                for &(center, radius, tile_falloff, tile_id) in
+                                    &vertex_tile_controls
+                                {
+                                    if tile_id != road_tile_id {
+                                        continue;
+                                    }
+                                    let dist = (p - center).magnitude();
+                                    let this_w = if dist <= radius {
+                                        1.0
+                                    } else if tile_falloff > 0.0 && dist <= radius + tile_falloff {
+                                        1.0 - ((dist - radius) / tile_falloff)
+                                    } else {
+                                        0.0
+                                    };
+                                    if this_w > w {
+                                        w = this_w;
+                                    }
+                                }
+                                blend_weights.push(w.clamp(0.0, 1.0));
+                            }
+                        }
+
+                        vmchunk.add_poly_3d_blended(
+                            GeoId::Terrain(tile_x, tile_z),
+                            bg_tile,
+                            road_tile_id,
+                            blended_verts,
+                            blended_uvs,
+                            blend_weights,
+                            blended_indices,
+                            0,
+                            true,
+                        );
+                        continue;
+                    }
+                }
+
+                // Check if this tile has blend overrides
+                if !has_road_tile && !has_ridge_tile && !has_vertex_tile {
+                    if let Some(blend_map) = blend_overrides {
+                        if let Some((preset, ps)) = blend_map.get(&(tile_x, tile_z)) {
+                            if let Some(tile2) = ps.tile_from_tile_list(assets) {
+                                // Build blend weights for each vertex
+                                let weights_4 = preset.weights();
+                                let mut blend_weights = Vec::new();
+                                let mut blended_verts = Vec::new();
+                                let mut blended_uvs = Vec::new();
+                                let mut blended_indices = Vec::new();
+
+                                for &(i0, i1, i2) in &triangles {
+                                    let base_idx = blended_verts.len();
+
+                                    // Add vertices
+                                    blended_verts.push(vertices_4d[i0]);
+                                    blended_verts.push(vertices_4d[i1]);
+                                    blended_verts.push(vertices_4d[i2]);
+
+                                    // Add UVs (flipped V)
+                                    blended_uvs.push([uvs[i0][0], 1.0 - uvs[i0][1]]);
+                                    blended_uvs.push([uvs[i1][0], 1.0 - uvs[i1][1]]);
+                                    blended_uvs.push([uvs[i2][0], 1.0 - uvs[i2][1]]);
+
+                                    // Add triangle indices
+                                    blended_indices.push((base_idx, base_idx + 1, base_idx + 2));
+
+                                    // Calculate blend weights for each vertex
+                                    for &vi in &[i0, i1, i2] {
+                                        let u = (uvs[vi][0] - tile_x as f32).clamp(0.0, 1.0);
+                                        let v = (uvs[vi][1] - tile_z as f32).clamp(0.0, 1.0);
+
+                                        // Bilinear interpolation: TL, TR, BR, BL
+                                        let top = weights_4[0] * (1.0 - u) + weights_4[1] * u;
+                                        let bottom = weights_4[3] * (1.0 - u) + weights_4[2] * u;
+                                        let weight = top * (1.0 - v) + bottom * v;
+
+                                        blend_weights.push(weight);
+                                    }
+                                }
+
+                                // Add blended poly
+                                vmchunk.add_poly_3d_blended(
+                                    GeoId::Terrain(tile_x, tile_z),
+                                    *tile_id,
+                                    tile2.id,
+                                    blended_verts,
+                                    blended_uvs,
+                                    blend_weights,
+                                    blended_indices,
+                                    0,
+                                    true,
+                                );
+                                continue;
+                            }
+                        }
                     }
                 }
 

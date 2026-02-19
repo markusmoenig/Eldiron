@@ -30,6 +30,11 @@ Placing a **vertex** on the map and enabling its **Terrain** parameter makes tha
 
 The **Smoothness** parameter controls how far this control point influences the terrain: higher values create broader, smoother features; lower values create tighter, localized features.
 
+For terrain-control vertices, you can also set:
+
+* `terrain_source` — optional tile used for this hill/valley area.
+* `terrain_tile_falloff` — blend distance (in tiles) outside the vertex hill radius.
+
 <Admonition type="note" title="Non-Destructive Terrain Workflow">
     As you move terrain-controlling geometry on the map, the terrain regenerates automatically, keeping the workflow non-destructive.
 </Admonition>
@@ -43,6 +48,13 @@ Sectors have currently three possible *Terrain Roles*:
 * **Ridge**. Creates a ridge like in the screenshot below. You can define the *height*, the size of the *plateau*, and the steepness of the **falloff**.
 
 ![3d_terrain2](3d_terrain2.png)
+
+For **Ridge** sectors, you can also set:
+
+* `terrain_source` — optional tile used for ridge terrain texturing near the ridge edge.
+* `terrain_tile_falloff` — blend distance (in tiles) from ridge plateau to surrounding terrain.
+
+When `terrain_source` is set, ridge texturing overrides generic map blend tiles in that ridge area.
 
 ### Linedefs
 
@@ -61,3 +73,15 @@ Road height is interpolated from the linedef's start/end vertex heights (`z`), s
 
 When `terrain_source` is set, the road tile is applied even if `terrain_smooth` is off.  
 When `terrain_smooth` is on, road edges blend into surrounding terrain using `terrain_tile_falloff`.
+
+### Terrain tile priority
+
+When multiple systems affect the same terrain cell, the texture priority is:
+
+1. Manually painted terrain tiles (`tiles` map override)
+2. Linedef road `terrain_source`
+3. Ridge sector `terrain_source`
+4. Vertex hill `terrain_source`
+5. Region default terrain tile
+
+So manual painting always wins, and roads win over ridges.
