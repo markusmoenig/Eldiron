@@ -134,11 +134,10 @@ impl Tool for LinedefTool {
 
                 // ---
 
-                // Audo Mode: Test if a vertex is under the cursor, in that case in D2 we dont select but do add lines
+                // If a vertex is under the cursor in D2, prioritize continuing line creation
+                // over linedef selection. This allows extending existing chains by clicking endpoints.
                 let mut over_vertex = false;
-                if let Some(grid) = &server_ctx.hover_cursor
-                    && ui.ctrl
-                {
+                if let Some(grid) = &server_ctx.hover_cursor {
                     if map.find_vertex_at(grid.x, grid.y).is_some() {
                         over_vertex = true;
                     }

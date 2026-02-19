@@ -8,6 +8,8 @@ pub mod clear_tile;
 pub mod copy_tile_id;
 pub mod create_center_vertex;
 pub mod create_linedef;
+pub mod create_palisade;
+pub mod create_prop;
 pub mod create_sector;
 pub mod duplicate;
 pub mod duplicate_tile;

@@ -1278,6 +1278,9 @@ impl ChunkBuilder for D3ChunkBuilder {
             }
         }
 
+        // Build optional non-destructive linedef features (palisade, fence, ...).
+        generate_linedef_features(map, assets, chunk, vmchunk);
+
         // Generate terrain for this chunk
         let terrain_counter = chunk.bbox.min.x as u32 * 10000 + chunk.bbox.min.y as u32;
         generate_terrain(map, assets, chunk, vmchunk, terrain_counter);
@@ -1696,6 +1699,443 @@ impl ChunkBuilder for D3ChunkBuilder {
         }
 
         collision
+    }
+}
+
+fn hash01(mut seed: u32) -> f32 {
+    seed ^= seed >> 16;
+    seed = seed.wrapping_mul(0x7feb352d);
+    seed ^= seed >> 15;
+    seed = seed.wrapping_mul(0x846ca68b);
+    seed ^= seed >> 16;
+    (seed as f32) / (u32::MAX as f32)
+}
+
+fn add_vertex(
+    mesh_vertices: &mut Vec<[f32; 4]>,
+    mesh_uvs: &mut Vec<[f32; 2]>,
+    p: Vec3<f32>,
+) -> usize {
+    let idx = mesh_vertices.len();
+    mesh_vertices.push([p.x, p.y, p.z, 1.0]);
+    mesh_uvs.push([p.x, p.z]);
+    idx
+}
+
+fn add_tri(mesh_indices: &mut Vec<(usize, usize, usize)>, a: usize, b: usize, c: usize) {
+    mesh_indices.push((a, b, c));
+}
+
+fn add_quad(mesh_indices: &mut Vec<(usize, usize, usize)>, a: usize, b: usize, c: usize, d: usize) {
+    add_tri(mesh_indices, a, b, c);
+    add_tri(mesh_indices, a, c, d);
+}
+
+fn add_ring(
+    mesh_vertices: &mut Vec<[f32; 4]>,
+    mesh_uvs: &mut Vec<[f32; 2]>,
+    center: Vec3<f32>,
+    right: Vec3<f32>,
+    forward: Vec3<f32>,
+    points: &[(f32, f32)],
+) -> Vec<usize> {
+    let mut ring = Vec::with_capacity(points.len());
+    for &(x, z) in points {
+        let p = center + right * x + forward * z;
+        ring.push(add_vertex(mesh_vertices, mesh_uvs, p));
+    }
+    ring
+}
+
+fn add_cap_top(mesh_indices: &mut Vec<(usize, usize, usize)>, ring: &[usize]) {
+    if ring.len() < 3 {
+        return;
+    }
+    for i in 1..(ring.len() - 1) {
+        add_tri(mesh_indices, ring[0], ring[i], ring[i + 1]);
+    }
+}
+
+fn add_cap_bottom(mesh_indices: &mut Vec<(usize, usize, usize)>, ring: &[usize]) {
+    if ring.len() < 3 {
+        return;
+    }
+    for i in 1..(ring.len() - 1) {
+        add_tri(mesh_indices, ring[0], ring[i + 1], ring[i]);
+    }
+}
+
+fn add_prism_stake(
+    mesh_vertices: &mut Vec<[f32; 4]>,
+    mesh_uvs: &mut Vec<[f32; 2]>,
+    mesh_indices: &mut Vec<(usize, usize, usize)>,
+    base_center: Vec3<f32>,
+    top_center: Vec3<f32>,
+    right: Vec3<f32>,
+    forward: Vec3<f32>,
+    half_w: f32,
+    half_d: f32,
+    top_mode: i32,
+    top_height: f32,
+) {
+    let base_points = [
+        (-half_w, -half_d),
+        (half_w, -half_d),
+        (half_w, half_d),
+        (-half_w, half_d),
+    ];
+    let bottom_ring = add_ring(
+        mesh_vertices,
+        mesh_uvs,
+        base_center,
+        right,
+        forward,
+        &base_points,
+    );
+    let top_ring = add_ring(
+        mesh_vertices,
+        mesh_uvs,
+        top_center,
+        right,
+        forward,
+        &base_points,
+    );
+    for i in 0..4 {
+        let ni = (i + 1) % 4;
+        add_quad(
+            mesh_indices,
+            bottom_ring[i],
+            bottom_ring[ni],
+            top_ring[ni],
+            top_ring[i],
+        );
+    }
+    add_cap_bottom(mesh_indices, &bottom_ring);
+
+    match top_mode {
+        1 => {
+            let apex = add_vertex(
+                mesh_vertices,
+                mesh_uvs,
+                top_center + Vec3::new(0.0, top_height, 0.0),
+            );
+            for i in 0..4 {
+                let ni = (i + 1) % 4;
+                add_tri(mesh_indices, top_ring[i], top_ring[ni], apex);
+            }
+        }
+        2 => {
+            let scale = 0.45;
+            let bevel_points = [
+                (-half_w * scale, -half_d * scale),
+                (half_w * scale, -half_d * scale),
+                (half_w * scale, half_d * scale),
+                (-half_w * scale, half_d * scale),
+            ];
+            let bevel_center = top_center + Vec3::new(0.0, top_height, 0.0);
+            let bevel_ring = add_ring(
+                mesh_vertices,
+                mesh_uvs,
+                bevel_center,
+                right,
+                forward,
+                &bevel_points,
+            );
+            for i in 0..4 {
+                let ni = (i + 1) % 4;
+                add_quad(
+                    mesh_indices,
+                    top_ring[i],
+                    top_ring[ni],
+                    bevel_ring[ni],
+                    bevel_ring[i],
+                );
+            }
+            add_cap_top(mesh_indices, &bevel_ring);
+        }
+        _ => {
+            add_cap_top(mesh_indices, &top_ring);
+        }
+    }
+}
+
+fn add_round_stake(
+    mesh_vertices: &mut Vec<[f32; 4]>,
+    mesh_uvs: &mut Vec<[f32; 2]>,
+    mesh_indices: &mut Vec<(usize, usize, usize)>,
+    base_center: Vec3<f32>,
+    top_center: Vec3<f32>,
+    right: Vec3<f32>,
+    forward: Vec3<f32>,
+    radius: f32,
+    segments: usize,
+    top_mode: i32,
+    top_height: f32,
+) {
+    if segments < 3 {
+        return;
+    }
+    let mut circle = Vec::with_capacity(segments);
+    for i in 0..segments {
+        let t = (i as f32) / (segments as f32);
+        let a = t * std::f32::consts::TAU;
+        circle.push((a.cos() * radius, a.sin() * radius));
+    }
+
+    let bottom_ring = add_ring(
+        mesh_vertices,
+        mesh_uvs,
+        base_center,
+        right,
+        forward,
+        &circle,
+    );
+    let top_ring = add_ring(mesh_vertices, mesh_uvs, top_center, right, forward, &circle);
+
+    for i in 0..segments {
+        let ni = (i + 1) % segments;
+        add_quad(
+            mesh_indices,
+            bottom_ring[i],
+            bottom_ring[ni],
+            top_ring[ni],
+            top_ring[i],
+        );
+    }
+    add_cap_bottom(mesh_indices, &bottom_ring);
+
+    match top_mode {
+        1 => {
+            let apex = add_vertex(
+                mesh_vertices,
+                mesh_uvs,
+                top_center + Vec3::new(0.0, top_height, 0.0),
+            );
+            for i in 0..segments {
+                let ni = (i + 1) % segments;
+                add_tri(mesh_indices, top_ring[i], top_ring[ni], apex);
+            }
+        }
+        2 => {
+            let bevel_center = top_center + Vec3::new(0.0, top_height, 0.0);
+            let mut bevel = Vec::with_capacity(segments);
+            for i in 0..segments {
+                let t = (i as f32) / (segments as f32);
+                let a = t * std::f32::consts::TAU;
+                bevel.push((a.cos() * radius * 0.5, a.sin() * radius * 0.5));
+            }
+            let bevel_ring = add_ring(
+                mesh_vertices,
+                mesh_uvs,
+                bevel_center,
+                right,
+                forward,
+                &bevel,
+            );
+            for i in 0..segments {
+                let ni = (i + 1) % segments;
+                add_quad(
+                    mesh_indices,
+                    top_ring[i],
+                    top_ring[ni],
+                    bevel_ring[ni],
+                    bevel_ring[i],
+                );
+            }
+            add_cap_top(mesh_indices, &bevel_ring);
+        }
+        _ => {
+            add_cap_top(mesh_indices, &top_ring);
+        }
+    }
+}
+
+fn generate_linedef_features(
+    map: &Map,
+    assets: &Assets,
+    chunk: &Chunk,
+    vmchunk: &mut scenevm::Chunk,
+) {
+    let default_tile_id = Uuid::from_str(DEFAULT_TILE_ID).unwrap();
+
+    for linedef in &map.linedefs {
+        let feature = linedef
+            .properties
+            .get_str_default("linedef_feature", "None".to_string());
+        if feature != "Palisade" {
+            continue;
+        }
+
+        let Some(v0) = map.get_vertex_3d(linedef.start_vertex) else {
+            continue;
+        };
+        let Some(v1) = map.get_vertex_3d(linedef.end_vertex) else {
+            continue;
+        };
+
+        let line_mid = Vec2::new((v0.x + v1.x) * 0.5, (v0.z + v1.z) * 0.5);
+        if !chunk.bbox.contains(line_mid) {
+            continue;
+        }
+
+        let line_flat = Vec3::new(v1.x - v0.x, 0.0, v1.z - v0.z);
+        let line_len = line_flat.magnitude();
+        if line_len < 1e-5 {
+            continue;
+        }
+        let forward = line_flat / line_len;
+        let right = Vec3::new(-forward.z, 0.0, forward.x);
+
+        let spacing = linedef
+            .properties
+            .get_float_default("feature_layout_spacing", 1.0)
+            .max(0.1);
+        let segment_size = linedef
+            .properties
+            .get_float_default("feature_segment_size", 0.75)
+            .max(0.05);
+        let shape = linedef.properties.get_int_default("feature_shape", 1);
+        let depth = linedef
+            .properties
+            .get_float_default("feature_depth", 0.12)
+            .max(0.02);
+        let round_segments = linedef
+            .properties
+            .get_int_default("feature_round_segments", 8)
+            .max(3) as usize;
+        let base_height = linedef.properties.get_float_default("feature_height", 2.0);
+        if base_height <= 0.0 {
+            continue;
+        }
+        let top_mode = linedef.properties.get_int_default("feature_top_mode", 0);
+        let top_height = linedef
+            .properties
+            .get_float_default("feature_top_height", 0.5)
+            .max(0.0);
+        let height_variation = linedef
+            .properties
+            .get_float_default("feature_height_variation", 0.35)
+            .max(0.0);
+        let lean_amount = linedef
+            .properties
+            .get_float_default("feature_lean_amount", 0.0)
+            .max(0.0);
+        let lean_randomness = linedef
+            .properties
+            .get_float_default("feature_lean_randomness", 1.0)
+            .clamp(0.0, 1.0);
+
+        let tile_id = if let Some(Value::Source(ps)) = linedef.properties.get("feature_source") {
+            ps.tile_from_tile_list(assets).map(|tile| tile.id)
+        } else if let Some(Value::Source(ps)) = linedef.properties.get("row1_source") {
+            ps.tile_from_tile_list(assets).map(|tile| tile.id)
+        } else {
+            None
+        }
+        .unwrap_or(default_tile_id);
+
+        let count = ((line_len / spacing).floor() as usize).saturating_add(1);
+        let count = count.max(1);
+
+        let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
+        let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
+        let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
+
+        for i in 0..count {
+            let t = if count <= 1 {
+                0.5
+            } else {
+                (i as f32) / ((count - 1) as f32)
+            };
+
+            let base_center = Vec3::new(
+                v0.x + (v1.x - v0.x) * t,
+                v0.y + (v1.y - v0.y) * t,
+                v0.z + (v1.z - v0.z) * t,
+            );
+
+            let seed = linedef
+                .id
+                .wrapping_mul(0x9e3779b1)
+                .wrapping_add(i as u32 * 0x85ebca6b);
+            let height_rand = hash01(seed) * 2.0 - 1.0;
+            let height = (base_height + height_rand * height_variation).max(0.05);
+
+            let lean_x = (hash01(seed ^ 0x68bc21eb) * 2.0 - 1.0) * lean_amount * lean_randomness;
+            let lean_z = (hash01(seed ^ 0x2c1b3c6d) * 2.0 - 1.0) * lean_amount * lean_randomness;
+            let top_center =
+                base_center + Vec3::new(0.0, height, 0.0) + right * lean_x + forward * lean_z;
+
+            let stake_top_mode = if top_mode == 3 {
+                (hash01(seed ^ 0xf00d1234) * 3.0).floor() as i32
+            } else {
+                top_mode
+            };
+
+            match shape {
+                2 => {
+                    let radius = (segment_size * 0.5).max(depth * 0.5);
+                    add_round_stake(
+                        &mut mesh_vertices,
+                        &mut mesh_uvs,
+                        &mut mesh_indices,
+                        base_center,
+                        top_center,
+                        right,
+                        forward,
+                        radius,
+                        round_segments,
+                        stake_top_mode,
+                        top_height,
+                    );
+                }
+                1 => {
+                    let half = (segment_size * 0.5).max(depth * 0.5);
+                    add_prism_stake(
+                        &mut mesh_vertices,
+                        &mut mesh_uvs,
+                        &mut mesh_indices,
+                        base_center,
+                        top_center,
+                        right,
+                        forward,
+                        half,
+                        half,
+                        stake_top_mode,
+                        top_height,
+                    );
+                }
+                _ => {
+                    let half_w = segment_size * 0.5;
+                    let half_d = (depth * 0.5).max(0.01);
+                    add_prism_stake(
+                        &mut mesh_vertices,
+                        &mut mesh_uvs,
+                        &mut mesh_indices,
+                        base_center,
+                        top_center,
+                        right,
+                        forward,
+                        half_w,
+                        half_d,
+                        stake_top_mode,
+                        top_height,
+                    );
+                }
+            }
+        }
+
+        if !mesh_indices.is_empty() {
+            vmchunk.add_poly_3d(
+                GeoId::Linedef(linedef.id),
+                tile_id,
+                mesh_vertices,
+                mesh_uvs,
+                mesh_indices,
+                0,
+                true,
+            );
+        }
     }
 }
 

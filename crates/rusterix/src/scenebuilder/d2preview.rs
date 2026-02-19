@@ -555,6 +555,7 @@ impl D2PreviewBuilder {
 
         // Add Lines
         if self.map_tool_type == MapToolType::Selection
+            || self.map_tool_type == MapToolType::Vertex
             || self.map_tool_type == MapToolType::Linedef
             || self.map_tool_type == MapToolType::Sector
             || self.map_tool_type == MapToolType::Effects

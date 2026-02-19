@@ -1278,7 +1278,10 @@ impl ToolList {
 
             if server_ctx.curr_map_tool_type == MapToolType::Vertex {
                 for v in map.vertices.iter() {
-                    let mut pos = Vec3::new(v.x, v.z, v.y);
+                    let Some(world_pos) = map.get_vertex_3d(v.id) else {
+                        continue;
+                    };
+                    let mut pos = Vec3::new(world_pos.x, world_pos.y, world_pos.z);
                     pos += view_nudge;
                     let selected =
                         map.selected_vertices.contains(&v.id) || server_ctx.hover.0 == Some(v.id);

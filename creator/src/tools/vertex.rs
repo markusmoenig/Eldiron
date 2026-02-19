@@ -301,7 +301,12 @@ impl Tool for VertexTool {
                                         original_vertex.x - drag_delta.x,
                                         original_vertex.y - drag_delta.y,
                                     );
-                                    map.update_vertex(*vertex_id, new_pos);
+                                    let grid_step = 1.0 / map.subdivisions.max(1.0);
+                                    let snapped_pos = Vec2::new(
+                                        (new_pos.x / grid_step).round() * grid_step,
+                                        (new_pos.y / grid_step).round() * grid_step,
+                                    );
+                                    map.update_vertex(*vertex_id, snapped_pos);
                                 }
                             }
                             server_ctx.hover_cursor = Some(drag_pos);

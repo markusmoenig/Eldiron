@@ -696,7 +696,8 @@ impl TheTrait for Editor {
         }
 
         if redraw_update && !self.project.regions.is_empty() {
-            SCENEMANAGER.write().unwrap().tick();
+            // SCENEMANAGER.write().unwrap().tick();
+            SCENEMANAGER.write().unwrap().tick_batch(8);
 
             self.build_values.set(
                 "no_rect_geo",

@@ -73,7 +73,30 @@ In 2D view (no surface selected), toggle rectangular placement helpers for geome
 
 *Shortcut: Alt + E*
 
-Extrude selected linedefs by *distance* (signed) and *angle* (degrees around the edge axis). Can emit front/back faces when surfaces exist.
+Extrude selected linedefs by *distance* (how far the wall is pushed out) and *angle* (degrees around the edge axis).  
+Also supports top shaping via a `top` section:
+- *style*: `flat`, `crenelated`, `palisade`, or `random`
+- *segment_size*: shared segment width used by patterned styles
+- *variation*: style intensity (tooth/stake height or random break amount)
+
+This is currently additive (re-applying creates new generated geometry), so use undo or delete old result before re-extruding if needed.
+
+### Create Palisade
+
+Create a non-destructive palisade along selected linedefs. You can re-open the action any time to tweak values.
+
+- `[material].tile_id`: tile used by the palisade.
+- `[layout].spacing`: distance between stakes along the linedef.
+- `[layout].segment_size`: width of each stake along the linedef.
+- `[shape].stake_shape`: `flat`, `square`, or `round`.
+- `[shape].depth`: cross-depth/thickness of the stake.
+- `[shape].round_segments`: radial segment count for round stakes.
+- `[height].base`: main stake height. `0.0` disables generation.
+- `[height].variation`: deterministic per-stake height variation.
+- `[top].mode`: `flat`, `spike`, `bevel`, or `random` (per stake).
+- `[top].height`: extra height used by spike/bevel tops.
+- `[lean].amount`: max lean offset.
+- `[lean].randomness`: 0..1 multiplier for random lean variation.
 
 ### Extrude Sector
 
@@ -110,6 +133,17 @@ Emboss the active profile surface outward. Params mirror Recess: *height*, *targ
 *Shortcut: Alt + G*
 
 Carve an inset opening in the profile surface and fill it with a tile. Params: *inset*, *repeat/scale* mode, gate/door *tile* icon, and speed/behavior flags (hidden, locked, secret) stored on the sector.
+
+### Create Prop
+
+Create/edit parametric props on selected profile sectors (first preset: `table`).
+
+- `[table].create`: enables table generation for the selected sectors.
+- `[table].height`: relief amount used for tabletop height.
+- `[table].connection_mode`: edge style (`hard`, `smooth`, `bevel`).
+- `[table].bevel_segments`: bevel tessellation when using bevel mode.
+- `[table].bevel_radius`: bevel size when using bevel mode.
+- `[billboard].tile_id`: optional tile applied to table cap/jamb material.
 
 ### Set Editing Surface
 
