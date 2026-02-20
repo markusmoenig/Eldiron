@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{hash::Hasher, str::FromStr};
 
 use crate::{
     Assets, BillboardAnimation, BillboardMetadata, D3Camera, Item, Map, PixelSource,
@@ -78,6 +78,12 @@ pub struct SceneHandler {
     // Local render-frame counter for timing animations at fixed FPS
     frame_counter: usize,
     avatar_builder: AvatarRuntimeBuilder,
+    last_dynamics_hash_2d: Option<u64>,
+    last_dynamics_hash_3d: Option<u64>,
+    last_dynamics_tick_2d: Option<usize>,
+    last_dynamics_tick_3d: Option<usize>,
+    dynamics_ready_2d: bool,
+    dynamics_ready_3d: bool,
 
     // Timing parameters (configurable)
     render_fps: f32,
@@ -91,6 +97,16 @@ impl Default for SceneHandler {
 }
 
 impl SceneHandler {
+    /// Invalidate dynamic entity/item/light caches so next frame rebuilds overlays.
+    pub fn mark_dynamics_dirty(&mut self) {
+        self.last_dynamics_hash_2d = None;
+        self.last_dynamics_hash_3d = None;
+        self.last_dynamics_tick_2d = None;
+        self.last_dynamics_tick_3d = None;
+        self.dynamics_ready_2d = false;
+        self.dynamics_ready_3d = false;
+    }
+
     pub fn find_item_any<'m>(map: &'m Map, id: u32) -> Option<&'m Item> {
         if let Some(item) = map.items.iter().find(|i| i.id == id) {
             return Some(item);
@@ -158,9 +174,219 @@ impl SceneHandler {
             billboard_anim_states: FxHashMap::default(),
             frame_counter: 0,
             avatar_builder: AvatarRuntimeBuilder::default(),
+            last_dynamics_hash_2d: None,
+            last_dynamics_hash_3d: None,
+            last_dynamics_tick_2d: None,
+            last_dynamics_tick_3d: None,
+            dynamics_ready_2d: false,
+            dynamics_ready_3d: false,
             render_fps: 30.0,
             game_tick_fps: 4.0, // default 250ms ticks
         }
+    }
+
+    #[inline]
+    fn hash_vec3(hasher: &mut rustc_hash::FxHasher, v: Vec3<f32>) {
+        hasher.write_u32(v.x.to_bits());
+        hasher.write_u32(v.y.to_bits());
+        hasher.write_u32(v.z.to_bits());
+    }
+
+    fn hash_pixel_source(hasher: &mut rustc_hash::FxHasher, source: &PixelSource) {
+        match source {
+            PixelSource::Off => hasher.write_u8(0),
+            PixelSource::TileId(id) => {
+                hasher.write_u8(1);
+                hasher.write(id.as_bytes());
+            }
+            PixelSource::MaterialId(id) => {
+                hasher.write_u8(2);
+                hasher.write(id.as_bytes());
+            }
+            PixelSource::Sequence(seq) => {
+                hasher.write_u8(3);
+                hasher.write(seq.as_bytes());
+            }
+            PixelSource::EntityTile(a, b) => {
+                hasher.write_u8(4);
+                hasher.write_u32(*a);
+                hasher.write_u32(*b);
+            }
+            PixelSource::ItemTile(a, b) => {
+                hasher.write_u8(5);
+                hasher.write_u32(*a);
+                hasher.write_u32(*b);
+            }
+            PixelSource::Color(c) => {
+                hasher.write_u8(6);
+                hasher.write_u32(c.r.to_bits());
+                hasher.write_u32(c.g.to_bits());
+                hasher.write_u32(c.b.to_bits());
+                hasher.write_u32(c.a.to_bits());
+            }
+            PixelSource::ShapeFXGraphId(id) => {
+                hasher.write_u8(7);
+                hasher.write(id.as_bytes());
+            }
+            PixelSource::StaticTileIndex(i) => {
+                hasher.write_u8(8);
+                hasher.write_u16(*i);
+            }
+            PixelSource::DynamicTileIndex(i) => {
+                hasher.write_u8(9);
+                hasher.write_u16(*i);
+            }
+            PixelSource::Pixel(px) => {
+                hasher.write_u8(10);
+                hasher.write_u8(px[0]);
+                hasher.write_u8(px[1]);
+                hasher.write_u8(px[2]);
+                hasher.write_u8(px[3]);
+            }
+            PixelSource::Terrain => hasher.write_u8(11),
+        }
+    }
+
+    fn hash_light_value(hasher: &mut rustc_hash::FxHasher, light: &crate::Light) {
+        let color = light.get_color();
+        hasher.write_u32(color[0].to_bits());
+        hasher.write_u32(color[1].to_bits());
+        hasher.write_u32(color[2].to_bits());
+        hasher.write_u32(light.get_intensity().to_bits());
+        hasher.write_u32(light.get_start_distance().to_bits());
+        hasher.write_u32(light.get_end_distance().to_bits());
+        hasher.write_u32(light.get_flicker().to_bits());
+        hasher.write_u8(u8::from(light.active));
+    }
+
+    fn dynamics_hash_2d(&self, map: &Map) -> u64 {
+        let mut hasher = rustc_hash::FxHasher::default();
+        hasher.write(map.id.as_bytes());
+        hasher.write_u64(map.items.len() as u64);
+        hasher.write_u64(map.entities.len() as u64);
+
+        for item in &map.items {
+            hasher.write_u32(item.id);
+            hasher.write_u32(item.position.x.to_bits());
+            hasher.write_u32(item.position.y.to_bits());
+            hasher.write_u32(item.position.z.to_bits());
+            hasher.write_u8(u8::from(item.attributes.get_bool_default("visible", false)));
+            if let Some(Value::Source(source)) = item.attributes.get("source") {
+                Self::hash_pixel_source(&mut hasher, source);
+            } else {
+                hasher.write_u8(0);
+            }
+            if let Some(Value::Light(light)) = item.attributes.get("light") {
+                hasher.write_u8(1);
+                Self::hash_light_value(&mut hasher, light);
+            } else {
+                hasher.write_u8(0);
+            }
+        }
+
+        for entity in &map.entities {
+            hasher.write_u32(entity.id);
+            hasher.write_u32(entity.position.x.to_bits());
+            hasher.write_u32(entity.position.y.to_bits());
+            hasher.write_u32(entity.position.z.to_bits());
+            hasher.write_u8(u8::from(
+                entity.attributes.get_bool_default("visible", false),
+            ));
+            if let Some(Value::Source(source)) = entity.attributes.get("source") {
+                Self::hash_pixel_source(&mut hasher, source);
+            } else {
+                hasher.write_u8(0);
+            }
+            if let Some(Value::Light(light)) = entity.attributes.get("light") {
+                hasher.write_u8(1);
+                Self::hash_light_value(&mut hasher, light);
+            } else {
+                hasher.write_u8(0);
+            }
+            // Avatar selection can change with attrs without position changes.
+            hasher.write(
+                entity
+                    .get_attr_string("anim")
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
+            hasher.write(
+                entity
+                    .get_attr_string("perspective")
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
+        }
+
+        hasher.finish()
+    }
+
+    fn dynamics_hash_3d(&self, map: &Map, camera: &dyn D3Camera) -> u64 {
+        let mut hasher = rustc_hash::FxHasher::default();
+        hasher.write(map.id.as_bytes());
+        hasher.write(camera.id().as_bytes());
+        Self::hash_vec3(&mut hasher, camera.position());
+        let (fwd, right, up) = camera.basis_vectors();
+        Self::hash_vec3(&mut hasher, fwd);
+        Self::hash_vec3(&mut hasher, right);
+        Self::hash_vec3(&mut hasher, up);
+
+        hasher.write_u64(map.items.len() as u64);
+        hasher.write_u64(map.entities.len() as u64);
+
+        for item in &map.items {
+            hasher.write_u32(item.id);
+            hasher.write_u32(item.position.x.to_bits());
+            hasher.write_u32(item.position.y.to_bits());
+            hasher.write_u32(item.position.z.to_bits());
+            hasher.write_u8(u8::from(item.attributes.get_bool_default("visible", false)));
+            if let Some(Value::Source(source)) = item.attributes.get("source") {
+                Self::hash_pixel_source(&mut hasher, source);
+            } else {
+                hasher.write_u8(0);
+            }
+            if let Some(Value::Light(light)) = item.attributes.get("light") {
+                hasher.write_u8(1);
+                Self::hash_light_value(&mut hasher, light);
+            } else {
+                hasher.write_u8(0);
+            }
+        }
+
+        for entity in &map.entities {
+            hasher.write_u32(entity.id);
+            hasher.write_u32(entity.position.x.to_bits());
+            hasher.write_u32(entity.position.y.to_bits());
+            hasher.write_u32(entity.position.z.to_bits());
+            hasher.write_u8(u8::from(
+                entity.attributes.get_bool_default("visible", false),
+            ));
+            if let Some(Value::Source(source)) = entity.attributes.get("source") {
+                Self::hash_pixel_source(&mut hasher, source);
+            } else {
+                hasher.write_u8(0);
+            }
+            if let Some(Value::Light(light)) = entity.attributes.get("light") {
+                hasher.write_u8(1);
+                Self::hash_light_value(&mut hasher, light);
+            } else {
+                hasher.write_u8(0);
+            }
+            hasher.write(
+                entity
+                    .get_attr_string("anim")
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
+            hasher.write(
+                entity
+                    .get_attr_string("perspective")
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
+        }
+
+        hasher.finish()
     }
 
     pub fn set_timings(&mut self, render_fps: f32, game_tick_ms: i32) {
@@ -348,7 +574,13 @@ impl SceneHandler {
     }
 
     /// Build dynamic elements of the 2D Map: Entities, Items, Lights ...
-    pub fn build_dynamics_2d(&mut self, map: &Map, assets: &Assets) {
+    pub fn build_dynamics_2d(&mut self, map: &Map, _animation_frame: usize, assets: &Assets) {
+        let current_hash = self.dynamics_hash_2d(map);
+        if self.dynamics_ready_2d && self.last_dynamics_hash_2d == Some(current_hash) {
+            return;
+        }
+        self.last_dynamics_hash_2d = Some(current_hash);
+
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
@@ -446,17 +678,23 @@ impl SceneHandler {
 
         self.avatar_builder
             .remove_stale_avatars(&mut self.vm, &active_avatar_geo);
+        self.dynamics_ready_2d = true;
     }
 
     pub fn build_dynamics_3d(
         &mut self,
         map: &Map,
         camera: &dyn D3Camera,
-        _animation_frame: usize,
+        animation_frame: usize,
         assets: &Assets,
     ) {
-        // Advance local frame counter each render call; Eldiron renders at a fixed 30 FPS.
-        self.frame_counter = self.frame_counter.wrapping_add(1);
+        let current_hash = self.dynamics_hash_3d(map, camera);
+        if self.dynamics_ready_3d && self.last_dynamics_hash_3d == Some(current_hash) {
+            return;
+        }
+        self.last_dynamics_hash_3d = Some(current_hash);
+
+        self.frame_counter = animation_frame;
 
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
@@ -519,7 +757,7 @@ impl SceneHandler {
                             entity,
                             avatar,
                             assets,
-                            _animation_frame,
+                            animation_frame,
                             geo_id,
                         ) {
                             active_avatar_geo.insert(geo_id);
@@ -700,7 +938,7 @@ impl SceneHandler {
 
             let (clock_frame, clock_fps) = match clock {
                 AnimationClock::Render => (self.frame_counter, self.render_fps),
-                AnimationClock::GameTick => (_animation_frame, self.game_tick_fps),
+                AnimationClock::GameTick => (animation_frame, self.game_tick_fps),
             };
 
             // Opening means the door scrolls away, so open_amount = 1.0 => fully open (invisible).
@@ -779,5 +1017,6 @@ impl SceneHandler {
 
         self.avatar_builder
             .remove_stale_avatars(&mut self.vm, &active_avatar_geo);
+        self.dynamics_ready_3d = true;
     }
 }

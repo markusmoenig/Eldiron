@@ -78,6 +78,12 @@ impl Rusterix {
     pub fn set_dirty(&mut self) {
         self.is_dirty_d2 = true;
         self.is_dirty_d3 = true;
+        self.scene_handler.mark_dynamics_dirty();
+    }
+
+    /// Invalidate only dynamic overlays (entities/items/lights), keep static geometry intact.
+    pub fn set_overlay_dirty(&mut self) {
+        self.scene_handler.mark_dynamics_dirty();
     }
 
     /// Set the assets

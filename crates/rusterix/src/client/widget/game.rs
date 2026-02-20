@@ -39,6 +39,7 @@ pub struct GameWidget {
     pub current_sector_name: String,
     pub iso_hidden_sectors: FxHashSet<u32>,
     pub iso_sector_fade: FxHashMap<u32, f32>,
+    pub force_dynamics_rebuild: bool,
 }
 
 impl Default for GameWidget {
@@ -80,6 +81,7 @@ impl GameWidget {
             current_sector_name: String::new(),
             iso_hidden_sectors: FxHashSet::default(),
             iso_sector_fade: FxHashMap::default(),
+            force_dynamics_rebuild: true,
         }
     }
 
@@ -107,6 +109,7 @@ impl GameWidget {
 
     pub fn set_camera_mode(&mut self, camera: PlayerCamera) {
         self.camera = camera;
+        self.force_dynamics_rebuild = true;
         match self.camera {
             PlayerCamera::D2 => {}
             PlayerCamera::D3Iso => {
@@ -139,12 +142,17 @@ impl GameWidget {
                 }
             }
         }
+        self.force_dynamics_rebuild = true;
     }
 
-    pub fn build(&mut self, map: &Map, assets: &Assets, _scene_handler: &mut SceneHandler) {
+    pub fn build(&mut self, map: &Map, assets: &Assets, scene_handler: &mut SceneHandler) {
         if let Some(bbox) = map.bounding_box() {
             self.map_bbox = bbox;
         }
+
+        // Force dynamic overlays (billboards/lights) to rebuild immediately after map swaps.
+        scene_handler.mark_dynamics_dirty();
+        self.force_dynamics_rebuild = true;
 
         self.scenemanager
             .set_tile_list(assets.tile_list.clone(), assets.tile_indices.clone());
@@ -162,6 +170,11 @@ impl GameWidget {
         animation_frame: usize,
         scene_handler: &mut SceneHandler,
     ) {
+        if self.force_dynamics_rebuild {
+            scene_handler.mark_dynamics_dirty();
+            self.force_dynamics_rebuild = false;
+        }
+
         for entity in map.entities.iter() {
             if entity.is_player() {
                 // if let Some(Value::PlayerCamera(camera)) = entity.attributes.get("player_camera") {
@@ -191,7 +204,7 @@ impl GameWidget {
         }
 
         if self.camera == PlayerCamera::D2 {
-            scene_handler.build_dynamics_2d(map, assets);
+            scene_handler.build_dynamics_2d(map, animation_frame, assets);
         } else {
             scene_handler.build_dynamics_3d(map, self.camera_d3.as_ref(), animation_frame, assets);
         }
@@ -238,6 +251,13 @@ impl GameWidget {
                 }
                 _ => {}
             }
+        }
+
+        // Geometry streaming/reset can happen before dynamics are visible on first game frames.
+        // Force a fresh dynamics pass whenever static scene content changed.
+        if geometry_changed {
+            scene_handler.mark_dynamics_dirty();
+            self.force_dynamics_rebuild = true;
         }
 
         self.apply_iso_sector_visibility(map, scene_handler, geometry_changed);

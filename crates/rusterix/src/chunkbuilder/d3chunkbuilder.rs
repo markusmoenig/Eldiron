@@ -1698,7 +1698,90 @@ impl ChunkBuilder for D3ChunkBuilder {
             }
         }
 
+        // Linedef feature collisions (palisade/fence) are generated non-destructively,
+        // so add blocking volumes here to match render geometry.
+        add_linedef_feature_collision(map, &chunk_bbox, &mut collision);
+
         collision
+    }
+}
+
+fn add_linedef_feature_collision(
+    map: &Map,
+    chunk_bbox: &crate::BBox,
+    collision: &mut crate::collision_world::ChunkCollision,
+) {
+    for linedef in &map.linedefs {
+        let feature = linedef
+            .properties
+            .get_str_default("linedef_feature", "None".to_string());
+        if feature != "Palisade" && feature != "Fence" {
+            continue;
+        }
+
+        let Some(v0) = map.get_vertex_3d(linedef.start_vertex) else {
+            continue;
+        };
+        let Some(v1) = map.get_vertex_3d(linedef.end_vertex) else {
+            continue;
+        };
+
+        let mut min2 = Vec2::new(v0.x.min(v1.x), v0.z.min(v1.z));
+        let mut max2 = Vec2::new(v0.x.max(v1.x), v0.z.max(v1.z));
+
+        let base_height = linedef.properties.get_float_default("feature_height", 0.0);
+        if base_height <= 0.0 {
+            continue;
+        }
+
+        let (half_thickness, extra_height) = if feature == "Palisade" {
+            let depth = linedef
+                .properties
+                .get_float_default("feature_depth", 0.12)
+                .max(0.02);
+            let segment_size = linedef
+                .properties
+                .get_float_default("feature_segment_size", 0.75)
+                .max(0.05);
+            let top_height = linedef
+                .properties
+                .get_float_default("feature_top_height", 0.5)
+                .max(0.0);
+            (depth.max(segment_size * 0.25).max(0.05), top_height)
+        } else {
+            let post_size = linedef
+                .properties
+                .get_float_default("feature_post_size", 0.18)
+                .max(0.02);
+            let connector_size = linedef
+                .properties
+                .get_float_default("feature_connector_size", 0.12)
+                .max(0.01);
+            ((post_size.max(connector_size) * 0.5).max(0.05), 0.0)
+        };
+
+        let lean = linedef
+            .properties
+            .get_float_default("feature_lean_amount", 0.0)
+            .max(0.0);
+        let pad = half_thickness + lean;
+        min2.x -= pad;
+        min2.y -= pad;
+        max2.x += pad;
+        max2.y += pad;
+
+        let feature_bbox = crate::BBox::new(min2, max2);
+        if !feature_bbox.intersects(chunk_bbox) {
+            continue;
+        }
+
+        let min_y = v0.y.min(v1.y);
+        let max_y = min_y + base_height + extra_height;
+        collision.static_volumes.push(BlockingVolume {
+            geo_id: GeoId::Linedef(linedef.id),
+            min: Vec3::new(min2.x, min_y, min2.y),
+            max: Vec3::new(max2.x, max_y, max2.y),
+        });
     }
 }
 

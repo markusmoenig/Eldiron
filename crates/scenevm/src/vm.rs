@@ -9,6 +9,7 @@ use crate::{
 use bytemuck::{Pod, Zeroable};
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
+use std::hash::Hasher;
 use uuid::Uuid;
 use vek::{Mat3, Mat4, Vec2, Vec3, Vec4};
 
@@ -688,6 +689,7 @@ pub struct VM {
     cached_tile_frame_data: Vec<TileFramePod>,
     cached_atlas_layout_version: u64,
     tile_gpu_dirty: bool,
+    cached_scene_data_hash: u64,
 
     // Camera
     pub camera3d: Camera3D,
@@ -1490,11 +1492,18 @@ impl VM {
         use wgpu::util::DeviceExt;
 
         let scene_data = self.build_scene_data_blob();
+        let mut hasher = rustc_hash::FxHasher::default();
+        hasher.write(&scene_data);
+        let scene_data_hash = hasher.finish();
         let needs_recreate = if let Some(g) = self.gpu.as_ref() {
             g.scene_data_ssbo.is_none() || g.scene_data_ssbo_size != scene_data.len()
         } else {
             true
         };
+
+        if !needs_recreate && self.cached_scene_data_hash == scene_data_hash {
+            return;
+        }
 
         let g = self.gpu.as_mut().unwrap();
         if needs_recreate {
@@ -1509,6 +1518,7 @@ impl VM {
         } else if let Some(buf) = g.scene_data_ssbo.as_ref() {
             queue.write_buffer(buf, 0, &scene_data);
         }
+        self.cached_scene_data_hash = scene_data_hash;
     }
 
     #[inline]
@@ -1734,6 +1744,7 @@ impl VM {
             cached_tile_frame_data: Vec::new(),
             cached_atlas_layout_version: 0,
             tile_gpu_dirty: true,
+            cached_scene_data_hash: 0,
             camera3d: Camera3D::default(),
             enabled: true,
             layer_index: 0,
