@@ -382,9 +382,9 @@ impl GameWidget {
 
         let hour = time.to_f32();
 
-        scene_handler
-            .vm
-            .execute(scenevm::Atom::SetRenderMode(scenevm::RenderMode::Compute2D));
+        scene_handler.vm.execute(scenevm::Atom::SetRenderMode(
+            scene_handler.settings.scenevm_mode_2d(),
+        ));
 
         scene_handler.settings.apply_hour(hour);
         scene_handler.settings.apply_2d(&mut scene_handler.vm);
@@ -502,9 +502,9 @@ impl GameWidget {
             .vm
             .execute(scenevm::Atom::SetBackground(Vec4::new(0.0, 0.0, 0.0, 1.0)));
 
-        scene_handler
-            .vm
-            .execute(scenevm::Atom::SetRenderMode(scenevm::RenderMode::Compute3D));
+        scene_handler.vm.execute(scenevm::Atom::SetRenderMode(
+            scene_handler.settings.scenevm_mode_3d(),
+        ));
 
         scene_handler.vm.execute(scenevm::Atom::SetCamera3D {
             camera: self.camera_d3.as_scenevm_camera(),
@@ -538,6 +538,24 @@ impl GameWidget {
         force_reapply: bool,
     ) {
         const FADE_STEP: f32 = 0.08;
+        // Outside ISO mode, always force canonical sector visibility/opacity.
+        if self.camera != PlayerCamera::D3Iso {
+            scene_handler.vm.set_active_vm(0);
+            for sector in &map.sectors {
+                scene_handler.vm.execute(scenevm::Atom::SetGeoOpacity {
+                    id: scenevm::GeoId::Sector(sector.id),
+                    opacity: 1.0,
+                });
+                scene_handler.vm.execute(scenevm::Atom::SetGeoVisible {
+                    id: scenevm::GeoId::Sector(sector.id),
+                    visible: sector.properties.get_bool_default("visible", true),
+                });
+            }
+            self.iso_hidden_sectors.clear();
+            self.iso_sector_fade.clear();
+            return;
+        }
+
         fn matches_pattern(name: &str, pattern: &str) -> bool {
             let name = name.trim().to_ascii_lowercase();
             let pattern = pattern.trim().to_ascii_lowercase();
@@ -558,8 +576,7 @@ impl GameWidget {
                 .iter()
                 .find(|sector| sector.name == self.current_sector_name)
         });
-        if self.camera == PlayerCamera::D3Iso
-            && let Some(current_sector) = current_sector
+        if let Some(current_sector) = current_sector
             && let Some(Value::StrArray(patterns)) =
                 current_sector.properties.get("iso_hide_on_enter")
         {

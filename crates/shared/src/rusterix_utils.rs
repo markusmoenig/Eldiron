@@ -85,6 +85,8 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     }
 
     rusterix.server.set_state(rusterix::ServerState::Running);
+    // Force dynamic overlays (lights/billboards/avatars) to rebuild after restarts.
+    rusterix.scene_handler.mark_dynamics_dirty();
 }
 
 /// Setup the client
@@ -114,6 +116,9 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
             }
         }
     }
+    // Client setup can swap maps/widgets while keeping SceneVM alive.
+    // Invalidate dynamic caches so first game frame always reuploads lights/dynamics.
+    rusterix.scene_handler.mark_dynamics_dirty();
     rusterix.setup_client()
 }
 

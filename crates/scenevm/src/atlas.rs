@@ -161,7 +161,7 @@ impl SharedAtlas {
         let tile = guard.tiles_map.get_mut(id)?;
         let out = f(tile);
         guard.atlas_dirty = true;
-        guard.layout_dirty = true;
+        // Pixel/material edits don't require repacking atlas layout.
         Some(out)
     }
 
@@ -223,12 +223,15 @@ impl SharedAtlas {
 
     pub fn ensure_built(&self) -> bool {
         let mut guard = self.inner.lock().unwrap();
-        if !guard.layout_dirty {
-            return false;
+        if guard.layout_dirty {
+            build_atlas_inner(&mut guard);
+            guard.layout_dirty = false;
+            return true;
         }
-        build_atlas_inner(&mut guard);
-        guard.layout_dirty = false;
-        true
+        if guard.atlas_dirty {
+            repaint_atlas_pixels_inner(&mut guard);
+        }
+        false
     }
 
     /// Return a normalized atlas rect (ofs.xy, scale.xy) for a tile, suitable for SDF data packing.
@@ -365,6 +368,53 @@ fn build_atlas_inner(inner: &mut SharedAtlasInner) {
         }
     }
     inner.layout_version = inner.layout_version.wrapping_add(1);
+}
+
+fn repaint_atlas_pixels_inner(inner: &mut SharedAtlasInner) {
+    inner.atlas.data.fill(0);
+    inner.atlas_material.data.fill(0);
+
+    for id in &inner.tiles_order {
+        let Some(tile) = inner.tiles_map.get(id) else {
+            continue;
+        };
+        let Some(rects) = inner.atlas_map.get(id) else {
+            continue;
+        };
+        if tile.w == 0 || tile.h == 0 {
+            continue;
+        }
+        let need_bytes = (tile.w as usize) * (tile.h as usize) * 4;
+        for (f, rect) in rects.iter().enumerate() {
+            if f >= tile.frames.len() {
+                break;
+            }
+            let frame_owned = tile.frames[f].clone();
+            let mat_owned = if f < tile.material_frames.len() {
+                tile.material_frames[f].clone()
+            } else {
+                default_material_frame(need_bytes)
+            };
+            blit_rgba_into(
+                &mut inner.atlas.data,
+                inner.atlas.width,
+                &frame_owned,
+                rect.w,
+                rect.h,
+                rect.x,
+                rect.y,
+            );
+            blit_rgba_into(
+                &mut inner.atlas_material.data,
+                inner.atlas_material.width,
+                &mat_owned,
+                rect.w,
+                rect.h,
+                rect.x,
+                rect.y,
+            );
+        }
+    }
 }
 
 pub fn default_material_frame(bytes: usize) -> Vec<u8> {

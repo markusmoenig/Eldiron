@@ -259,9 +259,10 @@ impl SceneHandler {
         hasher.write_u8(u8::from(light.active));
     }
 
-    fn dynamics_hash_2d(&self, map: &Map) -> u64 {
+    fn dynamics_hash_2d(&self, map: &Map, animation_frame: usize) -> u64 {
         let mut hasher = rustc_hash::FxHasher::default();
         hasher.write(map.id.as_bytes());
+        hasher.write_u64(animation_frame as u64);
         hasher.write_u64(map.items.len() as u64);
         hasher.write_u64(map.entities.len() as u64);
 
@@ -321,9 +322,10 @@ impl SceneHandler {
         hasher.finish()
     }
 
-    fn dynamics_hash_3d(&self, map: &Map, camera: &dyn D3Camera) -> u64 {
+    fn dynamics_hash_3d(&self, map: &Map, camera: &dyn D3Camera, animation_frame: usize) -> u64 {
         let mut hasher = rustc_hash::FxHasher::default();
         hasher.write(map.id.as_bytes());
+        hasher.write_u64(animation_frame as u64);
         hasher.write(camera.id().as_bytes());
         Self::hash_vec3(&mut hasher, camera.position());
         let (fwd, right, up) = camera.basis_vectors();
@@ -574,8 +576,8 @@ impl SceneHandler {
     }
 
     /// Build dynamic elements of the 2D Map: Entities, Items, Lights ...
-    pub fn build_dynamics_2d(&mut self, map: &Map, _animation_frame: usize, assets: &Assets) {
-        let current_hash = self.dynamics_hash_2d(map);
+    pub fn build_dynamics_2d(&mut self, map: &Map, animation_frame: usize, assets: &Assets) {
+        let current_hash = self.dynamics_hash_2d(map, animation_frame);
         if self.dynamics_ready_2d && self.last_dynamics_hash_2d == Some(current_hash) {
             return;
         }
@@ -656,7 +658,7 @@ impl SceneHandler {
                         entity,
                         avatar,
                         assets,
-                        0,
+                        animation_frame,
                         geo_id,
                     ) {
                         active_avatar_geo.insert(geo_id);
@@ -688,13 +690,19 @@ impl SceneHandler {
         animation_frame: usize,
         assets: &Assets,
     ) {
-        let current_hash = self.dynamics_hash_3d(map, camera);
-        if self.dynamics_ready_3d && self.last_dynamics_hash_3d == Some(current_hash) {
+        self.frame_counter = self.frame_counter.wrapping_add(1);
+        let has_active_render_billboard_anim = self
+            .billboard_anim_states
+            .values()
+            .any(|state| (state.start_open - state.target_open).abs() > f32::EPSILON);
+        let current_hash = self.dynamics_hash_3d(map, camera, animation_frame);
+        if self.dynamics_ready_3d
+            && self.last_dynamics_hash_3d == Some(current_hash)
+            && !has_active_render_billboard_anim
+        {
             return;
         }
         self.last_dynamics_hash_3d = Some(current_hash);
-
-        self.frame_counter = animation_frame;
 
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
@@ -911,10 +919,10 @@ impl SceneHandler {
                         .get_str("animation_clock")
                         .map(|s| s.to_ascii_lowercase())
                     {
-                        Some(ref s) if s == "frame" || s == "tick" || s == "game" => {
-                            AnimationClock::GameTick
+                        Some(ref s) if s == "tick" || s == "game" => AnimationClock::GameTick,
+                        Some(ref s) if s == "render" || s == "smooth" || s == "frame" => {
+                            AnimationClock::Render
                         }
-                        Some(ref s) if s == "render" || s == "smooth" => AnimationClock::Render,
                         _ => AnimationClock::Render,
                     };
                     (visible, anim, duration, clock)
@@ -961,6 +969,10 @@ impl SceneHandler {
             }
 
             let open_amount = state.open_amount(clock_frame, clock_fps, duration_s);
+            if (open_amount - state.target_open).abs() <= 1e-3 {
+                state.start_open = state.target_open;
+                state.start_frame = clock_frame;
+            }
 
             // Skip fully open (invisible) state after animation completes.
             if open_amount >= 0.999 && desired_open > 0.5 {

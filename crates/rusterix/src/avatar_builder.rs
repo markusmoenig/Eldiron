@@ -598,14 +598,9 @@ impl AvatarRuntimeBuilder {
             .or_else(|| anim.perspectives.first())
             .map(|p| p.frames.len().max(1))
             .unwrap_or(1);
-        let speed = if anim.speed.is_finite() {
-            anim.speed.max(0.01)
-        } else {
-            1.0
-        };
-        // speed is a time scale: 1.0 normal, >1.0 slower, <1.0 faster.
-        let scaled_frame = (frame_index as f32 / speed).floor() as usize;
-        let frame_idx = scaled_frame % frame_count;
+        // Keep runtime avatar frame selection deterministic and cheap.
+        // Per-animation speed scaling can be reintroduced once its semantics are finalized.
+        let frame_idx = frame_index % frame_count;
         let key = (anim_name.to_string(), persp_dir, frame_idx);
 
         let Some(cache) = self.avatar_frame_cache.get_mut(&geo_id) else {
@@ -615,20 +610,14 @@ impl AvatarRuntimeBuilder {
             return false;
         };
 
-        if cache.last_uploaded.as_ref() != Some(&key) {
-            let has_visible_alpha = rgba.chunks_exact(4).any(|px| px[3] > 0);
-            // Some avatar frames resolve to fully transparent data; avoid uploading those
-            // so we don't flash/replace with an empty billboard frame.
-            if !has_visible_alpha {
-                return cache.last_uploaded.is_some();
-            }
-            vm.execute(Atom::SetAvatarBillboardData {
-                id: geo_id,
-                size: *size,
-                rgba: rgba.clone(),
-            });
-            cache.last_uploaded = Some(key);
-        }
+        // Avatars are highly dynamic (animation + gear swaps), so always push the current frame,
+        // including fully transparent frames.
+        vm.execute(Atom::SetAvatarBillboardData {
+            id: geo_id,
+            size: *size,
+            rgba: rgba.clone(),
+        });
+        cache.last_uploaded = Some(key);
         true
     }
 

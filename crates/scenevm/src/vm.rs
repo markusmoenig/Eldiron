@@ -9,7 +9,7 @@ use crate::{
 use bytemuck::{Pod, Zeroable};
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::hash::Hasher;
+use std::hash::{Hash, Hasher};
 use uuid::Uuid;
 use vek::{Mat3, Mat4, Vec2, Vec3, Vec4};
 
@@ -378,19 +378,34 @@ pub struct VMGpu {
     pub compute2d_pipeline: Option<wgpu::ComputePipeline>,
     pub compute3d_pipeline: Option<wgpu::ComputePipeline>,
     pub compute_sdf_pipeline: Option<wgpu::ComputePipeline>,
+    pub raster3d_pipeline: Option<wgpu::RenderPipeline>,
+    pub raster3d_alpha_pipeline: Option<wgpu::RenderPipeline>,
+    pub raster3d_shadow_pipeline: Option<wgpu::RenderPipeline>,
     pub u2d_buf: Option<wgpu::Buffer>,
     pub u3d_buf: Option<wgpu::Buffer>,
     pub u_sdf_buf: Option<wgpu::Buffer>,
+    pub u_raster3d_buf: Option<wgpu::Buffer>,
     pub u2d_bgl: Option<wgpu::BindGroupLayout>,
     pub u3d_bgl: Option<wgpu::BindGroupLayout>,
     pub u_sdf_bgl: Option<wgpu::BindGroupLayout>,
+    pub u_raster3d_bgl: Option<wgpu::BindGroupLayout>,
+    pub u_raster3d_shadow_bgl: Option<wgpu::BindGroupLayout>,
     pub u2d_bg: Option<wgpu::BindGroup>,
     pub u3d_bg: Option<wgpu::BindGroup>,
     pub u_sdf_bg: Option<wgpu::BindGroup>,
+    pub u_raster3d_bg: Option<wgpu::BindGroup>,
+    pub u_raster3d_shadow_bg: Option<wgpu::BindGroup>,
     pub v2d_ssbo: Option<wgpu::Buffer>,
     pub i2d_ssbo: Option<wgpu::Buffer>,
     pub v3d_ssbo: Option<wgpu::Buffer>,
     pub i3d_ssbo: Option<wgpu::Buffer>,
+    pub i3d_raster: Option<wgpu::Buffer>,
+    pub i3d_raster_count: u32,
+    pub i3d_raster_opaque: Option<wgpu::Buffer>,
+    pub i3d_raster_opaque_count: u32,
+    pub i3d_raster_transparent: Option<wgpu::Buffer>,
+    pub i3d_raster_transparent_count: u32,
+    pub shadow_sampler_compare: Option<wgpu::Sampler>,
     // --- Tiling
     pub tile_bins: Option<wgpu::Buffer>,
     pub tile_tris: Option<wgpu::Buffer>,
@@ -566,6 +581,42 @@ pub struct ComputeSdfUniforms {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
+pub struct Raster3DUniforms {
+    pub cam_pos: [f32; 4],
+    pub cam_fwd: [f32; 4],
+    pub cam_right: [f32; 4],
+    pub cam_up: [f32; 4],
+    pub sun_color_intensity: [f32; 4],
+    pub sun_dir_enabled: [f32; 4],
+    pub ambient_color_strength: [f32; 4],
+    pub fog_color_density: [f32; 4],
+    pub shadow_light_right: [f32; 4],
+    pub shadow_light_up: [f32; 4],
+    pub shadow_light_fwd: [f32; 4],
+    pub shadow_light_center: [f32; 4],
+    pub shadow_light_extents: [f32; 4], // half_w, half_h, near, far
+    pub shadow_params: [f32; 4], // x=max_shadow_distance, y=shadow_strength, z=bump_strength, w=shadow_bias
+    pub point_light_pos_intensity: [[f32; 4]; 4], // xyz + intensity
+    pub point_light_color_range: [[f32; 4]; 4], // rgb + end_distance
+    pub point_light_count: u32,
+    pub _pad_light_count: [u32; 3],
+    pub _pad_lights: [u32; 4],
+    pub fb_size: [f32; 2],
+    pub cam_vfov_deg: f32,
+    pub cam_ortho_half_h: f32,
+    pub cam_near: f32,
+    pub cam_far: f32,
+    pub cam_kind: u32, // 0=OrthoIso, 1=OrbitPersp, 2=FirstPersonPersp
+    pub anim_counter: u32,
+    pub _pad: [u32; 2], // x=fade_mode, y=lighting_model
+    pub _pad_post_pre: [u32; 2],
+    pub post_params: [f32; 4], // x=enabled, y=tone_mapper, z=exposure, w=gamma
+    pub post_color_adjust: [f32; 4], // x=saturation, y=luminance, z=reserved, w=reserved
+    pub _pad_tail: [u32; 4],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Grid3DHeader {
     pub origin: [f32; 4],     // xyz, pad
     pub cell_size: [f32; 4],  // xyz, pad
@@ -605,10 +656,472 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 "#;
 
+pub const SCENEVM_3D_RASTER_WGSL: &str = r#"
+struct U {
+    cam_pos: vec4<f32>,
+    cam_fwd: vec4<f32>,
+    cam_right: vec4<f32>,
+    cam_up: vec4<f32>,
+    sun_color_intensity: vec4<f32>,
+    sun_dir_enabled: vec4<f32>,
+    ambient_color_strength: vec4<f32>,
+    fog_color_density: vec4<f32>,
+    shadow_light_right: vec4<f32>,
+    shadow_light_up: vec4<f32>,
+    shadow_light_fwd: vec4<f32>,
+    shadow_light_center: vec4<f32>,
+    shadow_light_extents: vec4<f32>,
+    shadow_params: vec4<f32>,
+    point_light_pos_intensity: array<vec4<f32>, 4>,
+    point_light_color_range: array<vec4<f32>, 4>,
+    point_light_count: u32,
+    _pad_lights: vec3<u32>,
+    fb_size: vec2<f32>,
+    cam_vfov_deg: f32,
+    cam_ortho_half_h: f32,
+    cam_near: f32,
+    cam_far: f32,
+    cam_kind: u32,
+    anim_counter: u32,
+    _pad0: vec2<u32>,
+    post_params: vec4<f32>,
+    post_color_adjust: vec4<f32>,
+    _pad1: vec2<u32>,
+};
+@group(0) @binding(0) var<uniform> UBO: U;
+@group(0) @binding(1) var atlas_tex: texture_2d<f32>;
+@group(0) @binding(2) var atlas_smp: sampler;
+@group(0) @binding(5) var shadow_tex: texture_depth_2d;
+@group(0) @binding(6) var shadow_smp: sampler_comparison;
+@group(0) @binding(7) var atlas_mat_tex: texture_2d<f32>;
+struct SceneDataBuf { data: array<u32> };
+@group(0) @binding(8) var<storage, read> scene_data: SceneDataBuf;
+
+struct TileAnimMeta { first_frame: u32, frame_count: u32, _pad0: u32, _pad1: u32 };
+struct TileFrame { ofs: vec2<f32>, scale: vec2<f32> };
+struct TileAnimMetaBuf { data: array<TileAnimMeta> };
+struct TileFrameBuf { data: array<TileFrame> };
+@group(0) @binding(3) var<storage, read> tile_meta: TileAnimMetaBuf;
+@group(0) @binding(4) var<storage, read> tile_frames: TileFrameBuf;
+
+struct VsIn {
+    @location(0) pos: vec3<f32>,
+    @location(1) uv: vec2<f32>,
+    @location(2) tile_index: u32,
+    @location(3) tile_index2: u32,
+    @location(4) blend_factor: f32,
+    @location(5) opacity: f32,
+    @location(6) normal: vec3<f32>,
+};
+
+struct VsOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+    @location(1) @interpolate(flat) tile_index: u32,
+    @location(2) @interpolate(flat) tile_index2: u32,
+    @location(3) blend_factor: f32,
+    @location(4) opacity: f32,
+    @location(5) normal: vec3<f32>,
+    @location(6) world_pos: vec3<f32>,
+};
+
+const TILE_INDEX_AVATAR_FLAG: u32 = 0x80000000u;
+
+fn camera_to_clip(world_pos: vec3<f32>) -> vec4<f32> {
+    let rel = world_pos - UBO.cam_pos.xyz;
+    let cx = dot(rel, UBO.cam_right.xyz);
+    let cy = dot(rel, UBO.cam_up.xyz);
+    let cz = dot(rel, UBO.cam_fwd.xyz);
+
+    let near_z = max(UBO.cam_near, 0.0001);
+    let far_z = max(UBO.cam_far, near_z + 0.0001);
+    let aspect = max(UBO.fb_size.x / max(UBO.fb_size.y, 1.0), 0.0001);
+
+    if (UBO.cam_kind == 0u) {
+        let depth = clamp((cz - near_z) / (far_z - near_z), 0.0, 1.0);
+        let half_h = max(UBO.cam_ortho_half_h, 0.0001);
+        let half_w = max(half_h * aspect, 0.0001);
+        return vec4<f32>(cx / half_w, cy / half_h, depth, 1.0);
+    }
+
+    // Keep camera-space sign so behind-camera vertices clip correctly.
+    var z = cz;
+    if (abs(z) < 0.0001) {
+        z = select(-0.0001, 0.0001, z >= 0.0);
+    }
+    let f = 1.0 / tan(radians(max(UBO.cam_vfov_deg, 1.0)) * 0.5);
+    // Perspective clip-space (wgpu): ndc = clip / w, z in [0,1].
+    // Build clip.z/clip.w so depth behaves like a standard projection matrix.
+    let a = far_z / (far_z - near_z);
+    let b = (-near_z * far_z) / (far_z - near_z);
+    return vec4<f32>(cx * (f / aspect), cy * f, a * z + b, z);
+}
+
+fn tile_frame(tile_idx: u32) -> TileFrame {
+    if (arrayLength(&tile_meta.data) == 0u || arrayLength(&tile_frames.data) == 0u) {
+        return TileFrame(vec2<f32>(0.0), vec2<f32>(0.0));
+    }
+    let meta_idx = min(tile_idx, arrayLength(&tile_meta.data) - 1u);
+    let tile_anim = tile_meta.data[meta_idx];
+    if (tile_anim.frame_count == 0u) {
+        return TileFrame(vec2<f32>(0.0), vec2<f32>(0.0));
+    }
+    var frame_offset: u32 = 0u;
+    if (tile_anim.frame_count > 1u) {
+        frame_offset = UBO.anim_counter % tile_anim.frame_count;
+    }
+    let frame_idx = min(tile_anim.first_frame + frame_offset, arrayLength(&tile_frames.data) - 1u);
+    return tile_frames.data[frame_idx];
+}
+
+fn sample_tile(tile_idx: u32, uv: vec2<f32>) -> vec4<f32> {
+    let frame = tile_frame(tile_idx);
+    let uv_wrapped = fract(uv);
+    var atlas_uv = frame.ofs + uv_wrapped * frame.scale;
+    let atlas_dims = vec2<f32>(textureDimensions(atlas_tex, 0));
+    let pad_uv = vec2<f32>(0.5) / max(atlas_dims, vec2<f32>(1.0));
+    let uv_min = frame.ofs + pad_uv;
+    let uv_max = frame.ofs + frame.scale - pad_uv;
+    atlas_uv = clamp(atlas_uv, uv_min, uv_max);
+    return textureSampleLevel(atlas_tex, atlas_smp, atlas_uv, 0.0);
+}
+
+fn sample_tile_material(tile_idx: u32, uv: vec2<f32>) -> vec4<f32> {
+    let frame = tile_frame(tile_idx);
+    let uv_wrapped = fract(uv);
+    var atlas_uv = frame.ofs + uv_wrapped * frame.scale;
+    let atlas_dims = vec2<f32>(textureDimensions(atlas_mat_tex, 0));
+    let pad_uv = vec2<f32>(0.5) / max(atlas_dims, vec2<f32>(1.0));
+    let uv_min = frame.ofs + pad_uv;
+    let uv_max = frame.ofs + frame.scale - pad_uv;
+    atlas_uv = clamp(atlas_uv, uv_min, uv_max);
+    return textureSampleLevel(atlas_mat_tex, atlas_smp, atlas_uv, 0.0);
+}
+
+fn sample_avatar(meta_idx: u32, uv: vec2<f32>) -> vec4<f32> {
+    if (arrayLength(&scene_data.data) < 8u) {
+        return vec4<f32>(0.0);
+    }
+    let avatar_meta_offset_words = scene_data.data[4u];
+    let avatar_meta_count = scene_data.data[5u];
+    let avatar_pixel_offset_words = scene_data.data[6u];
+    if (meta_idx >= avatar_meta_count) {
+        return vec4<f32>(0.0);
+    }
+    let header_words = 8u;
+    let meta_word_offset = header_words + avatar_meta_offset_words + meta_idx * 4u;
+    if (meta_word_offset + 1u >= arrayLength(&scene_data.data)) {
+        return vec4<f32>(0.0);
+    }
+    let offset_pixels = scene_data.data[meta_word_offset];
+    let size = scene_data.data[meta_word_offset + 1u];
+    if (size == 0u) {
+        return vec4<f32>(0.0);
+    }
+    let sizef = f32(size);
+    let suv = clamp(uv, vec2<f32>(0.0), vec2<f32>(0.9999));
+    let px = min(u32(floor(suv.x * sizef)), size - 1u);
+    let py = min(u32(floor(suv.y * sizef)), size - 1u);
+    let pixel_word = header_words + avatar_pixel_offset_words + offset_pixels + py * size + px;
+    if (pixel_word >= arrayLength(&scene_data.data)) {
+        return vec4<f32>(0.0);
+    }
+    let packed = scene_data.data[pixel_word];
+    let r = f32(packed & 0xFFu) / 255.0;
+    let g = f32((packed >> 8u) & 0xFFu) / 255.0;
+    let b = f32((packed >> 16u) & 0xFFu) / 255.0;
+    let a = f32((packed >> 24u) & 0xFFu) / 255.0;
+    return vec4<f32>(r, g, b, a);
+}
+
+fn unpack_material_nibbles(m: vec4<f32>) -> vec4<f32> {
+    let packed = u32(m.x * 255.0) | (u32(m.y * 255.0) << 8u) |
+                 (u32(m.z * 255.0) << 16u) | (u32(m.w * 255.0) << 24u);
+    let bits = packed & 0xFFFFu;
+    let roughness = f32(bits & 0xFu) / 15.0;
+    let metallic = f32((bits >> 4u) & 0xFu) / 15.0;
+    let opacity = f32((bits >> 8u) & 0xFu) / 15.0;
+    let emissive = f32((bits >> 12u) & 0xFu) / 15.0;
+    return vec4<f32>(roughness, metallic, opacity, emissive);
+}
+
+fn unpack_material_normal_ts(m: vec4<f32>) -> vec3<f32> {
+    let packed = u32(m.x * 255.0) | (u32(m.y * 255.0) << 8u) |
+                 (u32(m.z * 255.0) << 16u) | (u32(m.w * 255.0) << 24u);
+    let norm_bits = (packed >> 16u) & 0xFFFFu;
+    let nx = (f32(norm_bits & 0xFFu) / 255.0) * 2.0 - 1.0;
+    let ny = (f32((norm_bits >> 8u) & 0xFFu) / 255.0) * 2.0 - 1.0;
+    let nz = sqrt(max(0.0, 1.0 - nx * nx - ny * ny));
+    return vec3<f32>(nx, ny, nz);
+}
+
+fn distribution_ggx(NdotH: f32, roughness: f32) -> f32 {
+    let a = max(roughness * roughness, 0.04);
+    let a2 = a * a;
+    let nh2 = max(NdotH * NdotH, 0.0);
+    let denom = nh2 * (a2 - 1.0) + 1.0;
+    return a2 / (3.14159265 * denom * denom + 1e-6);
+}
+
+fn geometry_schlick_ggx(NdotX: f32, roughness: f32) -> f32 {
+    let r = roughness + 1.0;
+    let k = (r * r) / 8.0;
+    return NdotX / (NdotX * (1.0 - k) + k + 1e-6);
+}
+
+fn fresnel_schlick(cos_theta: f32, F0: vec3<f32>) -> vec3<f32> {
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
+}
+
+fn bayer4_threshold(x: u32, y: u32) -> f32 {
+    let xi = x & 3u;
+    let yi = y & 3u;
+    let idx = yi * 4u + xi;
+    let v = array<u32, 16>(
+        0u, 8u, 2u, 10u,
+        12u, 4u, 14u, 6u,
+        3u, 11u, 1u, 9u,
+        15u, 7u, 13u, 5u
+    );
+    return (f32(v[idx]) + 0.5) / 16.0;
+}
+
+fn sample_shadow(world_pos: vec3<f32>, NdotL: f32) -> f32 {
+    if (UBO.sun_dir_enabled.w <= 0.5 || UBO.shadow_params.x <= 0.5) {
+        return 1.0;
+    }
+    let rel = world_pos - UBO.shadow_light_center.xyz;
+    let lx = dot(rel, UBO.shadow_light_right.xyz);
+    let ly = dot(rel, UBO.shadow_light_up.xyz);
+    let lz = dot(rel, UBO.shadow_light_fwd.xyz);
+    let half_w = max(UBO.shadow_light_extents.x, 0.0001);
+    let half_h = max(UBO.shadow_light_extents.y, 0.0001);
+    let near_z = UBO.shadow_light_extents.z;
+    let far_z = max(UBO.shadow_light_extents.w, near_z + 0.0001);
+    let nx = lx / half_w;
+    let ny = ly / half_h;
+    let depth = clamp((lz - near_z) / (far_z - near_z), 0.0, 1.0);
+    // Render target space is Y-down for texture sampling; flip Y from NDC.
+    let uv = vec2<f32>(nx * 0.5 + 0.5, 1.0 - (ny * 0.5 + 0.5));
+    if (uv.x <= 0.0 || uv.x >= 1.0 || uv.y <= 0.0 || uv.y >= 1.0) {
+        return 1.0;
+    }
+    let bias = max(max(UBO.shadow_params.w, 0.0001), 0.003 * (1.0 - NdotL));
+    return textureSampleCompare(shadow_tex, shadow_smp, uv, depth - bias);
+}
+
+fn apply_post(color_linear: vec3<f32>) -> vec3<f32> {
+    let post_enabled = UBO.post_params.x > 0.5;
+    let tone_mapper = u32(max(UBO.post_params.y, 0.0));
+    let exposure = max(UBO.post_params.z, 0.0);
+    let gamma = max(UBO.post_params.w, 0.001);
+    var c = max(color_linear, vec3<f32>(0.0));
+
+    if (post_enabled) {
+        c = c * exposure;
+        if (tone_mapper == 1u) {
+            // Reinhard
+            c = c / (c + vec3<f32>(1.0));
+        } else if (tone_mapper == 2u) {
+            // ACES fit
+            let a = 2.51;
+            let b = 0.03;
+            let d = 0.59;
+            let e = 0.14;
+            c = clamp((c * (a * c + b)) / (c * (2.43 * c + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
+        }
+
+        let luminance = max(UBO.post_color_adjust.y, 0.0);
+        c = c * luminance;
+        let saturation = max(UBO.post_color_adjust.x, 0.0);
+        let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+        c = mix(vec3<f32>(luma), c, saturation);
+    }
+
+    c = max(c, vec3<f32>(0.0));
+
+    return pow(c, vec3<f32>(1.0 / gamma));
+}
+
+@vertex
+fn vs_main(in: VsIn) -> VsOut {
+    var out: VsOut;
+    out.pos = camera_to_clip(in.pos);
+    out.uv = in.uv;
+    out.tile_index = in.tile_index;
+    out.tile_index2 = in.tile_index2;
+    out.blend_factor = clamp(in.blend_factor, 0.0, 1.0);
+    out.opacity = clamp(in.opacity, 0.0, 1.0);
+    out.normal = normalize(in.normal);
+    out.world_pos = in.pos;
+    return out;
+}
+
+@vertex
+fn vs_shadow(in: VsIn) -> @builtin(position) vec4<f32> {
+    let rel = in.pos - UBO.shadow_light_center.xyz;
+    let lx = dot(rel, UBO.shadow_light_right.xyz);
+    let ly = dot(rel, UBO.shadow_light_up.xyz);
+    let lz = dot(rel, UBO.shadow_light_fwd.xyz);
+    let half_w = max(UBO.shadow_light_extents.x, 0.0001);
+    let half_h = max(UBO.shadow_light_extents.y, 0.0001);
+    let near_z = UBO.shadow_light_extents.z;
+    let far_z = max(UBO.shadow_light_extents.w, near_z + 0.0001);
+    let nx = lx / half_w;
+    let ny = ly / half_h;
+    let depth = clamp((lz - near_z) / (far_z - near_z), 0.0, 1.0);
+    return vec4<f32>(nx, ny, depth, 1.0);
+}
+
+@fragment
+fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    let is_avatar = (in.tile_index2 & TILE_INDEX_AVATAR_FLAG) != 0u;
+    let c0 = select(sample_tile(in.tile_index, in.uv), sample_avatar(in.tile_index, in.uv), is_avatar);
+    let c1 = sample_tile(in.tile_index2 & (~TILE_INDEX_AVATAR_FLAG), in.uv);
+    let m0_raw = sample_tile_material(in.tile_index, in.uv);
+    let m1_raw = sample_tile_material(in.tile_index2 & (~TILE_INDEX_AVATAR_FLAG), in.uv);
+    let m0 = select(
+        unpack_material_nibbles(m0_raw),
+        vec4<f32>(1.0, 0.0, 1.0, 0.0),
+        is_avatar
+    );
+    let m1 = unpack_material_nibbles(m1_raw);
+    let mat = select(mix(m0, m1, in.blend_factor), m0, is_avatar);
+    let n0_ts = select(unpack_material_normal_ts(m0_raw), vec3<f32>(0.0, 0.0, 1.0), is_avatar);
+    let n1_ts = unpack_material_normal_ts(m1_raw);
+    let n_ts = normalize(select(mix(n0_ts, n1_ts, in.blend_factor), n0_ts, is_avatar));
+    var color = select(mix(c0, c1, in.blend_factor), c0, is_avatar);
+    let intrinsic_alpha = clamp(color.a * mat.z, 0.0, 1.0);
+    let coverage = clamp(intrinsic_alpha * in.opacity, 0.0, 1.0);
+    if (coverage <= 0.001) {
+        discard;
+    }
+    let fade_mode = UBO._pad0.x;
+    let is_fading = in.opacity < 0.999;
+    if (is_fading) {
+        if (fade_mode == 0u) {
+            // Ordered dither mode: stable pseudo-transparency without alpha sorting.
+            let dither = bayer4_threshold(u32(in.pos.x), u32(in.pos.y));
+            if (coverage <= dither) {
+                discard;
+            }
+        }
+    } else {
+        // Non-fading surfaces use cutout thresholding for stable alpha-tested materials.
+        if (intrinsic_alpha <= 0.5) {
+            discard;
+        }
+    }
+    let out_alpha = select(1.0, coverage, is_fading && fade_mode == 1u);
+    let color_linear = pow(color.rgb, vec3<f32>(2.2));
+    if (mat.w > 0.95) {
+        return vec4<f32>(apply_post(color_linear * 2.0), out_alpha);
+    }
+    let ambient = UBO.ambient_color_strength.xyz * UBO.ambient_color_strength.w;
+    var N = normalize(in.normal);
+    let V = normalize(UBO.cam_pos.xyz - in.world_pos);
+    let bump_strength = clamp(UBO.shadow_params.z, 0.0, 1.0);
+    if (bump_strength > 0.001 && !is_avatar) {
+        let dpdx_pos = dpdx(in.world_pos);
+        let dpdy_pos = dpdy(in.world_pos);
+        let dpdx_uv = dpdx(in.uv);
+        let dpdy_uv = dpdy(in.uv);
+        let det = dpdx_uv.x * dpdy_uv.y - dpdx_uv.y * dpdy_uv.x;
+        if (abs(det) > 1e-6) {
+            let T = normalize((dpdx_pos * dpdy_uv.y - dpdy_pos * dpdx_uv.y) / det);
+            let B = normalize((-dpdx_pos * dpdy_uv.x + dpdy_pos * dpdx_uv.x) / det);
+            let N_ws = normalize(mat3x3<f32>(T, B, N) * n_ts);
+            N = normalize(mix(N, N_ws, bump_strength));
+        }
+    }
+    // Two-sided lighting: orient normal toward the viewer to avoid inverted-winding dark faces.
+    let Nf = select(-N, N, dot(N, V) >= 0.0);
+    let lighting_model = UBO._pad0.y;
+    let roughness = clamp(mat.x, 0.04, 1.0);
+    let metallic = clamp(mat.y, 0.0, 1.0);
+    let albedo = color_linear;
+    let F0 = mix(vec3<f32>(0.04), albedo, metallic);
+    let sun_enabled = select(0.0, 1.0, UBO.sun_dir_enabled.w > 0.5);
+    let L = normalize(-UBO.sun_dir_enabled.xyz);
+    let NdotL = max(dot(Nf, L), 0.0);
+    let shadow = sample_shadow(in.world_pos, NdotL);
+    let shadow_strength = clamp(UBO.shadow_params.y, 0.0, 1.0);
+    let shadow_term = mix(1.0, shadow, shadow_strength);
+    let sun_radiance = UBO.sun_color_intensity.xyz * UBO.sun_color_intensity.w * sun_enabled * shadow_term;
+    var sun = vec3<f32>(0.0);
+    if (NdotL > 0.0) {
+        if (lighting_model == 0u) {
+            sun = sun_radiance * NdotL;
+        } else {
+            let H = normalize(V + L);
+            let NdotV = max(dot(Nf, V), 0.0);
+            let NdotH = max(dot(Nf, H), 0.0);
+            let VdotH = max(dot(V, H), 0.0);
+            let NDF = distribution_ggx(NdotH, roughness);
+            let G = geometry_schlick_ggx(NdotV, roughness) * geometry_schlick_ggx(NdotL, roughness);
+            let F = fresnel_schlick(VdotH, F0);
+            let spec = (NDF * G * F) / max(4.0 * NdotV * NdotL, 1e-5);
+            let kS = F;
+            let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
+            let diffuse = kD * albedo / 3.14159265;
+            sun = (diffuse + spec) * sun_radiance * NdotL;
+        }
+    }
+    var point = vec3<f32>(0.0);
+    let point_count = min(UBO.point_light_count, 4u);
+    for (var li: u32 = 0u; li < point_count; li = li + 1u) {
+        let lp = UBO.point_light_pos_intensity[li].xyz;
+        let l_intensity = UBO.point_light_pos_intensity[li].w;
+        let l_range = max(UBO.point_light_color_range[li].w, 0.001);
+        let Lp_vec = lp - in.world_pos;
+        let l_dist = length(Lp_vec);
+        let l_dir = select(vec3<f32>(0.0, 1.0, 0.0), normalize(Lp_vec), l_dist > 1e-5);
+        let l_ndotl = max(dot(Nf, l_dir), 0.0);
+        let l_range_factor = smoothstep(l_range, 0.0, l_dist);
+        let l_atten = (l_intensity * l_range_factor) / max(l_dist * l_dist, 1e-4);
+        let radiance = UBO.point_light_color_range[li].xyz * l_atten;
+        if (l_ndotl > 0.0) {
+            if (lighting_model == 0u) {
+                point += radiance * l_ndotl;
+            } else {
+                let H = normalize(V + l_dir);
+                let NdotV = max(dot(Nf, V), 0.0);
+                let NdotH = max(dot(Nf, H), 0.0);
+                let VdotH = max(dot(V, H), 0.0);
+                let NDF = distribution_ggx(NdotH, roughness);
+                let G = geometry_schlick_ggx(NdotV, roughness) * geometry_schlick_ggx(l_ndotl, roughness);
+                let F = fresnel_schlick(VdotH, F0);
+                let spec = (NDF * G * F) / max(4.0 * NdotV * l_ndotl, 1e-5);
+                let kS = F;
+                let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
+                let diffuse = kD * albedo / 3.14159265;
+                point += (diffuse + spec) * radiance * l_ndotl;
+            }
+        }
+    }
+    var lit_color = max(albedo * (ambient + sun + point), vec3<f32>(0.0));
+    if (lighting_model != 0u) {
+        // For BRDF models, sun/point already include diffuse albedo response; only ambient needs albedo modulation.
+        lit_color = max(ambient * albedo + sun + point, vec3<f32>(0.0));
+    }
+
+    let fog_density = max(UBO.fog_color_density.w, 0.0);
+    if (fog_density <= 0.0) {
+        return vec4<f32>(apply_post(lit_color), out_alpha);
+    }
+    let fog_dist = distance(in.world_pos, UBO.cam_pos.xyz);
+    let fog_amount = fog_density * fog_dist * fog_dist;
+    let fog_factor = clamp(exp(-fog_amount), 0.0, 1.0);
+    let fogged = mix(UBO.fog_color_density.xyz, lit_color, fog_factor);
+    return vec4<f32>(apply_post(fogged), out_alpha);
+}
+"#;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RenderMode {
     Compute2D,
     Compute3D,
+    Raster3D,
     Sdf,
 }
 
@@ -690,6 +1203,7 @@ pub struct VM {
     cached_atlas_layout_version: u64,
     tile_gpu_dirty: bool,
     cached_scene_data_hash: u64,
+    raster_had_dynamics_last_frame: bool,
 
     // Camera
     pub camera3d: Camera3D,
@@ -1745,6 +2259,7 @@ impl VM {
             cached_atlas_layout_version: 0,
             tile_gpu_dirty: true,
             cached_scene_data_hash: 0,
+            raster_had_dynamics_last_frame: false,
             camera3d: Camera3D::default(),
             enabled: true,
             layer_index: 0,
@@ -2304,19 +2819,34 @@ impl VM {
             compute2d_pipeline: None,
             compute3d_pipeline: None,
             compute_sdf_pipeline: None,
+            raster3d_pipeline: None,
+            raster3d_alpha_pipeline: None,
+            raster3d_shadow_pipeline: None,
             u2d_buf: None,
             u3d_buf: None,
             u_sdf_buf: None,
+            u_raster3d_buf: None,
             u2d_bgl: None,
             u3d_bgl: None,
             u_sdf_bgl: None,
+            u_raster3d_bgl: None,
+            u_raster3d_shadow_bgl: None,
             u2d_bg: None,
             u3d_bg: None,
             u_sdf_bg: None,
+            u_raster3d_bg: None,
+            u_raster3d_shadow_bg: None,
             v2d_ssbo: None,
             i2d_ssbo: None,
             v3d_ssbo: None,
             i3d_ssbo: None,
+            i3d_raster: None,
+            i3d_raster_count: 0,
+            i3d_raster_opaque: None,
+            i3d_raster_opaque_count: 0,
+            i3d_raster_transparent: None,
+            i3d_raster_transparent_count: 0,
+            shadow_sampler_compare: None,
             tile_bins: None,
             tile_tris: None,
             tile_meta_ssbo: None,
@@ -2897,6 +3427,458 @@ impl VM {
         Ok(())
     }
 
+    fn init_raster3d(&mut self, device: &wgpu::Device) -> crate::SceneVMResult<()> {
+        if self.gpu.is_none() {
+            self.init_gpu(device)?;
+        }
+        self.upload_tile_metadata_to_gpu(device);
+        let g = self.gpu.as_mut().unwrap();
+        if g.raster3d_pipeline.is_some()
+            && g.raster3d_alpha_pipeline.is_some()
+            && g.u_raster3d_bgl.is_some()
+            && g.u_raster3d_buf.is_some()
+        {
+            return Ok(());
+        }
+
+        let u_raster3d_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("vm-raster3d-bgl"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 7,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 8,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let u_raster3d_shadow_bgl =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("vm-raster3d-shadow-bgl"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("vm-3d-raster-shader"),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(SCENEVM_3D_RASTER_WGSL)),
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("vm-3d-raster-pipeline-layout"),
+            bind_group_layouts: &[&u_raster3d_bgl],
+            push_constant_ranges: &[],
+        });
+        let shadow_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("vm-3d-raster-shadow-pipeline-layout"),
+                bind_group_layouts: &[&u_raster3d_shadow_bgl],
+                push_constant_ranges: &[],
+            });
+
+        let raster3d_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("vm-3d-raster-pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<Vert3DPod>() as u64,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &[
+                        wgpu::VertexAttribute {
+                            offset: 0,
+                            shader_location: 0,
+                            format: wgpu::VertexFormat::Float32x3,
+                        },
+                        wgpu::VertexAttribute {
+                            offset: 16,
+                            shader_location: 1,
+                            format: wgpu::VertexFormat::Float32x2,
+                        },
+                        wgpu::VertexAttribute {
+                            offset: 32,
+                            shader_location: 2,
+                            format: wgpu::VertexFormat::Uint32,
+                        },
+                        wgpu::VertexAttribute {
+                            offset: 36,
+                            shader_location: 3,
+                            format: wgpu::VertexFormat::Uint32,
+                        },
+                        wgpu::VertexAttribute {
+                            offset: 40,
+                            shader_location: 4,
+                            format: wgpu::VertexFormat::Float32,
+                        },
+                        wgpu::VertexAttribute {
+                            offset: 44,
+                            shader_location: 5,
+                            format: wgpu::VertexFormat::Float32,
+                        },
+                        wgpu::VertexAttribute {
+                            offset: 48,
+                            shader_location: 6,
+                            format: wgpu::VertexFormat::Float32x3,
+                        },
+                    ],
+                }],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                unclipped_depth: false,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+        let raster3d_alpha_pipeline =
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("vm-3d-raster-alpha-pipeline"),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<Vert3DPod>() as u64,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &[
+                            wgpu::VertexAttribute {
+                                offset: 0,
+                                shader_location: 0,
+                                format: wgpu::VertexFormat::Float32x3,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 16,
+                                shader_location: 1,
+                                format: wgpu::VertexFormat::Float32x2,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 32,
+                                shader_location: 2,
+                                format: wgpu::VertexFormat::Uint32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 36,
+                                shader_location: 3,
+                                format: wgpu::VertexFormat::Uint32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 40,
+                                shader_location: 4,
+                                format: wgpu::VertexFormat::Float32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 44,
+                                shader_location: 5,
+                                format: wgpu::VertexFormat::Float32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 48,
+                                shader_location: 6,
+                                format: wgpu::VertexFormat::Float32x3,
+                            },
+                        ],
+                    }],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_main"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: None,
+                    unclipped_depth: false,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: false,
+                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+                cache: None,
+            });
+        let raster3d_shadow_pipeline =
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("vm-3d-raster-shadow-pipeline"),
+                layout: Some(&shadow_pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_shadow"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<Vert3DPod>() as u64,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &[
+                            wgpu::VertexAttribute {
+                                offset: 0,
+                                shader_location: 0,
+                                format: wgpu::VertexFormat::Float32x3,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 16,
+                                shader_location: 1,
+                                format: wgpu::VertexFormat::Float32x2,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 32,
+                                shader_location: 2,
+                                format: wgpu::VertexFormat::Uint32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 36,
+                                shader_location: 3,
+                                format: wgpu::VertexFormat::Uint32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 40,
+                                shader_location: 4,
+                                format: wgpu::VertexFormat::Float32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 44,
+                                shader_location: 5,
+                                format: wgpu::VertexFormat::Float32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 48,
+                                shader_location: 6,
+                                format: wgpu::VertexFormat::Float32x3,
+                            },
+                        ],
+                    }],
+                },
+                fragment: None,
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: None,
+                    unclipped_depth: false,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState {
+                        constant: 1,
+                        slope_scale: 1.0,
+                        clamp: 0.0,
+                    },
+                }),
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+                cache: None,
+            });
+
+        let u_raster3d_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("vm-raster3d-uniforms"),
+            size: std::mem::size_of::<Raster3DUniforms>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let shadow_sampler_compare = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("vm-raster3d-shadow-compare-sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            compare: Some(wgpu::CompareFunction::LessEqual),
+            ..Default::default()
+        });
+
+        g.u_raster3d_bgl = Some(u_raster3d_bgl);
+        g.u_raster3d_shadow_bgl = Some(u_raster3d_shadow_bgl);
+        g.u_raster3d_buf = Some(u_raster3d_buf);
+        g.raster3d_pipeline = Some(raster3d_pipeline);
+        g.raster3d_alpha_pipeline = Some(raster3d_alpha_pipeline);
+        g.raster3d_shadow_pipeline = Some(raster3d_shadow_pipeline);
+        g.shadow_sampler_compare = Some(shadow_sampler_compare);
+
+        Ok(())
+    }
+
+    fn rebuild_raster_visible_indices(&self, camera: &Camera3D) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
+        if self.cached_i3.is_empty() || self.cached_tri_visibility.is_empty() {
+            return (Vec::new(), Vec::new(), Vec::new());
+        }
+        let tri_capacity = self.cached_i3.len() / 3;
+        let mut all_visible: Vec<u32> = Vec::with_capacity(self.cached_i3.len());
+        let mut opaque: Vec<u32> = Vec::with_capacity(self.cached_i3.len());
+        let mut transparent_tris: Vec<(f32, [u32; 3])> = Vec::new();
+        for tri in 0..tri_capacity {
+            let word = tri / 32;
+            let bit = tri % 32;
+            let visible = self
+                .cached_tri_visibility
+                .get(word)
+                .map(|w| ((w >> bit) & 1) != 0)
+                .unwrap_or(false);
+            if visible {
+                let base = tri * 3;
+                if base + 2 < self.cached_i3.len() {
+                    let i0 = self.cached_i3[base];
+                    let i1 = self.cached_i3[base + 1];
+                    let i2 = self.cached_i3[base + 2];
+                    all_visible.extend_from_slice(&[i0, i1, i2]);
+                    let v0 = self.cached_v3.get(i0 as usize);
+                    let v1 = self.cached_v3.get(i1 as usize);
+                    let v2 = self.cached_v3.get(i2 as usize);
+                    let is_transparent = if let (Some(a), Some(b), Some(c)) = (v0, v1, v2) {
+                        a.opacity < 0.999 || b.opacity < 0.999 || c.opacity < 0.999
+                    } else {
+                        false
+                    };
+                    if is_transparent {
+                        if let (Some(a), Some(b), Some(c)) = (v0, v1, v2) {
+                            let centroid = Vec3::new(
+                                (a.pos[0] + b.pos[0] + c.pos[0]) / 3.0,
+                                (a.pos[1] + b.pos[1] + c.pos[1]) / 3.0,
+                                (a.pos[2] + b.pos[2] + c.pos[2]) / 3.0,
+                            );
+                            let depth = (centroid - camera.pos).dot(camera.forward);
+                            transparent_tris.push((depth, [i0, i1, i2]));
+                        }
+                    } else {
+                        opaque.extend_from_slice(&[i0, i1, i2]);
+                    }
+                }
+            }
+        }
+        transparent_tris.sort_by(|a, b| b.0.total_cmp(&a.0));
+        let mut transparent: Vec<u32> = Vec::with_capacity(transparent_tris.len() * 3);
+        for (_, tri) in transparent_tris {
+            transparent.extend_from_slice(&tri);
+        }
+        (all_visible, opaque, transparent)
+    }
+
     /// Dispatches 2D compute pipeline into a storage-capable surface.
     pub fn compute_draw_2d_into(
         &mut self,
@@ -3421,7 +4403,6 @@ impl VM {
                 }
             }
             self.cached_tri_visibility = visibility_bits;
-            visibility_changed = true;
             self.visibility_dirty = false;
         }
 
@@ -3501,14 +4482,18 @@ impl VM {
                     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some("vm-3d-verts-ssbo"),
                         contents: bytemuck::cast_slice(&self.cached_v3),
-                        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                        usage: wgpu::BufferUsages::STORAGE
+                            | wgpu::BufferUsages::VERTEX
+                            | wgpu::BufferUsages::COPY_DST,
                     }),
                 );
                 g.i3d_ssbo = Some(
                     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some("vm-3d-indices-ssbo"),
                         contents: bytemuck::cast_slice(&self.cached_i3),
-                        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                        usage: wgpu::BufferUsages::STORAGE
+                            | wgpu::BufferUsages::INDEX
+                            | wgpu::BufferUsages::COPY_DST,
                     }),
                 );
                 if geometry_changed {
@@ -3626,6 +4611,772 @@ impl VM {
             self.ping_pong_front = next_front;
         }
 
+        Ok(())
+    }
+
+    pub fn raster_draw_3d_into(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        _surface: &mut Texture,
+        fb_w: u32,
+        fb_h: u32,
+    ) -> crate::SceneVMResult<()> {
+        if self.gpu.is_none() {
+            self.init_gpu(device)?;
+        }
+        self.init_raster3d(device)?;
+        self.upload_tile_metadata_to_gpu(device);
+        self.upload_scene_data_ssbo(device, queue);
+        let (write_view, _prev_view, next_front) =
+            self.prepare_layer_views(device, queue, fb_w, fb_h);
+
+        let c = self.camera3d;
+
+        use wgpu::util::DeviceExt;
+
+        // Ensure tile indices are current before we resolve dynamic billboard tile ids.
+        self.build_atlas();
+
+        let m = self.transform3d;
+        let mut geometry_changed = false;
+        let has_dynamic_billboards =
+            !self.dynamic_objects.is_empty() || !self.dynamic_avatar_objects.is_empty();
+        let need_dynamic_refresh = has_dynamic_billboards || self.raster_had_dynamics_last_frame;
+        if self.accel_dirty
+            || self.geometry3d_dirty
+            || self.cached_v3.is_empty()
+            || need_dynamic_refresh
+        {
+            let mut v3: Vec<Vert3DPod> = Vec::new();
+            let mut i3: Vec<u32> = Vec::new();
+            let mut tri_visibility: Vec<bool> = Vec::new();
+
+            for ch in self.chunks_map.values() {
+                for poly_list in ch.polys3d_map.values() {
+                    for poly in poly_list {
+                        let tile_index = match self.shared_atlas.tile_index(&poly.tile_id) {
+                            Some(idx) => idx,
+                            None => continue,
+                        };
+
+                        let vcount = poly.vertices.len();
+                        let mut poly_pos: Vec<[f32; 3]> = Vec::with_capacity(vcount);
+                        let mut poly_nrm: Vec<[f32; 3]> = vec![[0.0, 0.0, 0.0]; vcount];
+
+                        for v in &poly.vertices {
+                            let p = m * Vec4::new(v[0], v[1], v[2], v[3]);
+                            let w = if p.w != 0.0 { p.w } else { 1.0 };
+                            poly_pos.push([p.x / w, p.y / w, p.z / w]);
+                        }
+
+                        for &(a, b, c) in &poly.indices {
+                            let pa = poly_pos[a];
+                            let pb = poly_pos[b];
+                            let pc = poly_pos[c];
+                            let e1 = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
+                            let e2 = [pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2]];
+                            let nx = e1[1] * e2[2] - e1[2] * e2[1];
+                            let ny = e1[2] * e2[0] - e1[0] * e2[2];
+                            let nz = e1[0] * e2[1] - e1[1] * e2[0];
+                            poly_nrm[a][0] += nx;
+                            poly_nrm[a][1] += ny;
+                            poly_nrm[a][2] += nz;
+                            poly_nrm[b][0] += nx;
+                            poly_nrm[b][1] += ny;
+                            poly_nrm[b][2] += nz;
+                            poly_nrm[c][0] += nx;
+                            poly_nrm[c][1] += ny;
+                            poly_nrm[c][2] += nz;
+                        }
+                        for n in &mut poly_nrm {
+                            let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+                            if len > 1e-12 {
+                                n[0] /= len;
+                                n[1] /= len;
+                                n[2] /= len;
+                            }
+                        }
+
+                        let base = v3.len() as u32;
+                        let tile_index2 = if let Some(tid2) = poly.tile_id2 {
+                            self.shared_atlas.tile_index(&tid2).unwrap_or(tile_index)
+                        } else {
+                            tile_index
+                        };
+                        let has_valid_blend = poly.tile_id2.is_some()
+                            && poly.blend_weights.len() == poly.vertices.len();
+
+                        for (i, p) in poly_pos.iter().enumerate() {
+                            let uv0 = poly.uvs[i];
+                            let n = poly_nrm[i];
+                            let blend_factor = if has_valid_blend {
+                                poly.blend_weights[i].clamp(0.0, 1.0)
+                            } else {
+                                0.0
+                            };
+                            v3.push(Vert3DPod {
+                                pos: [p[0], p[1], p[2]],
+                                _pad_pos: 0.0,
+                                uv: [uv0[0], uv0[1]],
+                                _pad_uv: [0.0, 0.0],
+                                tile_index,
+                                tile_index2,
+                                blend_factor,
+                                opacity: poly.opacity,
+                                normal: [n[0], n[1], n[2]],
+                                _pad_n: 0.0,
+                            });
+                        }
+
+                        for &(a, b, c) in &poly.indices {
+                            i3.extend_from_slice(&[
+                                base + a as u32,
+                                base + b as u32,
+                                base + c as u32,
+                            ]);
+                            tri_visibility.push(poly.visible);
+                        }
+                    }
+                }
+            }
+
+            // Dynamic billboards (tile + avatar) as camera-facing quads in world space.
+            let mut avatar_meta_indices: FxHashMap<GeoId, u32> = FxHashMap::default();
+            let mut avatar_meta_count: u32 = 0;
+            for obj in self
+                .dynamic_objects
+                .iter()
+                .chain(self.dynamic_avatar_objects.values())
+            {
+                if obj.kind != DynamicKind::BillboardAvatar
+                    || avatar_meta_indices.contains_key(&obj.id)
+                {
+                    continue;
+                }
+                let Some(avatar) = self.dynamic_avatar_data.get(&obj.id) else {
+                    continue;
+                };
+                if avatar.size == 0 {
+                    continue;
+                }
+                let expected_len = avatar.size as usize * avatar.size as usize * 4;
+                if avatar.rgba.len() != expected_len {
+                    continue;
+                }
+                avatar_meta_indices.insert(obj.id, avatar_meta_count);
+                avatar_meta_count += 1;
+            }
+            for obj in self
+                .dynamic_objects
+                .iter()
+                .chain(self.dynamic_avatar_objects.values())
+            {
+                let (tile_index, tile_index2) = match obj.kind {
+                    DynamicKind::BillboardTile => {
+                        let Some(tile_id) = obj.tile_id else { continue };
+                        let Some(tile_index) = self.shared_atlas.tile_index(&tile_id) else {
+                            continue;
+                        };
+                        (tile_index, tile_index)
+                    }
+                    DynamicKind::BillboardAvatar => {
+                        // tile_index stores avatar meta index for raster path
+                        // (resolved in WGSL via scene_data SSBO).
+                        let Some(avatar_index) = avatar_meta_indices.get(&obj.id).copied() else {
+                            continue;
+                        };
+                        (avatar_index, 0x8000_0000u32)
+                    }
+                };
+                let right = obj.view_right * (obj.width * 0.5);
+                let up = obj.view_up * (obj.height * 0.5);
+                let p0 = obj.center - right - up;
+                let p1 = obj.center - right + up;
+                let p2 = obj.center + right + up;
+                let p3 = obj.center + right - up;
+                let mut n = right.cross(up);
+                if n.magnitude_squared() <= 1e-8 {
+                    n = Vec3::new(0.0, 1.0, 0.0);
+                } else {
+                    n = n.normalized();
+                }
+                let base = v3.len() as u32;
+                let opacity = obj.opacity.clamp(0.0, 1.0);
+                let pts = [p0, p1, p2, p3];
+                let uvs = if matches!(obj.repeat_mode, crate::dynamic::RepeatMode::Repeat) {
+                    [
+                        [0.0f32, obj.height],
+                        [0.0, 0.0],
+                        [obj.width, 0.0],
+                        [obj.width, obj.height],
+                    ]
+                } else {
+                    [[0.0f32, 1.0f32], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]
+                };
+                for i in 0..4 {
+                    let p = pts[i];
+                    v3.push(Vert3DPod {
+                        pos: [p.x, p.y, p.z],
+                        _pad_pos: 0.0,
+                        uv: uvs[i],
+                        _pad_uv: [0.0, 0.0],
+                        tile_index,
+                        tile_index2,
+                        blend_factor: 0.0,
+                        opacity,
+                        normal: [n.x, n.y, n.z],
+                        _pad_n: 0.0,
+                    });
+                }
+                i3.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+                tri_visibility.push(true);
+                tri_visibility.push(true);
+            }
+
+            if v3.is_empty() {
+                v3.push(Vert3DPod {
+                    pos: [0.0; 3],
+                    _pad_pos: 0.0,
+                    uv: [0.0; 2],
+                    _pad_uv: [0.0, 0.0],
+                    tile_index: 0,
+                    tile_index2: 0,
+                    blend_factor: 0.0,
+                    opacity: 1.0,
+                    normal: [0.0, 0.0, 1.0],
+                    _pad_n: 0.0,
+                });
+            }
+            if i3.is_empty() {
+                i3.extend_from_slice(&[0u32; 4]);
+                tri_visibility.push(false);
+            }
+
+            self.cached_v3 = v3;
+            self.cached_i3 = i3;
+
+            let tri_count = tri_visibility.len();
+            let word_count = (tri_count + 31) / 32;
+            let mut visibility_bits = vec![0u32; word_count.max(1)];
+            for (tri_idx, &visible) in tri_visibility.iter().enumerate() {
+                if visible {
+                    let word_idx = tri_idx / 32;
+                    let bit_idx = tri_idx % 32;
+                    visibility_bits[word_idx] |= 1u32 << bit_idx;
+                }
+            }
+            self.cached_tri_visibility = visibility_bits;
+
+            geometry_changed = true;
+            self.visibility_dirty = false;
+            self.geometry3d_dirty = false;
+            self.raster_had_dynamics_last_frame = has_dynamic_billboards;
+        }
+
+        if self.visibility_dirty && !geometry_changed {
+            let mut tri_visibility: Vec<bool> = Vec::new();
+            for ch in self.chunks_map.values() {
+                for poly_list in ch.polys3d_map.values() {
+                    for poly in poly_list {
+                        for _ in &poly.indices {
+                            tri_visibility.push(poly.visible);
+                        }
+                    }
+                }
+            }
+            if tri_visibility.is_empty() {
+                tri_visibility.push(false);
+            }
+            let tri_count = tri_visibility.len();
+            let word_count = (tri_count + 31) / 32;
+            let mut visibility_bits = vec![0u32; word_count.max(1)];
+            for (tri_idx, &visible) in tri_visibility.iter().enumerate() {
+                if visible {
+                    let word_idx = tri_idx / 32;
+                    let bit_idx = tri_idx % 32;
+                    visibility_bits[word_idx] |= 1u32 << bit_idx;
+                }
+            }
+            self.cached_tri_visibility = visibility_bits;
+            self.visibility_dirty = false;
+        }
+
+        if self.accel_dirty {
+            self.scene_accel.bvh =
+                Self::build_scene_bvh_from(&self.cached_v3, &self.cached_i3, self.bvh_leaf_size);
+            self.accel_dirty = false;
+        }
+
+        // Keep static atlas/tile metadata in sync.
+        self.upload_atlas_to_gpu_with(device, queue);
+        self.upload_tile_metadata_to_gpu(device);
+
+        let (atlas_view, atlas_mat_view) = self
+            .shared_atlas
+            .texture_views()
+            .expect("atlas GPU resources missing");
+        let (visible_indices, opaque_indices, transparent_indices) =
+            self.rebuild_raster_visible_indices(&c);
+
+        let mut shadow_center = Vec3::zero();
+        let mut shadow_half_w = 32.0f32;
+        let mut shadow_half_h = 32.0f32;
+        let mut shadow_near = -32.0f32;
+        let mut shadow_far = 32.0f32;
+        if !self.cached_v3.is_empty() {
+            let mut bmin = Vec3::broadcast(f32::INFINITY);
+            let mut bmax = Vec3::broadcast(f32::NEG_INFINITY);
+            for v in &self.cached_v3 {
+                let p = Vec3::new(v.pos[0], v.pos[1], v.pos[2]);
+                bmin.x = bmin.x.min(p.x);
+                bmin.y = bmin.y.min(p.y);
+                bmin.z = bmin.z.min(p.z);
+                bmax.x = bmax.x.max(p.x);
+                bmax.y = bmax.y.max(p.y);
+                bmax.z = bmax.z.max(p.z);
+            }
+            shadow_center = (bmin + bmax) * 0.5;
+        }
+        let sun_l_raw = Vec3::new(-self.gp2.x, -self.gp2.y, -self.gp2.z);
+        let sun_l = if sun_l_raw.magnitude_squared() > 1e-6 {
+            sun_l_raw.normalized()
+        } else {
+            Vec3::new(0.0, -1.0, 0.0)
+        };
+        let shadow_fwd = -sun_l;
+        let up_hint = if shadow_fwd.y.abs() > 0.99 {
+            Vec3::new(1.0, 0.0, 0.0)
+        } else {
+            Vec3::new(0.0, 1.0, 0.0)
+        };
+        let shadow_right = up_hint.cross(shadow_fwd).normalized();
+        let shadow_up = shadow_fwd.cross(shadow_right).normalized();
+        if !self.cached_v3.is_empty() {
+            let mut minx = f32::INFINITY;
+            let mut maxx = f32::NEG_INFINITY;
+            let mut miny = f32::INFINITY;
+            let mut maxy = f32::NEG_INFINITY;
+            let mut minz = f32::INFINITY;
+            let mut maxz = f32::NEG_INFINITY;
+            for v in &self.cached_v3 {
+                let p = Vec3::new(v.pos[0], v.pos[1], v.pos[2]);
+                let rel = p - shadow_center;
+                let x = rel.dot(shadow_right);
+                let y = rel.dot(shadow_up);
+                let z = rel.dot(shadow_fwd);
+                minx = minx.min(x);
+                maxx = maxx.max(x);
+                miny = miny.min(y);
+                maxy = maxy.max(y);
+                minz = minz.min(z);
+                maxz = maxz.max(z);
+            }
+            shadow_half_w = ((maxx - minx) * 0.5 + 2.0).max(1.0);
+            shadow_half_h = ((maxy - miny) * 0.5 + 2.0).max(1.0);
+            shadow_near = minz - 4.0;
+            shadow_far = (maxz + 4.0).max(shadow_near + 1.0);
+        }
+
+        let mut ranked_lights: Vec<(&Light, f32)> = self
+            .lights
+            .values()
+            .filter(|l| l.emitting && matches!(l.light_type, LightType::Point))
+            .map(|light| {
+                let to_cam = light.position - c.pos;
+                let dist2 = to_cam.magnitude_squared().max(1e-4);
+                let score = light.intensity / dist2;
+                (light, score)
+            })
+            .collect();
+        ranked_lights.sort_by(|a, b| b.1.total_cmp(&a.1));
+        let mut point_light_pos_intensity = [[0.0; 4]; 4];
+        let mut point_light_color_range = [[0.0; 4]; 4];
+        let point_count = ranked_lights.len().min(4);
+        for i in 0..point_count {
+            let light = ranked_lights[i].0;
+            let flicker_multiplier: f32 = if light.flicker > 0.0 {
+                let hash = hash_u32(self.animation_counter as u32);
+                let combined_hash = hash.wrapping_add(
+                    (light.position.x as u32 + light.position.y as u32 + light.position.z as u32)
+                        * 100,
+                );
+                let flicker_value = (combined_hash as f32 / u32::MAX as f32).clamp(0.0, 1.0);
+                1.0 - flicker_value * light.flicker
+            } else {
+                1.0
+            };
+            point_light_pos_intensity[i] = [
+                light.position.x,
+                light.position.y,
+                light.position.z,
+                light.intensity * flicker_multiplier,
+            ];
+            point_light_color_range[i] = [
+                light.color.x,
+                light.color.y,
+                light.color.z,
+                light.end_distance,
+            ];
+        }
+
+        let u = Raster3DUniforms {
+            cam_pos: [c.pos.x, c.pos.y, c.pos.z, 0.0],
+            cam_fwd: [c.forward.x, c.forward.y, c.forward.z, 0.0],
+            cam_right: [c.right.x, c.right.y, c.right.z, 0.0],
+            cam_up: [c.up.x, c.up.y, c.up.z, 0.0],
+            sun_color_intensity: self.gp1.into_array(),
+            sun_dir_enabled: self.gp2.into_array(),
+            ambient_color_strength: self.gp3.into_array(),
+            fog_color_density: self.gp4.into_array(),
+            shadow_light_right: [shadow_right.x, shadow_right.y, shadow_right.z, 0.0],
+            shadow_light_up: [shadow_up.x, shadow_up.y, shadow_up.z, 0.0],
+            shadow_light_fwd: [shadow_fwd.x, shadow_fwd.y, shadow_fwd.z, 0.0],
+            shadow_light_center: [shadow_center.x, shadow_center.y, shadow_center.z, 0.0],
+            shadow_light_extents: [shadow_half_w, shadow_half_h, shadow_near, shadow_far],
+            shadow_params: [self.gp7.x, self.gp7.y, self.gp5.z, self.gp7.w],
+            point_light_pos_intensity,
+            point_light_color_range,
+            point_light_count: point_count as u32,
+            _pad_light_count: [0, 0, 0],
+            _pad_lights: [0, 0, 0, 0],
+            fb_size: [fb_w as f32, fb_h as f32],
+            cam_vfov_deg: c.vfov_deg,
+            cam_ortho_half_h: c.ortho_half_h,
+            cam_near: c.near,
+            cam_far: c.far,
+            cam_kind: match c.kind {
+                CameraKind::OrthoIso => 0,
+                CameraKind::OrbitPersp => 1,
+                CameraKind::FirstPersonPersp => 2,
+            },
+            anim_counter: self.animation_counter as u32,
+            _pad: [self.gp8.x.max(0.0) as u32, self.gp8.y.max(0.0) as u32],
+            _pad_post_pre: [0, 0],
+            post_params: [
+                self.gp9.x,
+                self.gp9.y,
+                self.gp9.z.max(0.0),
+                self.gp9.w.max(0.001),
+            ],
+            post_color_adjust: [self.gp8.z.max(0.0), self.gp8.w.max(0.0), 1.0, 0.0],
+            _pad_tail: [0, 0, 0, 0],
+        };
+
+        let shadow_res = self.gp7.z.round().clamp(256.0, 4096.0) as u32;
+        let shadow_tex = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("vm-raster3d-shadow-depth"),
+            size: wgpu::Extent3d {
+                width: shadow_res,
+                height: shadow_res,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let shadow_view = shadow_tex.create_view(&wgpu::TextureViewDescriptor::default());
+
+        {
+            let g = self.gpu.as_mut().unwrap();
+            queue.write_buffer(
+                g.u_raster3d_buf.as_ref().unwrap(),
+                0,
+                bytemuck::bytes_of(&u),
+            );
+            let need_geom_upload = geometry_changed || g.v3d_ssbo.is_none() || g.i3d_ssbo.is_none();
+            if need_geom_upload {
+                g.v3d_ssbo = Some(
+                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("vm-3d-verts-raster"),
+                        contents: bytemuck::cast_slice(&self.cached_v3),
+                        usage: wgpu::BufferUsages::STORAGE
+                            | wgpu::BufferUsages::VERTEX
+                            | wgpu::BufferUsages::COPY_DST,
+                    }),
+                );
+                g.i3d_ssbo = Some(
+                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("vm-3d-indices-raster-all"),
+                        contents: bytemuck::cast_slice(&self.cached_i3),
+                        usage: wgpu::BufferUsages::STORAGE
+                            | wgpu::BufferUsages::INDEX
+                            | wgpu::BufferUsages::COPY_DST,
+                    }),
+                );
+            }
+
+            let visible_upload = if visible_indices.is_empty() {
+                vec![0u32]
+            } else {
+                visible_indices
+            };
+            g.i3d_raster_count = if visible_upload.len() == 1 {
+                0
+            } else {
+                visible_upload.len() as u32
+            };
+            g.i3d_raster = Some(
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("vm-3d-indices-raster-visible"),
+                    contents: bytemuck::cast_slice(&visible_upload),
+                    usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                }),
+            );
+
+            let opaque_upload = if opaque_indices.is_empty() {
+                vec![0u32]
+            } else {
+                opaque_indices
+            };
+            g.i3d_raster_opaque_count = if opaque_upload.len() == 1 {
+                0
+            } else {
+                opaque_upload.len() as u32
+            };
+            g.i3d_raster_opaque = Some(device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some("vm-3d-indices-raster-opaque"),
+                    contents: bytemuck::cast_slice(&opaque_upload),
+                    usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                },
+            ));
+
+            let transparent_upload = if transparent_indices.is_empty() {
+                vec![0u32]
+            } else {
+                transparent_indices
+            };
+            g.i3d_raster_transparent_count = if transparent_upload.len() == 1 {
+                0
+            } else {
+                transparent_upload.len() as u32
+            };
+            g.i3d_raster_transparent = Some(device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some("vm-3d-indices-raster-transparent"),
+                    contents: bytemuck::cast_slice(&transparent_upload),
+                    usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                },
+            ));
+
+            g.u_raster3d_shadow_bg = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("vm-raster3d-shadow-bg"),
+                layout: g.u_raster3d_shadow_bgl.as_ref().unwrap(),
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: g.u_raster3d_buf.as_ref().unwrap().as_entire_binding(),
+                }],
+            }));
+            g.u_raster3d_bg = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("vm-raster3d-bg"),
+                layout: g.u_raster3d_bgl.as_ref().unwrap(),
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: g.u_raster3d_buf.as_ref().unwrap().as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&atlas_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Sampler(&g.sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: g.tile_meta_ssbo.as_ref().unwrap().as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: g.tile_frames_ssbo.as_ref().unwrap().as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: wgpu::BindingResource::TextureView(&shadow_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 6,
+                        resource: wgpu::BindingResource::Sampler(
+                            g.shadow_sampler_compare.as_ref().unwrap(),
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 7,
+                        resource: wgpu::BindingResource::TextureView(&atlas_mat_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 8,
+                        resource: g.scene_data_ssbo.as_ref().unwrap().as_entire_binding(),
+                    },
+                ],
+            }));
+        }
+
+        let depth_tex = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("vm-raster3d-depth"),
+            size: wgpu::Extent3d {
+                width: fb_w,
+                height: fb_h,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let depth_view = depth_tex.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("vm-3d-raster-enc"),
+        });
+        let tone_mapper = self.gp9.y.max(0.0) as u32;
+        let post_enabled = self.gp9.x > 0.5;
+        let exposure = self.gp9.z.max(0.0);
+        let gamma = self.gp9.w.max(0.001);
+        let saturation = self.gp8.z.max(0.0);
+        let luminance = self.gp8.w.max(0.0);
+        let apply_post_cpu = |mut c: [f32; 3]| -> [f32; 3] {
+            c[0] = c[0].max(0.0);
+            c[1] = c[1].max(0.0);
+            c[2] = c[2].max(0.0);
+            if post_enabled {
+                c[0] = (c[0] * exposure).max(0.0);
+                c[1] = (c[1] * exposure).max(0.0);
+                c[2] = (c[2] * exposure).max(0.0);
+                match tone_mapper {
+                    1 => {
+                        c[0] = c[0] / (c[0] + 1.0);
+                        c[1] = c[1] / (c[1] + 1.0);
+                        c[2] = c[2] / (c[2] + 1.0);
+                    }
+                    2 => {
+                        let aces = |x: f32| -> f32 {
+                            let a = 2.51;
+                            let b = 0.03;
+                            let c2 = 2.43;
+                            let d = 0.59;
+                            let e = 0.14;
+                            ((x * (a * x + b)) / (x * (c2 * x + d) + e)).clamp(0.0, 1.0)
+                        };
+                        c[0] = aces(c[0]);
+                        c[1] = aces(c[1]);
+                        c[2] = aces(c[2]);
+                    }
+                    _ => {}
+                }
+                c[0] *= luminance;
+                c[1] *= luminance;
+                c[2] *= luminance;
+                let luma = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+                c[0] = luma + (c[0] - luma) * saturation;
+                c[1] = luma + (c[1] - luma) * saturation;
+                c[2] = luma + (c[2] - luma) * saturation;
+            }
+            c[0] = c[0].powf(1.0 / gamma);
+            c[1] = c[1].powf(1.0 / gamma);
+            c[2] = c[2].powf(1.0 / gamma);
+            c
+        };
+        let sky = if self.gp0.x.abs() + self.gp0.y.abs() + self.gp0.z.abs() > 0.01 {
+            self.gp0
+        } else {
+            self.background
+        };
+        let sky = {
+            let post = apply_post_cpu([sky.x, sky.y, sky.z]);
+            Vec3::new(post[0], post[1], post[2])
+        };
+        let sky_srgb = [
+            sky.x.clamp(0.0, 1.0),
+            sky.y.clamp(0.0, 1.0),
+            sky.z.clamp(0.0, 1.0),
+        ];
+        {
+            let g = self.gpu.as_ref().unwrap();
+            if g.i3d_raster_count > 0 && self.gp2.w > 0.5 && self.gp7.x > 0.5 {
+                let mut shadow_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("vm-3d-raster-shadow-pass"),
+                    color_attachments: &[],
+                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: &shadow_view,
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(1.0),
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    }),
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+                shadow_pass.set_pipeline(g.raster3d_shadow_pipeline.as_ref().unwrap());
+                shadow_pass.set_bind_group(0, g.u_raster3d_shadow_bg.as_ref().unwrap(), &[]);
+                shadow_pass.set_vertex_buffer(0, g.v3d_ssbo.as_ref().unwrap().slice(..));
+                shadow_pass.set_index_buffer(
+                    g.i3d_ssbo.as_ref().unwrap().slice(..),
+                    wgpu::IndexFormat::Uint32,
+                );
+                shadow_pass.draw_indexed(0..self.cached_i3.len() as u32, 0, 0..1);
+            }
+
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("vm-3d-raster-pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &write_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: sky_srgb[0] as f64,
+                            g: sky_srgb[1] as f64,
+                            b: sky_srgb[2] as f64,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            if g.i3d_raster_opaque_count > 0 {
+                pass.set_pipeline(g.raster3d_pipeline.as_ref().unwrap());
+                pass.set_bind_group(0, g.u_raster3d_bg.as_ref().unwrap(), &[]);
+                pass.set_vertex_buffer(0, g.v3d_ssbo.as_ref().unwrap().slice(..));
+                pass.set_index_buffer(
+                    g.i3d_raster_opaque.as_ref().unwrap().slice(..),
+                    wgpu::IndexFormat::Uint32,
+                );
+                pass.draw_indexed(0..g.i3d_raster_opaque_count, 0, 0..1);
+            }
+            if g.i3d_raster_transparent_count > 0 {
+                pass.set_pipeline(g.raster3d_alpha_pipeline.as_ref().unwrap());
+                pass.set_bind_group(0, g.u_raster3d_bg.as_ref().unwrap(), &[]);
+                pass.set_vertex_buffer(0, g.v3d_ssbo.as_ref().unwrap().slice(..));
+                pass.set_index_buffer(
+                    g.i3d_raster_transparent.as_ref().unwrap().slice(..),
+                    wgpu::IndexFormat::Uint32,
+                );
+                pass.draw_indexed(0..g.i3d_raster_transparent_count, 0, 0..1);
+            }
+        }
+        queue.submit(Some(encoder.finish()));
+        if self.ping_pong_enabled {
+            self.ping_pong_front = next_front;
+        }
         Ok(())
     }
 
@@ -4413,6 +6164,13 @@ impl VM {
 
                 if self.activity_logging {
                     self.log_layer("3D compute draw completed".to_string());
+                }
+            }
+            RenderMode::Raster3D => {
+                self.raster_draw_3d_into(device, queue, surface, fb_w, fb_h)?;
+
+                if self.activity_logging {
+                    self.log_layer("3D raster draw completed".to_string());
                 }
             }
             RenderMode::Sdf => {

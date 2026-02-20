@@ -453,9 +453,9 @@ impl Client {
         scene_handler.vm.set_layer_enabled(1, true);
         // scene_handler.vm.set_layer_activity_logging(true);
 
-        scene_handler
-            .vm
-            .execute(scenevm::Atom::SetRenderMode(scenevm::RenderMode::Compute2D));
+        scene_handler.vm.execute(scenevm::Atom::SetRenderMode(
+            scene_handler.settings.scenevm_mode_2d(),
+        ));
 
         scene_handler.vm.execute(Atom::SetGP0(Vec4::new(
             map.grid_size,
@@ -542,9 +542,9 @@ impl Client {
 
         let hour = self.server_time.to_f32();
 
-        scene_handler
-            .vm
-            .execute(scenevm::Atom::SetRenderMode(scenevm::RenderMode::Compute2D));
+        scene_handler.vm.execute(scenevm::Atom::SetRenderMode(
+            scene_handler.settings.scenevm_mode_2d(),
+        ));
 
         scene_handler.settings.apply_hour(hour);
         scene_handler.settings.apply_2d(&mut scene_handler.vm);
@@ -639,9 +639,9 @@ impl Client {
             .vm
             .execute(scenevm::Atom::SetBackground(Vec4::new(0.0, 0.0, 0.0, 1.0)));
 
-        scene_handler
-            .vm
-            .execute(scenevm::Atom::SetRenderMode(scenevm::RenderMode::Compute3D));
+        scene_handler.vm.execute(scenevm::Atom::SetRenderMode(
+            scene_handler.settings.scenevm_mode_3d(),
+        ));
 
         scene_handler.vm.execute(scenevm::Atom::SetCamera3D {
             camera: self.camera_d3.as_scenevm_camera(),

@@ -143,71 +143,60 @@ Render configuration options are located in the `[render]` section.
 
 ```toml
 [render]
-# AO samples (number of rays, default 2)
-ao_samples = 1.0
-
-# AO radius (default 0.5)
-ao_radius = 0.5
-
-# Reflection samples (0 = disabled, >=1 = GGX PBR reflection rays)
-reflection_samples = 0.0
-
-# Bump strength (0.0-1.0, default 1.0)
-bump_strength = 1.0
-
-# Max transparency bounces (default 8)
-max_transparency_bounces = 8.0
-
-# Max shadow distance (default 10.0)
-max_shadow_distance = 10.0
-
-# Max sky distance (default 50.0)
-max_sky_distance = 50.0
-
-# Max shadow steps for transparent shadows (0.0 = no transparent shadows, default: 0)
-max_shadow_steps = 0.0
-
-# Static sky color (used when simulation is disabled)
+# Static sky color (used when simulation is disabled).
 sky_color = "#87CEEB"
 
-# Static sun color (used when simulation is disabled)
+# Static sun color (used when simulation is disabled).
 sun_color = "#FFFACD"
 
-# Sun intensity/brightness multiplier
+# Sun intensity/brightness multiplier.
 sun_intensity = 1.0
 
-# Static sun direction as [x, y, z] (used when simulation is disabled)
+# Static sun direction as [x, y, z] (used when simulation is disabled).
 sun_direction = [-0.5, -1.0, -0.3]
 
-# Enable/disable sun lighting
+# Enable/disable sun lighting.
 sun_enabled = true
 
-# Ambient light color
+# Ambient light color.
 ambient_color = "#999999"
 
-# Ambient light strength (0.0 - 1.0)
+# Ambient light strength (0.0 - 1.0).
 ambient_strength = 0.3
 
-# Fog color
+# Fog color.
 fog_color = "#808080"
 
-# Fog density (0.0 = no fog, higher values = denser fog)
+# Fog density (0.0 = no fog, higher values = denser fog).
 fog_density = 0.0
+
+# Shadow toggle.
+shadow_enabled = true
+
+# Shadow strength (default 0.8).
+shadow_strength = 0.8
+
+# Shadow-map resolution.
+shadow_resolution = 1024
+
+# Shadow depth bias.
+shadow_bias = 0.0015
+
+# Fade mode for alpha/visibility transitions: "ordered_dither" or "uniform".
+fade_mode = "ordered_dither"
+
+# Lighting model: "lambert", "cook_torrance", or "pbr".
+lighting_model = "cook_torrance"
+
+# Bump mapping strength (0.0 = off, 1.0 = full).
+bump_strength = 1.0
 ```
 
 ### **Option Descriptions**
 
 All `[render]` options apply **only to the 3D renderer** (they do not affect the 2D tile/sprite renderer).
 
-- **`ao_samples`** — Number of ambient-occlusion rays. Higher counts smooth AO but cost performance; set `0` to disable.
-- **`ao_radius`** — World-space distance for AO rays. Larger radii darken wider cavities; very large values can over-darken scenes.
-- **`reflection_samples`** — GGX PBR reflection rays per hit. `0` disables ray-traced reflections; ≥1 enables glossy/mirror reflections.
-- **`bump_strength`** — Scales normal-map/bump detail (0–1). Lower to flatten surfaces; `1.0` keeps full normal-map effect.
-- **`max_transparency_bounces`** — Max number of ray marches through transparent layers (glass, billboards). Raise for stacked glass; lower for speed.
-- **`max_shadow_distance`** — Furthest distance to search for shadow casters for sun/point lights. Reduce to speed up or limit long shadows.
-- **`max_sky_distance`** — Maximum trace distance for sky/environment contribution and reflections. Lower to clip sky on dense scenes.
-- **`max_shadow_steps`** — Steps for transparency-aware shadows. `0` = fast binary shadows; >0 enables softer/transparent shadowing at higher cost.
-- **`sky_color`** — Static sky RGB used when sky simulation is off or beyond `max_sky_distance`.
+- **`sky_color`** — Static sky RGB used when sky simulation is off.
 - **`sun_color`** — Static sun RGB tint used when sun simulation is off.
 - **`sun_intensity`** — Multiplier for sun brightness. Increase for harsher lighting; reduce for softer daylight.
 - **`sun_direction`** — Sun vector `[x, y, z]` (points from light to scene). Adjust to change time-of-day lighting angle.
@@ -216,6 +205,49 @@ All `[render]` options apply **only to the 3D renderer** (they do not affect the
 - **`ambient_strength`** — Scalar (0–1) for ambient_color energy. Higher values lighten occluded areas.
 - **`fog_color`** — Fog RGB tint applied with distance-based fog.
 - **`fog_density`** — Strength of exponential-squared fog. `0` disables; higher values increase haze with distance.
+- **`shadow_enabled`** — Enables or disables sun shadow-map rendering.
+- **`shadow_strength`** — Shadow contribution amount (0–1). Lower values make shadows softer/fainter.
+- **`shadow_resolution`** — Shadow-map size in pixels. Higher values sharpen shadows but increase GPU cost.
+- **`shadow_bias`** — Depth bias used to reduce shadow acne/peter-panning.
+- **`fade_mode`** — Visibility fade style for hidden/fading geometry (`ordered_dither` or `uniform`).
+- **`lighting_model`** — Surface lighting model (`lambert`, `cook_torrance`, `pbr`).
+- **`bump_strength`** — Scales normal-map/bump detail (0–1). Lower to flatten surfaces; `1.0` keeps full effect.
+
+---
+
+## Post Configuration
+
+Post configuration options are located in the `[post]` section.
+
+```toml
+[post]
+# Enable/disable final post pass.
+enabled = true
+
+# Tone mapper: "none", "reinhard", "aces".
+tone_mapper = "reinhard"
+
+# Exposure multiplier before tone mapping.
+exposure = 1.0
+
+# Post saturation (1.0 = unchanged, 0.0 = grayscale).
+saturation = 1.0
+
+# Post luminance/brightness multiplier.
+luminance = 1.0
+
+# Output gamma.
+gamma = 2.2
+```
+
+### **Option Descriptions**
+
+- **`enabled`** — Enables or disables the post-processing stage.
+- **`tone_mapper`** — Tone mapping operator used before gamma (`none`, `reinhard`, `aces`).
+- **`exposure`** — Brightness multiplier applied before tone mapping.
+- **`saturation`** — Color saturation multiplier; `0` is grayscale, `1` keeps original saturation.
+- **`luminance`** — Overall post brightness multiplier.
+- **`gamma`** — Final output gamma value.
 
 ---
 

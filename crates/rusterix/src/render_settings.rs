@@ -1,13 +1,109 @@
 use crate::value::{Value, ValueContainer};
 use crate::value_toml::ValueTomlLoader;
 use rustc_hash::FxHashMap;
-use scenevm::{Atom, SceneVM};
+use scenevm::{Atom, RenderMode as SceneVmRenderMode, SceneVM};
 use vek::Vec4;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RendererBackend {
+    Compute,
+    Raster,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RenderQualityPreset {
+    Low,
+    Medium,
+    High,
+    Ultra,
+    Custom,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FadeMode {
+    OrderedDither,
+    Uniform,
+}
+
+impl FadeMode {
+    fn as_code(self) -> u32 {
+        match self {
+            FadeMode::OrderedDither => 0,
+            FadeMode::Uniform => 1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LightingModel {
+    Lambert,
+    CookTorrance,
+    Pbr,
+}
+
+impl LightingModel {
+    fn as_code(self) -> u32 {
+        match self {
+            LightingModel::Lambert => 0,
+            LightingModel::CookTorrance => 1,
+            LightingModel::Pbr => 2,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PostToneMapper {
+    None,
+    Reinhard,
+    Aces,
+}
+
+impl PostToneMapper {
+    fn as_code(self) -> u32 {
+        match self {
+            PostToneMapper::None => 0,
+            PostToneMapper::Reinhard => 1,
+            PostToneMapper::Aces => 2,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PostTarget {
+    Both,
+    D2,
+    D3,
+}
+
+#[derive(Debug, Clone)]
+pub struct PostEffectSettings {
+    pub name: String,
+    pub enabled: bool,
+    pub target: PostTarget,
+    pub intensity: f32,
+    pub distance_start: Option<f32>,
+    pub distance_end: Option<f32>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PostStackSettings {
+    pub enabled: bool,
+    pub effects: Vec<PostEffectSettings>,
+}
 
 /// PBR Render Settings for scenes
 /// Corresponds to the uniform parameters (gp0-gp9) in the SceneVM PBR shader
 #[derive(Debug, Clone)]
 pub struct RenderSettings {
+    /// Renderer backend for 2D path.
+    pub backend_2d: RendererBackend,
+    /// Renderer backend for 3D path.
+    pub backend_3d: RendererBackend,
+    /// User-facing quality preset.
+    pub quality: RenderQualityPreset,
+    /// Shared modular post stack config (2D/3D).
+    pub post: PostStackSettings,
+
     /// Sky color (RGB) - set from TOML or dynamically by apply_hour()
     pub sky_color: [f32; 3],
 
@@ -58,6 +154,31 @@ pub struct RenderSettings {
 
     /// Reflection samples (0 = disabled, higher = better quality)
     pub reflection_samples: f32,
+
+    /// Raster 3D: enable/disable shadow map shading.
+    pub raster_shadow_enabled: bool,
+    /// Raster 3D: shadow contribution strength (0..1).
+    pub raster_shadow_strength: f32,
+    /// Raster 3D: shadow-map resolution in pixels.
+    pub raster_shadow_resolution: f32,
+    /// Raster 3D: depth bias to reduce acne/peter-panning.
+    pub raster_shadow_bias: f32,
+    /// Alpha fade mode used by raster path for geometry and billboards.
+    pub fade_mode: FadeMode,
+    /// Lighting model used by raster path.
+    pub lighting_model: LightingModel,
+    /// Post-processing enable toggle for final 3D output.
+    pub post_enabled: bool,
+    /// Tone mapper used in post step.
+    pub post_tone_mapper: PostToneMapper,
+    /// Exposure multiplier applied before tone mapping.
+    pub post_exposure: f32,
+    /// Output gamma.
+    pub post_gamma: f32,
+    /// Post saturation multiplier (1 = unchanged, 0 = grayscale).
+    pub post_saturation: f32,
+    /// Post luminance/brightness multiplier.
+    pub post_luminance: f32,
 
     /// Target frame time in milliseconds for interpolation (default 30 FPS)
     pub frame_time_ms: f32,
@@ -177,6 +298,10 @@ enum SettingValue {
 impl Default for RenderSettings {
     fn default() -> Self {
         Self {
+            backend_2d: RendererBackend::Compute,
+            backend_3d: RendererBackend::Raster,
+            quality: RenderQualityPreset::Custom,
+            post: PostStackSettings::default(),
             sky_color: [0.529, 0.808, 0.922], // #87CEEB
             sun_color: [1.0, 0.980, 0.804],   // #FFFACD
             sun_intensity: 1.0,
@@ -194,6 +319,18 @@ impl Default for RenderSettings {
             max_sky_distance: 50.0,
             max_shadow_steps: 2.0,
             reflection_samples: 0.0,
+            raster_shadow_enabled: true,
+            raster_shadow_strength: 0.8,
+            raster_shadow_resolution: 1024.0,
+            raster_shadow_bias: 0.0015,
+            fade_mode: FadeMode::OrderedDither,
+            lighting_model: LightingModel::CookTorrance,
+            post_enabled: true,
+            post_tone_mapper: PostToneMapper::Reinhard,
+            post_exposure: 1.0,
+            post_gamma: 2.2,
+            post_saturation: 1.0,
+            post_luminance: 1.0,
             frame_time_ms: 1000.0 / 30.0,
             transitions: FxHashMap::default(),
             simulation: DaylightSimulation::default(),
@@ -202,10 +339,26 @@ impl Default for RenderSettings {
 }
 
 impl RenderSettings {
+    pub fn scenevm_mode_2d(&self) -> SceneVmRenderMode {
+        match self.backend_2d {
+            // Raster backend scaffold: keep compute path until raster VM mode lands.
+            RendererBackend::Compute | RendererBackend::Raster => SceneVmRenderMode::Compute2D,
+        }
+    }
+
+    pub fn scenevm_mode_3d(&self) -> SceneVmRenderMode {
+        match self.backend_3d {
+            RendererBackend::Compute => SceneVmRenderMode::Compute3D,
+            RendererBackend::Raster => SceneVmRenderMode::Raster3D,
+        }
+    }
+
     /// Parse render settings from a TOML string's [render] and [simulation] sections
     pub fn read(&mut self, toml_content: &str) -> Result<(), Box<dyn std::error::Error>> {
         let groups = ValueTomlLoader::from_str(toml_content)
             .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+
+        self.read_renderer_and_post_sections(toml_content)?;
 
         if let Some(render) = groups.get("render") {
             self.apply_render_values(render)?;
@@ -216,6 +369,168 @@ impl RenderSettings {
         }
 
         Ok(())
+    }
+
+    fn read_renderer_and_post_sections(
+        &mut self,
+        toml_content: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let doc: toml::Value = toml::from_str(toml_content)?;
+
+        if let Some(renderer) = doc.get("renderer").and_then(toml::Value::as_table) {
+            if let Some(v) = renderer.get("backend_2d").and_then(toml::Value::as_str) {
+                self.backend_2d = parse_backend(v);
+            }
+            if let Some(v) = renderer.get("backend_3d").and_then(toml::Value::as_str) {
+                self.backend_3d = parse_backend(v);
+            }
+            if let Some(v) = renderer.get("quality").and_then(toml::Value::as_str) {
+                self.quality = parse_quality(v);
+                self.apply_quality_preset(self.quality);
+            }
+        }
+
+        if let Some(raster3d) = doc.get("raster_3d").and_then(toml::Value::as_table) {
+            if let Some(v) = raster3d
+                .get("shadow_enabled")
+                .and_then(toml::Value::as_bool)
+            {
+                self.raster_shadow_enabled = v;
+            }
+            if let Some(v) = raster3d
+                .get("shadow_strength")
+                .and_then(toml::Value::as_float)
+            {
+                self.raster_shadow_strength = v as f32;
+            }
+            if let Some(v) = raster3d
+                .get("shadow_resolution")
+                .and_then(toml::Value::as_integer)
+            {
+                self.raster_shadow_resolution = v as f32;
+            } else if let Some(v) = raster3d
+                .get("shadow_resolution")
+                .and_then(toml::Value::as_float)
+            {
+                self.raster_shadow_resolution = v as f32;
+            }
+            if let Some(v) = raster3d.get("shadow_bias").and_then(toml::Value::as_float) {
+                self.raster_shadow_bias = v as f32;
+            }
+        }
+
+        self.post.enabled = doc
+            .get("post")
+            .and_then(toml::Value::as_table)
+            .and_then(|t| t.get("enabled"))
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(self.post.enabled);
+        self.post_enabled = self.post.enabled;
+
+        if let Some(post) = doc.get("post").and_then(toml::Value::as_table) {
+            if let Some(v) = post.get("enabled").and_then(toml::Value::as_bool) {
+                self.post_enabled = v;
+                self.post.enabled = v;
+            }
+            if let Some(v) = post.get("tone_mapper").and_then(toml::Value::as_str) {
+                self.post_tone_mapper = parse_tone_mapper(v);
+            }
+            if let Some(v) = post.get("exposure").and_then(toml::Value::as_float) {
+                self.post_exposure = v as f32;
+            }
+            if let Some(v) = post.get("gamma").and_then(toml::Value::as_float) {
+                self.post_gamma = v as f32;
+            }
+            if let Some(v) = post.get("saturation").and_then(toml::Value::as_float) {
+                self.post_saturation = v as f32;
+            }
+            if let Some(v) = post.get("luminance").and_then(toml::Value::as_float) {
+                self.post_luminance = v as f32;
+            }
+        }
+
+        self.post.effects.clear();
+        if let Some(effects) = doc
+            .get("post")
+            .and_then(toml::Value::as_table)
+            .and_then(|t| t.get("effects"))
+            .and_then(toml::Value::as_array)
+        {
+            for effect in effects {
+                let Some(tbl) = effect.as_table() else {
+                    continue;
+                };
+                let Some(name) = tbl.get("name").and_then(toml::Value::as_str) else {
+                    continue;
+                };
+                let enabled = tbl
+                    .get("enabled")
+                    .and_then(toml::Value::as_bool)
+                    .unwrap_or(true);
+                let target = tbl
+                    .get("target")
+                    .and_then(toml::Value::as_str)
+                    .map(parse_post_target)
+                    .unwrap_or(PostTarget::Both);
+                let intensity = tbl
+                    .get("intensity")
+                    .and_then(toml::Value::as_float)
+                    .map(|v| v as f32)
+                    .unwrap_or(1.0);
+                let distance_start = tbl
+                    .get("distance_start")
+                    .and_then(toml::Value::as_float)
+                    .map(|v| v as f32);
+                let distance_end = tbl
+                    .get("distance_end")
+                    .and_then(toml::Value::as_float)
+                    .map(|v| v as f32);
+                self.post.effects.push(PostEffectSettings {
+                    name: name.to_string(),
+                    enabled,
+                    target,
+                    intensity,
+                    distance_start,
+                    distance_end,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    fn apply_quality_preset(&mut self, preset: RenderQualityPreset) {
+        match preset {
+            RenderQualityPreset::Low => {
+                self.ao_samples = 0.0;
+                self.bump_strength = 0.0;
+                self.max_shadow_distance = 0.0;
+                self.reflection_samples = 0.0;
+                self.max_sky_distance = 15.0;
+            }
+            RenderQualityPreset::Medium => {
+                self.ao_samples = 2.0;
+                self.bump_strength = 0.25;
+                self.max_shadow_distance = 5.0;
+                self.reflection_samples = 0.0;
+                self.max_sky_distance = 30.0;
+            }
+            RenderQualityPreset::High => {
+                self.ao_samples = 4.0;
+                self.bump_strength = 0.6;
+                self.max_shadow_distance = 10.0;
+                self.reflection_samples = 1.0;
+                self.max_sky_distance = 50.0;
+            }
+            RenderQualityPreset::Ultra => {
+                self.ao_samples = 8.0;
+                self.bump_strength = 1.0;
+                self.max_shadow_distance = 15.0;
+                self.reflection_samples = 2.0;
+                self.max_sky_distance = 75.0;
+            }
+            RenderQualityPreset::Custom => {}
+        }
     }
 
     /// Schedule a timed render setting change.
@@ -427,6 +742,34 @@ impl RenderSettings {
             self.max_sky_distance,
             self.max_shadow_steps,
             self.reflection_samples,
+        )));
+
+        // gp7: raster-3d specific controls
+        // x: shadow enabled (0/1), y: shadow strength, z: shadow resolution, w: shadow bias
+        vm.execute(Atom::SetGP7(Vec4::new(
+            if self.raster_shadow_enabled { 1.0 } else { 0.0 },
+            self.raster_shadow_strength.clamp(0.0, 1.0),
+            self.raster_shadow_resolution.max(64.0),
+            self.raster_shadow_bias.max(0.0),
+        )));
+
+        // gp8.x: fade mode (0 = ordered_dither, 1 = uniform)
+        // gp8.y: lighting model (0 = lambert, 1 = cook_torrance, 2 = pbr)
+        // gp8.z: post saturation, gp8.w: post luminance
+        vm.execute(Atom::SetGP8(Vec4::new(
+            self.fade_mode.as_code() as f32,
+            self.lighting_model.as_code() as f32,
+            self.post_saturation.max(0.0),
+            self.post_luminance.max(0.0),
+        )));
+
+        // gp9: post-processing controls
+        // x: post enabled (0/1), y: tone mapper (0=none,1=reinhard,2=aces), z: exposure, w: gamma
+        vm.execute(Atom::SetGP9(Vec4::new(
+            if self.post_enabled { 1.0 } else { 0.0 },
+            self.post_tone_mapper.as_code() as f32,
+            self.post_exposure.max(0.0),
+            self.post_gamma.max(0.001),
         )));
     }
 
@@ -679,6 +1022,31 @@ impl RenderSettings {
         self.max_shadow_steps = render.get_float_default("max_shadow_steps", self.max_shadow_steps);
         self.reflection_samples =
             render.get_float_default("reflection_samples", self.reflection_samples);
+        // Raster shadow controls (backward-compatible under [render])
+        self.raster_shadow_enabled = render.get_bool_default(
+            "shadow_enabled",
+            render.get_bool_default("raster_shadow_enabled", self.raster_shadow_enabled),
+        );
+        self.raster_shadow_strength = render.get_float_default(
+            "shadow_strength",
+            render.get_float_default("raster_shadow_strength", self.raster_shadow_strength),
+        );
+        self.raster_shadow_resolution = render.get_float_default(
+            "shadow_resolution",
+            render.get_float_default("raster_shadow_resolution", self.raster_shadow_resolution),
+        );
+        self.raster_shadow_bias = render.get_float_default(
+            "shadow_bias",
+            render.get_float_default("raster_shadow_bias", self.raster_shadow_bias),
+        );
+        self.fade_mode = render
+            .get_str("fade_mode")
+            .map(parse_fade_mode)
+            .unwrap_or(self.fade_mode);
+        self.lighting_model = render
+            .get_str("lighting_model")
+            .map(parse_lighting_model)
+            .unwrap_or(self.lighting_model);
         self.frame_time_ms = render.get_float_default("ms_per_frame", self.frame_time_ms);
         if let Some(fps) = render.get_float("fps") {
             if fps > 0.0 {
@@ -783,6 +1151,55 @@ fn parse_hex_color(hex: &str) -> Result<[f32; 3], Box<dyn std::error::Error>> {
     let b = u8::from_str_radix(&hex[4..6], 16)?;
 
     Ok([r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0])
+}
+
+fn parse_backend(v: &str) -> RendererBackend {
+    match v.to_ascii_lowercase().as_str() {
+        "raster" => RendererBackend::Raster,
+        _ => RendererBackend::Compute,
+    }
+}
+
+fn parse_quality(v: &str) -> RenderQualityPreset {
+    match v.to_ascii_lowercase().as_str() {
+        "low" => RenderQualityPreset::Low,
+        "medium" => RenderQualityPreset::Medium,
+        "high" => RenderQualityPreset::High,
+        "ultra" => RenderQualityPreset::Ultra,
+        _ => RenderQualityPreset::Custom,
+    }
+}
+
+fn parse_post_target(v: &str) -> PostTarget {
+    match v.to_ascii_lowercase().as_str() {
+        "2d" => PostTarget::D2,
+        "3d" => PostTarget::D3,
+        _ => PostTarget::Both,
+    }
+}
+
+fn parse_fade_mode(v: &str) -> FadeMode {
+    match v.to_ascii_lowercase().as_str() {
+        "uniform" | "uniformn" => FadeMode::Uniform,
+        _ => FadeMode::OrderedDither,
+    }
+}
+
+fn parse_lighting_model(v: &str) -> LightingModel {
+    match v.to_ascii_lowercase().as_str() {
+        "lambert" => LightingModel::Lambert,
+        "cook_torrance" => LightingModel::CookTorrance,
+        "pbr" => LightingModel::Pbr,
+        _ => LightingModel::CookTorrance,
+    }
+}
+
+fn parse_tone_mapper(v: &str) -> PostToneMapper {
+    match v.to_ascii_lowercase().as_str() {
+        "none" => PostToneMapper::None,
+        "aces" => PostToneMapper::Aces,
+        _ => PostToneMapper::Reinhard,
+    }
 }
 
 #[cfg(test)]
