@@ -140,6 +140,9 @@ pub struct RenderSettings {
     /// Bump strength (0.0-1.0)
     pub bump_strength: f32,
 
+    /// Raster 3D MSAA sample count (0=off, 4=on).
+    pub msaa_samples: u32,
+
     /// Max transparency bounces
     pub max_transparency_bounces: f32,
 
@@ -154,6 +157,12 @@ pub struct RenderSettings {
 
     /// Reflection samples (0 = disabled, higher = better quality)
     pub reflection_samples: f32,
+
+    /// First-person texture transition start distance (world units).
+    pub firstp_blur_near: f32,
+
+    /// First-person texture transition end distance (world units).
+    pub firstp_blur_far: f32,
 
     /// Raster 3D: enable/disable shadow map shading.
     pub raster_shadow_enabled: bool,
@@ -314,11 +323,14 @@ impl Default for RenderSettings {
             ao_samples: 8.0,
             ao_radius: 0.5,
             bump_strength: 1.0,
+            msaa_samples: 4,
             max_transparency_bounces: 8.0,
             max_shadow_distance: 10.0,
             max_sky_distance: 50.0,
             max_shadow_steps: 2.0,
             reflection_samples: 0.0,
+            firstp_blur_near: 3.0,
+            firstp_blur_far: 8.0,
             raster_shadow_enabled: true,
             raster_shadow_strength: 0.8,
             raster_shadow_resolution: 1024.0,
@@ -734,14 +746,16 @@ impl RenderSettings {
             self.bump_strength,
             self.max_transparency_bounces,
         )));
+        vm.execute(Atom::SetRaster3DMsaaSamples(self.msaa_samples));
 
-        // gp6: Distance settings
-        // x: Max shadow distance, y: Max sky distance, z: Max shadow steps, w: Reflection samples
+        // gp6: Distance/settings
+        // x: Max shadow distance, y: Max sky distance, z: FirstP blur near, w: FirstP blur far
         vm.execute(Atom::SetGP6(Vec4::new(
             self.max_shadow_distance,
             self.max_sky_distance,
-            self.max_shadow_steps,
-            self.reflection_samples,
+            self.firstp_blur_near.max(0.0),
+            self.firstp_blur_far
+                .max(self.firstp_blur_near.max(0.0) + 0.001),
         )));
 
         // gp7: raster-3d specific controls
@@ -1014,6 +1028,16 @@ impl RenderSettings {
         self.ao_samples = render.get_float_default("ao_samples", self.ao_samples);
         self.ao_radius = render.get_float_default("ao_radius", self.ao_radius);
         self.bump_strength = render.get_float_default("bump_strength", self.bump_strength);
+        self.msaa_samples = render
+            .get_int("msaa_samples")
+            .map(|v| v.max(0) as u32)
+            .or_else(|| {
+                render
+                    .get_float("msaa_samples")
+                    .map(|v| v.max(0.0).round() as u32)
+            })
+            .unwrap_or(self.msaa_samples);
+        self.msaa_samples = if self.msaa_samples == 0 { 0 } else { 4 };
         self.max_transparency_bounces =
             render.get_float_default("max_transparency_bounces", self.max_transparency_bounces);
         self.max_shadow_distance =
@@ -1022,6 +1046,8 @@ impl RenderSettings {
         self.max_shadow_steps = render.get_float_default("max_shadow_steps", self.max_shadow_steps);
         self.reflection_samples =
             render.get_float_default("reflection_samples", self.reflection_samples);
+        self.firstp_blur_near = render.get_float_default("firstp_blur_near", self.firstp_blur_near);
+        self.firstp_blur_far = render.get_float_default("firstp_blur_far", self.firstp_blur_far);
         // Raster shadow controls (backward-compatible under [render])
         self.raster_shadow_enabled = render.get_bool_default(
             "shadow_enabled",

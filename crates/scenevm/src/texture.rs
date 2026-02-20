@@ -17,6 +17,42 @@ pub struct TextureGPU {
     pub map_ready: Option<std::rc::Rc<std::cell::Cell<bool>>>,
 }
 
+fn mip_level_count(width: u32, height: u32) -> u32 {
+    let max_dim = width.max(height).max(1);
+    (32 - max_dim.leading_zeros()).max(1)
+}
+
+fn downsample_rgba8_box(src: &[u8], src_w: u32, src_h: u32) -> (Vec<u8>, u32, u32) {
+    let dst_w = (src_w / 2).max(1);
+    let dst_h = (src_h / 2).max(1);
+    let mut dst = vec![0u8; (dst_w as usize) * (dst_h as usize) * 4];
+
+    for y in 0..dst_h {
+        for x in 0..dst_w {
+            let sx0 = (x * 2).min(src_w - 1);
+            let sy0 = (y * 2).min(src_h - 1);
+            let sx1 = (sx0 + 1).min(src_w - 1);
+            let sy1 = (sy0 + 1).min(src_h - 1);
+
+            let i00 = ((sy0 * src_w + sx0) * 4) as usize;
+            let i10 = ((sy0 * src_w + sx1) * 4) as usize;
+            let i01 = ((sy1 * src_w + sx0) * 4) as usize;
+            let i11 = ((sy1 * src_w + sx1) * 4) as usize;
+
+            let di = ((y * dst_w + x) * 4) as usize;
+            for c in 0..4 {
+                let sum = src[i00 + c] as u32
+                    + src[i10 + c] as u32
+                    + src[i01 + c] as u32
+                    + src[i11 + c] as u32;
+                dst[di + c] = (sum / 4) as u8;
+            }
+        }
+    }
+
+    (dst, dst_w, dst_h)
+}
+
 impl Texture {
     /// Create a CPU-only texture with zero-initialized RGBA8 data
     pub fn new(width: u32, height: u32) -> Self {
@@ -73,7 +109,7 @@ impl Texture {
                     height: self.height,
                     depth_or_array_layers: 1,
                 },
-                mip_level_count: 1,
+                mip_level_count: mip_level_count(self.width, self.height),
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Rgba8Unorm,
@@ -84,7 +120,17 @@ impl Texture {
                     | wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
             });
-            let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
+            let view = tex.create_view(&wgpu::TextureViewDescriptor {
+                label: Some("scenevm-Texture-view-mip0"),
+                format: None,
+                dimension: None,
+                usage: None,
+                aspect: wgpu::TextureAspect::All,
+                base_mip_level: 0,
+                mip_level_count: Some(1),
+                base_array_layer: 0,
+                array_layer_count: Some(1),
+            });
             let bpp = 4u32;
             let unpadded = self.width * bpp;
             let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT; // 256
@@ -116,27 +162,41 @@ impl Texture {
     pub fn upload_to_gpu_with(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
         self.ensure_gpu_with(device);
         let g = self.gpu.as_ref().expect("Texture GPU not allocated");
-        let bpp = 4u32;
-        let bytes_per_row = self.width * bpp;
-        queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &g.texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            &self.data,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(bytes_per_row),
-                rows_per_image: Some(self.height),
-            },
-            wgpu::Extent3d {
-                width: self.width,
-                height: self.height,
-                depth_or_array_layers: 1,
-            },
-        );
+        let mut level_data = self.data.clone();
+        let mut level_w = self.width;
+        let mut level_h = self.height;
+        let levels = mip_level_count(self.width, self.height);
+
+        for mip in 0..levels {
+            let bytes_per_row = level_w * 4;
+            queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &g.texture,
+                    mip_level: mip,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &level_data,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: Some(level_h),
+                },
+                wgpu::Extent3d {
+                    width: level_w,
+                    height: level_h,
+                    depth_or_array_layers: 1,
+                },
+            );
+
+            if level_w == 1 && level_h == 1 {
+                break;
+            }
+            let (next_data, next_w, next_h) = downsample_rgba8_box(&level_data, level_w, level_h);
+            level_data = next_data;
+            level_w = next_w;
+            level_h = next_h;
+        }
     }
 
     /// Download the GPU texture into `self.data` using raw handles.
@@ -235,7 +295,7 @@ impl Texture {
                     height: self.height,
                     depth_or_array_layers: 1,
                 },
-                mip_level_count: 1,
+                mip_level_count: mip_level_count(self.width, self.height),
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Rgba8Unorm,
@@ -245,7 +305,17 @@ impl Texture {
                     | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
             });
-            let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
+            let view = tex.create_view(&wgpu::TextureViewDescriptor {
+                label: Some("scenevm-Texture-view-mip0"),
+                format: None,
+                dimension: None,
+                usage: None,
+                aspect: wgpu::TextureAspect::All,
+                base_mip_level: 0,
+                mip_level_count: Some(1),
+                base_array_layer: 0,
+                array_layer_count: Some(1),
+            });
 
             // Create readback buffer sized to padded row alignment for downloads
             let bpp = 4u32;

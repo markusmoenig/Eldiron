@@ -3,6 +3,8 @@ use rustc_hash::FxHashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
+const ATLAS_FRAME_PADDING: u32 = 4;
+
 #[derive(Debug, Clone, Copy)]
 pub struct AtlasEntry {
     pub x: u32,
@@ -208,7 +210,16 @@ impl SharedAtlas {
     }
 
     pub fn texture_views(&self) -> Option<(wgpu::TextureView, wgpu::TextureView)> {
-        self.with_views(|a, m| (a.view.clone(), m.view.clone()))
+        self.with_views(|a, m| {
+            // Sample views must include all mip levels so trilinear/mip filtering can work.
+            let atlas_view = a
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            let mat_view = m
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            (atlas_view, mat_view)
+        })
     }
 
     pub fn frame_rect(&self, id: &Uuid, anim_frame: u32) -> Option<AtlasEntry> {
@@ -305,21 +316,23 @@ fn build_atlas_inner(inner: &mut SharedAtlasInner) {
         if w == 0 || h == 0 {
             continue;
         }
+        let packed_w = w.saturating_add(ATLAS_FRAME_PADDING * 2);
+        let packed_h = h.saturating_add(ATLAS_FRAME_PADDING * 2);
         let frames_len = tile.frames.len();
         let mat_len = tile.material_frames.len();
         let mut rects = Vec::with_capacity(frames_len);
         let need_bytes = (w as usize) * (h as usize) * 4;
 
         for f in 0..frames_len {
-            if pen_x + w > inner.atlas.width {
+            if pen_x + packed_w > inner.atlas.width {
                 pen_x = 0;
                 pen_y = pen_y.saturating_add(shelf_h);
                 shelf_h = 0;
             }
-            if pen_y + h > inner.atlas.height {
+            if pen_y + packed_h > inner.atlas.height {
                 break;
             }
-            shelf_h = shelf_h.max(h);
+            shelf_h = shelf_h.max(packed_h);
 
             let frame_owned = tile.frames[f].clone();
             let mat_owned = if f < mat_len {
@@ -327,7 +340,7 @@ fn build_atlas_inner(inner: &mut SharedAtlasInner) {
             } else {
                 default_material_frame(need_bytes)
             };
-            blit_rgba_into(
+            blit_rgba_into_with_border(
                 &mut inner.atlas.data,
                 inner.atlas.width,
                 &frame_owned,
@@ -335,8 +348,9 @@ fn build_atlas_inner(inner: &mut SharedAtlasInner) {
                 h,
                 pen_x,
                 pen_y,
+                ATLAS_FRAME_PADDING,
             );
-            blit_rgba_into(
+            blit_rgba_into_with_border(
                 &mut inner.atlas_material.data,
                 inner.atlas_material.width,
                 &mat_owned,
@@ -344,15 +358,16 @@ fn build_atlas_inner(inner: &mut SharedAtlasInner) {
                 h,
                 pen_x,
                 pen_y,
+                ATLAS_FRAME_PADDING,
             );
 
             rects.push(AtlasEntry {
-                x: pen_x,
-                y: pen_y,
+                x: pen_x + ATLAS_FRAME_PADDING,
+                y: pen_y + ATLAS_FRAME_PADDING,
                 w,
                 h,
             });
-            pen_x = pen_x.saturating_add(w);
+            pen_x = pen_x.saturating_add(packed_w);
         }
 
         if !rects.is_empty() {
@@ -395,23 +410,25 @@ fn repaint_atlas_pixels_inner(inner: &mut SharedAtlasInner) {
             } else {
                 default_material_frame(need_bytes)
             };
-            blit_rgba_into(
+            blit_rgba_into_with_border(
                 &mut inner.atlas.data,
                 inner.atlas.width,
                 &frame_owned,
                 rect.w,
                 rect.h,
-                rect.x,
-                rect.y,
+                rect.x.saturating_sub(ATLAS_FRAME_PADDING),
+                rect.y.saturating_sub(ATLAS_FRAME_PADDING),
+                ATLAS_FRAME_PADDING,
             );
-            blit_rgba_into(
+            blit_rgba_into_with_border(
                 &mut inner.atlas_material.data,
                 inner.atlas_material.width,
                 &mat_owned,
                 rect.w,
                 rect.h,
-                rect.x,
-                rect.y,
+                rect.x.saturating_sub(ATLAS_FRAME_PADDING),
+                rect.y.saturating_sub(ATLAS_FRAME_PADDING),
+                ATLAS_FRAME_PADDING,
             );
         }
     }
@@ -458,5 +475,86 @@ fn blit_rgba_into(
         let src_slice = &src[src_off..src_off + src_w * 4];
         let dst_slice = &mut dst[dst_off..dst_off + src_w * 4];
         dst_slice.copy_from_slice(src_slice);
+    }
+}
+
+fn blit_rgba_into_with_border(
+    dst: &mut [u8],
+    atlas_w: u32,
+    src: &[u8],
+    src_w: u32,
+    src_h: u32,
+    dst_x: u32,
+    dst_y: u32,
+    border: u32,
+) {
+    if src.is_empty() || src_w == 0 || src_h == 0 {
+        return;
+    }
+
+    blit_rgba_into(
+        dst,
+        atlas_w,
+        src,
+        src_w,
+        src_h,
+        dst_x + border,
+        dst_y + border,
+    );
+
+    if border == 0 {
+        return;
+    }
+
+    let atlas_w_us = atlas_w as usize;
+    let src_w_us = src_w as usize;
+    let src_h_us = src_h as usize;
+    let border_us = border as usize;
+    let base_x = dst_x as usize;
+    let base_y = dst_y as usize;
+
+    for row in 0..src_h_us {
+        let src_row_off = row * src_w_us * 4;
+        let first_px = &src[src_row_off..src_row_off + 4];
+        let last_px = &src[src_row_off + (src_w_us - 1) * 4..src_row_off + src_w_us * 4];
+        let y = base_y + border_us + row;
+
+        for b in 0..border_us {
+            let lx = base_x + b;
+            let rx = base_x + border_us + src_w_us + b;
+            let l_off = (y * atlas_w_us + lx) * 4;
+            let r_off = (y * atlas_w_us + rx) * 4;
+            dst[l_off..l_off + 4].copy_from_slice(first_px);
+            dst[r_off..r_off + 4].copy_from_slice(last_px);
+        }
+    }
+
+    let padded_w = src_w_us + border_us * 2;
+    for b in 0..border_us {
+        let src_top_y = base_y + border_us;
+        let src_bot_y = base_y + border_us + src_h_us - 1;
+        let top_y = base_y + b;
+        let bot_y = base_y + border_us + src_h_us + b;
+        for x in 0..padded_w {
+            let sx = base_x + x;
+            let top_src_off = (src_top_y * atlas_w_us + sx) * 4;
+            let bot_src_off = (src_bot_y * atlas_w_us + sx) * 4;
+            let top_dst_off = (top_y * atlas_w_us + sx) * 4;
+            let bot_dst_off = (bot_y * atlas_w_us + sx) * 4;
+            let top_px = [
+                dst[top_src_off],
+                dst[top_src_off + 1],
+                dst[top_src_off + 2],
+                dst[top_src_off + 3],
+            ];
+            let bot_px = [
+                dst[bot_src_off],
+                dst[bot_src_off + 1],
+                dst[bot_src_off + 2],
+                dst[bot_src_off + 3],
+            ];
+            dst[top_dst_off..top_dst_off + 4].copy_from_slice(&top_px);
+            dst[bot_dst_off..bot_dst_off + 4].copy_from_slice(&bot_px);
+        }
     }
 }

@@ -32,8 +32,8 @@ pub enum SceneVMError {
 
 pub type SceneVMResult<T> = Result<T, SceneVMError>;
 
+use instant::Instant;
 use rust_embed::RustEmbed;
-use std::time::Instant;
 // Embedded shader/assets payload used at runtime by SceneVM.
 #[derive(RustEmbed)]
 #[folder = "embedded/"]

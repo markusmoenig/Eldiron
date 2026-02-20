@@ -257,6 +257,8 @@ pub enum Atom {
     SetGP7(Vec4<f32>),
     SetGP8(Vec4<f32>),
     SetGP9(Vec4<f32>),
+    /// Raster 3D MSAA samples (valid: 0=off, 4=on).
+    SetRaster3DMsaaSamples(u32),
     /// Switch between 2D/3D/SDF compute drawing
     SetRenderMode(RenderMode),
     /// Set a 256-entry color palette available in shaders (vec4<f32> entries).
@@ -596,6 +598,7 @@ pub struct Raster3DUniforms {
     pub shadow_light_center: [f32; 4],
     pub shadow_light_extents: [f32; 4], // half_w, half_h, near, far
     pub shadow_params: [f32; 4], // x=max_shadow_distance, y=shadow_strength, z=bump_strength, w=shadow_bias
+    pub render_params: [f32; 4], // x=max_shadow_distance, y=max_sky_distance, z=firstp_blur_near, w=firstp_blur_far
     pub point_light_pos_intensity: [[f32; 4]; 4], // xyz + intensity
     pub point_light_color_range: [[f32; 4]; 4], // rgb + end_distance
     pub point_light_count: u32,
@@ -672,6 +675,7 @@ struct U {
     shadow_light_center: vec4<f32>,
     shadow_light_extents: vec4<f32>,
     shadow_params: vec4<f32>,
+    render_params: vec4<f32>,
     point_light_pos_intensity: array<vec4<f32>, 4>,
     point_light_color_range: array<vec4<f32>, 4>,
     point_light_count: u32,
@@ -723,6 +727,15 @@ struct VsOut {
     @location(4) opacity: f32,
     @location(5) normal: vec3<f32>,
     @location(6) world_pos: vec3<f32>,
+};
+
+struct VsShadowOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+    @location(1) @interpolate(flat) tile_index: u32,
+    @location(2) @interpolate(flat) tile_index2: u32,
+    @location(3) blend_factor: f32,
+    @location(4) opacity: f32,
 };
 
 const TILE_INDEX_AVATAR_FLAG: u32 = 0x80000000u;
@@ -778,6 +791,29 @@ fn sample_tile(tile_idx: u32, uv: vec2<f32>) -> vec4<f32> {
     let frame = tile_frame(tile_idx);
     let uv_wrapped = fract(uv);
     var atlas_uv = frame.ofs + uv_wrapped * frame.scale;
+    // Use gradients from the non-wrapped UVs to avoid mip shimmer on repeating tiles.
+    // Slightly bias iso camera toward coarser mips to reduce shimmering on dense tile patterns.
+    let lod_bias = select(1.0, 1.8, UBO.cam_kind == 0u);
+    let atlas_ddx = dpdx(uv) * frame.scale * lod_bias;
+    let atlas_ddy = dpdy(uv) * frame.scale * lod_bias;
+    let atlas_dims = vec2<f32>(textureDimensions(atlas_tex, 0));
+    let ddx_tex = atlas_ddx * atlas_dims;
+    let ddy_tex = atlas_ddy * atlas_dims;
+    let rho2 = max(dot(ddx_tex, ddx_tex), dot(ddy_tex, ddy_tex));
+    let lod = max(0.0, 0.5 * log2(max(rho2, 1e-8)));
+    // Atlas mipmaps are globally generated; clamp max lod to avoid distant bleed/grid artifacts.
+    let lod_clamped = min(lod, 2.5);
+    let pad_uv = vec2<f32>(0.5) / max(atlas_dims, vec2<f32>(1.0));
+    let uv_min = frame.ofs + pad_uv;
+    let uv_max = frame.ofs + frame.scale - pad_uv;
+    atlas_uv = clamp(atlas_uv, uv_min, uv_max);
+    return textureSampleLevel(atlas_tex, atlas_smp, atlas_uv, lod_clamped);
+}
+
+fn sample_tile_lod0(tile_idx: u32, uv: vec2<f32>) -> vec4<f32> {
+    let frame = tile_frame(tile_idx);
+    let uv_wrapped = fract(uv);
+    var atlas_uv = frame.ofs + uv_wrapped * frame.scale;
     let atlas_dims = vec2<f32>(textureDimensions(atlas_tex, 0));
     let pad_uv = vec2<f32>(0.5) / max(atlas_dims, vec2<f32>(1.0));
     let uv_min = frame.ofs + pad_uv;
@@ -795,6 +831,7 @@ fn sample_tile_material(tile_idx: u32, uv: vec2<f32>) -> vec4<f32> {
     let uv_min = frame.ofs + pad_uv;
     let uv_max = frame.ofs + frame.scale - pad_uv;
     atlas_uv = clamp(atlas_uv, uv_min, uv_max);
+    // Keep material fetch stable (especially opacity/normal bits) to avoid distant cracks.
     return textureSampleLevel(atlas_mat_tex, atlas_smp, atlas_uv, 0.0);
 }
 
@@ -958,7 +995,8 @@ fn vs_main(in: VsIn) -> VsOut {
 }
 
 @vertex
-fn vs_shadow(in: VsIn) -> @builtin(position) vec4<f32> {
+fn vs_shadow(in: VsIn) -> VsShadowOut {
+    var out: VsShadowOut;
     let rel = in.pos - UBO.shadow_light_center.xyz;
     let lx = dot(rel, UBO.shadow_light_right.xyz);
     let ly = dot(rel, UBO.shadow_light_up.xyz);
@@ -970,7 +1008,35 @@ fn vs_shadow(in: VsIn) -> @builtin(position) vec4<f32> {
     let nx = lx / half_w;
     let ny = ly / half_h;
     let depth = clamp((lz - near_z) / (far_z - near_z), 0.0, 1.0);
-    return vec4<f32>(nx, ny, depth, 1.0);
+    out.pos = vec4<f32>(nx, ny, depth, 1.0);
+    out.uv = in.uv;
+    out.tile_index = in.tile_index;
+    out.tile_index2 = in.tile_index2;
+    out.blend_factor = clamp(in.blend_factor, 0.0, 1.0);
+    out.opacity = clamp(in.opacity, 0.0, 1.0);
+    return out;
+}
+
+@fragment
+fn fs_shadow(in: VsShadowOut) {
+    let is_avatar = (in.tile_index2 & TILE_INDEX_AVATAR_FLAG) != 0u;
+    let c0 = select(sample_tile_lod0(in.tile_index, in.uv), sample_avatar(in.tile_index, in.uv), is_avatar);
+    let c1 = sample_tile_lod0(in.tile_index2 & (~TILE_INDEX_AVATAR_FLAG), in.uv);
+    let m0_raw = sample_tile_material(in.tile_index, in.uv);
+    let m1_raw = sample_tile_material(in.tile_index2 & (~TILE_INDEX_AVATAR_FLAG), in.uv);
+    let m0 = select(
+        unpack_material_nibbles(m0_raw),
+        vec4<f32>(1.0, 0.0, 1.0, 0.0),
+        is_avatar
+    );
+    let m1 = unpack_material_nibbles(m1_raw);
+    let mat = select(mix(m0, m1, in.blend_factor), m0, is_avatar);
+    let color = select(mix(c0, c1, in.blend_factor), c0, is_avatar);
+    let intrinsic_alpha = clamp(color.a * mat.z, 0.0, 1.0);
+    let coverage = clamp(intrinsic_alpha * in.opacity, 0.0, 1.0);
+    if (coverage <= 0.5) {
+        discard;
+    }
 }
 
 @fragment
@@ -978,6 +1044,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let is_avatar = (in.tile_index2 & TILE_INDEX_AVATAR_FLAG) != 0u;
     let c0 = select(sample_tile(in.tile_index, in.uv), sample_avatar(in.tile_index, in.uv), is_avatar);
     let c1 = sample_tile(in.tile_index2 & (~TILE_INDEX_AVATAR_FLAG), in.uv);
+    let c0_base = select(sample_tile_lod0(in.tile_index, in.uv), sample_avatar(in.tile_index, in.uv), is_avatar);
+    let c1_base = sample_tile_lod0(in.tile_index2 & (~TILE_INDEX_AVATAR_FLAG), in.uv);
     let m0_raw = sample_tile_material(in.tile_index, in.uv);
     let m1_raw = sample_tile_material(in.tile_index2 & (~TILE_INDEX_AVATAR_FLAG), in.uv);
     let m0 = select(
@@ -991,7 +1059,16 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let n1_ts = unpack_material_normal_ts(m1_raw);
     let n_ts = normalize(select(mix(n0_ts, n1_ts, in.blend_factor), n0_ts, is_avatar));
     var color = select(mix(c0, c1, in.blend_factor), c0, is_avatar);
-    let intrinsic_alpha = clamp(color.a * mat.z, 0.0, 1.0);
+    let color_base = select(mix(c0_base, c1_base, in.blend_factor), c0_base, is_avatar);
+    // Keep first-person nearby surfaces crisp by blending from LOD0 near the camera.
+    if (!is_avatar && UBO.cam_kind == 2u) {
+        let dist = distance(in.world_pos, UBO.cam_pos.xyz);
+        let near_end = max(UBO.render_params.z, 0.0);
+        let far_start = max(UBO.render_params.w, near_end + 0.001);
+        let t = smoothstep(near_end, far_start, dist);
+        color = mix(color_base, color, t);
+    }
+    let intrinsic_alpha = clamp(color_base.a * mat.z, 0.0, 1.0);
     let coverage = clamp(intrinsic_alpha * in.opacity, 0.0, 1.0);
     if (coverage <= 0.001) {
         discard;
@@ -1163,6 +1240,7 @@ pub struct VM {
     pub gp7: Vec4<f32>,
     pub gp8: Vec4<f32>,
     pub gp9: Vec4<f32>,
+    pub raster3d_msaa_samples: u32,
     // --- Programmable compute shader sources
     pub source2d: String,
     pub viewport_rect2d: Option<[f32; 4]>, // Optional viewport rect for 2D shader (x, y, w, h)
@@ -1214,6 +1292,15 @@ pub struct VM {
 }
 
 impl VM {
+    #[inline]
+    fn raster3d_effective_samples(&self) -> u32 {
+        if self.raster3d_msaa_samples == 0 {
+            1
+        } else {
+            self.raster3d_msaa_samples
+        }
+    }
+
     #[inline]
     fn mark_2d_dirty(&mut self) {
         self.geometry2d_dirty = true;
@@ -2227,6 +2314,7 @@ impl VM {
             gp7: Vec4::new(0.0, 0.0, 0.0, 0.0),
             gp8: Vec4::new(0.0, 0.0, 0.0, 0.0),
             gp9: Vec4::new(0.0, 0.0, 0.0, 0.0),
+            raster3d_msaa_samples: 4,
             source2d,
             viewport_rect2d: None,
             source3d,
@@ -2647,6 +2735,22 @@ impl VM {
             Atom::SetGP9(v) => {
                 self.gp9 = v;
             }
+            Atom::SetRaster3DMsaaSamples(samples) => {
+                // Use only WebGPU-guaranteed sample counts for RGBA8 color targets.
+                let s = if samples == 0 { 0 } else { 4 };
+                if self.raster3d_msaa_samples != s {
+                    self.raster3d_msaa_samples = s;
+                    if let Some(g) = self.gpu.as_mut() {
+                        g.raster3d_pipeline = None;
+                        g.raster3d_alpha_pipeline = None;
+                        g.raster3d_shadow_pipeline = None;
+                        g.u_raster3d_bgl = None;
+                        g.u_raster3d_shadow_bgl = None;
+                        g.u_raster3d_bg = None;
+                        g.u_raster3d_shadow_bg = None;
+                    }
+                }
+            }
             Atom::SetRenderMode(m) => {
                 self.render_mode = m;
             }
@@ -2793,7 +2897,8 @@ impl VM {
             address_mode_w: wgpu::AddressMode::Repeat,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            anisotropy_clamp: 8,
             ..Default::default()
         });
 
@@ -3432,6 +3537,7 @@ impl VM {
             self.init_gpu(device)?;
         }
         self.upload_tile_metadata_to_gpu(device);
+        let raster_samples = self.raster3d_effective_samples();
         let g = self.gpu.as_mut().unwrap();
         if g.raster3d_pipeline.is_some()
             && g.raster3d_alpha_pipeline.is_some()
@@ -3532,16 +3638,74 @@ impl VM {
         let u_raster3d_shadow_bgl =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("vm-raster3d-shadow-bgl"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                }],
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 7,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 8,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                ],
             });
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -3636,7 +3800,11 @@ impl VM {
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
-            multisample: wgpu::MultisampleState::default(),
+            multisample: wgpu::MultisampleState {
+                count: raster_samples,
+                alpha_to_coverage_enabled: true,
+                ..Default::default()
+            },
             multiview: None,
             cache: None,
         });
@@ -3716,7 +3884,11 @@ impl VM {
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
                 }),
-                multisample: wgpu::MultisampleState::default(),
+                multisample: wgpu::MultisampleState {
+                    count: raster_samples,
+                    alpha_to_coverage_enabled: true,
+                    ..Default::default()
+                },
                 multiview: None,
                 cache: None,
             });
@@ -3770,7 +3942,12 @@ impl VM {
                         ],
                     }],
                 },
-                fragment: None,
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_shadow"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[],
+                }),
                 primitive: wgpu::PrimitiveState {
                     topology: wgpu::PrimitiveTopology::TriangleList,
                     strip_index_format: None,
@@ -5035,6 +5212,7 @@ impl VM {
             shadow_light_center: [shadow_center.x, shadow_center.y, shadow_center.z, 0.0],
             shadow_light_extents: [shadow_half_w, shadow_half_h, shadow_near, shadow_far],
             shadow_params: [self.gp7.x, self.gp7.y, self.gp5.z, self.gp7.w],
+            render_params: self.gp6.into_array(),
             point_light_pos_intensity,
             point_light_color_range,
             point_light_count: point_count as u32,
@@ -5166,10 +5344,36 @@ impl VM {
             g.u_raster3d_shadow_bg = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("vm-raster3d-shadow-bg"),
                 layout: g.u_raster3d_shadow_bgl.as_ref().unwrap(),
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: g.u_raster3d_buf.as_ref().unwrap().as_entire_binding(),
-                }],
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: g.u_raster3d_buf.as_ref().unwrap().as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&atlas_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Sampler(&g.sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: g.tile_meta_ssbo.as_ref().unwrap().as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: g.tile_frames_ssbo.as_ref().unwrap().as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 7,
+                        resource: wgpu::BindingResource::TextureView(&atlas_mat_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 8,
+                        resource: g.scene_data_ssbo.as_ref().unwrap().as_entire_binding(),
+                    },
+                ],
             }));
             g.u_raster3d_bg = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("vm-raster3d-bg"),
@@ -5217,6 +5421,24 @@ impl VM {
             }));
         }
 
+        let raster_samples = self.raster3d_effective_samples();
+        let use_msaa = raster_samples > 1;
+        let msaa_color_tex = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("vm-raster3d-msaa-color"),
+            size: wgpu::Extent3d {
+                width: fb_w,
+                height: fb_h,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: raster_samples,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let msaa_color_view = msaa_color_tex.create_view(&wgpu::TextureViewDescriptor::default());
+
         let depth_tex = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("vm-raster3d-depth"),
             size: wgpu::Extent3d {
@@ -5225,7 +5447,7 @@ impl VM {
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count: raster_samples,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -5328,8 +5550,12 @@ impl VM {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("vm-3d-raster-pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &write_view,
-                    resolve_target: None,
+                    view: if use_msaa {
+                        &msaa_color_view
+                    } else {
+                        &write_view
+                    },
+                    resolve_target: if use_msaa { Some(&write_view) } else { None },
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: sky_srgb[0] as f64,

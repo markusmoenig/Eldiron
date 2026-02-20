@@ -4089,6 +4089,7 @@ dependencies = [
  "fontdue",
  "getrandom 0.3.4",
  "image",
+ "instant",
  "pollster",
  "rayon",
  "rfd",

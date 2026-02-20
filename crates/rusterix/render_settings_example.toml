@@ -40,6 +40,12 @@ fade_mode = "ordered_dither"
 lighting_model = "cook_torrance"
 # Bump mapping strength (0.0 = off, 1.0 = full).
 bump_strength = 1.0
+# MSAA sample count for raster 3D (0=off, 4=on).
+msaa_samples = 4
+# First-person blur transition start distance.
+firstp_blur_near = 3.0
+# First-person blur transition end distance.
+firstp_blur_far = 8.0
 
 [post]
 # Enable/disable final post pass.

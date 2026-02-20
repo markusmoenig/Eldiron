@@ -190,6 +190,15 @@ lighting_model = "cook_torrance"
 
 # Bump mapping strength (0.0 = off, 1.0 = full).
 bump_strength = 1.0
+
+# MSAA sample count for raster 3D (0 = off, 4 = on).
+msaa_samples = 4
+
+# First-person blur transition start distance.
+firstp_blur_near = 3.0
+
+# First-person blur transition end distance.
+firstp_blur_far = 8.0
 ```
 
 ### **Option Descriptions**
@@ -212,6 +221,9 @@ All `[render]` options apply **only to the 3D renderer** (they do not affect the
 - **`fade_mode`** — Visibility fade style for hidden/fading geometry (`ordered_dither` or `uniform`).
 - **`lighting_model`** — Surface lighting model (`lambert`, `cook_torrance`, `pbr`).
 - **`bump_strength`** — Scales normal-map/bump detail (0–1). Lower to flatten surfaces; `1.0` keeps full effect.
+- **`msaa_samples`** — Raster 3D multisampling level (`0` = off, `4` = on) for edge anti-aliasing.
+- **`firstp_blur_near`** — Distance where first-person texture blur transition starts.
+- **`firstp_blur_far`** — Distance where first-person texture blur transition is fully applied.
 
 ---
 
