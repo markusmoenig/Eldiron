@@ -2,6 +2,16 @@ use crate::{Entity, Item, Light, LightType, PixelSource, Value};
 use theframework::prelude::*;
 use toml::Table;
 
+fn facing_to_orientation(facing: &str) -> Option<vek::Vec2<f32>> {
+    match facing.trim().to_ascii_lowercase().as_str() {
+        "right" | "east" | "e" => Some(vek::Vec2::new(1.0, 0.0)),
+        "left" | "west" | "w" => Some(vek::Vec2::new(-1.0, 0.0)),
+        "front" | "north" | "n" => Some(vek::Vec2::new(0.0, 1.0)),
+        "back" | "south" | "s" => Some(vek::Vec2::new(0.0, -1.0)),
+        _ => None,
+    }
+}
+
 /// Apply toml data to an Entity.
 pub fn apply_entity_data(entity: &mut Entity, toml: &str) {
     match toml.parse::<Table>() {
@@ -27,6 +37,11 @@ pub fn apply_entity_data(entity: &mut Entity, toml: &str) {
                                             "source",
                                             Value::Source(PixelSource::TileId(uuid)),
                                         );
+                                    }
+                                } else if key == "facing" {
+                                    entity.set_attribute(key, crate::Value::Str(value.to_string()));
+                                    if let Some(orientation) = facing_to_orientation(value) {
+                                        entity.orientation = orientation;
                                     }
                                 } else {
                                     entity.set_attribute(key, crate::Value::Str(value.to_string()));

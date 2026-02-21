@@ -84,6 +84,20 @@ inventory_slots = 8
 
 ---
 
+## `facing`
+
+*Character-only attribute.*
+
+Initial facing direction on spawn.  
+Supported values: `"front"`, `"back"`, `"left"`, `"right"`  
+(also accepts `"north"`, `"south"`, `"west"`, `"east"`).
+
+```toml
+facing = "right"
+```
+
+---
+
 ## `start_items`
 
 *Character-only attribute.*

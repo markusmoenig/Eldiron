@@ -2469,12 +2469,6 @@ fn apply_spawn_item_entries_for_entity(
     equip: bool,
 ) {
     for class_name in class_names {
-        if ctx.debug_mode {
-            ctx.send_log_message(format!(
-                "[SPAWNITEM] {} ({}) request class='{}' equip={}",
-                entity_name, entity_id, class_name, equip
-            ));
-        }
         let Some(item) = ctx.create_item(class_name.clone()) else {
             ctx.send_log_message(format!(
                 "[warn] {} ({}) => unknown startup item template '{}'",
@@ -2497,27 +2491,15 @@ fn apply_spawn_item_entries_for_entity(
             ));
             continue;
         }
-        if ctx.debug_mode {
-            ctx.send_log_message(format!(
-                "[SPAWNITEM] {} ({}) added class='{}' item_id={} slot={:?}",
-                entity_name, entity_id, class_name, item_id, item_slot
-            ));
-        }
 
         if !equip {
             continue;
         }
 
         if let Some(slot) = item_slot {
-            let mut equip_ok = false;
+            let mut _equip_ok = false;
             if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
-                equip_ok = entity.equip_item(item_id, &slot).is_ok();
-            }
-            if ctx.debug_mode {
-                ctx.send_log_message(format!(
-                    "[SPAWNITEM] {} ({}) equip slot='{}' item_id={} ok={}",
-                    entity_name, entity_id, slot, item_id, equip_ok
-                ));
+                _equip_ok = entity.equip_item(item_id, &slot).is_ok();
             }
         } else {
             ctx.send_log_message(format!(
