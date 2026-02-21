@@ -6,6 +6,7 @@ use crate::{
     RegionCtx, Value, ValueContainer,
 };
 use crossbeam_channel::{Receiver, Sender, unbounded};
+use instant::Instant;
 use rand::*;
 
 use std::sync::{Arc, Mutex};
@@ -86,6 +87,8 @@ pub struct RegionInstance {
 
     /// Entity block mode
     entity_block_mode: i32,
+    last_redraw_at: Instant,
+    movement_units_per_sec: f32,
 }
 
 impl RegionInstance {
@@ -359,6 +362,8 @@ impl RegionInstance {
             from_sender,
 
             entity_block_mode: 0,
+            last_redraw_at: Instant::now(),
+            movement_units_per_sec: 4.0,
         }
     }
 
@@ -645,9 +650,7 @@ impl RegionInstance {
         ctx.ticks_per_minute = 4;
         ctx.ticks_per_minute = get_config_i32_default(&ctx, "game", "ticks_per_minute", 4) as u32;
 
-        // let game_tick_ms = get_config_i32_default(&ctx, "game", "game_tick_ms", 250) as u64;
-        let target_fps = get_config_i32_default(&ctx, "game", "target_fps", 30) as f32;
-
+        let target_fps = get_config_i32_default(&ctx, "game", "target_fps", 30).max(1) as f32;
         ctx.delta_time = 1.0 / target_fps;
         ctx.health_attr = get_config_string_default(&ctx, "game", "health", "HP").to_string();
 
@@ -655,6 +658,8 @@ impl RegionInstance {
             let mode = get_config_string_default(&ctx, "game", "entity_block_mode", "always");
             if mode == "always" { 1 } else { 0 }
         };
+        self.movement_units_per_sec =
+            get_config_i32_default(&ctx, "game", "movement_units_per_sec", 4).max(1) as f32;
 
         let entities: Vec<Entity> = ctx.map.entities.clone();
 
@@ -662,9 +667,18 @@ impl RegionInstance {
         for entity in entities.iter() {
             if let Some(class_name) = entity.get_attr_string("class_name") {
                 if let Some(data) = ctx.entity_class_data.get(&class_name) {
+                    let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                    let ground_y =
+                        crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                            &ctx.map,
+                            entity.get_pos_xz(),
+                            &config,
+                        );
+                    let mut spawn_entity_id: Option<u32> = None;
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {
                             apply_entity_data(e, data);
+                            e.position.y = ground_y;
 
                             // Fill up the inventory slots
                             if let Some(Value::Int(inv_slots)) = e.attributes.get("inventory_slots")
@@ -679,7 +693,11 @@ impl RegionInstance {
                             if let Some(Value::Int(wealth)) = e.attributes.get("wealth") {
                                 _ = e.add_base_currency(*wealth as i64, &ctx.currencies)
                             }
+                            spawn_entity_id = Some(e.id);
                         }
+                    }
+                    if let Some(spawn_entity_id) = spawn_entity_id {
+                        apply_spawn_item_lists_for_entity(spawn_entity_id, &mut ctx);
                     }
                 }
             }
@@ -1402,6 +1420,13 @@ impl RegionInstance {
 
         let mut updates: Vec<Vec<u8>> = vec![];
         let mut item_updates: Vec<Vec<u8>> = vec![];
+        let now = Instant::now();
+        let redraw_dt = now
+            .saturating_duration_since(self.last_redraw_at)
+            .as_secs_f32()
+            .clamp(1.0 / 240.0, 0.1);
+        self.last_redraw_at = now;
+        let mut turn_step_deg: f32 = 4.0;
 
         let mut entities = vec![];
         with_regionctx(self.id, |ctx: &mut RegionCtx| {
@@ -1409,9 +1434,13 @@ impl RegionInstance {
                 return;
             }
             entities = ctx.map.entities.clone();
+            let turn_speed_deg_per_sec =
+                get_config_i32_default(ctx, "game", "turn_speed_deg_per_sec", 120).max(1) as f32;
+            turn_step_deg = turn_speed_deg_per_sec * redraw_dt;
         });
 
         for entity in &mut entities {
+            let action_start_pos = entity.get_pos_xz();
             match &entity.action.clone() {
                 EntityAction::Forward => {
                     if entity.is_player() {
@@ -1447,7 +1476,7 @@ impl RegionInstance {
                                     entity.face_west();
                                     self.move_entity(entity, 1.0, self.entity_block_mode);
                                 } else {
-                                    entity.turn_left(4.0);
+                                    entity.turn_left(turn_step_deg);
                                 }
                             }
                         } else {
@@ -1458,7 +1487,7 @@ impl RegionInstance {
                             entity.action = EntityAction::Off;
                         }
                     } else {
-                        entity.turn_left(4.0);
+                        entity.turn_left(turn_step_deg);
                     }
                 }
                 EntityAction::Right => {
@@ -1473,7 +1502,7 @@ impl RegionInstance {
                                     entity.face_east();
                                     self.move_entity(entity, 1.0, self.entity_block_mode);
                                 } else {
-                                    entity.turn_right(4.0);
+                                    entity.turn_right(turn_step_deg);
                                 }
                             }
                         } else {
@@ -1484,7 +1513,7 @@ impl RegionInstance {
                             entity.action = EntityAction::Off;
                         }
                     } else {
-                        entity.turn_right(4.0);
+                        entity.turn_right(turn_step_deg);
                     }
                 }
                 EntityAction::Backward => {
@@ -1524,7 +1553,7 @@ impl RegionInstance {
                     let mut coord: Option<vek::Vec2<f32>> = None;
 
                     with_regionctx(self.id, |ctx| {
-                        let speed: f32 = 4.0 * speed * ctx.delta_time;
+                        let speed: f32 = self.movement_units_per_sec * speed * ctx.delta_time;
 
                         if let Some(entity) =
                             ctx.map.entities.iter().find(|entity| entity.id == *target)
@@ -1569,7 +1598,7 @@ impl RegionInstance {
                     let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
 
                     with_regionctx(self.id, |ctx| {
-                        let speed = 4.0 * speed * ctx.delta_time;
+                        let speed = self.movement_units_per_sec * speed * ctx.delta_time;
 
                         let (new_position, arrived) = ctx
                             .mapmini
@@ -1691,6 +1720,17 @@ impl RegionInstance {
                 }
                 _ => {}
             }
+
+            // Keep avatar animation state in sync with actual movement this update.
+            let moved = (entity.get_pos_xz() - action_start_pos).magnitude_squared() > 1e-6;
+            let desired_anim = if moved { "Walk" } else { "Idle" };
+            let current_anim = entity
+                .attributes
+                .get_str_default("avatar_animation", String::new());
+            if !current_anim.eq_ignore_ascii_case(desired_anim) {
+                entity.set_attribute("avatar_animation", Value::Str(desired_anim.to_string()));
+            }
+
             if entity.is_dirty() {
                 updates.push(entity.get_update().pack());
                 entity.clear_dirty();
@@ -1886,7 +1926,7 @@ impl RegionInstance {
     /// Moves an entity forward or backward. Returns true if blocked.
     fn move_entity(&self, entity: &mut Entity, dir: f32, entity_block_mode: i32) -> bool {
         with_regionctx(self.id, |ctx| {
-            let speed = 4.0 * ctx.delta_time;
+            let speed = self.movement_units_per_sec * ctx.delta_time;
             let move_vector = entity.orientation * speed * dir;
             let position = entity.get_pos_xz();
             let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
@@ -2081,7 +2121,7 @@ impl RegionInstance {
             }
 
             if let Some(y) = base_y {
-                entity.position.y = y + 1.5;
+                entity.position.y = y;
             }
 
             ctx.check_player_for_section_change(entity);
@@ -2106,9 +2146,18 @@ impl RegionInstance {
 
                 // Setting the data for the entity
                 if let Some(data) = ctx.entity_class_data.get(&class_name) {
+                    let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                    let ground_y =
+                        crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                            &ctx.map,
+                            entity.get_pos_xz(),
+                            &config,
+                        );
+                    let mut spawn_entity_id: Option<u32> = None;
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {
                             apply_entity_data(e, data);
+                            e.position.y = ground_y;
 
                             // Fill up the inventory slots
                             if let Some(Value::Int(inv_slots)) = e.attributes.get("inventory_slots")
@@ -2123,7 +2172,11 @@ impl RegionInstance {
                             if let Some(Value::Int(wealth)) = e.attributes.get("wealth") {
                                 _ = e.add_base_currency(*wealth as i64, &ctx.currencies)
                             }
+                            spawn_entity_id = Some(e.id);
                         }
+                    }
+                    if let Some(spawn_entity_id) = spawn_entity_id {
+                        apply_spawn_item_lists_for_entity(spawn_entity_id, ctx);
                     }
                 }
 
@@ -2380,6 +2433,133 @@ impl RegionInstance {
     }
 }
 
+fn collect_spawn_item_list(attrs: &ValueContainer, keys: &[&str]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for key in keys {
+        if let Some(value) = attrs.get(key) {
+            match value {
+                Value::StrArray(values) => {
+                    for entry in values {
+                        let trimmed = entry.trim();
+                        if !trimmed.is_empty() && !out.iter().any(|v| v == trimmed) {
+                            out.push(trimmed.to_string());
+                        }
+                    }
+                }
+                Value::Str(raw) => {
+                    for entry in raw.split(',') {
+                        let trimmed = entry.trim();
+                        if !trimmed.is_empty() && !out.iter().any(|v| v == trimmed) {
+                            out.push(trimmed.to_string());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    out
+}
+
+fn apply_spawn_item_entries_for_entity(
+    entity_id: u32,
+    entity_name: &str,
+    ctx: &mut RegionCtx,
+    class_names: &[String],
+    equip: bool,
+) {
+    for class_name in class_names {
+        if ctx.debug_mode {
+            ctx.send_log_message(format!(
+                "[SPAWNITEM] {} ({}) request class='{}' equip={}",
+                entity_name, entity_id, class_name, equip
+            ));
+        }
+        let Some(item) = ctx.create_item(class_name.clone()) else {
+            ctx.send_log_message(format!(
+                "[warn] {} ({}) => unknown startup item template '{}'",
+                entity_name, entity_id, class_name
+            ));
+            continue;
+        };
+
+        let item_id = item.id;
+        let item_slot = item.attributes.get_str("slot").map(str::to_string);
+
+        let mut added = false;
+        if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+            added = entity.add_item(item).is_ok();
+        }
+        if !added {
+            ctx.send_log_message(format!(
+                "[warn] {} ({}) => startup item '{}' skipped: inventory full",
+                entity_name, entity_id, class_name
+            ));
+            continue;
+        }
+        if ctx.debug_mode {
+            ctx.send_log_message(format!(
+                "[SPAWNITEM] {} ({}) added class='{}' item_id={} slot={:?}",
+                entity_name, entity_id, class_name, item_id, item_slot
+            ));
+        }
+
+        if !equip {
+            continue;
+        }
+
+        if let Some(slot) = item_slot {
+            let mut equip_ok = false;
+            if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+                equip_ok = entity.equip_item(item_id, &slot).is_ok();
+            }
+            if ctx.debug_mode {
+                ctx.send_log_message(format!(
+                    "[SPAWNITEM] {} ({}) equip slot='{}' item_id={} ok={}",
+                    entity_name, entity_id, slot, item_id, equip_ok
+                ));
+            }
+        } else {
+            ctx.send_log_message(format!(
+                "[warn] {} ({}) => startup equip item '{}' has no slot attribute",
+                entity_name, entity_id, class_name
+            ));
+        }
+    }
+}
+
+fn apply_spawn_item_lists_for_entity(entity_id: u32, ctx: &mut RegionCtx) {
+    let mut entity_name = "Unknown".to_string();
+    let mut add_only: Vec<String> = Vec::new();
+    let mut add_and_equip: Vec<String> = Vec::new();
+    if let Some(entity) = ctx.map.entities.iter().find(|e| e.id == entity_id) {
+        entity_name = entity
+            .attributes
+            .get_str_default("name", "Unknown".to_string());
+
+        // Preferred names plus backward-compatible aliases.
+        add_only = collect_spawn_item_list(
+            &entity.attributes,
+            &["start_items", "startup_items", "add_items"],
+        );
+        add_and_equip = collect_spawn_item_list(
+            &entity.attributes,
+            &[
+                "start_equipped_items",
+                "startup_equipped_items",
+                "add_equip_items",
+            ],
+        );
+    }
+
+    if add_only.is_empty() && add_and_equip.is_empty() {
+        return;
+    }
+
+    apply_spawn_item_entries_for_entity(entity_id, &entity_name, ctx, &add_only, false);
+    apply_spawn_item_entries_for_entity(entity_id, &entity_name, ctx, &add_and_equip, true);
+}
+
 /// Set Player Camera
 /*
 fn set_player_camera(camera: String, vm: &VirtualMachine) {
@@ -2513,6 +2693,13 @@ pub fn receive_entity(ctx: &mut RegionCtx, mut entity: Entity, dest_sector_name:
 
     if let Some(new_pos) = new_pos {
         entity.set_pos_xz(new_pos);
+        let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+        entity.position.y =
+            crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                &ctx.map,
+                entity.get_pos_xz(),
+                &config,
+            );
         ctx.check_player_for_section_change(&mut entity);
     }
 

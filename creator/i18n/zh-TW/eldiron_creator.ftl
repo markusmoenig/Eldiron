@@ -199,6 +199,7 @@ anchors = 錨點
 skin_light = 淺色皮膚
 skin_dark = 深色皮膚
 torso = 軀幹
+arms = 手臂
 legs = 腿部
 hair = 頭髮
 eyes = 眼睛

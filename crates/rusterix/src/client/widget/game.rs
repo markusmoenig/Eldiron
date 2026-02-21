@@ -40,6 +40,7 @@ pub struct GameWidget {
     pub iso_hidden_sectors: FxHashSet<u32>,
     pub iso_sector_fade: FxHashMap<u32, f32>,
     pub force_dynamics_rebuild: bool,
+    pub firstp_eye_level: f32,
 }
 
 impl Default for GameWidget {
@@ -82,6 +83,7 @@ impl GameWidget {
             iso_hidden_sectors: FxHashSet::default(),
             iso_sector_fade: FxHashMap::default(),
             force_dynamics_rebuild: true,
+            firstp_eye_level: 1.7,
         }
     }
 
@@ -190,7 +192,7 @@ impl GameWidget {
                 // }
 
                 if self.camera != PlayerCamera::D2 {
-                    entity.apply_to_camera(&mut self.camera_d3);
+                    entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
                 }
 
                 self.player_pos = entity.get_pos_xz();

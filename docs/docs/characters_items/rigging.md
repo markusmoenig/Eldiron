@@ -35,14 +35,15 @@ Body-part colors are first read from the character attributes. Equipped armor it
 
 Supported body parts:
 
-- `light_skin`
-- `dark_skin`
-- `torso`
-- `legs`
-- `hair`
-- `eyes`
-- `hands`
-- `feet`
+- `light_skin` (`rgb(255, 0, 255)`)
+- `dark_skin` (`rgb(200, 0, 200)`)
+- `torso` (`rgb(0, 0, 255)`)
+- `arms` (`rgb(0, 120, 255)`)
+- `legs` (`rgb(0, 255, 0)`)
+- `hair` (`rgb(255, 255, 0)`)
+- `eyes` (`rgb(0, 255, 255)`)
+- `hands` (`rgb(255, 128, 0)`)
+- `feet` (`rgb(255, 80, 0)`)
 
 For each body part, choose either:
 
@@ -67,11 +68,15 @@ Useful item attributes:
 - `tile_id` (required): source tile for weapon sprite
 - `rig_scale` (optional): weapon scale, default `1.0`
 - `rig_pivot` (optional): attach point on weapon sprite, default center
+- `rig_layer` (optional): hand-depth ordering, `"front"` or `"back"` (default `"front"`)
+- `rig_flip_back` (optional): if no `tile_id_back` is set, flip weapon horizontally in back view (default `true`)
 
 ```toml
 tile_id = "YOUR_WEAPON_TILE_UUID"
 rig_scale = 0.8
 rig_pivot = [0.5, 0.5]
+rig_layer = "back"
+rig_flip_back = true
 ```
 
 `rig_pivot` meaning:
@@ -85,6 +90,11 @@ String format is also accepted:
 ```toml
 rig_pivot = "0.5, 0.5"
 ```
+
+`rig_layer` controls draw order relative to the hand (while staying in front of the body):
+
+- `"back"`: behind hand, in front of body
+- `"front"`: in front of hand
 
 You can also provide perspective-specific weapon tiles:
 
@@ -161,6 +171,32 @@ This makes back-view weapons feel properly behind the character.
 Rig visuals update when equipment or rig-related character data changes.
 
 If you do not see the expected result right away, re-check the equipped items and their attributes.
+
+---
+
+## Preview Tuning In Character Data
+
+In the character **Rigging Preview** TOML, you can override weapon transform per slot without changing the item data.
+
+```toml
+animation = "Idle"
+perspective = "Front"
+play = true
+speed = 1.0
+
+[slots]
+off_hand = "Shield"
+
+[slot_overrides.off_hand]
+rig_scale = 0.85
+rig_pivot = [0.45, 0.58]
+```
+
+Notes:
+
+- `slot_overrides` is preview-only (non-destructive).
+- Keys under `slot_overrides` must match the slot key from `[slots]`.
+- You can still keep final `rig_scale` / `rig_pivot` on the item itself.
 
 ---
 

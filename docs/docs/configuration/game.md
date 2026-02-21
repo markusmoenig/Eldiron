@@ -16,6 +16,9 @@ Game configuration options are located in the `[game]` section.
 target_fps = 30                # The target frames per second for the game.
 game_tick_ms = 250             # The milliseconds per game tick.
 ticks_per_minute = 4           # The amount of ticks per in-game minute.
+movement_units_per_sec = 4     # Base movement speed in world units per second.
+turn_speed_deg_per_sec = 120   # First-person turn speed in degrees per second.
+firstp_eye_level = 1.7         # First-person camera eye height above the entity base Y.
 entity_block_mode = "always"   # The block mode, "always" or "never".
 auto_create_player = true      # Whether to auto-create a player entity.
 start_region = ""              # The name of the region to start the game in.
@@ -50,6 +53,21 @@ health = "HP"
   - Defines the **number of ticks per in-game minute**.
   - Default: `4`, meaning **1 in-game minute = 1 real-time second**.
   - To sync in-game time with real time, set this value to **`60 * 4 = 240`**.
+
+- **`movement_units_per_sec`**
+  - Defines the base movement speed in world units per second.
+  - Other movement actions scale relative to this value.
+  - Default: `4`.
+
+- **`turn_speed_deg_per_sec`**
+  - Defines first-person turning speed in degrees per second.
+  - Helps tune camera yaw feel without changing movement speed.
+  - Default: `120`.
+
+- **`firstp_eye_level`**
+  - Defines first-person camera eye height above the entity's base Y position.
+  - Applied on the client in first-person mode only.
+  - Default: `1.7`.
 
 - **`entity_block_mode`**
   - Controls whether **entities (i.e., characters)** can move through each other.

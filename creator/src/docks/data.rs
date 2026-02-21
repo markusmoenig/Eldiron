@@ -1,6 +1,7 @@
 use crate::docks::data_undo::*;
 use crate::editor::RUSTERIX;
 use crate::prelude::*;
+use rusterix::PixelSource;
 use rusterix::avatar_builder::AvatarRuntimeBuilder;
 use rusterix::server::data::{apply_entity_data, apply_item_data};
 use theframework::prelude::*;
@@ -25,7 +26,17 @@ struct CharacterPreviewRigging {
     fixed_frame: usize,
     play: bool,
     speed: f32,
+    debug: bool,
     slots: FxHashMap<String, String>,
+    slot_overrides: FxHashMap<String, CharacterPreviewSlotOverride>,
+    attrs: FxHashMap<String, Value>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct CharacterPreviewSlotOverride {
+    rig_scale: Option<f32>,
+    rig_pivot: Option<[f32; 2]>,
+    rig_layer: Option<String>,
 }
 
 pub struct DataDock {
@@ -274,6 +285,19 @@ impl Dock for DataDock {
         apply_entity_data(&mut entity, &character.data);
 
         let preview = Self::parse_preview_rigging(&character.preview_rigging);
+        if preview.debug {
+            eprintln!(
+                "[RIGPREVIEW] active char={} anim='{}' perspective={:?} play={} speed={} slots={} overrides={} attrs={}",
+                character_id,
+                preview.animation.as_deref().unwrap_or("<first>"),
+                preview.perspective,
+                preview.play,
+                preview.speed,
+                preview.slots.len(),
+                preview.slot_overrides.len(),
+                preview.attrs.len()
+            );
+        }
         Self::populate_preview_equipment(&preview, project, &mut entity);
 
         let Some(avatar) = Self::find_preview_avatar(&entity, project) else {
@@ -297,6 +321,14 @@ impl Dock for DataDock {
 
         buffer.fill(BLACK);
         let Some(out) = out else {
+            if preview.debug {
+                eprintln!(
+                    "[RIGPREVIEW] build failed anim='{}' perspective={:?} frame={}",
+                    preview.animation.as_deref().unwrap_or("<first>"),
+                    preview.perspective,
+                    frame_index
+                );
+            }
             return true;
         };
 
@@ -408,6 +440,22 @@ impl Dock for DataDock {
 }
 
 impl DataDock {
+    fn is_preview_slot_key(key: &str) -> bool {
+        matches!(
+            key.to_ascii_lowercase().as_str(),
+            "main_hand"
+                | "mainhand"
+                | "weapon"
+                | "weapon_main"
+                | "hand_main"
+                | "off_hand"
+                | "offhand"
+                | "weapon_off"
+                | "hand_off"
+                | "shield"
+        )
+    }
+
     fn parse_preview_rigging(toml_src: &str) -> CharacterPreviewRigging {
         let mut out = CharacterPreviewRigging {
             animation: None,
@@ -415,7 +463,10 @@ impl DataDock {
             fixed_frame: 0,
             play: true,
             speed: 1.0,
+            debug: false,
             slots: FxHashMap::default(),
+            slot_overrides: FxHashMap::default(),
+            attrs: FxHashMap::default(),
         };
 
         let Ok(table) = toml_src.parse::<Table>() else {
@@ -448,11 +499,71 @@ impl DataDock {
             .and_then(toml::Value::as_float)
             .unwrap_or(1.0)
             .max(0.01) as f32;
+        out.debug = table
+            .get("debug")
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(false);
+
+        // Top-level preview attributes (e.g. torso_index = 2)
+        for (key, value) in &table {
+            if matches!(
+                key.as_str(),
+                "animation"
+                    | "perspective"
+                    | "frame"
+                    | "play"
+                    | "speed"
+                    | "debug"
+                    | "slots"
+                    | "slot_overrides"
+            ) {
+                continue;
+            }
+            if Self::is_preview_slot_key(key)
+                && let Some(item_ref) = value.as_str()
+            {
+                out.slots.insert(key.to_string(), item_ref.to_string());
+                continue;
+            }
+            if let Some(v) = Self::toml_to_attr_value(value) {
+                out.attrs.insert(key.to_string(), v);
+            }
+        }
 
         if let Some(slots) = table.get("slots").and_then(toml::Value::as_table) {
             for (slot, value) in slots {
                 if let Some(v) = value.as_str() {
                     out.slots.insert(slot.to_string(), v.to_string());
+                } else if let Some(v) = Self::toml_to_attr_value(value) {
+                    // Allow preview color/index overrides under [slots] for backward compatibility.
+                    out.attrs.insert(slot.to_string(), v);
+                }
+            }
+        }
+
+        if let Some(overrides) = table.get("slot_overrides").and_then(toml::Value::as_table) {
+            for (slot, value) in overrides {
+                let Some(slot_table) = value.as_table() else {
+                    continue;
+                };
+                let mut slot_override = CharacterPreviewSlotOverride::default();
+                if let Some(scale) = slot_table.get("rig_scale").and_then(toml::Value::as_float) {
+                    slot_override.rig_scale = Some(scale as f32);
+                }
+                if let Some(pivot) = slot_table.get("rig_pivot").and_then(toml::Value::as_array)
+                    && pivot.len() == 2
+                    && let (Some(x), Some(y)) = (pivot[0].as_float(), pivot[1].as_float())
+                {
+                    slot_override.rig_pivot = Some([x as f32, y as f32]);
+                }
+                if let Some(layer) = slot_table.get("rig_layer").and_then(toml::Value::as_str) {
+                    slot_override.rig_layer = Some(layer.to_string());
+                }
+                if slot_override.rig_scale.is_some()
+                    || slot_override.rig_pivot.is_some()
+                    || slot_override.rig_layer.is_some()
+                {
+                    out.slot_overrides.insert(slot.to_string(), slot_override);
                 }
             }
         }
@@ -480,10 +591,69 @@ impl DataDock {
     }
 
     fn find_item_template<'a>(project: &'a Project, ident: &str) -> Option<&'a Item> {
-        project
-            .items
-            .values()
-            .find(|item| item.name.eq_ignore_ascii_case(ident))
+        project.items.values().find(|item| {
+            if item.name.eq_ignore_ascii_case(ident) {
+                return true;
+            }
+
+            let mut parsed = rusterix::Item::default();
+            apply_item_data(&mut parsed, &item.data);
+            if parsed
+                .attributes
+                .get_str("name")
+                .map(|name| name.eq_ignore_ascii_case(ident))
+                .unwrap_or(false)
+            {
+                return true;
+            }
+
+            // Also support top-level item TOML names in preview lookup.
+            if let Ok(table) = item.data.parse::<Table>() {
+                return table
+                    .get("name")
+                    .and_then(toml::Value::as_str)
+                    .map(|name| name.eq_ignore_ascii_case(ident))
+                    .unwrap_or(false);
+            }
+            false
+        })
+    }
+
+    fn apply_preview_item_top_level(item: &mut rusterix::Item, toml_src: &str) {
+        let Ok(table) = toml_src.parse::<Table>() else {
+            return;
+        };
+        for key in [
+            "tile_id",
+            "tile_id_front",
+            "tile_id_back",
+            "tile_id_left",
+            "tile_id_right",
+        ] {
+            if let Some(id) = table.get(key).and_then(toml::Value::as_str)
+                && let Ok(uuid) = Uuid::parse_str(id)
+            {
+                item.attributes
+                    .set(key, Value::Source(PixelSource::TileId(uuid)));
+            }
+        }
+        if let Some(scale) = table.get("rig_scale").and_then(toml::Value::as_float) {
+            item.attributes.set("rig_scale", Value::Float(scale as f32));
+        }
+        if let Some(pivot) = table.get("rig_pivot").and_then(toml::Value::as_array)
+            && pivot.len() == 2
+            && let (Some(x), Some(y)) = (pivot[0].as_float(), pivot[1].as_float())
+        {
+            item.attributes
+                .set("rig_pivot", Value::Vec2([x as f32, y as f32]));
+        }
+        if let Some(slot) = table.get("slot").and_then(toml::Value::as_str) {
+            item.attributes.set("slot", Value::Str(slot.to_string()));
+        }
+        if let Some(layer) = table.get("rig_layer").and_then(toml::Value::as_str) {
+            item.attributes
+                .set("rig_layer", Value::Str(layer.to_string()));
+        }
     }
 
     fn populate_preview_equipment(
@@ -492,17 +662,85 @@ impl DataDock {
         entity: &mut rusterix::Entity,
     ) {
         entity.equipped.clear();
+        entity
+            .attributes
+            .set("avatar_preview_debug", Value::Bool(preview.debug));
+        for (key, value) in &preview.attrs {
+            entity.attributes.set(key, value.clone());
+        }
         for (slot, item_ref) in &preview.slots {
             let Some(template) = Self::find_item_template(project, item_ref) else {
+                if preview.debug {
+                    eprintln!(
+                        "[RIGPREVIEW] slot='{}' item='{}' -> NOT FOUND",
+                        slot, item_ref
+                    );
+                }
                 continue;
             };
             let mut runtime_item = rusterix::Item::default();
             apply_item_data(&mut runtime_item, &template.data);
+            Self::apply_preview_item_top_level(&mut runtime_item, &template.data);
             runtime_item
                 .attributes
                 .set("slot", Value::Str(slot.to_string()));
+            if let Some(override_cfg) = preview.slot_overrides.get(slot) {
+                if let Some(scale) = override_cfg.rig_scale {
+                    runtime_item
+                        .attributes
+                        .set("rig_scale", Value::Float(scale.max(0.01)));
+                }
+                if let Some(pivot) = override_cfg.rig_pivot {
+                    runtime_item.attributes.set("rig_pivot", Value::Vec2(pivot));
+                }
+                if let Some(layer) = &override_cfg.rig_layer {
+                    runtime_item
+                        .attributes
+                        .set("rig_layer", Value::Str(layer.clone()));
+                }
+            }
+            if preview.debug {
+                let has_tile = runtime_item
+                    .attributes
+                    .get_source("source")
+                    .or_else(|| runtime_item.attributes.get_source("tile_id"))
+                    .or_else(|| runtime_item.attributes.get_source("tile_id_front"))
+                    .or_else(|| runtime_item.attributes.get_source("tile_id_back"))
+                    .or_else(|| runtime_item.attributes.get_source("tile_id_left"))
+                    .or_else(|| runtime_item.attributes.get_source("tile_id_right"))
+                    .is_some();
+                eprintln!(
+                    "[RIGPREVIEW] slot='{}' item='{}' -> FOUND name='{}' tile={} override_scale={:?} override_pivot={:?} override_layer={:?}",
+                    slot,
+                    item_ref,
+                    template.name,
+                    has_tile,
+                    preview.slot_overrides.get(slot).and_then(|o| o.rig_scale),
+                    preview.slot_overrides.get(slot).and_then(|o| o.rig_pivot),
+                    preview
+                        .slot_overrides
+                        .get(slot)
+                        .and_then(|o| o.rig_layer.clone())
+                );
+            }
             entity.equipped.insert(slot.to_string(), runtime_item);
         }
+    }
+
+    fn toml_to_attr_value(value: &toml::Value) -> Option<Value> {
+        if let Some(v) = value.as_integer() {
+            return Some(Value::Int(v as i32));
+        }
+        if let Some(v) = value.as_float() {
+            return Some(Value::Float(v as f32));
+        }
+        if let Some(v) = value.as_bool() {
+            return Some(Value::Bool(v));
+        }
+        if let Some(v) = value.as_str() {
+            return Some(Value::Str(v.to_string()));
+        }
+        None
     }
 
     fn preview_frame_index(

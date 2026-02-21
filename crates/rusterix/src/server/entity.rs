@@ -167,13 +167,19 @@ impl Entity {
     }
 
     /// Applies the camera's position and look-at parameters based on the entity's state.
-    pub fn apply_to_camera(&self, camera: &mut Box<dyn D3Camera>) {
+    pub fn apply_to_camera(&self, camera: &mut Box<dyn D3Camera>, firstp_eye_level: f32) {
         // println!("{} {}", self.position, self.orientation);
         let id = camera.id();
 
         if id != "iso" {
-            camera.set_parameter_vec3("position", self.position);
-            camera.set_parameter_vec3("center", self.camera_look_at());
+            let mut cam_pos = self.position;
+            let mut cam_center = self.camera_look_at();
+            if id == "firstp" {
+                cam_pos.y += firstp_eye_level;
+                cam_center.y += firstp_eye_level;
+            }
+            camera.set_parameter_vec3("position", cam_pos);
+            camera.set_parameter_vec3("center", cam_center);
         } else {
             let p = Vec3::new(self.position.x, 0.0, self.position.z);
             camera.set_parameter_vec3("center", p);

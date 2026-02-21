@@ -68,6 +68,7 @@ pub struct Client {
     grid_size: f32,
     pub target_fps: i32,
     pub game_tick_ms: i32,
+    pub firstp_eye_level: f32,
 
     // The offset we copy the target into
     pub target_offset: Vec2<i32>,
@@ -208,6 +209,7 @@ impl Client {
             grid_size: 32.0,
             target_fps: 30,
             game_tick_ms: 250,
+            firstp_eye_level: 1.7,
 
             target_offset: Vec2::zero(),
             target: TheRGBABuffer::default(),
@@ -339,7 +341,7 @@ impl Client {
     ) {
         for entity in &map.entities {
             if entity.is_player() {
-                entity.apply_to_camera(&mut self.camera_d3);
+                entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
             }
         }
         self.builder_d3.build_entities_items(
@@ -709,10 +711,12 @@ impl Client {
         default
     }
 
-    fn _get_config_f32_default(&self, table: &str, key: &str, default: f32) -> f32 {
+    fn get_config_f32_default(&self, table: &str, key: &str, default: f32) -> f32 {
         if let Some(game) = self.config.get(table).and_then(toml::Value::as_table) {
             if let Some(value) = game.get(key) {
                 if let Some(v) = value.as_float() {
+                    return v as f32;
+                } else if let Some(v) = value.as_integer() {
                     return v as f32;
                 }
             }
@@ -830,6 +834,7 @@ impl Client {
 
         self.target_fps = self.get_config_i32_default("game", "target_fps", 30);
         self.game_tick_ms = self.get_config_i32_default("game", "game_tick_ms", 250);
+        self.firstp_eye_level = self.get_config_f32_default("game", "firstp_eye_level", 1.7);
         self.grid_size = self.get_config_i32_default("viewport", "grid_size", 32) as f32;
         self.upscale_mode = self.get_config_string_default("viewport", "upscale", "none");
 
@@ -915,6 +920,7 @@ impl Client {
         self.target.fill([0, 0, 0, 255]);
         // First process the game widgets
         for widget in self.game_widgets.values_mut() {
+            widget.firstp_eye_level = self.firstp_eye_level;
             widget.apply_entities(map, assets, self.animation_frame, scene_handler);
             widget.draw(
                 map,

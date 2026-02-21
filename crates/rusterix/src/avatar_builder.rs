@@ -19,6 +19,13 @@ pub struct AvatarRuntimeBuilder {
     avatar_frame_cache: FxHashMap<GeoId, CachedAvatarFrames>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WeaponLayer {
+    PreBody,
+    Front,
+    Back,
+}
+
 impl AvatarRuntimeBuilder {
     pub fn build_preview_for_entity(
         entity: &Entity,
@@ -44,36 +51,55 @@ impl AvatarRuntimeBuilder {
         })?;
         let (main_anchor, off_anchor) =
             Self::frame_anchors(avatar, resolved_anim, resolved_dir, frame_index);
-        if resolved_dir == AvatarDirection::Back {
-            let size = out.size as usize;
-            let mut composed = vec![0_u8; size * size * 4];
-            let mut overlay_out = AvatarBuildOutput {
-                size: out.size,
-                rgba: composed,
-            };
-            Self::compose_weapon_overlay(
-                &mut overlay_out,
-                entity,
-                assets,
-                resolved_dir,
-                frame_index,
-                main_anchor,
-                off_anchor,
-            );
-            composed = overlay_out.rgba;
-            Self::alpha_blit_rgba(&mut composed, size, size, &out.rgba, size, size, 0, 0);
-            out.rgba = composed;
+        let hand_mask = Self::frame_hand_mask(
+            avatar,
+            resolved_anim,
+            resolved_dir,
+            frame_index,
+            out.size as usize,
+        );
+        let size = out.size as usize;
+        let mut pre_body_overlay = vec![0_u8; size * size * 4];
+        let mut back_overlay = vec![0_u8; size * size * 4];
+        let mut front_overlay = vec![0_u8; size * size * 4];
+        Self::compose_weapon_overlay(
+            &mut pre_body_overlay,
+            &mut back_overlay,
+            &mut front_overlay,
+            size,
+            entity,
+            assets,
+            resolved_dir,
+            frame_index,
+            main_anchor,
+            off_anchor,
+        );
+        let composed = if resolved_dir == AvatarDirection::Back {
+            // Back view: weapons belong behind the character body.
+            let mut c = vec![0_u8; size * size * 4];
+            Self::alpha_blit_rgba(&mut c, size, size, &pre_body_overlay, size, size, 0, 0);
+            Self::alpha_blit_rgba(&mut c, size, size, &back_overlay, size, size, 0, 0);
+            Self::alpha_blit_rgba(&mut c, size, size, &front_overlay, size, size, 0, 0);
+            Self::alpha_blit_rgba(&mut c, size, size, &out.rgba, size, size, 0, 0);
+            c
         } else {
-            Self::compose_weapon_overlay(
-                &mut out,
-                entity,
-                assets,
-                resolved_dir,
-                frame_index,
-                main_anchor,
-                off_anchor,
-            );
-        }
+            // Front/side views: pre-body layer, body, hand-back layer, then hand-front layer.
+            let mut c = pre_body_overlay;
+            Self::alpha_blit_rgba(&mut c, size, size, &out.rgba, size, size, 0, 0);
+            Self::alpha_blit_rgba(&mut c, size, size, &back_overlay, size, size, 0, 0);
+            if let Some(mask) = hand_mask {
+                // Restore hand pixels on top of back-layer weapons so "back" means behind hand.
+                for (i, is_hand) in mask.iter().enumerate() {
+                    if *is_hand {
+                        let idx = i * 4;
+                        c[idx..idx + 4].copy_from_slice(&out.rgba[idx..idx + 4]);
+                    }
+                }
+            }
+            Self::alpha_blit_rgba(&mut c, size, size, &front_overlay, size, size, 0, 0);
+            c
+        };
+        out.rgba = composed;
         Some(out)
     }
 
@@ -175,10 +201,12 @@ impl AvatarRuntimeBuilder {
         let defaults = AvatarMarkerColors::default();
         let light_skin = Self::marker_color(entity, assets, "light_skin", defaults.skin_light);
         let mut colors = AvatarMarkerColors {
-            // Base/default marker color for all slots is light_skin.
+            // Base/default marker color for most slots is light_skin.
             skin_light: light_skin,
-            skin_dark: Self::marker_color(entity, assets, "dark_skin", light_skin),
+            // Keep a distinct dark skin default even when only light_skin is configured.
+            skin_dark: Self::marker_color(entity, assets, "dark_skin", defaults.skin_dark),
             torso: Self::marker_color(entity, assets, "torso", light_skin),
+            arms: Self::marker_color(entity, assets, "arms", light_skin),
             legs: Self::marker_color(entity, assets, "legs", light_skin),
             hair: Self::marker_color(entity, assets, "hair", light_skin),
             eyes: Self::marker_color(entity, assets, "eyes", light_skin),
@@ -196,6 +224,9 @@ impl AvatarRuntimeBuilder {
             }
             if let Some(c) = Self::marker_color_from_item(item, assets, "torso") {
                 colors.torso = c;
+            }
+            if let Some(c) = Self::marker_color_from_item(item, assets, "arms") {
+                colors.arms = c;
             }
             if let Some(c) = Self::marker_color_from_item(item, assets, "legs") {
                 colors.legs = c;
@@ -228,7 +259,7 @@ impl AvatarRuntimeBuilder {
             format!("rig_tile_id_{suffix}"),
             format!("tile_{suffix}"),
         ];
-        let generic_keys = ["tile_id", "rig_tile_id", "tile"];
+        let generic_keys = ["tile_id", "rig_tile_id", "tile", "source"];
 
         for key in directional_keys
             .iter()
@@ -250,12 +281,40 @@ impl AvatarRuntimeBuilder {
         None
     }
 
+    fn has_directional_tile_for_direction(item: &Item, direction: AvatarDirection) -> bool {
+        let suffix = match direction {
+            AvatarDirection::Front => "front",
+            AvatarDirection::Back => "back",
+            AvatarDirection::Left => "left",
+            AvatarDirection::Right => "right",
+        };
+        let directional_keys = [
+            format!("tile_id_{suffix}"),
+            format!("rig_tile_id_{suffix}"),
+            format!("tile_{suffix}"),
+        ];
+        for key in directional_keys.iter().map(|s| s.as_str()) {
+            if item.attributes.get_id(key).is_some() {
+                return true;
+            }
+            if let Some(PixelSource::TileId(_)) = item.attributes.get_source(key) {
+                return true;
+            }
+            if let Some(raw) = item.attributes.get_str(key)
+                && Uuid::parse_str(raw).is_ok()
+            {
+                return true;
+            }
+        }
+        false
+    }
+
     fn weapon_order_for_direction(direction: AvatarDirection) -> [(&'static str, bool); 2] {
         match direction {
             AvatarDirection::Front => [("off_hand", false), ("main_hand", true)],
             AvatarDirection::Back => [("main_hand", true), ("off_hand", false)],
             AvatarDirection::Left => [("off_hand", false), ("main_hand", true)],
-            AvatarDirection::Right => [("main_hand", true), ("off_hand", false)],
+            AvatarDirection::Right => [("off_hand", false), ("main_hand", true)],
         }
     }
 
@@ -367,8 +426,95 @@ impl AvatarRuntimeBuilder {
         out
     }
 
+    fn item_rig_layer(item: &Item, direction: AvatarDirection, slot: &str) -> WeaponLayer {
+        let default_layer = match direction {
+            AvatarDirection::Back => WeaponLayer::PreBody,
+            // Side depth hint:
+            // Right view => off-hand behind body, main-hand in front.
+            AvatarDirection::Right if slot == "off_hand" => WeaponLayer::PreBody,
+            AvatarDirection::Right => WeaponLayer::Front,
+            AvatarDirection::Front | AvatarDirection::Left => WeaponLayer::Front,
+        };
+        let Some(raw) = item.attributes.get_str("rig_layer") else {
+            return default_layer;
+        };
+        match raw.to_ascii_lowercase().as_str() {
+            "back" | "behind" | "under" => WeaponLayer::Back,
+            "pre_body" | "body_back" | "behind_body" => WeaponLayer::PreBody,
+            "front" | "over" => WeaponLayer::Front,
+            _ => default_layer,
+        }
+    }
+
+    fn frame_hand_mask(
+        avatar: &Avatar,
+        animation_name: &str,
+        direction: AvatarDirection,
+        frame_index: usize,
+        target_size: usize,
+    ) -> Option<Vec<bool>> {
+        const HANDS: [u8; 3] = [255, 128, 0];
+        let anim = avatar
+            .animations
+            .iter()
+            .find(|a| a.name.eq_ignore_ascii_case(animation_name))
+            .or_else(|| avatar.animations.first())?;
+        let perspective = anim
+            .perspectives
+            .iter()
+            .find(|p| p.direction == direction)
+            .or_else(|| {
+                anim.perspectives
+                    .iter()
+                    .find(|p| p.direction == AvatarDirection::Front)
+            })
+            .or_else(|| anim.perspectives.first())?;
+        if perspective.frames.is_empty() {
+            return None;
+        }
+        let frame = perspective
+            .frames
+            .get(frame_index % perspective.frames.len())
+            .or_else(|| perspective.frames.first())?;
+        let tex = if frame.texture.width == frame.texture.height {
+            frame.texture.clone()
+        } else {
+            frame.texture.resized(
+                frame.texture.width.max(frame.texture.height),
+                frame.texture.width.max(frame.texture.height),
+            )
+        };
+        if tex.width == 0 || tex.height == 0 {
+            return None;
+        }
+        let mut mask = vec![false; target_size * target_size];
+        let sx = tex.width as f32 / target_size as f32;
+        let sy = tex.height as f32 / target_size as f32;
+        for y in 0..target_size {
+            let src_y = ((y as f32 * sy).floor() as usize).min(tex.height - 1);
+            for x in 0..target_size {
+                let src_x = ((x as f32 * sx).floor() as usize).min(tex.width - 1);
+                let src_i = (src_y * tex.width + src_x) * 4;
+                let alpha = tex.data[src_i + 3];
+                if alpha == 0 {
+                    continue;
+                }
+                if tex.data[src_i] == HANDS[0]
+                    && tex.data[src_i + 1] == HANDS[1]
+                    && tex.data[src_i + 2] == HANDS[2]
+                {
+                    mask[y * target_size + x] = true;
+                }
+            }
+        }
+        Some(mask)
+    }
+
     fn compose_weapon_overlay(
-        out: &mut AvatarBuildOutput,
+        pre_body_overlay: &mut [u8],
+        back_overlay: &mut [u8],
+        front_overlay: &mut [u8],
+        out_size: usize,
         entity: &Entity,
         assets: &Assets,
         direction: AvatarDirection,
@@ -376,30 +522,73 @@ impl AvatarRuntimeBuilder {
         main_anchor: Option<(i16, i16)>,
         off_anchor: Option<(i16, i16)>,
     ) {
+        let preview_debug = entity
+            .attributes
+            .get_bool_default("avatar_preview_debug", false);
         for (slot, is_main) in Self::weapon_order_for_direction(direction) {
             let anchor = if is_main { main_anchor } else { off_anchor };
             let Some(anchor) = anchor else {
+                if preview_debug {
+                    eprintln!(
+                        "[RIGPREVIEW] overlay slot='{}' -> no anchor (main={:?} off={:?})",
+                        slot, main_anchor, off_anchor
+                    );
+                }
                 continue;
             };
             let Some(item) = Self::find_equipped_for_slot(entity, slot) else {
+                if preview_debug {
+                    eprintln!(
+                        "[RIGPREVIEW] overlay slot='{}' -> no equipped item for slot aliases",
+                        slot
+                    );
+                }
                 continue;
             };
             let Some(tile_id) = Self::item_tile_id_for_direction(item, direction) else {
+                if preview_debug {
+                    eprintln!(
+                        "[RIGPREVIEW] overlay slot='{}' -> no tile_id for direction {:?}",
+                        slot, direction
+                    );
+                }
                 continue;
             };
             let Some(tile) = assets.tiles.get(&tile_id) else {
+                if preview_debug {
+                    eprintln!(
+                        "[RIGPREVIEW] overlay slot='{}' -> tile '{}' not found in assets",
+                        slot, tile_id
+                    );
+                }
                 continue;
             };
             if tile.textures.is_empty() {
+                if preview_debug {
+                    eprintln!(
+                        "[RIGPREVIEW] overlay slot='{}' -> tile '{}' has no textures",
+                        slot, tile_id
+                    );
+                }
                 continue;
             }
             let tex = &tile.textures[frame_index % tile.textures.len()];
             let scale = item.attributes.get_float_default("rig_scale", 1.0);
             let mut pivot = Self::item_rig_pivot(item);
             let Some((scaled, sw, sh)) = Self::scaled_texture_rgba(tex, scale) else {
+                if preview_debug {
+                    eprintln!(
+                        "[RIGPREVIEW] overlay slot='{}' -> texture scale failed (w={} h={} scale={})",
+                        slot, tex.width, tex.height, scale
+                    );
+                }
                 continue;
             };
-            let scaled = if direction == AvatarDirection::Left {
+            let has_directional_tile = Self::has_directional_tile_for_direction(item, direction);
+            let flip_back = item.attributes.get_bool_default("rig_flip_back", true);
+            let should_flip = direction == AvatarDirection::Left
+                || (direction == AvatarDirection::Back && !has_directional_tile && flip_back);
+            let scaled = if should_flip {
                 pivot[0] = 1.0 - pivot[0];
                 Self::flip_rgba_horizontal(&scaled, sw, sh)
             } else {
@@ -409,8 +598,57 @@ impl AvatarRuntimeBuilder {
             let py = (pivot[1].clamp(0.0, 1.0) * (sh as f32 - 1.0)).round() as i32;
             let dst_x = anchor.0 as i32 - px;
             let dst_y = anchor.1 as i32 - py;
-            let size = out.size as usize;
-            Self::alpha_blit_rgba(&mut out.rgba, size, size, &scaled, sw, sh, dst_x, dst_y);
+            let layer = Self::item_rig_layer(item, direction, slot);
+            if preview_debug {
+                eprintln!(
+                    "[RIGPREVIEW] overlay slot='{}' layer={:?} anchor=({}, {}) tile='{}' tex={}x{} scale={} flip={} pivot=({:.2},{:.2}) dst=({}, {})",
+                    slot,
+                    layer,
+                    anchor.0,
+                    anchor.1,
+                    tile_id,
+                    sw,
+                    sh,
+                    scale,
+                    should_flip,
+                    pivot[0],
+                    pivot[1],
+                    dst_x,
+                    dst_y
+                );
+            }
+            match layer {
+                WeaponLayer::PreBody => Self::alpha_blit_rgba(
+                    pre_body_overlay,
+                    out_size,
+                    out_size,
+                    &scaled,
+                    sw,
+                    sh,
+                    dst_x,
+                    dst_y,
+                ),
+                WeaponLayer::Back => Self::alpha_blit_rgba(
+                    back_overlay,
+                    out_size,
+                    out_size,
+                    &scaled,
+                    sw,
+                    sh,
+                    dst_x,
+                    dst_y,
+                ),
+                WeaponLayer::Front => Self::alpha_blit_rgba(
+                    front_overlay,
+                    out_size,
+                    out_size,
+                    &scaled,
+                    sw,
+                    sh,
+                    dst_x,
+                    dst_y,
+                ),
+            }
         }
     }
 
@@ -598,9 +836,11 @@ impl AvatarRuntimeBuilder {
             .or_else(|| anim.perspectives.first())
             .map(|p| p.frames.len().max(1))
             .unwrap_or(1);
-        // Keep runtime avatar frame selection deterministic and cheap.
-        // Per-animation speed scaling can be reintroduced once its semantics are finalized.
-        let frame_idx = frame_index % frame_count;
+        // Apply per-animation playback speed:
+        // speed = 1.0 normal, >1.0 slower, <1.0 faster.
+        let speed = anim.speed.max(0.01);
+        let scaled_frame = (frame_index as f32 / speed).floor() as usize;
+        let frame_idx = scaled_frame % frame_count;
         let key = (anim_name.to_string(), persp_dir, frame_idx);
 
         let Some(cache) = self.avatar_frame_cache.get_mut(&geo_id) else {

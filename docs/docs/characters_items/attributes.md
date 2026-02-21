@@ -84,6 +84,31 @@ inventory_slots = 8
 
 ---
 
+## `start_items`
+
+*Character-only attribute.*
+
+List of item template names to add to the character inventory on spawn (not equipped).
+
+```toml
+start_items = ["Sword", "Potion"]
+```
+
+---
+
+## `start_equipped_items`
+
+*Character-only attribute.*
+
+List of item template names to add and auto-equip on spawn.  
+Items must define a valid `slot` attribute.
+
+```toml
+start_equipped_items = ["Shield", "Helmet"]
+```
+
+---
+
 ## `mode`
 
 *Character-only attribute.*
@@ -128,6 +153,19 @@ Marks the character as a player-controlled character that receives input events.
 
 ```toml
 player = true
+```
+
+---
+
+## `size`
+
+*Character-only attribute.*
+
+Billboard height/width scale for characters rendered as billboards in 3D views.  
+Default is `2.0` if no size attribute is set.
+
+```toml
+size = 2.0
 ```
 
 ---

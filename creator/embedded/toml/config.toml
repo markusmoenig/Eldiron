@@ -2,6 +2,9 @@
 target_fps = 30      # The target frames per second for the game.
 game_tick_ms = 250   # The milliseconds per game tick.
 ticks_per_minute = 4 # The amount of ticks per in-game minute.
+movement_units_per_sec = 4 # Base movement speed in world units per second.
+turn_speed_deg_per_sec = 120 # First-person turn speed in degrees per second.
+firstp_eye_level = 1.7 # First-person camera eye height above base Y.
 
 entity_block_mode = "always" # The block mode, "always" or "never"
 auto_create_player = true    # Whether to auto create a player entity.

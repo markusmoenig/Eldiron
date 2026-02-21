@@ -270,8 +270,9 @@ impl TheWidget for TheTextAreaEdit {
 
                     #[cfg(not(target_arch = "wasm32"))]
                     {
-                        let mut clipboard = Clipboard::new().unwrap();
-                        clipboard.set_text(text.clone()).unwrap();
+                        if let Ok(mut clipboard) = Clipboard::new() {
+                            let _ = clipboard.set_text(text.clone());
+                        }
                     }
 
                     ctx.ui
@@ -289,8 +290,9 @@ impl TheWidget for TheTextAreaEdit {
 
                     #[cfg(not(target_arch = "wasm32"))]
                     {
-                        let mut clipboard = Clipboard::new().unwrap();
-                        clipboard.set_text(text.clone()).unwrap();
+                        if let Ok(mut clipboard) = Clipboard::new() {
+                            let _ = clipboard.set_text(text.clone());
+                        }
                     }
 
                     ctx.ui
@@ -309,28 +311,35 @@ impl TheWidget for TheTextAreaEdit {
             TheEvent::Paste(_value, _) => {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    let mut clipboard = Clipboard::new().unwrap();
-                    let text = clipboard.get_text().unwrap();
+                    let text = if let Some(text) = _value.to_string() {
+                        Some(text)
+                    } else if let Ok(mut clipboard) = Clipboard::new() {
+                        clipboard.get_text().ok()
+                    } else {
+                        None
+                    };
 
-                    let prev_state = self.state.save();
+                    if let Some(text) = text {
+                        let prev_state = self.state.save();
 
-                    self.state.insert_text(text);
-                    self.modified_since_last_tick = true;
-                    self.is_dirty = true;
-                    redraw = true;
-                    update_status = true;
+                        self.state.insert_text(text);
+                        self.modified_since_last_tick = true;
+                        self.is_dirty = true;
+                        redraw = true;
+                        update_status = true;
 
-                    // if self.continuous {
-                    //     self.emit_value_changed(ctx);
-                    // }
+                        // if self.continuous {
+                        //     self.emit_value_changed(ctx);
+                        // }
 
-                    let mut undo = TheUndo::new(TheId::named("Cut"));
-                    undo.set_undo_data(prev_state);
-                    undo.set_redo_data(self.state.save());
-                    self.undo_stack.add(undo);
+                        let mut undo = TheUndo::new(TheId::named("Cut"));
+                        undo.set_undo_data(prev_state);
+                        undo.set_redo_data(self.state.save());
+                        self.undo_stack.add(undo);
 
-                    if self.continuous {
-                        self.emit_value_changed(ctx);
+                        if self.continuous {
+                            self.emit_value_changed(ctx);
+                        }
                     }
                 }
 

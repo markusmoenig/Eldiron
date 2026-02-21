@@ -457,10 +457,13 @@ impl D3Builder {
 
                 if let Some(Value::Source(source)) = entity.attributes.get("source") {
                     if entity.attributes.get_bool_default("visible", false) {
-                        let size = 2.0;
+                        let size = entity.attributes.get_float_default("size", 2.0).max(0.01);
                         if let Some(tile) = source.tile_from_tile_list(assets) {
-                            let center3 =
-                                Vec3::new(entity.position.x, size * 0.5, entity.position.z);
+                            let center3 = Vec3::new(
+                                entity.position.x,
+                                entity.position.y + size * 0.5,
+                                entity.position.z,
+                            );
 
                             let dynamic = DynamicObject::billboard_tile(
                                 GeoId::Item(entity.id),
@@ -476,7 +479,11 @@ impl D3Builder {
                                 .execute(Atom::AddDynamic { object: dynamic });
                         }
 
-                        let center3 = Vec3::new(entity.position.x, size * 0.5, entity.position.z);
+                        let center3 = Vec3::new(
+                            entity.position.x,
+                            entity.position.y + size * 0.5,
+                            entity.position.z,
+                        );
                         if let Some(tile) = source.tile_from_tile_list(assets) {
                             if let Some(texture_index) = assets.tile_index(&tile.id) {
                                 let mut batch = Batch3D::empty()
@@ -490,8 +497,12 @@ impl D3Builder {
                     }
                 } else if let Some(Value::Source(source)) = entity.attributes.get("_source_seq") {
                     if entity.attributes.get_bool_default("visible", false) {
-                        let size = 2.0;
-                        let center3 = Vec3::new(entity.position.x, size * 0.5, entity.position.z);
+                        let size = entity.attributes.get_float_default("size", 2.0).max(0.01);
+                        let center3 = Vec3::new(
+                            entity.position.x,
+                            entity.position.y + size * 0.5,
+                            entity.position.z,
+                        );
                         if let Some(entity_tile) = source.entity_tile_id(entity.id, assets) {
                             let mut batch = Batch3D::empty()
                                 .repeat_mode(crate::RepeatMode::RepeatXY)

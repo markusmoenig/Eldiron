@@ -237,6 +237,13 @@ impl DockManager {
         let index = stack.add_canvas(tiles_editor_canvas);
         self.editor_canvases.insert("Tiles".to_string(), index);
         self.editor_docks.insert("Tiles".to_string(), tiles_editor);
+
+        let mut data_editor: Box<dyn Dock> =
+            Box::new(crate::docks::data_editor::DataEditorDock::new());
+        let data_editor_canvas = data_editor.setup(ctx);
+        let index = stack.add_canvas(data_editor_canvas);
+        self.editor_canvases.insert("Data".to_string(), index);
+        self.editor_docks.insert("Data".to_string(), data_editor);
     }
 
     /// Shows the editor of the current dock if available, otherwise maximizes the dock.

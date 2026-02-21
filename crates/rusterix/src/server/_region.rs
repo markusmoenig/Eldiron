@@ -4,6 +4,7 @@ use crate::{
     PlayerCamera, RegionCtx, Value, ValueContainer,
 };
 use crossbeam_channel::{Receiver, Sender, unbounded};
+use instant::Instant;
 use rand::*;
 
 use rustpython::vm::*;
@@ -87,6 +88,8 @@ pub struct RegionInstance {
 
     /// Entity block mode
     entity_block_mode: i32,
+    last_redraw_at: Instant,
+    movement_units_per_sec: f32,
 }
 
 use rustpython_vm::{PyObjectRef, VirtualMachine, builtins::PyModule};
@@ -360,6 +363,8 @@ impl RegionInstance {
             from_sender,
 
             entity_block_mode: 0,
+            last_redraw_at: Instant::now(),
+            movement_units_per_sec: 4.0,
         }
     }
 
@@ -535,9 +540,7 @@ impl RegionInstance {
         ctx.ticks_per_minute = 4;
         ctx.ticks_per_minute = get_config_i32_default(&ctx, "game", "ticks_per_minute", 4) as u32;
 
-        // let game_tick_ms = get_config_i32_default(&ctx, "game", "game_tick_ms", 250) as u64;
-        let target_fps = get_config_i32_default(&ctx, "game", "target_fps", 30) as f32;
-
+        let target_fps = get_config_i32_default(&ctx, "game", "target_fps", 30).max(1) as f32;
         ctx.delta_time = 1.0 / target_fps;
         ctx.health_attr = get_config_string_default(&ctx, "game", "health", "HP").to_string();
 
@@ -545,6 +548,8 @@ impl RegionInstance {
             let mode = get_config_string_default(&ctx, "game", "entity_block_mode", "always");
             if mode == "always" { 1 } else { 0 }
         };
+        self.movement_units_per_sec =
+            get_config_i32_default(&ctx, "game", "movement_units_per_sec", 4).max(1) as f32;
 
         // Send startup messages
         ctx.error_count = ctx.startup_errors.len() as u32;
@@ -562,6 +567,10 @@ impl RegionInstance {
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {
                             apply_entity_data(e, data);
+                            e.position.y = ctx
+                                .map
+                                .terrain
+                                .sample_height_bilinear(e.position.x, e.position.z);
 
                             // Fill up the inventory slots
                             if let Some(Value::Int(inv_slots)) = e.attributes.get("inventory_slots")
@@ -1180,10 +1189,20 @@ impl RegionInstance {
 
         let mut updates: Vec<Vec<u8>> = vec![];
         let mut item_updates: Vec<Vec<u8>> = vec![];
+        let now = Instant::now();
+        let redraw_dt = now
+            .saturating_duration_since(self.last_redraw_at)
+            .as_secs_f32()
+            .clamp(1.0 / 240.0, 0.1);
+        self.last_redraw_at = now;
+        let mut turn_step_deg: f32 = 4.0;
 
         let mut entities = vec![];
         with_regionctx(self.id, |ctx: &mut RegionCtx| {
             entities = ctx.map.entities.clone();
+            let turn_speed_deg_per_sec =
+                get_config_i32_default(ctx, "game", "turn_speed_deg_per_sec", 120).max(1) as f32;
+            turn_step_deg = turn_speed_deg_per_sec * redraw_dt;
         });
 
         for entity in &mut entities {
@@ -1222,7 +1241,7 @@ impl RegionInstance {
                                     entity.face_west();
                                     self.move_entity(entity, 1.0, self.entity_block_mode);
                                 } else {
-                                    entity.turn_left(4.0);
+                                    entity.turn_left(turn_step_deg);
                                 }
                             }
                         } else {
@@ -1233,7 +1252,7 @@ impl RegionInstance {
                             entity.action = EntityAction::Off;
                         }
                     } else {
-                        entity.turn_left(4.0);
+                        entity.turn_left(turn_step_deg);
                     }
                 }
                 EntityAction::Right => {
@@ -1248,7 +1267,7 @@ impl RegionInstance {
                                     entity.face_east();
                                     self.move_entity(entity, 1.0, self.entity_block_mode);
                                 } else {
-                                    entity.turn_right(4.0);
+                                    entity.turn_right(turn_step_deg);
                                 }
                             }
                         } else {
@@ -1259,7 +1278,7 @@ impl RegionInstance {
                             entity.action = EntityAction::Off;
                         }
                     } else {
-                        entity.turn_right(4.0);
+                        entity.turn_right(turn_step_deg);
                     }
                 }
                 EntityAction::Backward => {
@@ -1299,7 +1318,7 @@ impl RegionInstance {
                     let mut coord: Option<vek::Vec2<f32>> = None;
 
                     with_regionctx(self.id, |ctx| {
-                        let speed: f32 = 4.0 * speed * ctx.delta_time;
+                        let speed: f32 = self.movement_units_per_sec * speed * ctx.delta_time;
 
                         if let Some(entity) =
                             ctx.map.entities.iter().find(|entity| entity.id == *target)
@@ -1344,7 +1363,7 @@ impl RegionInstance {
                     let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
 
                     with_regionctx(self.id, |ctx| {
-                        let speed = 4.0 * speed * ctx.delta_time;
+                        let speed = self.movement_units_per_sec * speed * ctx.delta_time;
 
                         let (new_position, arrived) = ctx
                             .mapmini
@@ -1647,7 +1666,7 @@ impl RegionInstance {
     /// Moves an entity forward or backward. Returns true if blocked.
     fn move_entity(&self, entity: &mut Entity, dir: f32, entity_block_mode: i32) -> bool {
         with_regionctx(self.id, |ctx| {
-            let speed = 4.0 * ctx.delta_time;
+            let speed = self.movement_units_per_sec * ctx.delta_time;
             let move_vector = entity.orientation * speed * dir;
             let position = entity.get_pos_xz();
             let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
@@ -1796,8 +1815,7 @@ impl RegionInstance {
             entity.position.y = ctx
                 .map
                 .terrain
-                .sample_height_bilinear(entity.position.x, entity.position.z)
-                + 1.5;
+                .sample_height_bilinear(entity.position.x, entity.position.z);
 
             // Finally, let the geometry/linedef collision do its thing (OLD SYSTEM)
             let (end_position, geometry_blocked) =
@@ -1849,6 +1867,10 @@ impl RegionInstance {
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {
                             apply_entity_data(e, data);
+                            e.position.y = ctx
+                                .map
+                                .terrain
+                                .sample_height_bilinear(e.position.x, e.position.z);
 
                             // Fill up the inventory slots
                             if let Some(Value::Int(inv_slots)) = e.attributes.get("inventory_slots")
@@ -3525,6 +3547,10 @@ pub fn receive_entity(ctx: &mut RegionCtx, mut entity: Entity, dest_sector_name:
 
     if let Some(new_pos) = new_pos {
         entity.set_pos_xz(new_pos);
+        entity.position.y = ctx
+            .map
+            .terrain
+            .sample_height_bilinear(entity.position.x, entity.position.z);
         check_player_for_section_change(ctx, &mut entity);
     }
 

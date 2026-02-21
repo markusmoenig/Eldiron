@@ -277,6 +277,7 @@ pub struct AvatarMarkerColors {
     pub skin_light: [u8; 4],
     pub skin_dark: [u8; 4],
     pub torso: [u8; 4],
+    pub arms: [u8; 4],
     pub legs: [u8; 4],
     pub hair: [u8; 4],
     pub eyes: [u8; 4],
@@ -290,6 +291,7 @@ impl Default for AvatarMarkerColors {
             skin_light: [255, 224, 189, 255],
             skin_dark: [205, 133, 63, 255],
             torso: [70, 90, 140, 255],
+            arms: [85, 105, 155, 255],
             legs: [50, 60, 90, 255],
             hair: [70, 50, 30, 255],
             eyes: [30, 80, 120, 255],
@@ -368,6 +370,7 @@ impl AvatarBuilder {
         const SKIN_LIGHT: [u8; 3] = [255, 0, 255];
         const SKIN_DARK: [u8; 3] = [200, 0, 200];
         const TORSO: [u8; 3] = [0, 0, 255];
+        const ARMS: [u8; 3] = [0, 120, 255];
         const LEGS: [u8; 3] = [0, 255, 0];
         const HAIR: [u8; 3] = [255, 255, 0];
         const EYES: [u8; 3] = [0, 255, 255];
@@ -385,6 +388,8 @@ impl AvatarBuilder {
                 colors.skin_dark
             } else if src == TORSO {
                 colors.torso
+            } else if src == ARMS {
+                colors.arms
             } else if src == LEGS {
                 colors.legs
             } else if src == HAIR {

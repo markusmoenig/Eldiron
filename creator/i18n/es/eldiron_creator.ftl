@@ -199,6 +199,7 @@ anchors = Anclajes
 skin_light = Piel clara
 skin_dark = Piel oscura
 torso = Torso
+arms = Brazos
 legs = Piernas
 hair = Cabello
 eyes = Ojos

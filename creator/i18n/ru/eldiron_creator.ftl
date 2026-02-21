@@ -200,6 +200,7 @@ anchors = Якоря
 skin_light = Светлая кожа
 skin_dark = Тёмная кожа
 torso = Торс
+arms = Руки
 legs = Ноги
 hair = Волосы
 eyes = Глаза

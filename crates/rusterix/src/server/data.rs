@@ -10,7 +10,13 @@ pub fn apply_entity_data(entity: &mut Entity, toml: &str) {
                 if attr == "attributes" {
                     if let Some(values) = v.as_table() {
                         for (key, value) in values {
-                            if let Some(value) = value.as_float() {
+                            if let Some(value) = value.as_array() {
+                                let mut values = vec![];
+                                for v in value {
+                                    values.push(v.to_string().replace("\"", ""));
+                                }
+                                entity.set_attribute(key, crate::Value::StrArray(values));
+                            } else if let Some(value) = value.as_float() {
                                 entity.set_attribute(key, crate::Value::Float(value as f32));
                             } else if let Some(value) = value.as_integer() {
                                 entity.set_attribute(key, crate::Value::Int(value as i32));

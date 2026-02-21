@@ -200,6 +200,7 @@ anchors = Anchors
 skin_light = Light Skin
 skin_dark = Dark Skin
 torso = Torso
+arms = Arms
 legs = Legs
 hair = Hair
 eyes = Eyes

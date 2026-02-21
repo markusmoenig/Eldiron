@@ -739,6 +739,10 @@ struct VsShadowOut {
 };
 
 const TILE_INDEX_AVATAR_FLAG: u32 = 0x80000000u;
+const TILE_INDEX_CLAMP_UV_FLAG: u32 = 0x40000000u;
+const TILE_INDEX_BILLBOARD_FLAG: u32 = 0x20000000u;
+const TILE_INDEX_FLAGS_MASK: u32 =
+    TILE_INDEX_AVATAR_FLAG | TILE_INDEX_CLAMP_UV_FLAG | TILE_INDEX_BILLBOARD_FLAG;
 
 fn camera_to_clip(world_pos: vec3<f32>) -> vec4<f32> {
     let rel = world_pos - UBO.cam_pos.xyz;
@@ -787,9 +791,12 @@ fn tile_frame(tile_idx: u32) -> TileFrame {
     return tile_frames.data[frame_idx];
 }
 
-fn sample_tile(tile_idx: u32, uv: vec2<f32>) -> vec4<f32> {
+fn sample_tile(tile_idx: u32, uv: vec2<f32>, clamp_uv: bool) -> vec4<f32> {
     let frame = tile_frame(tile_idx);
-    let uv_wrapped = fract(uv);
+    var uv_wrapped = fract(uv);
+    if (clamp_uv) {
+        uv_wrapped = clamp(uv, vec2<f32>(0.0), vec2<f32>(0.9999));
+    }
     var atlas_uv = frame.ofs + uv_wrapped * frame.scale;
     // Use gradients from the non-wrapped UVs to avoid mip shimmer on repeating tiles.
     // Slightly bias iso camera toward coarser mips to reduce shimmering on dense tile patterns.
@@ -810,9 +817,12 @@ fn sample_tile(tile_idx: u32, uv: vec2<f32>) -> vec4<f32> {
     return textureSampleLevel(atlas_tex, atlas_smp, atlas_uv, lod_clamped);
 }
 
-fn sample_tile_lod0(tile_idx: u32, uv: vec2<f32>) -> vec4<f32> {
+fn sample_tile_lod0(tile_idx: u32, uv: vec2<f32>, clamp_uv: bool) -> vec4<f32> {
     let frame = tile_frame(tile_idx);
-    let uv_wrapped = fract(uv);
+    var uv_wrapped = fract(uv);
+    if (clamp_uv) {
+        uv_wrapped = clamp(uv, vec2<f32>(0.0), vec2<f32>(0.9999));
+    }
     var atlas_uv = frame.ofs + uv_wrapped * frame.scale;
     let atlas_dims = vec2<f32>(textureDimensions(atlas_tex, 0));
     let pad_uv = vec2<f32>(0.5) / max(atlas_dims, vec2<f32>(1.0));
@@ -822,9 +832,12 @@ fn sample_tile_lod0(tile_idx: u32, uv: vec2<f32>) -> vec4<f32> {
     return textureSampleLevel(atlas_tex, atlas_smp, atlas_uv, 0.0);
 }
 
-fn sample_tile_material(tile_idx: u32, uv: vec2<f32>) -> vec4<f32> {
+fn sample_tile_material(tile_idx: u32, uv: vec2<f32>, clamp_uv: bool) -> vec4<f32> {
     let frame = tile_frame(tile_idx);
-    let uv_wrapped = fract(uv);
+    var uv_wrapped = fract(uv);
+    if (clamp_uv) {
+        uv_wrapped = clamp(uv, vec2<f32>(0.0), vec2<f32>(0.9999));
+    }
     var atlas_uv = frame.ofs + uv_wrapped * frame.scale;
     let atlas_dims = vec2<f32>(textureDimensions(atlas_mat_tex, 0));
     let pad_uv = vec2<f32>(0.5) / max(atlas_dims, vec2<f32>(1.0));
@@ -1019,11 +1032,14 @@ fn vs_shadow(in: VsIn) -> VsShadowOut {
 
 @fragment
 fn fs_shadow(in: VsShadowOut) {
+    let clamp_uv = (in.tile_index2 & TILE_INDEX_CLAMP_UV_FLAG) != 0u;
+    let is_billboard = (in.tile_index2 & TILE_INDEX_BILLBOARD_FLAG) != 0u;
+    let tile_index2 = in.tile_index2 & (~TILE_INDEX_FLAGS_MASK);
     let is_avatar = (in.tile_index2 & TILE_INDEX_AVATAR_FLAG) != 0u;
-    let c0 = select(sample_tile_lod0(in.tile_index, in.uv), sample_avatar(in.tile_index, in.uv), is_avatar);
-    let c1 = sample_tile_lod0(in.tile_index2 & (~TILE_INDEX_AVATAR_FLAG), in.uv);
-    let m0_raw = sample_tile_material(in.tile_index, in.uv);
-    let m1_raw = sample_tile_material(in.tile_index2 & (~TILE_INDEX_AVATAR_FLAG), in.uv);
+    let c0 = select(sample_tile_lod0(in.tile_index, in.uv, clamp_uv), sample_avatar(in.tile_index, in.uv), is_avatar);
+    let c1 = sample_tile_lod0(tile_index2, in.uv, clamp_uv);
+    let m0_raw = sample_tile_material(in.tile_index, in.uv, clamp_uv);
+    let m1_raw = sample_tile_material(tile_index2, in.uv, clamp_uv);
     let m0 = select(
         unpack_material_nibbles(m0_raw),
         vec4<f32>(1.0, 0.0, 1.0, 0.0),
@@ -1033,7 +1049,10 @@ fn fs_shadow(in: VsShadowOut) {
     let mat = select(mix(m0, m1, in.blend_factor), m0, is_avatar);
     let color = select(mix(c0, c1, in.blend_factor), c0, is_avatar);
     let intrinsic_alpha = clamp(color.a * mat.z, 0.0, 1.0);
-    let coverage = clamp(intrinsic_alpha * in.opacity, 0.0, 1.0);
+    // Keep hidden/fading world geometry in the shadow map (for iso-hidden roofs),
+    // but still let dynamic billboard fading affect billboard shadow coverage.
+    let fade_opacity = select(1.0, in.opacity, is_billboard);
+    let coverage = clamp(intrinsic_alpha * fade_opacity, 0.0, 1.0);
     if (coverage <= 0.5) {
         discard;
     }
@@ -1041,13 +1060,15 @@ fn fs_shadow(in: VsShadowOut) {
 
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    let clamp_uv = (in.tile_index2 & TILE_INDEX_CLAMP_UV_FLAG) != 0u;
+    let tile_index2 = in.tile_index2 & (~TILE_INDEX_FLAGS_MASK);
     let is_avatar = (in.tile_index2 & TILE_INDEX_AVATAR_FLAG) != 0u;
-    let c0 = select(sample_tile(in.tile_index, in.uv), sample_avatar(in.tile_index, in.uv), is_avatar);
-    let c1 = sample_tile(in.tile_index2 & (~TILE_INDEX_AVATAR_FLAG), in.uv);
-    let c0_base = select(sample_tile_lod0(in.tile_index, in.uv), sample_avatar(in.tile_index, in.uv), is_avatar);
-    let c1_base = sample_tile_lod0(in.tile_index2 & (~TILE_INDEX_AVATAR_FLAG), in.uv);
-    let m0_raw = sample_tile_material(in.tile_index, in.uv);
-    let m1_raw = sample_tile_material(in.tile_index2 & (~TILE_INDEX_AVATAR_FLAG), in.uv);
+    let c0 = select(sample_tile(in.tile_index, in.uv, clamp_uv), sample_avatar(in.tile_index, in.uv), is_avatar);
+    let c1 = sample_tile(tile_index2, in.uv, clamp_uv);
+    let c0_base = select(sample_tile_lod0(in.tile_index, in.uv, clamp_uv), sample_avatar(in.tile_index, in.uv), is_avatar);
+    let c1_base = sample_tile_lod0(tile_index2, in.uv, clamp_uv);
+    let m0_raw = sample_tile_material(in.tile_index, in.uv, clamp_uv);
+    let m1_raw = sample_tile_material(tile_index2, in.uv, clamp_uv);
     let m0 = select(
         unpack_material_nibbles(m0_raw),
         vec4<f32>(1.0, 0.0, 1.0, 0.0),
@@ -3802,7 +3823,7 @@ impl VM {
             }),
             multisample: wgpu::MultisampleState {
                 count: raster_samples,
-                alpha_to_coverage_enabled: true,
+                alpha_to_coverage_enabled: false,
                 ..Default::default()
             },
             multiview: None,
@@ -3886,7 +3907,7 @@ impl VM {
                 }),
                 multisample: wgpu::MultisampleState {
                     count: raster_samples,
-                    alpha_to_coverage_enabled: true,
+                    alpha_to_coverage_enabled: false,
                     ..Default::default()
                 },
                 multiview: None,
@@ -4949,7 +4970,7 @@ impl VM {
                 .iter()
                 .chain(self.dynamic_avatar_objects.values())
             {
-                let (tile_index, tile_index2) = match obj.kind {
+                let (tile_index, mut tile_index2) = match obj.kind {
                     DynamicKind::BillboardTile => {
                         let Some(tile_id) = obj.tile_id else { continue };
                         let Some(tile_index) = self.shared_atlas.tile_index(&tile_id) else {
@@ -4966,6 +4987,11 @@ impl VM {
                         (avatar_index, 0x8000_0000u32)
                     }
                 };
+                // For non-repeating billboards, clamp UVs in shader to avoid MSAA edge wrap seams.
+                if !matches!(obj.repeat_mode, crate::dynamic::RepeatMode::Repeat) {
+                    tile_index2 |= 0x4000_0000u32;
+                }
+                tile_index2 |= 0x2000_0000u32;
                 let right = obj.view_right * (obj.width * 0.5);
                 let up = obj.view_up * (obj.height * 0.5);
                 let p0 = obj.center - right - up;

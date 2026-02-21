@@ -69,6 +69,46 @@ pub struct RegionCtx {
 }
 
 impl RegionCtx {
+    fn resolve_item_class_name(&self, requested: &str) -> Option<String> {
+        let requested = requested.trim();
+        if requested.is_empty() {
+            return None;
+        }
+
+        if self.assets.items.contains_key(requested) {
+            return Some(requested.to_string());
+        }
+
+        // Accept case-insensitive class/template ids.
+        if let Some((class_name, _)) = self
+            .assets
+            .items
+            .iter()
+            .find(|(class_name, _)| class_name.eq_ignore_ascii_case(requested))
+        {
+            return Some(class_name.clone());
+        }
+
+        // Accept display names from item data: [attributes].name or top-level name.
+        for (class_name, (_, item_data)) in &self.assets.items {
+            if let Ok(table) = item_data.parse::<toml::Table>() {
+                let attr_name = table
+                    .get("attributes")
+                    .and_then(toml::Value::as_table)
+                    .and_then(|attrs| attrs.get("name"))
+                    .and_then(toml::Value::as_str);
+                let top_name = table.get("name").and_then(toml::Value::as_str);
+                if attr_name.is_some_and(|name| name.eq_ignore_ascii_case(requested))
+                    || top_name.is_some_and(|name| name.eq_ignore_ascii_case(requested))
+                {
+                    return Some(class_name.clone());
+                }
+            }
+        }
+
+        None
+    }
+
     /// Search for a mutable reference to an entity with the given ID.
     pub fn get_entity_mut(&mut self, entity_id: u32) -> Option<&mut Entity> {
         self.map
@@ -111,6 +151,7 @@ impl RegionCtx {
 
     /// Create a new item with the given class name.
     pub fn create_item(&mut self, class_name: String) -> Option<Item> {
+        let class_name = self.resolve_item_class_name(&class_name)?;
         if !self.assets.items.contains_key(&class_name) {
             return None;
         }

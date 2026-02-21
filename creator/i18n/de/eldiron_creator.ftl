@@ -199,6 +199,7 @@ anchors = Anker
 skin_light = Helle Haut
 skin_dark = Dunkle Haut
 torso = Torso
+arms = Arme
 legs = Beine
 hair = Haare
 eyes = Augen

@@ -746,12 +746,11 @@ impl SceneHandler {
                 }
 
                 if entity.attributes.get_bool_default("visible", false) {
-                    let size = 2.0;
-                    // Entity Y stores world-space vertical position (typically eye height).
-                    // Convert eye-height to billboard center so feet stay anchored to terrain/floor.
+                    let size = entity.attributes.get_float_default("size", 2.0).max(0.01);
+                    // Entity Y stores base/ground height; place billboard so feet sit on ground.
                     let center3 = Vec3::new(
                         entity.position.x,
-                        entity.position.y - 0.75,
+                        entity.position.y + size * 0.5,
                         entity.position.z,
                     );
                     let geo_id = GeoId::Character(entity.id);

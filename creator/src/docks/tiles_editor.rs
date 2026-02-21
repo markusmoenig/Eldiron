@@ -165,6 +165,7 @@ impl Dock for TilesEditorDock {
         // •	Skin Light – rgb(255, 0, 255)
         // •	Skin Dark – rgb(200, 0, 200)
         // •	Torso / Chest – rgb(0, 0, 255)
+        // •	Arms / Sleeves – rgb(0, 120, 255)
         // •	Legs / Pants – rgb(0, 255, 0)
         // •	Hair – rgb(255, 255, 0)
         // •	Eyes / Face Detail – rgb(0, 255, 255)
@@ -184,6 +185,11 @@ impl Dock for TilesEditorDock {
         let mut item = TheTreeItem::new(TheId::named("Body: Torso"));
         item.set_text(fl!("torso"));
         item.set_background_color(TheColor::from_u8_array_3([0, 0, 255]));
+        body_markers_node.add_widget(Box::new(item));
+
+        let mut item = TheTreeItem::new(TheId::named("Body: Arms"));
+        item.set_text(fl!("arms"));
+        item.set_background_color(TheColor::from_u8_array_3([0, 120, 255]));
         body_markers_node.add_widget(Box::new(item));
 
         let mut item = TheTreeItem::new(TheId::named("Body: Legs"));
