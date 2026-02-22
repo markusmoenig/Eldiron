@@ -5646,6 +5646,13 @@ impl VM {
             sky.y.clamp(0.0, 1.0),
             sky.z.clamp(0.0, 1.0),
         ];
+        // Overlay VMs must preserve transparency when they clear.
+        // Base layer remains opaque by default.
+        let clear_alpha = if self.layer_index == 0 {
+            1.0
+        } else {
+            self.background.w.clamp(0.0, 1.0)
+        };
         {
             let g = self.gpu.as_ref().unwrap();
             if g.i3d_raster_count > 0 && self.gp2.w > 0.5 && self.gp7.x > 0.5 {
@@ -5687,7 +5694,7 @@ impl VM {
                             r: sky_srgb[0] as f64,
                             g: sky_srgb[1] as f64,
                             b: sky_srgb[2] as f64,
-                            a: 1.0,
+                            a: clear_alpha as f64,
                         }),
                         store: wgpu::StoreOp::Store,
                     },

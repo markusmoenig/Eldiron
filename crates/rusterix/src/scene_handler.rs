@@ -533,7 +533,7 @@ impl SceneHandler {
                 }
             }
             self.vm
-                .execute(scenevm::Atom::SetRenderMode(scenevm::RenderMode::Compute3D));
+                .execute(scenevm::Atom::SetRenderMode(scenevm::RenderMode::Raster3D));
         }
         self.vm.set_active_vm(0);
 
