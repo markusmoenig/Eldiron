@@ -89,6 +89,34 @@ impl Tool for EntityTool {
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         match map_event {
+            MapKey(c) => {
+                let dir = match c {
+                    'q' | 'Q' => Some(-1.0_f32),
+                    'e' | 'E' => Some(1.0_f32),
+                    _ => None,
+                };
+                if let Some(step) = dir
+                    && let Some(selected_id) = map.selected_entity_item
+                    && let Some(entity) = map
+                        .entities
+                        .iter_mut()
+                        .find(|e| e.creator_id == selected_id)
+                {
+                    let from = Self::snap_cardinal(entity.orientation);
+                    let to = if step < 0.0 {
+                        Vec2::new(-from.y, from.x)
+                    } else {
+                        Vec2::new(from.y, -from.x)
+                    };
+                    entity.orientation = to;
+                    server_ctx
+                        .rotated_entities
+                        .entry(selected_id)
+                        .and_modify(|entry| entry.1 = to)
+                        .or_insert((from, to));
+                    RUSTERIX.write().unwrap().set_dirty();
+                }
+            }
             MapClicked(coord) => {
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
@@ -358,6 +386,21 @@ impl EntityTool {
             )
         } else {
             Vec2::new(pos.x.round(), pos.y.round())
+        }
+    }
+
+    /// Snap a direction to the nearest cardinal axis.
+    fn snap_cardinal(dir: Vec2<f32>) -> Vec2<f32> {
+        if dir.x.abs() >= dir.y.abs() {
+            if dir.x >= 0.0 {
+                Vec2::new(1.0, 0.0)
+            } else {
+                Vec2::new(-1.0, 0.0)
+            }
+        } else if dir.y >= 0.0 {
+            Vec2::new(0.0, 1.0)
+        } else {
+            Vec2::new(0.0, -1.0)
         }
     }
 

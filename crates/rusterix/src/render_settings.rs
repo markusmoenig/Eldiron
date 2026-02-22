@@ -233,6 +233,10 @@ pub struct DaylightSimulation {
 
     /// Sunset time (0.0 - 24.0, e.g., 18.5 = 6:30 PM)
     pub sunset_time: f32,
+
+    /// Duration in hours for each color transition window.
+    /// Example: 0.5 = 30 in-game minutes.
+    pub color_transition_duration_hours: f32,
 }
 
 impl Default for DaylightSimulation {
@@ -249,6 +253,7 @@ impl Default for DaylightSimulation {
             evening_sun_color: [1.0, 0.7, 0.5],  // Warm evening sun
             sunrise_time: 6.0,
             sunset_time: 18.0,
+            color_transition_duration_hours: 0.5,
         }
     }
 }
@@ -612,60 +617,74 @@ impl RenderSettings {
         }
 
         let sim = &self.simulation;
-        let hour = hour % 24.0;
+        let hour = hour.rem_euclid(24.0);
 
-        // Calculate sun position (angle from horizon)
-        // Sun rises at sunrise_time, peaks at midday, sets at sunset_time
-        let midday = (sim.sunrise_time + sim.sunset_time) / 2.0;
+        // Sun rises at sunrise_time and sets at sunset_time.
+        let transition = sim.color_transition_duration_hours.max(0.0);
 
-        // Twilight duration (time to fade from/to night)
-        let twilight_duration = 1.0; // 1 hour fade
-        let evening_end = sim.sunset_time + twilight_duration;
-        let morning_start = sim.sunrise_time - twilight_duration;
+        // Short transition windows where morning/evening are intermediate colors only.
+        let morning_start = sim.sunrise_time - transition;
+        let morning_end = sim.sunrise_time + transition;
+        let midday_to_evening_start = (sim.sunset_time - transition).max(morning_end);
+        let evening_end = sim.sunset_time + transition;
 
-        let (sky_color, sun_color, sun_angle) = if hour >= morning_start && hour < sim.sunrise_time
-        {
-            // Pre-sunrise twilight (night fading to morning)
-            let t = (hour - morning_start) / twilight_duration;
+        let (sky_color, sun_color) = if hour >= morning_start && hour < sim.sunrise_time {
+            // Pre-sunrise: night -> morning
+            let t = (hour - morning_start) / transition.max(f32::EPSILON);
             let sky = lerp_color(sim.night_sky_color, sim.morning_sky_color, t);
             let sun = lerp_color(sim.night_sun_color, sim.morning_sun_color, t);
-            let angle = lerp(-30.0, 0.0, t);
-            (sky, sun, angle)
-        } else if hour >= sim.sunrise_time && hour < midday {
-            // Morning (sunrise to midday)
-            let t = (hour - sim.sunrise_time) / (midday - sim.sunrise_time);
+            (sky, sun)
+        } else if hour >= sim.sunrise_time && hour < morning_end {
+            // Morning -> midday
+            let t = (hour - sim.sunrise_time) / transition.max(f32::EPSILON);
             let sky = lerp_color(sim.morning_sky_color, sim.midday_sky_color, t);
             let sun = lerp_color(sim.morning_sun_color, sim.midday_sun_color, t);
-            let angle = lerp(0.0, 90.0, t);
-            (sky, sun, angle)
-        } else if hour >= midday && hour < sim.sunset_time {
-            // Afternoon (midday to sunset)
-            let t = (hour - midday) / (sim.sunset_time - midday);
+            (sky, sun)
+        } else if hour >= morning_end && hour < midday_to_evening_start {
+            // Midday hold
+            (sim.midday_sky_color, sim.midday_sun_color)
+        } else if hour >= midday_to_evening_start && hour < sim.sunset_time {
+            // Midday -> evening
+            let t = (hour - midday_to_evening_start)
+                / (sim.sunset_time - midday_to_evening_start).max(f32::EPSILON);
             let sky = lerp_color(sim.midday_sky_color, sim.evening_sky_color, t);
             let sun = lerp_color(sim.midday_sun_color, sim.evening_sun_color, t);
-            let angle = lerp(90.0, 0.0, t);
-            (sky, sun, angle)
+            (sky, sun)
         } else if hour >= sim.sunset_time && hour < evening_end {
-            // Post-sunset twilight (evening fading to night)
-            let t = (hour - sim.sunset_time) / twilight_duration;
+            // Post-sunset: evening -> night
+            let t = (hour - sim.sunset_time) / transition.max(f32::EPSILON);
             let sky = lerp_color(sim.evening_sky_color, sim.night_sky_color, t);
             let sun = lerp_color(sim.evening_sun_color, sim.night_sun_color, t);
-            let angle = lerp(0.0, -30.0, t);
-            (sky, sun, angle)
+            (sky, sun)
         } else {
-            // Deep night - full darkness (before morning_start or after evening_end)
-            (sim.night_sky_color, sim.night_sun_color, -30.0)
+            // Deep night hold
+            (sim.night_sky_color, sim.night_sun_color)
         };
 
         // Apply interpolated colors
         self.sky_color = sky_color;
         self.sun_color = sun_color;
 
-        // Calculate sun direction procedurally from time of day
-        // Sun travels from east (-1, 0, 0) through zenith (0, -1, 0) to west (1, 0, 0)
+        // Sun angle is continuous over daytime; twilight transitions to/from night.
+        let day_length = (sim.sunset_time - sim.sunrise_time).max(f32::EPSILON);
+        let daylight_progress = ((hour - sim.sunrise_time) / day_length).clamp(0.0, 1.0);
+        let daylight_angle = (daylight_progress * std::f32::consts::PI).sin() * 90.0;
+        let sun_angle = if hour >= sim.sunrise_time && hour < sim.sunset_time {
+            daylight_angle
+        } else if hour >= morning_start && hour < sim.sunrise_time {
+            let t = (hour - morning_start) / transition.max(f32::EPSILON);
+            lerp(-30.0, 0.0, t)
+        } else if hour >= sim.sunset_time && hour < evening_end {
+            let t = (hour - sim.sunset_time) / transition.max(f32::EPSILON);
+            lerp(0.0, -30.0, t)
+        } else {
+            -30.0
+        };
+
+        // Calculate sun direction procedurally from time of day.
+        // Sun travels from east (-1, 0, 0) through zenith (0, -1, 0) to west (1, 0, 0).
         let angle_rad = sun_angle.to_radians();
-        let progress = (hour - sim.sunrise_time) / (sim.sunset_time - sim.sunrise_time);
-        let progress = progress.clamp(0.0, 1.0);
+        let progress = daylight_progress;
 
         // X goes from -1 (east) to 1 (west)
         let x = lerp(-1.0, 1.0, progress);
@@ -1141,6 +1160,10 @@ impl RenderSettings {
             sim.get_float_default("sunrise_time", self.simulation.sunrise_time);
         self.simulation.sunset_time =
             sim.get_float_default("sunset_time", self.simulation.sunset_time);
+        self.simulation.color_transition_duration_hours = sim.get_float_default(
+            "color_transition_duration_hours",
+            self.simulation.color_transition_duration_hours,
+        );
 
         Ok(())
     }
@@ -1246,6 +1269,7 @@ mod tests {
         assert!(settings.simulation.enabled);
         assert_eq!(settings.simulation.sunrise_time, 6.0);
         assert_eq!(settings.simulation.sunset_time, 18.0);
+        assert_eq!(settings.simulation.color_transition_duration_hours, 0.5);
     }
 
     #[test]

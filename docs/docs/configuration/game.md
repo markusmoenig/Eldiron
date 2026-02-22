@@ -319,6 +319,9 @@ sunrise_time = 6.0
 
 # Sunset time in 24-hour format (e.g., 18.5 = 6:30 PM)
 sunset_time = 18.0
+
+# Per-transition blend duration in in-game hours (0.5 = 30 minutes)
+color_transition_duration_hours = 0.5
 ```
 
 ### **Option Descriptions**
@@ -336,4 +339,4 @@ These simulation values drive the **3D** AND **2D** procedural sky/sun lighting.
 - **`evening_sun_color`** — Sun tint during sunset; typically warm.
 - **`sunrise_time`** — 24-hour decimal time when sunrise starts (e.g., `6.5` = 06:30). Drives interpolation from night → morning.
 - **`sunset_time`** — 24-hour decimal time when sunset starts (e.g., `18.5` = 18:30). Drives interpolation from midday → evening → night.
--
+- **`color_transition_duration_hours`** — Duration of each day/night color blend window in in-game hours. Example: `0.5` = 30 minutes, `0.25` = 15 minutes.

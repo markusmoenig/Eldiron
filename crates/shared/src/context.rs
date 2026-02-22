@@ -395,6 +395,9 @@ pub struct ServerContext {
     /// Pending item position changes: (from, to)
     pub moved_items: FxHashMap<Uuid, (Vec3<f32>, Vec3<f32>)>,
 
+    /// Pending character orientation changes: (from, to)
+    pub rotated_entities: FxHashMap<Uuid, (Vec2<f32>, Vec2<f32>)>,
+
     /// Selected wall row, set by the linedef Hud
     pub selected_wall_row: Option<i32>,
 
@@ -534,6 +537,7 @@ impl ServerContext {
 
             moved_entities: FxHashMap::default(),
             moved_items: FxHashMap::default(),
+            rotated_entities: FxHashMap::default(),
 
             selected_wall_row: Some(0),
 

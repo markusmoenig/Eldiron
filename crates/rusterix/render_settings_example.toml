@@ -84,3 +84,5 @@ evening_sun_color = "#FFB380"
 sunrise_time = 6.0
 # Sunset time (24h).
 sunset_time = 18.0
+# Per-transition blend duration in in-game hours (0.5 = 30 minutes).
+color_transition_duration_hours = 0.5

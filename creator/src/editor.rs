@@ -810,18 +810,46 @@ impl TheTrait for Editor {
                             if let Some(region) =
                                 self.project.get_region_ctx_mut(&mut self.server_ctx)
                             {
-                                EDITCAMERA
-                                    .write()
-                                    .unwrap()
-                                    .update_action(region, &mut self.server_ctx);
+                                let follow_player_firstp = is_running
+                                    && self.server_ctx.editor_view_mode == EditorViewMode::FirstP;
+
+                                if follow_player_firstp
+                                    && let Some(player) =
+                                        region.map.entities.iter().find(|e| e.is_player())
+                                {
+                                    let orientation =
+                                        if player.orientation.magnitude_squared() > f32::EPSILON {
+                                            player.orientation.normalized()
+                                        } else {
+                                            Vec2::new(1.0, 0.0)
+                                        };
+
+                                    region.editing_position_3d = Vec3::new(
+                                        player.position.x,
+                                        player.position.y,
+                                        player.position.z,
+                                    );
+                                    region.editing_look_at_3d = Vec3::new(
+                                        player.position.x + orientation.x,
+                                        player.position.y,
+                                        player.position.z + orientation.y,
+                                    );
+                                } else {
+                                    EDITCAMERA
+                                        .write()
+                                        .unwrap()
+                                        .update_action(region, &mut self.server_ctx);
+                                }
                                 EDITCAMERA.write().unwrap().update_camera(
                                     region,
                                     &mut self.server_ctx,
                                     rusterix,
                                 );
 
-                                rusterix.client.scene.dynamic_lights = vec![];
-                                rusterix.build_entities_items_d3(&region.map);
+                                // Keep editor 3D running mode in sync with runtime dynamic
+                                // overlays (characters/items/lights).
+                                let animation_frame = rusterix.client.animation_frame;
+                                rusterix.build_dynamics_3d(&region.map, animation_frame);
                                 rusterix.draw_d3(
                                     &region.map,
                                     render_view.render_buffer_mut().pixels_mut(),
@@ -1066,7 +1094,7 @@ impl TheTrait for Editor {
         }
 
         for event in pending_events {
-            if self.server_ctx.game_input_mode {
+            if self.server_ctx.game_input_mode && !self.server_ctx.game_mode {
                 // In game input mode send events to the game tool
                 if let Some(game_tool) =
                     TOOLLIST.write().unwrap().get_game_tool_of_name("Game Tool")

@@ -34,6 +34,10 @@ pub struct Character {
     /// The initial position.
     pub position: Vec3<f32>,
 
+    /// Initial facing direction in XZ (cardinal/editor-driven).
+    #[serde(default = "default_orientation")]
+    pub orientation: Vec2<f32>,
+
     /// The id of the character template.
     pub character_id: Uuid,
 }
@@ -58,8 +62,13 @@ impl Character {
             data: String::new(),
             preview_rigging: String::new(),
             position: zero(),
+            orientation: default_orientation(),
 
             character_id: Uuid::new_v4(),
         }
     }
+}
+
+fn default_orientation() -> Vec2<f32> {
+    Vec2::new(1.0, 0.0)
 }

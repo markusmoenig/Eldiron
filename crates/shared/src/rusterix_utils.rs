@@ -130,6 +130,7 @@ pub fn insert_content_into_maps(project: &mut Project) {
             let mut entity = Entity {
                 creator_id: instance.id,
                 position: instance.position,
+                orientation: instance.orientation,
                 ..Default::default()
             };
             entity.set_attribute("name", Value::Str(instance.name.clone()));

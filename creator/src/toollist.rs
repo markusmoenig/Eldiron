@@ -296,6 +296,24 @@ impl ToolList {
                             }
                             self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                         }
+
+                        if server_ctx.get_map_context() == MapContext::Region
+                            && !server_ctx.rotated_entities.is_empty()
+                            && let Some(region) = project.get_region_mut(&server_ctx.curr_region)
+                        {
+                            for (id, (_from, to)) in server_ctx.rotated_entities.drain() {
+                                if let Some(instance) = region.characters.get_mut(&id) {
+                                    instance.orientation = to;
+                                }
+                                if let Some(entity) =
+                                    region.map.entities.iter_mut().find(|e| e.creator_id == id)
+                                {
+                                    entity.orientation = to;
+                                }
+                            }
+                        } else {
+                            server_ctx.rotated_entities.clear();
+                        }
                     }
                 }
 
