@@ -149,6 +149,27 @@ impl Default for Client {
 }
 
 impl Client {
+    /// Returns the currently active game-widget camera mode if present.
+    /// Prioritizes first-person over iso over 2D when multiple game widgets exist.
+    pub fn active_game_widget_camera_mode(&self) -> Option<PlayerCamera> {
+        let mut found_iso = false;
+        let mut found_d2 = false;
+        for widget in self.game_widgets.values() {
+            match widget.camera {
+                PlayerCamera::D3FirstP => return Some(PlayerCamera::D3FirstP),
+                PlayerCamera::D3Iso => found_iso = true,
+                PlayerCamera::D2 => found_d2 = true,
+            }
+        }
+        if found_iso {
+            Some(PlayerCamera::D3Iso)
+        } else if found_d2 {
+            Some(PlayerCamera::D2)
+        } else {
+            None
+        }
+    }
+
     fn parse_player_camera_mode(camera: &str) -> Option<PlayerCamera> {
         match camera.to_ascii_lowercase().as_str() {
             "2d" => Some(PlayerCamera::D2),

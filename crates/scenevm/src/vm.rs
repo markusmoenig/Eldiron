@@ -376,6 +376,7 @@ pub struct VMGpu {
     pub index_count: u32,
     pub sampler: wgpu::Sampler,
     pub sampler_linear: wgpu::Sampler,
+    pub sampler_raster: wgpu::Sampler,
     // --- Compute pipelines and uniforms (lazily created)
     pub compute2d_pipeline: Option<wgpu::ComputePipeline>,
     pub compute3d_pipeline: Option<wgpu::ComputePipeline>,
@@ -591,6 +592,7 @@ pub struct Raster3DUniforms {
     pub sun_color_intensity: [f32; 4],
     pub sun_dir_enabled: [f32; 4],
     pub ambient_color_strength: [f32; 4],
+    pub sky_color: [f32; 4],
     pub fog_color_density: [f32; 4],
     pub shadow_light_right: [f32; 4],
     pub shadow_light_up: [f32; 4],
@@ -615,6 +617,7 @@ pub struct Raster3DUniforms {
     pub _pad_post_pre: [u32; 2],
     pub post_params: [f32; 4], // x=enabled, y=tone_mapper, z=exposure, w=gamma
     pub post_color_adjust: [f32; 4], // x=saturation, y=luminance, z=reserved, w=reserved
+    pub avatar_highlight_params: [f32; 4], // x=lift, y=fill, z=rim, w=enabled
     pub _pad_tail: [u32; 4],
 }
 
@@ -668,6 +671,7 @@ struct U {
     sun_color_intensity: vec4<f32>,
     sun_dir_enabled: vec4<f32>,
     ambient_color_strength: vec4<f32>,
+    sky_color: vec4<f32>,
     fog_color_density: vec4<f32>,
     shadow_light_right: vec4<f32>,
     shadow_light_up: vec4<f32>,
@@ -690,6 +694,7 @@ struct U {
     _pad0: vec2<u32>,
     post_params: vec4<f32>,
     post_color_adjust: vec4<f32>,
+    avatar_highlight_params: vec4<f32>,
     _pad1: vec2<u32>,
 };
 @group(0) @binding(0) var<uniform> UBO: U;
@@ -923,6 +928,11 @@ fn fresnel_schlick(cos_theta: f32, F0: vec3<f32>) -> vec3<f32> {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
 }
 
+fn fresnel_schlick_roughness(cos_theta: f32, F0: vec3<f32>, roughness: f32) -> vec3<f32> {
+    let one_minus_cos5 = pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
+    return F0 + (max(vec3<f32>(1.0 - roughness), F0) - F0) * one_minus_cos5;
+}
+
 fn bayer4_threshold(x: u32, y: u32) -> f32 {
     let xi = x & 3u;
     let yi = y & 3u;
@@ -951,13 +961,35 @@ fn sample_shadow(world_pos: vec3<f32>, NdotL: f32) -> f32 {
     let nx = lx / half_w;
     let ny = ly / half_h;
     let depth = clamp((lz - near_z) / (far_z - near_z), 0.0, 1.0);
-    // Render target space is Y-down for texture sampling; flip Y from NDC.
-    let uv = vec2<f32>(nx * 0.5 + 0.5, 1.0 - (ny * 0.5 + 0.5));
-    if (uv.x <= 0.0 || uv.x >= 1.0 || uv.y <= 0.0 || uv.y >= 1.0) {
+    if (depth >= 0.9999) {
         return 1.0;
     }
-    let bias = max(max(UBO.shadow_params.w, 0.0001), 0.003 * (1.0 - NdotL));
-    return textureSampleCompare(shadow_tex, shadow_smp, uv, depth - bias);
+    // Render target space is Y-down for texture sampling; flip Y from NDC.
+    let uv = vec2<f32>(nx * 0.5 + 0.5, 1.0 - (ny * 0.5 + 0.5));
+    // Keep a border margin so PCF taps never sample outside the shadow map.
+    let shadow_dims = vec2<f32>(textureDimensions(shadow_tex));
+    let texel = 1.0 / max(shadow_dims, vec2<f32>(1.0));
+    let margin = texel * 2.0;
+    if (uv.x <= margin.x || uv.x >= 1.0 - margin.x || uv.y <= margin.y || uv.y >= 1.0 - margin.y) {
+        return 1.0;
+    }
+    // Slope- and depth-scaled bias; first-person needs stronger bias to suppress distant acne.
+    let slope_bias = select(0.004, 0.010, UBO.cam_kind == 2u) * (1.0 - NdotL);
+    let depth_bias = depth * 0.0015;
+    let bias = max(max(UBO.shadow_params.w, 0.0003), slope_bias + depth_bias);
+    let ref_depth = depth - bias;
+    // 3x3 PCF to reduce shadow shimmer/aliasing and single-pixel black speckles.
+    var occ = 0.0;
+    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>(-1.0, -1.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>( 0.0, -1.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>( 1.0, -1.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>(-1.0,  0.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, uv, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>( 1.0,  0.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>(-1.0,  1.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>( 0.0,  1.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>( 1.0,  1.0) * texel, ref_depth);
+    return occ * (1.0 / 9.0);
 }
 
 fn apply_post(color_linear: vec3<f32>) -> vec3<f32> {
@@ -1033,7 +1065,6 @@ fn vs_shadow(in: VsIn) -> VsShadowOut {
 @fragment
 fn fs_shadow(in: VsShadowOut) {
     let clamp_uv = (in.tile_index2 & TILE_INDEX_CLAMP_UV_FLAG) != 0u;
-    let is_billboard = (in.tile_index2 & TILE_INDEX_BILLBOARD_FLAG) != 0u;
     let tile_index2 = in.tile_index2 & (~TILE_INDEX_FLAGS_MASK);
     let is_avatar = (in.tile_index2 & TILE_INDEX_AVATAR_FLAG) != 0u;
     let c0 = select(sample_tile_lod0(in.tile_index, in.uv, clamp_uv), sample_avatar(in.tile_index, in.uv), is_avatar);
@@ -1049,10 +1080,7 @@ fn fs_shadow(in: VsShadowOut) {
     let mat = select(mix(m0, m1, in.blend_factor), m0, is_avatar);
     let color = select(mix(c0, c1, in.blend_factor), c0, is_avatar);
     let intrinsic_alpha = clamp(color.a * mat.z, 0.0, 1.0);
-    // Keep hidden/fading world geometry in the shadow map (for iso-hidden roofs),
-    // but still let dynamic billboard fading affect billboard shadow coverage.
-    let fade_opacity = select(1.0, in.opacity, is_billboard);
-    let coverage = clamp(intrinsic_alpha * fade_opacity, 0.0, 1.0);
+    let coverage = clamp(intrinsic_alpha * in.opacity, 0.0, 1.0);
     if (coverage <= 0.5) {
         discard;
     }
@@ -1082,14 +1110,17 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     var color = select(mix(c0, c1, in.blend_factor), c0, is_avatar);
     let color_base = select(mix(c0_base, c1_base, in.blend_factor), c0_base, is_avatar);
     // Keep first-person nearby surfaces crisp by blending from LOD0 near the camera.
+    var alpha_sample = color.a;
     if (!is_avatar && UBO.cam_kind == 2u) {
         let dist = distance(in.world_pos, UBO.cam_pos.xyz);
         let near_end = max(UBO.render_params.z, 0.0);
         let far_start = max(UBO.render_params.w, near_end + 0.001);
         let t = smoothstep(near_end, far_start, dist);
         color = mix(color_base, color, t);
+        alpha_sample = mix(color_base.a, color.a, t);
     }
-    let intrinsic_alpha = clamp(color_base.a * mat.z, 0.0, 1.0);
+    // Keep opacity/cutout tied to the same sample path as color to avoid distant dark speckles.
+    let intrinsic_alpha = clamp(alpha_sample * mat.z, 0.0, 1.0);
     let coverage = clamp(intrinsic_alpha * in.opacity, 0.0, 1.0);
     if (coverage <= 0.001) {
         discard;
@@ -1118,7 +1149,19 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let ambient = UBO.ambient_color_strength.xyz * UBO.ambient_color_strength.w;
     var N = normalize(in.normal);
     let V = normalize(UBO.cam_pos.xyz - in.world_pos);
-    let bump_strength = clamp(UBO.shadow_params.z, 0.0, 1.0);
+    var bump_strength = clamp(UBO.shadow_params.z, 0.0, 1.0);
+    // Bump mapping is unstable on cutout/partially transparent texels and at long distances.
+    // Fade it out with distance in first-person and disable it on non-opaque coverage.
+    if (!is_avatar && UBO.cam_kind == 2u) {
+        let dist = distance(in.world_pos, UBO.cam_pos.xyz);
+        let near_end = max(UBO.render_params.z, 0.0);
+        let far_start = max(UBO.render_params.w, near_end + 0.001);
+        let t = smoothstep(near_end, far_start, dist);
+        bump_strength = bump_strength * (1.0 - t);
+    }
+    if (intrinsic_alpha < 0.999) {
+        bump_strength = 0.0;
+    }
     if (bump_strength > 0.001 && !is_avatar) {
         let dpdx_pos = dpdx(in.world_pos);
         let dpdy_pos = dpdy(in.world_pos);
@@ -1135,6 +1178,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // Two-sided lighting: orient normal toward the viewer to avoid inverted-winding dark faces.
     let Nf = select(-N, N, dot(N, V) >= 0.0);
     let lighting_model = UBO._pad0.y;
+    let use_lambert = lighting_model == 0u;
+    let use_pbr = lighting_model == 2u;
     let roughness = clamp(mat.x, 0.04, 1.0);
     let metallic = clamp(mat.y, 0.0, 1.0);
     let albedo = color_linear;
@@ -1142,13 +1187,15 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let sun_enabled = select(0.0, 1.0, UBO.sun_dir_enabled.w > 0.5);
     let L = normalize(-UBO.sun_dir_enabled.xyz);
     let NdotL = max(dot(Nf, L), 0.0);
-    let shadow = sample_shadow(in.world_pos, NdotL);
+    // Offset receiver slightly along the geometric normal to reduce self-shadow acne.
+    let shadow_receiver = in.world_pos + Nf * select(0.01, 0.03, UBO.cam_kind == 2u);
+    let shadow = sample_shadow(shadow_receiver, NdotL);
     let shadow_strength = clamp(UBO.shadow_params.y, 0.0, 1.0);
     let shadow_term = mix(1.0, shadow, shadow_strength);
     let sun_radiance = UBO.sun_color_intensity.xyz * UBO.sun_color_intensity.w * sun_enabled * shadow_term;
     var sun = vec3<f32>(0.0);
     if (NdotL > 0.0) {
-        if (lighting_model == 0u) {
+        if (use_lambert) {
             sun = sun_radiance * NdotL;
         } else {
             let H = normalize(V + L);
@@ -1179,7 +1226,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let l_atten = (l_intensity * l_range_factor) / max(l_dist * l_dist, 1e-4);
         let radiance = UBO.point_light_color_range[li].xyz * l_atten;
         if (l_ndotl > 0.0) {
-            if (lighting_model == 0u) {
+            if (use_lambert) {
                 point += radiance * l_ndotl;
             } else {
                 let H = normalize(V + l_dir);
@@ -1197,10 +1244,40 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             }
         }
     }
-    var lit_color = max(albedo * (ambient + sun + point), vec3<f32>(0.0));
-    if (lighting_model != 0u) {
-        // For BRDF models, sun/point already include diffuse albedo response; only ambient needs albedo modulation.
+    let n_dot_v = max(dot(Nf, V), 0.0);
+    var lit_color = vec3<f32>(0.0);
+    if (use_lambert) {
+        lit_color = max(albedo * (ambient + sun + point), vec3<f32>(0.0));
+    } else if (use_pbr) {
+        // PBR ambient term: diffuse + roughness-aware specular IBL approximation from scene colors.
+        let F_ambient = fresnel_schlick_roughness(n_dot_v, F0, roughness);
+        let kS_ambient = F_ambient;
+        let kD_ambient = (vec3<f32>(1.0) - kS_ambient) * (1.0 - metallic);
+        let diffuse_ambient = ambient * albedo * kD_ambient;
+
+        // Cheap environment estimate using sky/fog colors and reflected view direction.
+        let refl = reflect(-V, Nf);
+        let sky_mix = clamp(refl.y * 0.5 + 0.5, 0.0, 1.0);
+        let env_color = mix(UBO.fog_color_density.xyz, UBO.sky_color.xyz, sky_mix);
+        let env_spec_strength = max(0.04, (1.0 - roughness) * (1.0 - roughness));
+        let specular_ambient = env_color * kS_ambient * env_spec_strength;
+
+        lit_color = max(diffuse_ambient + specular_ambient + sun + point, vec3<f32>(0.0));
+    } else {
+        // Cook-Torrance direct lighting + diffuse ambient only.
         lit_color = max(ambient * albedo + sun + point, vec3<f32>(0.0));
+    }
+
+    if (is_avatar && UBO.avatar_highlight_params.w > 0.5) {
+        // Avatar readability boost: keep sprites/avatars from visually collapsing into scene tones.
+        // This is intentionally subtle and only applied to avatar draw path.
+        let avatar_lift = max(UBO.avatar_highlight_params.x, 0.0);
+        let avatar_fill = max(UBO.avatar_highlight_params.y, 0.0);
+        let avatar_rim = max(UBO.avatar_highlight_params.z, 0.0);
+        let rim = pow(clamp(1.0 - n_dot_v, 0.0, 1.0), 2.0);
+        let key = UBO.sun_color_intensity.xyz * UBO.sun_color_intensity.w;
+        let fill = ambient * albedo;
+        lit_color = lit_color * avatar_lift + fill * avatar_fill + key * (avatar_rim * rim);
     }
 
     let fog_density = max(UBO.fog_color_density.w, 0.0);
@@ -1262,6 +1339,7 @@ pub struct VM {
     pub gp8: Vec4<f32>,
     pub gp9: Vec4<f32>,
     pub raster3d_msaa_samples: u32,
+    pub raster3d_avatar_highlight_params: Vec4<f32>,
     // --- Programmable compute shader sources
     pub source2d: String,
     pub viewport_rect2d: Option<[f32; 4]>, // Optional viewport rect for 2D shader (x, y, w, h)
@@ -1375,6 +1453,12 @@ impl VM {
 
     pub fn ping_pong_enabled(&self) -> bool {
         self.ping_pong_enabled
+    }
+
+    /// Configure Raster3D avatar readability boost parameters.
+    /// x=lift, y=fill, z=rim, w=enabled (0/1).
+    pub fn set_raster3d_avatar_highlight_params(&mut self, params: Vec4<f32>) {
+        self.raster3d_avatar_highlight_params = params;
     }
 
     fn ensure_prev_dummy(&mut self, device: &wgpu::Device) -> wgpu::TextureView {
@@ -2336,6 +2420,7 @@ impl VM {
             gp8: Vec4::new(0.0, 0.0, 0.0, 0.0),
             gp9: Vec4::new(0.0, 0.0, 0.0, 0.0),
             raster3d_msaa_samples: 4,
+            raster3d_avatar_highlight_params: Vec4::new(1.12, 0.20, 0.18, 1.0),
             source2d,
             viewport_rect2d: None,
             source3d,
@@ -2922,6 +3007,18 @@ impl VM {
             anisotropy_clamp: 8,
             ..Default::default()
         });
+        // Raster 3D sampler: keep pixel-art look up close (nearest mag), smooth only minification.
+        let sampler_raster: wgpu::Sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("vm-atlas-sampler-repeat-raster"),
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            anisotropy_clamp: 1,
+            ..Default::default()
+        });
 
         let globals_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("vm-globals-buffer"),
@@ -2942,6 +3039,7 @@ impl VM {
             index_count: 0,
             sampler,
             sampler_linear,
+            sampler_raster,
             compute2d_pipeline: None,
             compute3d_pipeline: None,
             compute_sdf_pipeline: None,
@@ -3823,7 +3921,7 @@ impl VM {
             }),
             multisample: wgpu::MultisampleState {
                 count: raster_samples,
-                alpha_to_coverage_enabled: false,
+                alpha_to_coverage_enabled: true,
                 ..Default::default()
             },
             multiview: None,
@@ -3907,7 +4005,7 @@ impl VM {
                 }),
                 multisample: wgpu::MultisampleState {
                     count: raster_samples,
-                    alpha_to_coverage_enabled: false,
+                    alpha_to_coverage_enabled: true,
                     ..Default::default()
                 },
                 multiview: None,
@@ -5231,6 +5329,7 @@ impl VM {
             sun_color_intensity: self.gp1.into_array(),
             sun_dir_enabled: self.gp2.into_array(),
             ambient_color_strength: self.gp3.into_array(),
+            sky_color: self.gp0.into_array(),
             fog_color_density: self.gp4.into_array(),
             shadow_light_right: [shadow_right.x, shadow_right.y, shadow_right.z, 0.0],
             shadow_light_up: [shadow_up.x, shadow_up.y, shadow_up.z, 0.0],
@@ -5264,6 +5363,7 @@ impl VM {
                 self.gp9.w.max(0.001),
             ],
             post_color_adjust: [self.gp8.z.max(0.0), self.gp8.w.max(0.0), 1.0, 0.0],
+            avatar_highlight_params: self.raster3d_avatar_highlight_params.into_array(),
             _pad_tail: [0, 0, 0, 0],
         };
 
@@ -5381,7 +5481,7 @@ impl VM {
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: wgpu::BindingResource::Sampler(&g.sampler),
+                        resource: wgpu::BindingResource::Sampler(&g.sampler_raster),
                     },
                     wgpu::BindGroupEntry {
                         binding: 3,
@@ -5415,7 +5515,7 @@ impl VM {
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: wgpu::BindingResource::Sampler(&g.sampler),
+                        resource: wgpu::BindingResource::Sampler(&g.sampler_raster),
                     },
                     wgpu::BindGroupEntry {
                         binding: 3,

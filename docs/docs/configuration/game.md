@@ -206,6 +206,18 @@ fade_mode = "ordered_dither"
 # Lighting model: "lambert", "cook_torrance", or "pbr".
 lighting_model = "cook_torrance"
 
+# Avatar readability boost toggle for Raster 3D avatars.
+avatar_highlight_enabled = true
+
+# Avatar readability lift multiplier (1.0 = unchanged).
+avatar_highlight_lift = 1.12
+
+# Avatar ambient fill contribution.
+avatar_highlight_fill = 0.20
+
+# Avatar rim-light contribution.
+avatar_highlight_rim = 0.18
+
 # Bump mapping strength (0.0 = off, 1.0 = full).
 bump_strength = 1.0
 
@@ -238,6 +250,10 @@ All `[render]` options apply **only to the 3D renderer** (they do not affect the
 - **`shadow_bias`** — Depth bias used to reduce shadow acne/peter-panning.
 - **`fade_mode`** — Visibility fade style for hidden/fading geometry (`ordered_dither` or `uniform`).
 - **`lighting_model`** — Surface lighting model (`lambert`, `cook_torrance`, `pbr`).
+- **`avatar_highlight_enabled`** — Enables avatar readability boost in Raster 3D.
+- **`avatar_highlight_lift`** — Multiplier for avatar lit color (`1.0` = unchanged).
+- **`avatar_highlight_fill`** — Extra ambient/albedo fill added to avatars.
+- **`avatar_highlight_rim`** — Rim-light intensity for avatar silhouettes at grazing view angles.
 - **`bump_strength`** — Scales normal-map/bump detail (0–1). Lower to flatten surfaces; `1.0` keeps full effect.
 - **`msaa_samples`** — Raster 3D multisampling level (`0` = off, `4` = on) for edge anti-aliasing.
 - **`firstp_blur_near`** — Distance where first-person texture blur transition starts.

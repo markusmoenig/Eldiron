@@ -334,7 +334,7 @@ fn build_atlas_inner(inner: &mut SharedAtlasInner) {
             }
             shelf_h = shelf_h.max(packed_h);
 
-            let frame_owned = tile.frames[f].clone();
+            let frame_owned = alpha_bleed_colors(&tile.frames[f], w, h, 4);
             let mat_owned = if f < mat_len {
                 tile.material_frames[f].clone()
             } else {
@@ -404,7 +404,7 @@ fn repaint_atlas_pixels_inner(inner: &mut SharedAtlasInner) {
             if f >= tile.frames.len() {
                 break;
             }
-            let frame_owned = tile.frames[f].clone();
+            let frame_owned = alpha_bleed_colors(&tile.frames[f], rect.w, rect.h, 4);
             let mat_owned = if f < tile.material_frames.len() {
                 tile.material_frames[f].clone()
             } else {
@@ -476,6 +476,62 @@ fn blit_rgba_into(
         let dst_slice = &mut dst[dst_off..dst_off + src_w * 4];
         dst_slice.copy_from_slice(src_slice);
     }
+}
+
+fn alpha_bleed_colors(src: &[u8], w: u32, h: u32, iterations: u32) -> Vec<u8> {
+    if src.is_empty() || w == 0 || h == 0 {
+        return src.to_vec();
+    }
+    let mut out = src.to_vec();
+    let mut prev = out.clone();
+    let w_us = w as usize;
+    let h_us = h as usize;
+    let iters = iterations.max(1);
+
+    for _ in 0..iters {
+        prev.copy_from_slice(&out);
+        for y in 0..h_us {
+            for x in 0..w_us {
+                let i = (y * w_us + x) * 4;
+                if prev[i + 3] != 0 {
+                    continue;
+                }
+
+                let mut rs: u32 = 0;
+                let mut gs: u32 = 0;
+                let mut bs: u32 = 0;
+                let mut n: u32 = 0;
+
+                let y0 = y.saturating_sub(1);
+                let y1 = (y + 1).min(h_us - 1);
+                let x0 = x.saturating_sub(1);
+                let x1 = (x + 1).min(w_us - 1);
+                for ny in y0..=y1 {
+                    for nx in x0..=x1 {
+                        if nx == x && ny == y {
+                            continue;
+                        }
+                        let ni = (ny * w_us + nx) * 4;
+                        if prev[ni + 3] > 0 {
+                            rs += prev[ni] as u32;
+                            gs += prev[ni + 1] as u32;
+                            bs += prev[ni + 2] as u32;
+                            n += 1;
+                        }
+                    }
+                }
+
+                if n > 0 {
+                    out[i] = (rs / n) as u8;
+                    out[i + 1] = (gs / n) as u8;
+                    out[i + 2] = (bs / n) as u8;
+                    // Keep alpha at 0; we only bleed color into transparent pixels.
+                }
+            }
+        }
+    }
+
+    out
 }
 
 fn blit_rgba_into_with_border(

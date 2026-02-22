@@ -40,13 +40,35 @@ fn downsample_rgba8_box(src: &[u8], src_w: u32, src_h: u32) -> (Vec<u8>, u32, u3
             let i11 = ((sy1 * src_w + sx1) * 4) as usize;
 
             let di = ((y * dst_w + x) * 4) as usize;
-            for c in 0..4 {
-                let sum = src[i00 + c] as u32
-                    + src[i10 + c] as u32
-                    + src[i01 + c] as u32
-                    + src[i11 + c] as u32;
-                dst[di + c] = (sum / 4) as u8;
+            let a0 = src[i00 + 3] as u32;
+            let a1 = src[i10 + 3] as u32;
+            let a2 = src[i01 + 3] as u32;
+            let a3 = src[i11 + 3] as u32;
+            let a_sum = a0 + a1 + a2 + a3;
+
+            // Alpha-weighted RGB downsample to avoid dark/black fringes in mip levels.
+            if a_sum > 0 {
+                let r_sum = (src[i00] as u32) * a0
+                    + (src[i10] as u32) * a1
+                    + (src[i01] as u32) * a2
+                    + (src[i11] as u32) * a3;
+                let g_sum = (src[i00 + 1] as u32) * a0
+                    + (src[i10 + 1] as u32) * a1
+                    + (src[i01 + 1] as u32) * a2
+                    + (src[i11 + 1] as u32) * a3;
+                let b_sum = (src[i00 + 2] as u32) * a0
+                    + (src[i10 + 2] as u32) * a1
+                    + (src[i01 + 2] as u32) * a2
+                    + (src[i11 + 2] as u32) * a3;
+                dst[di] = (r_sum / a_sum) as u8;
+                dst[di + 1] = (g_sum / a_sum) as u8;
+                dst[di + 2] = (b_sum / a_sum) as u8;
+            } else {
+                dst[di] = 0;
+                dst[di + 1] = 0;
+                dst[di + 2] = 0;
             }
+            dst[di + 3] = (a_sum / 4) as u8;
         }
     }
 

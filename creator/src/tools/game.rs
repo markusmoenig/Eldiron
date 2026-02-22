@@ -48,7 +48,7 @@ impl Tool for GameTool {
         tool_event: ToolEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
@@ -69,10 +69,31 @@ impl Tool for GameTool {
                 // (e.g. Iso), restore the previous game camera mapping when entering
                 // actual Game Tool mode.
                 if RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running {
+                    let map_camera_to_player_camera = |mode: MapCamera| -> PlayerCamera {
+                        match mode {
+                            MapCamera::TwoD => PlayerCamera::D2,
+                            MapCamera::ThreeDIso => PlayerCamera::D3Iso,
+                            MapCamera::ThreeDFirstPerson => PlayerCamera::D3FirstP,
+                        }
+                    };
                     let restore_camera = if let Some(prev) = self.editor_routed_prev_camera.take() {
                         prev
                     } else {
-                        RUSTERIX.read().unwrap().player_camera.clone()
+                        let rusterix = RUSTERIX.read().unwrap();
+                        let by_active_game_widget =
+                            rusterix.client.active_game_widget_camera_mode();
+                        let by_running_map = project
+                            .regions
+                            .iter()
+                            .find(|r| r.map.name == rusterix.client.current_map)
+                            .map(|r| map_camera_to_player_camera(r.map.camera));
+                        let by_editor_region = project
+                            .get_region(&server_ctx.curr_region)
+                            .map(|r| map_camera_to_player_camera(r.map.camera));
+                        by_active_game_widget
+                            .or(by_running_map)
+                            .or(by_editor_region)
+                            .unwrap_or_else(|| rusterix.player_camera.clone())
                     };
 
                     RUSTERIX

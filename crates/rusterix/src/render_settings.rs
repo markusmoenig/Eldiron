@@ -176,6 +176,14 @@ pub struct RenderSettings {
     pub fade_mode: FadeMode,
     /// Lighting model used by raster path.
     pub lighting_model: LightingModel,
+    /// Avatar readability boost toggle for Raster 3D.
+    pub avatar_highlight_enabled: bool,
+    /// Avatar readability lift multiplier.
+    pub avatar_highlight_lift: f32,
+    /// Avatar readability ambient fill contribution.
+    pub avatar_highlight_fill: f32,
+    /// Avatar readability rim-light contribution.
+    pub avatar_highlight_rim: f32,
     /// Post-processing enable toggle for final 3D output.
     pub post_enabled: bool,
     /// Tone mapper used in post step.
@@ -342,6 +350,10 @@ impl Default for RenderSettings {
             raster_shadow_bias: 0.0015,
             fade_mode: FadeMode::OrderedDither,
             lighting_model: LightingModel::CookTorrance,
+            avatar_highlight_enabled: true,
+            avatar_highlight_lift: 1.12,
+            avatar_highlight_fill: 0.20,
+            avatar_highlight_rim: 0.18,
             post_enabled: true,
             post_tone_mapper: PostToneMapper::Reinhard,
             post_exposure: 1.0,
@@ -433,6 +445,30 @@ impl RenderSettings {
             }
             if let Some(v) = raster3d.get("shadow_bias").and_then(toml::Value::as_float) {
                 self.raster_shadow_bias = v as f32;
+            }
+            if let Some(v) = raster3d
+                .get("avatar_highlight_enabled")
+                .and_then(toml::Value::as_bool)
+            {
+                self.avatar_highlight_enabled = v;
+            }
+            if let Some(v) = raster3d
+                .get("avatar_highlight_lift")
+                .and_then(toml::Value::as_float)
+            {
+                self.avatar_highlight_lift = v as f32;
+            }
+            if let Some(v) = raster3d
+                .get("avatar_highlight_fill")
+                .and_then(toml::Value::as_float)
+            {
+                self.avatar_highlight_fill = v as f32;
+            }
+            if let Some(v) = raster3d
+                .get("avatar_highlight_rim")
+                .and_then(toml::Value::as_float)
+            {
+                self.avatar_highlight_rim = v as f32;
             }
         }
 
@@ -804,6 +840,16 @@ impl RenderSettings {
             self.post_exposure.max(0.0),
             self.post_gamma.max(0.001),
         )));
+        vm.vm.set_raster3d_avatar_highlight_params(Vec4::new(
+            self.avatar_highlight_lift.max(0.0),
+            self.avatar_highlight_fill.max(0.0),
+            self.avatar_highlight_rim.max(0.0),
+            if self.avatar_highlight_enabled {
+                1.0
+            } else {
+                0.0
+            },
+        ));
     }
 
     fn update_transitions(&mut self) {
@@ -1092,6 +1138,14 @@ impl RenderSettings {
             .get_str("lighting_model")
             .map(parse_lighting_model)
             .unwrap_or(self.lighting_model);
+        self.avatar_highlight_enabled =
+            render.get_bool_default("avatar_highlight_enabled", self.avatar_highlight_enabled);
+        self.avatar_highlight_lift =
+            render.get_float_default("avatar_highlight_lift", self.avatar_highlight_lift);
+        self.avatar_highlight_fill =
+            render.get_float_default("avatar_highlight_fill", self.avatar_highlight_fill);
+        self.avatar_highlight_rim =
+            render.get_float_default("avatar_highlight_rim", self.avatar_highlight_rim);
         self.frame_time_ms = render.get_float_default("ms_per_frame", self.frame_time_ms);
         if let Some(fps) = render.get_float("fps") {
             if fps > 0.0 {

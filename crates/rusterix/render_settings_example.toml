@@ -38,6 +38,14 @@ shadow_bias = 0.0015
 fade_mode = "ordered_dither"
 # Lighting model: "lambert", "cook_torrance", or "pbr".
 lighting_model = "cook_torrance"
+# Avatar readability boost toggle (Raster 3D avatars/billboards).
+avatar_highlight_enabled = true
+# Avatar readability lift multiplier (1.0 = unchanged).
+avatar_highlight_lift = 1.12
+# Avatar ambient fill contribution.
+avatar_highlight_fill = 0.20
+# Avatar rim-light contribution.
+avatar_highlight_rim = 0.18
 # Bump mapping strength (0.0 = off, 1.0 = full).
 bump_strength = 1.0
 # MSAA sample count for raster 3D (0=off, 4=on).

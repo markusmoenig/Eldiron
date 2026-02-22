@@ -69,10 +69,25 @@ pub fn apply_item_data(item: &mut Item, toml: &str) {
     match toml.parse::<Table>() {
         Ok(map) => {
             for (attr, v) in map.iter() {
+                // Support common top-level item keys used by rigging preview/data docs.
+                // Runtime should mirror preview behavior for these fields.
+                if apply_item_top_level(item, attr, v) {
+                    continue;
+                }
                 if attr == "attributes" {
                     if let Some(values) = v.as_table() {
                         for (key, value) in values {
-                            if let Some(value) = value.as_array() {
+                            if key == "rig_pivot"
+                                && let Some(value) = value.as_array()
+                                && value.len() == 2
+                                && let (Some(x), Some(y)) =
+                                    (value[0].as_float(), value[1].as_float())
+                            {
+                                item.set_attribute(
+                                    "rig_pivot",
+                                    crate::Value::Vec2([x as f32, y as f32]),
+                                );
+                            } else if let Some(value) = value.as_array() {
                                 let mut values = vec![];
                                 for v in value {
                                     values.push(v.to_string().replace("\"", ""));
@@ -150,6 +165,70 @@ pub fn apply_item_data(item: &mut Item, toml: &str) {
             println!("error {:?}", err);
         }
     }
+}
+
+fn apply_item_top_level(item: &mut Item, key: &str, value: &toml::Value) -> bool {
+    let tile_keys = [
+        "tile_id",
+        "tile_id_front",
+        "tile_id_back",
+        "tile_id_left",
+        "tile_id_right",
+        "rig_tile_id",
+        "rig_tile_id_front",
+        "rig_tile_id_back",
+        "rig_tile_id_left",
+        "rig_tile_id_right",
+    ];
+    if tile_keys.contains(&key)
+        && let Some(raw) = value.as_str()
+        && let Ok(uuid) = Uuid::parse_str(raw)
+    {
+        if key == "tile_id" || key == "rig_tile_id" {
+            item.set_attribute("source", Value::Source(PixelSource::TileId(uuid)));
+        }
+        item.set_attribute(key, Value::Source(PixelSource::TileId(uuid)));
+        return true;
+    }
+
+    if key == "rig_scale"
+        && let Some(v) = value.as_float()
+    {
+        item.set_attribute("rig_scale", Value::Float(v as f32));
+        return true;
+    }
+
+    if key == "rig_pivot"
+        && let Some(v) = value.as_array()
+        && v.len() == 2
+        && let (Some(x), Some(y)) = (v[0].as_float(), v[1].as_float())
+    {
+        item.set_attribute("rig_pivot", Value::Vec2([x as f32, y as f32]));
+        return true;
+    }
+
+    if key == "rig_layer"
+        && let Some(v) = value.as_str()
+    {
+        item.set_attribute("rig_layer", Value::Str(v.to_string()));
+        return true;
+    }
+
+    if key == "rig_flip_back"
+        && let Some(v) = value.as_bool()
+    {
+        item.set_attribute("rig_flip_back", Value::Bool(v));
+        return true;
+    }
+
+    if key == "slot"
+        && let Some(v) = value.as_str()
+    {
+        item.set_attribute("slot", Value::Str(v.to_string()));
+        return true;
+    }
+
+    false
 }
 
 /// Read a light from the toml
