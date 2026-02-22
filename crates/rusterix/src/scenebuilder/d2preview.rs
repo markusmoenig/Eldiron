@@ -86,14 +86,6 @@ impl D2PreviewBuilder {
                 let mut vertices: Vec<[f32; 2]> = vec![];
                 let mut uvs: Vec<[f32; 2]> = vec![];
                 let bbox = sector.bounding_box(map);
-                let shader_index = sector
-                    .shader
-                    .and_then(|shader_id| {
-                        map.shaders
-                            .get(&shader_id)
-                            .map(|m| scene.add_shader(&m.build_shader()))
-                    })
-                    .flatten();
 
                 let mut repeat = true;
                 if sector.properties.get_int_default("tile_mode", 1) == 0 {
@@ -103,7 +95,6 @@ impl D2PreviewBuilder {
                 // Use the floor or ceiling source
                 let source = sector.properties.get_default_source();
 
-                let mut processed = false;
                 for vertex in &geo.0 {
                     let local =
                         self.map_grid_to_local(screen_size, Vec2::new(vertex[0], vertex[1]), map);
@@ -128,26 +119,16 @@ impl D2PreviewBuilder {
                 if let Some(pixelsource) = source {
                     if let Some(tile) = pixelsource.tile_from_tile_list(assets) {
                         if let Some(texture_index) = assets.tile_index(&tile.id) {
-                            let mut batch =
-                                Batch2D::new(vertices.clone(), geo.1.clone(), uvs.clone())
-                                    .repeat_mode(if repeat {
-                                        crate::RepeatMode::RepeatXY
-                                    } else {
-                                        crate::RepeatMode::ClampXY
-                                    })
-                                    .source(PixelSource::StaticTileIndex(texture_index));
-                            batch.shader = shader_index;
+                            let batch = Batch2D::new(vertices.clone(), geo.1.clone(), uvs.clone())
+                                .repeat_mode(if repeat {
+                                    crate::RepeatMode::RepeatXY
+                                } else {
+                                    crate::RepeatMode::ClampXY
+                                })
+                                .source(PixelSource::StaticTileIndex(texture_index));
                             scene.d2_static.push(batch);
-                            processed = true;
                         }
                     }
-                }
-
-                if let Some(shader_index) = shader_index
-                    && processed == false
-                {
-                    let batch = Batch2D::new(vertices, geo.1, uvs).shader(shader_index);
-                    scene.d2_static.push(batch);
                 }
             }
         }

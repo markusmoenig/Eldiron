@@ -151,6 +151,34 @@ impl Dock for TilesDock {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        if server_ctx.help_mode {
+            let open_tiles_help = match event {
+                TheEvent::TilePicked(id, _) => id.name == "Tiles Dock RGBA Layout View",
+                TheEvent::StateChanged(id, state) if *state == TheWidgetState::Clicked => {
+                    id.name == "Tiles"
+                        || id.name == "Tiles Dock RGBA Layout View"
+                        || id.name.starts_with("Blend #")
+                }
+                TheEvent::MouseDown(coord) => ui
+                    .get_widget_at_coord(*coord)
+                    .map(|w| {
+                        let name = &w.id().name;
+                        name == "Tiles Dock RGBA Layout View"
+                            || name == "Tiles"
+                            || name.starts_with("Blend #")
+                    })
+                    .unwrap_or(false),
+                _ => false,
+            };
+            if open_tiles_help {
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Show Help"),
+                    TheValue::Text("docs/creator/docks/tile_picker_editor".into()),
+                ));
+                return true;
+            }
+        }
+
         let mut redraw = false;
 
         match event {

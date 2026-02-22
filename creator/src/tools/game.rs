@@ -40,7 +40,7 @@ impl Tool for GameTool {
     }
 
     fn help_url(&self) -> Option<String> {
-        Some("docs/creator/tools/game".to_string())
+        Some("docs/creator/tools/overview".to_string())
     }
 
     fn tool_event(

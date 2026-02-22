@@ -1,4 +1,4 @@
-use crate::editor::{RUSTERIX, UNDOMANAGER};
+use crate::editor::{DOCKMANAGER, RUSTERIX, UNDOMANAGER};
 use crate::prelude::*;
 pub use crate::tools::rect::RectTool;
 use rusterix::Assets;
@@ -1043,6 +1043,9 @@ impl ToolList {
                     project,
                     server_ctx,
                 );
+
+                // Switching game tools should collapse any maximized dock/editor view.
+                DOCKMANAGER.write().unwrap().minimize(ui, ctx);
             }
 
             if let Some(layout) = ui.get_hlayout(layout_name) {

@@ -254,7 +254,16 @@ impl DockManager {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
-        if let Some(editor_index) = self.editor_index {
+        let use_editor_canvas = if self.dock == "Data" {
+            matches!(server_ctx.pc, ProjectContext::CharacterPreviewRigging(_))
+        } else {
+            self.editor_index.is_some()
+        };
+
+        if use_editor_canvas {
+            let Some(editor_index) = self.editor_index else {
+                return;
+            };
             if let Some(stack) = ui.get_stack_layout("Editor Stack") {
                 stack.set_index(editor_index);
                 self.state = DockManagerState::Editor;
@@ -294,13 +303,10 @@ impl DockManager {
                     editor_dock.minimized(ui, ctx);
                 }
                 TOOLLIST.write().unwrap().set_game_tools(ui, ctx);
-            }
-
-            if let Some(_editor_index) = self.editor_index {
                 if let Some(stack) = ui.get_stack_layout("Editor Stack") {
                     stack.set_index(0);
-                    self.state = DockManagerState::Minimized;
                 }
+                self.state = DockManagerState::Minimized;
             } else if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                 layout.set_mode(TheSharedVLayoutMode::Shared);
                 self.state = DockManagerState::Minimized;

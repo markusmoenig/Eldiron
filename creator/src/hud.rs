@@ -25,8 +25,6 @@ pub struct Hud {
 
     subdiv_rects: Vec<TheDim>,
 
-    profile2d_rect: TheDim,
-
     mouse_pos: Vec2<i32>,
 
     is_playing: bool,
@@ -45,8 +43,6 @@ impl Hud {
             selected_icon_index: 0,
 
             subdiv_rects: vec![],
-
-            profile2d_rect: TheDim::rect(0, 0, 0, 0),
 
             mouse_pos: Vec2::zero(),
 
@@ -220,54 +216,6 @@ impl Hud {
             }
 
             self.icon_rects.push(rect);
-        }
-
-        // Show Profile
-        if server_ctx.get_map_context() == MapContext::Region {
-            let x = 390;
-            let size = 20;
-            self.profile2d_rect = TheDim::rect(x, 0, 60, size);
-
-            let txt = "Region";
-
-            let r = self.profile2d_rect.to_buffer_utuple();
-            ctx.draw.text_rect(
-                buffer.pixels_mut(),
-                &(r.0, 1, r.2, 19),
-                stride,
-                txt,
-                TheFontSettings {
-                    size: 13.0,
-                    ..Default::default()
-                },
-                &if self.profile2d_rect.contains(self.mouse_pos) {
-                    sel_text_color
-                } else {
-                    text_color
-                },
-                &bg_color,
-                TheHorizontalAlign::Center,
-                TheVerticalAlign::Center,
-            );
-
-            if let Some(_editing_surface) = &server_ctx.editing_surface {
-                let txt = ">  Surface Profile";
-                let r = self.profile2d_rect.to_buffer_utuple();
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
-                    &(r.0 + 55, 1, r.2 + 60, 19),
-                    stride,
-                    txt,
-                    TheFontSettings {
-                        size: 13.0,
-                        ..Default::default()
-                    },
-                    &text_color,
-                    &bg_color,
-                    TheHorizontalAlign::Center,
-                    TheVerticalAlign::Center,
-                );
-            }
         }
 
         // Show Subdivs
@@ -670,16 +618,6 @@ impl Hud {
                     return true;
                 }
             }
-        }
-
-        if self.profile2d_rect.contains(Vec2::new(x, y)) && server_ctx.editing_surface.is_some() {
-            ctx.ui.send(TheEvent::Custom(
-                TheId::named("Render SceneManager Map"),
-                TheValue::Empty,
-            ));
-            server_ctx.editing_surface = None;
-            RUSTERIX.write().unwrap().set_dirty();
-            return true;
         }
 
         if map.camera == MapCamera::TwoD && y < 20 {

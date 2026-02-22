@@ -2,7 +2,7 @@ use crate::editor::{
     ACTIONLIST, CONFIG, CONFIGEDITOR, DOCKMANAGER, PALETTE, RUSTERIX, SCENEMANAGER, SIDEBARMODE,
     TOOLLIST, UNDOMANAGER,
 };
-use crate::minimap::draw_minimap;
+use crate::minimap::{draw_minimap, draw_minimap_context_label, minimap_bbox_for_map};
 use crate::prelude::*;
 use crate::undo::project_helper::*;
 use rusterix::{Texture, TileRole};
@@ -33,6 +33,61 @@ pub struct Sidebar {
 
 #[allow(clippy::new_without_default)]
 impl Sidebar {
+    fn action_help_anchor(name: &str) -> String {
+        let lower = name.trim().to_ascii_lowercase();
+        let compact = lower.replace(['_', '-'], " ");
+
+        if compact.contains("editing camera") {
+            return "editing-camera".to_string();
+        }
+        if compact.contains("orbit camera") {
+            return "orbit-camera".to_string();
+        }
+        if compact.contains("iso camera") || compact.contains("3d iso camera") {
+            return "iso-camera".to_string();
+        }
+        if compact.contains("firstp camera")
+            || compact.contains("first p camera")
+            || compact.contains("first person camera")
+        {
+            return "first-person-camera".to_string();
+        }
+        if compact.contains("toggle rect geo") || compact.contains("toggle rect geometry") {
+            return "toggle-rect-geometry".to_string();
+        }
+        if compact.contains("toggle editing geo") || compact.contains("toggle editing geometry") {
+            return "toggle-editing-geometry".to_string();
+        }
+        if compact.contains("gate") && compact.contains("door") {
+            return "gate--door".to_string();
+        }
+        if compact.contains("edit maximize") {
+            return "edit--maximize".to_string();
+        }
+        if compact.contains("import vcode") || compact.contains("export vcode") {
+            return "import-vcode--export-vcode".to_string();
+        }
+
+        // Generic slug fallback.
+        let normalized = lower
+            .replace('_', "-")
+            .strip_prefix("action-")
+            .unwrap_or(&lower)
+            .to_string();
+        let mut slug = String::with_capacity(normalized.len());
+        let mut prev_dash = false;
+        for ch in normalized.chars() {
+            if ch.is_ascii_alphanumeric() {
+                slug.push(ch.to_ascii_lowercase());
+                prev_dash = false;
+            } else if !prev_dash {
+                slug.push('-');
+                prev_dash = true;
+            }
+        }
+        slug.trim_matches('-').to_string()
+    }
+
     pub fn new() -> Self {
         Self {
             width: 380,
@@ -465,72 +520,72 @@ impl Sidebar {
                             return redraw;
                         }
 
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            let width = dim.width as f32;
-                            let height = dim.height as f32;
+                        let width = dim.width as f32;
+                        let height = dim.height as f32;
+                        let mut update_pos_3d: Option<Vec3<f32>> = None;
+                        let mut update_look_at_3d: Option<Vec3<f32>> = None;
+                        let mut handled_minimap_input = false;
 
-                            if let Some(mut bbox) = region.map.bounding_box() {
-                                if let Some(tbbox) = region.map.terrain.compute_bounds() {
-                                    let bbox_min = Vec2::new(bbox.x, bbox.y);
-                                    let bbox_max = bbox_min + Vec2::new(bbox.z, bbox.w);
+                        if let Some(map) = project.get_map_mut(server_ctx)
+                            && let Some(bbox) = minimap_bbox_for_map(map)
+                        {
+                            let scale_x = width / bbox.z;
+                            let scale_y = height / bbox.w;
 
-                                    let new_min = bbox_min.map2(tbbox.min, f32::min);
-                                    let new_max = bbox_max.map2(tbbox.max, f32::max);
+                            let bbox_center_x = bbox.x + bbox.z / 2.0;
+                            let bbox_center_y = bbox.y + bbox.w / 2.0;
 
-                                    bbox.x = new_min.x;
-                                    bbox.y = new_min.y;
-                                    bbox.z = new_max.x - new_min.x;
-                                    bbox.w = new_max.y - new_min.y;
-                                }
-                                bbox.x -= 0.5;
-                                bbox.y -= 0.5;
-                                bbox.z += 1.0;
-                                bbox.w += 1.0;
+                            let offset_x = -bbox_center_x * scale_x;
+                            let offset_y = bbox_center_y * scale_y;
 
-                                let scale_x = width / bbox.z;
-                                let scale_y = height / bbox.w;
+                            let grid_x = (coord.x as f32 - width / 2.0 - offset_x) / scale_x;
+                            let grid_y = (coord.y as f32 - height / 2.0 + offset_y) / scale_y;
+                            let grid_pos = Vec2::new(grid_x, grid_y);
 
-                                let bbox_center_x = bbox.x + bbox.z / 2.0;
-                                let bbox_center_y = bbox.y + bbox.w / 2.0;
+                            // If shift is pressed we move the look_at position.
+                            if ui.shift
+                                && server_ctx.editor_view_mode == EditorViewMode::FirstP
+                                && server_ctx.get_map_context() == MapContext::Region
+                                && server_ctx.editing_surface.is_none()
+                            {
+                                let y = map.terrain.sample_height_bilinear(grid_x, grid_y);
+                                update_look_at_3d = Some(Vec3::new(grid_x, y, grid_y));
+                            } else {
+                                // Move the map camera center in whichever map context is active.
+                                server_ctx.center_map_at_grid_pos(
+                                    Vec2::new(width, height),
+                                    grid_pos,
+                                    map,
+                                );
 
-                                let offset_x = -bbox_center_x * scale_x;
-                                let offset_y = bbox_center_y * scale_y;
-
-                                let grid_x = (coord.x as f32 - width / 2.0 - offset_x) / scale_x;
-                                let grid_y = (coord.y as f32 - height / 2.0 + offset_y) / scale_y;
-
-                                // If shift is pressed we move the look_at position
-                                if ui.shift && server_ctx.editor_view_mode == EditorViewMode::FirstP
+                                if server_ctx.get_map_context() == MapContext::Region
+                                    && server_ctx.editing_surface.is_none()
                                 {
-                                    region.editing_look_at_3d = Vec3::new(
-                                        grid_x,
-                                        region.map.terrain.sample_height_bilinear(grid_x, grid_y),
-                                        grid_y,
-                                    );
-                                } else {
-                                    // We move the camera position
-                                    server_ctx.center_map_at_grid_pos(
-                                        Vec2::new(width, height),
-                                        Vec2::new(grid_x, grid_y),
-                                        &mut region.map,
-                                    );
-
-                                    // let old_editing_pos = region.editing_position_3d;
-                                    region.editing_position_3d = Vec3::new(
-                                        grid_x,
-                                        region.map.terrain.sample_height_bilinear(grid_x, grid_y),
-                                        grid_y,
-                                    );
-                                    //region.editing_look_at_3d +=
-                                    //    region.editing_position_3d - old_editing_pos;
+                                    let y = map.terrain.sample_height_bilinear(grid_x, grid_y);
+                                    update_pos_3d = Some(Vec3::new(grid_x, y, grid_y));
                                 }
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Soft Update Minimap"),
-                                    TheValue::Empty,
-                                ));
-
-                                RUSTERIX.write().unwrap().set_dirty();
                             }
+                            handled_minimap_input = true;
+                        }
+
+                        if let Some(pos_3d) = update_pos_3d
+                            && let Some(region) = project.get_region_mut(&server_ctx.curr_region)
+                        {
+                            region.editing_position_3d = pos_3d;
+                        }
+                        if let Some(look_at_3d) = update_look_at_3d
+                            && let Some(region) = project.get_region_mut(&server_ctx.curr_region)
+                        {
+                            region.editing_look_at_3d = look_at_3d;
+                        }
+
+                        if handled_minimap_input {
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Soft Update Minimap"),
+                                TheValue::Empty,
+                            ));
+
+                            RUSTERIX.write().unwrap().set_dirty();
 
                             /*
                             let region_width = region.width * region.grid_size;
@@ -712,9 +767,8 @@ impl Sidebar {
                         }
 
                         if !dock_handled_drawing {
-                            if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
-                                draw_minimap(region, buffer, server_ctx, true);
-                            }
+                            draw_minimap(project, buffer, server_ctx, true);
+                            draw_minimap_context_label(buffer, ctx, server_ctx);
                         }
                     } else {
                     }
@@ -735,9 +789,8 @@ impl Sidebar {
                         }
 
                         if !dock_handled_drawing {
-                            if let Some(region) = project.get_region_ctx_mut(&server_ctx) {
-                                draw_minimap(region, buffer, server_ctx, false);
-                            }
+                            draw_minimap(project, buffer, server_ctx, false);
+                            draw_minimap_context_label(buffer, ctx, server_ctx);
                         }
                     }
                 } else if id.name == "Update Tiles" {
@@ -1679,9 +1732,8 @@ impl Sidebar {
                     ACTIONLIST.write().unwrap().get_action_by_id_mut(id.uuid)
                 {
                     if server_ctx.help_mode {
-                        let mut name = id.name.to_lowercase().trim().to_string();
-                        name = name.replace(" ", "-".into());
-                        let url = format!("docs/creator/actions/#{}", name);
+                        let anchor = Self::action_help_anchor(&action.id().name);
+                        let url = format!("docs/creator/actions/#{}", anchor);
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Show Help"),
                             TheValue::Text(url),
@@ -1706,7 +1758,7 @@ impl Sidebar {
                     action.load_params_project(project, server_ctx);
                     self.show_action_toml_params(ui, ctx, server_ctx, action.as_ref());
 
-                    if server_ctx.auto_action {
+                    if server_ctx.auto_action || action.role() == ActionRole::Camera {
                         ctx.ui.send(TheEvent::StateChanged(
                             TheId::named("Action Apply"),
                             TheWidgetState::None,

@@ -272,6 +272,38 @@ impl Dock for TilesEditorDock {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        if server_ctx.help_mode {
+            let open_tile_help = match event {
+                TheEvent::TileEditorClicked(id, _) => {
+                    id.name == "Tile Editor Dock RGBA Layout View"
+                }
+                TheEvent::StateChanged(id, state) if *state == TheWidgetState::Clicked => {
+                    id.name.starts_with("Tile ")
+                        || id.name == "Grid Enabled CB"
+                        || id.name == "Tile Editor Tree"
+                }
+                TheEvent::MouseDown(coord) => ui
+                    .get_widget_at_coord(*coord)
+                    .map(|w| {
+                        let name = &w.id().name;
+                        name.starts_with("Tile ")
+                            || name == "Tile Editor Dock RGBA Layout View"
+                            || name == "Tile Editor Tree"
+                            || name == "Grid Enabled CB"
+                    })
+                    .unwrap_or(false),
+                _ => false,
+            };
+
+            if open_tile_help {
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Show Help"),
+                    TheValue::Text("docs/creator/docks/tile_picker_editor".into()),
+                ));
+                return true;
+            }
+        }
+
         let mut redraw = false;
 
         match event {

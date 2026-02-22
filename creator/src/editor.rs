@@ -87,6 +87,97 @@ impl Editor {
             config.game_tick_ms.max(1) as u64
         }
     }
+
+    fn help_url_for_data_context(&self) -> String {
+        match self.server_ctx.pc {
+            ProjectContext::ProjectSettings => "docs/configuration/game".to_string(),
+            ProjectContext::RegionSettings(_) => "docs/building_maps/region_settings".to_string(),
+            ProjectContext::CharacterPreviewRigging(_) => "docs/characters_items/rigging".into(),
+            ProjectContext::Character(_)
+            | ProjectContext::CharacterData(_)
+            | ProjectContext::Item(_)
+            | ProjectContext::ItemData(_) => "docs/characters_items/attributes".to_string(),
+            ProjectContext::Screen(_)
+            | ProjectContext::ScreenWidget(_, _)
+            | ProjectContext::RegionCharacterInstance(_, _)
+            | ProjectContext::RegionItemInstance(_, _) => "docs/screens/widgets".to_string(),
+            _ => "docs/creator/docks/attribute_editor".to_string(),
+        }
+    }
+
+    fn help_url_for_widget_name(&self, widget_name: &str) -> Option<String> {
+        match widget_name {
+            "Tiles" | "Tilemap" | "Tile Editor Dock RGBA Layout View" | "Tile Editor Tree" => {
+                Some("docs/creator/docks/tile_picker_editor".into())
+            }
+            "DockDataEditor" | "DockDataEditorMax" | "Data" => {
+                Some(self.help_url_for_data_context())
+            }
+            "DockCodeEditor" | "Code" => Some("docs/creator/docks/eldrin_script_editor".into()),
+            "Visual Code" => Some("docs/creator/docks/visual_script_editor".into()),
+            "PolyView" => {
+                if self.server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    Some("docs/building_maps/creating_2d".into())
+                } else {
+                    Some("docs/building_maps/creating_3d_maps".into())
+                }
+            }
+            name if name.starts_with("DockVisualScripting") => {
+                Some("docs/creator/docks/visual_script_editor".into())
+            }
+            name if name.starts_with("Tile Editor ") => {
+                Some("docs/creator/docks/tile_picker_editor".into())
+            }
+            _ => None,
+        }
+    }
+
+    fn help_url_for_editor_event(&self, event: &TheEvent, ui: &mut TheUI) -> Option<String> {
+        let mut clicked = false;
+        let widget_name = match event {
+            TheEvent::StateChanged(id, state) if *state == TheWidgetState::Clicked => {
+                clicked = true;
+                Some(id.name.clone())
+            }
+            TheEvent::RenderViewClicked(id, _) => {
+                clicked = true;
+                Some(id.name.clone())
+            }
+            TheEvent::TilePicked(id, _) => {
+                clicked = true;
+                Some(id.name.clone())
+            }
+            TheEvent::TileEditorClicked(id, _) => {
+                clicked = true;
+                Some(id.name.clone())
+            }
+            TheEvent::MouseDown(coord) => {
+                clicked = true;
+                ui.get_widget_at_coord(*coord).map(|w| w.id().name.clone())
+            }
+            _ => None,
+        };
+
+        if let Some(widget_name) = widget_name
+            && let Some(url) = self.help_url_for_widget_name(&widget_name)
+        {
+            return Some(url);
+        }
+
+        if clicked {
+            let dm = DOCKMANAGER.read().unwrap();
+            if dm.state != DockManagerState::Minimized {
+                return match dm.dock.as_str() {
+                    "Tiles" => Some("docs/creator/docks/tile_picker_editor".into()),
+                    "Data" => Some(self.help_url_for_data_context()),
+                    "Code" => Some("docs/creator/docks/eldrin_script_editor".into()),
+                    "Visual Code" => Some("docs/creator/docks/visual_script_editor".into()),
+                    _ => None,
+                };
+            }
+        }
+        None
+    }
 }
 
 impl TheTrait for Editor {
@@ -1094,6 +1185,17 @@ impl TheTrait for Editor {
         }
 
         for event in pending_events {
+            if self.server_ctx.help_mode
+                && let Some(url) = self.help_url_for_editor_event(&event, ui)
+            {
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Show Help"),
+                    TheValue::Text(url),
+                ));
+                redraw = true;
+                continue;
+            }
+
             if self.server_ctx.game_input_mode && !self.server_ctx.game_mode {
                 // In game input mode send events to the game tool
                 if let Some(game_tool) =
