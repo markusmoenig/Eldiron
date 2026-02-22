@@ -30,6 +30,12 @@ weapon_slots = ["main_hand", "off_hand"]
 # The attribute which handles health & death
 health = "HP"
 
+# Enables generated marker ramp shading for avatars
+avatar_shading = true
+
+# Enables generated marker ramp shading for skin markers
+avatar_skin_auto_shading = false
+
 [viewport]
 width = 960
 height = 540

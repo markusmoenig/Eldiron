@@ -104,7 +104,7 @@ pub use crate::{
     avatar::{
         Avatar, AvatarAnimation, AvatarAnimationFrame, AvatarBuildOutput, AvatarBuildRequest,
         AvatarBuilder, AvatarDirection, AvatarMarkerColors, AvatarPerspective,
-        AvatarPerspectiveCount,
+        AvatarPerspectiveCount, AvatarShadingOptions,
     },
     batch::{CullMode, GeometrySource, PrimitiveMode, batch2d::Batch2D, batch3d::Batch3D},
     camera::{D3Camera, d3firstp::D3FirstPCamera, d3iso::D3IsoCamera, d3orbit::D3OrbitCamera},
@@ -192,7 +192,7 @@ pub mod prelude {
     pub use crate::{
         Avatar, AvatarAnimation, AvatarAnimationFrame, AvatarBuildOutput, AvatarBuildRequest,
         AvatarBuilder, AvatarDirection, AvatarMarkerColors, AvatarPerspective,
-        AvatarPerspectiveCount,
+        AvatarPerspectiveCount, AvatarShadingOptions,
     };
     // pub use crate::MapScript;
     pub use crate::Rasterizer;

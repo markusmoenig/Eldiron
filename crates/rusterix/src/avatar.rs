@@ -301,6 +301,24 @@ impl Default for AvatarMarkerColors {
     }
 }
 
+/// Runtime avatar shading options.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AvatarShadingOptions {
+    /// Enables/disables generated ramp shading for avatar markers.
+    pub enabled: bool,
+    /// Enables/disables generated ramp shading specifically for skin markers.
+    pub skin_enabled: bool,
+}
+
+impl Default for AvatarShadingOptions {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            skin_enabled: false,
+        }
+    }
+}
+
 /// Output image data for an avatar frame.
 #[derive(Clone, Debug)]
 pub struct AvatarBuildOutput {
@@ -315,6 +333,7 @@ pub struct AvatarBuildRequest<'a> {
     pub direction: AvatarDirection,
     pub frame_index: usize,
     pub marker_colors: AvatarMarkerColors,
+    pub shading: AvatarShadingOptions,
 }
 
 /// Stub avatar builder.
@@ -358,7 +377,7 @@ impl AvatarBuilder {
             frame.texture.resized(target_size, target_size).data
         };
 
-        Self::recolor_markers(&mut rgba, req.marker_colors);
+        Self::recolor_markers(&mut rgba, req.marker_colors, req.shading, target_size);
 
         Some(AvatarBuildOutput {
             size: target_size as u32,
@@ -366,7 +385,12 @@ impl AvatarBuilder {
         })
     }
 
-    fn recolor_markers(rgba: &mut [u8], colors: AvatarMarkerColors) {
+    fn recolor_markers(
+        rgba: &mut [u8],
+        colors: AvatarMarkerColors,
+        shading: AvatarShadingOptions,
+        size: usize,
+    ) {
         const SKIN_LIGHT: [u8; 3] = [255, 0, 255];
         const SKIN_DARK: [u8; 3] = [200, 0, 200];
         const TORSO: [u8; 3] = [0, 0, 255];
@@ -377,33 +401,128 @@ impl AvatarBuilder {
         const HANDS: [u8; 3] = [255, 128, 0];
         const FEET: [u8; 3] = [255, 80, 0];
 
-        for px in rgba.chunks_exact_mut(4) {
-            if px[3] == 0 {
+        let skin_light_ramp = Self::build_shade_ramp(colors.skin_light);
+        let skin_dark_ramp = Self::build_shade_ramp(colors.skin_dark);
+        let torso_ramp = Self::build_shade_ramp(colors.torso);
+        let arms_ramp = Self::build_shade_ramp(colors.arms);
+        let legs_ramp = Self::build_shade_ramp(colors.legs);
+        let hair_ramp = Self::build_shade_ramp(colors.hair);
+        let eyes_ramp = Self::build_shade_ramp(colors.eyes);
+        let hands_ramp = Self::build_shade_ramp(colors.hands);
+        let feet_ramp = Self::build_shade_ramp(colors.feet);
+
+        // Compute per-marker vertical bounds so each body part ramps across its own size.
+        let mut min_y = [usize::MAX; 9];
+        let mut max_y = [0usize; 9];
+        for (i, px) in rgba.chunks_exact(4).enumerate() {
+            if px[3] == 0 || size == 0 {
                 continue;
             }
             let src = [px[0], px[1], px[2]];
-            let dst = if src == SKIN_LIGHT {
-                colors.skin_light
+            let channel = if src == SKIN_LIGHT {
+                Some(0usize)
             } else if src == SKIN_DARK {
-                colors.skin_dark
+                Some(1usize)
             } else if src == TORSO {
-                colors.torso
+                Some(2usize)
             } else if src == ARMS {
-                colors.arms
+                Some(3usize)
             } else if src == LEGS {
-                colors.legs
+                Some(4usize)
             } else if src == HAIR {
-                colors.hair
+                Some(5usize)
             } else if src == EYES {
-                colors.eyes
+                Some(6usize)
             } else if src == HANDS {
-                colors.hands
+                Some(7usize)
             } else if src == FEET {
-                colors.feet
+                Some(8usize)
+            } else {
+                None
+            };
+            if let Some(channel) = channel {
+                let y = i / size;
+                min_y[channel] = min_y[channel].min(y);
+                max_y[channel] = max_y[channel].max(y);
+            }
+        }
+
+        for (i, px) in rgba.chunks_exact_mut(4).enumerate() {
+            if px[3] == 0 || size == 0 {
+                continue;
+            }
+            let x = i % size;
+            let y = i / size;
+            let src = [px[0], px[1], px[2]];
+            let (ramp, channel_seed) = if src == SKIN_LIGHT {
+                (&skin_light_ramp, 0u32)
+            } else if src == SKIN_DARK {
+                (&skin_dark_ramp, 1u32)
+            } else if src == TORSO {
+                (&torso_ramp, 2u32)
+            } else if src == ARMS {
+                (&arms_ramp, 3u32)
+            } else if src == LEGS {
+                (&legs_ramp, 4u32)
+            } else if src == HAIR {
+                (&hair_ramp, 5u32)
+            } else if src == EYES {
+                (&eyes_ramp, 6u32)
+            } else if src == HANDS {
+                (&hands_ramp, 7u32)
+            } else if src == FEET {
+                (&feet_ramp, 8u32)
             } else {
                 continue;
             };
-            px.copy_from_slice(&dst);
+            let channel = channel_seed as usize;
+            let y0 = min_y[channel];
+            let y1 = max_y[channel];
+            let yf_local = if y0 == usize::MAX || y1 <= y0 {
+                0.5
+            } else {
+                (y.saturating_sub(y0)) as f32 / (y1 - y0) as f32
+            };
+            let is_skin = channel <= 1;
+            let use_ramp = shading.enabled && (shading.skin_enabled || !is_skin);
+            let shade_idx = if use_ramp {
+                Self::shade_index_for_pixel(x, y, yf_local, channel_seed)
+            } else {
+                1 // Flat base color (mid)
+            };
+            px.copy_from_slice(&ramp[shade_idx]);
         }
+    }
+
+    #[inline]
+    fn build_shade_ramp(base: [u8; 4]) -> [[u8; 4]; 4] {
+        // Bright to dark. These are generated at runtime from one base color.
+        [
+            Self::modulate_rgb(base, 1.18),
+            Self::modulate_rgb(base, 1.00),
+            Self::modulate_rgb(base, 0.82),
+            Self::modulate_rgb(base, 0.64),
+        ]
+    }
+
+    #[inline]
+    fn modulate_rgb(base: [u8; 4], factor: f32) -> [u8; 4] {
+        let r = (base[0] as f32 * factor).clamp(0.0, 255.0) as u8;
+        let g = (base[1] as f32 * factor).clamp(0.0, 255.0) as u8;
+        let b = (base[2] as f32 * factor).clamp(0.0, 255.0) as u8;
+        [r, g, b, base[3]]
+    }
+
+    #[inline]
+    fn shade_index_for_pixel(x: usize, y: usize, yf_local: f32, channel_seed: u32) -> usize {
+        // 4x4 Bayer threshold for stable, pixel-art-friendly variation.
+        const BAYER4: [f32; 16] = [
+            0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0,
+        ];
+        let d = BAYER4[(y & 3) * 4 + (x & 3)] / 15.0; // 0..1
+        let yf = yf_local.clamp(0.0, 1.0); // top(0) -> bottom(1) in local marker bounds
+        let channel_bias = (channel_seed % 3) as f32 * 0.03;
+        let t = (yf * 2.7 + d * 0.6 + channel_bias).clamp(0.0, 3.0);
+        t as usize
     }
 }

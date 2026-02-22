@@ -317,6 +317,7 @@ impl Dock for DataDock {
             preview.animation.as_deref(),
             preview.perspective,
             frame_index,
+            rusterix::AvatarShadingOptions::default(),
         );
 
         buffer.fill(BLACK);

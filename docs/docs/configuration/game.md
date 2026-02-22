@@ -36,6 +36,12 @@ weapon_slots = ["main_hand", "off_hand"]
 
 # The attribute which handles health & death
 health = "HP"
+
+# Enables generated marker ramp shading for avatars.
+avatar_shading = true
+
+# Enables generated marker ramp shading for skin markers.
+avatar_skin_auto_shading = false
 ```
 
 ### **Option Descriptions**
@@ -96,6 +102,18 @@ health = "HP"
 ### `health`
 
   The name of the health attribute for characters. When smaller or equal to zero means the character is considered **dead** and it's [mode](/docs/characters_items/attributes#mode) attribute is set to '"dead", this is handled automatically by [took_damage](/docs/characters_items/server_commands#took_damage) . If you want to use another attribute name than change the default **"HP"** value to something else.
+
+### `avatar_shading`
+
+- Enables generated runtime marker-ramp shading for avatars.
+- Default: `true`.
+- Set to `false` to keep avatar marker colors flat (no auto ramp shading).
+
+### `avatar_skin_auto_shading`
+
+- Enables generated runtime marker-ramp shading for skin markers.
+- Default: `false`.
+- Useful when skin already contains artist-authored light/dark tones and should stay flat.
 
 #### `base_currency_name`
 

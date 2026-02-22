@@ -1,6 +1,6 @@
 use crate::{
     Assets, Avatar, AvatarBuildOutput, AvatarBuildRequest, AvatarBuilder, AvatarDirection,
-    AvatarMarkerColors, Entity, Item, PixelSource, Value,
+    AvatarMarkerColors, AvatarShadingOptions, Entity, Item, PixelSource, Value,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Atom, GeoId, SceneVM};
@@ -17,6 +17,7 @@ pub struct AvatarRuntimeBuilder {
     avatar_rebuild_latch: FxHashSet<GeoId>,
     // Per-entity built avatar frames (all anims/perspectives/frames).
     avatar_frame_cache: FxHashMap<GeoId, CachedAvatarFrames>,
+    shading_options: AvatarShadingOptions,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,6 +35,7 @@ impl AvatarRuntimeBuilder {
         animation_name: Option<&str>,
         direction: AvatarDirection,
         frame_index: usize,
+        shading: AvatarShadingOptions,
     ) -> Option<AvatarBuildOutput> {
         let markers = Self::marker_colors_for_entity(entity, assets);
         let anim_name = animation_name.or_else(|| entity.attributes.get_str("avatar_animation"));
@@ -48,6 +50,7 @@ impl AvatarRuntimeBuilder {
             direction: resolved_dir,
             frame_index,
             marker_colors: markers,
+            shading,
         })?;
         let (main_anchor, off_anchor) =
             Self::frame_anchors(avatar, resolved_anim, resolved_dir, frame_index);
@@ -763,6 +766,7 @@ impl AvatarRuntimeBuilder {
                         Some(anim.name.as_str()),
                         perspective.direction,
                         frame_index,
+                        self.shading_options,
                     ) {
                         frames.insert(
                             (anim.name.clone(), perspective.direction, frame_index),
@@ -859,6 +863,16 @@ impl AvatarRuntimeBuilder {
         });
         cache.last_uploaded = Some(key);
         true
+    }
+
+    pub fn set_shading_options(&mut self, shading_options: AvatarShadingOptions) {
+        if self.shading_options == shading_options {
+            return;
+        }
+        self.shading_options = shading_options;
+        // Shading affects generated frame pixels, so force full rebuild.
+        self.avatar_frame_cache.clear();
+        self.avatar_rebuild_latch.clear();
     }
 
     pub fn remove_stale_avatars(&mut self, vm: &mut SceneVM, active_avatar_geo: &FxHashSet<GeoId>) {

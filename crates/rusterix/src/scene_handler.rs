@@ -1,8 +1,8 @@
 use std::{hash::Hasher, str::FromStr};
 
 use crate::{
-    Assets, BillboardAnimation, BillboardMetadata, D3Camera, Item, Map, PixelSource,
-    RenderSettings, Texture, Tile, Value, avatar_builder::AvatarRuntimeBuilder,
+    Assets, AvatarShadingOptions, BillboardAnimation, BillboardMetadata, D3Camera, Item, Map,
+    PixelSource, RenderSettings, Texture, Tile, Value, avatar_builder::AvatarRuntimeBuilder,
 };
 use indexmap::IndexMap;
 use rust_embed::EmbeddedFile;
@@ -577,6 +577,11 @@ impl SceneHandler {
 
     /// Build dynamic elements of the 2D Map: Entities, Items, Lights ...
     pub fn build_dynamics_2d(&mut self, map: &Map, animation_frame: usize, assets: &Assets) {
+        self.avatar_builder
+            .set_shading_options(AvatarShadingOptions {
+                enabled: self.settings.avatar_shading_enabled,
+                skin_enabled: self.settings.avatar_skin_shading_enabled,
+            });
         let current_hash = self.dynamics_hash_2d(map, animation_frame);
         if self.dynamics_ready_2d && self.last_dynamics_hash_2d == Some(current_hash) {
             return;
@@ -690,6 +695,11 @@ impl SceneHandler {
         animation_frame: usize,
         assets: &Assets,
     ) {
+        self.avatar_builder
+            .set_shading_options(AvatarShadingOptions {
+                enabled: self.settings.avatar_shading_enabled,
+                skin_enabled: self.settings.avatar_skin_shading_enabled,
+            });
         self.frame_counter = self.frame_counter.wrapping_add(1);
         let has_active_render_billboard_anim = self
             .billboard_anim_states

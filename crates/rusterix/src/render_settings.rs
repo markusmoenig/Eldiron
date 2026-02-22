@@ -184,6 +184,10 @@ pub struct RenderSettings {
     pub avatar_highlight_fill: f32,
     /// Avatar readability rim-light contribution.
     pub avatar_highlight_rim: f32,
+    /// Enables generated marker ramp shading for avatars.
+    pub avatar_shading_enabled: bool,
+    /// Enables generated marker ramp shading for skin markers.
+    pub avatar_skin_shading_enabled: bool,
     /// Post-processing enable toggle for final 3D output.
     pub post_enabled: bool,
     /// Tone mapper used in post step.
@@ -354,6 +358,8 @@ impl Default for RenderSettings {
             avatar_highlight_lift: 1.12,
             avatar_highlight_fill: 0.20,
             avatar_highlight_rim: 0.18,
+            avatar_shading_enabled: true,
+            avatar_skin_shading_enabled: false,
             post_enabled: true,
             post_tone_mapper: PostToneMapper::Reinhard,
             post_exposure: 1.0,
@@ -469,6 +475,18 @@ impl RenderSettings {
                 .and_then(toml::Value::as_float)
             {
                 self.avatar_highlight_rim = v as f32;
+            }
+        }
+
+        if let Some(game) = doc.get("game").and_then(toml::Value::as_table) {
+            if let Some(v) = game.get("avatar_shading").and_then(toml::Value::as_bool) {
+                self.avatar_shading_enabled = v;
+            }
+            if let Some(v) = game
+                .get("avatar_skin_auto_shading")
+                .and_then(toml::Value::as_bool)
+            {
+                self.avatar_skin_shading_enabled = v;
             }
         }
 
