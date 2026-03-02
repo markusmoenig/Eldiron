@@ -13,6 +13,8 @@ pub struct TheSnapperbar {
 
     dim: TheDim,
     text: String,
+    text_color: RGBA,
+    background_color: Option<RGBA>,
     is_dirty: bool,
 
     layout_id: TheId,
@@ -40,6 +42,8 @@ impl TheWidget for TheSnapperbar {
 
             dim: TheDim::zero(),
             text: "".to_string(),
+            text_color: WHITE,
+            background_color: None,
             is_dirty: false,
 
             layout_id: TheId::empty(),
@@ -171,6 +175,12 @@ impl TheWidget for TheSnapperbar {
                 "normal".to_string()
             };
 
+            let tint_color = if self.selected {
+                Some(*style.theme().color(DefaultSelection))
+            } else {
+                self.background_color
+            };
+
             if self.state != TheWidgetState::Selected && self.id().equals(&ctx.ui.hover) {
                 icon_state = "hover".to_string()
             }
@@ -180,8 +190,7 @@ impl TheWidget for TheSnapperbar {
                 .icon(format!("dark_snapperbar_{}_front", icon_state).as_str())
                 .cloned()
             {
-                if self.selected {
-                    let col = *style.theme().color(DefaultSelection);
+                if let Some(col) = tint_color {
                     icon.multiply_by_pixel([100, 100, 100, 255], col);
                 }
 
@@ -204,8 +213,7 @@ impl TheWidget for TheSnapperbar {
                 .icon(format!("dark_snapperbar_{}_middle", icon_state).as_str())
                 .cloned()
             {
-                if self.selected {
-                    let col = *style.theme().color(DefaultSelection);
+                if let Some(col) = tint_color {
                     icon.multiply_by_pixel([100, 100, 100, 255], col);
                 }
 
@@ -221,6 +229,8 @@ impl TheWidget for TheSnapperbar {
             utuple.3 -= 1;
             let color = if self.selected {
                 *style.theme().color(ListItemSelected)
+            } else if let Some(col) = self.background_color {
+                col
             } else {
                 *style.theme().color(ListItemNormal)
             };
@@ -277,7 +287,7 @@ impl TheWidget for TheSnapperbar {
                 size: 13.5,
                 ..Default::default()
             },
-            &WHITE,
+            &self.text_color,
             TheHorizontalAlign::Left,
             TheVerticalAlign::Center,
         );
@@ -298,6 +308,8 @@ pub trait TheSnapperbarTrait {
     fn set_open(&mut self, open: bool);
     fn set_selected(&mut self, open: bool);
     fn set_root_mode(&mut self, root_mode: bool);
+    fn set_text_color(&mut self, color: RGBA);
+    fn set_background_color(&mut self, color: Option<RGBA>);
 }
 
 impl TheSnapperbarTrait for TheSnapperbar {
@@ -324,5 +336,17 @@ impl TheSnapperbarTrait for TheSnapperbar {
     fn set_root_mode(&mut self, root_mode: bool) {
         self.root_mode = root_mode;
         self.is_dirty = true;
+    }
+    fn set_text_color(&mut self, color: RGBA) {
+        if self.text_color != color {
+            self.text_color = color;
+            self.is_dirty = true;
+        }
+    }
+    fn set_background_color(&mut self, color: Option<RGBA>) {
+        if self.background_color != color {
+            self.background_color = color;
+            self.is_dirty = true;
+        }
     }
 }

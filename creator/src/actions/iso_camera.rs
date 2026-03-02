@@ -75,12 +75,10 @@ impl Action for IsoCamera {
     fn apply(
         &self,
         _map: &mut Map,
-        _ui: &mut TheUI,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
-        server_ctx.editor_view_mode = EditorViewMode::Iso;
-
         let azimuth = self.nodeui.get_f32_value("actionIsoAzimuth").unwrap_or(0.0);
 
         let elevation = self
@@ -109,9 +107,10 @@ impl Action for IsoCamera {
             .set_parameter_f32("scale", scale);
 
         server_ctx.editing_surface = None;
-        ctx.ui.send(TheEvent::Custom(
-            TheId::named("Render SceneManager Map"),
-            TheValue::Empty,
+        ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(2));
+        ctx.ui.send(TheEvent::IndexChanged(
+            TheId::named("Editor View Switch"),
+            2,
         ));
 
         None

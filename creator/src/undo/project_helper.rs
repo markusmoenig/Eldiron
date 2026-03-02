@@ -2,6 +2,31 @@ use crate::editor::{DOCKMANAGER, RUSTERIX};
 use crate::prelude::*;
 use theframework::prelude::*;
 
+fn data_attr_bool(data: &str, key: &str) -> bool {
+    let Ok(value) = data.parse::<toml::Value>() else {
+        return false;
+    };
+
+    let attrs = value
+        .get("attributes")
+        .and_then(|v| v.as_table())
+        .or_else(|| value.as_table());
+
+    let Some(attrs) = attrs else {
+        return false;
+    };
+
+    match attrs.get(key) {
+        Some(toml::Value::Boolean(b)) => *b,
+        Some(toml::Value::Integer(i)) => *i != 0,
+        Some(toml::Value::String(s)) => {
+            let s = s.trim().to_ascii_lowercase();
+            s == "true" || s == "1" || s == "yes"
+        }
+        _ => false,
+    }
+}
+
 /// Generate a tree node for the given region
 pub fn gen_region_tree_node(region: &Region) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&region.name, region.id));
@@ -56,6 +81,9 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
     let mut node: TheTreeNode =
         TheTreeNode::new(TheId::named_with_id(&character.name, character.id));
     node.set_root_mode(false);
+    if data_attr_bool(&character.data, "player") {
+        node.set_background_color(ActionRole::Camera.to_color());
+    }
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Character Item", character.id));
     item.set_text(fl!("name"));
@@ -108,6 +136,9 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
 pub fn gen_item_tree_node(item_: &Item) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&item_.name, item_.id));
     node.set_root_mode(false);
+    if data_attr_bool(&item_.data, "is_spell") {
+        node.set_background_color(ActionRole::Editor.to_color());
+    }
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item", item_.id));
     item.set_text(fl!("name"));

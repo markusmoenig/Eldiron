@@ -22,6 +22,24 @@ pub struct Region {
     pub editing_position_3d: Vec3<f32>,
     #[serde(default = "default_editing_look_at_3d")]
     pub editing_look_at_3d: Vec3<f32>,
+
+    /// Persisted per-view 3D edit camera anchors.
+    #[serde(default)]
+    pub editing_position_iso_3d: Option<Vec3<f32>>,
+    #[serde(default)]
+    pub editing_look_at_iso_3d: Option<Vec3<f32>>,
+    #[serde(default)]
+    pub editing_position_orbit_3d: Option<Vec3<f32>>,
+    #[serde(default)]
+    pub editing_look_at_orbit_3d: Option<Vec3<f32>>,
+    #[serde(default)]
+    pub editing_position_firstp_3d: Option<Vec3<f32>>,
+    #[serde(default)]
+    pub editing_look_at_firstp_3d: Option<Vec3<f32>>,
+    #[serde(default)]
+    pub editing_iso_scale: Option<f32>,
+    #[serde(default)]
+    pub editing_orbit_distance: Option<f32>,
 }
 
 impl Default for Region {
@@ -50,6 +68,14 @@ impl Region {
 
             editing_position_3d: Vec3::zero(),
             editing_look_at_3d: Vec3::zero(),
+            editing_position_iso_3d: None,
+            editing_look_at_iso_3d: None,
+            editing_position_orbit_3d: None,
+            editing_look_at_orbit_3d: None,
+            editing_position_firstp_3d: None,
+            editing_look_at_firstp_3d: None,
+            editing_iso_scale: None,
+            editing_orbit_distance: None,
         }
     }
 

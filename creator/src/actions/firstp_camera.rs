@@ -44,15 +44,15 @@ impl Action for FirstPCamera {
     fn apply(
         &self,
         _map: &mut Map,
-        _ui: &mut TheUI,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
-        server_ctx.editor_view_mode = EditorViewMode::FirstP;
         server_ctx.editing_surface = None;
-        ctx.ui.send(TheEvent::Custom(
-            TheId::named("Render SceneManager Map"),
-            TheValue::Empty,
+        ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(3));
+        ctx.ui.send(TheEvent::IndexChanged(
+            TheId::named("Editor View Switch"),
+            3,
         ));
         None
     }

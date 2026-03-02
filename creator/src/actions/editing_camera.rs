@@ -44,15 +44,15 @@ impl Action for EditingCamera {
     fn apply(
         &self,
         _map: &mut Map,
-        _ui: &mut TheUI,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
-        server_ctx.editor_view_mode = EditorViewMode::D2;
         server_ctx.editing_surface = None;
-        ctx.ui.send(TheEvent::Custom(
-            TheId::named("Render SceneManager Map"),
-            TheValue::Empty,
+        ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(0));
+        ctx.ui.send(TheEvent::IndexChanged(
+            TheId::named("Editor View Switch"),
+            0,
         ));
 
         None

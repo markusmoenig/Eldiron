@@ -441,6 +441,10 @@ pub struct ServerContext {
     pub editing_view_pos_by_map: FxHashMap<(Uuid, i32), Vec3<f32>>,
     /// Per-map, per-3D-view look target.
     pub editing_view_look_by_map: FxHashMap<(Uuid, i32), Vec3<f32>>,
+    /// Per-map 2D camera state: (offset, grid_size).
+    pub editing_view_2d_by_map: FxHashMap<Uuid, (Vec2<f32>, f32)>,
+    /// Per-map Iso camera scale.
+    pub editing_view_iso_scale_by_map: FxHashMap<Uuid, f32>,
 
     /// The index of the selected icon in the hud
     pub selected_hud_icon_index: i32,
@@ -566,6 +570,8 @@ impl ServerContext {
             editing_pos_buffer: None,
             editing_view_pos_by_map: FxHashMap::default(),
             editing_view_look_by_map: FxHashMap::default(),
+            editing_view_2d_by_map: FxHashMap::default(),
+            editing_view_iso_scale_by_map: FxHashMap::default(),
 
             selected_hud_icon_index: 0,
             show_editing_geometry: true,
@@ -655,6 +661,23 @@ impl ServerContext {
         Some((pos, look))
     }
 
+    pub fn store_edit_view_2d_for_map(&mut self, map_id: Uuid, offset: Vec2<f32>, grid_size: f32) {
+        self.editing_view_2d_by_map
+            .insert(map_id, (offset, grid_size));
+    }
+
+    pub fn load_edit_view_2d_for_map(&self, map_id: Uuid) -> Option<(Vec2<f32>, f32)> {
+        self.editing_view_2d_by_map.get(&map_id).copied()
+    }
+
+    pub fn store_edit_view_iso_scale_for_map(&mut self, map_id: Uuid, scale: f32) {
+        self.editing_view_iso_scale_by_map.insert(map_id, scale);
+    }
+
+    pub fn load_edit_view_iso_scale_for_map(&self, map_id: Uuid) -> Option<f32> {
+        self.editing_view_iso_scale_by_map.get(&map_id).copied()
+    }
+
     /// Clears all state data.
     pub fn clear(&mut self) {
         self.curr_region_content = ContentContext::Unknown;
@@ -670,6 +693,8 @@ impl ServerContext {
         self.moved_items.clear();
         self.editing_view_pos_by_map.clear();
         self.editing_view_look_by_map.clear();
+        self.editing_view_2d_by_map.clear();
+        self.editing_view_iso_scale_by_map.clear();
     }
 
     pub fn clear_interactions(&mut self) {

@@ -577,28 +577,25 @@ impl Sidebar {
                             let grid_y = (coord.y as f32 - height / 2.0 + offset_y) / scale_y;
                             let grid_pos = Vec2::new(grid_x, grid_y);
 
-                            // If shift is pressed we move the look_at position.
-                            if ui.shift
+                            // Keep 2D and 3D camera anchors independent.
+                            if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                                server_ctx.center_map_at_grid_pos(
+                                    Vec2::new(width, height),
+                                    grid_pos,
+                                    map,
+                                );
+                            } else if ui.shift
                                 && server_ctx.editor_view_mode == EditorViewMode::FirstP
                                 && server_ctx.get_map_context() == MapContext::Region
                                 && server_ctx.editing_surface.is_none()
                             {
                                 let y = map.terrain.sample_height_bilinear(grid_x, grid_y);
                                 update_look_at_3d = Some(Vec3::new(grid_x, y, grid_y));
-                            } else {
-                                // Move the map camera center in whichever map context is active.
-                                server_ctx.center_map_at_grid_pos(
-                                    Vec2::new(width, height),
-                                    grid_pos,
-                                    map,
-                                );
-
-                                if server_ctx.get_map_context() == MapContext::Region
-                                    && server_ctx.editing_surface.is_none()
-                                {
-                                    let y = map.terrain.sample_height_bilinear(grid_x, grid_y);
-                                    update_pos_3d = Some(Vec3::new(grid_x, y, grid_y));
-                                }
+                            } else if server_ctx.get_map_context() == MapContext::Region
+                                && server_ctx.editing_surface.is_none()
+                            {
+                                let y = map.terrain.sample_height_bilinear(grid_x, grid_y);
+                                update_pos_3d = Some(Vec3::new(grid_x, y, grid_y));
                             }
                             handled_minimap_input = true;
                         }

@@ -102,8 +102,21 @@ fn draw_surface_outline_on_minimap(buffer: &mut TheRGBABuffer, surface: &Surface
     }
 }
 
-pub fn draw_camera_marker(region: &Region, buffer: &mut TheRGBABuffer, server_ctx: &ServerContext) {
-    let camera_pos = Vec2::new(region.editing_position_3d.x, region.editing_position_3d.z);
+pub fn draw_camera_marker(
+    map: &Map,
+    region: Option<&Region>,
+    buffer: &mut TheRGBABuffer,
+    server_ctx: &ServerContext,
+) {
+    let camera_pos = if server_ctx.editor_view_mode == EditorViewMode::D2 || region.is_none() {
+        // In 2D (region/screen/profile), marker follows the current map view center.
+        Vec2::new(-map.offset.x / map.grid_size, map.offset.y / map.grid_size)
+    } else if let Some(region) = region {
+        // In 3D region mode, marker follows the active 3D editing anchor.
+        Vec2::new(region.editing_position_3d.x, region.editing_position_3d.z)
+    } else {
+        Vec2::zero()
+    };
 
     let dim = *buffer.dim();
     let bbox = *MINIMAPBOX.read().unwrap();
@@ -120,7 +133,9 @@ pub fn draw_camera_marker(region: &Region, buffer: &mut TheRGBABuffer, server_ct
         &vek::Rgba::red().into_array(),
     );
 
-    if server_ctx.editor_view_mode == EditorViewMode::FirstP {
+    if server_ctx.editor_view_mode == EditorViewMode::FirstP
+        && let Some(region) = region
+    {
         let look_at_pos = Vec2::new(region.editing_look_at_3d.x, region.editing_look_at_3d.z);
 
         let pos = world_to_minimap_pixel(
@@ -227,18 +242,15 @@ pub fn draw_minimap(
         }
     }
 
-    let region_marker = if server_ctx.get_map_context() == MapContext::Region
-        && server_ctx.editing_surface.is_none()
-    {
-        project.get_region(&server_ctx.curr_region)
-    } else {
-        None
-    };
-
     if !hard {
         buffer.copy_into(0, 0, &MINIMAPBUFFER.read().unwrap());
-        if let Some(region) = region_marker {
-            draw_camera_marker(region, buffer, server_ctx);
+        if let Some(map) = project.get_map(server_ctx) {
+            let region_marker = if server_ctx.get_map_context() == MapContext::Region {
+                project.get_region(&server_ctx.curr_region)
+            } else {
+                None
+            };
+            draw_camera_marker(map, region_marker, buffer, server_ctx);
         }
         return;
     }
@@ -393,9 +405,12 @@ pub fn draw_minimap(
 
         MINIMAPBUFFER.write().unwrap().copy_into(0, 0, buffer);
         *MINIMAPCACHEKEY.write().unwrap() = cache_key;
-        if let Some(region) = region_marker {
-            draw_camera_marker(region, buffer, server_ctx);
-        }
+        let region_marker = if server_ctx.get_map_context() == MapContext::Region {
+            project.get_region(&server_ctx.curr_region)
+        } else {
+            None
+        };
+        draw_camera_marker(map, region_marker, buffer, server_ctx);
     }
 }
 

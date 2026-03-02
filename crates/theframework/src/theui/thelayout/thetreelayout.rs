@@ -19,6 +19,8 @@ pub struct TheTreeNode {
     pub widgets: Vec<Box<dyn TheWidget>>,
 
     layout_id: Option<TheId>,
+    text_color: Option<RGBA>,
+    background_color: Option<RGBA>,
     selected_widget: Option<Uuid>,
     layout_dirty_flag: Arc<AtomicBool>,
 }
@@ -47,6 +49,8 @@ impl TheTreeNode {
             childs: vec![],
             widgets: vec![],
             layout_id: None,
+            text_color: None,
+            background_color: None,
             selected_widget: None,
             layout_dirty_flag,
         }
@@ -79,10 +83,32 @@ impl TheTreeNode {
         }
     }
 
+    pub fn set_text_color(&mut self, color: RGBA) {
+        self.text_color = Some(color);
+        if let Some(snapper) = self.widget.as_any().downcast_mut::<TheSnapperbar>() {
+            snapper.set_text_color(color);
+            self.mark_layout_dirty();
+        }
+    }
+
+    pub fn set_background_color(&mut self, color: RGBA) {
+        self.background_color = Some(color);
+        if let Some(snapper) = self.widget.as_any().downcast_mut::<TheSnapperbar>() {
+            snapper.set_background_color(Some(color));
+            self.mark_layout_dirty();
+        }
+    }
+
     pub fn set_layout_id(&mut self, layout_id: TheId) {
         self.layout_id = Some(layout_id.clone());
         if let Some(snapper) = self.widget.as_any().downcast_mut::<TheSnapperbar>() {
             snapper.set_associated_layout(layout_id.clone());
+            if let Some(color) = self.text_color {
+                snapper.set_text_color(color);
+            }
+            if let Some(color) = self.background_color {
+                snapper.set_background_color(Some(color));
+            }
         }
         for widget in &mut self.widgets {
             if let Some(tree_item) = widget.as_tree_item() {

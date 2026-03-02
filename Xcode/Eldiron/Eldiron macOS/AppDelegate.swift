@@ -50,6 +50,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func ensureFileSeparatorBetweenCloseAndSave() {
+        guard let fileMenu = menuItem(named: "File")?.submenu else {
+            return
+        }
+        guard
+            let closeIndex = fileMenu.items.firstIndex(where: { $0.title == "Close" }),
+            let saveIndex = fileMenu.items.firstIndex(where: { $0.title == "Save…" }),
+            closeIndex < saveIndex
+        else {
+            return
+        }
+
+        // If there is already a separator between Close and Save..., keep as-is.
+        if closeIndex + 1 < saveIndex,
+           fileMenu.items[(closeIndex + 1)...(saveIndex - 1)].contains(where: { $0.isSeparatorItem }) {
+            return
+        }
+
+        fileMenu.insertItem(NSMenuItem.separator(), at: closeIndex + 1)
+    }
+
     private func removeTopLevelMenus(_ titles: Set<String>) {
         guard let menu = NSApp.mainMenu else {
             return
@@ -66,6 +87,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         bindFileMenuItem("Close", action: #selector(closeMenu))
         bindFileMenuItem("Save…", action: #selector(saveMenu))
         bindFileMenuItem("Save As…", action: #selector(saveAsMenu))
+        ensureFileSeparatorBetweenCloseAndSave()
         trimEditMenuAfterPaste()
         removeTopLevelMenus(["Format", "View"])
         configureGameMenu()

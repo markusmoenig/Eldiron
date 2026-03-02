@@ -2,6 +2,7 @@ use crate::editor::{DOCKMANAGER, RUSTERIX, SCENEMANAGER, UNDOMANAGER};
 use crate::prelude::*;
 pub use crate::tools::rect::RectTool;
 use rusterix::Assets;
+use rusterix::D3Camera;
 use rusterix::PixelSource;
 use rusterix::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
 use scenevm::GeoId;
@@ -282,39 +283,151 @@ impl ToolList {
                     let prev_mode = server_ctx.editor_view_mode;
                     let old = prev_mode.is_3d();
 
-                    // Persist region camera anchor per 3D view mode before switching.
-                    if prev_mode != EditorViewMode::D2
-                        && let Some(region) = project.get_region_ctx_mut(server_ctx)
-                    {
-                        server_ctx.store_edit_view_for_map(
-                            region.map.id,
-                            prev_mode,
-                            region.editing_position_3d,
-                            region.editing_look_at_3d,
-                        );
+                    // Persist region camera anchors before switching.
+                    if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+                        if prev_mode == EditorViewMode::D2 {
+                            server_ctx.store_edit_view_2d_for_map(
+                                region.map.id,
+                                region.map.offset,
+                                region.map.grid_size,
+                            );
+                        } else {
+                            server_ctx.store_edit_view_for_map(
+                                region.map.id,
+                                prev_mode,
+                                region.editing_position_3d,
+                                region.editing_look_at_3d,
+                            );
+                            if prev_mode == EditorViewMode::Iso {
+                                let iso_scale =
+                                    crate::editor::EDITCAMERA.read().unwrap().iso_camera.scale();
+                                server_ctx
+                                    .store_edit_view_iso_scale_for_map(region.map.id, iso_scale);
+                            }
+                            match prev_mode {
+                                EditorViewMode::Iso => {
+                                    region.editing_position_iso_3d =
+                                        Some(region.editing_position_3d);
+                                    region.editing_look_at_iso_3d = Some(region.editing_look_at_3d);
+                                    let iso_scale = crate::editor::EDITCAMERA
+                                        .read()
+                                        .unwrap()
+                                        .iso_camera
+                                        .scale();
+                                    region.editing_iso_scale = Some(iso_scale);
+                                }
+                                EditorViewMode::Orbit => {
+                                    region.editing_position_orbit_3d =
+                                        Some(region.editing_position_3d);
+                                    region.editing_look_at_orbit_3d =
+                                        Some(region.editing_look_at_3d);
+                                    region.editing_orbit_distance = Some(
+                                        crate::editor::EDITCAMERA
+                                            .read()
+                                            .unwrap()
+                                            .orbit_camera
+                                            .distance,
+                                    );
+                                }
+                                EditorViewMode::FirstP => {
+                                    region.editing_position_firstp_3d =
+                                        Some(region.editing_position_3d);
+                                    region.editing_look_at_firstp_3d =
+                                        Some(region.editing_look_at_3d);
+                                }
+                                EditorViewMode::D2 => {}
+                            }
+                        }
                     }
 
                     server_ctx.editor_view_mode = EditorViewMode::from_index(*index as i32);
                     let new_mode = server_ctx.editor_view_mode;
                     let new = new_mode.is_3d();
 
-                    // Restore region camera anchor for the selected 3D view mode.
-                    if new_mode != EditorViewMode::D2
-                        && let Some(region) = project.get_region_ctx_mut(server_ctx)
-                        && let Some((pos, look)) =
+                    // Restore region camera anchor for the selected view mode.
+                    if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+                        if new_mode == EditorViewMode::D2 {
+                            if let Some((offset, grid_size)) =
+                                server_ctx.load_edit_view_2d_for_map(region.map.id)
+                            {
+                                region.map.offset = offset;
+                                region.map.grid_size = grid_size;
+                            } else {
+                                server_ctx.center_map_at_grid_pos(
+                                    Vec2::zero(),
+                                    Vec2::new(0.0, -1.0),
+                                    &mut region.map,
+                                );
+                            }
+                        } else if let Some((pos, look)) =
                             server_ctx.load_edit_view_for_map(region.map.id, new_mode)
-                    {
-                        region.editing_position_3d = pos;
-                        region.editing_look_at_3d = look;
-                    }
-
-                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
-                        if let Some(map) = project.get_map_mut(server_ctx) {
-                            server_ctx.center_map_at_grid_pos(
-                                Vec2::zero(),
-                                Vec2::new(0.0, -1.0),
-                                map,
-                            );
+                        {
+                            region.editing_position_3d = pos;
+                            region.editing_look_at_3d = look;
+                            if new_mode == EditorViewMode::Iso
+                                && let Some(iso_scale) =
+                                    server_ctx.load_edit_view_iso_scale_for_map(region.map.id)
+                            {
+                                crate::editor::EDITCAMERA
+                                    .write()
+                                    .unwrap()
+                                    .iso_camera
+                                    .set_parameter_f32("scale", iso_scale);
+                            }
+                            if new_mode == EditorViewMode::Orbit
+                                && let Some(distance) = region.editing_orbit_distance
+                            {
+                                crate::editor::EDITCAMERA
+                                    .write()
+                                    .unwrap()
+                                    .orbit_camera
+                                    .set_parameter_f32("distance", distance);
+                            }
+                        } else {
+                            match new_mode {
+                                EditorViewMode::Iso => {
+                                    if let (Some(pos), Some(look)) = (
+                                        region.editing_position_iso_3d,
+                                        region.editing_look_at_iso_3d,
+                                    ) {
+                                        region.editing_position_3d = pos;
+                                        region.editing_look_at_3d = look;
+                                    }
+                                    if let Some(iso_scale) = region.editing_iso_scale {
+                                        crate::editor::EDITCAMERA
+                                            .write()
+                                            .unwrap()
+                                            .iso_camera
+                                            .set_parameter_f32("scale", iso_scale);
+                                    }
+                                }
+                                EditorViewMode::Orbit => {
+                                    if let (Some(pos), Some(look)) = (
+                                        region.editing_position_orbit_3d,
+                                        region.editing_look_at_orbit_3d,
+                                    ) {
+                                        region.editing_position_3d = pos;
+                                        region.editing_look_at_3d = look;
+                                    }
+                                    if let Some(distance) = region.editing_orbit_distance {
+                                        crate::editor::EDITCAMERA
+                                            .write()
+                                            .unwrap()
+                                            .orbit_camera
+                                            .set_parameter_f32("distance", distance);
+                                    }
+                                }
+                                EditorViewMode::FirstP => {
+                                    if let (Some(pos), Some(look)) = (
+                                        region.editing_position_firstp_3d,
+                                        region.editing_look_at_firstp_3d,
+                                    ) {
+                                        region.editing_position_3d = pos;
+                                        region.editing_look_at_3d = look;
+                                    }
+                                }
+                                EditorViewMode::D2 => {}
+                            }
                         }
                     }
 

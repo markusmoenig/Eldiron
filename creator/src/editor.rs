@@ -88,6 +88,29 @@ pub struct Editor {
 }
 
 impl Editor {
+    fn persist_active_region_view_state(&mut self) {
+        if let Some(region) = self.project.get_region_mut(&self.server_ctx.curr_region) {
+            match self.server_ctx.editor_view_mode {
+                EditorViewMode::Iso => {
+                    region.editing_position_iso_3d = Some(region.editing_position_3d);
+                    region.editing_look_at_iso_3d = Some(region.editing_look_at_3d);
+                    region.editing_iso_scale = Some(EDITCAMERA.read().unwrap().iso_camera.scale);
+                }
+                EditorViewMode::Orbit => {
+                    region.editing_position_orbit_3d = Some(region.editing_position_3d);
+                    region.editing_look_at_orbit_3d = Some(region.editing_look_at_3d);
+                    region.editing_orbit_distance =
+                        Some(EDITCAMERA.read().unwrap().orbit_camera.distance);
+                }
+                EditorViewMode::FirstP => {
+                    region.editing_position_firstp_3d = Some(region.editing_position_3d);
+                    region.editing_look_at_firstp_3d = Some(region.editing_look_at_3d);
+                }
+                EditorViewMode::D2 => {}
+            }
+        }
+    }
+
     fn project_tab_title_for(
         project: &Project,
         project_path: &Option<PathBuf>,
@@ -118,6 +141,7 @@ impl Editor {
         if self.active_session >= self.sessions.len() {
             return;
         }
+        self.persist_active_region_view_state();
         self.sessions[self.active_session].project = self.project.clone();
         self.sessions[self.active_session].project_path = self.project_path.clone();
         self.sessions[self.active_session].undo = UNDOMANAGER.read().unwrap().clone();
@@ -645,6 +669,7 @@ impl TheTrait for Editor {
                 TheId::named("Close"),
                 TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'w'),
             ));
+            file_menu.add_separator();
             file_menu.add(TheContextMenuItem::new_with_accel(
                 fl!("menu_save"),
                 TheId::named("Save"),
@@ -2150,6 +2175,7 @@ impl TheTrait for Editor {
                         }
                     } else if id.name == "Save As" {
                         for p in paths {
+                            self.persist_active_region_view_state();
                             let json = serde_json::to_string(&self.project);
                             if let Ok(json) = json {
                                 if std::fs::write(p.clone(), json).is_ok() {
@@ -2332,11 +2358,12 @@ impl TheTrait for Editor {
                         ctx.ui.clear_hover();
                         redraw = true;
                     } else if id.name == "Save" {
-                        if let Some(path) = &self.project_path {
+                        if let Some(path) = self.project_path.clone() {
                             let mut success = false;
                             // if let Ok(output) = postcard::to_allocvec(&self.project) {
+                            self.persist_active_region_view_state();
                             if let Ok(output) = serde_json::to_string(&self.project) {
-                                if std::fs::write(path, output).is_ok() {
+                                if std::fs::write(&path, output).is_ok() {
                                     UNDOMANAGER.write().unwrap().mark_saved();
                                     if self.active_session < self.sessions.len() {
                                         self.sessions[self.active_session].dirty = false;
