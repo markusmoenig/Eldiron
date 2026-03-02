@@ -12,6 +12,10 @@ pub trait TheTrait {
         (1200, 700)
     }
 
+    fn default_window_position(&self) -> Option<(i32, i32)> {
+        None
+    }
+
     fn window_title(&self) -> String {
         "TheFramework based App".to_string()
     }
@@ -137,4 +141,8 @@ pub trait TheTrait {
     fn has_changes(&self) -> bool {
         false
     }
+
+    fn window_moved(&mut self, _x: i32, _y: i32) {}
+
+    fn window_resized(&mut self, _width: usize, _height: usize) {}
 }

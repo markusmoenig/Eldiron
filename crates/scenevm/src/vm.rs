@@ -456,6 +456,9 @@ pub struct Raster2DUniforms {
     pub mat2d_inv_c2: [f32; 4],
 }
 
+const RASTER2D_UNIFORM_BYTES: usize = 9 * 16;
+const _: [(); RASTER2D_UNIFORM_BYTES] = [(); std::mem::size_of::<Raster2DUniforms>()];
+
 pub const SCENEVM_2D_WGSL: &str = r#"
 struct Globals {
   tx: f32, ty: f32, scale: f32, _pad0: f32,
@@ -809,6 +812,7 @@ pub struct Compute2DUniforms {
     pub viewport_rect: [f32; 4],
     pub palette: [[f32; 4]; 256],
 }
+const _: [(); 0] = [(); std::mem::size_of::<Compute2DUniforms>() % 16];
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -853,6 +857,7 @@ pub struct Compute3DUniforms {
     pub _pad_tail: [u32; 4],
     pub palette: [[f32; 4]; 256],
 }
+const _: [(); 0] = [(); std::mem::size_of::<Compute3DUniforms>() % 16];
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -891,6 +896,7 @@ pub struct ComputeSdfUniforms {
     pub palette: [[f32; 4]; 256],
     pub _pad_end: [[u32; 4]; 4], // 64 bytes of padding to match WGSL std140 layout (4512 bytes total)
 }
+const _: [(); 0] = [(); std::mem::size_of::<ComputeSdfUniforms>() % 16];
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -930,6 +936,13 @@ pub struct Raster3DUniforms {
     pub avatar_highlight_params: [f32; 4], // x=lift, y=fill, z=rim, w=enabled
     pub _pad_tail: [u32; 4],
 }
+
+// WGSL `U` block uses std140-like alignment rules and currently consumes 512 bytes.
+// Keep Rust-side uniform at least that size and 16-byte aligned in total size.
+const RASTER3D_UNIFORM_WGSL_MIN_BYTES: usize = 512;
+const _: [(); 0] = [(); std::mem::size_of::<Raster3DUniforms>() % 16];
+const _: [(); std::mem::size_of::<Raster3DUniforms>() - RASTER3D_UNIFORM_WGSL_MIN_BYTES] =
+    [(); std::mem::size_of::<Raster3DUniforms>() - RASTER3D_UNIFORM_WGSL_MIN_BYTES];
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -3505,7 +3518,9 @@ impl VM {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<Compute2DUniforms>() as u64,
+                        ),
                     },
                     count: None,
                 },
@@ -3657,7 +3672,9 @@ impl VM {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<Compute3DUniforms>() as u64,
+                        ),
                     },
                     count: None,
                 },
@@ -3741,7 +3758,9 @@ impl VM {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<Grid3DHeader>() as u64,
+                        ),
                     },
                     count: None,
                 },
@@ -3800,7 +3819,9 @@ impl VM {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<
+                            ComputeSdfUniforms,
+                        >() as u64),
                     },
                     count: None,
                 },
@@ -3898,36 +3919,6 @@ impl VM {
             g.compute2d_pipeline = Some(pl2d);
         }
 
-        if g.compute3d_pipeline.is_none() {
-            let mut header_3d = String::new();
-            if let Some(bytes) = crate::Embedded::get("3d_header.wgsl") {
-                if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
-                    header_3d = source.to_string();
-                }
-            }
-
-            let src3d = [header_3d.as_str(), &self.source3d].concat();
-            let cs3d = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("vm-3d-cs"),
-                source: wgpu::ShaderSource::Wgsl(src3d.into()),
-            });
-            let pl3d = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("vm-3d-cs-pipeline"),
-                layout: Some(
-                    &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                        label: Some("vm-3d-cs-layout"),
-                        bind_group_layouts: &[g.u3d_bgl.as_ref().unwrap()],
-                        push_constant_ranges: &[],
-                    }),
-                ),
-                module: &cs3d,
-                entry_point: Some("cs_main"),
-                compilation_options: Default::default(),
-                cache: None,
-            });
-            g.compute3d_pipeline = Some(pl3d);
-        }
-
         if g.compute_sdf_pipeline.is_none() {
             let mut header_sdf = String::new();
             if let Some(bytes) = crate::Embedded::get("sdf_header.wgsl") {
@@ -3993,6 +3984,51 @@ impl VM {
         Ok(())
     }
 
+    /// Lazily compiles the Compute3D pipeline only when a Compute3D draw is requested.
+    fn ensure_compute3d_pipeline(&mut self, device: &wgpu::Device) -> crate::SceneVMResult<()> {
+        if self.gpu.is_none() {
+            self.init_gpu(device)?;
+        }
+        if self.gpu.as_ref().and_then(|g| g.u3d_bgl.as_ref()).is_none() {
+            self.init_compute(device)?;
+        }
+
+        let g = self.gpu.as_mut().unwrap();
+        if g.compute3d_pipeline.is_some() {
+            return Ok(());
+        }
+
+        let mut header_3d = String::new();
+        if let Some(bytes) = crate::Embedded::get("3d_header.wgsl") {
+            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                header_3d = source.to_string();
+            }
+        }
+
+        let src3d = [header_3d.as_str(), &self.source3d].concat();
+        let cs3d = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("vm-3d-cs"),
+            source: wgpu::ShaderSource::Wgsl(src3d.into()),
+        });
+        let pl3d = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("vm-3d-cs-pipeline"),
+            layout: Some(
+                &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("vm-3d-cs-layout"),
+                    bind_group_layouts: &[g.u3d_bgl.as_ref().unwrap()],
+                    push_constant_ranges: &[],
+                }),
+            ),
+            module: &cs3d,
+            entry_point: Some("cs_main"),
+            compilation_options: Default::default(),
+            cache: None,
+        });
+        g.compute3d_pipeline = Some(pl3d);
+
+        Ok(())
+    }
+
     fn init_raster2d(&mut self, device: &wgpu::Device) -> crate::SceneVMResult<()> {
         if self.gpu.is_none() {
             self.init_gpu(device)?;
@@ -4013,7 +4049,9 @@ impl VM {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<Raster2DUniforms>() as _,
+                        ),
                     },
                     count: None,
                 },
@@ -4190,7 +4228,9 @@ impl VM {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<Raster3DUniforms>() as _,
+                        ),
                     },
                     count: None,
                 },
@@ -4279,7 +4319,10 @@ impl VM {
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
-                            min_binding_size: None,
+                            min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<
+                                Raster3DUniforms,
+                            >()
+                                as _),
                         },
                         count: None,
                     },
@@ -5104,6 +5147,7 @@ impl VM {
             self.init_gpu(device)?;
         }
         self.init_compute(device)?;
+        self.ensure_compute3d_pipeline(device)?;
         self.upload_tile_metadata_to_gpu(device);
         // Ensure layer texture exists and matches size
         let (write_view, prev_view, next_front) =

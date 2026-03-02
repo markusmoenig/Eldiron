@@ -13,7 +13,7 @@ use softbuffer::Surface;
 use web_time::{Duration, Instant};
 use winit::{
     application::ApplicationHandler,
-    dpi::{LogicalSize, PhysicalSize},
+    dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{
         DeviceEvent, DeviceId, ElementState, MouseButton, MouseScrollDelta, StartCause, Touch,
         TouchPhase, WindowEvent,
@@ -282,6 +282,12 @@ impl TheWinitApp {
             .with_min_inner_size(size)
             .with_window_icon(icon); //TODO on Windows
 
+        let window_attributes = if let Some((x, y)) = self.app.default_window_position() {
+            window_attributes.with_position(PhysicalPosition::new(x, y))
+        } else {
+            window_attributes
+        };
+
         #[cfg(target_arch = "wasm32")]
         let window_attributes = {
             use winit::platform::web::WindowAttributesExtWebSys;
@@ -466,6 +472,8 @@ impl TheWinitApp {
             #[cfg(feature = "ui")]
             ctx.ctx.ui.send(TheEvent::Resize);
 
+            self.app.window_resized(width as usize, height as usize);
+
             ctx.window.request_redraw();
         }
     }
@@ -525,6 +533,9 @@ impl ApplicationHandler for TheWinitApp {
             }
             WindowEvent::Resized(size) => {
                 self.resize(size);
+            }
+            WindowEvent::Moved(position) => {
+                self.app.window_moved(position.x, position.y);
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 if let Some(ctx) = &mut self.ctx {

@@ -9,6 +9,7 @@ use rusterix::{
     PlayerCamera, Rusterix, SceneManager, SceneManagerResult, Texture, Value, ValueContainer,
 };
 use shared::rusterix_utils::*;
+use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::mpsc::Receiver;
@@ -59,6 +60,14 @@ struct ProjectSession {
     dirty: bool,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+struct CreatorWindowState {
+    x: Option<i32>,
+    y: Option<i32>,
+    width: Option<usize>,
+    height: Option<usize>,
+}
+
 pub struct Editor {
     project: Project,
     project_path: Option<PathBuf>,
@@ -85,9 +94,40 @@ pub struct Editor {
     update_counter: usize,
 
     build_values: ValueContainer,
+    window_state: CreatorWindowState,
 }
 
 impl Editor {
+    fn window_state_file_path() -> Option<PathBuf> {
+        let home = std::env::var("HOME").ok()?;
+        Some(
+            PathBuf::from(home)
+                .join(".eldiron")
+                .join("creator_window_state.json"),
+        )
+    }
+
+    fn load_window_state() -> CreatorWindowState {
+        if let Some(path) = Self::window_state_file_path()
+            && let Ok(data) = fs::read_to_string(path)
+            && let Ok(state) = serde_json::from_str::<CreatorWindowState>(&data)
+        {
+            return state;
+        }
+        CreatorWindowState::default()
+    }
+
+    fn save_window_state(&self) {
+        if let Some(path) = Self::window_state_file_path() {
+            if let Some(dir) = path.parent() {
+                let _ = fs::create_dir_all(dir);
+            }
+            if let Ok(json) = serde_json::to_string(&self.window_state) {
+                let _ = fs::write(path, json);
+            }
+        }
+    }
+
     fn persist_active_region_view_state(&mut self) {
         if let Some(region) = self.project.get_region_mut(&self.server_ctx.curr_region) {
             match self.server_ctx.editor_view_mode {
@@ -550,6 +590,7 @@ impl TheTrait for Editor {
             update_counter: 0,
 
             build_values: ValueContainer::default(),
+            window_state: Self::load_window_state(),
         }
     }
 
@@ -583,7 +624,14 @@ impl TheTrait for Editor {
     }
 
     fn default_window_size(&self) -> (usize, usize) {
-        (1200, 720)
+        (
+            self.window_state.width.unwrap_or(1200),
+            self.window_state.height.unwrap_or(720),
+        )
+    }
+
+    fn default_window_position(&self) -> Option<(i32, i32)> {
+        Some((self.window_state.x?, self.window_state.y?))
     }
 
     fn window_icon(&self) -> Option<(Vec<u8>, u32, u32)> {
@@ -2722,6 +2770,20 @@ impl TheTrait for Editor {
         }
 
         false
+    }
+
+    fn window_moved(&mut self, x: i32, y: i32) {
+        self.window_state.x = Some(x);
+        self.window_state.y = Some(y);
+        self.save_window_state();
+    }
+
+    fn window_resized(&mut self, width: usize, height: usize) {
+        if width > 0 && height > 0 {
+            self.window_state.width = Some(width);
+            self.window_state.height = Some(height);
+            self.save_window_state();
+        }
     }
 }
 

@@ -60,7 +60,12 @@ class GameViewController: NSViewController, NSWindowDelegate {
 
     override func viewDidAppear() {
         super.viewDidAppear()
-        view.window?.delegate = self
+        if let window = view.window {
+            window.delegate = self
+            let autosaveName = "EldironCreatorMainWindow"
+            window.setFrameAutosaveName(autosaveName)
+            _ = window.setFrameUsingName(autosaveName)
+        }
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
