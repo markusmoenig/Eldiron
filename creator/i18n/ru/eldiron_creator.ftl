@@ -2,9 +2,11 @@
 ## Menu File
 menu_file = Файл
 menu_new = Новый
+menu_close = Закрыть
 menu_open = Открыть...
 menu_save = Сохранить...
 menu_save_as = Сохранить как...
+new_project = Новый проект
 ## Menu Edit
 menu_edit = Правка
 menu_undo = Отменить

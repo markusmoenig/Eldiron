@@ -159,6 +159,7 @@ impl TheWidget for TheTabbar {
         }
 
         let stride = buffer.stride();
+        let buffer_height = buffer.dim().height.max(0) as usize;
 
         let utuple: (usize, usize, usize, usize) = self.dim.to_buffer_utuple();
 
@@ -183,12 +184,21 @@ impl TheWidget for TheTabbar {
             }
 
             if let Some(icon) = ctx.ui.icon(&icon_name) {
-                let r = (
-                    utuple.0 + x,
-                    utuple.1 + 1,
-                    icon.dim().width as usize,
-                    icon.dim().height as usize,
-                );
+                let icon_w = icon.dim().width as usize;
+                let icon_h = icon.dim().height as usize;
+                let draw_x = utuple.0 + x;
+                let draw_y = utuple.1;
+
+                // Guard against overflow when many tabs exceed available width/height.
+                if draw_x >= stride
+                    || draw_y >= buffer_height
+                    || draw_x + icon_w > stride
+                    || draw_y + icon_h > buffer_height
+                {
+                    break;
+                }
+
+                let r = (draw_x, draw_y, icon_w, icon_h);
                 ctx.draw
                     .copy_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
 
@@ -206,7 +216,44 @@ impl TheWidget for TheTabbar {
                     TheVerticalAlign::Center,
                 );
 
-                x += icon.dim().width as usize;
+                x += icon_w;
+            } else {
+                // Fallback when tabbar skin icons are unavailable.
+                let tab_w = 142usize;
+                let tab_h = utuple.3.saturating_sub(1);
+                let draw_x = utuple.0 + x;
+                let draw_y = utuple.1;
+                if draw_x >= stride
+                    || draw_y >= buffer_height
+                    || draw_x + tab_w > stride
+                    || draw_y + tab_h > buffer_height
+                {
+                    break;
+                }
+
+                let selected = Some(index as i32) == self.selected_index;
+                let bg = if selected {
+                    style.theme().color(TabbarConnector)
+                } else {
+                    style.theme().color(TabbarBackground)
+                };
+                let r = (draw_x, draw_y, tab_w, tab_h);
+                ctx.draw.rect(buffer.pixels_mut(), &r, stride, bg);
+                ctx.draw.text_rect_blend(
+                    buffer.pixels_mut(),
+                    &r,
+                    stride,
+                    text.as_str(),
+                    TheFontSettings {
+                        size: 12.5,
+                        ..Default::default()
+                    },
+                    style.theme().color(TabbarText),
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
+
+                x += tab_w;
             }
 
             if index < self.tabs.len() - 1 {

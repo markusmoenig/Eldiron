@@ -55,6 +55,7 @@ bool rust_special_key_down(uint32_t key);
 bool rust_key_modifier_changed(bool, bool, bool, bool);
 
 void rust_open();
+void rust_close();
 void rust_save();
 void rust_save_as();
 

@@ -113,11 +113,11 @@ mod ffi {
             .unwrap()
             .init_ui(&mut UI.lock().unwrap(), &mut CTX.lock().unwrap());
 
-        // Load the starter project, same as the winit version does via set_cmd_line_args
-        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
-            TheId::named("New"),
-            TheWidgetState::Clicked,
-        ));
+        // Keep startup behavior aligned with winit path.
+        APP.lock().unwrap().set_cmd_line_args(
+            vec!["eldiron-creator".to_string()],
+            &mut CTX.lock().unwrap(),
+        );
     }
 
     /// # Safety
@@ -306,6 +306,14 @@ mod ffi {
     pub extern "C" fn rust_open() {
         CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
             TheId::named("Open"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_close() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Close"),
             TheWidgetState::Clicked,
         ));
     }

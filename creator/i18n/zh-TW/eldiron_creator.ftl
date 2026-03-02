@@ -2,9 +2,11 @@
 ## Menu File
 menu_file = 檔案
 menu_new = 新建
+menu_close = 關閉
 menu_open = 開啟
 menu_save = 儲存
 menu_save_as = 另存為
+new_project = 新建專案
 ## Menu Edit
 menu_edit = 編輯
 menu_undo = 復原

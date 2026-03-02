@@ -51,9 +51,21 @@ pub static DOCKMANAGER: LazyLock<RwLock<DockManager>> =
 pub static CODEGRIDFX: LazyLock<RwLock<Module>> =
     LazyLock::new(|| RwLock::new(Module::as_type(codegridfx::ModuleType::CharacterTemplate)));
 
+#[derive(Clone)]
+struct ProjectSession {
+    project: Project,
+    project_path: Option<PathBuf>,
+    undo: UndoManager,
+    dirty: bool,
+}
+
 pub struct Editor {
     project: Project,
     project_path: Option<PathBuf>,
+    sessions: Vec<ProjectSession>,
+    active_session: usize,
+    replace_next_project_load_in_active_tab: bool,
+    last_active_dirty: bool,
 
     sidebar: Sidebar,
     mapeditor: MapEditor,
@@ -76,6 +88,277 @@ pub struct Editor {
 }
 
 impl Editor {
+    fn project_tab_title_for(
+        project: &Project,
+        project_path: &Option<PathBuf>,
+        fallback_index: usize,
+        dirty: bool,
+    ) -> String {
+        let prefix = if dirty { "* " } else { "" };
+
+        if let Some(path) = project_path
+            && let Some(stem) = path.file_stem()
+            && let Some(name) = stem.to_str()
+            && !name.is_empty()
+        {
+            return format!("{}{}", prefix, name);
+        }
+        if !project.name.is_empty() {
+            return format!("{}{}", prefix, project.name);
+        }
+
+        if project_path.is_none() {
+            return format!("{}{}", prefix, fl!("new_project"));
+        }
+
+        format!("{}Project {}", prefix, fallback_index + 1)
+    }
+
+    fn sync_active_session_from_editor(&mut self) {
+        if self.active_session >= self.sessions.len() {
+            return;
+        }
+        self.sessions[self.active_session].project = self.project.clone();
+        self.sessions[self.active_session].project_path = self.project_path.clone();
+        self.sessions[self.active_session].undo = UNDOMANAGER.read().unwrap().clone();
+        self.sessions[self.active_session].dirty = self.active_session_has_changes();
+    }
+
+    fn sync_editor_from_active_session(&mut self) {
+        if self.active_session >= self.sessions.len() {
+            return;
+        }
+        let session = self.sessions[self.active_session].clone();
+        self.project = session.project;
+        self.project_path = session.project_path;
+        *UNDOMANAGER.write().unwrap() = session.undo;
+    }
+
+    fn rebuild_project_tabs(&self, ui: &mut TheUI) {
+        if let Some(widget) = ui.get_widget("Project Tabs")
+            && let Some(tabbar) = widget.as_tabbar()
+        {
+            tabbar.clear();
+            for (index, session) in self.sessions.iter().enumerate() {
+                tabbar.add_tab(Self::project_tab_title_for(
+                    &session.project,
+                    &session.project_path,
+                    index,
+                    session.dirty,
+                ));
+            }
+            tabbar.set_selection_index(self.active_session);
+        }
+    }
+
+    fn activate_loaded_project(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        update_server_icons: &mut bool,
+        redraw: &mut bool,
+    ) {
+        self.update_counter = 0;
+        self.sidebar.startup = true;
+
+        if let Some(widget) = ui.get_widget("Server Time Slider") {
+            widget.set_value(TheValue::Time(self.project.time));
+        }
+
+        {
+            let mut rusterix = RUSTERIX.write().unwrap();
+            rusterix.client.set_server_time(self.project.time);
+            if rusterix.server.state == rusterix::ServerState::Running
+                && let Some(map) = self.project.get_map(&self.server_ctx)
+            {
+                rusterix.server.set_time(&map.id, self.project.time);
+            }
+        }
+
+        self.server_ctx.clear();
+        if let Some(first) = self.project.regions.first() {
+            self.server_ctx.curr_region = first.id;
+        }
+
+        self.sidebar
+            .load_from_project(ui, ctx, &mut self.server_ctx, &mut self.project);
+        self.mapeditor.load_from_project(ui, ctx, &self.project);
+        *update_server_icons = true;
+        *redraw = true;
+
+        *PALETTE.write().unwrap() = self.project.palette.clone();
+        SCENEMANAGER
+            .write()
+            .unwrap()
+            .set_palette(self.project.palette.clone());
+
+        UNDOMANAGER.read().unwrap().set_undo_state_to_ui(ctx);
+    }
+
+    fn switch_to_session(
+        &mut self,
+        index: usize,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        update_server_icons: &mut bool,
+        redraw: &mut bool,
+    ) {
+        if index >= self.sessions.len() {
+            self.rebuild_project_tabs(ui);
+            return;
+        }
+        if index == self.active_session {
+            self.sync_editor_from_active_session();
+            self.activate_loaded_project(ui, ctx, update_server_icons, redraw);
+            self.rebuild_project_tabs(ui);
+            return;
+        }
+        self.sync_active_session_from_editor();
+        self.active_session = index;
+        self.sync_editor_from_active_session();
+        self.activate_loaded_project(ui, ctx, update_server_icons, redraw);
+        self.rebuild_project_tabs(ui);
+    }
+
+    fn sanitize_loaded_project(project: &mut Project) {
+        insert_content_into_maps(project);
+
+        for r in &mut project.regions {
+            for s in &mut r.map.sectors {
+                if let Some(floor) = s.properties.get("floor_source") {
+                    s.properties.set("source", floor.clone());
+                }
+                if s.properties.contains("rect_rendering") {
+                    s.properties.set("rect", Value::Bool(true));
+                }
+                s.properties.remove("floor_source");
+                s.properties.remove("rect_rendering");
+                s.properties.remove("ceiling_source");
+            }
+        }
+
+        let mut char_names = FxHashMap::default();
+        for c in &project.characters {
+            char_names.insert(c.0, c.1.name.clone());
+        }
+        for r in &mut project.regions {
+            for c in &mut r.characters {
+                if let Some(n) = char_names.get(&c.1.character_id) {
+                    c.1.name = n.clone();
+                }
+            }
+        }
+
+        let mut item_names = FxHashMap::default();
+        for c in &project.items {
+            item_names.insert(c.0, c.1.name.clone());
+        }
+        for r in &mut project.regions {
+            for c in &mut r.items {
+                if let Some(n) = item_names.get(&c.1.item_id) {
+                    c.1.name = n.clone();
+                }
+            }
+            for (_, p) in &mut r.map.profiles {
+                p.sanitize();
+            }
+            r.map.sanitize();
+        }
+
+        for (_, screen) in &mut project.screens {
+            screen.map.sanitize();
+        }
+
+        if project.tiles.is_empty() {
+            let tiles = project.extract_tiles();
+            for (id, t) in &tiles {
+                let mut texture_array: Vec<Texture> = vec![];
+                for b in &t.buffer {
+                    let mut texture = Texture::new(
+                        b.pixels().to_vec(),
+                        b.dim().width as usize,
+                        b.dim().height as usize,
+                    );
+                    texture.generate_normals(true);
+                    texture_array.push(texture);
+                }
+                let tile = rusterix::Tile {
+                    id: t.id,
+                    role: rusterix::TileRole::from_index(t.role),
+                    textures: texture_array.clone(),
+                    module: None,
+                    blocking: t.blocking,
+                    scale: t.scale,
+                    tags: t.name.clone(),
+                };
+                project.tiles.insert(*id, tile);
+            }
+        }
+
+        for (_, tile) in project.tiles.iter_mut() {
+            for texture in &mut tile.textures {
+                texture.generate_normals(true);
+            }
+        }
+
+        for (_, character) in project.characters.iter_mut() {
+            if character.source.starts_with("class") {
+                character.source = character.module.build(false);
+                character.source_debug = character.module.build(true);
+            }
+        }
+
+        for (_, item) in project.items.iter_mut() {
+            if item.source.starts_with("class") {
+                item.source = item.module.build(false);
+                item.source_debug = item.module.build(true);
+            }
+        }
+    }
+
+    fn close_active_session(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        update_server_icons: &mut bool,
+        redraw: &mut bool,
+    ) {
+        if self.sessions.is_empty() {
+            return;
+        }
+
+        self.sync_active_session_from_editor();
+        self.sessions.remove(self.active_session);
+
+        if self.sessions.is_empty() {
+            let mut project = Project::default();
+            if let Some(bytes) = crate::Embedded::get("starter_project.eldiron")
+                && let Ok(project_string) = std::str::from_utf8(bytes.data.as_ref())
+                && let Ok(loaded) = serde_json::from_str(&project_string.to_string())
+            {
+                project = loaded;
+            }
+            Self::sanitize_loaded_project(&mut project);
+            self.sessions.push(ProjectSession {
+                project,
+                project_path: None,
+                undo: UndoManager::default(),
+                dirty: false,
+            });
+            self.active_session = 0;
+        } else if self.active_session >= self.sessions.len() {
+            self.active_session = self.sessions.len() - 1;
+        }
+
+        self.sync_editor_from_active_session();
+        self.activate_loaded_project(ui, ctx, update_server_icons, redraw);
+        self.rebuild_project_tabs(ui);
+    }
+
+    fn active_session_has_changes(&self) -> bool {
+        UNDOMANAGER.read().unwrap().has_unsaved() || DOCKMANAGER.read().unwrap().has_dock_changes()
+    }
+
     fn is_realtime_mode(&self) -> bool {
         self.server_ctx.game_mode
             || RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running
@@ -210,9 +493,20 @@ impl TheTrait for Editor {
         ))]
         let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "Eldiron-Creator.app");
 
+        let initial_session = ProjectSession {
+            project: project.clone(),
+            project_path: None,
+            undo: UndoManager::default(),
+            dirty: false,
+        };
+
         Self {
             project,
             project_path: None,
+            sessions: vec![initial_session],
+            active_session: 0,
+            replace_next_project_load_in_active_tab: false,
+            last_active_dirty: false,
 
             sidebar: Sidebar::new(),
             mapeditor: MapEditor::new(),
@@ -335,15 +629,21 @@ impl TheTrait for Editor {
             let mut menu = TheMenu::new(TheId::named("Menu"));
 
             let mut file_menu = TheContextMenu::named(fl!("menu_file"));
-            file_menu.add(TheContextMenuItem::new(
+            file_menu.add(TheContextMenuItem::new_with_accel(
                 fl!("menu_new"),
                 TheId::named("New"),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'n'),
             ));
             file_menu.add_separator();
             file_menu.add(TheContextMenuItem::new_with_accel(
                 fl!("menu_open"),
                 TheId::named("Open"),
                 TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'o'),
+            ));
+            file_menu.add(TheContextMenuItem::new_with_accel(
+                fl!("menu_close"),
+                TheId::named("Close"),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'w'),
             ));
             file_menu.add(TheContextMenuItem::new_with_accel(
                 fl!("menu_save"),
@@ -562,6 +862,12 @@ impl TheTrait for Editor {
         let mut shared_canvas = TheCanvas::new();
         shared_canvas.set_layout(vsplitlayout);
 
+        let mut tabs_canvas = TheCanvas::new();
+        let mut tabs = TheTabbar::new(TheId::named("Project Tabs"));
+        tabs.limiter_mut().set_max_height(22);
+        tabs_canvas.set_widget(tabs);
+        shared_canvas.set_top(tabs_canvas);
+
         // Tool List
         let mut tool_list_canvas: TheCanvas = TheCanvas::new();
 
@@ -652,21 +958,32 @@ impl TheTrait for Editor {
         SCENEMANAGER.write().unwrap().startup();
 
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
+        self.rebuild_project_tabs(ui);
     }
 
     /// Set the command line arguments
     fn set_cmd_line_args(&mut self, args: Vec<String>, ctx: &mut TheContext) {
         if args.len() > 1 {
-            #[allow(irrefutable_let_patterns)]
-            if let Ok(path) = PathBuf::from_str(&args[1]) {
-                ctx.ui.send(TheEvent::FileRequesterResult(
-                    TheId::named("Open"),
-                    vec![path],
-                ));
+            let mut queued_any = false;
+            for arg in args.iter().skip(1) {
+                #[allow(irrefutable_let_patterns)]
+                if let Ok(path) = PathBuf::from_str(arg) {
+                    if !queued_any {
+                        self.replace_next_project_load_in_active_tab = true;
+                    }
+                    ctx.ui.send(TheEvent::FileRequesterResult(
+                        TheId::named("Open"),
+                        vec![path],
+                    ));
+                    queued_any = true;
+                }
+            }
+            if queued_any {
                 return;
             }
         }
 
+        self.replace_next_project_load_in_active_tab = true;
         ctx.ui.send(TheEvent::StateChanged(
             TheId::named("New"),
             TheWidgetState::Clicked,
@@ -1315,6 +1632,17 @@ impl TheTrait for Editor {
                 redraw = true;
             }
             match event {
+                TheEvent::IndexChanged(id, index) => {
+                    if id.name == "Project Tabs" {
+                        self.switch_to_session(
+                            index,
+                            ui,
+                            ctx,
+                            &mut update_server_icons,
+                            &mut redraw,
+                        );
+                    }
+                }
                 TheEvent::CustomUndo(id, p, n) => {
                     if id.name == "ModuleUndo" {
                         let _ = (&p, &n);
@@ -1428,6 +1756,8 @@ impl TheTrait for Editor {
                                 }
                             }
                         }
+                    } else if name == "Close Project Tab" && role == TheDialogButtonRole::Accept {
+                        self.close_active_session(ui, ctx, &mut update_server_icons, &mut redraw);
                     } else if name == "Update Eldiron" && role == TheDialogButtonRole::Accept {
                         #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
                         {
@@ -1773,180 +2103,47 @@ impl TheTrait for Editor {
                     // Open
                     if id.name == "Open" {
                         for p in paths {
-                            self.project_path = Some(p.clone());
-                            self.update_counter = 0;
-                            self.sidebar.startup = true;
+                            if let Ok(contents) = std::fs::read_to_string(&p) {
+                                if let Ok(mut loaded) = serde_json::from_str::<Project>(&contents) {
+                                    loaded.palette.current_index = 0;
+                                    Self::sanitize_loaded_project(&mut loaded);
 
-                            // ctx.ui.set_disabled("Save");
-                            // ctx.ui.set_disabled("Save As");
-                            ctx.ui.set_disabled("Undo");
-                            ctx.ui.set_disabled("Redo");
-                            *UNDOMANAGER.write().unwrap() = UndoManager::default();
-
-                            // let contents =
-                            //     std::fs::read_to_string(p.clone()).unwrap_or("".to_string());
-                            // // if let Ok(contents) = std::fs::read(p) {
-                            // let pr: Result<Project, serde_json::Error> =
-                            //     serde_json::from_str(&contents);
-                            // println!("{:?}", pr.err());
-                            if let Ok(contents) = std::fs::read_to_string(p) {
-                                if let Ok(project) = serde_json::from_str(&contents) {
-                                    self.project = project;
-                                    self.project.palette.current_index = 0;
-
-                                    insert_content_into_maps(&mut self.project);
-
-                                    // Rename and remove legacy attributes
-                                    for r in &mut self.project.regions {
-                                        for s in &mut r.map.sectors {
-                                            if let Some(floor) = s.properties.get("floor_source") {
-                                                s.properties.set("source", floor.clone());
-                                            }
-
-                                            if s.properties.contains("rect_rendering") {
-                                                s.properties.set("rect", Value::Bool(true));
-                                            }
-
-                                            s.properties.remove("floor_source");
-                                            s.properties.remove("rect_rendering");
-                                            s.properties.remove("ceiling_source");
-                                        }
-                                    }
-
-                                    // Map names of characters to instances
-                                    let mut hash = FxHashMap::default();
-                                    for c in &self.project.characters {
-                                        hash.insert(c.0, c.1.name.clone());
-                                    }
-                                    for r in &mut self.project.regions {
-                                        for c in &mut r.characters {
-                                            if let Some(n) = hash.get(&c.1.character_id) {
-                                                c.1.name = n.clone();
-                                            }
-                                        }
-                                    }
-
-                                    // Map names of items to instances
-                                    let mut hash = FxHashMap::default();
-                                    for c in &self.project.items {
-                                        hash.insert(c.0, c.1.name.clone());
-                                    }
-
-                                    // Apply names and sanitize map and its profiles
-                                    for r in &mut self.project.regions {
-                                        for c in &mut r.items {
-                                            if let Some(n) = hash.get(&c.1.item_id) {
-                                                c.1.name = n.clone();
-                                            }
-                                        }
-                                        for (_, p) in &mut r.map.profiles {
-                                            p.sanitize();
-                                        }
-                                        r.map.sanitize();
-                                    }
-
-                                    // Sanitize screens
-                                    for (_, screen) in &mut self.project.screens {
-                                        screen.map.sanitize();
-                                    }
-
-                                    // Convert old tile refs to new tiles
-                                    if self.project.tiles.is_empty() {
-                                        let tiles = self.project.extract_tiles();
-
-                                        for (id, t) in tiles.iter() {
-                                            let mut texture_array: Vec<Texture> = vec![];
-                                            for b in &t.buffer {
-                                                let mut texture = Texture::new(
-                                                    b.pixels().to_vec(),
-                                                    b.dim().width as usize,
-                                                    b.dim().height as usize,
-                                                );
-                                                texture.generate_normals(true);
-                                                texture_array.push(texture);
-                                            }
-                                            let tile = rusterix::Tile {
-                                                id: t.id,
-                                                role: rusterix::TileRole::from_index(t.role),
-                                                textures: texture_array.clone(),
-                                                module: None,
-                                                blocking: t.blocking,
-                                                scale: t.scale,
-                                                tags: t.name.clone(),
-                                            };
-                                            self.project.tiles.insert(*id, tile);
-                                        }
-                                    }
-
-                                    // Generate all tile normals
-                                    for (_, tile) in self.project.tiles.iter_mut() {
-                                        for texture in &mut tile.textures {
-                                            texture.generate_normals(true);
-                                        }
-                                    }
-
-                                    // Recompile character visual codes if scripts have Python code
-                                    for (_, character) in self.project.characters.iter_mut() {
-                                        if character.source.starts_with("class") {
-                                            character.source = character.module.build(false);
-                                            character.source_debug = character.module.build(true);
-                                        }
-                                    }
-
-                                    // Recompile entity visual codes if scripts have Python code
-                                    for (_, item) in self.project.items.iter_mut() {
-                                        if item.source.starts_with("class") {
-                                            item.source = item.module.build(false);
-                                            item.source_debug = item.module.build(true);
-                                        }
-                                    }
-
-                                    // Set the project time to the server time slider widget
-                                    if let Some(widget) = ui.get_widget("Server Time Slider") {
-                                        widget.set_value(TheValue::Time(self.project.time));
-                                    }
-
-                                    // Set the server time to the client (and if running to the server)
+                                    self.sync_active_session_from_editor();
+                                    let new_index = if self.replace_next_project_load_in_active_tab
                                     {
-                                        let mut rusterix = RUSTERIX.write().unwrap();
-                                        rusterix.client.set_server_time(self.project.time);
-                                        if rusterix.server.state == rusterix::ServerState::Running {
-                                            if let Some(map) =
-                                                self.project.get_map(&self.server_ctx)
-                                            {
-                                                rusterix
-                                                    .server
-                                                    .set_time(&map.id, self.project.time);
-                                            }
-                                        }
-                                    }
-
-                                    self.server_ctx.clear();
-                                    if let Some(first) = self.project.regions.first() {
-                                        self.server_ctx.curr_region = first.id;
-                                    }
-
-                                    self.sidebar.load_from_project(
+                                        self.sessions[self.active_session] = ProjectSession {
+                                            project: loaded,
+                                            project_path: Some(p.clone()),
+                                            undo: UndoManager::default(),
+                                            dirty: false,
+                                        };
+                                        self.replace_next_project_load_in_active_tab = false;
+                                        self.active_session
+                                    } else {
+                                        self.sessions.push(ProjectSession {
+                                            project: loaded,
+                                            project_path: Some(p.clone()),
+                                            undo: UndoManager::default(),
+                                            dirty: false,
+                                        });
+                                        self.sessions.len() - 1
+                                    };
+                                    self.switch_to_session(
+                                        new_index,
                                         ui,
                                         ctx,
-                                        &mut self.server_ctx,
-                                        &mut self.project,
+                                        &mut update_server_icons,
+                                        &mut redraw,
                                     );
-                                    self.mapeditor.load_from_project(ui, ctx, &self.project);
-                                    update_server_icons = true;
-                                    redraw = true;
-
-                                    // Set palette and textures
-                                    *PALETTE.write().unwrap() = self.project.palette.clone();
-
-                                    SCENEMANAGER
-                                        .write()
-                                        .unwrap()
-                                        .set_palette(self.project.palette.clone());
-
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
                                         "Project loaded successfully.".to_string(),
+                                    ));
+                                } else {
+                                    self.replace_next_project_load_in_active_tab = false;
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Unable to load project!".to_string(),
                                     ));
                                 }
                             }
@@ -1957,6 +2154,12 @@ impl TheTrait for Editor {
                             if let Ok(json) = json {
                                 if std::fs::write(p.clone(), json).is_ok() {
                                     self.project_path = Some(p);
+                                    UNDOMANAGER.write().unwrap().mark_saved();
+                                    if self.active_session < self.sessions.len() {
+                                        self.sessions[self.active_session].dirty = false;
+                                    }
+                                    self.sync_active_session_from_editor();
+                                    self.rebuild_project_tabs(ui);
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
                                         "Project saved successfully.".to_string(),
@@ -1978,58 +2181,41 @@ impl TheTrait for Editor {
                     if id.name == "GameInput" {
                         self.server_ctx.game_input_mode = state == TheWidgetState::Clicked;
                     } else if id.name == "New" {
-                        self.project_path = None;
-                        self.update_counter = 0;
-                        self.sidebar.startup = true;
-                        self.project = Project::default();
-
-                        if let Some(bytes) = crate::Embedded::get("starter_project.eldiron") {
-                            if let Ok(project_string) = std::str::from_utf8(bytes.data.as_ref()) {
-                                if let Ok(project) =
-                                    serde_json::from_str(&project_string.to_string())
-                                {
-                                    self.project = project;
-                                }
-                            }
-                        }
-
-                        // ctx.ui.set_disabled("Save");
-                        // ctx.ui.set_disabled("Save As");
-                        ctx.ui.set_disabled("Undo");
-                        ctx.ui.set_disabled("Redo");
-                        *UNDOMANAGER.write().unwrap() = UndoManager::default();
-
-                        insert_content_into_maps(&mut self.project);
-
-                        // Set the project time to the server time slider widget
-                        if let Some(widget) = ui.get_widget("Server Time Slider") {
-                            widget.set_value(TheValue::Time(self.project.time));
-                        }
-
-                        // Set the server time to the client (and if running to the server)
+                        let mut project = Project::default();
+                        if let Some(bytes) = crate::Embedded::get("starter_project.eldiron")
+                            && let Ok(project_string) = std::str::from_utf8(bytes.data.as_ref())
+                            && let Ok(loaded) = serde_json::from_str(&project_string.to_string())
                         {
-                            let mut rusterix = RUSTERIX.write().unwrap();
-                            rusterix.client.set_server_time(self.project.time);
-                            if rusterix.server.state == rusterix::ServerState::Running {
-                                if let Some(map) = self.project.get_map(&self.server_ctx) {
-                                    rusterix.server.set_time(&map.id, self.project.time);
-                                }
-                            }
+                            project = loaded;
                         }
+                        Self::sanitize_loaded_project(&mut project);
 
-                        self.server_ctx.clear();
-                        self.sidebar.load_from_project(
+                        self.sync_active_session_from_editor();
+                        let new_index = if self.replace_next_project_load_in_active_tab {
+                            self.sessions[self.active_session] = ProjectSession {
+                                project,
+                                project_path: None,
+                                undo: UndoManager::default(),
+                                dirty: false,
+                            };
+                            self.replace_next_project_load_in_active_tab = false;
+                            self.active_session
+                        } else {
+                            self.sessions.push(ProjectSession {
+                                project,
+                                project_path: None,
+                                undo: UndoManager::default(),
+                                dirty: false,
+                            });
+                            self.sessions.len() - 1
+                        };
+                        self.switch_to_session(
+                            new_index,
                             ui,
                             ctx,
-                            &mut self.server_ctx,
-                            &mut self.project,
+                            &mut update_server_icons,
+                            &mut redraw,
                         );
-                        self.mapeditor.load_from_project(ui, ctx, &self.project);
-                        update_server_icons = true;
-                        redraw = true;
-
-                        // Set palette and textures
-                        *PALETTE.write().unwrap() = self.project.palette.clone();
 
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -2106,12 +2292,57 @@ impl TheTrait for Editor {
                             .set_widget_state("Open".to_string(), TheWidgetState::None);
                         ctx.ui.clear_hover();
                         redraw = true;
+                    } else if id.name == "Close" {
+                        if self.active_session_has_changes() {
+                            let uuid = Uuid::new_v4();
+                            let width = 380;
+                            let height = 110;
+
+                            let mut canvas = TheCanvas::new();
+                            canvas.limiter_mut().set_max_size(Vec2::new(width, height));
+
+                            let mut hlayout: TheHLayout = TheHLayout::new(TheId::empty());
+                            hlayout.limiter_mut().set_max_width(width);
+
+                            let mut text_widget =
+                                TheText::new(TheId::named_with_id("Dialog Value", uuid));
+                            text_widget.set_text(
+                                "This tab has unsaved changes. Close it anyway?".to_string(),
+                            );
+                            text_widget.limiter_mut().set_max_width(280);
+                            hlayout.add_widget(Box::new(text_widget));
+
+                            canvas.set_layout(hlayout);
+                            ui.show_dialog(
+                                "Close Project Tab",
+                                canvas,
+                                vec![TheDialogButtonRole::Accept, TheDialogButtonRole::Reject],
+                                ctx,
+                            );
+                        } else {
+                            self.close_active_session(
+                                ui,
+                                ctx,
+                                &mut update_server_icons,
+                                &mut redraw,
+                            );
+                        }
+                        ctx.ui
+                            .set_widget_state("Close".to_string(), TheWidgetState::None);
+                        ctx.ui.clear_hover();
+                        redraw = true;
                     } else if id.name == "Save" {
                         if let Some(path) = &self.project_path {
                             let mut success = false;
                             // if let Ok(output) = postcard::to_allocvec(&self.project) {
                             if let Ok(output) = serde_json::to_string(&self.project) {
                                 if std::fs::write(path, output).is_ok() {
+                                    UNDOMANAGER.write().unwrap().mark_saved();
+                                    if self.active_session < self.sessions.len() {
+                                        self.sessions[self.active_session].dirty = false;
+                                    }
+                                    self.sync_active_session_from_editor();
+                                    self.rebuild_project_tabs(ui);
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
                                         "Project saved successfully.".to_string(),
@@ -2428,6 +2659,22 @@ impl TheTrait for Editor {
             self.update_server_state_icons(ui);
             redraw = true;
         }
+
+        let active_dirty = UNDOMANAGER.read().unwrap().has_unsaved()
+            || DOCKMANAGER.read().unwrap().has_dock_changes();
+        if self.active_session < self.sessions.len()
+            && self.sessions[self.active_session].dirty != active_dirty
+        {
+            self.sessions[self.active_session].dirty = active_dirty;
+            self.rebuild_project_tabs(ui);
+            redraw = true;
+        }
+        if active_dirty != self.last_active_dirty {
+            self.last_active_dirty = active_dirty;
+            self.rebuild_project_tabs(ui);
+            redraw = true;
+        }
+
         self.update_counter += 1;
         if self.update_counter > 2 {
             self.sidebar.startup = false;
@@ -2437,7 +2684,17 @@ impl TheTrait for Editor {
 
     /// Returns true if there are changes
     fn has_changes(&self) -> bool {
-        UNDOMANAGER.read().unwrap().has_undo() || DOCKMANAGER.read().unwrap().has_dock_changes()
+        if self.active_session_has_changes() {
+            return true;
+        }
+
+        for (index, session) in self.sessions.iter().enumerate() {
+            if index != self.active_session && session.dirty {
+                return true;
+            }
+        }
+
+        false
     }
 }
 

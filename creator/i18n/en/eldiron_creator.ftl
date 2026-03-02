@@ -2,9 +2,11 @@
 ## Menu File
 menu_file = File
 menu_new = New
+menu_close = Close
 menu_open = Open...
 menu_save = Save...
 menu_save_as = Save As...
+new_project = New Project
 ## Menu Edit
 menu_edit = Edit
 menu_undo = Undo

@@ -7,6 +7,7 @@ use theframework::prelude::*;
 pub struct ProjectUndo {
     pub stack: Vec<ProjectUndoAtom>,
     pub index: isize,
+    pub saved_index: isize,
 }
 
 impl Default for ProjectUndo {
@@ -20,6 +21,7 @@ impl ProjectUndo {
         Self {
             stack: vec![],
             index: -1,
+            saved_index: -1,
         }
     }
 
@@ -30,6 +32,15 @@ impl ProjectUndo {
     pub fn clear(&mut self) {
         self.stack = vec![];
         self.index = -1;
+        self.saved_index = -1;
+    }
+
+    pub fn mark_saved(&mut self) {
+        self.saved_index = self.index;
+    }
+
+    pub fn has_unsaved(&self) -> bool {
+        self.index != self.saved_index
     }
 
     pub fn has_undo(&self) -> bool {
@@ -87,10 +98,14 @@ impl ProjectUndo {
 
             // Adjust the index accordingly
             self.index -= excess as isize;
+            self.saved_index -= excess as isize;
 
             // Clamp to -1 minimum in case we truncated everything
             if self.index < -1 {
                 self.index = -1;
+            }
+            if self.saved_index < -1 {
+                self.saved_index = -1;
             }
         }
     }

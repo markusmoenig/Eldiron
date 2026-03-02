@@ -60,9 +60,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func configureNativeMenus() {
-        removeItems(in: "File", titled: ["Close", "Open Recent", "Page Setup…", "Print…"])
+        removeItems(in: "File", titled: ["Open Recent", "Page Setup…", "Print…"])
         bindFileMenuItem("New", action: #selector(newMenu))
         bindFileMenuItem("Open…", action: #selector(openMenu))
+        bindFileMenuItem("Close", action: #selector(closeMenu))
         bindFileMenuItem("Save…", action: #selector(saveMenu))
         bindFileMenuItem("Save As…", action: #selector(saveAsMenu))
         trimEditMenuAfterPaste()
@@ -131,6 +132,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func saveMenu() {
         rust_save()
+    }
+
+    @objc private func closeMenu() {
+        rust_close()
     }
 
     @objc private func saveAsMenu() {

@@ -34,6 +34,10 @@ impl UndoManager {
         self.can_save(ctx);
     }
 
+    pub fn mark_saved(&mut self) {
+        self.project.mark_saved();
+    }
+
     pub fn set_undo_state_to_ui(&self, ctx: &mut TheContext) {
         if !self.project.has_undo() {
             ctx.ui.set_disabled("Undo");
@@ -95,5 +99,10 @@ impl UndoManager {
             return true;
         }
         false
+    }
+
+    /// Returns true if current state differs from the last saved checkpoint.
+    pub fn has_unsaved(&self) -> bool {
+        self.project.has_unsaved()
     }
 }
