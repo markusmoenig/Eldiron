@@ -751,12 +751,38 @@ impl RectTool {
 
             let mut found = false;
             if let Some((scenevm::GeoId::Sector(id), world_hit, _)) = rc {
-                for (_, surface) in &map.surfaces {
-                    if surface.sector_id == id {
-                        server_ctx.rect_tile_id_3d = surface.world_to_tile_local(world_hit, map);
-                        server_ctx.rect_sector_id_3d = Some(id);
-                        found = true;
+                let mut best: Option<((i32, i32), f32)> = None;
+
+                for surface in map.surfaces.values() {
+                    if surface.sector_id != id {
+                        continue;
                     }
+
+                    let n = surface.plane.normal;
+                    let n_len = n.magnitude();
+                    if n_len <= 1e-6 {
+                        continue;
+                    }
+
+                    // Choose the surface plane closest to the picked world hit.
+                    // This avoids random sector-surface iteration order affecting tile coordinates.
+                    let signed_dist = (world_hit - surface.plane.origin).dot(n / n_len);
+                    let dist = signed_dist.abs();
+                    let tile = surface.world_to_tile_local(world_hit, map);
+
+                    if best
+                        .as_ref()
+                        .map(|(_, best_dist)| dist < *best_dist)
+                        .unwrap_or(true)
+                    {
+                        best = Some((tile, dist));
+                    }
+                }
+
+                if let Some((tile, _)) = best {
+                    server_ctx.rect_tile_id_3d = tile;
+                    server_ctx.rect_sector_id_3d = Some(id);
+                    found = true;
                 }
             }
 

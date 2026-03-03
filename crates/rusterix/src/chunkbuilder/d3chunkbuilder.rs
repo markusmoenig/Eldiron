@@ -62,22 +62,38 @@ fn build_world_vertices(verts_uv: &[[f32; 2]], surface: &crate::Surface) -> Vec<
 }
 
 fn surface_tile_origin_uv(surface: &crate::Surface, map: &Map) -> Vec2<f32> {
-    if let Some(loop_uv) = surface.sector_loop_uv(map) {
-        if loop_uv.is_empty() {
-            return Vec2::zero();
-        }
-        let mut min = Vec2::new(f32::INFINITY, f32::INFINITY);
-        for p in &loop_uv {
-            min.x = min.x.min(p.x);
-            min.y = min.y.min(p.y);
-        }
-        min
-    } else {
-        Vec2::zero()
-    }
+    surface.tile_local_anchor_uv(map)
 }
 
-fn build_surface_uvs(verts_uv: &[[f32; 2]], sector: &Sector) -> Vec<[f32; 2]> {
+fn uv_to_tile_local_xy(uv: Vec2<f32>, tile_origin_uv: Vec2<f32>, tile_flip_x: bool) -> Vec2<f32> {
+    let x = if tile_flip_x {
+        tile_origin_uv.x - uv.x
+    } else {
+        uv.x - tile_origin_uv.x
+    };
+    let y = uv.y - tile_origin_uv.y;
+    Vec2::new(x, y)
+}
+
+fn tile_local_to_uv_xy(
+    local: Vec2<f32>,
+    tile_origin_uv: Vec2<f32>,
+    tile_flip_x: bool,
+) -> Vec2<f32> {
+    let x = if tile_flip_x {
+        tile_origin_uv.x - local.x
+    } else {
+        tile_origin_uv.x + local.x
+    };
+    let y = tile_origin_uv.y + local.y;
+    Vec2::new(x, y)
+}
+
+fn build_surface_uvs(
+    verts_uv: &[[f32; 2]],
+    sector: &Sector,
+    surface: &crate::Surface,
+) -> Vec<[f32; 2]> {
     if verts_uv.is_empty() {
         return Vec::new();
     }
@@ -95,16 +111,28 @@ fn build_surface_uvs(verts_uv: &[[f32; 2]], sector: &Sector) -> Vec<[f32; 2]> {
     }
     let sx = (maxx - minx).max(1e-6);
     let sy = (maxy - miny).max(1e-6);
+    let wall_like = surface.plane.normal.y.abs() < 0.25;
+    let flip_v = wall_like && surface.edit_uv.up.y < 0.0;
     let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(verts_uv.len());
     if tile_mode == 0 {
         for v in verts_uv {
-            uvs.push([(v[0] - minx) / sx, (v[1] - miny) / sy]);
+            let vv = if flip_v {
+                (maxy - v[1]) / sy
+            } else {
+                (v[1] - miny) / sy
+            };
+            uvs.push([(v[0] - minx) / sx, vv]);
         }
     } else {
         let tex_scale_x = sector.properties.get_float_default("texture_scale_x", 1.0);
         let tex_scale_y = sector.properties.get_float_default("texture_scale_y", 1.0);
         for v in verts_uv {
-            uvs.push([(v[0] - minx) / tex_scale_x, (v[1] - miny) / tex_scale_y]);
+            let vv = if flip_v {
+                (maxy - v[1]) / tex_scale_y
+            } else {
+                (v[1] - miny) / tex_scale_y
+            };
+            uvs.push([(v[0] - minx) / tex_scale_x, vv]);
         }
     }
 
@@ -174,6 +202,7 @@ fn partition_triangles_with_tile_and_blend_overrides(
     surface: &crate::Surface,
     default_tile_id: Uuid,
     tile_origin_uv: Vec2<f32>,
+    tile_flip_x: bool,
 ) -> (
     Vec<[f32; 2]>,
     Vec<[f32; 4]>,
@@ -204,17 +233,20 @@ fn partition_triangles_with_tile_and_blend_overrides(
 
     // Subdivide each triangle against 1x1 UV tiles - do this ONCE
     let (tiled_uvs, tiled_world, tiled_tris, vertex_cells) =
-        subdivide_triangles_into_tiles(indices, uvs, surface, tile_origin_uv);
+        subdivide_triangles_into_tiles(indices, uvs, surface, tile_origin_uv, tile_flip_x);
 
     // Build a per-vertex UV set that is local to each tile (0..1), used for overrides
     let mut uvs_local = tiled_uvs.clone();
     for (i, uv) in uvs_local.iter_mut().enumerate() {
         let (tx, ty) = vertex_cells[i];
-        let local_u = tiled_uvs[i][0] - tile_origin_uv.x;
-        let local_v = tiled_uvs[i][1] - tile_origin_uv.y;
+        let local = uv_to_tile_local_xy(
+            Vec2::new(tiled_uvs[i][0], tiled_uvs[i][1]),
+            tile_origin_uv,
+            tile_flip_x,
+        );
         let eps = 1e-4_f32;
-        let cell_u = (local_u - tx as f32).clamp(0.0, 1.0);
-        let cell_v = (local_v - ty as f32).clamp(0.0, 1.0);
+        let cell_u = (local.x - tx as f32).clamp(0.0, 1.0);
+        let cell_v = (local.y - ty as f32).clamp(0.0, 1.0);
         uv[0] = cell_u.clamp(eps, 1.0 - eps);
         uv[1] = (1.0 - cell_v).clamp(eps, 1.0 - eps);
     }
@@ -301,6 +333,7 @@ fn subdivide_triangles_into_tiles(
     verts_uv: &[[f32; 2]],
     surface: &crate::Surface,
     tile_origin_uv: Vec2<f32>,
+    tile_flip_x: bool,
 ) -> (
     Vec<[f32; 2]>,
     Vec<[f32; 4]>,
@@ -380,25 +413,27 @@ fn subdivide_triangles_into_tiles(
     let mut vertex_cells: Vec<(i32, i32)> = verts_uv
         .iter()
         .map(|uv| {
-            let local_u = uv[0] - tile_origin_uv.x;
-            let local_v = uv[1] - tile_origin_uv.y;
-            (local_u.floor() as i32, local_v.floor() as i32)
+            let local = uv_to_tile_local_xy(Vec2::new(uv[0], uv[1]), tile_origin_uv, tile_flip_x);
+            (local.x.floor() as i32, local.y.floor() as i32)
         })
         .collect();
     let mut tiled_indices = Vec::new();
 
     for &(a, b, c) in indices {
-        let pa = vek::Vec2::new(
-            verts_uv[a][0] - tile_origin_uv.x,
-            verts_uv[a][1] - tile_origin_uv.y,
+        let pa = uv_to_tile_local_xy(
+            Vec2::new(verts_uv[a][0], verts_uv[a][1]),
+            tile_origin_uv,
+            tile_flip_x,
         );
-        let pb = vek::Vec2::new(
-            verts_uv[b][0] - tile_origin_uv.x,
-            verts_uv[b][1] - tile_origin_uv.y,
+        let pb = uv_to_tile_local_xy(
+            Vec2::new(verts_uv[b][0], verts_uv[b][1]),
+            tile_origin_uv,
+            tile_flip_x,
         );
-        let pc = vek::Vec2::new(
-            verts_uv[c][0] - tile_origin_uv.x,
-            verts_uv[c][1] - tile_origin_uv.y,
+        let pc = uv_to_tile_local_xy(
+            Vec2::new(verts_uv[c][0], verts_uv[c][1]),
+            tile_origin_uv,
+            tile_flip_x,
         );
         let tri = vec![pa, pb, pc];
 
@@ -433,7 +468,7 @@ fn subdivide_triangles_into_tiles(
 
                 let base = new_uvs.len();
                 for p in &poly {
-                    let uv_world = vek::Vec2::new(p.x + tile_origin_uv.x, p.y + tile_origin_uv.y);
+                    let uv_world = tile_local_to_uv_xy(*p, tile_origin_uv, tile_flip_x);
                     new_uvs.push([uv_world.x, uv_world.y]);
                     let w = surface.uv_to_world(uv_world);
                     new_world.push([w.x, w.y, w.z, 1.0]);
@@ -648,6 +683,7 @@ impl ChunkBuilder for D3ChunkBuilder {
 
                     // Apply BOTH tile overrides and blend overrides in a single pass
                     let tile_origin_uv = surface_tile_origin_uv(surface, map);
+                    let tile_flip_x = surface.tile_local_flip_x();
                     let (
                         verts_uv,
                         world_vertices,
@@ -664,6 +700,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                         surface,
                         default_tile_id,
                         tile_origin_uv,
+                        tile_flip_x,
                     );
 
                     if dbg {
@@ -703,7 +740,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                         }
                     }
 
-                    let uvs = build_surface_uvs(&verts_uv, sector);
+                    let uvs = build_surface_uvs(&verts_uv, sector, surface);
                     #[derive(Clone, Copy)]
                     enum MaterialKind {
                         Cap,
@@ -1011,6 +1048,7 @@ impl ChunkBuilder for D3ChunkBuilder {
 
                                 // Apply both blend and tile overrides to back cap in a single pass
                                 let tile_origin_uv = surface_tile_origin_uv(surface, map);
+                                let tile_flip_x = surface.tile_local_flip_x();
                                 let (
                                     back_verts_uv,
                                     back_world_vertices,
@@ -1027,6 +1065,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                                     surface,
                                     default_tile_id,
                                     tile_origin_uv,
+                                    tile_flip_x,
                                 );
 
                                 let mut back_world_vertices = back_world_vertices;
@@ -1037,7 +1076,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                                     v[2] = p.z;
                                 }
 
-                                let back_uvs = build_surface_uvs(&back_verts_uv, sector);
+                                let back_uvs = build_surface_uvs(&back_verts_uv, sector, surface);
 
                                 for (tile_id, inds) in &back_override_batches {
                                     if !inds.is_empty() {
@@ -1159,6 +1198,7 @@ impl ChunkBuilder for D3ChunkBuilder {
 
                     // Apply both blend and tile overrides (fallback path) in a single pass
                     let tile_origin_uv = surface_tile_origin_uv(surface, map);
+                    let tile_flip_x = surface.tile_local_flip_x();
                     let (
                         verts_uv,
                         world_vertices,
@@ -1175,9 +1215,10 @@ impl ChunkBuilder for D3ChunkBuilder {
                         surface,
                         default_tile_id,
                         tile_origin_uv,
+                        tile_flip_x,
                     );
 
-                    let uvs = build_surface_uvs(&verts_uv, sector);
+                    let uvs = build_surface_uvs(&verts_uv, sector, surface);
                     #[allow(dead_code)]
                     #[derive(Clone, Copy)]
                     enum MaterialKind {
@@ -1752,6 +1793,68 @@ impl ChunkBuilder for D3ChunkBuilder {
         add_linedef_feature_collision(map, &chunk_bbox, &mut collision);
 
         collision
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::map::surface::{Basis3, EditPlane, ExtrusionSpec, Plane};
+
+    fn make_wall_surface(up_y: f32) -> crate::Surface {
+        let right = Vec3::new(1.0, 0.0, 0.0);
+        let up = Vec3::new(0.0, up_y, 0.0);
+        let normal = Vec3::new(0.0, 0.0, 1.0);
+        crate::Surface {
+            id: Uuid::new_v4(),
+            sector_id: 1,
+            plane: Plane {
+                origin: Vec3::zero(),
+                normal,
+            },
+            frame: Basis3 { right, up, normal },
+            edit_uv: EditPlane {
+                origin: Vec3::zero(),
+                right,
+                up,
+                scale: 1.0,
+            },
+            extrusion: ExtrusionSpec::default(),
+            profile: None,
+            world_vertices: vec![],
+        }
+    }
+
+    #[test]
+    fn build_surface_uvs_flips_v_for_wall_with_negative_up_y() {
+        let sector = Sector::new(1, vec![]);
+        let surface = make_wall_surface(-1.0);
+        let verts_uv = [[0.0_f32, 0.0_f32], [0.0, 1.0]];
+
+        let out = build_surface_uvs(&verts_uv, &sector, &surface);
+        assert!((out[0][1] - 1.0).abs() < 1e-6);
+        assert!((out[1][1] - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn build_surface_uvs_keeps_v_for_wall_with_positive_up_y() {
+        let sector = Sector::new(1, vec![]);
+        let surface = make_wall_surface(1.0);
+        let verts_uv = [[0.0_f32, 0.0_f32], [0.0, 1.0]];
+
+        let out = build_surface_uvs(&verts_uv, &sector, &surface);
+        assert!((out[0][1] - 0.0).abs() < 1e-6);
+        assert!((out[1][1] - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn tile_local_xy_roundtrip_supports_mirrored_x_mode() {
+        let origin = Vec2::new(0.0, 0.0);
+        let local = Vec2::new(1.25, 2.75);
+        let uv = tile_local_to_uv_xy(local, origin, true);
+        let back = uv_to_tile_local_xy(uv, origin, true);
+        assert!((back.x - local.x).abs() < 1e-6);
+        assert!((back.y - local.y).abs() < 1e-6);
     }
 }
 

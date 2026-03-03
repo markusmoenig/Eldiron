@@ -305,6 +305,59 @@ impl Surface {
         Some(min)
     }
 
+    /// Anchor UV for tile-local mapping.
+    /// For wall-like surfaces, use a world-anchored UV origin to keep painting
+    /// stable across inside/outside and adjacent coplanar surfaces.
+    /// For floor/ceiling-like surfaces, keep sector-local behavior.
+    pub fn tile_local_anchor_uv(&self, map: &Map) -> Vec2<f32> {
+        if self.plane.normal.y.abs() < 0.25 {
+            // world_to_uv(0) is the per-surface offset that converts local UV to global UV.
+            self.world_to_uv(Vec3::zero())
+        } else {
+            self.sector_uv_min(map).unwrap_or(Vec2::zero())
+        }
+    }
+
+    /// Returns true if tile-local X should be mirrored for this surface to keep
+    /// wall painting orientation stable independent of wall normal direction.
+    pub fn tile_local_flip_x(&self) -> bool {
+        if self.plane.normal.y.abs() >= 0.25 {
+            return false;
+        }
+        let rx = self.edit_uv.right.x.abs();
+        let rz = self.edit_uv.right.z.abs();
+        let dominant = if rx >= rz {
+            self.edit_uv.right.x
+        } else {
+            self.edit_uv.right.z
+        };
+        dominant < 0.0
+    }
+
+    /// Convert UV to continuous tile-local coordinates.
+    pub fn uv_to_tile_local(&self, uv: Vec2<f32>, map: &Map) -> Vec2<f32> {
+        let anchor = self.tile_local_anchor_uv(map);
+        let x = if self.tile_local_flip_x() {
+            anchor.x - uv.x
+        } else {
+            uv.x - anchor.x
+        };
+        let y = uv.y - anchor.y;
+        Vec2::new(x, y)
+    }
+
+    /// Convert continuous tile-local coordinates back to UV.
+    pub fn tile_local_to_uv(&self, local: Vec2<f32>, map: &Map) -> Vec2<f32> {
+        let anchor = self.tile_local_anchor_uv(map);
+        let x = if self.tile_local_flip_x() {
+            anchor.x - local.x
+        } else {
+            anchor.x + local.x
+        };
+        let y = anchor.y + local.y;
+        Vec2::new(x, y)
+    }
+
     /// Map a world point to discrete tile coordinates (1x1 grid cells in UV space).
     /// Returns (tile_x, tile_y) representing which tile cell the point falls into.
     /// This is useful for tile override systems that assign different tiles to different regions.
@@ -317,12 +370,8 @@ impl Surface {
     /// Tile (0,0) starts at the minimum projected UV of this sector.
     pub fn world_to_tile_local(&self, p: Vec3<f32>, map: &Map) -> (i32, i32) {
         let uv = self.world_to_uv(p);
-        if let Some(min_uv) = self.sector_uv_min(map) {
-            let local = uv - min_uv;
-            (local.x.floor() as i32, local.y.floor() as i32)
-        } else {
-            (uv.x.floor() as i32, uv.y.floor() as i32)
-        }
+        let local = self.uv_to_tile_local(uv, map);
+        (local.x.floor() as i32, local.y.floor() as i32)
     }
 
     /// Get the four world-space corners of a 1x1 tile cell at the given tile coordinates.
@@ -341,14 +390,14 @@ impl Surface {
     /// Get the world-space corners of a sector-local tile cell.
     /// Tile (0,0) starts at the minimum projected UV of this sector.
     pub fn tile_outline_world_local(&self, tile: (i32, i32), map: &Map) -> [Vec3<f32>; 4] {
-        let min_uv = self.sector_uv_min(map).unwrap_or(Vec2::zero());
         let (tx, ty) = tile;
-        let corners_uv = [
-            Vec2::new(min_uv.x + tx as f32, min_uv.y + ty as f32),
-            Vec2::new(min_uv.x + tx as f32 + 1.0, min_uv.y + ty as f32),
-            Vec2::new(min_uv.x + tx as f32 + 1.0, min_uv.y + ty as f32 + 1.0),
-            Vec2::new(min_uv.x + tx as f32, min_uv.y + ty as f32 + 1.0),
+        let corners_local = [
+            Vec2::new(tx as f32, ty as f32),
+            Vec2::new(tx as f32 + 1.0, ty as f32),
+            Vec2::new(tx as f32 + 1.0, ty as f32 + 1.0),
+            Vec2::new(tx as f32, ty as f32 + 1.0),
         ];
+        let corners_uv = corners_local.map(|local| self.tile_local_to_uv(local, map));
         corners_uv.map(|uv| self.uv_to_world(uv))
     }
 
@@ -508,6 +557,103 @@ fn newell_plane(points: &[Vec3<f32>]) -> (Vec3<f32>, Vec3<f32>) {
         normal = Vec3::zero();
     }
     (centroid, normal)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Map;
+    use uuid::Uuid;
+
+    fn make_wall_surface(right: Vec3<f32>, up: Vec3<f32>, normal: Vec3<f32>) -> Surface {
+        Surface {
+            id: Uuid::new_v4(),
+            sector_id: 1,
+            plane: Plane {
+                origin: Vec3::zero(),
+                normal,
+            },
+            frame: Basis3 { right, up, normal },
+            edit_uv: EditPlane {
+                origin: Vec3::zero(),
+                right,
+                up,
+                scale: 1.0,
+            },
+            extrusion: ExtrusionSpec::default(),
+            profile: None,
+            world_vertices: vec![],
+        }
+    }
+
+    #[test]
+    fn wall_tile_local_x_is_consistent_for_opposite_orientations() {
+        let map = Map::new();
+        let inside = make_wall_surface(
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let outside = make_wall_surface(
+            Vec3::new(-1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, -1.0),
+        );
+
+        let p = Vec3::new(0.2, 0.4, 0.0);
+        let a = inside.world_to_tile_local(p, &map);
+        let b = outside.world_to_tile_local(p, &map);
+        assert_eq!(a.0, b.0);
+    }
+
+    #[test]
+    fn wall_tile_local_y_uses_integer_bands() {
+        let map = Map::new();
+        let surface = make_wall_surface(
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+
+        let low = surface.world_to_tile_local(Vec3::new(0.0, 0.2, 0.0), &map);
+        let high = surface.world_to_tile_local(Vec3::new(0.0, 1.2, 0.0), &map);
+        assert_eq!(low.1, 0);
+        assert_eq!(high.1, 1);
+    }
+
+    #[test]
+    fn tile_outline_local_roundtrips_back_to_same_tile_cell_center() {
+        let map = Map::new();
+        let surface = make_wall_surface(
+            Vec3::new(-1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, -1.0),
+        );
+
+        let center_local = Vec2::new(1.5, 2.5);
+        let center_world = surface.uv_to_world(surface.tile_local_to_uv(center_local, &map));
+        let cell = surface.world_to_tile_local(center_world, &map);
+        assert_eq!(cell, (1, 2));
+    }
+
+    #[test]
+    fn tile_local_helpers_do_not_change_world_to_uv_mapping() {
+        let map = Map::new();
+        let surface = make_wall_surface(
+            Vec3::new(-1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, -1.0),
+        );
+        let p = Vec3::new(0.7, 1.3, 0.0);
+        let before = surface.world_to_uv(p);
+
+        let _ = surface.world_to_tile_local(p, &map);
+        let _ = surface.tile_outline_world_local((2, 1), &map);
+
+        let after = surface.world_to_uv(p);
+        assert!((before.x - after.x).abs() < 1e-6);
+        assert!((before.y - after.y).abs() < 1e-6);
+    }
 }
 
 fn stable_right(points: &[Vec3<f32>], normal: Vec3<f32>) -> Vec3<f32> {
