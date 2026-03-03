@@ -136,6 +136,26 @@ impl ExtrudeLinedef {
             }
             a
         };
+        let line_len = (p1 - p0).magnitude();
+        // Avoid coplanar overlap at shared endpoints when adjacent linedefs are extruded.
+        // Strong trims are only needed on diagonal lines. On axis-aligned walls, large trims
+        // create visible corner gaps where two walls just meet.
+        let dx = (p1.x - p0.x).abs();
+        let dy = (p1.y - p0.y).abs();
+        let is_axis_aligned = dx < 1e-4 || dy < 1e-4;
+        let thickness = distance.abs();
+        let end_inset = if is_axis_aligned {
+            (thickness * 0.04)
+                .clamp(0.0, 0.01)
+                .min((line_len * 0.1).max(0.0))
+        } else {
+            (thickness * 0.35)
+                .clamp(0.02, 0.18)
+                .min((line_len * 0.25).max(0.0))
+        };
+        let p0_base = p0 + axis * end_inset;
+        let p1_base = p1 - axis * end_inset;
+
         let mut base = Vec3::new(0.0, 0.0, 1.0); // world up (Z)
         // Make base perpendicular to axis
         base = base - axis * base.dot(axis);
@@ -151,8 +171,8 @@ impl ExtrudeLinedef {
         let dir = base * angle.cos() - ortho * angle.sin();
 
         let offset = dir * distance;
-        let p1_top = p1 + offset;
-        let p0_top = p0 + offset;
+        let p1_top = p1_base + offset;
+        let p0_top = p0_base + offset;
 
         let top_points = Self::build_top_profile(
             p1_top,
@@ -166,8 +186,8 @@ impl ExtrudeLinedef {
 
         // Build on duplicated base vertices so generated profile geometry never shares
         // the original host linedef. This allows safe replace/delete of generated sectors.
-        let v0_base = map.add_vertex_at_3d(p0.x, p0.y, p0.z, false);
-        let v1_base = map.add_vertex_at_3d(p1.x, p1.y, p1.z, false);
+        let v0_base = map.add_vertex_at_3d(p0_base.x, p0_base.y, p0_base.z, false);
+        let v1_base = map.add_vertex_at_3d(p1_base.x, p1_base.y, p1_base.z, false);
 
         // Use manual linedef creation to avoid premature sector detection
         // (auto-detection can find wrong cycles when vertices are reused)

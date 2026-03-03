@@ -574,6 +574,27 @@ impl ChunkBuilder for D3ChunkBuilder {
                 let extrude_abs = surface.extrusion.depth.abs();
                 let (base_holes, feature_loops) =
                     split_loops_for_base(&outer_loop, &hole_loops, extrude_abs);
+                let profile_bias_vec = if sector
+                    .properties
+                    .get_bool_default("generated_profile", false)
+                {
+                    let host = sector
+                        .properties
+                        .get_int_default("generated_profile_host_linedef", sector.id as i32)
+                        .unsigned_abs();
+                    let sign = if host % 2 == 0 { 1.0 } else { -1.0 };
+                    let mut n = surface.plane.normal;
+                    let l = n.magnitude();
+                    if l > 1e-6 {
+                        n /= l;
+                    }
+                    let lateral = n * (0.0012 * sign);
+                    let mix = host.wrapping_mul(1103515245).wrapping_add(sector.id);
+                    let vertical = Vec3::new(0.0, ((mix % 17) as f32) * 0.00012, 0.0);
+                    lateral + vertical
+                } else {
+                    Vec3::zero()
+                };
                 if dbg {
                     println!(
                         "[DBG] classification: base_holes={}, feature_loops={}",
@@ -640,7 +661,14 @@ impl ChunkBuilder for D3ChunkBuilder {
                 let triangulation_result = earcut_with_holes(&mut outer_path, &mut holes_paths);
 
                 if let Some((verts_uv, indices)) = triangulation_result {
-                    let world_vertices_for_fix = build_world_vertices(&verts_uv, surface);
+                    let mut world_vertices_for_fix = build_world_vertices(&verts_uv, surface);
+                    if profile_bias_vec != Vec3::zero() {
+                        for v in world_vertices_for_fix.iter_mut() {
+                            v[0] += profile_bias_vec.x;
+                            v[1] += profile_bias_vec.y;
+                            v[2] += profile_bias_vec.z;
+                        }
+                    }
 
                     if dbg {
                         println!(
@@ -686,7 +714,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                     let tile_flip_x = surface.tile_local_flip_x();
                     let (
                         verts_uv,
-                        world_vertices,
+                        mut world_vertices,
                         default_indices,
                         override_batches,
                         blend_batches,
@@ -702,6 +730,13 @@ impl ChunkBuilder for D3ChunkBuilder {
                         tile_origin_uv,
                         tile_flip_x,
                     );
+                    if profile_bias_vec != Vec3::zero() {
+                        for v in world_vertices.iter_mut() {
+                            v[0] += profile_bias_vec.x;
+                            v[1] += profile_bias_vec.y;
+                            v[2] += profile_bias_vec.z;
+                        }
+                    }
 
                     if dbg {
                         if let Some((a, b, c)) = indices.get(0).cloned() {
@@ -811,9 +846,10 @@ impl ChunkBuilder for D3ChunkBuilder {
 
                         let mut front_ws: Vec<vek::Vec3<f32>> = Vec::with_capacity(m);
                         for i in 0..m {
-                            let p = surface.uv_to_world(loop_uv[i]);
+                            let p = surface.uv_to_world(loop_uv[i]) + profile_bias_vec;
                             front_ws.push(p);
                         }
+                        let loop_min_y = front_ws.iter().fold(f32::INFINITY, |acc, p| acc.min(p.y));
                         let mut dists = vec![0.0f32; m + 1];
                         for i in 0..m {
                             let a = front_ws[i];
@@ -856,19 +892,18 @@ impl ChunkBuilder for D3ChunkBuilder {
                             let ib = (i + 1) % m;
                             let a_uv = loop_uv[ia];
                             let b_uv = loop_uv[ib];
-                            let a_world = surface.uv_to_world(a_uv);
-                            let b_world = surface.uv_to_world(b_uv);
+                            let a_world = surface.uv_to_world(a_uv) + profile_bias_vec;
+                            let b_world = surface.uv_to_world(b_uv) + profile_bias_vec;
                             let a_back = a_world + n * depth;
                             let b_back = b_world + n * depth;
 
-                            // Skip edge if both vertices are at nearly the same low height (e.g., door bottom on floor)
-                            // Check if edge is horizontal and at the minimum Y position
-                            const MIN_HEIGHT_THRESHOLD: f32 = 0.2;
+                            // Skip bottom horizontal edges of the loop to prevent coplanar
+                            // z-fighting with floor surfaces (door/cutout bottoms).
+                            // Use loop-relative min-Y, not absolute world height.
                             let edge_is_horizontal = (a_world.y - b_world.y).abs() < 0.01;
-                            let edge_is_low = a_world.y.min(b_world.y) < MIN_HEIGHT_THRESHOLD;
-
-                            if edge_is_horizontal && edge_is_low {
-                                continue; // Skip horizontal edges at floor level (door bottoms)
+                            let edge_is_bottom = a_world.y.min(b_world.y) <= loop_min_y + 0.01;
+                            if edge_is_horizontal && edge_is_bottom {
+                                continue;
                             }
 
                             let base = verts.len();
@@ -1026,7 +1061,8 @@ impl ChunkBuilder for D3ChunkBuilder {
                                     .iter()
                                     .map(|uv| {
                                         let p = surface.uv_to_world(vek::Vec2::new(uv[0], uv[1]))
-                                            + n * depth;
+                                            + n * depth
+                                            + profile_bias_vec;
                                         [p.x, p.y, p.z, 1.0]
                                     })
                                     .collect();
@@ -1074,6 +1110,13 @@ impl ChunkBuilder for D3ChunkBuilder {
                                     v[0] = p.x;
                                     v[1] = p.y;
                                     v[2] = p.z;
+                                }
+                                if profile_bias_vec != Vec3::zero() {
+                                    for v in back_world_vertices.iter_mut() {
+                                        v[0] += profile_bias_vec.x;
+                                        v[1] += profile_bias_vec.y;
+                                        v[2] += profile_bias_vec.z;
+                                    }
                                 }
 
                                 let back_uvs = build_surface_uvs(&back_verts_uv, sector, surface);
@@ -1164,7 +1207,35 @@ impl ChunkBuilder for D3ChunkBuilder {
                 // Fallback: no profile info; triangulate whole surface as-is
                 if let Some((_world_vertices, indices, verts_uv)) = surface.triangulate(sector, map)
                 {
-                    let world_vertices_for_fix = build_world_vertices(&verts_uv, surface);
+                    let profile_bias_vec = if sector
+                        .properties
+                        .get_bool_default("generated_profile", false)
+                    {
+                        let host = sector
+                            .properties
+                            .get_int_default("generated_profile_host_linedef", sector.id as i32)
+                            .unsigned_abs();
+                        let sign = if host % 2 == 0 { 1.0 } else { -1.0 };
+                        let mut n = surface.plane.normal;
+                        let l = n.magnitude();
+                        if l > 1e-6 {
+                            n /= l;
+                        }
+                        let lateral = n * (0.0012 * sign);
+                        let mix = host.wrapping_mul(1103515245).wrapping_add(sector.id);
+                        let vertical = Vec3::new(0.0, ((mix % 17) as f32) * 0.00012, 0.0);
+                        lateral + vertical
+                    } else {
+                        Vec3::zero()
+                    };
+                    let mut world_vertices_for_fix = build_world_vertices(&verts_uv, surface);
+                    if profile_bias_vec != Vec3::zero() {
+                        for v in world_vertices_for_fix.iter_mut() {
+                            v[0] += profile_bias_vec.x;
+                            v[1] += profile_bias_vec.y;
+                            v[2] += profile_bias_vec.z;
+                        }
+                    }
                     let mut indices = indices;
                     fix_winding(&world_vertices_for_fix, &mut indices, surface.plane.normal);
 
@@ -1201,7 +1272,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                     let tile_flip_x = surface.tile_local_flip_x();
                     let (
                         verts_uv,
-                        world_vertices,
+                        mut world_vertices,
                         default_indices,
                         override_batches,
                         blend_batches,
@@ -1217,6 +1288,13 @@ impl ChunkBuilder for D3ChunkBuilder {
                         tile_origin_uv,
                         tile_flip_x,
                     );
+                    if profile_bias_vec != Vec3::zero() {
+                        for v in world_vertices.iter_mut() {
+                            v[0] += profile_bias_vec.x;
+                            v[1] += profile_bias_vec.y;
+                            v[2] += profile_bias_vec.z;
+                        }
+                    }
 
                     let uvs = build_surface_uvs(&verts_uv, sector, surface);
                     #[allow(dead_code)]
