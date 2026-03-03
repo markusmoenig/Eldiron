@@ -7,15 +7,16 @@
 - New **Avatar** based character *skinning system*.
 - New *Duplicate* tool for vertices, lines, sectors.
 - New paint tools: *Selection, Paint Bucket, Eraser, Picker*.
-- New 3D and 2D renderer now using rasterization for faster performance.
-- Better terrain creation.
+- New 3D and 2D renderer using rasterization for faster performance.
+- Better terrain creation tools.
 - Switched action parameters to be TOML based.
-- Procedural geometry actions: *Create Fence*, *Create Palisade*.
+- Procedural geometry actions: *Create Fence*, *Create Palisade, Create Stairs*.
 - First procedural geometry props using the *Create Props* action.
-- Terrain and avatars are now drawn in 2D.
+- Terrain and avatars are now drawn in both 3D and 2D.
 - Added audio support to Eldion (WAV + OGG) and added the corresponding host scripting commands ("play_audio", "clear_audio", set_audio_bus_volume").
 - Support for spells!
 - Added patrol (walks along linedefs).
+- Eldiron Creator now supports multiple projects.
 
 ---
 

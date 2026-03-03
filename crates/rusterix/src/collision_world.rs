@@ -360,10 +360,48 @@ impl CollisionWorld {
         let chunk_coords = self.world_to_chunk(position);
 
         if let Some(chunk_collision) = self.chunks.get(&chunk_coords) {
+            let mut best_height: Option<f32> = None;
             for floor in &chunk_collision.walkable_floors {
                 if self.point_in_polygon_2d(position, &floor.polygon_2d, 0.0) {
-                    return Some(floor.height);
+                    best_height = Some(match best_height {
+                        Some(curr) => curr.max(floor.height),
+                        None => floor.height,
+                    });
                 }
+            }
+            if best_height.is_some() {
+                return best_height;
+            }
+        }
+
+        None
+    }
+
+    /// Find floor height at position preferring the closest height to `reference_y`.
+    /// Useful when multiple floors overlap in XZ (stairs/platform seams) to avoid
+    /// instant snapping to an unrelated higher/lower floor.
+    pub fn get_floor_height_nearest(&self, position: Vec2<f32>, reference_y: f32) -> Option<f32> {
+        let chunk_coords = self.world_to_chunk(position);
+
+        if let Some(chunk_collision) = self.chunks.get(&chunk_coords) {
+            let mut best_height: Option<f32> = None;
+            let mut best_dist = f32::INFINITY;
+            for floor in &chunk_collision.walkable_floors {
+                if self.point_in_polygon_2d(position, &floor.polygon_2d, 0.0) {
+                    let d = (floor.height - reference_y).abs();
+                    if d < best_dist {
+                        best_dist = d;
+                        best_height = Some(floor.height);
+                    } else if (d - best_dist).abs() < 1e-4
+                        && floor.height > best_height.unwrap_or(f32::NEG_INFINITY)
+                    {
+                        // Stable tie-breaker: prefer higher floor.
+                        best_height = Some(floor.height);
+                    }
+                }
+            }
+            if let Some(h) = best_height {
+                return Some(h);
             }
         }
 
@@ -397,8 +435,15 @@ impl CollisionWorld {
             self.navgrid_next_waypoint(from, to, radius, base_height, max_step_height, 0.05)?
         };
 
-        let (new_position, _) =
-            self.step_towards_point(from, waypoint, speed, radius, base_height, 0.05);
+        let (new_position, _) = self.step_towards_point(
+            from,
+            waypoint,
+            speed,
+            radius,
+            base_height,
+            max_step_height,
+            0.05,
+        );
         let arrived = (to - new_position).magnitude() <= 0.05;
         Some((new_position, arrived))
     }
@@ -441,8 +486,15 @@ impl CollisionWorld {
             )?
         };
 
-        let (new_position, _) =
-            self.step_towards_point(from, waypoint, speed, agent_radius, base_height, 0.05);
+        let (new_position, _) = self.step_towards_point(
+            from,
+            waypoint,
+            speed,
+            agent_radius,
+            base_height,
+            max_step_height,
+            0.05,
+        );
         let arrived = (target - new_position).magnitude() <= dest_radius;
         Some((new_position, arrived))
     }
@@ -481,6 +533,7 @@ impl CollisionWorld {
         speed: f32,
         radius: f32,
         base_height: f32,
+        max_step_height: f32,
         arrival_radius: f32,
     ) -> (Vec2<f32>, bool) {
         let to_vector = target - from;
@@ -498,7 +551,26 @@ impl CollisionWorld {
         while remaining > 0.0001 {
             let len = remaining.min(sub_step);
             let delta = Vec3::new(dir.x * len, 0.0, dir.y * len);
-            let (next, blocked) = self.move_distance(current, delta, radius);
+            let current_2d = Vec2::new(current.x, current.z);
+            let current_floor = self
+                .sample_floor_height(current_2d, radius)
+                .unwrap_or(current.y);
+            let probe_2d = current_2d + Vec2::new(delta.x, delta.z);
+            let mut move_height = current_floor;
+            if let Some(next_floor) = self.sample_floor_height(probe_2d, radius) {
+                if (next_floor - current_floor).abs() <= max_step_height + 1e-3 {
+                    move_height = next_floor;
+                }
+            }
+            current.y = move_height;
+
+            let (mut next, blocked) = self.move_distance(current, delta, radius);
+            let next_2d = Vec2::new(next.x, next.z);
+            if let Some(next_floor) = self.sample_floor_height(next_2d, radius) {
+                if (next_floor - current_floor).abs() <= max_step_height + 1e-3 {
+                    next.y = next_floor;
+                }
+            }
             let moved = Vec2::new(next.x - current.x, next.z - current.z).magnitude();
             current = next;
             remaining -= len;
@@ -612,9 +684,16 @@ impl CollisionWorld {
         min: Vec3<f32>,
         max: Vec3<f32>,
     ) -> bool {
-        // For walls, we only check XZ collision (horizontal plane)
-        // The Y check would prevent collision if the player is at a different height
-        // We assume the player's height is handled elsewhere (they're always on the ground)
+        // First check vertical relation using feet height (pos.y).
+        // This allows stepping onto low geometry (e.g. stair tops near short walls)
+        // instead of being blocked forever by XZ overlap alone.
+        const FEET_EPS: f32 = 0.02;
+        if pos.y >= max.y - FEET_EPS {
+            return false;
+        }
+        if pos.y < min.y - radius {
+            return false;
+        }
 
         // Expand AABB by radius in XZ plane only
         let expanded_min_x = min.x - radius;

@@ -1435,7 +1435,8 @@ impl ToolList {
                     let mut index = 0;
                     for (_, surface) in &map.surfaces {
                         if surface.sector_id == sector_id {
-                            let corners = surface.tile_outline_world(server_ctx.rect_tile_id_3d);
+                            let corners =
+                                surface.tile_outline_world_local(server_ctx.rect_tile_id_3d, map);
                             let n = surface.plane.normal;
 
                             // Draw 4 edges (close the loop by wrapping 3→0)

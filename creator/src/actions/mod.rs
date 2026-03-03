@@ -13,6 +13,7 @@ pub mod create_linedef;
 pub mod create_palisade;
 pub mod create_prop;
 pub mod create_sector;
+pub mod create_stairs;
 pub mod duplicate;
 pub mod duplicate_tile;
 pub mod edit_linedef;

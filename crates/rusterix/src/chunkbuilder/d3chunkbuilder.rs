@@ -4,7 +4,8 @@ use crate::chunkbuilder::surface_mesh_builder::{
 use crate::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
 use crate::collision_world::{BlockingVolume, DynamicOpening, OpeningType, WalkableFloor};
 use crate::{
-    Assets, Batch3D, Chunk, ChunkBuilder, Item, Map, PixelSource, Value, VertexBlendPreset,
+    Assets, Batch3D, Chunk, ChunkBuilder, Item, Map, PixelSource, Value, ValueContainer,
+    VertexBlendPreset,
 };
 use crate::{BillboardAnimation, GeometrySource, LoopOp, ProfileLoop, RepeatMode, Sector};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -58,6 +59,22 @@ fn build_world_vertices(verts_uv: &[[f32; 2]], surface: &crate::Surface) -> Vec<
             [p.x, p.y, p.z, 1.0]
         })
         .collect()
+}
+
+fn surface_tile_origin_uv(surface: &crate::Surface, map: &Map) -> Vec2<f32> {
+    if let Some(loop_uv) = surface.sector_loop_uv(map) {
+        if loop_uv.is_empty() {
+            return Vec2::zero();
+        }
+        let mut min = Vec2::new(f32::INFINITY, f32::INFINITY);
+        for p in &loop_uv {
+            min.x = min.x.min(p.x);
+            min.y = min.y.min(p.y);
+        }
+        min
+    } else {
+        Vec2::zero()
+    }
 }
 
 fn build_surface_uvs(verts_uv: &[[f32; 2]], sector: &Sector) -> Vec<[f32; 2]> {
@@ -156,6 +173,7 @@ fn partition_triangles_with_tile_and_blend_overrides(
     assets: &Assets,
     surface: &crate::Surface,
     default_tile_id: Uuid,
+    tile_origin_uv: Vec2<f32>,
 ) -> (
     Vec<[f32; 2]>,
     Vec<[f32; 4]>,
@@ -186,14 +204,19 @@ fn partition_triangles_with_tile_and_blend_overrides(
 
     // Subdivide each triangle against 1x1 UV tiles - do this ONCE
     let (tiled_uvs, tiled_world, tiled_tris, vertex_cells) =
-        subdivide_triangles_into_tiles(indices, uvs, surface);
+        subdivide_triangles_into_tiles(indices, uvs, surface, tile_origin_uv);
 
     // Build a per-vertex UV set that is local to each tile (0..1), used for overrides
     let mut uvs_local = tiled_uvs.clone();
     for (i, uv) in uvs_local.iter_mut().enumerate() {
         let (tx, ty) = vertex_cells[i];
-        uv[0] -= tx as f32;
-        uv[1] -= ty as f32;
+        let local_u = tiled_uvs[i][0] - tile_origin_uv.x;
+        let local_v = tiled_uvs[i][1] - tile_origin_uv.y;
+        let eps = 1e-4_f32;
+        let cell_u = (local_u - tx as f32).clamp(0.0, 1.0);
+        let cell_v = (local_v - ty as f32).clamp(0.0, 1.0);
+        uv[0] = cell_u.clamp(eps, 1.0 - eps);
+        uv[1] = (1.0 - cell_v).clamp(eps, 1.0 - eps);
     }
 
     for (tile_cell, tri) in tiled_tris {
@@ -277,6 +300,7 @@ fn subdivide_triangles_into_tiles(
     indices: &[(usize, usize, usize)],
     verts_uv: &[[f32; 2]],
     surface: &crate::Surface,
+    tile_origin_uv: Vec2<f32>,
 ) -> (
     Vec<[f32; 2]>,
     Vec<[f32; 4]>,
@@ -355,14 +379,27 @@ fn subdivide_triangles_into_tiles(
     let mut new_world = build_world_vertices(verts_uv, surface);
     let mut vertex_cells: Vec<(i32, i32)> = verts_uv
         .iter()
-        .map(|uv| (uv[0].floor() as i32, uv[1].floor() as i32))
+        .map(|uv| {
+            let local_u = uv[0] - tile_origin_uv.x;
+            let local_v = uv[1] - tile_origin_uv.y;
+            (local_u.floor() as i32, local_v.floor() as i32)
+        })
         .collect();
     let mut tiled_indices = Vec::new();
 
     for &(a, b, c) in indices {
-        let pa = vek::Vec2::new(verts_uv[a][0], verts_uv[a][1]);
-        let pb = vek::Vec2::new(verts_uv[b][0], verts_uv[b][1]);
-        let pc = vek::Vec2::new(verts_uv[c][0], verts_uv[c][1]);
+        let pa = vek::Vec2::new(
+            verts_uv[a][0] - tile_origin_uv.x,
+            verts_uv[a][1] - tile_origin_uv.y,
+        );
+        let pb = vek::Vec2::new(
+            verts_uv[b][0] - tile_origin_uv.x,
+            verts_uv[b][1] - tile_origin_uv.y,
+        );
+        let pc = vek::Vec2::new(
+            verts_uv[c][0] - tile_origin_uv.x,
+            verts_uv[c][1] - tile_origin_uv.y,
+        );
         let tri = vec![pa, pb, pc];
 
         let orig_sign = polygon_area(&tri).signum();
@@ -396,8 +433,9 @@ fn subdivide_triangles_into_tiles(
 
                 let base = new_uvs.len();
                 for p in &poly {
-                    new_uvs.push([p.x, p.y]);
-                    let w = surface.uv_to_world(*p);
+                    let uv_world = vek::Vec2::new(p.x + tile_origin_uv.x, p.y + tile_origin_uv.y);
+                    new_uvs.push([uv_world.x, uv_world.y]);
+                    let w = surface.uv_to_world(uv_world);
                     new_world.push([w.x, w.y, w.z, 1.0]);
                     vertex_cells.push((tx, ty));
                 }
@@ -445,7 +483,6 @@ impl ChunkBuilder for D3ChunkBuilder {
             let Some(sector) = map.find_sector(surface.sector_id) else {
                 continue;
             };
-
             // Check for invalid surface - this shouldn't happen after sanitization,
             // but acts as a safety net. We can't rebuild here since we only have a reference to map.
             if !surface.is_valid() {
@@ -610,6 +647,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                         };
 
                     // Apply BOTH tile overrides and blend overrides in a single pass
+                    let tile_origin_uv = surface_tile_origin_uv(surface, map);
                     let (
                         verts_uv,
                         world_vertices,
@@ -625,6 +663,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                         assets,
                         surface,
                         default_tile_id,
+                        tile_origin_uv,
                     );
 
                     if dbg {
@@ -971,6 +1010,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 });
 
                                 // Apply both blend and tile overrides to back cap in a single pass
+                                let tile_origin_uv = surface_tile_origin_uv(surface, map);
                                 let (
                                     back_verts_uv,
                                     back_world_vertices,
@@ -986,6 +1026,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                                     assets,
                                     surface,
                                     default_tile_id,
+                                    tile_origin_uv,
                                 );
 
                                 let mut back_world_vertices = back_world_vertices;
@@ -1117,6 +1158,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                         };
 
                     // Apply both blend and tile overrides (fallback path) in a single pass
+                    let tile_origin_uv = surface_tile_origin_uv(surface, map);
                     let (
                         verts_uv,
                         world_vertices,
@@ -1132,6 +1174,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                         assets,
                         surface,
                         default_tile_id,
+                        tile_origin_uv,
                     );
 
                     let uvs = build_surface_uvs(&verts_uv, sector);
@@ -1279,6 +1322,7 @@ impl ChunkBuilder for D3ChunkBuilder {
         }
 
         // Build optional non-destructive linedef features (palisade, fence, ...).
+        generate_sector_stairs(map, assets, chunk, vmchunk);
         generate_linedef_features(map, assets, chunk, vmchunk);
 
         // Generate terrain for this chunk
@@ -1305,6 +1349,10 @@ impl ChunkBuilder for D3ChunkBuilder {
             let Some(sector) = map.find_sector(surface.sector_id) else {
                 continue;
             };
+            let sector_feature = sector
+                .properties
+                .get_str_default("sector_feature", "None".to_string());
+            let sector_has_stairs = sector_feature == "Stairs";
 
             let bbox = sector.bounding_box(map);
             // Cull with the sector bbox: only check intersection
@@ -1424,7 +1472,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                     }
                 } else {
                     // Horizontal surface (floor/ceiling) - only add as walkable floor if facing up
-                    if normal.y > 0.7 {
+                    if normalized_y > 0.7 && !sector_has_stairs {
                         let floor_polygon: Vec<Vec2<f32>> = outer_loop
                             .path
                             .iter()
@@ -1686,7 +1734,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 max: wall_max,
                             });
                         }
-                    } else if normalized_y > 0.7 {
+                    } else if normalized_y > 0.7 && !sector_has_stairs {
                         // Horizontal floor - add as walkable
                         collision.walkable_floors.push(WalkableFloor {
                             geo_id: GeoId::Sector(sector.id),
@@ -1700,6 +1748,7 @@ impl ChunkBuilder for D3ChunkBuilder {
 
         // Linedef feature collisions (palisade/fence) are generated non-destructively,
         // so add blocking volumes here to match render geometry.
+        add_generated_feature_collision(map, &chunk_bbox, &mut collision);
         add_linedef_feature_collision(map, &chunk_bbox, &mut collision);
 
         collision
@@ -1786,6 +1835,206 @@ fn add_linedef_feature_collision(
             min: Vec3::new(min2.x, min_y, min2.y),
             max: Vec3::new(max2.x, max_y, max2.y),
         });
+    }
+}
+
+fn add_generated_feature_collision(
+    map: &Map,
+    chunk_bbox: &crate::BBox,
+    collision: &mut crate::collision_world::ChunkCollision,
+) {
+    add_stairs_feature_collision(map, chunk_bbox, collision);
+}
+
+fn add_stairs_feature_collision(
+    map: &Map,
+    chunk_bbox: &crate::BBox,
+    collision: &mut crate::collision_world::ChunkCollision,
+) {
+    for sector in &map.sectors {
+        let feature = sector
+            .properties
+            .get_str_default("sector_feature", "None".to_string());
+        if feature != "Stairs" {
+            continue;
+        }
+
+        let bbox = sector.bounding_box(map);
+        if !bbox.intersects(chunk_bbox) {
+            continue;
+        }
+
+        let steps = sector.properties.get_int_default("stairs_steps", 6).max(1) as usize;
+        let total_height = sector
+            .properties
+            .get_float_default("stairs_total_height", 1.0)
+            .max(0.0);
+        if total_height <= 0.0 {
+            continue;
+        }
+        let dir = sector
+            .properties
+            .get_int_default("stairs_direction", 0)
+            .clamp(0, 3);
+
+        for (_, surface) in &map.surfaces {
+            if surface.sector_id != sector.id {
+                continue;
+            }
+            if surface.plane.normal.y.abs() <= 0.7 {
+                continue;
+            }
+
+            let Some(loop_uv) = surface.sector_loop_uv(map) else {
+                continue;
+            };
+            if loop_uv.len() < 3 {
+                continue;
+            }
+
+            let mut min_u = f32::INFINITY;
+            let mut min_v = f32::INFINITY;
+            let mut max_u = f32::NEG_INFINITY;
+            let mut max_v = f32::NEG_INFINITY;
+            for p in &loop_uv {
+                min_u = min_u.min(p.x);
+                min_v = min_v.min(p.y);
+                max_u = max_u.max(p.x);
+                max_v = max_v.max(p.y);
+            }
+
+            let (run_min, run_max, cross_min, cross_max, along_u) = match dir {
+                0 => (min_v, max_v, min_u, max_u, false), // north (+V)
+                1 => (min_u, max_u, min_v, max_v, true),  // east (+U)
+                2 => (min_v, max_v, min_u, max_u, false), // south (-V)
+                _ => (min_u, max_u, min_v, max_v, true),  // west (-U)
+            };
+            let run_len = (run_max - run_min).max(1e-4);
+            let step_run = run_len / steps as f32;
+            let overlap = (step_run * 0.15).clamp(0.0, 0.08);
+            let mut normal = surface.plane.normal;
+            if normal.y < 0.0 {
+                normal = -normal;
+            }
+            let normal = {
+                let l = normal.magnitude();
+                if l > 1e-6 {
+                    normal / l
+                } else {
+                    Vec3::new(0.0, 1.0, 0.0)
+                }
+            };
+
+            // Carve a passable opening only at the stair-top transition strip.
+            // A full-footprint opening lets players bypass walls at side edges.
+            let hi_edge = if dir == 0 || dir == 1 {
+                run_max
+            } else {
+                run_min
+            };
+            let strip_depth = (step_run * 0.9).clamp(0.12, 0.35);
+            let eps = 0.03_f32;
+            let (open_run_min, open_run_max) = if dir == 0 || dir == 1 {
+                (
+                    (hi_edge - strip_depth).max(run_min),
+                    (hi_edge + eps).min(run_max),
+                )
+            } else {
+                (
+                    (hi_edge - eps).max(run_min),
+                    (hi_edge + strip_depth).min(run_max),
+                )
+            };
+            // Keep the opening narrow across the stair width to prevent side-edge wall bypass.
+            let cross_center = (cross_min + cross_max) * 0.5;
+            let cross_width = (cross_max - cross_min).abs();
+            let open_cross_half = (cross_width * 0.28).clamp(0.28, 0.62);
+            let open_cross_min = (cross_center - open_cross_half).max(cross_min + 0.02);
+            let open_cross_max = (cross_center + open_cross_half).min(cross_max - 0.02);
+
+            let (open_uv_a, open_uv_b, open_uv_c, open_uv_d) = if along_u {
+                (
+                    Vec2::new(open_run_min, open_cross_min),
+                    Vec2::new(open_run_max, open_cross_min),
+                    Vec2::new(open_run_max, open_cross_max),
+                    Vec2::new(open_run_min, open_cross_max),
+                )
+            } else {
+                (
+                    Vec2::new(open_cross_min, open_run_min),
+                    Vec2::new(open_cross_max, open_run_min),
+                    Vec2::new(open_cross_max, open_run_max),
+                    Vec2::new(open_cross_min, open_run_max),
+                )
+            };
+            let w_open_a = surface.uv_to_world(open_uv_a);
+            let w_open_b = surface.uv_to_world(open_uv_b);
+            let w_open_c = surface.uv_to_world(open_uv_c);
+            let w_open_d = surface.uv_to_world(open_uv_d);
+            let base_h = (w_open_a.y + w_open_b.y + w_open_c.y + w_open_d.y) * 0.25;
+            let boundary_2d = vec![
+                Vec2::new(w_open_a.x, w_open_a.z),
+                Vec2::new(w_open_b.x, w_open_b.z),
+                Vec2::new(w_open_c.x, w_open_c.z),
+                Vec2::new(w_open_d.x, w_open_d.z),
+            ];
+            collision.dynamic_openings.push(DynamicOpening {
+                geo_id: GeoId::Sector(sector.id),
+                item_blocking: Some(false),
+                boundary_2d,
+                floor_height: base_h + total_height - 0.10,
+                ceiling_height: base_h + total_height + 2.5,
+                opening_type: OpeningType::Passage,
+            });
+
+            for i in 0..steps {
+                let t0 = i as f32 / steps as f32;
+                let t1 = (i + 1) as f32 / steps as f32;
+                let h1 = total_height * t1;
+
+                let (r0, r1) = match dir {
+                    0 | 1 => (run_min + run_len * t0, run_min + run_len * t1),
+                    2 | 3 => (run_max - run_len * t1, run_max - run_len * t0),
+                    _ => (run_min + run_len * t0, run_min + run_len * t1),
+                };
+                let mut r0 = r0 - overlap;
+                let mut r1 = r1 + overlap;
+                r0 = r0.max(run_min);
+                r1 = r1.min(run_max);
+
+                let (uv_a, uv_b, uv_c, uv_d) = if along_u {
+                    (
+                        Vec2::new(r0, cross_min),
+                        Vec2::new(r1, cross_min),
+                        Vec2::new(r1, cross_max),
+                        Vec2::new(r0, cross_max),
+                    )
+                } else {
+                    (
+                        Vec2::new(cross_min, r0),
+                        Vec2::new(cross_max, r0),
+                        Vec2::new(cross_max, r1),
+                        Vec2::new(cross_min, r1),
+                    )
+                };
+
+                let w0 = surface.uv_to_world(uv_a) + normal * h1;
+                let w1 = surface.uv_to_world(uv_b) + normal * h1;
+                let w2 = surface.uv_to_world(uv_c) + normal * h1;
+                let w3 = surface.uv_to_world(uv_d) + normal * h1;
+
+                collision.walkable_floors.push(WalkableFloor {
+                    geo_id: GeoId::Sector(sector.id),
+                    height: (w0.y + w1.y + w2.y + w3.y) * 0.25,
+                    polygon_2d: vec![
+                        Vec2::new(w0.x, w0.z),
+                        Vec2::new(w1.x, w1.z),
+                        Vec2::new(w2.x, w2.z),
+                        Vec2::new(w3.x, w3.z),
+                    ],
+                });
+            }
+        }
     }
 }
 
@@ -2373,6 +2622,353 @@ fn generate_linedef_features(
                 0,
                 true,
             );
+        }
+    }
+}
+
+fn source_to_tile_id(props: &ValueContainer, key: &str, assets: &Assets) -> Option<Uuid> {
+    let Value::Source(ps) = props.get(key)? else {
+        return None;
+    };
+    ps.tile_from_tile_list(assets).map(|t| t.id)
+}
+
+fn push_quad_with_winding(
+    vmchunk: &mut scenevm::Chunk,
+    geo: GeoId,
+    tile_id: Uuid,
+    mut verts: Vec<[f32; 4]>,
+    uvs: Vec<[f32; 2]>,
+    desired_normal: Vec3<f32>,
+) {
+    let mut inds = vec![(0usize, 1usize, 2usize), (0usize, 2usize, 3usize)];
+    fix_winding(&verts, &mut inds, desired_normal);
+    vmchunk.add_poly_3d(geo, tile_id, std::mem::take(&mut verts), uvs, inds, 0, true);
+}
+
+fn generate_sector_stairs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mut scenevm::Chunk) {
+    let default_tile_id = Uuid::from_str(DEFAULT_TILE_ID).unwrap();
+
+    for sector in &map.sectors {
+        let feature = sector
+            .properties
+            .get_str_default("sector_feature", "None".to_string());
+        if feature != "Stairs" {
+            continue;
+        }
+
+        let bbox = sector.bounding_box(map);
+        if !bbox.intersects(&chunk.bbox) {
+            continue;
+        }
+
+        let steps = sector.properties.get_int_default("stairs_steps", 6).max(1) as usize;
+        let total_height = sector
+            .properties
+            .get_float_default("stairs_total_height", 1.0)
+            .max(0.0);
+        let fill_sides = sector
+            .properties
+            .get_bool_default("stairs_fill_sides", true);
+        if total_height <= 0.0 {
+            continue;
+        }
+        let dir = sector
+            .properties
+            .get_int_default("stairs_direction", 0)
+            .clamp(0, 3);
+
+        let base_tile = source_to_tile_id(&sector.properties, "stairs_tile_source", assets)
+            .or_else(|| source_to_tile_id(&sector.properties, "cap_source", assets))
+            .or_else(|| source_to_tile_id(&sector.properties, "source", assets))
+            .unwrap_or(default_tile_id);
+        let tread_tile = source_to_tile_id(&sector.properties, "stairs_tread_source", assets)
+            .unwrap_or(base_tile);
+        let riser_tile = source_to_tile_id(&sector.properties, "stairs_riser_source", assets)
+            .unwrap_or(base_tile);
+        let side_tile = source_to_tile_id(&sector.properties, "stairs_side_source", assets)
+            .unwrap_or(base_tile);
+
+        for (_, surface) in &map.surfaces {
+            if surface.sector_id != sector.id {
+                continue;
+            }
+            if surface.plane.normal.y.abs() <= 0.7 {
+                continue;
+            }
+
+            let Some(loop_uv) = surface.sector_loop_uv(map) else {
+                continue;
+            };
+            if loop_uv.len() < 3 {
+                continue;
+            }
+
+            let mut min_u = f32::INFINITY;
+            let mut min_v = f32::INFINITY;
+            let mut max_u = f32::NEG_INFINITY;
+            let mut max_v = f32::NEG_INFINITY;
+            for p in &loop_uv {
+                min_u = min_u.min(p.x);
+                min_v = min_v.min(p.y);
+                max_u = max_u.max(p.x);
+                max_v = max_v.max(p.y);
+            }
+            let tex_scale_x = sector
+                .properties
+                .get_float_default("texture_scale_x", 1.0)
+                .max(1e-4);
+            let tex_scale_y = sector
+                .properties
+                .get_float_default("texture_scale_y", 1.0)
+                .max(1e-4);
+
+            let (run_min, run_max, cross_min, cross_max, along_u) = match dir {
+                0 => (min_v, max_v, min_u, max_u, false), // north (+V)
+                1 => (min_u, max_u, min_v, max_v, true),  // east (+U)
+                2 => (min_v, max_v, min_u, max_u, false), // south (-V)
+                _ => (min_u, max_u, min_v, max_v, true),  // west (-U)
+            };
+            let run_len = (run_max - run_min).max(1e-4);
+            let normal = {
+                let mut n = surface.plane.normal;
+                if n.y < 0.0 {
+                    n = -n;
+                }
+                let l = n.magnitude();
+                if l > 1e-6 {
+                    n / l
+                } else {
+                    Vec3::new(0.0, 1.0, 0.0)
+                }
+            };
+
+            for i in 0..steps {
+                let t0 = i as f32 / steps as f32;
+                let t1 = (i + 1) as f32 / steps as f32;
+                let h0 = total_height * t0;
+                let h1 = total_height * t1;
+
+                let (r0, r1) = match dir {
+                    0 | 1 => (run_min + run_len * t0, run_min + run_len * t1),
+                    2 | 3 => (run_max - run_len * t1, run_max - run_len * t0),
+                    _ => (run_min + run_len * t0, run_min + run_len * t1),
+                };
+
+                let (uv_a, uv_b, uv_c, uv_d) = if along_u {
+                    (
+                        Vec2::new(r0, cross_min),
+                        Vec2::new(r1, cross_min),
+                        Vec2::new(r1, cross_max),
+                        Vec2::new(r0, cross_max),
+                    )
+                } else {
+                    (
+                        Vec2::new(cross_min, r0),
+                        Vec2::new(cross_max, r0),
+                        Vec2::new(cross_max, r1),
+                        Vec2::new(cross_min, r1),
+                    )
+                };
+
+                let top = vec![
+                    {
+                        let p = surface.uv_to_world(uv_a) + normal * h1;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                    {
+                        let p = surface.uv_to_world(uv_b) + normal * h1;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                    {
+                        let p = surface.uv_to_world(uv_c) + normal * h1;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                    {
+                        let p = surface.uv_to_world(uv_d) + normal * h1;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                ];
+                let top_uv = vec![
+                    [
+                        (uv_a.x - min_u) / tex_scale_x,
+                        (uv_a.y - min_v) / tex_scale_y,
+                    ],
+                    [
+                        (uv_b.x - min_u) / tex_scale_x,
+                        (uv_b.y - min_v) / tex_scale_y,
+                    ],
+                    [
+                        (uv_c.x - min_u) / tex_scale_x,
+                        (uv_c.y - min_v) / tex_scale_y,
+                    ],
+                    [
+                        (uv_d.x - min_u) / tex_scale_x,
+                        (uv_d.y - min_v) / tex_scale_y,
+                    ],
+                ];
+                push_quad_with_winding(
+                    vmchunk,
+                    GeoId::Sector(sector.id),
+                    tread_tile,
+                    top,
+                    top_uv,
+                    normal,
+                );
+
+                let front_uv0 = if along_u {
+                    Vec2::new(r1, cross_min)
+                } else {
+                    Vec2::new(cross_min, r1)
+                };
+                let front_uv1 = if along_u {
+                    Vec2::new(r1, cross_max)
+                } else {
+                    Vec2::new(cross_max, r1)
+                };
+                let front = vec![
+                    {
+                        let p = surface.uv_to_world(front_uv0) + normal * h0;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                    {
+                        let p = surface.uv_to_world(front_uv1) + normal * h0;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                    {
+                        let p = surface.uv_to_world(front_uv1) + normal * h1;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                    {
+                        let p = surface.uv_to_world(front_uv0) + normal * h1;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                ];
+                let front_w0 = surface.uv_to_world(front_uv0);
+                let front_w1 = surface.uv_to_world(front_uv1);
+                let front_u = (front_w1 - front_w0).magnitude() / tex_scale_x;
+                let front_v = (h1 - h0).abs() / tex_scale_y;
+                let front_uv = vec![
+                    [0.0, 0.0],
+                    [front_u, 0.0],
+                    [front_u, front_v],
+                    [0.0, front_v],
+                ];
+                let mut rise_dir = if along_u {
+                    surface.edit_uv.right
+                } else {
+                    surface.edit_uv.up
+                };
+                if dir == 2 || dir == 3 {
+                    rise_dir = -rise_dir;
+                }
+                let front_n = {
+                    let n = rise_dir.cross(normal);
+                    let l = n.magnitude();
+                    if l > 1e-6 { n / l } else { n }
+                };
+                push_quad_with_winding(
+                    vmchunk,
+                    GeoId::Sector(sector.id),
+                    riser_tile,
+                    front,
+                    front_uv,
+                    front_n,
+                );
+
+                let side0_uv0 = if along_u {
+                    Vec2::new(r0, cross_min)
+                } else {
+                    Vec2::new(cross_min, r0)
+                };
+                let side0_uv1 = if along_u {
+                    Vec2::new(r1, cross_min)
+                } else {
+                    Vec2::new(cross_min, r1)
+                };
+                let side1_uv0 = if along_u {
+                    Vec2::new(r0, cross_max)
+                } else {
+                    Vec2::new(cross_max, r0)
+                };
+                let side1_uv1 = if along_u {
+                    Vec2::new(r1, cross_max)
+                } else {
+                    Vec2::new(cross_max, r1)
+                };
+
+                let side0 = vec![
+                    {
+                        let side_bottom_h = if fill_sides { 0.0 } else { h0 };
+                        let p = surface.uv_to_world(side0_uv0) + normal * side_bottom_h;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                    {
+                        let side_bottom_h = if fill_sides { 0.0 } else { h0 };
+                        let p = surface.uv_to_world(side0_uv1) + normal * side_bottom_h;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                    {
+                        let p = surface.uv_to_world(side0_uv1) + normal * h1;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                    {
+                        let p = surface.uv_to_world(side0_uv0) + normal * h1;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                ];
+                let side1 = vec![
+                    {
+                        let side_bottom_h = if fill_sides { 0.0 } else { h0 };
+                        let p = surface.uv_to_world(side1_uv0) + normal * side_bottom_h;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                    {
+                        let side_bottom_h = if fill_sides { 0.0 } else { h0 };
+                        let p = surface.uv_to_world(side1_uv1) + normal * side_bottom_h;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                    {
+                        let p = surface.uv_to_world(side1_uv1) + normal * h1;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                    {
+                        let p = surface.uv_to_world(side1_uv0) + normal * h1;
+                        [p.x, p.y, p.z, 1.0]
+                    },
+                ];
+                let side0_w0 = surface.uv_to_world(side0_uv0);
+                let side0_w1 = surface.uv_to_world(side0_uv1);
+                let side_u = (side0_w1 - side0_w0).magnitude() / tex_scale_x;
+                let side_v = (h1 - h0).abs() / tex_scale_y;
+                let side_uv = vec![[0.0, 0.0], [side_u, 0.0], [side_u, side_v], [0.0, side_v]];
+                let side_dir = if along_u {
+                    surface.edit_uv.up
+                } else {
+                    surface.edit_uv.right
+                };
+                let side_n0 = {
+                    let n = side_dir.cross(normal);
+                    let l = n.magnitude();
+                    if l > 1e-6 { n / l } else { n }
+                };
+                push_quad_with_winding(
+                    vmchunk,
+                    GeoId::Sector(sector.id),
+                    side_tile,
+                    side0,
+                    side_uv.clone(),
+                    side_n0,
+                );
+                push_quad_with_winding(
+                    vmchunk,
+                    GeoId::Sector(sector.id),
+                    side_tile,
+                    side1,
+                    side_uv,
+                    -side_n0,
+                );
+            }
         }
     }
 }

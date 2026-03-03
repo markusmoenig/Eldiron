@@ -122,6 +122,31 @@ Create a non-destructive fence along selected linedefs.
 - `[lean].randomness`: 0..1 multiplier for random lean variation.
 - UVs follow the linedef direction (continuous flow along the feature, not world X/Z projection).
 
+### Create Stairs
+
+Create non-destructive stairs on selected sectors (3D editor views).
+
+Parameter groups:
+- `[stairs]`: `direction`, `steps`, `total_height`, `fill_sides`
+- `[material]`: `tile_id`, `tread_tile_id`, `riser_tile_id`, `side_tile_id`
+
+Parameter meaning:
+- `[stairs].direction`: stair run direction (`north`, `east`, `south`, `west`).
+- `[stairs].steps`: number of treads (`1..64`).
+- `[stairs].total_height`: total vertical rise of the full staircase (`0..16` world units).
+- `[stairs].fill_sides`: when enabled (default), side geometry is generated so stairs are closed instead of hanging.
+- `[material].tile_id`: default tile UUID used by stair geometry if a per-part tile is not set.
+- `[material].tread_tile_id`: optional tile UUID for tread surfaces.
+- `[material].riser_tile_id`: optional tile UUID for riser (vertical) surfaces.
+- `[material].side_tile_id`: optional tile UUID for side surfaces.
+
+Material fallback order:
+- tread: `tread_tile_id` -> `tile_id` -> sector/source fallback
+- riser: `riser_tile_id` -> `tile_id` -> sector/source fallback
+- side: `side_tile_id` -> `tile_id` -> sector/source fallback
+
+Set `[stairs].total_height = 0` to clear stair generation on the sector.
+
 ### Extrude Sector
 
 *Shortcut: Alt + E*
@@ -318,17 +343,21 @@ Assign the selected tile to the selected sectors. Param: *mode* = repeat or scal
 ### Import Visual Code
 
 Imports Visual Code module JSON via the file requester.
+This action has no parameters.
 
 ### Export Visual Code
 
 Exports the current Visual Code module JSON via the file requester.
+This action has no parameters.
 
 ### Copy Visual Code
 
 Copies the current Visual Code module JSON to the clipboard.
 Writes to both the internal app clipboard and the system clipboard.
+This action has no parameters.
 
 ### Paste Visual Code
 
 Pastes Visual Code module JSON from the clipboard into the current Visual Code dock.
 Works with either internal app clipboard content or system clipboard text.
+This action has no parameters.

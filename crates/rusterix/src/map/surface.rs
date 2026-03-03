@@ -290,12 +290,39 @@ impl Surface {
         Vec2::new(rel.dot(self.edit_uv.right), rel.dot(self.edit_uv.up)) / self.edit_uv.scale
     }
 
+    /// Compute the minimum UV of the owning sector projected onto this surface.
+    /// Used to rebase tile coordinates to a sector-local 0..N space.
+    pub fn sector_uv_min(&self, map: &Map) -> Option<Vec2<f32>> {
+        let loop_uv = self.sector_loop_uv(map)?;
+        if loop_uv.is_empty() {
+            return None;
+        }
+        let mut min = Vec2::new(f32::INFINITY, f32::INFINITY);
+        for p in &loop_uv {
+            min.x = min.x.min(p.x);
+            min.y = min.y.min(p.y);
+        }
+        Some(min)
+    }
+
     /// Map a world point to discrete tile coordinates (1x1 grid cells in UV space).
     /// Returns (tile_x, tile_y) representing which tile cell the point falls into.
     /// This is useful for tile override systems that assign different tiles to different regions.
     pub fn world_to_tile(&self, p: Vec3<f32>) -> (i32, i32) {
         let uv = self.world_to_uv(p);
         (uv.x.floor() as i32, uv.y.floor() as i32)
+    }
+
+    /// Map a world point to sector-local tile coordinates.
+    /// Tile (0,0) starts at the minimum projected UV of this sector.
+    pub fn world_to_tile_local(&self, p: Vec3<f32>, map: &Map) -> (i32, i32) {
+        let uv = self.world_to_uv(p);
+        if let Some(min_uv) = self.sector_uv_min(map) {
+            let local = uv - min_uv;
+            (local.x.floor() as i32, local.y.floor() as i32)
+        } else {
+            (uv.x.floor() as i32, uv.y.floor() as i32)
+        }
     }
 
     /// Get the four world-space corners of a 1x1 tile cell at the given tile coordinates.
@@ -307,6 +334,20 @@ impl Surface {
             Vec2::new(tx as f32 + 1.0, ty as f32),
             Vec2::new(tx as f32 + 1.0, ty as f32 + 1.0),
             Vec2::new(tx as f32, ty as f32 + 1.0),
+        ];
+        corners_uv.map(|uv| self.uv_to_world(uv))
+    }
+
+    /// Get the world-space corners of a sector-local tile cell.
+    /// Tile (0,0) starts at the minimum projected UV of this sector.
+    pub fn tile_outline_world_local(&self, tile: (i32, i32), map: &Map) -> [Vec3<f32>; 4] {
+        let min_uv = self.sector_uv_min(map).unwrap_or(Vec2::zero());
+        let (tx, ty) = tile;
+        let corners_uv = [
+            Vec2::new(min_uv.x + tx as f32, min_uv.y + ty as f32),
+            Vec2::new(min_uv.x + tx as f32 + 1.0, min_uv.y + ty as f32),
+            Vec2::new(min_uv.x + tx as f32 + 1.0, min_uv.y + ty as f32 + 1.0),
+            Vec2::new(min_uv.x + tx as f32, min_uv.y + ty as f32 + 1.0),
         ];
         corners_uv.map(|uv| self.uv_to_world(uv))
     }

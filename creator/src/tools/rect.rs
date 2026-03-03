@@ -753,7 +753,7 @@ impl RectTool {
             if let Some((scenevm::GeoId::Sector(id), world_hit, _)) = rc {
                 for (_, surface) in &map.surfaces {
                     if surface.sector_id == id {
-                        server_ctx.rect_tile_id_3d = surface.world_to_tile(world_hit);
+                        server_ctx.rect_tile_id_3d = surface.world_to_tile_local(world_hit, map);
                         server_ctx.rect_sector_id_3d = Some(id);
                         found = true;
                     }

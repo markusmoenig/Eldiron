@@ -2619,13 +2619,34 @@ impl RegionInstance {
                 CollisionMode::Mesh => {
                     if ctx.collision_world.has_collision_data() {
                         let move_vec = new_position - position;
-                        let start_pos = vek::Vec3::new(position.x, entity.position.y, position.y);
-                        let move_vec_3d = vek::Vec3::new(move_vec.x, 0.0, move_vec.y);
-                        let (collision_pos, blocked) =
-                            ctx.collision_world
-                                .move_distance(start_pos, move_vec_3d, radius);
-                        entity.set_pos_xz(vek::Vec2::new(collision_pos.x, collision_pos.z));
-                        blocked
+                        let desired_dist = move_vec.magnitude();
+                        if desired_dist > 1e-6 {
+                            if let Some((end_2d, arrived)) =
+                                ctx.collision_world.move_towards_on_floors(
+                                    position,
+                                    new_position,
+                                    desired_dist,
+                                    radius,
+                                    1.0,
+                                )
+                            {
+                                entity.set_pos_xz(end_2d);
+                                !arrived
+                            } else {
+                                let start_pos =
+                                    vek::Vec3::new(position.x, entity.position.y, position.y);
+                                let move_vec_3d = vek::Vec3::new(move_vec.x, 0.0, move_vec.y);
+                                let (collision_pos, blocked) = ctx.collision_world.move_distance(
+                                    start_pos,
+                                    move_vec_3d,
+                                    radius,
+                                );
+                                entity.set_pos_xz(vek::Vec2::new(collision_pos.x, collision_pos.z));
+                                blocked
+                            }
+                        } else {
+                            false
+                        }
                     } else {
                         let (end_position, geometry_blocked) =
                             ctx.mapmini
@@ -2640,6 +2661,13 @@ impl RegionInstance {
             let final_pos = entity.get_pos_xz();
 
             let mut base_y = None;
+            if self.collision_mode == CollisionMode::Mesh
+                && ctx.collision_world.has_collision_data()
+            {
+                base_y = ctx
+                    .collision_world
+                    .get_floor_height_nearest(final_pos, entity.position.y);
+            }
             // Fallback to terrain if no floor found.
             if base_y.is_none() {
                 let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
