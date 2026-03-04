@@ -168,6 +168,39 @@ fn distance_point_to_segment_2d(point: Vec2<f32>, seg_start: Vec2<f32>, seg_end:
     (point - projection).magnitude()
 }
 
+fn closest_point_on_segment_2d(
+    point: Vec2<f32>,
+    seg_start: Vec2<f32>,
+    seg_end: Vec2<f32>,
+) -> Vec2<f32> {
+    let seg = seg_end - seg_start;
+    let len_sq = seg.magnitude_squared();
+    if len_sq < 1e-8 {
+        return seg_start;
+    }
+    let t = ((point - seg_start).dot(seg) / len_sq).clamp(0.0, 1.0);
+    seg_start + seg * t
+}
+
+fn closest_point_on_polygon_edges_2d(point: Vec2<f32>, polygon: &[Vec2<f32>]) -> Vec2<f32> {
+    if polygon.is_empty() {
+        return point;
+    }
+    let mut best = polygon[0];
+    let mut best_d = (point - best).magnitude_squared();
+    for i in 0..polygon.len() {
+        let a = polygon[i];
+        let b = polygon[(i + 1) % polygon.len()];
+        let c = closest_point_on_segment_2d(point, a, b);
+        let d = (point - c).magnitude_squared();
+        if d < best_d {
+            best_d = d;
+            best = c;
+        }
+    }
+    best
+}
+
 fn distance_segment_to_segment_2d(
     a0: Vec2<f32>,
     a1: Vec2<f32>,
@@ -3252,24 +3285,6 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
             .properties
             .get_int_default("roof_style", 1)
             .clamp(0, 2);
-        let style_name = match roof_style {
-            0 => "flat",
-            1 => "pyramid",
-            2 => "gable",
-            _ => "unknown",
-        };
-        println!(
-            "[roof:dbg] build sector={} style={}({}) height={:.3} overhang={:.3} chunk=({:.1},{:.1})-({:.1},{:.1})",
-            sector.id,
-            roof_style,
-            style_name,
-            roof_height,
-            roof_overhang,
-            chunk.bbox.min.x,
-            chunk.bbox.min.y,
-            chunk.bbox.max.x,
-            chunk.bbox.max.y
-        );
 
         let roof_tile = source_to_tile_id(&sector.properties, "roof_tile_source", assets)
             .or_else(|| source_to_tile_id(&sector.properties, "cap_source", assets))
@@ -3316,11 +3331,6 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
             base_ring.push(Vec3::new(p.x, best_base_y, p.z));
         }
         if base_ring.len() < 3 {
-            println!(
-                "[roof:dbg] skip sector={} reason=base_ring_too_small count={}",
-                sector.id,
-                base_ring.len()
-            );
             continue;
         }
 
@@ -3463,34 +3473,6 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                 _ => best_base_y + roof_height,
             }
         };
-
-        println!(
-            "[roof:dbg] sector={} ring_points={} axis={} along_min={:.3} along_max={:.3}",
-            sector.id,
-            overhung_base_ring.len(),
-            if gable_axis_is_x {
-                "x-ridge/z-sample"
-            } else {
-                "z-ridge/x-sample"
-            },
-            along_min,
-            along_max
-        );
-
-        if roof_style == 2 {
-            let sample_count = overhung_base_ring.len().min(8);
-            for (idx, p) in overhung_base_ring.iter().enumerate().take(sample_count) {
-                let f = gable_factor(*p);
-                println!(
-                    "[roof:dbg] gable v{} pos=({:.3},{:.3}) factor={:.3} y={:.3}",
-                    idx,
-                    p.x,
-                    p.z,
-                    f,
-                    top_height(*p)
-                );
-            }
-        }
 
         // Gable patch descriptors used by side filler classification:
         // (u0, u1, s0(lo,hi), s1(lo,hi), local_swap)
@@ -3779,16 +3761,7 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                     );
                 }
             }
-            println!(
-                "[roof:dbg] gable strip patches sector={} count={}",
-                sector.id, built_strips
-            );
-
             if built_strips == 0 {
-                println!(
-                    "[roof:dbg] gable strips empty -> fallback triangulate sector={}",
-                    sector.id
-                );
                 if let Some((_world_vertices, mut top_indices, verts_uv)) =
                     surface.triangulate(sector, map)
                 {
@@ -3931,6 +3904,16 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                 } else {
                     Vec3::new(0.0, 0.0, 1.0)
                 };
+                let base_poly_xz: Vec<Vec2<f32>> =
+                    base_ring.iter().map(|p| Vec2::new(p.x, p.z)).collect();
+                let snap_cap_base_to_footprint = |v: [f32; 4]| -> [f32; 4] {
+                    if roof_overhang <= 0.0 {
+                        return v;
+                    }
+                    let snapped =
+                        closest_point_on_polygon_edges_2d(Vec2::new(v[0], v[2]), &base_poly_xz);
+                    [snapped.x, v[1], snapped.y, v[3]]
+                };
                 for (idx, p) in patches.iter().enumerate() {
                     if !p.local_swap {
                         if !start_linked[idx] {
@@ -3944,9 +3927,19 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                                 } else {
                                     Vec2::new(mid, p.u0)
                                 };
+                                let b0 = snap_cap_base_to_footprint(world_from_along_sample(
+                                    p.u0,
+                                    lo,
+                                    best_base_y,
+                                ));
+                                let b1 = snap_cap_base_to_footprint(world_from_along_sample(
+                                    p.u0,
+                                    hi,
+                                    best_base_y,
+                                ));
                                 let tri_vertices = vec![
-                                    world_from_along_sample(p.u0, lo, best_base_y),
-                                    world_from_along_sample(p.u0, hi, best_base_y),
+                                    b0,
+                                    b1,
                                     [apex_xz.x, best_base_y + roof_height, apex_xz.y, 1.0],
                                 ];
                                 let tri_uvs = vec![
@@ -3978,9 +3971,19 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                                 } else {
                                     Vec2::new(mid, p.u1)
                                 };
+                                let b0 = snap_cap_base_to_footprint(world_from_along_sample(
+                                    p.u1,
+                                    lo,
+                                    best_base_y,
+                                ));
+                                let b1 = snap_cap_base_to_footprint(world_from_along_sample(
+                                    p.u1,
+                                    hi,
+                                    best_base_y,
+                                ));
                                 let tri_vertices = vec![
-                                    world_from_along_sample(p.u1, lo, best_base_y),
-                                    world_from_along_sample(p.u1, hi, best_base_y),
+                                    b0,
+                                    b1,
                                     [apex_xz.x, best_base_y + roof_height, apex_xz.y, 1.0],
                                 ];
                                 let tri_uvs = vec![
@@ -4019,9 +4022,19 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                                 } else {
                                     Vec2::new(sm0, um)
                                 };
+                                let b0 = snap_cap_base_to_footprint(world_from_along_sample(
+                                    p.u0,
+                                    p.s0.0,
+                                    best_base_y,
+                                ));
+                                let b1 = snap_cap_base_to_footprint(world_from_along_sample(
+                                    p.u1,
+                                    p.s1.0,
+                                    best_base_y,
+                                ));
                                 let tri0 = vec![
-                                    world_from_along_sample(p.u0, p.s0.0, best_base_y),
-                                    world_from_along_sample(p.u1, p.s1.0, best_base_y),
+                                    b0,
+                                    b1,
                                     [apex0_xz.x, best_base_y + roof_height, apex0_xz.y, 1.0],
                                 ];
                                 let uv0 = vec![
@@ -4049,9 +4062,19 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                                 } else {
                                     Vec2::new(sm1, um)
                                 };
+                                let b0 = snap_cap_base_to_footprint(world_from_along_sample(
+                                    p.u0,
+                                    p.s0.1,
+                                    best_base_y,
+                                ));
+                                let b1 = snap_cap_base_to_footprint(world_from_along_sample(
+                                    p.u1,
+                                    p.s1.1,
+                                    best_base_y,
+                                ));
                                 let tri1 = vec![
-                                    world_from_along_sample(p.u0, p.s0.1, best_base_y),
-                                    world_from_along_sample(p.u1, p.s1.1, best_base_y),
+                                    b0,
+                                    b1,
                                     [apex1_xz.x, best_base_y + roof_height, apex1_xz.y, 1.0],
                                 ];
                                 let uv1 = vec![

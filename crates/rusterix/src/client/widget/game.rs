@@ -696,20 +696,39 @@ impl GameWidget {
 
         let mut target_hidden: FxHashSet<u32> = FxHashSet::default();
 
-        let current_sector = map.find_sector_at(self.player_pos).or_else(|| {
-            map.sectors
+        // Multiple sectors may overlap at player position (e.g. foundations, interiors).
+        // Collect hide patterns from all matching sectors instead of only the first one.
+        let mut hide_patterns: Vec<String> = Vec::new();
+        for sector in map
+            .sectors
+            .iter()
+            .filter(|s| s.layer.is_none() && s.is_inside(map, self.player_pos))
+        {
+            if let Some(Value::StrArray(patterns)) = sector.properties.get("iso_hide_on_enter") {
+                hide_patterns.extend(patterns.iter().cloned());
+            }
+        }
+        if hide_patterns.is_empty()
+            && let Some(current_sector) = map
+                .sectors
                 .iter()
                 .find(|sector| sector.name == self.current_sector_name)
-        });
-        if let Some(current_sector) = current_sector
             && let Some(Value::StrArray(patterns)) =
                 current_sector.properties.get("iso_hide_on_enter")
         {
+            hide_patterns.extend(patterns.iter().cloned());
+        }
+
+        if !hide_patterns.is_empty() {
             for sector in &map.sectors {
-                if patterns
-                    .iter()
-                    .any(|pattern| matches_pattern(&sector.name, pattern))
-                {
+                let roof_name = sector
+                    .properties
+                    .get_str_default("roof_name", String::new());
+                let is_match = hide_patterns.iter().any(|pattern| {
+                    matches_pattern(&sector.name, pattern)
+                        || (!roof_name.is_empty() && matches_pattern(&roof_name, pattern))
+                });
+                if is_match {
                     target_hidden.insert(sector.id);
                 }
             }

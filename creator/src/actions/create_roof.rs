@@ -402,10 +402,6 @@ impl Action for CreateRoof {
     fn load_params(&mut self, map: &Map) {
         let sector_ids = self.selected_roof_sector_ids(map);
         let Some(sector_id) = sector_ids.first().copied() else {
-            println!(
-                "[roof:dbg] load_params no target sector from selected_linedefs={:?}",
-                map.selected_linedefs
-            );
             return;
         };
         let Some(sector) = map.find_sector(sector_id) else {
@@ -445,13 +441,6 @@ impl Action for CreateRoof {
         self.nodeui.set_text_value("actionRoofTileId", tile_id_text);
         self.nodeui
             .set_text_value("actionRoofSideTileId", side_tile_id_text);
-        println!(
-            "[roof:dbg] load_params sector={} style={} height={:.3} overhang={:.3}",
-            sector_id,
-            sector.properties.get_int_default("roof_style", 1),
-            sector.properties.get_float_default("roof_height", 1.0),
-            sector.properties.get_float_default("roof_overhang", 0.0)
-        );
     }
 
     fn apply(
@@ -465,30 +454,13 @@ impl Action for CreateRoof {
         let mut changed = false;
 
         let mut sector_ids = self.selected_roof_sector_ids(map);
-        println!(
-            "[roof:dbg] apply selected_linedefs={:?} resolved_sectors={:?}",
-            map.selected_linedefs, sector_ids
-        );
         if sector_ids.is_empty() {
             if let Some(created) = Self::create_sector_from_selected_linedefs(map) {
                 sector_ids = vec![created];
-                println!(
-                    "[roof:dbg] apply created enclosed sector={} from selected linedefs",
-                    created
-                );
             }
         }
         for sector_id in &sector_ids {
             changed |= self.apply_sector_roof(map, *sector_id);
-            if let Some(sector) = map.find_sector(*sector_id) {
-                println!(
-                    "[roof:dbg] apply sector={} style={} height={:.3} overhang={:.3}",
-                    sector_id,
-                    sector.properties.get_int_default("roof_style", 1),
-                    sector.properties.get_float_default("roof_height", 1.0),
-                    sector.properties.get_float_default("roof_overhang", 0.0)
-                );
-            }
         }
 
         // Cleanup stale roof features on sibling sectors touched by the same selected linedefs.
@@ -509,10 +481,6 @@ impl Action for CreateRoof {
                 }
                 if Self::clear_sector_roof(map, sid) {
                     changed = true;
-                    println!(
-                        "[roof:dbg] cleanup cleared stale roof feature on sector={}",
-                        sid
-                    );
                 }
             }
         }
