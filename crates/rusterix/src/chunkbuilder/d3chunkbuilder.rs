@@ -1568,6 +1568,7 @@ impl ChunkBuilder for D3ChunkBuilder {
             let Some(sector) = map.find_sector(surface.sector_id) else {
                 continue;
             };
+            let sector_is_ridge = sector.properties.get_int_default("terrain_mode", 0) == 2;
             let sector_feature = sector
                 .properties
                 .get_str_default("sector_feature", "None".to_string());
@@ -1691,7 +1692,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                     }
                 } else {
                     // Horizontal surface (floor/ceiling) - only add as walkable floor if facing up
-                    if normalized_y > 0.7 && !sector_has_stairs {
+                    if normalized_y > 0.7 && !sector_has_stairs && !sector_is_ridge {
                         let floor_polygon: Vec<Vec2<f32>> = outer_loop
                             .path
                             .iter()
@@ -1953,7 +1954,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 max: wall_max,
                             });
                         }
-                    } else if normalized_y > 0.7 && !sector_has_stairs {
+                    } else if normalized_y > 0.7 && !sector_has_stairs && !sector_is_ridge {
                         // Horizontal floor - add as walkable
                         collision.walkable_floors.push(WalkableFloor {
                             geo_id: GeoId::Sector(sector.id),
@@ -3406,6 +3407,25 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                 [sample, y, along, 1.0]
             }
         };
+        // Keep gable pitch constant when overhang expands the footprint:
+        // scale rise by sample-axis span ratio (overhung/original).
+        let roof_rise = if roof_style == 2 && roof_overhang > 0.0 {
+            let (mut base_min_s, mut base_max_s) = (f32::INFINITY, f32::NEG_INFINITY);
+            for p in &base_ring {
+                let s = sample_of(*p);
+                base_min_s = base_min_s.min(s);
+                base_max_s = base_max_s.max(s);
+            }
+            let base_span_s = (base_max_s - base_min_s).abs();
+            let over_span_s = if gable_axis_is_x { span_z } else { span_x };
+            if base_span_s > 1e-6 {
+                roof_height * (over_span_s / base_span_s)
+            } else {
+                roof_height
+            }
+        } else {
+            roof_height
+        };
 
         let mut along_values: Vec<f32> = overhung_base_ring.iter().map(|p| along_of(*p)).collect();
         along_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -3469,7 +3489,7 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
         };
         let top_height = |p: Vec3<f32>| -> f32 {
             match roof_style {
-                2 => best_base_y + roof_height * gable_factor(p),
+                2 => best_base_y + roof_rise * gable_factor(p),
                 _ => best_base_y + roof_height,
             }
         };
@@ -3668,7 +3688,7 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                     }
                 }
             }
-            let h = best_base_y + roof_height;
+            let h = best_base_y + roof_rise;
             for (idx, (u0, u1, s0, s1, local_swap)) in gable_patches.iter().enumerate() {
                 if !*local_swap {
                     let sm0 = 0.5 * (s0.0 + s0.1);
@@ -3921,12 +3941,6 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                             let hi = p.s0.0.max(p.s0.1);
                             let width = (hi - lo).abs();
                             if width > 1e-4 {
-                                let mid = 0.5 * (lo + hi);
-                                let apex_xz = if gable_axis_is_x {
-                                    Vec2::new(p.u0, mid)
-                                } else {
-                                    Vec2::new(mid, p.u0)
-                                };
                                 let b0 = snap_cap_base_to_footprint(world_from_along_sample(
                                     p.u0,
                                     lo,
@@ -3937,15 +3951,17 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                                     hi,
                                     best_base_y,
                                 ));
+                                let apex_xz =
+                                    Vec2::new((b0[0] + b1[0]) * 0.5, (b0[2] + b1[2]) * 0.5);
                                 let tri_vertices = vec![
                                     b0,
                                     b1,
-                                    [apex_xz.x, best_base_y + roof_height, apex_xz.y, 1.0],
+                                    [apex_xz.x, best_base_y + roof_rise, apex_xz.y, 1.0],
                                 ];
                                 let tri_uvs = vec![
                                     [0.0, 0.0],
                                     [width / tex_scale_x, 0.0],
-                                    [0.5 * width / tex_scale_x, roof_height / tex_scale_y],
+                                    [0.5 * width / tex_scale_x, roof_rise / tex_scale_y],
                                 ];
                                 let mut tri_indices = vec![(0usize, 1usize, 2usize)];
                                 fix_winding(&tri_vertices, &mut tri_indices, -ridge_dir);
@@ -3965,12 +3981,6 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                             let hi = p.s1.0.max(p.s1.1);
                             let width = (hi - lo).abs();
                             if width > 1e-4 {
-                                let mid = 0.5 * (lo + hi);
-                                let apex_xz = if gable_axis_is_x {
-                                    Vec2::new(p.u1, mid)
-                                } else {
-                                    Vec2::new(mid, p.u1)
-                                };
                                 let b0 = snap_cap_base_to_footprint(world_from_along_sample(
                                     p.u1,
                                     lo,
@@ -3981,15 +3991,17 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                                     hi,
                                     best_base_y,
                                 ));
+                                let apex_xz =
+                                    Vec2::new((b0[0] + b1[0]) * 0.5, (b0[2] + b1[2]) * 0.5);
                                 let tri_vertices = vec![
                                     b0,
                                     b1,
-                                    [apex_xz.x, best_base_y + roof_height, apex_xz.y, 1.0],
+                                    [apex_xz.x, best_base_y + roof_rise, apex_xz.y, 1.0],
                                 ];
                                 let tri_uvs = vec![
                                     [0.0, 0.0],
                                     [width / tex_scale_x, 0.0],
-                                    [0.5 * width / tex_scale_x, roof_height / tex_scale_y],
+                                    [0.5 * width / tex_scale_x, roof_rise / tex_scale_y],
                                 ];
                                 let mut tri_indices = vec![(0usize, 1usize, 2usize)];
                                 fix_winding(&tri_vertices, &mut tri_indices, ridge_dir);
@@ -4013,15 +4025,7 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                         };
                         let width = (p.u1 - p.u0).abs();
                         if width > 1e-4 {
-                            let um = 0.5 * (p.u0 + p.u1);
-
                             {
-                                let sm0 = 0.5 * (p.s0.0 + p.s1.0);
-                                let apex0_xz = if gable_axis_is_x {
-                                    Vec2::new(um, sm0)
-                                } else {
-                                    Vec2::new(sm0, um)
-                                };
                                 let b0 = snap_cap_base_to_footprint(world_from_along_sample(
                                     p.u0,
                                     p.s0.0,
@@ -4032,15 +4036,17 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                                     p.s1.0,
                                     best_base_y,
                                 ));
+                                let apex0_xz =
+                                    Vec2::new((b0[0] + b1[0]) * 0.5, (b0[2] + b1[2]) * 0.5);
                                 let tri0 = vec![
                                     b0,
                                     b1,
-                                    [apex0_xz.x, best_base_y + roof_height, apex0_xz.y, 1.0],
+                                    [apex0_xz.x, best_base_y + roof_rise, apex0_xz.y, 1.0],
                                 ];
                                 let uv0 = vec![
                                     [0.0, 0.0],
                                     [width / tex_scale_x, 0.0],
-                                    [0.5 * width / tex_scale_x, roof_height / tex_scale_y],
+                                    [0.5 * width / tex_scale_x, roof_rise / tex_scale_y],
                                 ];
                                 let mut ind0 = vec![(0usize, 1usize, 2usize)];
                                 fix_winding(&tri0, &mut ind0, -side_dir);
@@ -4056,12 +4062,6 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                             }
 
                             {
-                                let sm1 = 0.5 * (p.s0.1 + p.s1.1);
-                                let apex1_xz = if gable_axis_is_x {
-                                    Vec2::new(um, sm1)
-                                } else {
-                                    Vec2::new(sm1, um)
-                                };
                                 let b0 = snap_cap_base_to_footprint(world_from_along_sample(
                                     p.u0,
                                     p.s0.1,
@@ -4072,15 +4072,17 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                                     p.s1.1,
                                     best_base_y,
                                 ));
+                                let apex1_xz =
+                                    Vec2::new((b0[0] + b1[0]) * 0.5, (b0[2] + b1[2]) * 0.5);
                                 let tri1 = vec![
                                     b0,
                                     b1,
-                                    [apex1_xz.x, best_base_y + roof_height, apex1_xz.y, 1.0],
+                                    [apex1_xz.x, best_base_y + roof_rise, apex1_xz.y, 1.0],
                                 ];
                                 let uv1 = vec![
                                     [0.0, 0.0],
                                     [width / tex_scale_x, 0.0],
-                                    [0.5 * width / tex_scale_x, roof_height / tex_scale_y],
+                                    [0.5 * width / tex_scale_x, roof_rise / tex_scale_y],
                                 ];
                                 let mut ind1 = vec![(0usize, 1usize, 2usize)];
                                 fix_winding(&tri1, &mut ind1, side_dir);
