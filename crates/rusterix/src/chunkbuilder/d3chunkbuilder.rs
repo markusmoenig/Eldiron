@@ -533,6 +533,14 @@ impl ChunkBuilder for D3ChunkBuilder {
             if terrain_mode == 2 {
                 continue;
             }
+            let sector_feature = sector
+                .properties
+                .get_str_default("sector_feature", "None".to_string());
+            // Roof sectors generate their own roof geometry path. Skip the base upward cap
+            // so we don't render an extra flat roof layer below gables.
+            if sector_feature == "Roof" && surface.plane.normal.y > 0.7 {
+                continue;
+            }
 
             // Keep track of hidden sectors so that we can set them as not visible later
             let visible = sector.properties.get_bool_default("visible", true);
@@ -1442,6 +1450,7 @@ impl ChunkBuilder for D3ChunkBuilder {
 
         // Build optional non-destructive linedef features (palisade, fence, ...).
         generate_sector_stairs(map, assets, chunk, vmchunk);
+        generate_sector_roofs(map, assets, chunk, vmchunk);
         generate_linedef_features(map, assets, chunk, vmchunk);
 
         // Generate terrain for this chunk
@@ -3148,6 +3157,787 @@ fn generate_sector_stairs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &m
                     side1,
                     side_uv,
                     -side_n0,
+                );
+            }
+        }
+    }
+}
+
+fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mut scenevm::Chunk) {
+    let default_tile_id = Uuid::from_str(DEFAULT_TILE_ID).unwrap();
+
+    for sector in &map.sectors {
+        let feature = sector
+            .properties
+            .get_str_default("sector_feature", "None".to_string());
+        if feature != "Roof" {
+            continue;
+        }
+
+        let bbox = sector.bounding_box(map);
+        if !bbox.intersects(&chunk.bbox) {
+            continue;
+        }
+
+        let roof_height = sector
+            .properties
+            .get_float_default("roof_height", 1.0)
+            .max(0.0);
+        if roof_height <= 0.0 {
+            continue;
+        }
+        let roof_overhang = sector
+            .properties
+            .get_float_default("roof_overhang", 0.0)
+            .max(0.0);
+        let roof_style = sector
+            .properties
+            .get_int_default("roof_style", 1)
+            .clamp(0, 2);
+        let style_name = match roof_style {
+            0 => "flat",
+            1 => "pyramid",
+            2 => "gable",
+            _ => "unknown",
+        };
+        println!(
+            "[roof:dbg] build sector={} style={}({}) height={:.3} overhang={:.3} chunk=({:.1},{:.1})-({:.1},{:.1})",
+            sector.id,
+            roof_style,
+            style_name,
+            roof_height,
+            roof_overhang,
+            chunk.bbox.min.x,
+            chunk.bbox.min.y,
+            chunk.bbox.max.x,
+            chunk.bbox.max.y
+        );
+
+        let roof_tile = source_to_tile_id(&sector.properties, "roof_tile_source", assets)
+            .or_else(|| source_to_tile_id(&sector.properties, "cap_source", assets))
+            .or_else(|| source_to_tile_id(&sector.properties, "source", assets))
+            .unwrap_or(default_tile_id);
+        let side_tile =
+            source_to_tile_id(&sector.properties, "roof_side_source", assets).unwrap_or(roof_tile);
+
+        // Use the highest horizontal surface of the sector as roof base.
+        let mut best_base_y = f32::NEG_INFINITY;
+        let mut best_loop_uv: Option<Vec<Vec2<f32>>> = None;
+        let mut best_surface: Option<&crate::Surface> = None;
+
+        for (_, surface) in &map.surfaces {
+            if surface.sector_id != sector.id {
+                continue;
+            }
+            if surface.plane.normal.y.abs() <= 0.7 {
+                continue;
+            }
+            let Some(loop_uv) = surface.sector_loop_uv(map) else {
+                continue;
+            };
+            if loop_uv.len() < 3 {
+                continue;
+            }
+            if surface.plane.origin.y > best_base_y {
+                best_base_y = surface.plane.origin.y;
+                best_loop_uv = Some(loop_uv);
+                best_surface = Some(surface);
+            }
+        }
+
+        let Some(loop_uv) = best_loop_uv else {
+            continue;
+        };
+        let Some(surface) = best_surface else {
+            continue;
+        };
+
+        let mut base_ring: Vec<Vec3<f32>> = Vec::with_capacity(loop_uv.len());
+        for uv in &loop_uv {
+            let p = surface.uv_to_world(*uv);
+            base_ring.push(Vec3::new(p.x, best_base_y, p.z));
+        }
+        if base_ring.len() < 3 {
+            println!(
+                "[roof:dbg] skip sector={} reason=base_ring_too_small count={}",
+                sector.id,
+                base_ring.len()
+            );
+            continue;
+        }
+
+        let tex_scale_x = sector
+            .properties
+            .get_float_default("texture_scale_x", 1.0)
+            .max(1e-4);
+        let tex_scale_y = sector
+            .properties
+            .get_float_default("texture_scale_y", 1.0)
+            .max(1e-4);
+
+        let centroid_xz = {
+            let mut c = Vec2::zero();
+            for p in &base_ring {
+                c += Vec2::new(p.x, p.z);
+            }
+            c / (base_ring.len() as f32)
+        };
+
+        let expand_overhang = |p: Vec3<f32>| -> Vec3<f32> {
+            if roof_overhang <= 0.0 {
+                return p;
+            }
+            let v = Vec2::new(p.x, p.z) - centroid_xz;
+            let len = v.magnitude();
+            if len <= 1e-6 {
+                p
+            } else {
+                let out = centroid_xz + v * ((len + roof_overhang) / len);
+                Vec3::new(out.x, p.y, out.y)
+            }
+        };
+
+        let overhung_base_ring: Vec<Vec3<f32>> =
+            base_ring.iter().copied().map(expand_overhang).collect();
+        let n_ring = overhung_base_ring.len();
+        let polygon_signed_area = {
+            let mut a = 0.0f32;
+            for i in 0..n_ring {
+                let p = overhung_base_ring[i];
+                let q = overhung_base_ring[(i + 1) % n_ring];
+                a += p.x * q.z - q.x * p.z;
+            }
+            0.5 * a
+        };
+        let mut concave_vertex = vec![false; n_ring];
+        if n_ring >= 3 {
+            for i in 0..n_ring {
+                let p0 = overhung_base_ring[(i + n_ring - 1) % n_ring];
+                let p1 = overhung_base_ring[i];
+                let p2 = overhung_base_ring[(i + 1) % n_ring];
+                let e1 = Vec2::new(p1.x - p0.x, p1.z - p0.z);
+                let e2 = Vec2::new(p2.x - p1.x, p2.z - p1.z);
+                let cross = e1.x * e2.y - e1.y * e2.x;
+                let is_concave = if polygon_signed_area >= 0.0 {
+                    cross < -1e-5
+                } else {
+                    cross > 1e-5
+                };
+                concave_vertex[i] = is_concave;
+            }
+        }
+
+        // Axis-aligned gable basis:
+        // if X span is larger, ridge runs along X and slope samples along Z (and vice versa).
+        let mut min_x = f32::INFINITY;
+        let mut max_x = f32::NEG_INFINITY;
+        let mut min_z = f32::INFINITY;
+        let mut max_z = f32::NEG_INFINITY;
+        for p in &overhung_base_ring {
+            min_x = min_x.min(p.x);
+            max_x = max_x.max(p.x);
+            min_z = min_z.min(p.z);
+            max_z = max_z.max(p.z);
+        }
+        let span_x = (max_x - min_x).max(1e-6);
+        let span_z = (max_z - min_z).max(1e-6);
+        let gable_axis_is_x = span_x >= span_z;
+        let along_of = |p: Vec3<f32>| -> f32 { if gable_axis_is_x { p.x } else { p.z } };
+        let sample_of = |p: Vec3<f32>| -> f32 { if gable_axis_is_x { p.z } else { p.x } };
+        let world_from_along_sample = |along: f32, sample: f32, y: f32| -> [f32; 4] {
+            if gable_axis_is_x {
+                [along, y, sample, 1.0]
+            } else {
+                [sample, y, along, 1.0]
+            }
+        };
+
+        let mut along_values: Vec<f32> = overhung_base_ring.iter().map(|p| along_of(*p)).collect();
+        along_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        along_values.dedup_by(|a, b| (*a - *b).abs() < 1e-4);
+
+        let along_min = *along_values.first().unwrap_or(&0.0);
+        let along_max = *along_values.last().unwrap_or(&1.0);
+        let along_eps = ((along_max - along_min).abs() * 0.001).max(1e-4);
+
+        let cross_segments = |along: f32| -> Vec<(f32, f32)> {
+            let mut intersections: Vec<f32> = Vec::new();
+            let n = overhung_base_ring.len();
+            for i in 0..n {
+                let a = overhung_base_ring[i];
+                let b = overhung_base_ring[(i + 1) % n];
+                let au = along_of(a);
+                let bu = along_of(b);
+                let av = sample_of(a);
+                let bv = sample_of(b);
+
+                if (au - bu).abs() <= 1e-6 {
+                    continue;
+                }
+                if (au <= along && bu > along) || (bu <= along && au > along) {
+                    let t = (along - au) / (bu - au);
+                    intersections.push(av + t * (bv - av));
+                }
+            }
+            intersections.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            let mut segs: Vec<(f32, f32)> = Vec::new();
+            let mut i = 0usize;
+            while i + 1 < intersections.len() {
+                let s0 = intersections[i];
+                let s1 = intersections[i + 1];
+                if s1 - s0 > 1e-6 {
+                    segs.push((s0, s1));
+                }
+                i += 2;
+            }
+            segs
+        };
+
+        let gable_factor = |p: Vec3<f32>| -> f32 {
+            let u = along_of(p).clamp(along_min + along_eps, along_max - along_eps);
+            let v = sample_of(p);
+            let segs = cross_segments(u);
+            if segs.is_empty() {
+                return 0.0;
+            }
+
+            let mut chosen = segs[0];
+            for s in &segs {
+                if v >= s.0 - 1e-3 && v <= s.1 + 1e-3 {
+                    chosen = *s;
+                    break;
+                }
+            }
+            let width = (chosen.1 - chosen.0).max(1e-6);
+            let t = ((v - chosen.0) / width).clamp(0.0, 1.0);
+            1.0 - (2.0 * t - 1.0).abs()
+        };
+        let top_height = |p: Vec3<f32>| -> f32 {
+            match roof_style {
+                2 => best_base_y + roof_height * gable_factor(p),
+                _ => best_base_y + roof_height,
+            }
+        };
+
+        println!(
+            "[roof:dbg] sector={} ring_points={} axis={} along_min={:.3} along_max={:.3}",
+            sector.id,
+            overhung_base_ring.len(),
+            if gable_axis_is_x {
+                "x-ridge/z-sample"
+            } else {
+                "z-ridge/x-sample"
+            },
+            along_min,
+            along_max
+        );
+
+        if roof_style == 2 {
+            let sample_count = overhung_base_ring.len().min(8);
+            for (idx, p) in overhung_base_ring.iter().enumerate().take(sample_count) {
+                let f = gable_factor(*p);
+                println!(
+                    "[roof:dbg] gable v{} pos=({:.3},{:.3}) factor={:.3} y={:.3}",
+                    idx,
+                    p.x,
+                    p.z,
+                    f,
+                    top_height(*p)
+                );
+            }
+        }
+
+        // Gable patch descriptors used by side filler classification:
+        // (u0, u1, s0(lo,hi), s1(lo,hi), local_swap)
+        let mut gable_patches: Vec<(f32, f32, (f32, f32), (f32, f32), bool)> = Vec::new();
+
+        // --- Top ---
+        if roof_style == 1 {
+            // Pyramid roof (fan to apex)
+            let mut centroid = Vec3::zero();
+            for p in &overhung_base_ring {
+                centroid += *p;
+            }
+            centroid /= overhung_base_ring.len() as f32;
+            let apex = Vec3::new(centroid.x, best_base_y + roof_height, centroid.z);
+
+            for i in 0..overhung_base_ring.len() {
+                let j = (i + 1) % overhung_base_ring.len();
+                let a = overhung_base_ring[i];
+                let b = overhung_base_ring[j];
+
+                let tri_vertices = vec![
+                    [a.x, a.y, a.z, 1.0],
+                    [b.x, b.y, b.z, 1.0],
+                    [apex.x, apex.y, apex.z, 1.0],
+                ];
+
+                let mid = (a + b) * 0.5;
+                let outward = Vec3::new(mid.x - centroid.x, 0.2, mid.z - centroid.z);
+                let mut tri_indices = vec![(0usize, 1usize, 2usize)];
+                fix_winding(&tri_vertices, &mut tri_indices, outward);
+
+                let tri_uvs = vec![
+                    [a.x / tex_scale_x, a.z / tex_scale_y],
+                    [b.x / tex_scale_x, b.z / tex_scale_y],
+                    [apex.x / tex_scale_x, apex.z / tex_scale_y],
+                ];
+
+                vmchunk.add_poly_3d(
+                    GeoId::Sector(sector.id),
+                    roof_tile,
+                    tri_vertices,
+                    tri_uvs,
+                    tri_indices,
+                    0,
+                    true,
+                );
+            }
+        } else if roof_style == 2 {
+            let mut built_strips = 0usize;
+            for i in 0..along_values.len().saturating_sub(1) {
+                let u0 = along_values[i];
+                let u1 = along_values[i + 1];
+                if (u1 - u0).abs() <= 1e-4 {
+                    continue;
+                }
+                let u0s = (u0 + along_eps).min(u1 - along_eps);
+                let u1s = (u1 - along_eps).max(u0 + along_eps);
+                if u1s <= u0s {
+                    continue;
+                }
+
+                let segs0 = cross_segments(u0s);
+                let segs1 = cross_segments(u1s);
+                if segs0.is_empty() || segs1.is_empty() {
+                    continue;
+                }
+
+                let mut used = vec![false; segs1.len()];
+                for s0 in &segs0 {
+                    let c0 = 0.5 * (s0.0 + s0.1);
+                    let mut best_j: Option<usize> = None;
+                    let mut best_score = f32::INFINITY;
+                    for (j, s1) in segs1.iter().enumerate() {
+                        if used[j] {
+                            continue;
+                        }
+                        let c1 = 0.5 * (s1.0 + s1.1);
+                        let overlap = (s0.1.min(s1.1) - s0.0.max(s1.0)).max(0.0);
+                        let center_dist = (c0 - c1).abs();
+                        let score = center_dist - overlap * 0.25;
+                        if score < best_score {
+                            best_score = score;
+                            best_j = Some(j);
+                        }
+                    }
+                    let Some(j) = best_j else {
+                        continue;
+                    };
+                    used[j] = true;
+                    let s1 = segs1[j];
+                    let h = best_base_y + roof_height;
+                    let along_len = (u1 - u0).abs();
+                    let w0 = (s0.1 - s0.0).abs();
+                    let w1 = (s1.1 - s1.0).abs();
+                    let avg_width = 0.5 * (w0 + w1);
+                    let local_swap = avg_width > along_len * 1.05;
+                    gable_patches.push((u0, u1, (s0.0, s0.1), (s1.0, s1.1), local_swap));
+
+                    if !local_swap {
+                        let sm0 = 0.5 * (s0.0 + s0.1);
+                        let sm1 = 0.5 * (s1.0 + s1.1);
+                        let left = vec![
+                            world_from_along_sample(u0, s0.0, best_base_y),
+                            world_from_along_sample(u1, s1.0, best_base_y),
+                            world_from_along_sample(u1, sm1, h),
+                            world_from_along_sample(u0, sm0, h),
+                        ];
+                        let right = vec![
+                            world_from_along_sample(u0, sm0, h),
+                            world_from_along_sample(u1, sm1, h),
+                            world_from_along_sample(u1, s1.1, best_base_y),
+                            world_from_along_sample(u0, s0.1, best_base_y),
+                        ];
+                        let left_uv = vec![
+                            [left[0][0] / tex_scale_x, left[0][2] / tex_scale_y],
+                            [left[1][0] / tex_scale_x, left[1][2] / tex_scale_y],
+                            [left[2][0] / tex_scale_x, left[2][2] / tex_scale_y],
+                            [left[3][0] / tex_scale_x, left[3][2] / tex_scale_y],
+                        ];
+                        let right_uv = vec![
+                            [right[0][0] / tex_scale_x, right[0][2] / tex_scale_y],
+                            [right[1][0] / tex_scale_x, right[1][2] / tex_scale_y],
+                            [right[2][0] / tex_scale_x, right[2][2] / tex_scale_y],
+                            [right[3][0] / tex_scale_x, right[3][2] / tex_scale_y],
+                        ];
+                        push_quad_with_winding(
+                            vmchunk,
+                            GeoId::Sector(sector.id),
+                            roof_tile,
+                            left,
+                            left_uv,
+                            Vec3::new(0.0, 1.0, 0.0),
+                        );
+                        push_quad_with_winding(
+                            vmchunk,
+                            GeoId::Sector(sector.id),
+                            roof_tile,
+                            right,
+                            right_uv,
+                            Vec3::new(0.0, 1.0, 0.0),
+                        );
+                    } else {
+                        // Locally rotate ridge direction for wide-short patches (common on L-arm transitions).
+                        let um = 0.5 * (u0 + u1);
+                        let ml = 0.5 * (s0.0 + s1.0);
+                        let mr = 0.5 * (s0.1 + s1.1);
+
+                        let q0 = vec![
+                            world_from_along_sample(u0, s0.0, best_base_y),
+                            world_from_along_sample(um, ml, h),
+                            world_from_along_sample(um, mr, h),
+                            world_from_along_sample(u0, s0.1, best_base_y),
+                        ];
+                        let q1 = vec![
+                            world_from_along_sample(um, ml, h),
+                            world_from_along_sample(u1, s1.0, best_base_y),
+                            world_from_along_sample(u1, s1.1, best_base_y),
+                            world_from_along_sample(um, mr, h),
+                        ];
+
+                        let q0_uv = vec![
+                            [q0[0][0] / tex_scale_x, q0[0][2] / tex_scale_y],
+                            [q0[1][0] / tex_scale_x, q0[1][2] / tex_scale_y],
+                            [q0[2][0] / tex_scale_x, q0[2][2] / tex_scale_y],
+                            [q0[3][0] / tex_scale_x, q0[3][2] / tex_scale_y],
+                        ];
+                        let q1_uv = vec![
+                            [q1[0][0] / tex_scale_x, q1[0][2] / tex_scale_y],
+                            [q1[1][0] / tex_scale_x, q1[1][2] / tex_scale_y],
+                            [q1[2][0] / tex_scale_x, q1[2][2] / tex_scale_y],
+                            [q1[3][0] / tex_scale_x, q1[3][2] / tex_scale_y],
+                        ];
+                        push_quad_with_winding(
+                            vmchunk,
+                            GeoId::Sector(sector.id),
+                            roof_tile,
+                            q0,
+                            q0_uv,
+                            Vec3::new(0.0, 1.0, 0.0),
+                        );
+                        push_quad_with_winding(
+                            vmchunk,
+                            GeoId::Sector(sector.id),
+                            roof_tile,
+                            q1,
+                            q1_uv,
+                            Vec3::new(0.0, 1.0, 0.0),
+                        );
+                    }
+                    built_strips += 1;
+                }
+            }
+            println!(
+                "[roof:dbg] gable strip patches sector={} count={}",
+                sector.id, built_strips
+            );
+
+            if built_strips == 0 {
+                println!(
+                    "[roof:dbg] gable strips empty -> fallback triangulate sector={}",
+                    sector.id
+                );
+                if let Some((_world_vertices, mut top_indices, verts_uv)) =
+                    surface.triangulate(sector, map)
+                {
+                    let mut top_vertices: Vec<[f32; 4]> = Vec::with_capacity(verts_uv.len());
+                    let mut top_uvs: Vec<[f32; 2]> = Vec::with_capacity(verts_uv.len());
+                    for uv in verts_uv {
+                        let wp = surface.uv_to_world(Vec2::new(uv[0], uv[1]));
+                        let base = expand_overhang(Vec3::new(wp.x, best_base_y, wp.z));
+                        let y = top_height(base);
+                        top_vertices.push([base.x, y, base.z, 1.0]);
+                        top_uvs.push([base.x / tex_scale_x, base.z / tex_scale_y]);
+                    }
+                    fix_winding(&top_vertices, &mut top_indices, Vec3::new(0.0, 1.0, 0.0));
+                    vmchunk.add_poly_3d(
+                        GeoId::Sector(sector.id),
+                        roof_tile,
+                        top_vertices,
+                        top_uvs,
+                        top_indices,
+                        0,
+                        true,
+                    );
+                }
+            }
+        } else if let Some((_world_vertices, mut top_indices, verts_uv)) =
+            surface.triangulate(sector, map)
+        {
+            let mut top_vertices: Vec<[f32; 4]> = Vec::with_capacity(verts_uv.len());
+            let mut top_uvs: Vec<[f32; 2]> = Vec::with_capacity(verts_uv.len());
+            for uv in verts_uv {
+                let wp = surface.uv_to_world(Vec2::new(uv[0], uv[1]));
+                let base = expand_overhang(Vec3::new(wp.x, best_base_y, wp.z));
+                let y = top_height(base);
+                top_vertices.push([base.x, y, base.z, 1.0]);
+                top_uvs.push([base.x / tex_scale_x, base.z / tex_scale_y]);
+            }
+            fix_winding(&top_vertices, &mut top_indices, Vec3::new(0.0, 1.0, 0.0));
+            vmchunk.add_poly_3d(
+                GeoId::Sector(sector.id),
+                roof_tile,
+                top_vertices,
+                top_uvs,
+                top_indices,
+                0,
+                true,
+            );
+        }
+
+        // --- Sides ---
+        if roof_style == 1 {
+            let mut centroid = Vec3::zero();
+            for p in &overhung_base_ring {
+                centroid += *p;
+            }
+            centroid /= overhung_base_ring.len() as f32;
+            let apex = Vec3::new(centroid.x, best_base_y + roof_height, centroid.z);
+
+            for i in 0..overhung_base_ring.len() {
+                let j = (i + 1) % overhung_base_ring.len();
+                let a = overhung_base_ring[i];
+                let b = overhung_base_ring[j];
+                let tri_vertices = vec![
+                    [a.x, a.y, a.z, 1.0],
+                    [b.x, b.y, b.z, 1.0],
+                    [apex.x, apex.y, apex.z, 1.0],
+                ];
+                let edge_len = (b - a).magnitude().max(1e-4);
+                let side_uvs = vec![
+                    [0.0, 0.0],
+                    [edge_len / tex_scale_x, 0.0],
+                    [0.5 * edge_len / tex_scale_x, roof_height / tex_scale_y],
+                ];
+                let mut tri_indices = vec![(0usize, 1usize, 2usize)];
+                let mid = (a + b) * 0.5;
+                let outward = Vec3::new(mid.x - centroid.x, 0.2, mid.z - centroid.z);
+                fix_winding(&tri_vertices, &mut tri_indices, outward);
+                vmchunk.add_poly_3d(
+                    GeoId::Sector(sector.id),
+                    side_tile,
+                    tri_vertices,
+                    side_uvs,
+                    tri_indices,
+                    0,
+                    true,
+                );
+            }
+        } else if roof_style == 2 {
+            // Build side fillers from explicit gable segments:
+            // create end-caps only at open graph ends (start/end of each segment chain),
+            // avoiding long-side false positives from boundary-edge heuristics.
+            #[derive(Clone, Copy)]
+            struct GablePatchSeg {
+                u0: f32,
+                u1: f32,
+                s0: (f32, f32),
+                s1: (f32, f32),
+                local_swap: bool,
+            }
+
+            let patches: Vec<GablePatchSeg> = gable_patches
+                .iter()
+                .map(|(u0, u1, s0, s1, local_swap)| GablePatchSeg {
+                    u0: *u0,
+                    u1: *u1,
+                    s0: *s0,
+                    s1: *s1,
+                    local_swap: *local_swap,
+                })
+                .collect();
+
+            if !patches.is_empty() {
+                let mut start_linked = vec![false; patches.len()];
+                let mut end_linked = vec![false; patches.len()];
+                let link_u_eps = along_eps.max(1e-3);
+                let link_overlap_eps = 1e-3;
+
+                for i in 0..patches.len() {
+                    for j in 0..patches.len() {
+                        if i == j {
+                            continue;
+                        }
+                        if (patches[i].u1 - patches[j].u0).abs() > link_u_eps {
+                            continue;
+                        }
+                        let overlap = (patches[i].s1.1.min(patches[j].s0.1)
+                            - patches[i].s1.0.max(patches[j].s0.0))
+                        .max(0.0);
+                        if overlap > link_overlap_eps {
+                            end_linked[i] = true;
+                            start_linked[j] = true;
+                        }
+                    }
+                }
+
+                let ridge_dir = if gable_axis_is_x {
+                    Vec3::new(1.0, 0.0, 0.0)
+                } else {
+                    Vec3::new(0.0, 0.0, 1.0)
+                };
+                for (idx, p) in patches.iter().enumerate() {
+                    if !p.local_swap {
+                        if !start_linked[idx] {
+                            let lo = p.s0.0.min(p.s0.1);
+                            let hi = p.s0.0.max(p.s0.1);
+                            let width = (hi - lo).abs();
+                            if width > 1e-4 {
+                                let mid = 0.5 * (lo + hi);
+                                let tri_vertices = vec![
+                                    world_from_along_sample(p.u0, lo, best_base_y),
+                                    world_from_along_sample(p.u0, hi, best_base_y),
+                                    world_from_along_sample(p.u0, mid, best_base_y + roof_height),
+                                ];
+                                let tri_uvs = vec![
+                                    [0.0, 0.0],
+                                    [width / tex_scale_x, 0.0],
+                                    [0.5 * width / tex_scale_x, roof_height / tex_scale_y],
+                                ];
+                                let mut tri_indices = vec![(0usize, 1usize, 2usize)];
+                                fix_winding(&tri_vertices, &mut tri_indices, -ridge_dir);
+                                vmchunk.add_poly_3d(
+                                    GeoId::Sector(sector.id),
+                                    side_tile,
+                                    tri_vertices,
+                                    tri_uvs,
+                                    tri_indices,
+                                    0,
+                                    true,
+                                );
+                            }
+                        }
+                        if !end_linked[idx] {
+                            let lo = p.s1.0.min(p.s1.1);
+                            let hi = p.s1.0.max(p.s1.1);
+                            let width = (hi - lo).abs();
+                            if width > 1e-4 {
+                                let mid = 0.5 * (lo + hi);
+                                let tri_vertices = vec![
+                                    world_from_along_sample(p.u1, lo, best_base_y),
+                                    world_from_along_sample(p.u1, hi, best_base_y),
+                                    world_from_along_sample(p.u1, mid, best_base_y + roof_height),
+                                ];
+                                let tri_uvs = vec![
+                                    [0.0, 0.0],
+                                    [width / tex_scale_x, 0.0],
+                                    [0.5 * width / tex_scale_x, roof_height / tex_scale_y],
+                                ];
+                                let mut tri_indices = vec![(0usize, 1usize, 2usize)];
+                                fix_winding(&tri_vertices, &mut tri_indices, ridge_dir);
+                                vmchunk.add_poly_3d(
+                                    GeoId::Sector(sector.id),
+                                    side_tile,
+                                    tri_vertices,
+                                    tri_uvs,
+                                    tri_indices,
+                                    0,
+                                    true,
+                                );
+                            }
+                        }
+                    } else {
+                        // Rotated local segment: close by sample-side caps (not global along-axis caps).
+                        let side_dir = if gable_axis_is_x {
+                            Vec3::new(0.0, 0.0, 1.0)
+                        } else {
+                            Vec3::new(1.0, 0.0, 0.0)
+                        };
+                        let width = (p.u1 - p.u0).abs();
+                        if width > 1e-4 {
+                            let um = 0.5 * (p.u0 + p.u1);
+
+                            let sm0 = 0.5 * (p.s0.0 + p.s1.0);
+                            let tri0 = vec![
+                                world_from_along_sample(p.u0, p.s0.0, best_base_y),
+                                world_from_along_sample(p.u1, p.s1.0, best_base_y),
+                                world_from_along_sample(um, sm0, best_base_y + roof_height),
+                            ];
+                            let uv0 = vec![
+                                [0.0, 0.0],
+                                [width / tex_scale_x, 0.0],
+                                [0.5 * width / tex_scale_x, roof_height / tex_scale_y],
+                            ];
+                            let mut ind0 = vec![(0usize, 1usize, 2usize)];
+                            fix_winding(&tri0, &mut ind0, -side_dir);
+                            vmchunk.add_poly_3d(
+                                GeoId::Sector(sector.id),
+                                side_tile,
+                                tri0,
+                                uv0,
+                                ind0,
+                                0,
+                                true,
+                            );
+
+                            let sm1 = 0.5 * (p.s0.1 + p.s1.1);
+                            let tri1 = vec![
+                                world_from_along_sample(p.u0, p.s0.1, best_base_y),
+                                world_from_along_sample(p.u1, p.s1.1, best_base_y),
+                                world_from_along_sample(um, sm1, best_base_y + roof_height),
+                            ];
+                            let uv1 = vec![
+                                [0.0, 0.0],
+                                [width / tex_scale_x, 0.0],
+                                [0.5 * width / tex_scale_x, roof_height / tex_scale_y],
+                            ];
+                            let mut ind1 = vec![(0usize, 1usize, 2usize)];
+                            fix_winding(&tri1, &mut ind1, side_dir);
+                            vmchunk.add_poly_3d(
+                                GeoId::Sector(sector.id),
+                                side_tile,
+                                tri1,
+                                uv1,
+                                ind1,
+                                0,
+                                true,
+                            );
+                        }
+                    }
+                }
+            }
+        } else {
+            for i in 0..overhung_base_ring.len() {
+                let j = (i + 1) % overhung_base_ring.len();
+                let a = overhung_base_ring[i];
+                let b = overhung_base_ring[j];
+                let ta = Vec3::new(a.x, top_height(a), a.z);
+                let tb = Vec3::new(b.x, top_height(b), b.z);
+                let edge = b - a;
+                let edge_len = edge.magnitude().max(1e-4);
+                let outward = Vec3::new(edge.z, 0.0, -edge.x);
+                let avg_h = ((ta.y - a.y).abs() + (tb.y - b.y).abs()) * 0.5;
+                let h = avg_h.max(1e-4);
+                let side_uvs = vec![
+                    [0.0, 0.0],
+                    [edge_len / tex_scale_x, 0.0],
+                    [edge_len / tex_scale_x, h / tex_scale_y],
+                    [0.0, h / tex_scale_y],
+                ];
+                let side_verts = vec![
+                    [a.x, a.y, a.z, 1.0],
+                    [b.x, b.y, b.z, 1.0],
+                    [tb.x, tb.y, tb.z, 1.0],
+                    [ta.x, ta.y, ta.z, 1.0],
+                ];
+                push_quad_with_winding(
+                    vmchunk,
+                    GeoId::Sector(sector.id),
+                    side_tile,
+                    side_verts,
+                    side_uvs,
+                    outward,
                 );
             }
         }

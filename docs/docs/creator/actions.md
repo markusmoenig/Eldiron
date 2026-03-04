@@ -147,6 +147,26 @@ Material fallback order:
 
 Set `[stairs].total_height = 0` to clear stair generation on the sector.
 
+### Create Roof
+
+Create a non-destructive roof on sectors touched by selected linedefs (3D editor views).
+
+Parameter groups:
+- `[roof]`: `name`, `style`, `height`, `overhang`
+- `[material]`: `tile_id`, `side_tile_id`
+
+Parameter meaning:
+- `[roof].name`: logical roof label stored as `roof_name` on target sectors.
+- `[roof].style`: `flat`, `pyramid`, or `gable`.
+- `[roof].height`: roof rise above the sector top surface. `0` clears roof generation.
+- `[roof].overhang`: outward roof extension in world units (applies to top and side eaves).
+- `[material].tile_id`: optional tile UUID for roof top surfaces.
+- `[material].side_tile_id`: optional tile UUID for roof side surfaces.
+
+Material fallback order:
+- top: `tile_id` -> sector `cap_source` -> sector `source`
+- side: `side_tile_id` -> top fallback chain
+
 ### Extrude Sector
 
 *Shortcut: Alt + E*

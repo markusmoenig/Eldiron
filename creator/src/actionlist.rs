@@ -28,6 +28,7 @@ impl ActionList {
             Box::new(crate::tools::create_linedef::CreateLinedef::new()),
             Box::new(crate::tools::create_palisade::CreatePalisade::new()),
             Box::new(crate::tools::create_prop::CreateProp::new()),
+            Box::new(crate::tools::create_roof::CreateRoof::new()),
             Box::new(crate::tools::create_sector::CreateSector::new()),
             Box::new(crate::tools::create_stairs::CreateStairs::new()),
             Box::new(crate::tools::clear_palette::ClearPalette::new()),

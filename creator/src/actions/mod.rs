@@ -12,6 +12,7 @@ pub mod create_fence;
 pub mod create_linedef;
 pub mod create_palisade;
 pub mod create_prop;
+pub mod create_roof;
 pub mod create_sector;
 pub mod create_stairs;
 pub mod duplicate;
