@@ -873,12 +873,58 @@ pub fn set_project_context(
         }
     }
 
-    if let Some(new_id) = pc.id() {
-        if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-            if let Some(node) = tree_layout.get_node_by_id_mut(&new_id) {
-                if let Some(snapper) = node.widget.as_any().downcast_mut::<TheSnapperbar>() {
-                    snapper.set_selected(true);
+    if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+        if let Some(new_id) = pc.id() {
+            if let Some(node) = tree_layout.get_node_by_id_mut(&new_id)
+                && let Some(snapper) = node.widget.as_any().downcast_mut::<TheSnapperbar>()
+            {
+                snapper.set_selected(true);
+            }
+        } else {
+            match pc {
+                ProjectContext::ProjectSettings => {
+                    let target_id = {
+                        let mut found: Option<TheId> = None;
+                        for node in &mut tree_layout.get_root().childs {
+                            if node.id.name == fl!("game") {
+                                node.set_open(true);
+                                for widget in &node.widgets {
+                                    if widget.id().name == "Project Settings" {
+                                        found = Some(widget.id().clone());
+                                        break;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        found
+                    };
+                    if let Some(id) = target_id {
+                        tree_layout.new_item_selected(id);
+                    }
                 }
+                ProjectContext::DebugLog => {
+                    let target_id = {
+                        let mut found: Option<TheId> = None;
+                        for node in &mut tree_layout.get_root().childs {
+                            if node.id.name == fl!("game") {
+                                node.set_open(true);
+                                for widget in &node.widgets {
+                                    if widget.id().name == "Debug Log" {
+                                        found = Some(widget.id().clone());
+                                        break;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        found
+                    };
+                    if let Some(id) = target_id {
+                        tree_layout.new_item_selected(id);
+                    }
+                }
+                _ => {}
             }
         }
     }

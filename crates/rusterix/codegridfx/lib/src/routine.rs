@@ -562,6 +562,7 @@ impl Routine {
         //
 
         let mut prev_row_indent = indent;
+        let mut prev_row_was_if_header = false;
 
         for row in rows {
             let mut is_if = false;
@@ -640,12 +641,19 @@ impl Routine {
             let mut cleaned = row_code.trim().to_string();
 
             if !cleaned.is_empty() {
+                // If an else follows an if header at the same indent without any body rows,
+                // close the empty if block first so output stays syntactically valid.
+                if is_else && prev_row_was_if_header && prev_row_indent == ind {
+                    *out += &format!("{:ind$}}}\n", "", ind = ind);
+                }
+
                 if !cleaned.ends_with("{") {
                     cleaned += ";";
                 }
 
                 *out += &format!("{:ind$}{}\n", "", cleaned);
                 prev_row_indent = ind;
+                prev_row_was_if_header = is_if && cleaned.ends_with('{');
             }
         }
 

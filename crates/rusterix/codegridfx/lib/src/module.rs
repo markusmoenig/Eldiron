@@ -5,7 +5,6 @@ use theframework::prelude::*;
 const BLOCKS: [&str; 3] = ["Event", "Var = ..", "If .. == .."];
 const VALUES: [&str; 1] = ["Value"];
 const OPERATORS: [&str; 4] = ["Arithmetic", "Assignment", "Comparison", "Else"];
-const USER_EVENTS: [&str; 2] = ["key_down", "key_up"];
 const FUNCTIONS: [&str; 40] = [
     "action",
     "add_item",
@@ -354,27 +353,6 @@ impl Module {
             if !self.contains("startup") {
                 let routine = Routine::new("startup".into());
                 self.routines.insert(routine.id, routine);
-            }
-            if self.module_type == ModuleType::CharacterTemplate {
-                for event in USER_EVENTS {
-                    // Search for the user_event id
-                    let user_event_id = self
-                        .routines
-                        .iter()
-                        .find(|(_, r)| r.name == event)
-                        .map(|(id, _)| *id);
-                    if !self.player {
-                        // If not a player, make sure to delete the "user_event" routine if it exists
-                        if let Some(id) = user_event_id {
-                            self.routines.shift_remove(&id);
-                        }
-                    } else if user_event_id.is_none() {
-                        // If a player and there is no user_event routine, add one
-                        let mut routine = Routine::new(event.into());
-                        routine.folded = true;
-                        self.routines.insert(routine.id, routine);
-                    }
-                }
             }
         }
     }
@@ -975,21 +953,7 @@ impl Module {
                     self.grid_ctx.selected_routine = Some(routine.id);
                     self.grid_ctx.current_cell = None;
 
-                    // Make sure to always insert before potential user events
-                    let mut insert_before = None;
-                    for (index, r) in self.routines.values().enumerate() {
-                        if r.name == USER_EVENTS[0] {
-                            insert_before = Some(index);
-                            break;
-                        }
-                    }
-
-                    if let Some(insert_before) = insert_before {
-                        self.routines
-                            .insert_before(insert_before, routine.id, routine);
-                    } else {
-                        self.routines.insert(routine.id, routine);
-                    }
+                    self.routines.insert(routine.id, routine);
 
                     self.redraw(ui, ctx);
 
@@ -1311,28 +1275,11 @@ impl Module {
         {
             out += "fn event(event, value) {\n";
 
-            let mut contains_user_events = false;
-
             // Build non user_events first
             for r in self.routines.values() {
-                if !USER_EVENTS.contains(&r.name.as_str()) {
-                    r.build_source(&mut out, 4, debug);
-                } else {
-                    contains_user_events = true;
-                }
+                r.build_source(&mut out, 4, debug);
             }
             out += "}\n\n";
-
-            if contains_user_events {
-                out += "fn user_event(event, value) {\n";
-                // Build user_event (if any)
-                for r in self.routines.values() {
-                    if USER_EVENTS.contains(&r.name.as_str()) {
-                        r.build_source(&mut out, 4, debug);
-                    }
-                }
-                out += "}\n";
-            }
         } else {
             out += "fn setup() {\n";
 

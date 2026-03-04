@@ -1009,15 +1009,37 @@ impl TheUI {
 
         if let Some(c) = char {
             if self.ctrl || self.shift || self.alt || self.logo {
-                // Check for accelerators in context menus.
-                for (id, accel) in &ctx.ui.accelerators.clone() {
-                    if accel.matches(self.shift, self.ctrl, self.alt, self.logo, c) {
-                        consumed = true;
-                        ctx.ui
-                            .send(TheEvent::ContextMenuSelected(id.clone(), id.clone()));
-                        ctx.ui
-                            .send(TheEvent::StateChanged(id.clone(), TheWidgetState::Selected));
-                        break;
+                // Local text editing shortcuts must override global accelerators.
+                // In particular Cmd/Ctrl+A should select-all in focused editors
+                // instead of triggering app-level actions like "Save As".
+                let focused_text_input_wants_select_all = if (self.ctrl || self.logo)
+                    && c.to_ascii_lowercase() == 'a'
+                {
+                    if let Some(id) = &ctx.ui.focus {
+                        if let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) {
+                            widget.supports_text_input()
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+                if focused_text_input_wants_select_all {
+                    consumed = false;
+                } else {
+                    // Check for accelerators in context menus.
+                    for (id, accel) in &ctx.ui.accelerators.clone() {
+                        if accel.matches(self.shift, self.ctrl, self.alt, self.logo, c) {
+                            consumed = true;
+                            ctx.ui
+                                .send(TheEvent::ContextMenuSelected(id.clone(), id.clone()));
+                            ctx.ui
+                                .send(TheEvent::StateChanged(id.clone(), TheWidgetState::Selected));
+                            break;
+                        }
                     }
                 }
             }

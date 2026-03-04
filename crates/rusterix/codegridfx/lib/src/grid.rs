@@ -558,6 +558,22 @@ impl Grid {
             }
         };
 
+        // Detect whether the removed row is a block opener (`if` / `else`) and
+        // capture its effective indent so we can outdent the child block.
+        let mut removed_is_block_opener = false;
+        let removed_row_indent = self.effective_indent(remove_row);
+        let mut leading_col: Option<u32> = None;
+        for (&(col, r), cell) in &self.grid {
+            if r == remove_row && !matches!(cell.cell, Cell::Empty) {
+                leading_col = Some(leading_col.map_or(col, |m| m.min(col)));
+            }
+        }
+        if let Some(col) = leading_col
+            && let Some(cell) = self.grid.get(&(col, remove_row))
+        {
+            removed_is_block_opener = matches!(cell.cell, Cell::If | Cell::Else);
+        }
+
         // Gather cells to remove (the row we’re deleting) and cells to shift (rows below)
         let mut to_shift: Vec<((u32, u32), CellItem)> = Vec::new();
         let mut to_remove: Vec<(u32, u32)> = Vec::new();
@@ -598,6 +614,23 @@ impl Grid {
             }
         }
         self.row_indents = new_indents;
+
+        // If we removed a block opener, outdent the contiguous child block by one level.
+        // Child rows are the rows immediately following `remove_row` while their indent
+        // stays deeper than the removed row's indent.
+        if removed_is_block_opener {
+            let max_row = self.grid.keys().map(|&(_, r)| r).max().unwrap_or(0);
+            let mut rr = remove_row;
+            while rr <= max_row {
+                let ind = self.effective_indent(rr);
+                if ind <= removed_row_indent {
+                    break;
+                }
+                let new_ind = ind.saturating_sub(1);
+                self.row_indents.insert(rr, new_ind);
+                rr += 1;
+            }
+        }
 
         // Check if there's still at least one empty row at the bottom after deletion
         // Find the bottom-most row with non-empty content

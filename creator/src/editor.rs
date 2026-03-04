@@ -92,12 +92,17 @@ pub struct Editor {
     self_updater: Arc<Mutex<SelfUpdater>>,
 
     update_counter: usize,
+    last_processed_log_len: usize,
 
     build_values: ValueContainer,
     window_state: CreatorWindowState,
 }
 
 impl Editor {
+    fn log_segment_has_warning_or_error(segment: &str) -> bool {
+        segment.contains("[error]") || segment.contains("[warning]")
+    }
+
     fn window_state_file_path() -> Option<PathBuf> {
         let home = std::env::var("HOME").ok()?;
         Some(
@@ -588,6 +593,7 @@ impl TheTrait for Editor {
             self_updater: Arc::new(Mutex::new(self_updater)),
 
             update_counter: 0,
+            last_processed_log_len: 0,
 
             build_values: ValueContainer::default(),
             window_state: Self::load_window_state(),
@@ -1210,11 +1216,26 @@ impl TheTrait for Editor {
                         rusterix.client.current_map = new_region_name;
                     }
                     if rusterix.server.log_changed {
-                        ui.set_widget_value(
-                            "LogEdit",
-                            ctx,
-                            TheValue::Text(rusterix.server.get_log()),
-                        );
+                        let log_text = rusterix.server.get_log();
+                        ui.set_widget_value("LogEdit", ctx, TheValue::Text(log_text.clone()));
+
+                        // Auto-open Debug Log only when new log content contains warning/error.
+                        let mut start = if log_text.len() < self.last_processed_log_len {
+                            0
+                        } else {
+                            self.last_processed_log_len
+                        };
+                        while start < log_text.len() && !log_text.is_char_boundary(start) {
+                            start += 1;
+                        }
+                        let new_segment = &log_text[start..];
+                        if Self::log_segment_has_warning_or_error(new_segment) {
+                            ctx.ui.send(TheEvent::StateChanged(
+                                TheId::named("Debug Log"),
+                                TheWidgetState::Clicked,
+                            ));
+                        }
+                        self.last_processed_log_len = log_text.len();
                     }
                     for r in &mut self.project.regions {
                         rusterix.server.apply_entities_items(&mut r.map);
@@ -2475,24 +2496,10 @@ impl TheTrait for Editor {
                                     TheId::empty(),
                                     "Server has been started.".to_string(),
                                 ));
-                                // ui.set_widget_value("LogEdit", ctx, TheValue::Text(String::new()));
-                                // ctx.ui.send(TheEvent::StateChanged(
-                                //     TheId::named("Debug Log"),
-                                //     TheWidgetState::Clicked,
-                                // ));
+                                ui.set_widget_value("LogEdit", ctx, TheValue::Text(String::new()));
+                                self.last_processed_log_len = 0;
                                 RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
                             }
-                            /*
-                            self.server.start();
-                            self.client.reset();
-                            self.client.set_project(self.project.clone());
-                            self.server_ctx.clear_interactions();
-                            ctx.ui.send(TheEvent::SetStatusText(
-                                TheId::empty(),
-                                "Server has been started.".to_string(),
-                            ));
-                            self.sidebar.clear_debug_messages(ui, ctx);
-                            */
                             update_server_icons = true;
                         }
                     } else if id.name == "Pause" {
@@ -2501,33 +2508,11 @@ impl TheTrait for Editor {
                             RUSTERIX.write().unwrap().server.pause();
                             update_server_icons = true;
                         }
-                        /*
-                        if self.server.state == ServerState::Running {
-                            self.server.state = ServerState::Paused;
-                            ctx.ui.send(TheEvent::SetStatusText(
-                                TheId::empty(),
-                                "Server has been paused.".to_string(),
-                            ));
-                            update_server_icons = true;
-                        } else if self.server.state == ServerState::Paused {
-                            self.client.tick(
-                                *ACTIVEEDITOR.lock().unwrap() == ActiveEditor::GameEditor,
-                            );
-                            let debug = self.server.tick();
-                            if !debug.is_empty() {
-                                self.sidebar.add_debug_messages(debug, ui, ctx);
-                            }
-                            let interactions = self.server.get_interactions();
-                            self.server_ctx.add_interactions(interactions);
-                        }*/
                     } else if id.name == "Stop" {
                         RUSTERIX.write().unwrap().server.stop();
                         RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
 
                         ui.set_widget_value("InfoView", ctx, TheValue::Text("".into()));
-                        /*
-                        _ = self.server.set_project(self.project.clone());
-                        self.server.stop();*/
                         insert_content_into_maps(&mut self.project);
                         update_server_icons = true;
 
