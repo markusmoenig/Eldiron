@@ -93,6 +93,9 @@ pub trait Dock: Send + Sync {
         false
     }
 
+    /// Mark dock-local undo state as saved.
+    fn mark_saved(&mut self) {}
+
     /// If the dock supports undo, set its current state to the UI.
     fn set_undo_state_to_ui(&self, ctx: &mut TheContext) {}
 

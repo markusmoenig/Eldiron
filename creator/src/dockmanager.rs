@@ -407,4 +407,14 @@ impl DockManager {
 
         false
     }
+
+    /// Mark all dock-local undo states as saved.
+    pub fn mark_saved(&mut self) {
+        for dock in self.docks.values_mut() {
+            dock.mark_saved();
+        }
+        for dock in self.editor_docks.values_mut() {
+            dock.mark_saved();
+        }
+    }
 }

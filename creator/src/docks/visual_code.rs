@@ -183,6 +183,12 @@ impl Dock for VisualCodeDock {
         self.entity_undos.values().any(|undo| undo.has_changes())
     }
 
+    fn mark_saved(&mut self) {
+        for undo in self.entity_undos.values_mut() {
+            undo.index = -1;
+        }
+    }
+
     fn undo(
         &mut self,
         ui: &mut TheUI,

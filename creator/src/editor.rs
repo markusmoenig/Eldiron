@@ -2250,6 +2250,7 @@ impl TheTrait for Editor {
                                 if std::fs::write(p.clone(), json).is_ok() {
                                     self.project_path = Some(p);
                                     UNDOMANAGER.write().unwrap().mark_saved();
+                                    DOCKMANAGER.write().unwrap().mark_saved();
                                     if self.active_session < self.sessions.len() {
                                         self.sessions[self.active_session].dirty = false;
                                     }
@@ -2434,6 +2435,7 @@ impl TheTrait for Editor {
                             if let Ok(output) = serde_json::to_string(&self.project) {
                                 if std::fs::write(&path, output).is_ok() {
                                     UNDOMANAGER.write().unwrap().mark_saved();
+                                    DOCKMANAGER.write().unwrap().mark_saved();
                                     if self.active_session < self.sessions.len() {
                                         self.sessions[self.active_session].dirty = false;
                                     }

@@ -728,6 +728,12 @@ impl Dock for TilesEditorDock {
         self.tile_undos.values().any(|undo| undo.has_changes())
     }
 
+    fn mark_saved(&mut self) {
+        for undo in self.tile_undos.values_mut() {
+            undo.index = -1;
+        }
+    }
+
     fn undo(
         &mut self,
         ui: &mut TheUI,

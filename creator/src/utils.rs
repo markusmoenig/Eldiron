@@ -400,7 +400,10 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
         // In 3D region mode (including profiles), render the region map.
         if let Some(id) = server_ctx.pc.id() {
             if let Some(region) = project.get_region(&id) {
-                SCENEMANAGER.write().unwrap().set_map(region.map.clone());
+                let mut map = region.map.clone();
+                // Keep editor-only preview filters in sync with region config for 3D builds.
+                apply_region_config(&mut map, region.config.clone());
+                SCENEMANAGER.write().unwrap().set_map(map);
             }
         }
     }

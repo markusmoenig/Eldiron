@@ -619,6 +619,20 @@ impl ChunkBuilder for D3ChunkBuilder {
                 continue;
             }
 
+            // Keep track of hidden sectors so that we can set them as not visible later.
+            // Must happen before early-continue paths below.
+            let visible = sector.properties.get_bool_default("visible", true);
+            let roof_name = sector
+                .properties
+                .get_str_default("roof_name", String::new());
+            let hidden_by_preview = preview_hide_patterns.iter().any(|pattern| {
+                matches_preview_hide_pattern(&sector.name, pattern)
+                    || (!roof_name.is_empty() && matches_preview_hide_pattern(&roof_name, pattern))
+            });
+            if !visible || hidden_by_preview {
+                hidden.insert(GeoId::Sector(sector.id));
+            }
+
             // Skip sectors in ridge mode - they only contribute height to terrain, not surfaces
             let terrain_mode = sector.properties.get_int_default("terrain_mode", 0);
             if terrain_mode == 2 {
@@ -631,15 +645,6 @@ impl ChunkBuilder for D3ChunkBuilder {
             // so we don't render an extra flat roof layer below gables.
             if sector_feature == "Roof" && surface.plane.normal.y > 0.7 {
                 continue;
-            }
-
-            // Keep track of hidden sectors so that we can set them as not visible later
-            let visible = sector.properties.get_bool_default("visible", true);
-            let hidden_by_preview = preview_hide_patterns
-                .iter()
-                .any(|pattern| matches_preview_hide_pattern(&sector.name, pattern));
-            if !visible || hidden_by_preview {
-                hidden.insert(GeoId::Sector(sector.id));
             }
 
             let bbox = sector.bounding_box(map);
@@ -1530,15 +1535,6 @@ impl ChunkBuilder for D3ChunkBuilder {
             }
         }
 
-        // Set all hidden geometry as not visible
-        for hidden in hidden {
-            if let Some(poly) = vmchunk.polys3d_map.get_mut(&hidden) {
-                for p in poly {
-                    p.visible = false;
-                }
-            }
-        }
-
         // Build optional non-destructive linedef features (palisade, fence, ...).
         generate_sector_stairs(map, assets, chunk, vmchunk);
         generate_sector_roofs(map, assets, chunk, vmchunk);
@@ -1547,6 +1543,17 @@ impl ChunkBuilder for D3ChunkBuilder {
         // Generate terrain for this chunk
         let terrain_counter = chunk.bbox.min.x as u32 * 10000 + chunk.bbox.min.y as u32;
         generate_terrain(map, assets, chunk, vmchunk, terrain_counter);
+
+        // Set all hidden geometry as not visible.
+        // This needs to run after all generators (roofs/features/terrain),
+        // otherwise late-added polys remain visible.
+        for hidden in hidden {
+            if let Some(poly) = vmchunk.polys3d_map.get_mut(&hidden) {
+                for p in poly {
+                    p.visible = false;
+                }
+            }
+        }
     }
 
     fn build_collision(
