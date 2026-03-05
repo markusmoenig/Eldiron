@@ -74,6 +74,10 @@ In 2D view (no surface selected), toggle rectangular placement helpers for geome
 
 ## Edit Geometry
 
+> Any `tile_id`-style parameter in actions accepts either:
+> - a tile UUID string (v4), or
+> - a palette index (integer, or numeric string like `"2"`).
+
 ### Extrude Linedef
 
 *Shortcut: Alt + E*
@@ -205,14 +209,46 @@ Carve an inset opening in the profile surface and fill it with a tile. Params: *
 
 ### Create Prop
 
-Create/edit parametric props on selected profile sectors (first preset: `table`).
+Create/edit parametric props on selected sectors (2D editor view with an active editing surface).
 
-- `[table].create`: enables table generation for the selected sectors.
-- `[table].height`: relief amount used for tabletop height.
-- `[table].connection_mode`: edge style (`hard`, `smooth`, `bevel`).
-- `[table].bevel_segments`: bevel tessellation when using bevel mode.
-- `[table].bevel_radius`: bevel size when using bevel mode.
-- `[billboard].tile_id`: optional tile applied to table cap/jamb material.
+Parameter groups:
+- `[prop]`
+- `[table]`
+- `[bookcase]`
+- `[material]`
+
+### `[prop]`
+
+- `type`: prop generator to apply.
+  - `table` (or `0`)
+  - `bookcase` (or `1`)
+
+### `[table]`
+
+- `height`: total table height.
+- `chairs`: enable/disable generated chairs.
+- `chair_count`: number of chairs (`0..8`).
+- `chair_offset`: offset from table bounds to chair centers.
+- `chair_width`: chair seat width/footprint scale.
+- `chair_back_height`: multiplier for chair back height.
+- `chair_tile_id`: optional chair material source.
+  - accepts UUID or palette index.
+
+### `[bookcase]`
+
+- `height`: total cupboard/bookcase height.
+- `shelves`: number of internal shelves (`1..12`).
+- `books`: enable/disable procedural books.
+  - when enabled, books use deterministic per-book random palette colors.
+
+### `[material]`
+
+- `tile_id`: base prop material source (carcass/table surfaces).
+  - accepts UUID or palette index.
+
+Notes:
+- Bookcase footprint is derived from the selected floor sector shape/depth.
+- `prop.type` fully controls which generator is applied (`table` vs `bookcase`).
 
 ### Set Editing Surface
 

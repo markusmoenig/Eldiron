@@ -42,13 +42,17 @@ impl Action for CreateProp {
     {
         let mut nodeui: TheNodeUI = TheNodeUI::default();
 
-        nodeui.add_item(TheNodeUIItem::OpenTree("table".into()));
-        nodeui.add_item(TheNodeUIItem::Checkbox(
-            "actionTableCreate".into(),
+        nodeui.add_item(TheNodeUIItem::OpenTree("prop".into()));
+        nodeui.add_item(TheNodeUIItem::Selector(
+            "actionPropType".into(),
             "".into(),
             "".into(),
-            true,
+            vec!["table".into(), "bookcase".into()],
+            0,
         ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
+
+        nodeui.add_item(TheNodeUIItem::OpenTree("table".into()));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
             "actionTableHeight".into(),
             "".into(),
@@ -115,6 +119,31 @@ impl Action for CreateProp {
         ));
         nodeui.add_item(TheNodeUIItem::CloseTree);
 
+        nodeui.add_item(TheNodeUIItem::OpenTree("bookcase".into()));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            "actionBookcaseHeight".into(),
+            "".into(),
+            "".into(),
+            2.0,
+            0.2..=8.0,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::IntEditSlider(
+            "actionBookcaseShelves".into(),
+            "".into(),
+            "".into(),
+            4,
+            1..=12,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "actionBookcaseBooks".into(),
+            "".into(),
+            "".into(),
+            true,
+        ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
+
         nodeui.add_item(TheNodeUIItem::OpenTree("material".into()));
         nodeui.add_item(TheNodeUIItem::Icons(
             "actionMaterialTile".into(),
@@ -164,9 +193,9 @@ impl Action for CreateProp {
         if let Some(sector_id) = map.selected_sectors.first()
             && let Some(sector) = map.find_sector(*sector_id)
         {
-            let is_table = sector.properties.get_bool_default("profile_table", false)
-                || sector.properties.get_int_default("profile_op", -1) == 1;
-            self.nodeui.set_bool_value("actionTableCreate", is_table);
+            let prop_kind = sector.properties.get_int_default("profile_prop_kind", 0);
+            self.nodeui
+                .set_i32_value("actionPropType", prop_kind.clamp(0, 1));
             self.nodeui.set_f32_value(
                 "actionTableHeight",
                 sector.properties.get_float_default("profile_amount", 0.75),
@@ -196,6 +225,18 @@ impl Action for CreateProp {
                 sector
                     .properties
                     .get_float_default("table_chair_back_height", 1.0),
+            );
+            self.nodeui.set_f32_value(
+                "actionBookcaseHeight",
+                sector.properties.get_float_default("profile_amount", 2.0),
+            );
+            self.nodeui.set_i32_value(
+                "actionBookcaseShelves",
+                sector.properties.get_int_default("bookcase_shelves", 4),
+            );
+            self.nodeui.set_bool_value(
+                "actionBookcaseBooks",
+                sector.properties.get_bool_default("bookcase_books", true),
             );
 
             let (tile_text, tile_id) = source_to_text_and_uuid(sector.properties.get("cap_source"));
@@ -273,13 +314,7 @@ impl Action for CreateProp {
         _ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
-        let create_table = self
-            .nodeui
-            .get_bool_value("actionTableCreate")
-            .unwrap_or(true);
-        if !create_table {
-            return None;
-        }
+        let prop_type = self.nodeui.get_i32_value("actionPropType").unwrap_or(0);
 
         let prev = map.clone();
 
@@ -312,6 +347,20 @@ impl Action for CreateProp {
             .get_f32_value("actionTableChairBackHeight")
             .unwrap_or(1.0)
             .max(0.25);
+        let bookcase_height = self
+            .nodeui
+            .get_f32_value("actionBookcaseHeight")
+            .unwrap_or(2.0)
+            .max(0.2);
+        let bookcase_shelves = self
+            .nodeui
+            .get_i32_value("actionBookcaseShelves")
+            .unwrap_or(4)
+            .clamp(1, 12);
+        let bookcase_books = self
+            .nodeui
+            .get_bool_value("actionBookcaseBooks")
+            .unwrap_or(true);
 
         let tile_id = self
             .nodeui
@@ -338,23 +387,59 @@ impl Action for CreateProp {
                 sector.properties.set("profile_op", Value::Int(1));
                 sector
                     .properties
-                    .set("profile_amount", Value::Float(height));
+                    .set("profile_prop_kind", Value::Int(prop_type));
+                sector.properties.set(
+                    "profile_amount",
+                    Value::Float(if prop_type == 1 {
+                        bookcase_height
+                    } else {
+                        height
+                    }),
+                );
                 sector.properties.set("profile_table", Value::Bool(true));
-                sector
-                    .properties
-                    .set("table_chairs", Value::Bool(chairs_enabled));
-                sector
-                    .properties
-                    .set("table_chair_count", Value::Int(chair_count));
-                sector
-                    .properties
-                    .set("table_chair_offset", Value::Float(chair_offset));
-                sector
-                    .properties
-                    .set("table_chair_width", Value::Float(chair_width));
-                sector
-                    .properties
-                    .set("table_chair_back_height", Value::Float(chair_back_height));
+                if prop_type == 0 {
+                    sector
+                        .properties
+                        .set("table_chairs", Value::Bool(chairs_enabled));
+                    sector
+                        .properties
+                        .set("table_chair_count", Value::Int(chair_count));
+                    sector
+                        .properties
+                        .set("table_chair_offset", Value::Float(chair_offset));
+                    sector
+                        .properties
+                        .set("table_chair_width", Value::Float(chair_width));
+                    sector
+                        .properties
+                        .set("table_chair_back_height", Value::Float(chair_back_height));
+                    sector.properties.remove("bookcase_shelves");
+                    sector.properties.remove("bookcase_books");
+                    sector.properties.remove("book_source");
+                } else {
+                    sector
+                        .properties
+                        .set("bookcase_shelves", Value::Int(bookcase_shelves));
+                    sector
+                        .properties
+                        .set("bookcase_books", Value::Bool(bookcase_books));
+                    sector.properties.remove("table_chairs");
+                    sector.properties.remove("table_chair_count");
+                    sector.properties.remove("table_chair_offset");
+                    sector.properties.remove("table_chair_width");
+                    sector.properties.remove("table_chair_back_height");
+                    sector.properties.remove("chair_source");
+
+                    if bookcase_books {
+                        let palette_index = (8 + (sector.id % 24)) as u16;
+                        sector.properties.set(
+                            "book_source",
+                            Value::Source(PixelSource::PaletteIndex(palette_index)),
+                        );
+                    } else {
+                        sector.properties.remove("book_source");
+                    }
+                }
 
                 if let Some(source) = table_source.clone() {
                     let src = Value::Source(source);

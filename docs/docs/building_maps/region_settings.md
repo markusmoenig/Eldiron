@@ -17,6 +17,8 @@ tile_id = "27826750-a9e7-4346-994b-fb318b238452"
 
 - `enabled`: turns terrain on/off for the region.
 - `tile_id`: default tile used for terrain rendering.
+  - accepts UUID or palette index.
+  - examples: `tile_id = "27826750-a9e7-4346-994b-fb318b238452"`, `tile_id = 2`, `tile_id = "2"`.
 
 ## Preview
 

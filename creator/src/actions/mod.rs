@@ -558,6 +558,14 @@ pub fn apply_toml_to_nodeui(nodeui: &mut TheNodeUI, source: &str) -> Result<(), 
                                     nodeui.set_text_value(&id, v.clone());
                                     break;
                                 }
+                                toml::Value::Integer(v) => {
+                                    nodeui.set_text_value(&id, v.to_string());
+                                    break;
+                                }
+                                toml::Value::Float(v) => {
+                                    nodeui.set_text_value(&id, v.to_string());
+                                    break;
+                                }
                                 toml::Value::Array(items) if action_key == "iso_hide_on_enter" => {
                                     let joined = items
                                         .iter()

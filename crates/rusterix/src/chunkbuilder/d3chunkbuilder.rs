@@ -5544,8 +5544,258 @@ fn process_feature_loop_with_action(
                 max_uv.x = max_uv.x.max(uv.x);
                 max_uv.y = max_uv.y.max(uv.y);
             }
+            let prop_kind = feature_profile_int(
+                surface,
+                map,
+                sector,
+                feature_loop.origin_profile_sector,
+                "profile_prop_kind",
+                0,
+            );
             let sx = (max_uv.x - min_uv.x).abs().max(1e-4);
             let sy = (max_uv.y - min_uv.y).abs().max(1e-4);
+
+            if prop_kind == 1 {
+                let mesh_builder = SurfaceMeshBuilder::new(surface);
+                let panel_t = (sx.min(sy) * 0.08).clamp(0.06, 0.20);
+                // Use the full selected sector depth for the bookcase footprint.
+                let depth = sy;
+                let x0 = min_uv.x;
+                let x1 = max_uv.x;
+                let y0 = min_uv.y;
+                let y1 = min_uv.y + depth.min(sy);
+                let z0 = base_extrusion;
+                let z1 = top_extrusion;
+                let shelves = feature_profile_int(
+                    surface,
+                    map,
+                    sector,
+                    feature_loop.origin_profile_sector,
+                    "bookcase_shelves",
+                    4,
+                )
+                .clamp(1, 12);
+                let has_books = feature_profile_bool(
+                    surface,
+                    map,
+                    sector,
+                    feature_loop.origin_profile_sector,
+                    "bookcase_books",
+                    true,
+                );
+
+                let make_prism = |px0: f32,
+                                  px1: f32,
+                                  py0: f32,
+                                  py1: f32,
+                                  pz0: f32,
+                                  pz1: f32|
+                 -> SectorMeshDescriptor {
+                    let top = vec![
+                        ControlPoint {
+                            uv: Vec2::new(px0, py0),
+                            extrusion: pz1,
+                        },
+                        ControlPoint {
+                            uv: Vec2::new(px1, py0),
+                            extrusion: pz1,
+                        },
+                        ControlPoint {
+                            uv: Vec2::new(px1, py1),
+                            extrusion: pz1,
+                        },
+                        ControlPoint {
+                            uv: Vec2::new(px0, py1),
+                            extrusion: pz1,
+                        },
+                    ];
+                    let bottom = vec![
+                        ControlPoint {
+                            uv: Vec2::new(px0, py0),
+                            extrusion: pz0,
+                        },
+                        ControlPoint {
+                            uv: Vec2::new(px1, py0),
+                            extrusion: pz0,
+                        },
+                        ControlPoint {
+                            uv: Vec2::new(px1, py1),
+                            extrusion: pz0,
+                        },
+                        ControlPoint {
+                            uv: Vec2::new(px0, py1),
+                            extrusion: pz0,
+                        },
+                    ];
+                    SectorMeshDescriptor {
+                        is_hole: false,
+                        cap: Some(MeshTopology::FilledRegion {
+                            outer: top.clone(),
+                            holes: vec![],
+                        }),
+                        sides: Some(MeshTopology::QuadStrip {
+                            loop_a: bottom,
+                            loop_b: top,
+                        }),
+                        connection: crate::chunkbuilder::action::ConnectionMode::Hard,
+                    }
+                };
+
+                macro_rules! emit_prism {
+                    ($px0:expr, $px1:expr, $py0:expr, $py1:expr, $pz0:expr, $pz1:expr) => {{
+                        let part = make_prism($px0, $px1, $py0, $py1, $pz0, $pz1);
+                        let part_meshes = mesh_builder.build(&part);
+                        emit_feature_meshes(
+                            surface,
+                            map,
+                            sector,
+                            chunk,
+                            vmchunk,
+                            assets,
+                            feature_loop.origin_profile_sector,
+                            profile_target,
+                            &part_meshes,
+                            part.cap.is_some(),
+                            None,
+                        );
+                    }};
+                }
+
+                // Carcass without overlapping panel volumes (avoids z-fighting at joints).
+                // Back panel
+                emit_prism!(x0, x1, y0, y0 + panel_t, z0, z1);
+                // Side panels start after back panel depth
+                emit_prism!(x0, x0 + panel_t, y0 + panel_t, y1, z0, z1);
+                emit_prism!(x1 - panel_t, x1, y0 + panel_t, y1, z0, z1);
+                // Bottom/top panels are inset from side thickness and back thickness
+                emit_prism!(
+                    x0 + panel_t,
+                    x1 - panel_t,
+                    y0 + panel_t,
+                    y1,
+                    z0,
+                    z0 + direction * panel_t
+                );
+                emit_prism!(
+                    x0 + panel_t,
+                    x1 - panel_t,
+                    y0 + panel_t,
+                    y1,
+                    z1 - direction * panel_t,
+                    z1
+                );
+
+                let inside_z0 = z0 + direction * panel_t * 1.5;
+                let inside_z1 = z1 - direction * panel_t * 1.5;
+                let shelf_span = (inside_z1 - inside_z0) / (shelves as f32 + 1.0);
+                for i in 0..shelves {
+                    let sz = inside_z0 + shelf_span * (i as f32 + 1.0);
+                    emit_prism!(
+                        x0 + panel_t,
+                        x1 - panel_t,
+                        y0 + panel_t,
+                        y1,
+                        sz,
+                        sz + direction * panel_t * 0.8
+                    );
+
+                    if has_books {
+                        let available_palette_indices: Vec<u16> = assets
+                            .palette
+                            .colors
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(idx, c)| c.as_ref().map(|_| idx as u16))
+                            .collect();
+                        if available_palette_indices.is_empty() {
+                            continue;
+                        }
+
+                        // Place books near the open/front side so they stay visible.
+                        let row_y0 = (y1 - panel_t * 1.6).max(y0 + panel_t * 1.2);
+                        let row_y1 = (y1 - panel_t * 0.3).max(row_y0 + 0.05);
+                        let mut bx = x0 + panel_t * 1.2;
+                        let bx_end = x1 - panel_t * 1.2;
+                        let mut b = 0u32;
+                        while bx < bx_end - 0.05 {
+                            let seed = (sector.id as u32)
+                                .wrapping_mul(73856093)
+                                .wrapping_add((i as u32) * 19349663)
+                                .wrapping_add(b * 83492791);
+                            let width_rand = 0.05 + ((seed % 100) as f32 / 100.0) * 0.08;
+                            let bw = width_rand.min(bx_end - bx);
+                            // Keep a small vertical clearance above shelf top to avoid z-fighting.
+                            let shelf_top = sz + direction * panel_t * 0.8;
+                            let bz0 = shelf_top + direction * 0.02;
+                            // Clamp book height to available space to the next shelf (or top panel)
+                            // so books never intersect board geometry.
+                            let top_limit = if i + 1 < shelves {
+                                sz + shelf_span
+                            } else {
+                                inside_z1
+                            };
+                            let available_h = ((top_limit - bz0) * direction - 0.02).max(0.06);
+                            let book_h = (height * 0.22).clamp(0.12, 0.80).min(available_h);
+                            let bz1 = bz0 + direction * book_h;
+                            let book = make_prism(bx, bx + bw, row_y0, row_y1, bz0, bz1);
+                            let book_meshes = mesh_builder.build(&book);
+                            let palette_pick =
+                                ((seed >> 8) as usize) % available_palette_indices.len();
+                            let palette_index = available_palette_indices[palette_pick];
+                            let pixelsource = PixelSource::PaletteIndex(palette_index);
+                            if let Some(tile) = pixelsource.tile_from_tile_list(assets) {
+                                for (mesh_idx, mesh) in book_meshes.iter().enumerate() {
+                                    let is_cap = mesh_idx == 0 && book.cap.is_some();
+                                    let mut n = surface.plane.normal;
+                                    let ln = n.magnitude();
+                                    if ln > 1e-6 {
+                                        n /= ln;
+                                    } else {
+                                        n = vek::Vec3::unit_y();
+                                    }
+
+                                    let mut mesh_indices = mesh.indices.clone();
+                                    if is_cap {
+                                        let desired_n = if profile_target == 0 { -n } else { n };
+                                        mesh_fix_winding(
+                                            &mesh.vertices,
+                                            &mut mesh_indices,
+                                            desired_n,
+                                        );
+                                    } else {
+                                        mesh_fix_winding(&mesh.vertices, &mut mesh_indices, n);
+                                    }
+
+                                    vmchunk.add_poly_3d(
+                                        GeoId::Sector(sector.id),
+                                        tile.id,
+                                        mesh.vertices.clone(),
+                                        mesh.uvs.clone(),
+                                        mesh_indices.clone(),
+                                        0,
+                                        true,
+                                    );
+
+                                    let mut batch = Batch3D::new(
+                                        mesh.vertices.clone(),
+                                        mesh_indices,
+                                        mesh.uvs.clone(),
+                                    )
+                                    .repeat_mode(RepeatMode::RepeatXY)
+                                    .geometry_source(GeometrySource::Sector(sector.id));
+                                    if let Some(tex) = assets.tile_index(&tile.id) {
+                                        batch.source = PixelSource::StaticTileIndex(tex);
+                                    }
+                                    chunk.batches3d.push(batch);
+                                }
+                            }
+                            bx += bw + 0.02;
+                            b = b.wrapping_add(1);
+                        }
+                    }
+                }
+                return Some(());
+            }
             let leg_half = (sx.min(sy) * 0.10).clamp(0.05, 0.35) * 0.5;
             // Prefer host sector values for Create Props (authored per target sector),
             // and only fall back to profile values when host values are missing.
@@ -5608,19 +5858,6 @@ fn process_feature_loop_with_action(
                 )
                 .clamp(0.25, 3.0),
             };
-            let chair_source_dbg = feature_pixelsource(
-                surface,
-                map,
-                sector,
-                feature_loop.origin_profile_sector,
-                "chair_source",
-            )
-            .is_some();
-            println!(
-                "[prop:dbg] sector={} table=true chairs={} count={} offset={:.3} width={:.3} source={}",
-                sector.id, chairs_enabled, chair_count, chair_offset, chair_width, chair_source_dbg
-            );
-
             let mesh_builder = SurfaceMeshBuilder::new(surface);
 
             let top_loop: Vec<ControlPoint> = feature_loop
