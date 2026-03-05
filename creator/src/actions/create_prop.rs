@@ -6,6 +6,35 @@ pub struct CreateProp {
     nodeui: TheNodeUI,
 }
 
+fn parse_source_from_text_or_tile(text: &str, fallback_tile_id: Uuid) -> Option<PixelSource> {
+    let trimmed = text.trim();
+    if !trimmed.is_empty() {
+        if let Ok(id) = Uuid::parse_str(trimmed) {
+            return Some(PixelSource::TileId(id));
+        }
+        if let Ok(index) = trimmed.parse::<u16>() {
+            return Some(PixelSource::PaletteIndex(index));
+        }
+    }
+    if fallback_tile_id != Uuid::nil() {
+        Some(PixelSource::TileId(fallback_tile_id))
+    } else {
+        None
+    }
+}
+
+fn source_to_text_and_uuid(source: Option<&Value>) -> (String, Uuid) {
+    if let Some(Value::Source(ps)) = source {
+        match ps {
+            PixelSource::TileId(id) => (id.to_string(), *id),
+            PixelSource::PaletteIndex(i) => (i.to_string(), Uuid::nil()),
+            _ => (String::new(), Uuid::nil()),
+        }
+    } else {
+        (String::new(), Uuid::nil())
+    }
+}
+
 impl Action for CreateProp {
     fn new() -> Self
     where
@@ -169,21 +198,9 @@ impl Action for CreateProp {
                     .get_float_default("table_chair_back_height", 1.0),
             );
 
-            let tile_id = if let Some(Value::Source(PixelSource::TileId(id))) =
-                sector.properties.get("cap_source")
-            {
-                *id
-            } else {
-                Uuid::nil()
-            };
-            self.nodeui.set_text_value(
-                "actionMaterialTileId",
-                if tile_id == Uuid::nil() {
-                    String::new()
-                } else {
-                    tile_id.to_string()
-                },
-            );
+            let (tile_text, tile_id) = source_to_text_and_uuid(sector.properties.get("cap_source"));
+            self.nodeui
+                .set_text_value("actionMaterialTileId", tile_text);
             if let Some(item) = self.nodeui.get_item_mut("actionMaterialTile")
                 && let TheNodeUIItem::Icons(_, _, _, items) = item
                 && items.len() == 1
@@ -191,21 +208,10 @@ impl Action for CreateProp {
                 items[0].2 = tile_id;
             }
 
-            let chair_tile_id = if let Some(Value::Source(PixelSource::TileId(id))) =
-                sector.properties.get("chair_source")
-            {
-                *id
-            } else {
-                Uuid::nil()
-            };
-            self.nodeui.set_text_value(
-                "actionTableChairTileId",
-                if chair_tile_id == Uuid::nil() {
-                    String::new()
-                } else {
-                    chair_tile_id.to_string()
-                },
-            );
+            let (chair_tile_text, chair_tile_id) =
+                source_to_text_and_uuid(sector.properties.get("chair_source"));
+            self.nodeui
+                .set_text_value("actionTableChairTileId", chair_tile_text);
             if let Some(item) = self.nodeui.get_item_mut("actionTableChairTile")
                 && let TheNodeUIItem::Icons(_, _, _, items) = item
                 && items.len() == 1
@@ -315,11 +321,7 @@ impl Action for CreateProp {
             .nodeui
             .get_text_value("actionMaterialTileId")
             .unwrap_or_default();
-        let tile_id = if let Ok(id) = Uuid::parse_str(tile_text.trim()) {
-            id
-        } else {
-            tile_id
-        };
+        let table_source = parse_source_from_text_or_tile(&tile_text, tile_id);
         let chair_tile_id = self
             .nodeui
             .get_tile_id("actionTableChairTile", 0)
@@ -328,11 +330,7 @@ impl Action for CreateProp {
             .nodeui
             .get_text_value("actionTableChairTileId")
             .unwrap_or_default();
-        let chair_tile_id = if let Ok(id) = Uuid::parse_str(chair_tile_text.trim()) {
-            id
-        } else {
-            chair_tile_id
-        };
+        let chair_source = parse_source_from_text_or_tile(&chair_tile_text, chair_tile_id);
 
         let mut changed = false;
         for sector_id in &map.selected_sectors.clone() {
@@ -358,16 +356,16 @@ impl Action for CreateProp {
                     .properties
                     .set("table_chair_back_height", Value::Float(chair_back_height));
 
-                if tile_id != Uuid::nil() {
-                    let src = Value::Source(PixelSource::TileId(tile_id));
+                if let Some(source) = table_source.clone() {
+                    let src = Value::Source(source);
                     sector.properties.set("cap_source", src.clone());
                     sector.properties.set("jamb_source", src);
                 } else {
                     sector.properties.remove("cap_source");
                     sector.properties.remove("jamb_source");
                 }
-                if chair_tile_id != Uuid::nil() {
-                    let src = Value::Source(PixelSource::TileId(chair_tile_id));
+                if let Some(source) = chair_source.clone() {
+                    let src = Value::Source(source);
                     sector.properties.set("chair_source", src);
                 } else {
                     sector.properties.remove("chair_source");

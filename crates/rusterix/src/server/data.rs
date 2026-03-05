@@ -12,6 +12,36 @@ fn facing_to_orientation(facing: &str) -> Option<vek::Vec2<f32>> {
     }
 }
 
+fn parse_tile_source_from_toml(value: &toml::Value) -> Option<PixelSource> {
+    if let Some(s) = value.as_str() {
+        let trimmed = s.trim();
+        if let Ok(uuid) = Uuid::parse_str(trimmed) {
+            return Some(PixelSource::TileId(uuid));
+        }
+        if let Ok(idx) = trimmed.parse::<u16>() {
+            return Some(PixelSource::PaletteIndex(idx));
+        }
+        return None;
+    }
+    if let Some(i) = value.as_integer() {
+        if i >= 0 && i <= u16::MAX as i64 {
+            return Some(PixelSource::PaletteIndex(i as u16));
+        }
+    }
+    None
+}
+
+fn parse_tile_source_from_str(value: &str) -> Option<PixelSource> {
+    let trimmed = value.trim();
+    if let Ok(uuid) = Uuid::parse_str(trimmed) {
+        return Some(PixelSource::TileId(uuid));
+    }
+    if let Ok(idx) = trimmed.parse::<u16>() {
+        return Some(PixelSource::PaletteIndex(idx));
+    }
+    None
+}
+
 /// Apply toml data to an Entity.
 pub fn apply_entity_data(entity: &mut Entity, toml: &str) {
     match toml.parse::<Table>() {
@@ -32,10 +62,13 @@ pub fn apply_entity_data(entity: &mut Entity, toml: &str) {
                                 entity.set_attribute(key, crate::Value::Int(value as i32));
                             } else if let Some(value) = value.as_str() {
                                 if key == "tile_id" {
-                                    if let Ok(uuid) = Uuid::parse_str(value) {
+                                    if let Some(source) = parse_tile_source_from_str(value)
+                                    {
+                                        entity.set_attribute("source", Value::Source(source));
+                                    } else {
                                         entity.set_attribute(
-                                            "source",
-                                            Value::Source(PixelSource::TileId(uuid)),
+                                            key,
+                                            crate::Value::Str(value.to_string()),
                                         );
                                     }
                                 } else if key == "facing" {
@@ -99,10 +132,13 @@ pub fn apply_item_data(item: &mut Item, toml: &str) {
                                 item.set_attribute(key, crate::Value::Int(value as i32));
                             } else if let Some(value) = value.as_str() {
                                 if key == "tile_id" {
-                                    if let Ok(uuid) = Uuid::parse_str(value) {
+                                    if let Some(source) = parse_tile_source_from_str(value)
+                                    {
+                                        item.set_attribute("source", Value::Source(source));
+                                    } else {
                                         item.set_attribute(
-                                            "source",
-                                            Value::Source(PixelSource::TileId(uuid)),
+                                            key,
+                                            crate::Value::Str(value.to_string()),
                                         );
                                     }
                                 } else if key == "color" {
@@ -181,13 +217,12 @@ fn apply_item_top_level(item: &mut Item, key: &str, value: &toml::Value) -> bool
         "rig_tile_id_right",
     ];
     if tile_keys.contains(&key)
-        && let Some(raw) = value.as_str()
-        && let Ok(uuid) = Uuid::parse_str(raw)
+        && let Some(source) = parse_tile_source_from_toml(value)
     {
         if key == "tile_id" || key == "rig_tile_id" {
-            item.set_attribute("source", Value::Source(PixelSource::TileId(uuid)));
+            item.set_attribute("source", Value::Source(source.clone()));
         }
-        item.set_attribute(key, Value::Source(PixelSource::TileId(uuid)));
+        item.set_attribute(key, Value::Source(source));
         return true;
     }
 

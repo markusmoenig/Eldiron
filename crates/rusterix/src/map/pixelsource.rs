@@ -24,6 +24,7 @@ pub enum PixelSource {
     #[default]
     Off,
     TileId(Uuid),
+    PaletteIndex(u16),
     MaterialId(Uuid),
     Sequence(String),
     EntityTile(u32, u32),
@@ -49,6 +50,17 @@ impl PixelSource {
     ) -> Option<Tile> {
         match self {
             TileId(id) => assets.tiles.get(id).cloned(),
+            PaletteIndex(index) => {
+                if let Some(Some(col)) = assets.palette.colors.get(*index as usize) {
+                    let mut tile = Tile::from_texture(Texture::from_color(col.to_u8_array()));
+                    // Stable synthetic UUID namespace for palette indices
+                    tile.id =
+                        Uuid::from_u128(0x50414C455454455F0000000000000000u128 | *index as u128);
+                    Some(tile)
+                } else {
+                    None
+                }
+            }
             MaterialId(id) => assets.materials.get(id).cloned(),
             Color(color) => {
                 let apply_to: NoiseTarget = values.get_int_default("noise_target", 0).into();
@@ -125,6 +137,16 @@ impl PixelSource {
             TileId(id) | MaterialId(id) => {
                 if let Some(index) = assets.tile_indices.get(id) {
                     assets.tile_list.get(*index as usize).cloned()
+                } else {
+                    None
+                }
+            }
+            PaletteIndex(index) => {
+                if let Some(Some(col)) = assets.palette.colors.get(*index as usize) {
+                    let mut tile = Tile::from_texture(Texture::from_color(col.to_u8_array()));
+                    tile.id =
+                        Uuid::from_u128(0x50414C455454455F0000000000000000u128 | *index as u128);
+                    Some(tile)
                 } else {
                     None
                 }

@@ -5345,24 +5345,30 @@ fn emit_feature_meshes(
         let mut added = false;
         if let Some(Value::Source(pixelsource)) =
             feature_pixelsource(surface, map, sector, loop_origin, source_key)
-            && let Some(tile) = pixelsource.tile_from_tile_list(assets)
         {
-            vmchunk.add_poly_3d(
-                GeoId::Sector(sector.id),
-                tile.id,
-                mesh.vertices.clone(),
-                mesh.uvs.clone(),
-                mesh_indices.clone(),
-                0,
-                true,
-            );
-            added = true;
-            if let Some(tex) = assets.tile_index(&tile.id) {
-                batch.source = PixelSource::StaticTileIndex(tex);
+            if let Some(tile) = pixelsource.tile_from_tile_list(assets) {
+                vmchunk.add_poly_3d(
+                    GeoId::Sector(sector.id),
+                    tile.id,
+                    mesh.vertices.clone(),
+                    mesh.uvs.clone(),
+                    mesh_indices.clone(),
+                    0,
+                    true,
+                );
+                added = true;
+                if let Some(tex) = assets.tile_index(&tile.id) {
+                    batch.source = PixelSource::StaticTileIndex(tex);
+                }
             }
         }
 
         if !added {
+            if let Ok(default_id) = Uuid::from_str(DEFAULT_TILE_ID)
+                && let Some(tex) = assets.tile_index(&default_id)
+            {
+                batch.source = PixelSource::StaticTileIndex(tex);
+            }
             vmchunk.add_poly_3d(
                 GeoId::Sector(sector.id),
                 Uuid::from_str(DEFAULT_TILE_ID).unwrap(),
@@ -5541,50 +5547,79 @@ fn process_feature_loop_with_action(
             let sx = (max_uv.x - min_uv.x).abs().max(1e-4);
             let sy = (max_uv.y - min_uv.y).abs().max(1e-4);
             let leg_half = (sx.min(sy) * 0.10).clamp(0.05, 0.35) * 0.5;
-            let chairs_enabled = feature_profile_bool(
+            // Prefer host sector values for Create Props (authored per target sector),
+            // and only fall back to profile values when host values are missing.
+            let chairs_enabled = match sector.properties.get("table_chairs") {
+                Some(Value::Bool(v)) => *v,
+                _ => feature_profile_bool(
+                    surface,
+                    map,
+                    sector,
+                    feature_loop.origin_profile_sector,
+                    "table_chairs",
+                    false,
+                ),
+            };
+            let chair_count = match sector.properties.get("table_chair_count") {
+                Some(Value::Int(v)) => (*v).clamp(0, 8),
+                _ => feature_profile_int(
+                    surface,
+                    map,
+                    sector,
+                    feature_loop.origin_profile_sector,
+                    "table_chair_count",
+                    4,
+                )
+                .clamp(0, 8),
+            };
+            let chair_offset = match sector.properties.get("table_chair_offset") {
+                Some(Value::Float(v)) => (*v).max(0.0),
+                _ => feature_profile_float(
+                    surface,
+                    map,
+                    sector,
+                    feature_loop.origin_profile_sector,
+                    "table_chair_offset",
+                    0.45,
+                )
+                .max(0.0),
+            };
+            let chair_width = match sector.properties.get("table_chair_width") {
+                Some(Value::Float(v)) => (*v).clamp(0.20, 3.0),
+                _ => feature_profile_float(
+                    surface,
+                    map,
+                    sector,
+                    feature_loop.origin_profile_sector,
+                    "table_chair_width",
+                    0.85,
+                )
+                .clamp(0.20, 3.0),
+            };
+            let chair_back_height = match sector.properties.get("table_chair_back_height") {
+                Some(Value::Float(v)) => (*v).clamp(0.25, 3.0),
+                _ => feature_profile_float(
+                    surface,
+                    map,
+                    sector,
+                    feature_loop.origin_profile_sector,
+                    "table_chair_back_height",
+                    1.0,
+                )
+                .clamp(0.25, 3.0),
+            };
+            let chair_source_dbg = feature_pixelsource(
                 surface,
                 map,
                 sector,
                 feature_loop.origin_profile_sector,
-                "table_chairs",
-                false,
+                "chair_source",
+            )
+            .is_some();
+            println!(
+                "[prop:dbg] sector={} table=true chairs={} count={} offset={:.3} width={:.3} source={}",
+                sector.id, chairs_enabled, chair_count, chair_offset, chair_width, chair_source_dbg
             );
-            let chair_count = feature_profile_int(
-                surface,
-                map,
-                sector,
-                feature_loop.origin_profile_sector,
-                "table_chair_count",
-                4,
-            )
-            .clamp(0, 8);
-            let chair_offset = feature_profile_float(
-                surface,
-                map,
-                sector,
-                feature_loop.origin_profile_sector,
-                "table_chair_offset",
-                0.45,
-            )
-            .max(0.0);
-            let chair_width = feature_profile_float(
-                surface,
-                map,
-                sector,
-                feature_loop.origin_profile_sector,
-                "table_chair_width",
-                0.85,
-            )
-            .clamp(0.20, 3.0);
-            let chair_back_height = feature_profile_float(
-                surface,
-                map,
-                sector,
-                feature_loop.origin_profile_sector,
-                "table_chair_back_height",
-                1.0,
-            )
-            .clamp(0.25, 3.0);
 
             let mesh_builder = SurfaceMeshBuilder::new(surface);
 
@@ -5775,11 +5810,12 @@ fn process_feature_loop_with_action(
 
                 let csize = chair_width.clamp(0.20, 3.0);
                 let chalf = csize * 0.5;
-                let seat_h = height * 0.50;
+                let seat_h = height * 0.45;
                 let seat_t = (height * 0.12).clamp(0.05, 0.18);
                 let leg_w = (csize * 0.16).clamp(0.05, 0.16);
                 let lhalf = leg_w * 0.5;
-                let back_h = (height * 0.55 * chair_back_height).clamp(0.1, 2.0);
+                // Make the backrest clearly extend above tabletop so chairs remain visible.
+                let back_h = (height * 0.95 * chair_back_height).clamp(0.25, 3.0);
                 let back_t = (csize * 0.10).clamp(0.04, 0.12);
 
                 let chair_z0 = base_extrusion;

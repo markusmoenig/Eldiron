@@ -420,7 +420,23 @@ impl Rusterix {
 
     /// Update the tiles
     pub fn set_tiles(&mut self, textures: IndexMap<Uuid, Tile>, editor: bool) {
-        self.scene_handler.build_atlas(&textures, editor);
-        self.assets.set_tiles(textures);
+        let mut all_tiles = textures;
+
+        // Register synthetic 1x1 tiles for all palette indices so PaletteIndex sources
+        // always resolve to real atlas/tile-list entries.
+        for (idx, col_opt) in self.assets.palette.colors.iter().enumerate() {
+            let Some(col) = col_opt else {
+                continue;
+            };
+            let tile_id = Uuid::from_u128(0x50414C455454455F0000000000000000u128 | idx as u128);
+            all_tiles.entry(tile_id).or_insert_with(|| {
+                let mut t = Tile::from_texture(Texture::from_color(col.to_u8_array()));
+                t.id = tile_id;
+                t
+            });
+        }
+
+        self.scene_handler.build_atlas(&all_tiles, editor);
+        self.assets.set_tiles(all_tiles);
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
-    Assets, BBox, Batch3D, Chunk, ChunkBuilder, D2ChunkBuilder, D3ChunkBuilder, Map, TerrainChunk,
-    Tile,
+    Assets, BBox, Batch3D, Chunk, ChunkBuilder, D2ChunkBuilder, D3ChunkBuilder, Map, PixelSource,
+    TerrainChunk, Texture, Tile, Value, ValueContainer,
 };
 use scenevm::Chunk as VMChunk;
 use theframework::prelude::*;
@@ -64,6 +64,67 @@ impl Default for SceneManager {
 }
 
 impl SceneManager {
+    fn palette_index_tile_uuid(index: u16) -> Uuid {
+        Uuid::from_u128(0x50414C455454455F0000000000000000u128 | index as u128)
+    }
+
+    fn ensure_palette_tile(&mut self, index: u16) {
+        let Some(Some(col)) = self.assets.palette.colors.get(index as usize) else {
+            return;
+        };
+        let tile_id = Self::palette_index_tile_uuid(index);
+        let tile = Tile::from_texture(Texture::from_color(col.to_u8_array()));
+        let mut tile = tile;
+        tile.id = tile_id;
+
+        self.assets.tiles.insert(tile_id, tile.clone());
+        if let Some(&ti) = self.assets.tile_indices.get(&tile_id) {
+            self.assets.tile_list[ti as usize] = tile;
+        } else {
+            let ti = self.assets.tile_list.len() as u16;
+            self.assets.tile_indices.insert(tile_id, ti);
+            self.assets.tile_list.push(tile);
+        }
+    }
+
+    fn ensure_palette_tiles_from_props(&mut self, props: &ValueContainer) {
+        for v in props.values() {
+            if let Value::Source(PixelSource::PaletteIndex(index)) = v {
+                self.ensure_palette_tile(*index);
+            }
+        }
+    }
+
+    fn ensure_palette_tiles_for_map(&mut self) {
+        let map = self.map.clone();
+        for sector in &map.sectors {
+            self.ensure_palette_tiles_from_props(&sector.properties);
+        }
+        for linedef in &map.linedefs {
+            self.ensure_palette_tiles_from_props(&linedef.properties);
+        }
+        for vertex in &map.vertices {
+            self.ensure_palette_tiles_from_props(&vertex.properties);
+        }
+        for entity in &map.entities {
+            self.ensure_palette_tiles_from_props(&entity.attributes);
+        }
+        for item in &map.items {
+            self.ensure_palette_tiles_from_props(&item.attributes);
+        }
+        for profile in map.profiles.values() {
+            for sector in &profile.sectors {
+                self.ensure_palette_tiles_from_props(&sector.properties);
+            }
+            for linedef in &profile.linedefs {
+                self.ensure_palette_tiles_from_props(&linedef.properties);
+            }
+            for vertex in &profile.vertices {
+                self.ensure_palette_tiles_from_props(&vertex.properties);
+            }
+        }
+    }
+
     pub fn new() -> Self {
         Self {
             assets: Assets::default(),
@@ -108,6 +169,7 @@ impl SceneManager {
             }
             SceneManagerCmd::SetPalette(palette) => {
                 self.assets.palette = palette;
+                self.ensure_palette_tiles_for_map();
                 self.dirty = Self::generate_chunk_coords(&self.map.bbox(), self.chunk_size);
                 self.all = self.dirty.clone();
             }
@@ -136,6 +198,7 @@ impl SceneManager {
                     self.results.push(SceneManagerResult::Clear);
                 }
                 self.map = new_map;
+                self.ensure_palette_tiles_for_map();
                 self.chunk_size = self.map.terrain.chunk_size.max(1);
                 let mut bbox = self.map.bbox();
                 if let Some(tbbox) = self.map.terrain.compute_bounds() {
@@ -155,6 +218,7 @@ impl SceneManager {
                 }
                 // Keep current dirty set; caller controls incremental invalidation via AddDirty.
                 self.map = new_map;
+                self.ensure_palette_tiles_for_map();
                 self.chunk_size = self.map.terrain.chunk_size.max(1);
             }
             SceneManagerCmd::AddDirty(dirty_chunks) => {
