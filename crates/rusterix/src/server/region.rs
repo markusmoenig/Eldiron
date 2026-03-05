@@ -67,50 +67,51 @@ pub fn reset_global_id_gen() {
 }
 
 fn map_spawn_height(map: &Map, pos: Vec2<f32>, preferred_y: Option<f32>) -> f32 {
-    let mut best_height: Option<f32> = None;
-    let mut best_delta = f32::MAX;
-    for sector in map
-        .sectors
-        .iter()
-        .filter(|s| s.layer.is_none() && s.is_inside(map, pos))
-    {
-        // Use average world-Y of sector boundary vertices for multi-level geometry.
-        let mut vertex_ids: Vec<u32> = Vec::new();
-        let mut sum_y = 0.0f32;
-        let mut count = 0usize;
-        for linedef_id in &sector.linedefs {
-            if let Some(ld) = map.find_linedef(*linedef_id) {
-                if !vertex_ids.contains(&ld.start_vertex) {
-                    vertex_ids.push(ld.start_vertex);
-                    if let Some(v) = map.get_vertex_3d(ld.start_vertex) {
-                        sum_y += v.y;
-                        count += 1;
+    // Spawn on a walkable floor, not on overlapping roof sectors.
+    if let Some(pref_y) = preferred_y {
+        if let Some(h) = sector_floor_height_below_or_nearest(map, pos, pref_y) {
+            return h;
+        }
+    } else {
+        let mut highest_floor: Option<f32> = None;
+        for sector in map
+            .sectors
+            .iter()
+            .filter(|s| s.layer.is_none() && s.is_inside(map, pos))
+        {
+            if sector.properties.get_float_default("roof_height", 0.0) > 0.0 {
+                continue;
+            }
+            // Use average world-Y of sector boundary vertices for multi-level geometry.
+            let mut vertex_ids: Vec<u32> = Vec::new();
+            let mut sum_y = 0.0f32;
+            let mut count = 0usize;
+            for linedef_id in &sector.linedefs {
+                if let Some(ld) = map.find_linedef(*linedef_id) {
+                    if !vertex_ids.contains(&ld.start_vertex) {
+                        vertex_ids.push(ld.start_vertex);
+                        if let Some(v) = map.get_vertex_3d(ld.start_vertex) {
+                            sum_y += v.y;
+                            count += 1;
+                        }
                     }
-                }
-                if !vertex_ids.contains(&ld.end_vertex) {
-                    vertex_ids.push(ld.end_vertex);
-                    if let Some(v) = map.get_vertex_3d(ld.end_vertex) {
-                        sum_y += v.y;
-                        count += 1;
+                    if !vertex_ids.contains(&ld.end_vertex) {
+                        vertex_ids.push(ld.end_vertex);
+                        if let Some(v) = map.get_vertex_3d(ld.end_vertex) {
+                            sum_y += v.y;
+                            count += 1;
+                        }
                     }
                 }
             }
-        }
-        if count > 0 {
-            let h = sum_y / count as f32;
-            if let Some(pref_y) = preferred_y {
-                let delta = (h - pref_y).abs();
-                if delta < best_delta {
-                    best_delta = delta;
-                    best_height = Some(h);
-                }
-            } else {
-                best_height = Some(best_height.map_or(h, |prev| prev.max(h)));
+            if count > 0 {
+                let h = sum_y / count as f32;
+                highest_floor = Some(highest_floor.map_or(h, |prev| prev.max(h)));
             }
         }
-    }
-    if let Some(h) = best_height {
-        return h;
+        if let Some(h) = highest_floor {
+            return h;
+        }
     }
     let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
     crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(map, pos, &config)
