@@ -47,7 +47,13 @@ impl Action for CreateProp {
             "actionPropType".into(),
             "".into(),
             "".into(),
-            vec!["table".into(), "bookcase".into()],
+            vec![
+                "table".into(),
+                "bookcase".into(),
+                "crate".into(),
+                "barrel".into(),
+                "bed".into(),
+            ],
             0,
         ));
         nodeui.add_item(TheNodeUIItem::CloseTree);
@@ -144,6 +150,94 @@ impl Action for CreateProp {
         ));
         nodeui.add_item(TheNodeUIItem::CloseTree);
 
+        nodeui.add_item(TheNodeUIItem::OpenTree("crate".into()));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            "actionCrateHeight".into(),
+            "".into(),
+            "".into(),
+            1.0,
+            0.2..=8.0,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
+
+        nodeui.add_item(TheNodeUIItem::OpenTree("barrel".into()));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            "actionBarrelHeight".into(),
+            "".into(),
+            "".into(),
+            1.0,
+            0.2..=8.0,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            "actionBarrelBulge".into(),
+            "".into(),
+            "".into(),
+            1.12,
+            1.0..=1.5,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::IntEditSlider(
+            "actionBarrelSegments".into(),
+            "".into(),
+            "".into(),
+            12,
+            6..=32,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
+
+        nodeui.add_item(TheNodeUIItem::OpenTree("bed".into()));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            "actionBedHeight".into(),
+            "".into(),
+            "".into(),
+            0.55,
+            0.2..=3.0,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "actionBedHeadboard".into(),
+            "".into(),
+            "".into(),
+            true,
+        ));
+        nodeui.add_item(TheNodeUIItem::Selector(
+            "actionBedHeadboardSide".into(),
+            "".into(),
+            "".into(),
+            vec!["start".into(), "end".into()],
+            0,
+        ));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            "actionBedHeadboardHeight".into(),
+            "".into(),
+            "".into(),
+            0.7,
+            0.2..=2.5,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::Icons(
+            "actionBedMattressTile".into(),
+            "".into(),
+            "".into(),
+            vec![(
+                TheRGBABuffer::new(TheDim::sized(36, 36)),
+                "".to_string(),
+                Uuid::nil(),
+            )],
+        ));
+        nodeui.add_item(TheNodeUIItem::Text(
+            "actionBedMattressTileId".into(),
+            "".into(),
+            "".into(),
+            "".into(),
+            None,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
+
         nodeui.add_item(TheNodeUIItem::OpenTree("material".into()));
         nodeui.add_item(TheNodeUIItem::Icons(
             "actionMaterialTile".into(),
@@ -195,7 +289,7 @@ impl Action for CreateProp {
         {
             let prop_kind = sector.properties.get_int_default("profile_prop_kind", 0);
             self.nodeui
-                .set_i32_value("actionPropType", prop_kind.clamp(0, 1));
+                .set_i32_value("actionPropType", prop_kind.clamp(0, 4));
             self.nodeui.set_f32_value(
                 "actionTableHeight",
                 sector.properties.get_float_default("profile_amount", 0.75),
@@ -230,6 +324,43 @@ impl Action for CreateProp {
                 "actionBookcaseHeight",
                 sector.properties.get_float_default("profile_amount", 2.0),
             );
+            self.nodeui.set_f32_value(
+                "actionCrateHeight",
+                sector.properties.get_float_default("profile_amount", 1.0),
+            );
+            self.nodeui.set_f32_value(
+                "actionBarrelHeight",
+                sector.properties.get_float_default("profile_amount", 1.0),
+            );
+            self.nodeui.set_f32_value(
+                "actionBarrelBulge",
+                sector.properties.get_float_default("barrel_bulge", 1.12),
+            );
+            self.nodeui.set_i32_value(
+                "actionBarrelSegments",
+                sector.properties.get_int_default("barrel_segments", 12),
+            );
+            self.nodeui.set_f32_value(
+                "actionBedHeight",
+                sector.properties.get_float_default("profile_amount", 0.55),
+            );
+            self.nodeui.set_bool_value(
+                "actionBedHeadboard",
+                sector.properties.get_bool_default("bed_headboard", true),
+            );
+            self.nodeui.set_i32_value(
+                "actionBedHeadboardSide",
+                sector
+                    .properties
+                    .get_int_default("bed_headboard_side", 0)
+                    .clamp(0, 1),
+            );
+            self.nodeui.set_f32_value(
+                "actionBedHeadboardHeight",
+                sector
+                    .properties
+                    .get_float_default("bed_headboard_height", 0.7),
+            );
             self.nodeui.set_i32_value(
                 "actionBookcaseShelves",
                 sector.properties.get_int_default("bookcase_shelves", 4),
@@ -259,6 +390,17 @@ impl Action for CreateProp {
             {
                 items[0].2 = chair_tile_id;
             }
+
+            let (bed_mattress_tile_text, bed_mattress_tile_id) =
+                source_to_text_and_uuid(sector.properties.get("bed_mattress_source"));
+            self.nodeui
+                .set_text_value("actionBedMattressTileId", bed_mattress_tile_text);
+            if let Some(item) = self.nodeui.get_item_mut("actionBedMattressTile")
+                && let TheNodeUIItem::Icons(_, _, _, items) = item
+                && items.len() == 1
+            {
+                items[0].2 = bed_mattress_tile_id;
+            }
         }
     }
 
@@ -267,6 +409,8 @@ impl Action for CreateProp {
         let mut tile_id = Uuid::nil();
         let mut chair_tile_icon = TheRGBABuffer::new(TheDim::sized(36, 36));
         let mut chair_tile_id = Uuid::nil();
+        let mut bed_mattress_tile_icon = TheRGBABuffer::new(TheDim::sized(36, 36));
+        let mut bed_mattress_tile_id = Uuid::nil();
 
         if let Some(map) = project.get_map(server_ctx)
             && let Some(sector_id) = map.selected_sectors.first()
@@ -290,6 +434,17 @@ impl Action for CreateProp {
             chair_tile_icon = tile.textures[0].to_rgba();
             chair_tile_id = *id;
         }
+        if let Some(map) = project.get_map(server_ctx)
+            && let Some(sector_id) = map.selected_sectors.first()
+            && let Some(sector) = map.find_sector(*sector_id)
+            && let Some(Value::Source(PixelSource::TileId(id))) =
+                sector.properties.get("bed_mattress_source")
+            && let Some(tile) = project.tiles.get(id)
+            && !tile.is_empty()
+        {
+            bed_mattress_tile_icon = tile.textures[0].to_rgba();
+            bed_mattress_tile_id = *id;
+        }
 
         if let Some(item) = self.nodeui.get_item_mut("actionMaterialTile")
             && let TheNodeUIItem::Icons(_, _, _, items) = item
@@ -304,6 +459,13 @@ impl Action for CreateProp {
         {
             items[0].0 = chair_tile_icon;
             items[0].2 = chair_tile_id;
+        }
+        if let Some(item) = self.nodeui.get_item_mut("actionBedMattressTile")
+            && let TheNodeUIItem::Icons(_, _, _, items) = item
+            && items.len() == 1
+        {
+            items[0].0 = bed_mattress_tile_icon;
+            items[0].2 = bed_mattress_tile_id;
         }
     }
 
@@ -352,6 +514,45 @@ impl Action for CreateProp {
             .get_f32_value("actionBookcaseHeight")
             .unwrap_or(2.0)
             .max(0.2);
+        let crate_height = self
+            .nodeui
+            .get_f32_value("actionCrateHeight")
+            .unwrap_or(1.0)
+            .max(0.2);
+        let barrel_height = self
+            .nodeui
+            .get_f32_value("actionBarrelHeight")
+            .unwrap_or(1.0)
+            .max(0.2);
+        let barrel_bulge = self
+            .nodeui
+            .get_f32_value("actionBarrelBulge")
+            .unwrap_or(1.12)
+            .clamp(1.0, 1.5);
+        let barrel_segments = self
+            .nodeui
+            .get_i32_value("actionBarrelSegments")
+            .unwrap_or(12)
+            .clamp(6, 32);
+        let bed_height = self
+            .nodeui
+            .get_f32_value("actionBedHeight")
+            .unwrap_or(0.55)
+            .clamp(0.2, 3.0);
+        let bed_headboard = self
+            .nodeui
+            .get_bool_value("actionBedHeadboard")
+            .unwrap_or(true);
+        let bed_headboard_side = self
+            .nodeui
+            .get_i32_value("actionBedHeadboardSide")
+            .unwrap_or(0)
+            .clamp(0, 1);
+        let bed_headboard_height = self
+            .nodeui
+            .get_f32_value("actionBedHeadboardHeight")
+            .unwrap_or(0.7)
+            .clamp(0.2, 2.5);
         let bookcase_shelves = self
             .nodeui
             .get_i32_value("actionBookcaseShelves")
@@ -380,6 +581,16 @@ impl Action for CreateProp {
             .get_text_value("actionTableChairTileId")
             .unwrap_or_default();
         let chair_source = parse_source_from_text_or_tile(&chair_tile_text, chair_tile_id);
+        let bed_mattress_tile_id = self
+            .nodeui
+            .get_tile_id("actionBedMattressTile", 0)
+            .unwrap_or(Uuid::nil());
+        let bed_mattress_tile_text = self
+            .nodeui
+            .get_text_value("actionBedMattressTileId")
+            .unwrap_or_default();
+        let bed_mattress_source =
+            parse_source_from_text_or_tile(&bed_mattress_tile_text, bed_mattress_tile_id);
 
         let mut changed = false;
         for sector_id in &map.selected_sectors.clone() {
@@ -390,10 +601,12 @@ impl Action for CreateProp {
                     .set("profile_prop_kind", Value::Int(prop_type));
                 sector.properties.set(
                     "profile_amount",
-                    Value::Float(if prop_type == 1 {
-                        bookcase_height
-                    } else {
-                        height
+                    Value::Float(match prop_type {
+                        1 => bookcase_height,
+                        2 => crate_height,
+                        3 => barrel_height,
+                        4 => bed_height,
+                        _ => height,
                     }),
                 );
                 sector.properties.set("profile_table", Value::Bool(true));
@@ -416,7 +629,13 @@ impl Action for CreateProp {
                     sector.properties.remove("bookcase_shelves");
                     sector.properties.remove("bookcase_books");
                     sector.properties.remove("book_source");
-                } else {
+                    sector.properties.remove("barrel_bulge");
+                    sector.properties.remove("barrel_segments");
+                    sector.properties.remove("bed_headboard");
+                    sector.properties.remove("bed_headboard_side");
+                    sector.properties.remove("bed_headboard_height");
+                    sector.properties.remove("bed_mattress_source");
+                } else if prop_type == 1 {
                     sector
                         .properties
                         .set("bookcase_shelves", Value::Int(bookcase_shelves));
@@ -429,6 +648,12 @@ impl Action for CreateProp {
                     sector.properties.remove("table_chair_width");
                     sector.properties.remove("table_chair_back_height");
                     sector.properties.remove("chair_source");
+                    sector.properties.remove("barrel_bulge");
+                    sector.properties.remove("barrel_segments");
+                    sector.properties.remove("bed_headboard");
+                    sector.properties.remove("bed_headboard_side");
+                    sector.properties.remove("bed_headboard_height");
+                    sector.properties.remove("bed_mattress_source");
 
                     if bookcase_books {
                         let palette_index = (8 + (sector.id % 24)) as u16;
@@ -439,6 +664,71 @@ impl Action for CreateProp {
                     } else {
                         sector.properties.remove("book_source");
                     }
+                } else if prop_type == 3 {
+                    sector
+                        .properties
+                        .set("barrel_bulge", Value::Float(barrel_bulge));
+                    sector
+                        .properties
+                        .set("barrel_segments", Value::Int(barrel_segments));
+                    sector.properties.remove("table_chairs");
+                    sector.properties.remove("table_chair_count");
+                    sector.properties.remove("table_chair_offset");
+                    sector.properties.remove("table_chair_width");
+                    sector.properties.remove("table_chair_back_height");
+                    sector.properties.remove("chair_source");
+                    sector.properties.remove("bookcase_shelves");
+                    sector.properties.remove("bookcase_books");
+                    sector.properties.remove("book_source");
+                    sector.properties.remove("bed_headboard");
+                    sector.properties.remove("bed_headboard_side");
+                    sector.properties.remove("bed_headboard_height");
+                    sector.properties.remove("bed_mattress_source");
+                } else if prop_type == 4 {
+                    sector
+                        .properties
+                        .set("bed_headboard", Value::Bool(bed_headboard));
+                    sector
+                        .properties
+                        .set("bed_headboard_side", Value::Int(bed_headboard_side));
+                    sector
+                        .properties
+                        .set("bed_headboard_height", Value::Float(bed_headboard_height));
+                    sector.properties.remove("table_chairs");
+                    sector.properties.remove("table_chair_count");
+                    sector.properties.remove("table_chair_offset");
+                    sector.properties.remove("table_chair_width");
+                    sector.properties.remove("table_chair_back_height");
+                    sector.properties.remove("chair_source");
+                    sector.properties.remove("bookcase_shelves");
+                    sector.properties.remove("bookcase_books");
+                    sector.properties.remove("book_source");
+                    sector.properties.remove("barrel_bulge");
+                    sector.properties.remove("barrel_segments");
+                    if let Some(source) = bed_mattress_source.clone().or(table_source.clone()) {
+                        sector
+                            .properties
+                            .set("bed_mattress_source", Value::Source(source));
+                    } else {
+                        sector.properties.remove("bed_mattress_source");
+                    }
+                } else {
+                    // Crate and any unknown future prop kinds: clear unrelated settings.
+                    sector.properties.remove("table_chairs");
+                    sector.properties.remove("table_chair_count");
+                    sector.properties.remove("table_chair_offset");
+                    sector.properties.remove("table_chair_width");
+                    sector.properties.remove("table_chair_back_height");
+                    sector.properties.remove("chair_source");
+                    sector.properties.remove("bookcase_shelves");
+                    sector.properties.remove("bookcase_books");
+                    sector.properties.remove("book_source");
+                    sector.properties.remove("barrel_bulge");
+                    sector.properties.remove("barrel_segments");
+                    sector.properties.remove("bed_headboard");
+                    sector.properties.remove("bed_headboard_side");
+                    sector.properties.remove("bed_headboard_height");
+                    sector.properties.remove("bed_mattress_source");
                 }
 
                 if let Some(source) = table_source.clone() {
@@ -497,6 +787,9 @@ impl Action for CreateProp {
             } else if id.name == "actionTableChairTile" {
                 self.nodeui
                     .set_text_value("actionTableChairTileId", tile_id.to_string());
+            } else if id.name == "actionBedMattressTile" {
+                self.nodeui
+                    .set_text_value("actionBedMattressTileId", tile_id.to_string());
             }
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Update Action List"),

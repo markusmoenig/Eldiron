@@ -1720,6 +1720,62 @@ impl ChunkBuilder for D3ChunkBuilder {
 
                 // Process holes/doors/windows as dynamic openings
                 for h in &hole_loops {
+                    // "Create Props" uses Relief profile loops on horizontal surfaces.
+                    // Add a blocking volume so runtime collision matches rendered props.
+                    if is_horizontal
+                        && let LoopOp::Relief { height } = h.op
+                        && height > 0.0
+                        && let Some(origin) = h.origin_profile_sector
+                        && let Some(profile_id) = surface.profile
+                        && let Some(profile_map) = map.profiles.get(&profile_id)
+                        && let Some(ps) = profile_map.find_sector(origin)
+                        && ps.properties.get_bool_default("profile_table", false)
+                    {
+                        let profile_target = ps.properties.get_int_default("profile_target", 0);
+                        let base_extrusion = if profile_target == 1 {
+                            surface.extrusion.depth.abs()
+                        } else {
+                            0.0
+                        };
+                        let direction = if profile_target == 1 { 1.0 } else { -1.0 };
+                        let base_y = surface.plane.origin.y + base_extrusion;
+                        let top_y = base_y + direction * height;
+                        let (min_y, mut max_y) = if top_y >= base_y {
+                            (base_y, top_y)
+                        } else {
+                            (top_y, base_y)
+                        };
+                        // Keep tiny heights collidable.
+                        if (max_y - min_y).abs() < 0.05 {
+                            max_y = min_y + 0.05;
+                        }
+
+                        let mut pmin_x = f32::INFINITY;
+                        let mut pmin_z = f32::INFINITY;
+                        let mut pmax_x = f32::NEG_INFINITY;
+                        let mut pmax_z = f32::NEG_INFINITY;
+                        for uv in &h.path {
+                            let wp = surface.uv_to_world(*uv);
+                            pmin_x = pmin_x.min(wp.x);
+                            pmin_z = pmin_z.min(wp.z);
+                            pmax_x = pmax_x.max(wp.x);
+                            pmax_z = pmax_z.max(wp.z);
+                        }
+
+                        if pmin_x.is_finite()
+                            && pmin_z.is_finite()
+                            && pmax_x.is_finite()
+                            && pmax_z.is_finite()
+                        {
+                            collision.static_volumes.push(BlockingVolume {
+                                geo_id: GeoId::Hole(sector.id, origin),
+                                min: Vec3::new(pmin_x, min_y, pmin_z),
+                                max: Vec3::new(pmax_x, max_y, pmax_z),
+                            });
+                        }
+                        continue;
+                    }
+
                     match h.op {
                         LoopOp::None => {
                             // This is a hole (door or window)
@@ -5554,9 +5610,86 @@ fn process_feature_loop_with_action(
             );
             let sx = (max_uv.x - min_uv.x).abs().max(1e-4);
             let sy = (max_uv.y - min_uv.y).abs().max(1e-4);
+            let mesh_builder = SurfaceMeshBuilder::new(surface);
+
+            let make_prism = |px0: f32,
+                              px1: f32,
+                              py0: f32,
+                              py1: f32,
+                              pz0: f32,
+                              pz1: f32|
+             -> SectorMeshDescriptor {
+                let top = vec![
+                    ControlPoint {
+                        uv: Vec2::new(px0, py0),
+                        extrusion: pz1,
+                    },
+                    ControlPoint {
+                        uv: Vec2::new(px1, py0),
+                        extrusion: pz1,
+                    },
+                    ControlPoint {
+                        uv: Vec2::new(px1, py1),
+                        extrusion: pz1,
+                    },
+                    ControlPoint {
+                        uv: Vec2::new(px0, py1),
+                        extrusion: pz1,
+                    },
+                ];
+                let bottom = vec![
+                    ControlPoint {
+                        uv: Vec2::new(px0, py0),
+                        extrusion: pz0,
+                    },
+                    ControlPoint {
+                        uv: Vec2::new(px1, py0),
+                        extrusion: pz0,
+                    },
+                    ControlPoint {
+                        uv: Vec2::new(px1, py1),
+                        extrusion: pz0,
+                    },
+                    ControlPoint {
+                        uv: Vec2::new(px0, py1),
+                        extrusion: pz0,
+                    },
+                ];
+                SectorMeshDescriptor {
+                    is_hole: false,
+                    cap: Some(MeshTopology::FilledRegion {
+                        outer: top.clone(),
+                        holes: vec![],
+                    }),
+                    sides: Some(MeshTopology::QuadStrip {
+                        loop_a: bottom,
+                        loop_b: top,
+                    }),
+                    connection: crate::chunkbuilder::action::ConnectionMode::Hard,
+                }
+            };
+
+            macro_rules! emit_prism {
+                ($px0:expr, $px1:expr, $py0:expr, $py1:expr, $pz0:expr, $pz1:expr) => {{
+                    let part = make_prism($px0, $px1, $py0, $py1, $pz0, $pz1);
+                    let part_meshes = mesh_builder.build(&part);
+                    emit_feature_meshes(
+                        surface,
+                        map,
+                        sector,
+                        chunk,
+                        vmchunk,
+                        assets,
+                        feature_loop.origin_profile_sector,
+                        profile_target,
+                        &part_meshes,
+                        part.cap.is_some(),
+                        None,
+                    );
+                }};
+            }
 
             if prop_kind == 1 {
-                let mesh_builder = SurfaceMeshBuilder::new(surface);
                 let panel_t = (sx.min(sy) * 0.08).clamp(0.06, 0.20);
                 // Use the full selected sector depth for the bookcase footprint.
                 let depth = sy;
@@ -5583,83 +5716,6 @@ fn process_feature_loop_with_action(
                     "bookcase_books",
                     true,
                 );
-
-                let make_prism = |px0: f32,
-                                  px1: f32,
-                                  py0: f32,
-                                  py1: f32,
-                                  pz0: f32,
-                                  pz1: f32|
-                 -> SectorMeshDescriptor {
-                    let top = vec![
-                        ControlPoint {
-                            uv: Vec2::new(px0, py0),
-                            extrusion: pz1,
-                        },
-                        ControlPoint {
-                            uv: Vec2::new(px1, py0),
-                            extrusion: pz1,
-                        },
-                        ControlPoint {
-                            uv: Vec2::new(px1, py1),
-                            extrusion: pz1,
-                        },
-                        ControlPoint {
-                            uv: Vec2::new(px0, py1),
-                            extrusion: pz1,
-                        },
-                    ];
-                    let bottom = vec![
-                        ControlPoint {
-                            uv: Vec2::new(px0, py0),
-                            extrusion: pz0,
-                        },
-                        ControlPoint {
-                            uv: Vec2::new(px1, py0),
-                            extrusion: pz0,
-                        },
-                        ControlPoint {
-                            uv: Vec2::new(px1, py1),
-                            extrusion: pz0,
-                        },
-                        ControlPoint {
-                            uv: Vec2::new(px0, py1),
-                            extrusion: pz0,
-                        },
-                    ];
-                    SectorMeshDescriptor {
-                        is_hole: false,
-                        cap: Some(MeshTopology::FilledRegion {
-                            outer: top.clone(),
-                            holes: vec![],
-                        }),
-                        sides: Some(MeshTopology::QuadStrip {
-                            loop_a: bottom,
-                            loop_b: top,
-                        }),
-                        connection: crate::chunkbuilder::action::ConnectionMode::Hard,
-                    }
-                };
-
-                macro_rules! emit_prism {
-                    ($px0:expr, $px1:expr, $py0:expr, $py1:expr, $pz0:expr, $pz1:expr) => {{
-                        let part = make_prism($px0, $px1, $py0, $py1, $pz0, $pz1);
-                        let part_meshes = mesh_builder.build(&part);
-                        emit_feature_meshes(
-                            surface,
-                            map,
-                            sector,
-                            chunk,
-                            vmchunk,
-                            assets,
-                            feature_loop.origin_profile_sector,
-                            profile_target,
-                            &part_meshes,
-                            part.cap.is_some(),
-                            None,
-                        );
-                    }};
-                }
 
                 // Carcass without overlapping panel volumes (avoids z-fighting at joints).
                 // Back panel
@@ -5796,6 +5852,259 @@ fn process_feature_loop_with_action(
                 }
                 return Some(());
             }
+
+            if prop_kind == 2 {
+                emit_prism!(
+                    min_uv.x,
+                    max_uv.x,
+                    min_uv.y,
+                    max_uv.y,
+                    base_extrusion,
+                    top_extrusion
+                );
+                return Some(());
+            }
+
+            if prop_kind == 3 {
+                let segments = feature_profile_int(
+                    surface,
+                    map,
+                    sector,
+                    feature_loop.origin_profile_sector,
+                    "barrel_segments",
+                    12,
+                )
+                .clamp(6, 32) as usize;
+                let bulge = feature_profile_float(
+                    surface,
+                    map,
+                    sector,
+                    feature_loop.origin_profile_sector,
+                    "barrel_bulge",
+                    1.12,
+                )
+                .clamp(1.0, 1.5);
+
+                let cx = (min_uv.x + max_uv.x) * 0.5;
+                let cy = (min_uv.y + max_uv.y) * 0.5;
+                let rx = sx * 0.5 * 0.92;
+                let ry = sy * 0.5 * 0.92;
+                let z0 = base_extrusion;
+                let z1 = top_extrusion;
+                let zm = (z0 + z1) * 0.5;
+
+                let make_ring = |scale: f32, extrusion: f32| -> Vec<ControlPoint> {
+                    let mut ring = Vec::with_capacity(segments);
+                    for i in 0..segments {
+                        let t = i as f32 / segments as f32;
+                        let a = t * std::f32::consts::TAU;
+                        ring.push(ControlPoint {
+                            uv: Vec2::new(cx + a.cos() * rx * scale, cy + a.sin() * ry * scale),
+                            extrusion,
+                        });
+                    }
+                    ring
+                };
+
+                let ring_bottom = make_ring(1.0, z0);
+                let ring_mid = make_ring(bulge, zm);
+                let ring_top = make_ring(1.0, z1);
+
+                let top_cap = SectorMeshDescriptor {
+                    is_hole: false,
+                    cap: Some(MeshTopology::FilledRegion {
+                        outer: ring_top.clone(),
+                        holes: vec![],
+                    }),
+                    sides: None,
+                    connection: crate::chunkbuilder::action::ConnectionMode::Hard,
+                };
+                let top_meshes = mesh_builder.build(&top_cap);
+                emit_feature_meshes(
+                    surface,
+                    map,
+                    sector,
+                    chunk,
+                    vmchunk,
+                    assets,
+                    feature_loop.origin_profile_sector,
+                    profile_target,
+                    &top_meshes,
+                    top_cap.cap.is_some(),
+                    None,
+                );
+
+                let bottom_cap = SectorMeshDescriptor {
+                    is_hole: false,
+                    cap: Some(MeshTopology::FilledRegion {
+                        outer: ring_bottom.clone(),
+                        holes: vec![],
+                    }),
+                    sides: None,
+                    connection: crate::chunkbuilder::action::ConnectionMode::Hard,
+                };
+                let bottom_meshes = mesh_builder.build(&bottom_cap);
+                emit_feature_meshes(
+                    surface,
+                    map,
+                    sector,
+                    chunk,
+                    vmchunk,
+                    assets,
+                    feature_loop.origin_profile_sector,
+                    profile_target,
+                    &bottom_meshes,
+                    bottom_cap.cap.is_some(),
+                    None,
+                );
+
+                let side_lower = SectorMeshDescriptor {
+                    is_hole: false,
+                    cap: None,
+                    sides: Some(MeshTopology::QuadStrip {
+                        loop_a: ring_bottom,
+                        loop_b: ring_mid.clone(),
+                    }),
+                    connection: crate::chunkbuilder::action::ConnectionMode::Hard,
+                };
+                let side_lower_meshes = mesh_builder.build(&side_lower);
+                emit_feature_meshes(
+                    surface,
+                    map,
+                    sector,
+                    chunk,
+                    vmchunk,
+                    assets,
+                    feature_loop.origin_profile_sector,
+                    profile_target,
+                    &side_lower_meshes,
+                    false,
+                    None,
+                );
+
+                let side_upper = SectorMeshDescriptor {
+                    is_hole: false,
+                    cap: None,
+                    sides: Some(MeshTopology::QuadStrip {
+                        loop_a: ring_mid,
+                        loop_b: ring_top,
+                    }),
+                    connection: crate::chunkbuilder::action::ConnectionMode::Hard,
+                };
+                let side_upper_meshes = mesh_builder.build(&side_upper);
+                emit_feature_meshes(
+                    surface,
+                    map,
+                    sector,
+                    chunk,
+                    vmchunk,
+                    assets,
+                    feature_loop.origin_profile_sector,
+                    profile_target,
+                    &side_upper_meshes,
+                    false,
+                    None,
+                );
+
+                return Some(());
+            }
+
+            if prop_kind == 4 {
+                let z0 = base_extrusion;
+                let z1 = top_extrusion;
+                let h = (z1 - z0).abs().max(0.05);
+                let mattress_h = h * 0.45;
+                let frame_h = h * 0.35;
+                let leg_h = h * 0.20;
+
+                // Slight inset so the bed doesn't exactly overlap sector edges.
+                let inset = (sx.min(sy) * 0.06).clamp(0.03, 0.20);
+                let bx0 = min_uv.x + inset;
+                let bx1 = max_uv.x - inset;
+                let by0 = min_uv.y + inset;
+                let by1 = max_uv.y - inset;
+
+                let direction = if z1 >= z0 { 1.0 } else { -1.0 };
+                let frame_top = z0 + direction * (leg_h + frame_h);
+                let mattress_top = frame_top + direction * mattress_h;
+
+                // Base frame.
+                emit_prism!(bx0, bx1, by0, by1, z0, frame_top);
+
+                // Mattress inset from frame.
+                let m_inset = (inset * 0.6).clamp(0.02, 0.12);
+                let mattress = make_prism(
+                    bx0 + m_inset,
+                    bx1 - m_inset,
+                    by0 + m_inset,
+                    by1 - m_inset,
+                    frame_top,
+                    mattress_top,
+                );
+                let mattress_meshes = mesh_builder.build(&mattress);
+                emit_feature_meshes(
+                    surface,
+                    map,
+                    sector,
+                    chunk,
+                    vmchunk,
+                    assets,
+                    feature_loop.origin_profile_sector,
+                    profile_target,
+                    &mattress_meshes,
+                    mattress.cap.is_some(),
+                    Some("bed_mattress_source"),
+                );
+
+                // Optional headboard at one short side, aligned to the bed's longer axis.
+                let headboard_enabled = feature_profile_bool(
+                    surface,
+                    map,
+                    sector,
+                    feature_loop.origin_profile_sector,
+                    "bed_headboard",
+                    true,
+                );
+                if headboard_enabled {
+                    let hb_h = feature_profile_float(
+                        surface,
+                        map,
+                        sector,
+                        feature_loop.origin_profile_sector,
+                        "bed_headboard_height",
+                        0.7,
+                    )
+                    .clamp(0.2, 2.5);
+                    let hb_top = mattress_top + direction * hb_h;
+                    let hb_t = (sx.min(sy) * 0.08).clamp(0.04, 0.14);
+                    let hb_side = feature_profile_int(
+                        surface,
+                        map,
+                        sector,
+                        feature_loop.origin_profile_sector,
+                        "bed_headboard_side",
+                        0,
+                    )
+                    .clamp(0, 1);
+                    if sx >= sy {
+                        // Bed length along x -> headboard on min/max x side.
+                        if hb_side == 0 {
+                            emit_prism!(bx0, bx0 + hb_t, by0, by1, frame_top, hb_top);
+                        } else {
+                            emit_prism!(bx1 - hb_t, bx1, by0, by1, frame_top, hb_top);
+                        }
+                    } else {
+                        // Bed length along y -> headboard on min/max y side.
+                        if hb_side == 0 {
+                            emit_prism!(bx0, bx1, by0, by0 + hb_t, frame_top, hb_top);
+                        } else {
+                            emit_prism!(bx0, bx1, by1 - hb_t, by1, frame_top, hb_top);
+                        }
+                    }
+                }
+
+                return Some(());
+            }
             let leg_half = (sx.min(sy) * 0.10).clamp(0.05, 0.35) * 0.5;
             // Prefer host sector values for Create Props (authored per target sector),
             // and only fall back to profile values when host values are missing.
@@ -5858,7 +6167,6 @@ fn process_feature_loop_with_action(
                 )
                 .clamp(0.25, 3.0),
             };
-            let mesh_builder = SurfaceMeshBuilder::new(surface);
 
             let top_loop: Vec<ControlPoint> = feature_loop
                 .path

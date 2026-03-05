@@ -215,6 +215,9 @@ Parameter groups:
 - `[prop]`
 - `[table]`
 - `[bookcase]`
+- `[crate]`
+- `[barrel]`
+- `[bed]`
 - `[material]`
 
 ### `[prop]`
@@ -222,6 +225,9 @@ Parameter groups:
 - `type`: prop generator to apply.
   - `table` (or `0`)
   - `bookcase` (or `1`)
+  - `crate` (or `2`)
+  - `barrel` (or `3`)
+  - `bed` (or `4`)
 
 ### `[table]`
 
@@ -241,6 +247,25 @@ Parameter groups:
 - `books`: enable/disable procedural books.
   - when enabled, books use deterministic per-book random palette colors.
 
+### `[crate]`
+
+- `height`: total crate height.
+
+### `[barrel]`
+
+- `height`: total barrel height.
+- `bulge`: middle ring scale (`1.0..1.5`).
+- `segments`: radial segment count (`6..32`).
+
+### `[bed]`
+
+- `height`: total bed height.
+- `headboard`: enable/disable headboard.
+- `headboard_side`: choose which side of the bed length gets the headboard (`start`/`end`).
+- `headboard_height`: height of the headboard above mattress/frame.
+- `mattress_tile_id`: optional mattress material source.
+  - accepts UUID or palette index.
+
 ### `[material]`
 
 - `tile_id`: base prop material source (carcass/table surfaces).
@@ -248,7 +273,7 @@ Parameter groups:
 
 Notes:
 - Bookcase footprint is derived from the selected floor sector shape/depth.
-- `prop.type` fully controls which generator is applied (`table` vs `bookcase`).
+- `prop.type` fully controls which generator is applied (`table`, `bookcase`, `crate`, `barrel`, `bed`).
 
 ### Set Editing Surface
 

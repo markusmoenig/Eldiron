@@ -253,6 +253,7 @@ impl GameWidget {
 
         self.scenemanager
             .set_tile_list(assets.tile_list.clone(), assets.tile_indices.clone());
+        self.scenemanager.set_palette(assets.palette.clone());
 
         self.scenemanager.send(SceneManagerCmd::SetMap(map.clone()));
         self.loaded_chunks.clear();
