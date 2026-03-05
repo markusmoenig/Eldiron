@@ -66,6 +66,121 @@ pub fn reset_global_id_gen() {
     GLOBAL_ID_GEN.store(1, Ordering::Relaxed);
 }
 
+fn map_spawn_height(map: &Map, pos: Vec2<f32>, preferred_y: Option<f32>) -> f32 {
+    let mut best_height: Option<f32> = None;
+    let mut best_delta = f32::MAX;
+    for sector in map
+        .sectors
+        .iter()
+        .filter(|s| s.layer.is_none() && s.is_inside(map, pos))
+    {
+        // Use average world-Y of sector boundary vertices for multi-level geometry.
+        let mut vertex_ids: Vec<u32> = Vec::new();
+        let mut sum_y = 0.0f32;
+        let mut count = 0usize;
+        for linedef_id in &sector.linedefs {
+            if let Some(ld) = map.find_linedef(*linedef_id) {
+                if !vertex_ids.contains(&ld.start_vertex) {
+                    vertex_ids.push(ld.start_vertex);
+                    if let Some(v) = map.get_vertex_3d(ld.start_vertex) {
+                        sum_y += v.y;
+                        count += 1;
+                    }
+                }
+                if !vertex_ids.contains(&ld.end_vertex) {
+                    vertex_ids.push(ld.end_vertex);
+                    if let Some(v) = map.get_vertex_3d(ld.end_vertex) {
+                        sum_y += v.y;
+                        count += 1;
+                    }
+                }
+            }
+        }
+        if count > 0 {
+            let h = sum_y / count as f32;
+            if let Some(pref_y) = preferred_y {
+                let delta = (h - pref_y).abs();
+                if delta < best_delta {
+                    best_delta = delta;
+                    best_height = Some(h);
+                }
+            } else {
+                best_height = Some(best_height.map_or(h, |prev| prev.max(h)));
+            }
+        }
+    }
+    if let Some(h) = best_height {
+        return h;
+    }
+    let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+    crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(map, pos, &config)
+}
+
+fn sector_floor_height_below_or_nearest(
+    map: &Map,
+    pos: Vec2<f32>,
+    reference_y: f32,
+) -> Option<f32> {
+    let mut best_below: Option<f32> = None;
+    let mut best_above: Option<f32> = None;
+    let mut best_above_dist = f32::INFINITY;
+    const FLOOR_EPS: f32 = 0.05;
+
+    for sector in map
+        .sectors
+        .iter()
+        .filter(|s| s.layer.is_none() && s.is_inside(map, pos))
+    {
+        // Roof sectors overlap the house footprint in XZ, but should not be used as walk floors.
+        if sector.properties.get_float_default("roof_height", 0.0) > 0.0 {
+            continue;
+        }
+        let mut vertex_ids: Vec<u32> = Vec::new();
+        let mut sum_y = 0.0f32;
+        let mut count = 0usize;
+        for linedef_id in &sector.linedefs {
+            if let Some(ld) = map.find_linedef(*linedef_id) {
+                if !vertex_ids.contains(&ld.start_vertex) {
+                    vertex_ids.push(ld.start_vertex);
+                    if let Some(v) = map.get_vertex_3d(ld.start_vertex) {
+                        sum_y += v.y;
+                        count += 1;
+                    }
+                }
+                if !vertex_ids.contains(&ld.end_vertex) {
+                    vertex_ids.push(ld.end_vertex);
+                    if let Some(v) = map.get_vertex_3d(ld.end_vertex) {
+                        sum_y += v.y;
+                        count += 1;
+                    }
+                }
+            }
+        }
+        if count == 0 {
+            continue;
+        }
+
+        let h = sum_y / count as f32;
+        if h <= reference_y + FLOOR_EPS {
+            best_below = Some(match best_below {
+                Some(curr) => curr.max(h),
+                None => h,
+            });
+        } else {
+            let d = h - reference_y;
+            if d < best_above_dist {
+                best_above_dist = d;
+                best_above = Some(h);
+            } else if (d - best_above_dist).abs() < 1e-4 && h < best_above.unwrap_or(f32::INFINITY)
+            {
+                best_above = Some(h);
+            }
+        }
+    }
+
+    best_below.or(best_above)
+}
+
 use EntityAction::*;
 
 use super::RegionMessage;
@@ -695,13 +810,8 @@ impl RegionInstance {
         for entity in entities.iter() {
             if let Some(class_name) = entity.get_attr_string("class_name") {
                 if let Some(data) = ctx.entity_class_data.get(&class_name) {
-                    let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
                     let ground_y =
-                        crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
-                            &ctx.map,
-                            entity.get_pos_xz(),
-                            &config,
-                        );
+                        map_spawn_height(&ctx.map, entity.get_pos_xz(), Some(entity.position.y));
                     let mut spawn_entity_id: Option<u32> = None;
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {
@@ -1964,11 +2074,83 @@ impl RegionInstance {
                         };
 
                         let move_delta = new_position - position;
-                        if move_delta.magnitude_squared() > 1e-6 {
+                        let old_dist = (*coord - position).magnitude();
+                        let new_dist = (*coord - new_position).magnitude();
+                        let progress = old_dist - new_dist;
+
+                        // Prevent facing jitter when repeatedly colliding/sliding near blockers.
+                        if move_delta.magnitude_squared() > 1e-6 && progress > 0.002 {
                             entity.set_orientation(move_delta.normalized());
                         }
                         entity.set_pos_xz(new_position);
+
+                        // Track long-running no-improvement oscillations near blockers.
+                        // This catches "left/right flicker forever" where tiny movement happens
+                        // but distance-to-goal never materially decreases.
+                        let prev_tx = entity
+                            .attributes
+                            .get_float_default("__goto_target_x", coord.x);
+                        let prev_ty = entity
+                            .attributes
+                            .get_float_default("__goto_target_y", coord.y);
+                        let target_changed =
+                            (prev_tx - coord.x).abs() > 0.01 || (prev_ty - coord.y).abs() > 0.01;
+                        entity
+                            .attributes
+                            .set("__goto_target_x", Value::Float(coord.x));
+                        entity
+                            .attributes
+                            .set("__goto_target_y", Value::Float(coord.y));
+
+                        let mut best_dist = if target_changed {
+                            old_dist
+                        } else {
+                            entity
+                                .attributes
+                                .get_float_default("__goto_best_dist", old_dist)
+                        };
+                        let mut no_improve_ticks = if target_changed {
+                            0
+                        } else {
+                            entity
+                                .attributes
+                                .get_int_default("__goto_no_improve_ticks", 0)
+                                .max(0)
+                        };
+
+                        if new_dist + 0.01 < best_dist {
+                            best_dist = new_dist;
+                            no_improve_ticks = 0;
+                        } else {
+                            no_improve_ticks += 1;
+                        }
+                        entity
+                            .attributes
+                            .set("__goto_best_dist", Value::Float(best_dist));
+                        entity
+                            .attributes
+                            .set("__goto_no_improve_ticks", Value::Int(no_improve_ticks));
+                        let mut stall_ticks = entity
+                            .attributes
+                            .get_int_default("__goto_stall_ticks", 0)
+                            .max(0);
+                        if progress < 0.01 {
+                            stall_ticks += 1;
+                        } else {
+                            stall_ticks = 0;
+                        }
+                        if move_delta.magnitude_squared() <= 1e-8 {
+                            stall_ticks += 2;
+                        }
+                        entity
+                            .attributes
+                            .set("__goto_stall_ticks", Value::Int(stall_ticks));
+
                         if arrived {
+                            entity.attributes.set("__goto_stall_ticks", Value::Int(0));
+                            entity
+                                .attributes
+                                .set("__goto_no_improve_ticks", Value::Int(0));
                             entity.action = EntityAction::Off;
 
                             let mut sector_name: String = String::new();
@@ -1988,6 +2170,13 @@ impl RegionInstance {
                                     VMValue::from(sector_name),
                                 ));
                             }
+                        } else if stall_ticks >= 8 || no_improve_ticks >= 16 {
+                            // Give up this goto target when we are clearly oscillating/stuck.
+                            entity.attributes.set("__goto_stall_ticks", Value::Int(0));
+                            entity
+                                .attributes
+                                .set("__goto_no_improve_ticks", Value::Int(0));
+                            entity.action = EntityAction::Off;
                         };
                         ctx.check_player_for_section_change(entity);
                     });
@@ -2061,16 +2250,221 @@ impl RegionInstance {
                                 RandomWalkInSector(*distance, *speed, *max_sleep, 0, *target),
                             );
                         } else {
-                            let t = RandomWalkInSector(*distance, *speed, *max_sleep, 0, *target);
                             let max_sleep = *max_sleep;
-                            let blocked = self.move_entity(entity, 1.0, self.entity_block_mode);
-                            if blocked {
-                                let mut rng = rand::rng();
-                                entity.action = self.create_sleep_switch_action(
-                                    rng.random_range(max_sleep / 2..=max_sleep) as u32,
-                                    t,
+                            with_regionctx(self.id, |ctx| {
+                                let position = entity.get_pos_xz();
+                                let radius =
+                                    entity.attributes.get_float_default("radius", 0.5) - 0.01;
+                                // Keep RandomWalkInSector speed behavior aligned with legacy move_entity().
+                                let step_speed = self.movement_units_per_sec * ctx.delta_time;
+                                let terrain_cfg =
+                                    crate::chunkbuilder::terrain_generator::TerrainConfig::default(
+                                    );
+                                let terrain_y =
+                                    crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                                        &ctx.map,
+                                        position,
+                                        &terrain_cfg,
+                                    );
+                                let is_elevated_floor =
+                                    (entity.position.y - terrain_y).abs() > 0.25;
+                                // Use mesh nav either when explicitly configured, or when clearly on an
+                                // elevated/interior floor where tile/terrain movement is invalid.
+                                let use_3d_nav = ctx.collision_world.has_collision_data()
+                                    && (self.collision_mode == CollisionMode::Mesh
+                                        || is_elevated_floor);
+
+                                let mut mesh_blocked = false;
+                                let (new_position, mut arrived) = if use_3d_nav {
+                                    let (desired_position, arrived_hint) = ctx
+                                        .collision_world
+                                        .move_towards_on_floors(
+                                            position, *target, step_speed, radius, 1.0,
+                                        )
+                                        .unwrap_or_else(|| {
+                                            let to_target = *target - position;
+                                            let dist = to_target.magnitude();
+                                            if dist <= 0.1 {
+                                                (position, true)
+                                            } else if dist <= f32::EPSILON {
+                                                (position, false)
+                                            } else {
+                                                let step =
+                                                    to_target.normalized() * step_speed.min(dist);
+                                                (position + step, false)
+                                            }
+                                        });
+
+                                    // Always clamp the nav step against full mesh collision so
+                                    // walls/furniture cannot be crossed.
+                                    let desired_move = desired_position - position;
+                                    let start_3d =
+                                        vek::Vec3::new(position.x, entity.position.y, position.y);
+                                    let step_3d =
+                                        vek::Vec3::new(desired_move.x, 0.0, desired_move.y);
+                                    let (end_3d, blocked) = ctx
+                                        .collision_world
+                                        .move_distance(start_3d, step_3d, radius);
+                                    mesh_blocked = blocked;
+                                    let end_2d = vek::Vec2::new(end_3d.x, end_3d.z);
+                                    let arrived = arrived_hint
+                                        && !blocked
+                                        && (*target - end_2d).magnitude() <= 0.1;
+                                    (end_2d, arrived)
+                                } else {
+                                    ctx.mapmini
+                                        .move_towards(position, *target, step_speed, radius, 1.0)
+                                };
+
+                                // Keep dynamic blocking (entities/items) behavior:
+                                // prevent entering blocking actor/item circles even when mesh nav says clear.
+                                let mut dynamic_blocked = false;
+                                let mut resolved_position = new_position;
+
+                                // Entity blocking (depends on entity_block_mode)
+                                if self.entity_block_mode > 0 {
+                                    for other in ctx.map.entities.iter() {
+                                        if other.id == entity.id || other.get_mode() == "dead" {
+                                            continue;
+                                        }
+                                        let other_pos = other.get_pos_xz();
+                                        let other_radius =
+                                            other.attributes.get_float_default("radius", 0.5)
+                                                - 0.01;
+                                        let combined = radius + other_radius;
+                                        if (resolved_position - other_pos).magnitude_squared()
+                                            < combined * combined
+                                        {
+                                            dynamic_blocked = true;
+                                            resolved_position = position;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // Item blocking
+                                if !dynamic_blocked {
+                                    for other in ctx.map.items.iter() {
+                                        if !other.attributes.get_bool_default("visible", false)
+                                            || !other.attributes.get_bool_default("blocking", false)
+                                        {
+                                            continue;
+                                        }
+                                        let other_pos = other.get_pos_xz();
+                                        let other_radius =
+                                            other.attributes.get_float_default("radius", 0.5)
+                                                - 0.01;
+                                        let combined = radius + other_radius;
+                                        if (resolved_position - other_pos).magnitude_squared()
+                                            < combined * combined
+                                        {
+                                            dynamic_blocked = true;
+                                            resolved_position = position;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if dynamic_blocked {
+                                    arrived = false;
+                                }
+
+                                let move_delta = resolved_position - position;
+                                let old_dist = (*target - position).magnitude();
+                                let new_dist = (*target - resolved_position).magnitude();
+                                let progress = old_dist - new_dist;
+
+                                // Avoid rapid facing flips when colliding/sliding with near-zero
+                                // progress (classic jitter case in tight interiors).
+                                if move_delta.magnitude_squared() > 1e-6 && progress > 0.002 {
+                                    entity.set_orientation(move_delta.normalized());
+                                }
+                                entity.set_pos_xz(resolved_position);
+
+                                // Keep Y aligned to walking sector first (RPG behavior),
+                                // then fall back to collision floor/terrain.
+                                let floor_ref_y = entity.position.y;
+                                let sector_floor = sector_floor_height_below_or_nearest(
+                                    &ctx.map,
+                                    resolved_position,
+                                    floor_ref_y,
                                 );
-                            }
+                                let collision_floor = if use_3d_nav {
+                                    ctx.collision_world
+                                        .get_floor_height_nearest(resolved_position, floor_ref_y)
+                                } else {
+                                    None
+                                };
+                                let terrain_floor = {
+                                    let config =
+                                        crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                                    crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                                        &ctx.map,
+                                        resolved_position,
+                                        &config,
+                                    )
+                                };
+
+                                let base_y =
+                                    sector_floor.or(collision_floor).or(Some(terrain_floor));
+                                if let Some(y) = base_y {
+                                    entity.position.y = y;
+                                }
+
+                                // Track repeated no-progress frames and abandon this waypoint if
+                                // we keep oscillating near obstacles.
+                                let mut stall_ticks = entity
+                                    .attributes
+                                    .get_int_default("__rwis_stall_ticks", 0)
+                                    .max(0);
+                                if progress < 0.01 {
+                                    stall_ticks += 1;
+                                } else {
+                                    stall_ticks = 0;
+                                }
+                                if mesh_blocked || dynamic_blocked {
+                                    stall_ticks += 2;
+                                }
+                                entity
+                                    .attributes
+                                    .set("__rwis_stall_ticks", Value::Int(stall_ticks));
+
+                                if arrived {
+                                    entity.attributes.set("__rwis_stall_ticks", Value::Int(0));
+                                    let mut rng = rand::rng();
+                                    let min_sleep = (max_sleep / 2).max(1);
+                                    let max_sleep_guard = max_sleep.max(1);
+                                    let sleep_minutes =
+                                        rng.random_range(min_sleep..=max_sleep_guard) as u32;
+                                    let wake_tick = ctx.ticks
+                                        + (sleep_minutes as i64 * ctx.ticks_per_minute as i64);
+                                    entity.action = SleepAndSwitch(
+                                        wake_tick,
+                                        Box::new(RandomWalkInSector(
+                                            *distance, *speed, max_sleep, 0, *target,
+                                        )),
+                                    );
+                                } else if move_delta.magnitude_squared() <= 1e-8 || stall_ticks >= 8
+                                {
+                                    // Stuck against geometry/obstacle: pause, then pick a fresh target.
+                                    entity.attributes.set("__rwis_stall_ticks", Value::Int(0));
+                                    let mut rng = rand::rng();
+                                    let min_sleep = (max_sleep / 2).max(1);
+                                    let max_sleep_guard = max_sleep.max(1);
+                                    let sleep_minutes =
+                                        rng.random_range(min_sleep..=max_sleep_guard) as u32;
+                                    let wake_tick = ctx.ticks
+                                        + (sleep_minutes as i64 * ctx.ticks_per_minute as i64);
+                                    entity.action = SleepAndSwitch(
+                                        wake_tick,
+                                        Box::new(RandomWalkInSector(
+                                            *distance, *speed, max_sleep, 0, *target,
+                                        )),
+                                    );
+                                }
+
+                                ctx.check_player_for_section_change(entity);
+                            });
                         }
                     }
                 }
@@ -2725,13 +3119,8 @@ impl RegionInstance {
 
                 // Setting the data for the entity
                 if let Some(data) = ctx.entity_class_data.get(&class_name) {
-                    let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
                     let ground_y =
-                        crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
-                            &ctx.map,
-                            entity.get_pos_xz(),
-                            &config,
-                        );
+                        map_spawn_height(&ctx.map, entity.get_pos_xz(), Some(entity.position.y));
                     let mut spawn_entity_id: Option<u32> = None;
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {
@@ -3282,13 +3671,8 @@ pub fn receive_entity(ctx: &mut RegionCtx, mut entity: Entity, dest_sector_name:
 
     if let Some(new_pos) = new_pos {
         entity.set_pos_xz(new_pos);
-        let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
         entity.position.y =
-            crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
-                &ctx.map,
-                entity.get_pos_xz(),
-                &config,
-            );
+            map_spawn_height(&ctx.map, entity.get_pos_xz(), Some(entity.position.y));
         ctx.check_player_for_section_change(&mut entity);
     }
 

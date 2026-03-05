@@ -377,31 +377,40 @@ impl CollisionWorld {
         None
     }
 
-    /// Find floor height at position preferring the closest height to `reference_y`.
-    /// Useful when multiple floors overlap in XZ (stairs/platform seams) to avoid
-    /// instant snapping to an unrelated higher/lower floor.
+    /// Find floor height at position, preferring floors at or below `reference_y`.
+    /// This avoids snapping actors to ceilings/upper decks in overlapping XZ areas.
+    /// If no floor exists at/below reference, falls back to the nearest above.
     pub fn get_floor_height_nearest(&self, position: Vec2<f32>, reference_y: f32) -> Option<f32> {
         let chunk_coords = self.world_to_chunk(position);
 
         if let Some(chunk_collision) = self.chunks.get(&chunk_coords) {
-            let mut best_height: Option<f32> = None;
-            let mut best_dist = f32::INFINITY;
+            const FLOOR_EPS: f32 = 0.05;
+            let mut best_below: Option<f32> = None;
+            let mut best_above: Option<f32> = None;
+            let mut best_above_dist = f32::INFINITY;
             for floor in &chunk_collision.walkable_floors {
                 if self.point_in_polygon_2d(position, &floor.polygon_2d, 0.0) {
-                    let d = (floor.height - reference_y).abs();
-                    if d < best_dist {
-                        best_dist = d;
-                        best_height = Some(floor.height);
-                    } else if (d - best_dist).abs() < 1e-4
-                        && floor.height > best_height.unwrap_or(f32::NEG_INFINITY)
-                    {
-                        // Stable tie-breaker: prefer higher floor.
-                        best_height = Some(floor.height);
+                    if floor.height <= reference_y + FLOOR_EPS {
+                        best_below = Some(match best_below {
+                            Some(curr) => curr.max(floor.height),
+                            None => floor.height,
+                        });
+                    } else {
+                        let d = floor.height - reference_y;
+                        if d < best_above_dist {
+                            best_above_dist = d;
+                            best_above = Some(floor.height);
+                        } else if (d - best_above_dist).abs() < 1e-4
+                            && floor.height < best_above.unwrap_or(f32::INFINITY)
+                        {
+                            // Stable tie-breaker for above floors: prefer lower one.
+                            best_above = Some(floor.height);
+                        }
                     }
                 }
             }
-            if let Some(h) = best_height {
-                return Some(h);
+            if best_below.is_some() || best_above.is_some() {
+                return best_below.or(best_above);
             }
         }
 

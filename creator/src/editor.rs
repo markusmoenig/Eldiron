@@ -1900,6 +1900,7 @@ impl TheTrait for Editor {
                     }
 
                     let mut grid_pos = Vec2::zero();
+                    let mut spawn_y = 0.0;
 
                     if let Some(map) = self.project.get_map(&self.server_ctx) {
                         if let Some(render_view) = ui.get_render_view("PolyView") {
@@ -1911,13 +1912,48 @@ impl TheTrait for Editor {
                                 map.subdivisions,
                             );
                             grid_pos += 0.5;
+                            let mut best_height: Option<f32> = None;
+                            for sector in map
+                                .sectors
+                                .iter()
+                                .filter(|s| s.layer.is_none() && s.is_inside(map, grid_pos))
+                            {
+                                let mut vertex_ids: Vec<u32> = Vec::new();
+                                let mut sum_y = 0.0f32;
+                                let mut count = 0usize;
+                                for linedef_id in &sector.linedefs {
+                                    if let Some(ld) = map.find_linedef(*linedef_id) {
+                                        if !vertex_ids.contains(&ld.start_vertex) {
+                                            vertex_ids.push(ld.start_vertex);
+                                            if let Some(v) = map.get_vertex_3d(ld.start_vertex) {
+                                                sum_y += v.y;
+                                                count += 1;
+                                            }
+                                        }
+                                        if !vertex_ids.contains(&ld.end_vertex) {
+                                            vertex_ids.push(ld.end_vertex);
+                                            if let Some(v) = map.get_vertex_3d(ld.end_vertex) {
+                                                sum_y += v.y;
+                                                count += 1;
+                                            }
+                                        }
+                                    }
+                                }
+                                if count > 0 {
+                                    let h = sum_y / count as f32;
+                                    best_height = Some(best_height.map_or(h, |prev| prev.max(h)));
+                                }
+                            }
+                            if let Some(h) = best_height {
+                                spawn_y = h;
+                            }
                         }
                     }
 
                     if drop.id.name.starts_with("Character") {
                         let mut instance = Character {
                             character_id: drop.id.references,
-                            position: Vec3::new(grid_pos.x, 1.5, grid_pos.y),
+                            position: Vec3::new(grid_pos.x, spawn_y, grid_pos.y),
                             ..Default::default()
                         };
 
@@ -1942,7 +1978,7 @@ impl TheTrait for Editor {
                     } else if drop.id.name.starts_with("Item") {
                         let mut instance = Item {
                             item_id: drop.id.references,
-                            position: Vec3::new(grid_pos.x, 1.5, grid_pos.y),
+                            position: Vec3::new(grid_pos.x, spawn_y, grid_pos.y),
                             ..Default::default()
                         };
 

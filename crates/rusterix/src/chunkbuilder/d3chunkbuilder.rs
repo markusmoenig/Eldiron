@@ -1737,14 +1737,12 @@ impl ChunkBuilder for D3ChunkBuilder {
                         } else {
                             0.0
                         };
-                        let direction = if profile_target == 1 { 1.0 } else { -1.0 };
                         let base_y = surface.plane.origin.y + base_extrusion;
-                        let top_y = base_y + direction * height;
-                        let (min_y, mut max_y) = if top_y >= base_y {
-                            (base_y, top_y)
-                        } else {
-                            (top_y, base_y)
-                        };
+                        // Props should block above the walkable floor regardless of profile extrusion sign.
+                        // Using signed direction here can place the volume below the floor plane, making
+                        // barrels/chests non-blocking for actors standing on the floor.
+                        let min_y = base_y - 0.02;
+                        let mut max_y = base_y + height.abs();
                         // Keep tiny heights collidable.
                         if (max_y - min_y).abs() < 0.05 {
                             max_y = min_y + 0.05;
