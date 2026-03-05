@@ -2,7 +2,7 @@
 
 ## New Features
 
-### Creator
+### Creator (Incomplete)
 
 - New **Avatar** based character *skinning system*.
 - New *Duplicate* tool for vertices, lines, sectors.
@@ -17,6 +17,8 @@
 - Support for spells!
 - Added patrol (walks along linedefs).
 - Eldiron Creator now supports multiple projects.
+- New `say()` script command which shows messages above the emitting entity.
+- New `time` event which reports full in-game hours.
 
 ---
 

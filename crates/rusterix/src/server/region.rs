@@ -1006,6 +1006,24 @@ impl RegionInstance {
                 self.from_sender
                     .send(RegionMessage::Time(self.id, ctx.time))
                     .unwrap();
+
+                // Broadcast a server-side `time` event to all characters and items
+                // whenever we cross a full in-game hour.
+                if ctx.time.minutes == 0 {
+                    let hour_24 = ctx.time.hours as i32;
+
+                    let entity_ids: Vec<u32> = ctx.entity_classes.keys().copied().collect();
+                    for id in entity_ids {
+                        ctx.to_execute_entity
+                            .push((id, "time".into(), VMValue::from_i32(hour_24)));
+                    }
+
+                    let item_ids: Vec<u32> = ctx.item_classes.keys().copied().collect();
+                    for id in item_ids {
+                        ctx.to_execute_item
+                            .push((id, "time".into(), VMValue::from_i32(hour_24)));
+                    }
+                }
             }
         });
 

@@ -111,6 +111,13 @@ Events are categorized as:
 
 ---
 
+### `time`
+
+- **Value**: `hour` *(int, 0..23)*
+- **Description**: Triggered for all characters and items whenever in-game time reaches a full hour (`MM == 00`). The value contains the current 24-hour hour value.
+
+---
+
 ### `take_damage`
 
 - **Value**: `dict`
