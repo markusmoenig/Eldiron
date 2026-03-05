@@ -30,6 +30,8 @@ static LOCAL_PLAYERS: LazyLock<Player> = LazyLock::new(|| Arc::new(RwLock::new(V
 
 // SenderEntityId, SenderItemId, ReceiverId, Message
 pub type Message = (Option<u32>, Option<u32>, u32, String, String);
+// SenderEntityId, SenderItemId, Message, Category
+pub type Say = (Option<u32>, Option<u32>, String, String);
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum ServerState {
@@ -56,6 +58,7 @@ pub struct Server {
     pub entities: FxHashMap<u32, Vec<Entity>>,
     pub items: FxHashMap<u32, Vec<Item>>,
     pub messages: FxHashMap<u32, Vec<Message>>,
+    pub says: FxHashMap<u32, Vec<Say>>,
     pub multiple_choice: FxHashMap<u32, Vec<MultipleChoice>>,
     pub audio_commands: FxHashMap<u32, Vec<AudioCommand>>,
     pub times: FxHashMap<u32, TheTime>,
@@ -90,6 +93,7 @@ impl Server {
             entities: FxHashMap::default(),
             items: FxHashMap::default(),
             messages: FxHashMap::default(),
+            says: FxHashMap::default(),
             multiple_choice: FxHashMap::default(),
             audio_commands: FxHashMap::default(),
             times: FxHashMap::default(),
@@ -221,6 +225,17 @@ impl Server {
             let messages = self.messages.get(region_id).cloned();
             self.messages.remove(region_id);
             messages.unwrap_or(vec![])
+        } else {
+            vec![]
+        }
+    }
+
+    /// Get says for a given region and clear them.
+    pub fn get_says(&mut self, region_id: &Uuid) -> Vec<Say> {
+        if let Some(region_id) = self.region_id_map.get(region_id) {
+            let says = self.says.get(region_id).cloned();
+            self.says.remove(region_id);
+            says.unwrap_or(vec![])
         } else {
             vec![]
         }
@@ -358,6 +373,14 @@ impl Server {
                             let messages =
                                 vec![(sender_entity, sender_item, receiver_id, message, category)];
                             self.messages.insert(id, messages);
+                        }
+                    }
+                    RegionMessage::Say(id, sender_entity, sender_item, message, category) => {
+                        if let Some(says) = self.says.get_mut(&id) {
+                            says.push((sender_entity, sender_item, message, category));
+                        } else {
+                            self.says
+                                .insert(id, vec![(sender_entity, sender_item, message, category)]);
                         }
                     }
                     RegionMessage::MultipleChoice(choices) => {
@@ -593,6 +616,7 @@ impl Server {
         self.entities.clear();
         self.items.clear();
         self.messages.clear();
+        self.says.clear();
         self.audio_commands.clear();
         self.id_gen = 1;
         self.region_id_map.clear();

@@ -107,6 +107,14 @@ impl Default for Builtins {
                 argc: 3,
             },
         );
+        b.insert(
+            "say",
+            2,
+            NodeOp::HostCall {
+                name: "say".into(),
+                argc: 2,
+            },
+        );
         // Host-only ops
         b.insert(
             "set_tile",

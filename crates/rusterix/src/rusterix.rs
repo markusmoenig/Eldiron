@@ -172,8 +172,8 @@ impl Rusterix {
     }
 
     /// Process messages from the server to be displayed on the client.
-    pub fn process_messages(&mut self, map: &Map, messages: Vec<crate::server::Message>) {
-        self.client.process_messages(map, messages);
+    pub fn process_messages(&mut self, map: &Map, says: Vec<crate::server::Say>) {
+        self.client.process_messages(map, says);
     }
 
     /*
@@ -384,8 +384,10 @@ impl Rusterix {
         &mut self,
         map: &Map,
         messages: Vec<crate::server::Message>,
+        says: Vec<crate::server::Say>,
         choices: Vec<crate::MultipleChoice>,
     ) {
+        self.client.process_messages(map, says);
         self.client.draw_game(
             map,
             &self.assets,
@@ -393,6 +395,11 @@ impl Rusterix {
             choices,
             &mut self.scene_handler,
         );
+    }
+
+    /// Clear active say bubbles from the client.
+    pub fn clear_say_messages(&mut self) {
+        self.client.clear_say_messages();
     }
 
     /// Send a touch dragged event to the client.

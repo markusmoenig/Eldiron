@@ -657,6 +657,14 @@ impl Execution {
                                 .insert("message_category".to_string(), cat.clone());
                         }
                     }
+                    "say" => {
+                        if let Some(text) = args.get(0) {
+                            self.outputs.insert("say_text".to_string(), text.clone());
+                        }
+                        if let Some(cat) = args.get(1) {
+                            self.outputs.insert("say_category".to_string(), cat.clone());
+                        }
+                    }
                     "id" => {
                         self.stack.push(VMValue::zero());
                     }

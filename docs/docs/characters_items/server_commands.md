@@ -292,6 +292,25 @@ message(entity_id, "message", "optional_category")
 
 ---
 
+## `say`
+
+*This command can be used with both characters and items.*
+
+Displays a speech bubble above the sender in the game world (2D and 3D).  
+The optional category is used for color lookup via the game `[say]` configuration.
+
+```eldrin
+say("Hello there")
+say("Watch out!", "warning")
+```
+
+Parameters:
+
+- `message` (required): Text to show above the sender.
+- `category` (optional): Color category key from `[say]` config (for example `warning`, `npc`, `quest`).
+
+---
+
 ## `notify_in`
 
 *This command can be used with both characters and items.*

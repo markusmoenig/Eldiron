@@ -253,10 +253,13 @@ impl RegionInstance {
                 vm,
             );
 
-            let _ =
-                scope
-                    .globals
-                    .set_item("message", vm.new_function("message", message).into(), vm);
+            let _ = scope
+                .globals
+                .set_item("message", vm.new_function("message", message).into(), vm);
+
+            let _ = scope
+                .globals
+                .set_item("say", vm.new_function("say", say).into(), vm);
 
             let _ = scope
                 .globals
@@ -5610,6 +5613,50 @@ pub fn message(args: rustpython_vm::function::FuncArgs, vm: &VirtualMachine) -> 
                 entity_id,
                 item_id,
                 receiver.unwrap() as u32,
+                message,
+                category,
+            );
+            ctx.from_sender.get().unwrap().send(msg).unwrap();
+
+            if ctx.debug_mode {
+                add_debug_value(ctx, TheValue::Text("Ok".into()), false);
+            }
+        }
+    });
+
+    Ok(())
+}
+
+/// Say
+pub fn say(args: rustpython_vm::function::FuncArgs, vm: &VirtualMachine) -> PyResult<()> {
+    let mut message = None;
+    let mut category = String::new();
+
+    for (i, arg) in args.args.iter().enumerate() {
+        if i == 0 {
+            if let Some(Value::Str(v)) = Value::from_pyobject(arg.clone(), vm) {
+                message = Some(v);
+            }
+        } else if i == 1 {
+            if let Some(Value::Str(v)) = Value::from_pyobject(arg.clone(), vm) {
+                category = v.clone();
+            }
+        }
+    }
+
+    with_regionctx(get_region_id(vm).unwrap(), |ctx: &mut RegionCtx| {
+        if message.is_some() {
+            let mut entity_id = Some(ctx.curr_entity_id);
+            let item_id = ctx.curr_item_id;
+            if item_id.is_some() {
+                entity_id = None;
+            }
+
+            let message = message.unwrap();
+            let msg = RegionMessage::Say(
+                ctx.region_id,
+                entity_id,
+                item_id,
                 message,
                 category,
             );

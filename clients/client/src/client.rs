@@ -57,6 +57,7 @@ impl TheTrait for Client {
             // Init server / client
 
             start_server(&mut self.rusterix, &mut project, false);
+            self.rusterix.clear_say_messages();
             let commands = setup_client(&mut self.rusterix, &mut project);
             self.rusterix.server.process_client_commands(commands);
             self.rusterix.client.server_time = project.time;
@@ -170,6 +171,7 @@ impl TheTrait for Client {
 
                     rusterix::tile_builder(&mut r.map, &mut self.rusterix.assets);
                     let messages = self.rusterix.server.get_messages(&r.map.id);
+                    let says = self.rusterix.server.get_says(&r.map.id);
                     let choices = self.rusterix.server.get_choices(&r.map.id);
                     for cmd in self.rusterix.server.get_audio_commands(&r.map.id) {
                         match cmd {
@@ -192,7 +194,7 @@ impl TheTrait for Client {
                             }
                         }
                     }
-                    self.rusterix.draw_game(&r.map, messages, choices);
+                    self.rusterix.draw_game(&r.map, messages, says, choices);
                     self.rusterix
                         .client
                         .insert_game_buffer(&mut ui.canvas.buffer);

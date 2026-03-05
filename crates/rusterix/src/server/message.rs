@@ -46,6 +46,8 @@ pub enum RegionMessage {
     Time(u32, TheTime),
     /// Tell: RegionId, SenderId_entity, SenderId_item, ReceiverId, Message
     Message(u32, Option<u32>, Option<u32>, u32, String, String),
+    /// Say: RegionId, SenderId_entity, SenderId_item, Message, Category
+    Say(u32, Option<u32>, Option<u32>, String, String),
     /// TransferEntity: Move the Entity from the region to a new region (name) in sector (name)
     TransferEntity(u32, Entity, String, String),
     /// Send a multiple choice

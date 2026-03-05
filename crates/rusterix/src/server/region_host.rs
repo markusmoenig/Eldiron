@@ -450,6 +450,35 @@ impl<'a> HostHandler for RegionHost<'a> {
                     }
                 }
             }
+            "say" => {
+                if let Some(msg) = args.get(0).and_then(|v| v.as_string()) {
+                    let category = args
+                        .get(1)
+                        .and_then(|v| v.as_string())
+                        .unwrap_or("")
+                        .to_string();
+                    let mut entity_id = Some(self.ctx.curr_entity_id);
+                    let item_id = self.ctx.curr_item_id;
+                    if item_id.is_some() {
+                        entity_id = None;
+                    }
+
+                    let msg = RegionMessage::Say(
+                        self.ctx.region_id,
+                        entity_id,
+                        item_id,
+                        msg.to_string(),
+                        category,
+                    );
+                    if let Some(sender) = self.ctx.from_sender.get() {
+                        let _ = sender.send(msg);
+                    }
+
+                    if self.ctx.debug_mode {
+                        add_debug_value(&mut self.ctx, TheValue::Text("Ok".into()), false);
+                    }
+                }
+            }
             "set_target" => {
                 let target_id = args
                     .first()

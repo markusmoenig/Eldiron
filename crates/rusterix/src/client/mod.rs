@@ -53,7 +53,7 @@ pub struct Client {
 
     pub draw2d: Draw2D,
 
-    pub messages_to_draw: FxHashMap<u32, (Vec2<f32>, String, usize, TheTime)>,
+    pub messages_to_draw: FxHashMap<u32, (Vec2<f32>, String, usize, Pixel, TheTime)>,
 
     // Name of player entity templates
     player_entities: Vec<String>,
@@ -156,6 +156,62 @@ impl Default for Client {
 }
 
 impl Client {
+    /// Clear all active say bubbles currently rendered above entities/items.
+    pub fn clear_say_messages(&mut self) {
+        self.messages_to_draw.clear();
+    }
+
+    fn get_say_color(&self, category: &str) -> Pixel {
+        if let Some(say) = self.config.get("say").and_then(toml::Value::as_table) {
+            if let Some(hex) = say.get(category).and_then(toml::Value::as_str) {
+                return Self::hex_to_rgba_u8(hex);
+            }
+            if let Some(hex) = say.get("default").and_then(toml::Value::as_str) {
+                return Self::hex_to_rgba_u8(hex);
+            }
+            if let Some(hex) = say.get("").and_then(toml::Value::as_str) {
+                return Self::hex_to_rgba_u8(hex);
+            }
+        }
+        self.messages_font_color
+    }
+
+    fn get_say_duration_ticks(&self) -> i64 {
+        let ticks_per_minute = self
+            .get_config_i32_default("game", "ticks_per_minute", 4)
+            .max(1);
+        let duration_minutes = self
+            .config
+            .get("say")
+            .and_then(toml::Value::as_table)
+            .and_then(|say| say.get("duration"))
+            .and_then(|v| {
+                v.as_float()
+                    .map(|f| f as f32)
+                    .or_else(|| v.as_integer().map(|i| i as f32))
+            })
+            .unwrap_or(1.0)
+            .max(0.0);
+        let ticks = (duration_minutes * ticks_per_minute as f32).round() as i64;
+        ticks.max(1)
+    }
+
+    fn get_say_background_enabled(&self) -> bool {
+        self.get_config_bool_default("say", "background_enabled", true)
+    }
+
+    fn get_say_background_color(&self) -> Pixel {
+        if let Some(say) = self.config.get("say").and_then(toml::Value::as_table) {
+            if let Some(hex) = say.get("background_color").and_then(toml::Value::as_str) {
+                return Self::hex_to_rgba_u8(hex);
+            }
+            if let Some(hex) = say.get("background").and_then(toml::Value::as_str) {
+                return Self::hex_to_rgba_u8(hex);
+            }
+        }
+        [0, 0, 0, 128]
+    }
+
     fn deactivate_matches(widget: &Widget, token: &str) -> bool {
         let t = token.trim();
         if t.is_empty() {
@@ -406,12 +462,16 @@ impl Client {
     }
 
     /// Process messages from the server to be displayed after drawing.
-    pub fn process_messages(&mut self, map: &Map, messages: Vec<crate::server::Message>) {
+    pub fn process_messages(&mut self, map: &Map, messages: Vec<crate::server::Say>) {
+        let ticks_per_minute = self
+            .get_config_i32_default("game", "ticks_per_minute", 4)
+            .max(1);
+        let now_ticks = self.server_time.to_ticks(ticks_per_minute as u32);
         // Remove expired messages
         let expired_keys: Vec<_> = self
             .messages_to_draw
             .iter()
-            .filter(|(_, (_, _, _, expire_time))| *expire_time < self.server_time)
+            .filter(|(_, (_, _, _, _, expire_time))| *expire_time <= self.server_time)
             .map(|(id, _)| *id)
             .collect();
 
@@ -420,7 +480,9 @@ impl Client {
         }
 
         // Add new messages
-        for (sender_entity_id, sender_item_id, _, message, _category) in messages {
+        let duration_ticks = self.get_say_duration_ticks();
+        for (sender_entity_id, sender_item_id, message, category) in messages {
+            let color = self.get_say_color(&category);
             if let Some(sender_item_id) = sender_item_id {
                 for item in &map.items {
                     if item.id == sender_item_id {
@@ -429,12 +491,20 @@ impl Client {
                                 self.draw2d
                                     .get_text_size(font, self.messages_font_size, &message);
 
-                            let ticks = self.server_time.to_ticks(4);
-                            let expire_time = TheTime::from_ticks(ticks + 4, 4);
+                            let expire_time = TheTime::from_ticks(
+                                now_ticks + duration_ticks,
+                                ticks_per_minute as u32,
+                            );
 
                             self.messages_to_draw.insert(
                                 sender_item_id,
-                                (item.get_pos_xz(), message.clone(), text_size.0, expire_time),
+                                (
+                                    item.get_pos_xz(),
+                                    message.clone(),
+                                    text_size.0,
+                                    color,
+                                    expire_time,
+                                ),
                             );
                         }
                     }
@@ -447,8 +517,10 @@ impl Client {
                                 self.draw2d
                                     .get_text_size(font, self.messages_font_size, &message);
 
-                            let ticks = self.server_time.to_ticks(4);
-                            let expire_time = TheTime::from_ticks(ticks + 4, 4);
+                            let expire_time = TheTime::from_ticks(
+                                now_ticks + duration_ticks,
+                                ticks_per_minute as u32,
+                            );
 
                             self.messages_to_draw.insert(
                                 sender_entity_id,
@@ -456,6 +528,7 @@ impl Client {
                                     entity.get_pos_xz(),
                                     message.clone(),
                                     text_size.0,
+                                    color,
                                     expire_time,
                                 ),
                             );
@@ -686,7 +759,9 @@ impl Client {
         // Draw Messages
 
         if let Some(font) = &self.messages_font {
-            for (grid_pos, message, text_size, _) in self.messages_to_draw.values() {
+            let say_bg_enabled = self.get_say_background_enabled();
+            let say_bg_color = self.get_say_background_color();
+            for (grid_pos, message, text_size, color, _) in self.messages_to_draw.values() {
                 let position = map_grid_to_local(screen_size, *grid_pos, map);
 
                 let tuple = (
@@ -696,13 +771,15 @@ impl Client {
                     22,
                 );
 
-                self.draw2d.blend_rect_safe(
-                    pixels,
-                    &tuple,
-                    width,
-                    &[0, 0, 0, 128],
-                    &(0, 0, width as isize, height as isize),
-                );
+                if say_bg_enabled && say_bg_color[3] > 0 {
+                    self.draw2d.blend_rect_safe(
+                        pixels,
+                        &tuple,
+                        width,
+                        &say_bg_color,
+                        &(0, 0, width as isize, height as isize),
+                    );
+                }
 
                 self.draw2d.text_rect_blend_safe(
                     pixels,
@@ -711,7 +788,7 @@ impl Client {
                     font,
                     self.messages_font_size,
                     message,
-                    &self.messages_font_color,
+                    color,
                     draw2d::TheHorizontalAlign::Center,
                     draw2d::TheVerticalAlign::Center,
                     &(0, 0, width as isize, height as isize),
@@ -816,6 +893,62 @@ impl Client {
         scene_handler
             .vm
             .render_frame(pixels, width as u32, height as u32);
+
+        if let Some(font) = &self.messages_font {
+            let view = self.camera_d3.view_matrix();
+            let proj = self
+                .camera_d3
+                .projection_matrix(width as f32, height as f32);
+            let vp = proj * view;
+            let say_bg_enabled = self.get_say_background_enabled();
+            let say_bg_color = self.get_say_background_color();
+
+            for (grid_pos, message, text_size, color, _) in self.messages_to_draw.values() {
+                let world = Vec4::new(grid_pos.x, 1.8, grid_pos.y, 1.0);
+                let clip = vp * world;
+                if clip.w <= 0.0 {
+                    continue;
+                }
+
+                let ndc = Vec3::new(clip.x / clip.w, clip.y / clip.w, clip.z / clip.w);
+                if ndc.z < -1.0 || ndc.z > 1.0 {
+                    continue;
+                }
+
+                let sx = ((ndc.x * 0.5 + 0.5) * width as f32) as isize;
+                let sy = ((1.0 - (ndc.y * 0.5 + 0.5)) * height as f32) as isize;
+
+                let tuple = (
+                    sx - *text_size as isize / 2 - 5,
+                    sy - self.messages_font_size as isize - 14,
+                    *text_size as isize + 10,
+                    22,
+                );
+
+                if say_bg_enabled && say_bg_color[3] > 0 {
+                    self.draw2d.blend_rect_safe(
+                        pixels,
+                        &tuple,
+                        width,
+                        &say_bg_color,
+                        &(0, 0, width as isize, height as isize),
+                    );
+                }
+
+                self.draw2d.text_rect_blend_safe(
+                    pixels,
+                    &tuple,
+                    width,
+                    font,
+                    self.messages_font_size,
+                    message,
+                    color,
+                    draw2d::TheHorizontalAlign::Center,
+                    draw2d::TheVerticalAlign::Center,
+                    &(0, 0, width as isize, height as isize),
+                );
+            }
+        }
     }
 
     /// Trace the 3D scene.
@@ -1046,6 +1179,8 @@ impl Client {
         }
 
         self.target.fill([0, 0, 0, 255]);
+        let say_bg_enabled = self.get_say_background_enabled();
+        let say_bg_color = self.get_say_background_color();
         // First process the game widgets
         for widget in self.game_widgets.values_mut() {
             widget.firstp_eye_level = self.firstp_eye_level;
@@ -1057,6 +1192,66 @@ impl Client {
                 assets,
                 scene_handler,
             );
+
+            if widget.camera != PlayerCamera::D2 {
+                if let Some(font) = &self.messages_font {
+                    let width = widget.buffer.dim().width as usize;
+                    let height = widget.buffer.dim().height as usize;
+                    let pixels = widget.buffer.pixels_mut();
+
+                    let view = widget.camera_d3.view_matrix();
+                    let proj = widget
+                        .camera_d3
+                        .projection_matrix(width as f32, height as f32);
+                    let vp = proj * view;
+
+                    for (grid_pos, message, text_size, color, _) in self.messages_to_draw.values() {
+                        let world = Vec4::new(grid_pos.x, 1.8, grid_pos.y, 1.0);
+                        let clip = vp * world;
+                        if clip.w <= 0.0 {
+                            continue;
+                        }
+
+                        let ndc = Vec3::new(clip.x / clip.w, clip.y / clip.w, clip.z / clip.w);
+                        if ndc.z < -1.0 || ndc.z > 1.0 {
+                            continue;
+                        }
+
+                        let sx = ((ndc.x * 0.5 + 0.5) * width as f32) as isize;
+                        let sy = ((1.0 - (ndc.y * 0.5 + 0.5)) * height as f32) as isize;
+
+                        let tuple = (
+                            sx - *text_size as isize / 2 - 5,
+                            sy - self.messages_font_size as isize - 14,
+                            *text_size as isize + 10,
+                            22,
+                        );
+
+                        if say_bg_enabled && say_bg_color[3] > 0 {
+                            self.draw2d.blend_rect_safe(
+                                pixels,
+                                &tuple,
+                                width,
+                                &say_bg_color,
+                                &(0, 0, width as isize, height as isize),
+                            );
+                        }
+
+                        self.draw2d.text_rect_blend_safe(
+                            pixels,
+                            &tuple,
+                            width,
+                            font,
+                            self.messages_font_size,
+                            message,
+                            color,
+                            draw2d::TheHorizontalAlign::Center,
+                            draw2d::TheVerticalAlign::Center,
+                            &(0, 0, width as isize, height as isize),
+                        );
+                    }
+                }
+            }
 
             self.target
                 .copy_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);

@@ -137,6 +137,45 @@ avatar_skin_auto_shading = false
 The supported game configuration options will increase over time.
 :::
 
+---
+
+## Say Configuration
+
+Speech bubble options are located in the `[say]` section.
+
+```toml
+[say]
+duration = 1                 # How long say bubbles stay visible (in in-game minutes).
+default = "#E5E501"          # Default text color when category is empty or unknown.
+
+background_enabled = true    # Whether to draw a background behind say text.
+background_color = "#00000080" # Background RGBA color (#RRGGBBAA), includes alpha.
+
+# Optional per-category text colors:
+npc = "#FFFFFF"
+warning = "#FF6666"
+quest = "#66CCFF"
+```
+
+### Option Descriptions
+
+- **`duration`**
+  - Lifetime of a `say(...)` bubble in **in-game minutes**.
+  - Accepts integer or float values (for example `1` or `1.5`).
+
+- **`default`**
+  - Fallback text color if no category is set in `say(message, category)` or if the category is not found.
+
+- **`background_enabled`**
+  - Enables/disables the speech bubble background rectangle.
+
+- **`background_color`**
+  - Background color including alpha channel (`#RRGGBBAA`), e.g. `#00000080` for 50% black.
+
+- **Category keys (e.g. `npc`, `warning`, `quest`)**
+  - Any additional key in `[say]` is treated as a text color category.
+  - Use it from scripting with `say("Text", "category_name")`.
+
 ### **Using In-Game Time for Events**
 
 Some commands use **in-game minutes** for timing.

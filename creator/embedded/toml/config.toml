@@ -36,6 +36,19 @@ avatar_shading = true
 # Enables generated marker ramp shading for skin markers
 avatar_skin_auto_shading = false
 
+[say]
+# Duration in in-game minutes a say bubble stays visible.
+duration = 1.0
+
+# Default say color used when category is empty or unknown.
+default = "#E5E501"
+
+# Draw a background behind say text.
+background_enabled = true
+
+# Background color for say text (supports alpha as #RRGGBBAA).
+background_color = "#00000080"
+
 [viewport]
 width = 960
 height = 540

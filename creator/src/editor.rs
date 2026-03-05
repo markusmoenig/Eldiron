@@ -1196,6 +1196,7 @@ impl TheTrait for Editor {
             extract_build_values_from_config(&mut self.build_values);
 
             let mut messages = Vec::new();
+            let mut says = Vec::new();
             let mut choices = Vec::new();
 
             // Update entities when the server is running
@@ -1250,6 +1251,7 @@ impl TheTrait for Editor {
 
                             rusterix::tile_builder(&mut r.map, &mut rusterix.assets);
                             messages = rusterix.server.get_messages(&r.map.id);
+                            says = rusterix.server.get_says(&r.map.id);
                             choices = rusterix.server.get_choices(&r.map.id);
                             for cmd in rusterix.server.get_audio_commands(&r.map.id) {
                                 match cmd {
@@ -1319,7 +1321,7 @@ impl TheTrait for Editor {
                     if is_running && self.server_ctx.game_mode {
                         for r in &mut self.project.regions {
                             if r.map.name == rusterix.client.current_map {
-                                rusterix.draw_game(&r.map, messages, choices);
+                                rusterix.draw_game(&r.map, messages, says, choices);
                                 break;
                             }
                         }
@@ -1455,7 +1457,7 @@ impl TheTrait for Editor {
                                 }
 
                                 // Prepare the messages for the region for drawing
-                                rusterix.process_messages(&region.map, messages);
+                                rusterix.process_messages(&region.map, says);
 
                                 // let stop_time = ctx.get_time();
                                 //println!("{} ms", stop_time - start_time);
@@ -2487,6 +2489,7 @@ impl TheTrait for Editor {
                                     &mut self.project,
                                     false,
                                 );
+                                RUSTERIX.write().unwrap().clear_say_messages();
                                 let commands =
                                     setup_client(&mut RUSTERIX.write().unwrap(), &mut self.project);
                                 RUSTERIX
@@ -2512,6 +2515,7 @@ impl TheTrait for Editor {
                         }
                     } else if id.name == "Stop" {
                         RUSTERIX.write().unwrap().server.stop();
+                        RUSTERIX.write().unwrap().clear_say_messages();
                         RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
 
                         ui.set_widget_value("InfoView", ctx, TheValue::Text("".into()));
