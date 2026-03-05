@@ -1,5 +1,6 @@
+use crate::chunkbuilder::action::{ControlPoint, MeshTopology, SectorMeshDescriptor};
 use crate::chunkbuilder::surface_mesh_builder::{
-    SurfaceMeshBuilder, fix_winding as mesh_fix_winding,
+    GeneratedMesh, SurfaceMeshBuilder, fix_winding as mesh_fix_winding,
 };
 use crate::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
 use crate::collision_world::{BlockingVolume, DynamicOpening, OpeningType, WalkableFloor};
@@ -5222,6 +5223,161 @@ fn feature_pixelsource(
     host_sector.properties.get("source").cloned()
 }
 
+fn feature_profile_target(
+    surface: &crate::Surface,
+    map: &Map,
+    sector: &Sector,
+    loop_origin: Option<u32>,
+) -> i32 {
+    if let Some(origin) = loop_origin
+        && let Some(profile_id) = surface.profile
+        && let Some(profile_map) = map.profiles.get(&profile_id)
+        && let Some(ps) = profile_map.find_sector(origin)
+    {
+        return ps.properties.get_int_default("profile_target", 0);
+    }
+    sector.properties.get_int_default("profile_target", 0)
+}
+
+fn feature_profile_bool(
+    surface: &crate::Surface,
+    map: &Map,
+    sector: &Sector,
+    loop_origin: Option<u32>,
+    key: &str,
+    default: bool,
+) -> bool {
+    let mut value = sector.properties.get_bool_default(key, default);
+    if let Some(origin) = loop_origin
+        && let Some(profile_id) = surface.profile
+        && let Some(profile_map) = map.profiles.get(&profile_id)
+        && let Some(ps) = profile_map.find_sector(origin)
+    {
+        value = ps.properties.get_bool_default(key, value);
+    }
+    value
+}
+
+fn feature_profile_int(
+    surface: &crate::Surface,
+    map: &Map,
+    sector: &Sector,
+    loop_origin: Option<u32>,
+    key: &str,
+    default: i32,
+) -> i32 {
+    let mut value = sector.properties.get_int_default(key, default);
+    if let Some(origin) = loop_origin
+        && let Some(profile_id) = surface.profile
+        && let Some(profile_map) = map.profiles.get(&profile_id)
+        && let Some(ps) = profile_map.find_sector(origin)
+    {
+        value = ps.properties.get_int_default(key, value);
+    }
+    value
+}
+
+fn feature_profile_float(
+    surface: &crate::Surface,
+    map: &Map,
+    sector: &Sector,
+    loop_origin: Option<u32>,
+    key: &str,
+    default: f32,
+) -> f32 {
+    let mut value = sector.properties.get_float_default(key, default);
+    if let Some(origin) = loop_origin
+        && let Some(profile_id) = surface.profile
+        && let Some(profile_map) = map.profiles.get(&profile_id)
+        && let Some(ps) = profile_map.find_sector(origin)
+    {
+        value = ps.properties.get_float_default(key, value);
+    }
+    value
+}
+
+fn emit_feature_meshes(
+    surface: &crate::Surface,
+    map: &Map,
+    sector: &Sector,
+    chunk: &mut Chunk,
+    vmchunk: &mut scenevm::Chunk,
+    assets: &Assets,
+    loop_origin: Option<u32>,
+    profile_target: i32,
+    meshes: &[GeneratedMesh],
+    cap_present: bool,
+    source_key_override: Option<&str>,
+) {
+    for (mesh_idx, mesh) in meshes.iter().enumerate() {
+        let is_cap = mesh_idx == 0 && cap_present;
+        let mut n = surface.plane.normal;
+        let ln = n.magnitude();
+        if ln > 1e-6 {
+            n /= ln;
+        } else {
+            n = vek::Vec3::unit_y();
+        }
+
+        let mut mesh_indices = mesh.indices.clone();
+        if is_cap {
+            let desired_n = if profile_target == 0 { -n } else { n };
+            mesh_fix_winding(&mesh.vertices, &mut mesh_indices, desired_n);
+        } else {
+            mesh_fix_winding(&mesh.vertices, &mut mesh_indices, n);
+        }
+
+        let mut batch = Batch3D::new(
+            mesh.vertices.clone(),
+            mesh_indices.clone(),
+            mesh.uvs.clone(),
+        )
+        .repeat_mode(RepeatMode::RepeatXY)
+        .geometry_source(GeometrySource::Sector(sector.id));
+
+        let source_key = if let Some(override_key) = source_key_override {
+            override_key
+        } else if is_cap {
+            "cap_source"
+        } else {
+            "jamb_source"
+        };
+        let mut added = false;
+        if let Some(Value::Source(pixelsource)) =
+            feature_pixelsource(surface, map, sector, loop_origin, source_key)
+            && let Some(tile) = pixelsource.tile_from_tile_list(assets)
+        {
+            vmchunk.add_poly_3d(
+                GeoId::Sector(sector.id),
+                tile.id,
+                mesh.vertices.clone(),
+                mesh.uvs.clone(),
+                mesh_indices.clone(),
+                0,
+                true,
+            );
+            added = true;
+            if let Some(tex) = assets.tile_index(&tile.id) {
+                batch.source = PixelSource::StaticTileIndex(tex);
+            }
+        }
+
+        if !added {
+            vmchunk.add_poly_3d(
+                GeoId::Sector(sector.id),
+                Uuid::from_str(DEFAULT_TILE_ID).unwrap(),
+                mesh.vertices.clone(),
+                mesh.uvs.clone(),
+                mesh_indices,
+                0,
+                true,
+            );
+        }
+
+        chunk.batches3d.push(batch);
+    }
+}
+
 /// Process a feature loop using the SurfaceAction trait system
 /// Returns meshes (cap and sides) for the feature
 fn process_feature_loop_with_action(
@@ -5343,6 +5499,436 @@ fn process_feature_loop_with_action(
             repeat_mode,
         });
 
+        return Some(());
+    }
+
+    // "Create Props" table mode: build tabletop + legs instead of a full block.
+    if matches!(feature_loop.op, LoopOp::Relief { .. })
+        && feature_profile_bool(
+            surface,
+            map,
+            sector,
+            feature_loop.origin_profile_sector,
+            "profile_table",
+            false,
+        )
+    {
+        let LoopOp::Relief { height } = feature_loop.op else {
+            return Some(());
+        };
+        if feature_loop.path.len() >= 3 && height > 0.0 {
+            let profile_target =
+                feature_profile_target(surface, map, sector, feature_loop.origin_profile_sector);
+
+            let base_extrusion = if profile_target == 1 {
+                surface.extrusion.depth.abs()
+            } else {
+                0.0
+            };
+            let direction = if profile_target == 1 { 1.0 } else { -1.0 };
+            let top_extrusion = base_extrusion + direction * height;
+            let slab_thickness = (height * 0.15).clamp(0.06, 0.25);
+            let underside_extrusion = top_extrusion - direction * slab_thickness;
+
+            let mut min_uv = feature_loop.path[0];
+            let mut max_uv = feature_loop.path[0];
+            for uv in &feature_loop.path {
+                min_uv.x = min_uv.x.min(uv.x);
+                min_uv.y = min_uv.y.min(uv.y);
+                max_uv.x = max_uv.x.max(uv.x);
+                max_uv.y = max_uv.y.max(uv.y);
+            }
+            let sx = (max_uv.x - min_uv.x).abs().max(1e-4);
+            let sy = (max_uv.y - min_uv.y).abs().max(1e-4);
+            let leg_half = (sx.min(sy) * 0.10).clamp(0.05, 0.35) * 0.5;
+            let chairs_enabled = feature_profile_bool(
+                surface,
+                map,
+                sector,
+                feature_loop.origin_profile_sector,
+                "table_chairs",
+                false,
+            );
+            let chair_count = feature_profile_int(
+                surface,
+                map,
+                sector,
+                feature_loop.origin_profile_sector,
+                "table_chair_count",
+                4,
+            )
+            .clamp(0, 8);
+            let chair_offset = feature_profile_float(
+                surface,
+                map,
+                sector,
+                feature_loop.origin_profile_sector,
+                "table_chair_offset",
+                0.45,
+            )
+            .max(0.0);
+            let chair_width = feature_profile_float(
+                surface,
+                map,
+                sector,
+                feature_loop.origin_profile_sector,
+                "table_chair_width",
+                0.85,
+            )
+            .clamp(0.20, 3.0);
+            let chair_back_height = feature_profile_float(
+                surface,
+                map,
+                sector,
+                feature_loop.origin_profile_sector,
+                "table_chair_back_height",
+                1.0,
+            )
+            .clamp(0.25, 3.0);
+
+            let mesh_builder = SurfaceMeshBuilder::new(surface);
+
+            let top_loop: Vec<ControlPoint> = feature_loop
+                .path
+                .iter()
+                .map(|&uv| ControlPoint {
+                    uv,
+                    extrusion: top_extrusion,
+                })
+                .collect();
+            let bottom_loop: Vec<ControlPoint> = feature_loop
+                .path
+                .iter()
+                .map(|&uv| ControlPoint {
+                    uv,
+                    extrusion: underside_extrusion,
+                })
+                .collect();
+
+            let tabletop = SectorMeshDescriptor {
+                is_hole: false,
+                cap: Some(MeshTopology::FilledRegion {
+                    outer: top_loop.clone(),
+                    holes: vec![],
+                }),
+                sides: Some(MeshTopology::QuadStrip {
+                    loop_a: bottom_loop.clone(),
+                    loop_b: top_loop,
+                }),
+                connection: crate::chunkbuilder::action::ConnectionMode::Hard,
+            };
+            let tabletop_meshes = mesh_builder.build(&tabletop);
+            emit_feature_meshes(
+                surface,
+                map,
+                sector,
+                chunk,
+                vmchunk,
+                assets,
+                feature_loop.origin_profile_sector,
+                profile_target,
+                &tabletop_meshes,
+                tabletop.cap.is_some(),
+                None,
+            );
+
+            let tabletop_underside = SectorMeshDescriptor {
+                is_hole: false,
+                cap: Some(MeshTopology::FilledRegion {
+                    outer: bottom_loop,
+                    holes: vec![],
+                }),
+                sides: None,
+                connection: crate::chunkbuilder::action::ConnectionMode::Hard,
+            };
+            let underside_meshes = mesh_builder.build(&tabletop_underside);
+            emit_feature_meshes(
+                surface,
+                map,
+                sector,
+                chunk,
+                vmchunk,
+                assets,
+                feature_loop.origin_profile_sector,
+                profile_target,
+                &underside_meshes,
+                tabletop_underside.cap.is_some(),
+                None,
+            );
+
+            // Keep all legs fully under the tabletop by insetting from bbox corners.
+            let inset_x = leg_half.min((sx * 0.5 - 1e-3).max(leg_half));
+            let inset_y = leg_half.min((sy * 0.5 - 1e-3).max(leg_half));
+            let leg_centers = [
+                Vec2::new(min_uv.x + inset_x, min_uv.y + inset_y),
+                Vec2::new(max_uv.x - inset_x, min_uv.y + inset_y),
+                Vec2::new(max_uv.x - inset_x, max_uv.y - inset_y),
+                Vec2::new(min_uv.x + inset_x, max_uv.y - inset_y),
+            ];
+
+            for c in leg_centers {
+                let leg_loop_uv = vec![
+                    Vec2::new(c.x - leg_half, c.y - leg_half),
+                    Vec2::new(c.x + leg_half, c.y - leg_half),
+                    Vec2::new(c.x + leg_half, c.y + leg_half),
+                    Vec2::new(c.x - leg_half, c.y + leg_half),
+                ];
+                let leg_bottom: Vec<ControlPoint> = leg_loop_uv
+                    .iter()
+                    .map(|&uv| ControlPoint {
+                        uv,
+                        extrusion: base_extrusion,
+                    })
+                    .collect();
+                let leg_top: Vec<ControlPoint> = leg_loop_uv
+                    .iter()
+                    .map(|&uv| ControlPoint {
+                        uv,
+                        extrusion: underside_extrusion,
+                    })
+                    .collect();
+                let leg = SectorMeshDescriptor {
+                    is_hole: false,
+                    cap: Some(MeshTopology::FilledRegion {
+                        outer: leg_top.clone(),
+                        holes: vec![],
+                    }),
+                    sides: Some(MeshTopology::QuadStrip {
+                        loop_a: leg_bottom,
+                        loop_b: leg_top,
+                    }),
+                    connection: crate::chunkbuilder::action::ConnectionMode::Hard,
+                };
+                let leg_meshes = mesh_builder.build(&leg);
+                emit_feature_meshes(
+                    surface,
+                    map,
+                    sector,
+                    chunk,
+                    vmchunk,
+                    assets,
+                    feature_loop.origin_profile_sector,
+                    profile_target,
+                    &leg_meshes,
+                    leg.cap.is_some(),
+                    None,
+                );
+            }
+
+            if chairs_enabled && chair_count > 0 {
+                let make_prism = |x0: f32,
+                                  x1: f32,
+                                  y0: f32,
+                                  y1: f32,
+                                  z0: f32,
+                                  z1: f32|
+                 -> SectorMeshDescriptor {
+                    let top = vec![
+                        ControlPoint {
+                            uv: Vec2::new(x0, y0),
+                            extrusion: z1,
+                        },
+                        ControlPoint {
+                            uv: Vec2::new(x1, y0),
+                            extrusion: z1,
+                        },
+                        ControlPoint {
+                            uv: Vec2::new(x1, y1),
+                            extrusion: z1,
+                        },
+                        ControlPoint {
+                            uv: Vec2::new(x0, y1),
+                            extrusion: z1,
+                        },
+                    ];
+                    let bottom = vec![
+                        ControlPoint {
+                            uv: Vec2::new(x0, y0),
+                            extrusion: z0,
+                        },
+                        ControlPoint {
+                            uv: Vec2::new(x1, y0),
+                            extrusion: z0,
+                        },
+                        ControlPoint {
+                            uv: Vec2::new(x1, y1),
+                            extrusion: z0,
+                        },
+                        ControlPoint {
+                            uv: Vec2::new(x0, y1),
+                            extrusion: z0,
+                        },
+                    ];
+                    SectorMeshDescriptor {
+                        is_hole: false,
+                        cap: Some(MeshTopology::FilledRegion {
+                            outer: top.clone(),
+                            holes: vec![],
+                        }),
+                        sides: Some(MeshTopology::QuadStrip {
+                            loop_a: bottom,
+                            loop_b: top,
+                        }),
+                        connection: crate::chunkbuilder::action::ConnectionMode::Hard,
+                    }
+                };
+
+                let csize = chair_width.clamp(0.20, 3.0);
+                let chalf = csize * 0.5;
+                let seat_h = height * 0.50;
+                let seat_t = (height * 0.12).clamp(0.05, 0.18);
+                let leg_w = (csize * 0.16).clamp(0.05, 0.16);
+                let lhalf = leg_w * 0.5;
+                let back_h = (height * 0.55 * chair_back_height).clamp(0.1, 2.0);
+                let back_t = (csize * 0.10).clamp(0.04, 0.12);
+
+                let chair_z0 = base_extrusion;
+                let chair_seat_bottom = base_extrusion + direction * (seat_h - seat_t);
+                let chair_seat_top = base_extrusion + direction * seat_h;
+                let chair_back_top = base_extrusion + direction * (seat_h + back_h);
+
+                let cx = (min_uv.x + max_uv.x) * 0.5;
+                let cy = (min_uv.y + max_uv.y) * 0.5;
+                let mut centers: Vec<(Vec2<f32>, i32)> = Vec::new(); // dir: 0=north 1=south 2=west 3=east
+                if chair_count >= 1 {
+                    centers.push((Vec2::new(cx, max_uv.y + chair_offset), 0));
+                }
+                if chair_count >= 2 {
+                    centers.push((Vec2::new(cx, min_uv.y - chair_offset), 1));
+                }
+                if chair_count >= 3 {
+                    centers.push((Vec2::new(min_uv.x - chair_offset, cy), 2));
+                }
+                if chair_count >= 4 {
+                    centers.push((Vec2::new(max_uv.x + chair_offset, cy), 3));
+                }
+                if chair_count >= 5 {
+                    centers.push((
+                        Vec2::new(min_uv.x - chair_offset, max_uv.y + chair_offset),
+                        2,
+                    ));
+                }
+                if chair_count >= 6 {
+                    centers.push((
+                        Vec2::new(max_uv.x + chair_offset, max_uv.y + chair_offset),
+                        3,
+                    ));
+                }
+                if chair_count >= 7 {
+                    centers.push((
+                        Vec2::new(min_uv.x - chair_offset, min_uv.y - chair_offset),
+                        2,
+                    ));
+                }
+                if chair_count >= 8 {
+                    centers.push((
+                        Vec2::new(max_uv.x + chair_offset, min_uv.y - chair_offset),
+                        3,
+                    ));
+                }
+
+                for (cc, dir_idx) in centers {
+                    // Seat
+                    let seat = make_prism(
+                        cc.x - chalf,
+                        cc.x + chalf,
+                        cc.y - chalf,
+                        cc.y + chalf,
+                        chair_seat_bottom,
+                        chair_seat_top,
+                    );
+                    let seat_meshes = mesh_builder.build(&seat);
+                    emit_feature_meshes(
+                        surface,
+                        map,
+                        sector,
+                        chunk,
+                        vmchunk,
+                        assets,
+                        feature_loop.origin_profile_sector,
+                        profile_target,
+                        &seat_meshes,
+                        seat.cap.is_some(),
+                        Some("chair_source"),
+                    );
+
+                    // Chair legs
+                    let leg_centers = [
+                        Vec2::new(cc.x - chalf + lhalf, cc.y - chalf + lhalf),
+                        Vec2::new(cc.x + chalf - lhalf, cc.y - chalf + lhalf),
+                        Vec2::new(cc.x + chalf - lhalf, cc.y + chalf - lhalf),
+                        Vec2::new(cc.x - chalf + lhalf, cc.y + chalf - lhalf),
+                    ];
+                    for lc in leg_centers {
+                        let cleg = make_prism(
+                            lc.x - lhalf,
+                            lc.x + lhalf,
+                            lc.y - lhalf,
+                            lc.y + lhalf,
+                            chair_z0,
+                            chair_seat_bottom,
+                        );
+                        let cleg_meshes = mesh_builder.build(&cleg);
+                        emit_feature_meshes(
+                            surface,
+                            map,
+                            sector,
+                            chunk,
+                            vmchunk,
+                            assets,
+                            feature_loop.origin_profile_sector,
+                            profile_target,
+                            &cleg_meshes,
+                            cleg.cap.is_some(),
+                            Some("chair_source"),
+                        );
+                    }
+
+                    // Backrest slab (faces toward table center)
+                    let (bx0, bx1, by0, by1) = match dir_idx {
+                        0 => (
+                            cc.x - chalf,
+                            cc.x + chalf,
+                            cc.y + chalf - back_t,
+                            cc.y + chalf,
+                        ),
+                        1 => (
+                            cc.x - chalf,
+                            cc.x + chalf,
+                            cc.y - chalf,
+                            cc.y - chalf + back_t,
+                        ),
+                        2 => (
+                            cc.x - chalf,
+                            cc.x - chalf + back_t,
+                            cc.y - chalf,
+                            cc.y + chalf,
+                        ),
+                        _ => (
+                            cc.x + chalf - back_t,
+                            cc.x + chalf,
+                            cc.y - chalf,
+                            cc.y + chalf,
+                        ),
+                    };
+                    let back = make_prism(bx0, bx1, by0, by1, chair_seat_top, chair_back_top);
+                    let back_meshes = mesh_builder.build(&back);
+                    emit_feature_meshes(
+                        surface,
+                        map,
+                        sector,
+                        chunk,
+                        vmchunk,
+                        assets,
+                        feature_loop.origin_profile_sector,
+                        profile_target,
+                        &back_meshes,
+                        back.cap.is_some(),
+                        Some("chair_source"),
+                    );
+                }
+            }
+        }
         return Some(());
     }
 
