@@ -636,6 +636,10 @@ impl TheTrait for Editor {
         )
     }
 
+    fn min_window_size(&self) -> (usize, usize) {
+        (1200, 720)
+    }
+
     fn default_window_position(&self) -> Option<(i32, i32)> {
         Some((self.window_state.x?, self.window_state.y?))
     }

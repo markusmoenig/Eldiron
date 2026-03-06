@@ -275,11 +275,13 @@ impl TheWinitApp {
 
         let (width, height) = self.app.default_window_size();
         let size = LogicalSize::new(width as f64, height as f64);
+        let (min_width, min_height) = self.app.min_window_size();
+        let min_size = LogicalSize::new(min_width as f64, min_height as f64);
 
         let window_attributes = WindowAttributes::default()
             .with_title(window_title)
             .with_inner_size(size)
-            .with_min_inner_size(size)
+            .with_min_inner_size(min_size)
             .with_window_icon(icon); //TODO on Windows
 
         let window_attributes = if let Some((x, y)) = self.app.default_window_position() {

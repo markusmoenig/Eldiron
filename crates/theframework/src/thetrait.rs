@@ -12,6 +12,12 @@ pub trait TheTrait {
         (1200, 700)
     }
 
+    /// Minimum resizable window size.
+    /// Defaults to `default_window_size()` but can be overridden independently.
+    fn min_window_size(&self) -> (usize, usize) {
+        self.default_window_size()
+    }
+
     fn default_window_position(&self) -> Option<(i32, i32)> {
         None
     }
