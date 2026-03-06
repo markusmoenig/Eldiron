@@ -207,6 +207,25 @@ Emboss the active profile surface outward. Params mirror Recess: *height*, *targ
 
 Carve an inset opening in the profile surface and fill it with a tile. Params: *inset*, *repeat/scale* mode, gate/door *tile* icon, and speed/behavior flags (hidden, locked, secret) stored on the sector.
 
+### Window
+
+Create a static window inside the selected profile hole. The window generates frame geometry and a glass pane (no dynamic open/close behavior).
+
+Parameters:
+- `[window]`
+- `[material]`
+
+### `[window]`
+
+- `inset`: push/pull the full window assembly along the surface normal.
+- `frame_width`: thickness of the frame in profile UV space.
+
+### `[material]`
+
+- `frame_tile_id`: frame material source (UUID or palette index).
+- `glass_tile_id`: glass material source (UUID or palette index).
+  - if `glass_tile_id` is empty/unset, no glass mesh is generated and the opening remains a passable hole.
+
 ### Create Prop
 
 Create/edit parametric props on selected sectors (2D editor view with an active editing surface).

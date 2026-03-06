@@ -44,6 +44,7 @@ impl ActionList {
             Box::new(crate::tools::extrude_linedef::ExtrudeLinedef::new()),
             Box::new(crate::tools::extrude_sector::ExtrudeSector::new()),
             Box::new(crate::tools::gate_door::GateDoor::new()),
+            Box::new(crate::tools::window::Window::new()),
             Box::new(crate::tools::import_vcode::ImportVCode::new()),
             Box::new(crate::tools::paste_vcode::PasteVCode::new()),
             Box::new(crate::tools::import_palette::ImportPalette::new()),

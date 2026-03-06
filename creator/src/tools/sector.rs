@@ -665,7 +665,7 @@ impl Tool for SectorTool {
                             top_left,
                             bottom_right,
                             GeoId::Linedef(0),
-                            true,
+                            false,
                             false,
                         );
                         for l in linedefs {

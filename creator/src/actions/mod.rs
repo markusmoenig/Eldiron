@@ -44,6 +44,7 @@ pub mod set_tile_material;
 pub mod split;
 pub mod toggle_editing_geo;
 pub mod toggle_rect_geo;
+pub mod window;
 
 #[derive(PartialEq)]
 pub enum ActionRole {

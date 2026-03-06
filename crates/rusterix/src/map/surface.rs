@@ -32,6 +32,11 @@ pub enum LoopOp {
         animation: BillboardAnimation, // Animation type
         inset: f32,                    // Offset from surface (positive = along normal)
     },
+    Window {
+        frame_tile_id: Option<Uuid>,
+        glass_tile_id: Option<Uuid>,
+        inset: f32,
+    },
 }
 
 impl LoopOp {
@@ -59,6 +64,12 @@ impl LoopOp {
                 .with_target_side(target_side)
                 .with_tile_id(*tile_id)
                 .with_animation(*animation),
+            LoopOp::Window {
+                frame_tile_id, inset, ..
+            } => ActionProperties::default()
+                .with_depth(*inset)
+                .with_target_side(target_side)
+                .with_tile_id(*frame_tile_id),
         }
     }
 
@@ -73,6 +84,7 @@ impl LoopOp {
             LoopOp::Relief { .. } => Some(Box::new(ReliefAction)),
             LoopOp::Recess { .. } => Some(Box::new(RecessAction)),
             LoopOp::Billboard { .. } => Some(Box::new(BillboardAction)),
+            LoopOp::Window { .. } => None,
         }
     }
 }

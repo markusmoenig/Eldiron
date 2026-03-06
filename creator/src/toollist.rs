@@ -1768,7 +1768,7 @@ impl ToolList {
             dim.width as u32,
             dim.height as u32,
             screen_uv,
-            true,
+            false,
             false,
         ) {
             server_ctx.hover_cursor_3d = Some(rc.1);
@@ -1785,7 +1785,7 @@ impl ToolList {
             dim.width as u32,
             dim.height as u32,
             screen_uv,
-            true,
+            false,
             false,
         );
 

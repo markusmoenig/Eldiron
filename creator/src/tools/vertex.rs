@@ -492,7 +492,7 @@ impl Tool for VertexTool {
                             top_left,
                             bottom_right,
                             GeoId::Vertex(0),
-                            true,
+                            false,
                             false,
                         );
                         for v in vertices {

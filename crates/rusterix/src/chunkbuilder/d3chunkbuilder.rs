@@ -1153,6 +1153,10 @@ impl ChunkBuilder for D3ChunkBuilder {
                                         // Billboard is a hole in the surface
                                         back_holes_paths.push(h.path.clone());
                                     }
+                                    LoopOp::Window { .. } => {
+                                        // Window is also a hole in the base cap (filled by static geometry).
+                                        back_holes_paths.push(h.path.clone());
+                                    }
                                 }
                             }
 
@@ -1912,6 +1916,77 @@ impl ChunkBuilder for D3ChunkBuilder {
                                         .and_then(|sid| profile_sector_item_blocking(map, pid, sid))
                                 }),
                             });
+                        }
+                        LoopOp::Window { .. } => {
+                            // Window openings are static blockers (frame + glass), not dynamic doors.
+                            let has_glass_source = feature_has_explicit_source(
+                                surface,
+                                map,
+                                sector,
+                                h.origin_profile_sector,
+                                "window_glass_source",
+                            );
+                            if !has_glass_source {
+                                // No glass material: leave it as a passable hole.
+                                continue;
+                            }
+
+                            let mut min = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
+                            let mut max =
+                                Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
+
+                            let mut z0 = surface.extrusion.depth.min(0.0);
+                            let mut z1 = surface.extrusion.depth.max(0.0);
+                            if !surface.extrusion.enabled || (z1 - z0).abs() < 1e-4 {
+                                z0 = -0.03;
+                                z1 = 0.03;
+                            }
+
+                            for uv in &h.path {
+                                let p0 = surface.uvw_to_world(*uv, z0);
+                                let p1 = surface.uvw_to_world(*uv, z1);
+                                for p in [p0, p1] {
+                                    min.x = min.x.min(p.x);
+                                    min.y = min.y.min(p.y);
+                                    min.z = min.z.min(p.z);
+                                    max.x = max.x.max(p.x);
+                                    max.y = max.y.max(p.y);
+                                    max.z = max.z.max(p.z);
+                                }
+                            }
+
+                            if min.x.is_finite()
+                                && min.y.is_finite()
+                                && min.z.is_finite()
+                                && max.x.is_finite()
+                                && max.y.is_finite()
+                                && max.z.is_finite()
+                            {
+                                if (max.x - min.x).abs() < 0.02 {
+                                    let c = (max.x + min.x) * 0.5;
+                                    min.x = c - 0.01;
+                                    max.x = c + 0.01;
+                                }
+                                if (max.y - min.y).abs() < 0.02 {
+                                    let c = (max.y + min.y) * 0.5;
+                                    min.y = c - 0.01;
+                                    max.y = c + 0.01;
+                                }
+                                if (max.z - min.z).abs() < 0.02 {
+                                    let c = (max.z + min.z) * 0.5;
+                                    min.z = c - 0.01;
+                                    max.z = c + 0.01;
+                                }
+
+                                let geo_id = if let Some(origin) = h.origin_profile_sector {
+                                    GeoId::Hole(sector.id, origin)
+                                } else {
+                                    GeoId::Sector(sector.id)
+                                };
+                                collision
+                                    .static_volumes
+                                    .push(BlockingVolume { geo_id, min, max });
+                            }
                         }
                         _ => {
                             // Recesses and reliefs are handled as static blocking volumes
@@ -4890,6 +4965,11 @@ fn split_loops_for_base<'a>(
                 base_holes.push(h); // subtract from base
                 feature_loops.push(h); // build billboard geometry
             }
+            LoopOp::Window { .. } => {
+                // Window cuts a hole in the base and adds static frame/glass geometry.
+                base_holes.push(h);
+                feature_loops.push(h);
+            }
         }
     }
     (base_holes, feature_loops)
@@ -4970,6 +5050,22 @@ fn read_profile_loops(
                 // Read unified property with backward compatibility fallbacks
                 // Priority: profile_amount → (profile_height OR profile_depth depending on op) → 0.0
                 let amount = ps.properties.get_float_default("profile_amount", f32::NAN);
+                let parse_tile_id = |key: &str| -> Option<Uuid> {
+                    if let Some(Value::Str(tile_str)) = ps.properties.get(key) {
+                        Uuid::from_str(tile_str).ok()
+                    } else if let Some(Value::Id(id)) = ps.properties.get(key) {
+                        Some(*id)
+                    } else {
+                        None
+                    }
+                };
+                let parse_tile_from_source = |key: &str| -> Option<Uuid> {
+                    if let Some(Value::Source(PixelSource::TileId(id))) = ps.properties.get(key) {
+                        Some(*id)
+                    } else {
+                        None
+                    }
+                };
 
                 let op = match op_code {
                     1 => {
@@ -5021,6 +5117,23 @@ fn read_profile_loops(
                         LoopOp::Billboard {
                             tile_id,
                             animation,
+                            inset,
+                        }
+                    }
+                    4 => {
+                        // Static window: hole + generated frame/glass meshes.
+                        let inset = if amount.is_nan() {
+                            ps.properties.get_float_default("profile_inset", 0.0)
+                        } else {
+                            amount
+                        };
+                        let frame_tile_id = parse_tile_from_source("window_frame_source")
+                            .or_else(|| parse_tile_id("window_frame_tile_id"));
+                        let glass_tile_id = parse_tile_from_source("window_glass_source")
+                            .or_else(|| parse_tile_id("window_glass_tile_id"));
+                        LoopOp::Window {
+                            frame_tile_id,
+                            glass_tile_id,
                             inset,
                         }
                     }
@@ -5275,6 +5388,23 @@ fn feature_pixelsource(
 
     // 2c) Generic 'source' on host sector
     host_sector.properties.get("source").cloned()
+}
+
+fn feature_has_explicit_source(
+    surface: &crate::Surface,
+    map: &Map,
+    host_sector: &Sector,
+    loop_origin: Option<u32>,
+    key: &str,
+) -> bool {
+    if let (Some(profile_id), Some(origin_id)) = (surface.profile, loop_origin)
+        && let Some(profile_map) = map.profiles.get(&profile_id)
+        && let Some(ps) = profile_map.find_sector(origin_id)
+        && ps.properties.get(key).is_some()
+    {
+        return true;
+    }
+    host_sector.properties.get(key).is_some()
 }
 
 fn feature_profile_target(
@@ -5558,6 +5688,253 @@ fn process_feature_loop_with_action(
             animation: *animation,
             repeat_mode,
         });
+
+        return Some(());
+    }
+
+    // Static window: generate frame + glass meshes for a profile hole.
+    if let LoopOp::Window { inset, .. } = &feature_loop.op {
+        if feature_loop.path.len() < 3 {
+            return Some(());
+        }
+
+        let mut min_uv = feature_loop.path[0];
+        let mut max_uv = feature_loop.path[0];
+        for uv in &feature_loop.path {
+            min_uv.x = min_uv.x.min(uv.x);
+            min_uv.y = min_uv.y.min(uv.y);
+            max_uv.x = max_uv.x.max(uv.x);
+            max_uv.y = max_uv.y.max(uv.y);
+        }
+
+        let sx = (max_uv.x - min_uv.x).abs();
+        let sy = (max_uv.y - min_uv.y).abs();
+        if sx < 0.03 || sy < 0.03 {
+            return Some(());
+        }
+
+        let mut z0 = surface.extrusion.depth.min(0.0) + *inset;
+        let mut z1 = surface.extrusion.depth.max(0.0) + *inset;
+        if !surface.extrusion.enabled || (z1 - z0).abs() < 1e-4 {
+            z0 = *inset - 0.03;
+            z1 = *inset + 0.03;
+        }
+
+        let frame_w = feature_profile_float(
+            surface,
+            map,
+            sector,
+            feature_loop.origin_profile_sector,
+            "window_frame_width",
+            sx.min(sy) * 0.10,
+        )
+        .clamp(0.01, sx.min(sy) * 0.45);
+        let has_glass_source = feature_has_explicit_source(
+            surface,
+            map,
+            sector,
+            feature_loop.origin_profile_sector,
+            "window_glass_source",
+        );
+
+        let profile_target =
+            feature_profile_target(surface, map, sector, feature_loop.origin_profile_sector);
+        let mesh_builder = SurfaceMeshBuilder::new(surface);
+
+        let emit_piece = |px0: f32,
+                          px1: f32,
+                          py0: f32,
+                          py1: f32,
+                          pz0: f32,
+                          pz1: f32,
+                          source_key: &str,
+                          chunk: &mut Chunk,
+                          vmchunk: &mut scenevm::Chunk| {
+            if px1 <= px0 || py1 <= py0 || (pz1 - pz0).abs() < 1e-5 {
+                return;
+            }
+
+            let top_loop = vec![
+                ControlPoint {
+                    uv: Vec2::new(px0, py0),
+                    extrusion: pz1,
+                },
+                ControlPoint {
+                    uv: Vec2::new(px1, py0),
+                    extrusion: pz1,
+                },
+                ControlPoint {
+                    uv: Vec2::new(px1, py1),
+                    extrusion: pz1,
+                },
+                ControlPoint {
+                    uv: Vec2::new(px0, py1),
+                    extrusion: pz1,
+                },
+            ];
+            let bottom_loop = vec![
+                ControlPoint {
+                    uv: Vec2::new(px0, py0),
+                    extrusion: pz0,
+                },
+                ControlPoint {
+                    uv: Vec2::new(px1, py0),
+                    extrusion: pz0,
+                },
+                ControlPoint {
+                    uv: Vec2::new(px1, py1),
+                    extrusion: pz0,
+                },
+                ControlPoint {
+                    uv: Vec2::new(px0, py1),
+                    extrusion: pz0,
+                },
+            ];
+
+            let top_cap = SectorMeshDescriptor {
+                is_hole: false,
+                cap: Some(MeshTopology::FilledRegion {
+                    outer: top_loop.clone(),
+                    holes: vec![],
+                }),
+                sides: None,
+                connection: crate::chunkbuilder::action::ConnectionMode::Hard,
+            };
+            let top_meshes = mesh_builder.build(&top_cap);
+            emit_feature_meshes(
+                surface,
+                map,
+                sector,
+                chunk,
+                vmchunk,
+                assets,
+                feature_loop.origin_profile_sector,
+                profile_target,
+                &top_meshes,
+                true,
+                Some(source_key),
+            );
+
+            let bottom_cap = SectorMeshDescriptor {
+                is_hole: false,
+                cap: Some(MeshTopology::FilledRegion {
+                    outer: bottom_loop.clone(),
+                    holes: vec![],
+                }),
+                sides: None,
+                connection: crate::chunkbuilder::action::ConnectionMode::Hard,
+            };
+            let bottom_meshes = mesh_builder.build(&bottom_cap);
+            emit_feature_meshes(
+                surface,
+                map,
+                sector,
+                chunk,
+                vmchunk,
+                assets,
+                feature_loop.origin_profile_sector,
+                profile_target,
+                &bottom_meshes,
+                true,
+                Some(source_key),
+            );
+
+            let sides = SectorMeshDescriptor {
+                is_hole: false,
+                cap: None,
+                sides: Some(MeshTopology::QuadStrip {
+                    loop_a: bottom_loop,
+                    loop_b: top_loop,
+                }),
+                connection: crate::chunkbuilder::action::ConnectionMode::Hard,
+            };
+            let side_meshes = mesh_builder.build(&sides);
+            emit_feature_meshes(
+                surface,
+                map,
+                sector,
+                chunk,
+                vmchunk,
+                assets,
+                feature_loop.origin_profile_sector,
+                profile_target,
+                &side_meshes,
+                false,
+                Some(source_key),
+            );
+        };
+
+        // Frame (four sides)
+        emit_piece(
+            min_uv.x,
+            min_uv.x + frame_w,
+            min_uv.y,
+            max_uv.y,
+            z0,
+            z1,
+            "window_frame_source",
+            chunk,
+            vmchunk,
+        );
+        emit_piece(
+            max_uv.x - frame_w,
+            max_uv.x,
+            min_uv.y,
+            max_uv.y,
+            z0,
+            z1,
+            "window_frame_source",
+            chunk,
+            vmchunk,
+        );
+        emit_piece(
+            min_uv.x + frame_w,
+            max_uv.x - frame_w,
+            max_uv.y - frame_w,
+            max_uv.y,
+            z0,
+            z1,
+            "window_frame_source",
+            chunk,
+            vmchunk,
+        );
+        emit_piece(
+            min_uv.x + frame_w,
+            max_uv.x - frame_w,
+            min_uv.y,
+            min_uv.y + frame_w,
+            z0,
+            z1,
+            "window_frame_source",
+            chunk,
+            vmchunk,
+        );
+
+        // Glass pane (slightly inset from frame to avoid overlap)
+        let glass_margin = (frame_w * 0.15).clamp(0.005, 0.03);
+        let gx0 = min_uv.x + frame_w + glass_margin;
+        let gx1 = max_uv.x - frame_w - glass_margin;
+        let gy0 = min_uv.y + frame_w + glass_margin;
+        let gy1 = max_uv.y - frame_w - glass_margin;
+        if gx1 > gx0 && gy1 > gy0 {
+            if has_glass_source {
+                let mid = (z0 + z1) * 0.5;
+                let gt = ((z1 - z0).abs() * 0.12).clamp(0.01, 0.05);
+                let gz0 = mid - gt * 0.5;
+                let gz1 = mid + gt * 0.5;
+                emit_piece(
+                    gx0,
+                    gx1,
+                    gy0,
+                    gy1,
+                    gz0,
+                    gz1,
+                    "window_glass_source",
+                    chunk,
+                    vmchunk,
+                );
+            }
+        }
 
         return Some(());
     }
