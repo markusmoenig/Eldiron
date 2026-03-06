@@ -1411,7 +1411,12 @@ fn fs_shadow(in: VsShadowOut) {
     let mat = select(mix(m0, m1, blend), m0, is_avatar);
     let color = select(mix(c0, c1, blend), c0, is_avatar);
     let intrinsic_alpha = clamp(color.a * mat.z, 0.0, 1.0);
-    // Shadow occlusion should not follow per-geometry fade opacity; only texture/material alpha.
+    // Materials with opacity < 1.0 should not cast sun shadows in Raster3D.
+    // This lets sunlight pass through semi-transparent tiles (e.g. window glass).
+    if (mat.z < 0.999) {
+        discard;
+    }
+    // Shadow occlusion should not follow per-geometry fade opacity; only intrinsic cutout alpha.
     if (intrinsic_alpha <= 0.5) {
         discard;
     }
