@@ -102,7 +102,6 @@ jobs:
       - name: Install build dependencies
         run: |
           rustup target add wasm32-unknown-unknown
-          cargo update
 
       - name: Build (release)
         working-directory: ${{ matrix.config.working-directory }}
@@ -112,7 +111,9 @@ jobs:
       - name: Preparation
         run: |
           mkdir -p output
-          cp -r target/wasm-examples/${{ matrix.config.bin-name }} .
+          ARTIFACT_DIR="$(find target -type d -path "*/wasm-examples/${{ matrix.config.bin-name }}" | head -n 1)"
+          test -n "$ARTIFACT_DIR"
+          cp -r "$ARTIFACT_DIR" .
       - name: Package artefacts (tar.gz)
         run: |
           tar -czvf ${{ matrix.config.bin-name }}-wasm32-unknown-unknown.tar.gz ${{ matrix.config.bin-name }}
