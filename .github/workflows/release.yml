@@ -105,7 +105,7 @@ jobs:
 
       - name: Build (release)
         working-directory: ${{ matrix.config.working-directory }}
-        run: cargo run-wasm --release --bin ${{ matrix.config.bin-name }}
+        run: cargo run-wasm --release --bin ${{ matrix.config.bin-name }} --build-only
 
       # --- Package artefacts -------------------------------------------------
       - name: Preparation
