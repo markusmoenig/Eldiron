@@ -2,7 +2,7 @@
 
 ## New Features
 
-### Creator (Incomplete)
+### Creator
 
 - New **Avatar** based character *skinning system*.
 - New *Duplicate* tool for vertices, lines, sectors.

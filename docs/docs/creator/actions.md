@@ -171,6 +171,38 @@ Material fallback order:
 - top: `tile_id` -> sector `cap_source` -> sector `source`
 - side: `side_tile_id` -> top fallback chain
 
+### Create Campfire
+
+Create a non-destructive campfire on selected sectors (3D editor views).
+
+Parameter groups:
+- `[campfire]`
+- `[material]`
+
+### `[campfire]`
+
+- `flame_height`: flame height.
+- `flame_width`: flame width.
+- `log_count`: number of logs arranged in a ring (`3..24`).
+- `log_length`: per-log length.
+- `log_thickness`: per-log thickness.
+- `log_radius`: ring radius from center to log centers.
+- `light_intensity`: point-light intensity.
+- `light_range`: point-light end distance.
+- `light_flicker`: light flicker amount (`0..1`).
+- `light_lift`: extra Y offset added on top of flame center.
+
+### `[material]`
+
+- `flame_tile_id`: flame material source (UUID or palette index).
+- `base_tile_id`: log/ember material source (UUID or palette index).
+
+Notes:
+- Logs are procedural 3D meshes placed in a circle and oriented inward.
+- Flame is billboard-based (crossed center quads).
+- Campfire point-light origin is anchored to flame height (`flame_base_y + flame_height * 0.5 + light_lift`).
+- Set `flame_height = 0` or `light_range = 0` to clear campfire generation on the sector.
+
 ### Extrude Sector
 
 *Shortcut: Alt + E*

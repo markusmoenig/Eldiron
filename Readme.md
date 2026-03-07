@@ -20,7 +20,7 @@ For a more detailed feature overview please visit [Eldiron.com](https://eldiron.
 
 2D Example           | 3D Example
 :-------------------------:|:-------------------------:
-![Eldiron Screenshot](images/hideout2d.png)  |  ![Eldiron Screenshot](images/dungeon3d.png)
+![Eldiron Screenshot](images/hideout2d.png)  |  ![Eldiron Screenshot](images/eldiron_v0.9.png)
 
 ## Source Code
 

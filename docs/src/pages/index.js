@@ -95,7 +95,7 @@ export default function Home() {
                 2D
               </div>
               <img
-                src={useBaseUrl("/img/screenshots/hideout2d.png")}
+                src={useBaseUrl("/img/screenshots/hideout2d_v0.9.png")}
                 alt="2D screenshot"
                 style={{
                   width: "100%",
@@ -117,7 +117,7 @@ export default function Home() {
                 3D
               </div>
               <img
-                src={useBaseUrl("/img/screenshots/dungeon3d_iso.png")}
+                src={useBaseUrl("/img/screenshots/dungeon3d_v0.9.png")}
                 alt="3D screenshot"
                 style={{
                   width: "100%",
@@ -147,11 +147,11 @@ export default function Home() {
               color: "var(--ifm-color-primary)",
             }}
           >
-            Eldiron v0.9 Preview
+            Eldiron v0.9 - Now Available
           </div>
           <img
-            src={useBaseUrl("/img/screenshots/Eldiron_v0.9_preview.png")}
-            alt="Eldiron v0.9 Preview"
+            src={useBaseUrl("/img/screenshots/Eldiron_v0.9.png")}
+            alt="Eldiron v0.9"
             style={{
               width: "100%",
               borderRadius: "12px",
