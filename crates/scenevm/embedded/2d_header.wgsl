@@ -184,12 +184,14 @@ fn sd_billboard_hit_screen(pix: vec2<f32>, cmd: DynBillboardCmd) -> DynBillboard
   hit.hit = true;
 
   // For repeat mode, scale UVs by the billboard dimensions
+  let uv_x = 0.5 * (u + 1.0);
+  let uv_y = 1.0 - 0.5 * (v + 1.0);
   if (repeat_mode == 1u) {
-    // Repeat mode: scale UVs by width/height so tiles repeat at their natural size
-    hit.uv = vec2<f32>((u + 1.0) * 0.5 * width, (v + 1.0) * 0.5 * height);
+    // Repeat mode: scale UVs by width/height so tiles repeat at their natural size.
+    hit.uv = vec2<f32>(uv_x * width, uv_y * height);
   } else {
-    // Scale mode: single UV [0,1] mapping
-    hit.uv = vec2<f32>(0.5 * (u + 1.0), 0.5 * (v + 1.0));
+    // Scale mode: single UV [0,1] mapping with texture-space Y running top-down.
+    hit.uv = vec2<f32>(uv_x, uv_y);
   }
 
   hit.tile_index = cmd.params.x;

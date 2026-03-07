@@ -1,5 +1,6 @@
 use crate::Embedded;
 use crate::prelude::*;
+use instant::Duration;
 use rusterix::server::message::AudioCommand;
 use rusterix::{EntityAction, Rusterix, Value};
 use shared::{project::Project, rusterix_utils::*};
@@ -141,65 +142,59 @@ impl TheTrait for Client {
 
     /// Handle UI events and UI state
     fn update_ui(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) -> bool {
-        let mut redraw = false;
-
-        let target_fps = self.rusterix.client.target_fps.max(1) as u64;
         let game_tick_ms = self.rusterix.client.game_tick_ms.max(1) as u64;
-        let (redraw_update, tick_update) =
-            self.update_tracker.update(1000 / target_fps, game_tick_ms);
+        let tick_period = Duration::from_millis(game_tick_ms);
+        let tick_update = self.update_tracker.update(tick_period);
+        let redraw = true;
 
         if tick_update {
             self.rusterix.client.inc_animation_frame();
             self.rusterix.server.system_tick();
         }
 
-        if redraw_update {
-            redraw = true;
+        self.rusterix.server.redraw_tick();
 
-            self.rusterix.server.redraw_tick();
+        for r in &mut self.project.regions {
+            self.rusterix.server.apply_entities_items(&mut r.map);
 
-            for r in &mut self.project.regions {
-                self.rusterix.server.apply_entities_items(&mut r.map);
+            if r.map.name == self.rusterix.client.current_map {
+                if let Some(new_region_name) = self.rusterix.update_server() {
+                    self.rusterix.client.current_map = new_region_name;
+                }
+                if let Some(time) = self.rusterix.server.get_time(&r.map.id) {
+                    self.rusterix.client.set_server_time(time);
+                }
 
-                if r.map.name == self.rusterix.client.current_map {
-                    if let Some(new_region_name) = self.rusterix.update_server() {
-                        self.rusterix.client.current_map = new_region_name;
-                    }
-                    if let Some(time) = self.rusterix.server.get_time(&r.map.id) {
-                        self.rusterix.client.set_server_time(time);
-                    }
-
-                    rusterix::tile_builder(&mut r.map, &mut self.rusterix.assets);
-                    let messages = self.rusterix.server.get_messages(&r.map.id);
-                    let says = self.rusterix.server.get_says(&r.map.id);
-                    let choices = self.rusterix.server.get_choices(&r.map.id);
-                    for cmd in self.rusterix.server.get_audio_commands(&r.map.id) {
-                        match cmd {
-                            AudioCommand::Play {
-                                name,
-                                bus,
-                                gain,
-                                looping,
-                            } => {
-                                self.rusterix.play_audio_on_bus(&name, &bus, gain, looping);
-                            }
-                            AudioCommand::ClearBus { bus } => {
-                                self.rusterix.clear_audio_bus(&bus);
-                            }
-                            AudioCommand::ClearAll => {
-                                self.rusterix.clear_all_audio();
-                            }
-                            AudioCommand::SetBusVolume { bus, volume } => {
-                                self.rusterix.set_audio_bus_volume(&bus, volume);
-                            }
+                rusterix::tile_builder(&mut r.map, &mut self.rusterix.assets);
+                let messages = self.rusterix.server.get_messages(&r.map.id);
+                let says = self.rusterix.server.get_says(&r.map.id);
+                let choices = self.rusterix.server.get_choices(&r.map.id);
+                for cmd in self.rusterix.server.get_audio_commands(&r.map.id) {
+                    match cmd {
+                        AudioCommand::Play {
+                            name,
+                            bus,
+                            gain,
+                            looping,
+                        } => {
+                            self.rusterix.play_audio_on_bus(&name, &bus, gain, looping);
+                        }
+                        AudioCommand::ClearBus { bus } => {
+                            self.rusterix.clear_audio_bus(&bus);
+                        }
+                        AudioCommand::ClearAll => {
+                            self.rusterix.clear_all_audio();
+                        }
+                        AudioCommand::SetBusVolume { bus, volume } => {
+                            self.rusterix.set_audio_bus_volume(&bus, volume);
                         }
                     }
-                    self.rusterix.draw_game(&r.map, messages, says, choices);
-                    self.rusterix
-                        .client
-                        .insert_game_buffer(&mut ui.canvas.buffer);
-                    break;
                 }
+                self.rusterix.draw_game(&r.map, messages, says, choices);
+                self.rusterix
+                    .client
+                    .insert_game_buffer(&mut ui.canvas.buffer);
+                break;
             }
         }
 
@@ -280,7 +275,11 @@ impl TheTrait for Client {
 
     // Query if the widget needs a redraw
     fn update(&mut self, _ctx: &mut TheContext) -> bool {
-        true
+        false
+    }
+
+    fn target_fps(&self) -> f64 {
+        60.0
     }
 }
 

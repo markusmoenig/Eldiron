@@ -46,6 +46,7 @@ pub struct GameWidget {
     pub stream_prefetch_radius_chunks: i32,
     pub chunk_build_budget_near: i32,
     pub chunk_build_budget_far: i32,
+    pub last_stream_focus_chunk: Option<(i32, i32)>,
 }
 
 impl Default for GameWidget {
@@ -94,6 +95,7 @@ impl GameWidget {
             stream_prefetch_radius_chunks: 5,
             chunk_build_budget_near: 10,
             chunk_build_budget_far: 2,
+            last_stream_focus_chunk: None,
         }
     }
 
@@ -204,6 +206,10 @@ impl GameWidget {
     fn update_streaming_chunks(&mut self, map: &Map, scene_handler: &mut SceneHandler) {
         let chunk_size = map.terrain.chunk_size.max(1);
         let focus = self.player_chunk_origin(chunk_size);
+        if self.last_stream_focus_chunk == Some(focus) {
+            return;
+        }
+        self.last_stream_focus_chunk = Some(focus);
         self.scenemanager.set_focus_chunk(Some(focus));
 
         let load_radius = self.stream_load_radius_chunks.max(1);
@@ -257,6 +263,7 @@ impl GameWidget {
 
         self.scenemanager.send(SceneManagerCmd::SetMap(map.clone()));
         self.loaded_chunks.clear();
+        self.last_stream_focus_chunk = None;
         // Replace full-map queue with a player-centric startup queue.
         let startup = self.desired_stream_chunks(map, self.stream_load_radius_chunks.max(1));
         self.scenemanager
@@ -339,7 +346,9 @@ impl GameWidget {
         } else {
             self.chunk_build_budget_far.max(1) as usize
         };
-        self.scenemanager.tick_batch(budget);
+        if self.scenemanager.is_busy() {
+            self.scenemanager.tick_batch(budget);
+        }
 
         // Apply scene manager chunks
         let mut geometry_changed = false;
@@ -498,6 +507,7 @@ impl GameWidget {
 
         let hour = time.to_f32();
         let scenevm_mode_2d = scene_handler.settings.scenevm_mode_2d();
+        scene_handler.vm.set_active_vm(0);
         if matches!(scenevm_mode_2d, scenevm::RenderMode::Compute2D) {
             scene_handler
                 .vm

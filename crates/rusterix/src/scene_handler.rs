@@ -122,6 +122,78 @@ impl SceneHandler {
         self.dynamics_ready_3d = false;
     }
 
+    pub fn add_sector_campfire_lights(&mut self, map: &Map) {
+        let mut top_floor_y_by_sector: FxHashMap<u32, f32> = FxHashMap::default();
+        for surface in map.surfaces.values() {
+            if surface.plane.normal.y.abs() <= 0.7 {
+                continue;
+            }
+            top_floor_y_by_sector
+                .entry(surface.sector_id)
+                .and_modify(|y| {
+                    if surface.plane.origin.y > *y {
+                        *y = surface.plane.origin.y;
+                    }
+                })
+                .or_insert(surface.plane.origin.y);
+        }
+
+        for sector in &map.sectors {
+            let feature = sector
+                .properties
+                .get_str_default("sector_feature", "None".to_string());
+            if feature != "Campfire" {
+                continue;
+            }
+
+            let intensity = sector
+                .properties
+                .get_float_default("campfire_light_intensity", 2.2)
+                .max(0.0);
+            let range = sector
+                .properties
+                .get_float_default("campfire_light_range", 5.0)
+                .max(0.0);
+            if intensity <= 0.0 || range <= 0.0 {
+                continue;
+            }
+            let flicker = sector
+                .properties
+                .get_float_default("campfire_light_flicker", 0.2)
+                .clamp(0.0, 1.0);
+            let lift = sector
+                .properties
+                .get_float_default("campfire_light_lift", 0.2)
+                .max(0.0);
+            let flame_height = sector
+                .properties
+                .get_float_default("campfire_flame_height", 0.8)
+                .max(0.0);
+
+            let Some(center) = sector.center(map) else {
+                continue;
+            };
+            let base_y = top_floor_y_by_sector
+                .get(&sector.id)
+                .copied()
+                .unwrap_or(0.0);
+            let flame_base_y = base_y + 0.02;
+            let flame_center_y = flame_base_y + flame_height * 0.5;
+            let position = Vec3::new(center.x, flame_center_y + lift, center.y);
+
+            self.vm.execute(Atom::AddLight {
+                id: GeoId::Sector(sector.id),
+                light: Light::new_pointlight(position)
+                    .with_color(Vec3::new(1.0, 0.62, 0.28))
+                    .with_intensity(intensity)
+                    .with_emitting(true)
+                    .with_start_distance(0.0)
+                    .with_end_distance(range)
+                    .with_flicker(flicker),
+            });
+        }
+    }
+
     pub fn find_item_any<'m>(map: &'m Map, id: u32) -> Option<&'m Item> {
         if let Some(item) = map.items.iter().find(|i| i.id == id) {
             return Some(item);
@@ -814,6 +886,7 @@ impl SceneHandler {
 
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
+        self.add_sector_campfire_lights(map);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_impact_geo: FxHashSet<GeoId> = FxHashSet::default();
 
@@ -898,7 +971,7 @@ impl SceneHandler {
                         if let Some(Value::Source(source)) = entity.attributes.get("source") {
                             if let Some(tile) = source.tile_from_tile_list(assets) {
                                 let dynamic = DynamicObject::billboard_tile(
-                                    GeoId::Item(entity.id),
+                                    GeoId::Character(entity.id),
                                     tile.id,
                                     center3,
                                     basis.1,

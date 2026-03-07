@@ -2368,10 +2368,10 @@ impl Client {
                                 ..Default::default()
                             };
 
+                            game_widget.init();
                             if let Some(map) = assets.maps.get(&self.current_map) {
                                 game_widget.build(map, assets, scene_handler);
                             }
-                            game_widget.init();
                             self.game_widgets.insert(widget.creator_id, game_widget);
                         } else if role == "button" {
                             let mut action = "";

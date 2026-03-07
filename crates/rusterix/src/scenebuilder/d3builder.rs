@@ -374,6 +374,7 @@ impl D3Builder {
     ) {
         scene_handler.vm.execute(Atom::ClearDynamics);
         scene_handler.vm.execute(Atom::ClearLights);
+        scene_handler.add_sector_campfire_lights(map);
 
         let basis = camera.basis_vectors();
 

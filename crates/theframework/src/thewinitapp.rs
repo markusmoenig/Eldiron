@@ -195,17 +195,14 @@ impl TheWinitContext {
         let context = softbuffer::Context::new(window.clone()).unwrap();
         let mut surface = softbuffer::Surface::new(&context, window.clone()).unwrap();
 
-        // On Windows/Linux, don't scale the surface (use 1.0)
-        // On macOS, scale by scale_factor
-        // On WASM, use logical size directly
-        #[cfg(target_arch = "wasm32")]
-        let (surface_width, surface_height) = (width as u32, height as u32);
-        #[cfg(not(target_arch = "wasm32"))]
+        // Desktop and WASM surfaces use physical size; logical UI size stays in `ctx`.
         let (surface_width, surface_height) = {
             #[cfg(target_os = "macos")]
             let surface_scale = scale_factor;
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(all(not(target_os = "macos"), not(target_arch = "wasm32")))]
             let surface_scale = 1.0;
+            #[cfg(target_arch = "wasm32")]
+            let surface_scale = scale_factor;
 
             (
                 size.width * surface_scale as u32,
@@ -429,23 +426,20 @@ impl TheWinitApp {
 
             ctx.ctx.scale_factor = effective_scale;
 
-            // WASM-specific: surface should use logical size
-            #[cfg(target_arch = "wasm32")]
-            ctx.surface
-                .resize(
-                    NonZeroU32::new(width as u32).unwrap(),
-                    NonZeroU32::new(height as u32).unwrap(),
-                )
-                .unwrap();
-
-            // Desktop: surface uses physical size
-            #[cfg(not(target_arch = "wasm32"))]
+            // Surface uses physical size on all platforms; logical UI size stays in `ctx`.
             {
-                #[cfg(not(target_os = "macos"))]
+                #[cfg(all(not(target_os = "macos"), not(target_arch = "wasm32")))]
                 ctx.surface
                     .resize(
                         NonZeroU32::new(size.width).unwrap(),
                         NonZeroU32::new(size.height).unwrap(),
+                    )
+                    .unwrap();
+                #[cfg(target_arch = "wasm32")]
+                ctx.surface
+                    .resize(
+                        NonZeroU32::new((width as f32 * scale_factor).round() as u32).unwrap(),
+                        NonZeroU32::new((height as f32 * scale_factor).round() as u32).unwrap(),
                     )
                     .unwrap();
                 #[cfg(target_os = "macos")]
@@ -1150,11 +1144,31 @@ impl ApplicationHandler for TheWinitApp {
             self.next_frame_time = now + self.target_frame_time;
         }
 
-        let should_redraw = now >= self.next_frame_time;
-        if should_redraw {
+        let timer_due = now >= self.next_frame_time;
+        #[cfg(target_arch = "wasm32")]
+        let should_redraw = true;
+        #[cfg(not(target_arch = "wasm32"))]
+        let should_redraw = timer_due;
+
+        #[cfg(target_arch = "wasm32")]
+        {
             if let Some(ctx) = &self.ctx {
+                // On the web, let the browser's rAF cadence drive presentation.
+                // Gating redraw requests with our own timer causes visible frame skips.
                 ctx.window.request_redraw();
             }
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if should_redraw {
+                if let Some(ctx) = &self.ctx {
+                    ctx.window.request_redraw();
+                }
+            }
+        }
+
+        if timer_due {
             // Keep a stable cadence instead of resetting from `now`, which accumulates jitter.
             while self.next_frame_time <= now {
                 self.next_frame_time += self.target_frame_time;

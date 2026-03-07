@@ -1542,6 +1542,7 @@ impl ChunkBuilder for D3ChunkBuilder {
 
         // Build optional non-destructive linedef features (palisade, fence, ...).
         generate_sector_stairs(map, assets, chunk, vmchunk);
+        generate_sector_campfires(map, assets, chunk, vmchunk);
         generate_sector_roofs(map, assets, chunk, vmchunk);
         generate_linedef_features(map, assets, chunk, vmchunk);
 
@@ -3388,6 +3389,255 @@ fn generate_sector_stairs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &m
                     -side_n0,
                 );
             }
+        }
+    }
+}
+
+fn generate_sector_campfires(
+    map: &Map,
+    assets: &Assets,
+    chunk: &Chunk,
+    vmchunk: &mut scenevm::Chunk,
+) {
+    let default_tile_id = Uuid::from_str(DEFAULT_TILE_ID).unwrap();
+
+    for sector in &map.sectors {
+        let feature = sector
+            .properties
+            .get_str_default("sector_feature", "None".to_string());
+        if feature != "Campfire" {
+            continue;
+        }
+
+        let bbox = sector.bounding_box(map);
+        if !bbox.intersects(&chunk.bbox) {
+            continue;
+        }
+
+        let flame_height = sector
+            .properties
+            .get_float_default("campfire_flame_height", 0.8)
+            .max(0.0);
+        let flame_width = sector
+            .properties
+            .get_float_default("campfire_flame_width", 0.45)
+            .max(0.05);
+        if flame_height <= 0.0 {
+            continue;
+        }
+
+        let flame_tile = source_to_tile_id(&sector.properties, "campfire_flame_source", assets)
+            .or_else(|| source_to_tile_id(&sector.properties, "cap_source", assets))
+            .or_else(|| source_to_tile_id(&sector.properties, "source", assets))
+            .unwrap_or(default_tile_id);
+        let base_tile = source_to_tile_id(&sector.properties, "campfire_base_source", assets)
+            .or_else(|| source_to_tile_id(&sector.properties, "source", assets))
+            .unwrap_or(default_tile_id);
+
+        let mut best_base_y = f32::NEG_INFINITY;
+        let mut center = Vec3::zero();
+        let mut found_top_surface = false;
+        for surface in map.surfaces.values() {
+            if surface.sector_id != sector.id || surface.plane.normal.y.abs() <= 0.7 {
+                continue;
+            }
+            let Some(loop_uv) = surface.sector_loop_uv(map) else {
+                continue;
+            };
+            if loop_uv.len() < 3 {
+                continue;
+            }
+            if surface.plane.origin.y <= best_base_y {
+                continue;
+            }
+            let mut sum = Vec3::zero();
+            for uv in &loop_uv {
+                sum += surface.uv_to_world(*uv);
+            }
+            center = sum / loop_uv.len() as f32;
+            best_base_y = surface.plane.origin.y;
+            found_top_surface = true;
+        }
+
+        if !found_top_surface {
+            if let Some(c2) = sector.center(map) {
+                center = Vec3::new(c2.x, 0.0, c2.y);
+                best_base_y = 0.0;
+            } else {
+                continue;
+            }
+        }
+
+        let cx = center.x;
+        let cz = center.z;
+        let y0 = best_base_y + 0.02;
+        let y1 = y0 + flame_height;
+        let base_half = (flame_width * 0.45).max(0.05);
+        let log_count = sector
+            .properties
+            .get_int_default("campfire_log_count", 10)
+            .clamp(3, 24) as usize;
+        let log_half_len = (sector
+            .properties
+            .get_float_default("campfire_log_length", 0.55)
+            * 0.5)
+            .max(0.05);
+        let log_half_thick = (sector
+            .properties
+            .get_float_default("campfire_log_thickness", 0.10)
+            * 0.5)
+            .max(0.01);
+        let log_radius = sector
+            .properties
+            .get_float_default("campfire_log_radius", 0.55)
+            .max(log_half_len + 0.03);
+        let log_half_height = (log_half_thick * 0.65).max(0.015);
+        let log_center_y = best_base_y + log_half_height + 0.01;
+
+        let uv_unit = vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
+        let mut push_oriented_log =
+            |center_x: f32, center_z: f32, center_y: f32, inward: Vec3<f32>| {
+                let up = Vec3::new(0.0, 1.0, 0.0);
+                let mut axis = Vec3::new(inward.x, 0.0, inward.z);
+                let axis_len = axis.magnitude();
+                if axis_len <= 1e-6 {
+                    return;
+                }
+                axis /= axis_len;
+                let mut side = up.cross(axis);
+                let side_len = side.magnitude();
+                if side_len <= 1e-6 {
+                    return;
+                }
+                side /= side_len;
+
+                let center_v = Vec3::new(center_x, center_y, center_z);
+
+                let a = axis * log_half_len;
+                let s = side * log_half_thick;
+                let u = up * log_half_height;
+
+                // bottom ring
+                let p0 = center_v - a - s - u;
+                let p1 = center_v - a + s - u;
+                let p2 = center_v + a + s - u;
+                let p3 = center_v + a - s - u;
+                // top ring
+                let p4 = center_v - a - s + u;
+                let p5 = center_v - a + s + u;
+                let p6 = center_v + a + s + u;
+                let p7 = center_v + a - s + u;
+
+                let q = |v: Vec3<f32>| [v.x, v.y, v.z, 1.0];
+
+                // Top / Bottom
+                push_quad_with_winding(
+                    vmchunk,
+                    GeoId::Sector(sector.id),
+                    base_tile,
+                    vec![q(p4), q(p5), q(p6), q(p7)],
+                    uv_unit.clone(),
+                    up,
+                );
+                push_quad_with_winding(
+                    vmchunk,
+                    GeoId::Sector(sector.id),
+                    base_tile,
+                    vec![q(p0), q(p3), q(p2), q(p1)],
+                    uv_unit.clone(),
+                    -up,
+                );
+                // Side faces (+/- side)
+                push_quad_with_winding(
+                    vmchunk,
+                    GeoId::Sector(sector.id),
+                    base_tile,
+                    vec![q(p1), q(p2), q(p6), q(p5)],
+                    uv_unit.clone(),
+                    side,
+                );
+                push_quad_with_winding(
+                    vmchunk,
+                    GeoId::Sector(sector.id),
+                    base_tile,
+                    vec![q(p0), q(p4), q(p7), q(p3)],
+                    uv_unit.clone(),
+                    -side,
+                );
+                // End faces (+/- axis)
+                push_quad_with_winding(
+                    vmchunk,
+                    GeoId::Sector(sector.id),
+                    base_tile,
+                    vec![q(p3), q(p7), q(p6), q(p2)],
+                    uv_unit.clone(),
+                    axis,
+                );
+                push_quad_with_winding(
+                    vmchunk,
+                    GeoId::Sector(sector.id),
+                    base_tile,
+                    vec![q(p0), q(p1), q(p5), q(p4)],
+                    uv_unit.clone(),
+                    -axis,
+                );
+            };
+
+        // Logs in a ring, each pointing toward the center.
+        for i in 0..log_count {
+            let t = i as f32 / log_count as f32;
+            let ang = t * std::f32::consts::TAU;
+            let dir_out = Vec3::new(ang.cos(), 0.0, ang.sin());
+            let log_cx = cx + dir_out.x * log_radius;
+            let log_cz = cz + dir_out.z * log_radius;
+            let inward = Vec3::new(cx - log_cx, 0.0, cz - log_cz);
+            let y = log_center_y + ((i % 2) as f32) * (log_half_height * 0.35);
+            push_oriented_log(log_cx, log_cz, y, inward);
+        }
+
+        // Ember/base patch.
+        let base = vec![
+            [cx - base_half, best_base_y + 0.01, cz - base_half, 1.0],
+            [cx + base_half, best_base_y + 0.01, cz - base_half, 1.0],
+            [cx + base_half, best_base_y + 0.01, cz + base_half, 1.0],
+            [cx - base_half, best_base_y + 0.01, cz + base_half, 1.0],
+        ];
+        push_quad_with_winding(
+            vmchunk,
+            GeoId::Sector(sector.id),
+            base_tile,
+            base,
+            vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+            Vec3::new(0.0, 1.0, 0.0),
+        );
+
+        // Billboard flame: crossed vertical quads in the center.
+        let flame_half_w = (flame_width * 0.5).max(0.03);
+        for i in 0..3 {
+            let ang = (i as f32 / 3.0) * std::f32::consts::PI;
+            let dx = ang.cos() * flame_half_w;
+            let dz = ang.sin() * flame_half_w;
+            let flame = vec![
+                [cx - dx, y0, cz - dz, 1.0],
+                [cx + dx, y0, cz + dz, 1.0],
+                [cx + dx, y1, cz + dz, 1.0],
+                [cx - dx, y1, cz - dz, 1.0],
+            ];
+            let mut normal = Vec3::new(-dz, 0.0, dx);
+            let n_len = normal.magnitude();
+            if n_len > 1e-6 {
+                normal /= n_len;
+            } else {
+                normal = Vec3::new(0.0, 0.0, 1.0);
+            }
+            push_quad_with_winding(
+                vmchunk,
+                GeoId::Sector(sector.id),
+                flame_tile,
+                flame,
+                vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+                normal,
+            );
         }
     }
 }

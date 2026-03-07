@@ -10,7 +10,7 @@
 - New 3D and 2D renderer using rasterization for faster performance.
 - Better terrain creation tools.
 - Switched action parameters to be TOML based.
-- Procedural geometry actions: *Create Fence*, *Create Palisade, Create Stairs*.
+- Procedural geometry actions: *Create Fence*, *Create Palisade, Create Stairs, Create Campfire*.
 - First procedural geometry props using the *Create Props* action.
 - Terrain and avatars are now drawn in both 3D and 2D.
 - Added audio support to Eldion (WAV + OGG) and added the corresponding host scripting commands ("play_audio", "clear_audio", set_audio_bus_volume").
