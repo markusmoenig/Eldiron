@@ -1166,6 +1166,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "eldiron-client-wgpu"
+version = "0.9.0"
+dependencies = [
+ "eldiron-shared",
+ "instant",
+ "rusterix",
+ "scenevm",
+ "serde",
+ "serde_json",
+ "uuid",
+ "vek",
+]
+
+[[package]]
 name = "eldiron-creator"
 version = "0.9.0"
 dependencies = [

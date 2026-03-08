@@ -1,0 +1,27 @@
+[package]
+name = "eldiron-client-wgpu"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "GPU-direct Eldiron player using SceneVMApp."
+
+[[bin]]
+name = "eldiron-client-wgpu"
+path = "src/main.rs"
+
+[lib]
+name = "scenevm_unified_app"
+crate-type = ["rlib", "staticlib"]
+
+[dependencies]
+scenevm = { workspace = true, default-features = true }
+rusterix.workspace = true
+shared = { path = "../../crates/shared", version = "0.9.0", package = "eldiron-shared" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+instant = { version = "0.1", features = ["wasm-bindgen"] }
+vek = "0.17"
+uuid = { version = "1.18", features = ["v4"] }

@@ -6685,6 +6685,24 @@ impl VM {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
+            if let Some([x, y, w, h]) = self.viewport_rect2d
+                && w > 0.0
+                && h > 0.0
+            {
+                let sx = x.max(0.0).min(fb_w as f32) as u32;
+                let sy = y.max(0.0).min(fb_h as f32) as u32;
+                let sw = w.max(0.0).min((fb_w as f32) - sx as f32) as u32;
+                let sh = h.max(0.0).min((fb_h as f32) - sy as f32) as u32;
+                pass.set_scissor_rect(sx, sy, sw.max(1), sh.max(1));
+                pass.set_viewport(
+                    sx as f32,
+                    sy as f32,
+                    sw.max(1) as f32,
+                    sh.max(1) as f32,
+                    0.0,
+                    1.0,
+                );
+            }
             if g.i3d_raster_opaque_count > 0 {
                 pass.set_pipeline(g.raster3d_pipeline.as_ref().unwrap());
                 pass.set_bind_group(0, g.u_raster3d_bg.as_ref().unwrap(), &[]);

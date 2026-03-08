@@ -331,6 +331,23 @@ impl GameWidget {
         assets: &Assets,
         scene_handler: &mut SceneHandler,
     ) {
+        self.prepare_frame(map, time, animation_frame, assets, scene_handler);
+        if self.camera == PlayerCamera::D2 {
+            self.render_prepared_d2(time, animation_frame, scene_handler);
+        } else {
+            self.render_prepared_d3(time, animation_frame, scene_handler);
+        }
+    }
+
+    /// Prepare the SceneVM state for this widget without CPU readback.
+    pub fn prepare_frame(
+        &mut self,
+        map: &Map,
+        time: &TheTime,
+        animation_frame: usize,
+        assets: &Assets,
+        scene_handler: &mut SceneHandler,
+    ) {
         if map.name != self.build_region_name {
             self.build(map, assets, scene_handler);
         }
@@ -397,9 +414,9 @@ impl GameWidget {
         }
 
         if self.camera == PlayerCamera::D2 {
-            self.draw_d2(map, time, animation_frame, assets, scene_handler);
+            self.prepare_d2(time, animation_frame, scene_handler);
         } else {
-            self.draw_d3(map, time, animation_frame, assets, scene_handler);
+            self.prepare_d3(time, animation_frame, scene_handler);
         }
 
         if scene_handler.vm.vm_layer_count() > 1 {
@@ -408,20 +425,17 @@ impl GameWidget {
         }
     }
 
-    /// Draw the 2D scene.
-    pub fn draw_d2(
+    fn prepare_d2(
         &mut self,
-        _map: &Map,
         time: &TheTime,
         animation_frame: usize,
-        _assets: &Assets,
         scene_handler: &mut SceneHandler,
     ) {
         let full_width = self.buffer.dim().width as usize;
         let full_height = self.buffer.dim().height as usize;
 
         // Determine render dimensions based on upscale factor
-        let (width, height, render_buffer) = if self.upscale > 1.0 {
+        let (width, height, _render_buffer) = if self.upscale > 1.0 {
             let scaled_width = (full_width as f32 / self.upscale).round() as usize;
             let scaled_height = (full_height as f32 / self.upscale).round() as usize;
 
@@ -537,24 +551,6 @@ impl GameWidget {
             .vm
             .execute(scenevm::Atom::SetBackground(Vec4::zero()));
 
-        if render_buffer {
-            scene_handler.vm.render_frame(
-                self.upscale_buffer.pixels_mut(),
-                width as u32,
-                height as u32,
-            );
-            Self::upscale_buffer_into(
-                &self.upscale_buffer,
-                &mut self.buffer,
-                full_width,
-                full_height,
-            );
-        } else {
-            scene_handler
-                .vm
-                .render_frame(self.buffer.pixels_mut(), width as u32, height as u32);
-        }
-
         // Draw Messages
 
         /*
@@ -593,19 +589,17 @@ impl GameWidget {
         }*/
     }
 
-    pub fn draw_d3(
+    fn prepare_d3(
         &mut self,
-        _map: &Map,
         time: &TheTime,
         animation_frame: usize,
-        _assets: &Assets,
         scene_handler: &mut SceneHandler,
     ) {
         let full_width = self.buffer.dim().width as usize;
         let full_height = self.buffer.dim().height as usize;
 
         // Determine render dimensions based on upscale factor
-        let (width, height, render_buffer) = if self.upscale > 1.0 {
+        let (_width, _height, _render_buffer) = if self.upscale > 1.0 {
             let scaled_width = (full_width as f32 / self.upscale).round() as usize;
             let scaled_height = (full_height as f32 / self.upscale).round() as usize;
 
@@ -647,6 +641,78 @@ impl GameWidget {
         });
 
         // scene_handler.vm.print_geometry_stats();
+    }
+
+    fn render_prepared_d2(
+        &mut self,
+        _time: &TheTime,
+        _animation_frame: usize,
+        scene_handler: &mut SceneHandler,
+    ) {
+        let full_width = self.buffer.dim().width as usize;
+        let full_height = self.buffer.dim().height as usize;
+        let (width, height, render_buffer) = if self.upscale > 1.0 {
+            let scaled_width = (full_width as f32 / self.upscale).round() as usize;
+            let scaled_height = (full_height as f32 / self.upscale).round() as usize;
+            if self.upscale_buffer.dim().width as usize != scaled_width
+                || self.upscale_buffer.dim().height as usize != scaled_height
+            {
+                self.upscale_buffer = TheRGBABuffer::new(TheDim::new(
+                    0,
+                    0,
+                    scaled_width as i32,
+                    scaled_height as i32,
+                ));
+            }
+            (scaled_width, scaled_height, true)
+        } else {
+            (full_width, full_height, false)
+        };
+
+        if render_buffer {
+            scene_handler.vm.render_frame(
+                self.upscale_buffer.pixels_mut(),
+                width as u32,
+                height as u32,
+            );
+            Self::upscale_buffer_into(
+                &self.upscale_buffer,
+                &mut self.buffer,
+                full_width,
+                full_height,
+            );
+        } else {
+            scene_handler
+                .vm
+                .render_frame(self.buffer.pixels_mut(), width as u32, height as u32);
+        }
+    }
+
+    fn render_prepared_d3(
+        &mut self,
+        _time: &TheTime,
+        _animation_frame: usize,
+        scene_handler: &mut SceneHandler,
+    ) {
+        let full_width = self.buffer.dim().width as usize;
+        let full_height = self.buffer.dim().height as usize;
+        let (width, height, render_buffer) = if self.upscale > 1.0 {
+            let scaled_width = (full_width as f32 / self.upscale).round() as usize;
+            let scaled_height = (full_height as f32 / self.upscale).round() as usize;
+            if self.upscale_buffer.dim().width as usize != scaled_width
+                || self.upscale_buffer.dim().height as usize != scaled_height
+            {
+                self.upscale_buffer = TheRGBABuffer::new(TheDim::new(
+                    0,
+                    0,
+                    scaled_width as i32,
+                    scaled_height as i32,
+                ));
+            }
+            (scaled_width, scaled_height, true)
+        } else {
+            (full_width, full_height, false)
+        };
 
         if render_buffer {
             scene_handler.vm.render_frame(

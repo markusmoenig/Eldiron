@@ -150,6 +150,7 @@ struct PresentPipeline {
     pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
+    rect_buf: wgpu::Buffer,
     sampler: wgpu::Sampler,
     surface_format: wgpu::TextureFormat,
 }
@@ -196,9 +197,6 @@ fn vs_main(@builtin(vertex_index) vi: u32) -> VsOut {
     return out;
 }
 
-fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
-    return pow(c, vec3<f32>(2.2));
-}
 fn linear_to_srgb(c: vec3<f32>) -> vec3<f32> {
     return pow(c, vec3<f32>(1.0 / 2.2));
 }
@@ -206,9 +204,7 @@ fn linear_to_srgb(c: vec3<f32>) -> vec3<f32> {
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let src = textureSample(layer_tex, layer_sampler, in.uv);
-    // blend_mode_buf: 0 = Alpha (default), 1 = AlphaLinear
     if (blend_mode_buf == 1u) {
-        // Treat the layer as linear and encode once for display.
         return vec4<f32>(linear_to_srgb(src.rgb), src.a);
     }
     return src;
@@ -309,6 +305,165 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     }
 }
 
+struct RgbaOverlayCompositingPipeline {
+    pipeline: wgpu::RenderPipeline,
+    bind_group_layout: wgpu::BindGroupLayout,
+    rect_buf: wgpu::Buffer,
+    sampler: wgpu::Sampler,
+    target_format: wgpu::TextureFormat,
+}
+
+impl RgbaOverlayCompositingPipeline {
+    fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("scenevm-rgba-overlay-shader"),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(
+                "
+@group(0) @binding(0) var overlay_tex: texture_2d<f32>;
+@group(0) @binding(1) var overlay_sampler: sampler;
+@group(0) @binding(2) var<uniform> rect: vec4<f32>;
+
+struct VsOut {
+    @builtin(position) pos: vec4<f32>,
+};
+
+@vertex
+fn vs_main(@builtin(vertex_index) vi: u32) -> VsOut {
+    var positions = array<vec2<f32>, 3>(
+        vec2<f32>(-1.0, -3.0),
+        vec2<f32>(3.0, 1.0),
+        vec2<f32>(-1.0, 1.0)
+    );
+    var out: VsOut;
+    out.pos = vec4<f32>(positions[vi], 0.0, 1.0);
+    return out;
+}
+
+@fragment
+fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+    let x = pos.x;
+    let y = pos.y;
+    if (x < rect.x || y < rect.y || x >= (rect.x + rect.z) || y >= (rect.y + rect.w)) {
+        return vec4<f32>(0.0);
+    }
+    let uv = vec2<f32>((x - rect.x) / max(rect.z, 1.0), (y - rect.y) / max(rect.w, 1.0));
+    return textureSample(overlay_tex, overlay_sampler, uv);
+}
+                ",
+            )),
+        });
+
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("scenevm-rgba-overlay-bgl"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("scenevm-rgba-overlay-pipeline-layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let rect_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("scenevm-rgba-overlay-rect"),
+            size: (std::mem::size_of::<f32>() * 4) as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("scenevm-rgba-overlay-sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("scenevm-rgba-overlay-pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: target_format,
+                    // UI overlay pixels are composited on CPU-style paths with premultiplied-like RGB.
+                    // Composite as premultiplied alpha to match legacy output and avoid white/gray wash.
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                        alpha: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                    }),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                ..Default::default()
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+
+        Self {
+            pipeline,
+            bind_group_layout,
+            rect_buf,
+            sampler,
+            target_format,
+        }
+    }
+}
+
+struct RgbaOverlayState {
+    texture: Texture,
+    rect: [f32; 4],
+}
+
 /// Optional window surface (swapchain) managed by SceneVM for direct presentation.
 #[cfg(not(target_arch = "wasm32"))]
 struct WindowSurface {
@@ -352,8 +507,11 @@ thread_local! {
 impl PresentPipeline {
     fn new(
         device: &wgpu::Device,
+        queue: &wgpu::Queue,
         format: wgpu::TextureFormat,
         source_view: &wgpu::TextureView,
+        overlay_view: &wgpu::TextureView,
+        overlay_rect: [f32; 4],
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("scenevm-present-shader"),
@@ -361,6 +519,9 @@ impl PresentPipeline {
                 "
 @group(0) @binding(0) var src_tex: texture_2d<f32>;
 @group(0) @binding(1) var src_sampler: sampler;
+@group(0) @binding(2) var overlay_tex: texture_2d<f32>;
+@group(0) @binding(3) var overlay_sampler: sampler;
+@group(0) @binding(4) var<uniform> overlay_rect: vec4<f32>;
 
 struct VsOut {
     @builtin(position) pos: vec4<f32>,
@@ -387,7 +548,23 @@ fn vs_main(@builtin(vertex_index) vi: u32) -> VsOut {
 
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
-    return textureSample(src_tex, src_sampler, in.uv);
+    let base = textureSample(src_tex, src_sampler, in.uv);
+    if (overlay_rect.z <= 0.0 || overlay_rect.w <= 0.0) {
+        return base;
+    }
+
+    let x = in.uv.x;
+    let y = in.uv.y;
+    if (x < overlay_rect.x || y < overlay_rect.y || x >= (overlay_rect.x + overlay_rect.z) || y >= (overlay_rect.y + overlay_rect.w)) {
+        return base;
+    }
+
+    let uv = vec2<f32>((x - overlay_rect.x) / max(overlay_rect.z, 1e-6), (y - overlay_rect.y) / max(overlay_rect.w, 1e-6));
+    let over = textureSample(overlay_tex, overlay_sampler, uv);
+    // Premultiplied alpha over operation.
+    let out_rgb = over.rgb + base.rgb * (1.0 - over.a);
+    let out_a = over.a + base.a * (1.0 - over.a);
+    return vec4<f32>(out_rgb, out_a);
 }
 ",
             )),
@@ -412,6 +589,32 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -422,6 +625,14 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         });
+
+        let rect_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("scenevm-present-overlay-rect"),
+            size: (std::mem::size_of::<f32>() * 4) as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(&rect_buf, 0, bytemuck::cast_slice(&overlay_rect));
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("scenevm-present-bind-group"),
@@ -434,6 +645,18 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(overlay_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: rect_buf.as_entire_binding(),
                 },
             ],
         });
@@ -477,12 +700,21 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             pipeline,
             bind_group_layout,
             bind_group,
+            rect_buf,
             sampler,
             surface_format: format,
         }
     }
 
-    fn update_bind_group(&mut self, device: &wgpu::Device, source_view: &wgpu::TextureView) {
+    fn update_bind_group(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        source_view: &wgpu::TextureView,
+        overlay_view: &wgpu::TextureView,
+        overlay_rect: [f32; 4],
+    ) {
+        queue.write_buffer(&self.rect_buf, 0, bytemuck::cast_slice(&overlay_rect));
         self.bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("scenevm-present-bind-group"),
             layout: &self.bind_group_layout,
@@ -494,6 +726,18 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(overlay_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: self.rect_buf.as_entire_binding(),
                 },
             ],
         });
@@ -544,6 +788,8 @@ pub struct SceneVM {
     active_vm_index: usize,
     log_layer_activity: bool,
     compositing_pipeline: Option<CompositingPipeline>,
+    rgba_overlay_pipeline: Option<RgbaOverlayCompositingPipeline>,
+    rgba_overlay: Option<RgbaOverlayState>,
     stats_last_log: Instant,
     stats_frames_since_log: u32,
 }
@@ -614,6 +860,9 @@ impl SceneVM {
         h: u32,
         log_errors: bool,
         compositing_pipeline: &mut Option<CompositingPipeline>,
+        rgba_overlay: &mut Option<RgbaOverlayState>,
+        rgba_overlay_pipeline: &mut Option<RgbaOverlayCompositingPipeline>,
+        composite_rgba_overlay_in_scene: bool,
     ) {
         // The surface texture is always created with Rgba8Unorm in `Texture::ensure_gpu_with`
         let target_format = wgpu::TextureFormat::Rgba8Unorm;
@@ -729,7 +978,119 @@ impl SceneVM {
             }
         }
 
+        if composite_rgba_overlay_in_scene && let Some(overlay) = rgba_overlay.as_mut() {
+            overlay.texture.ensure_gpu_with(device);
+            overlay.texture.upload_to_gpu_with(device, queue);
+            if let Some(overlay_gpu) = overlay.texture.gpu.as_ref() {
+                if rgba_overlay_pipeline
+                    .as_ref()
+                    .map(|p| p.target_format != target_format)
+                    .unwrap_or(true)
+                {
+                    *rgba_overlay_pipeline =
+                        Some(RgbaOverlayCompositingPipeline::new(device, target_format));
+                }
+
+                let pipeline = rgba_overlay_pipeline.as_ref().unwrap();
+                queue.write_buffer(&pipeline.rect_buf, 0, bytemuck::cast_slice(&overlay.rect));
+
+                let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("scenevm-rgba-overlay-bind-group"),
+                    layout: &pipeline.bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&overlay_gpu.view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&pipeline.sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: pipeline.rect_buf.as_entire_binding(),
+                        },
+                    ],
+                });
+
+                {
+                    let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("scenevm-rgba-overlay-pass"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: surface_view,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Load,
+                                store: wgpu::StoreOp::Store,
+                            },
+                            depth_slice: None,
+                        })],
+                        depth_stencil_attachment: None,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                    });
+                    rpass.set_pipeline(&pipeline.pipeline);
+                    rpass.set_bind_group(0, &bind_group, &[]);
+                    rpass.draw(0..3, 0..1);
+                }
+            }
+        }
+
         queue.submit(Some(encoder.finish()));
+    }
+
+    pub fn set_rgba_overlay(&mut self, width: u32, height: u32, rgba: Vec<u8>, rect: [f32; 4]) {
+        let w = width.max(1);
+        let h = height.max(1);
+        let needed = (w as usize) * (h as usize) * 4;
+        let mut data = rgba;
+        if data.len() < needed {
+            data.resize(needed, 0);
+        }
+        if data.len() > needed {
+            data.truncate(needed);
+        }
+
+        match self.rgba_overlay.as_mut() {
+            Some(existing) if existing.texture.width == w && existing.texture.height == h => {
+                existing.texture.data = data;
+                existing.rect = rect;
+            }
+            _ => {
+                let mut texture = Texture::new(w, h);
+                texture.data = data;
+                self.rgba_overlay = Some(RgbaOverlayState { texture, rect });
+            }
+        }
+    }
+
+    pub fn set_rgba_overlay_bytes(&mut self, width: u32, height: u32, rgba: &[u8], rect: [f32; 4]) {
+        let w = width.max(1);
+        let h = height.max(1);
+        let needed = (w as usize) * (h as usize) * 4;
+
+        match self.rgba_overlay.as_mut() {
+            Some(existing) if existing.texture.width == w && existing.texture.height == h => {
+                existing.texture.data.resize(needed, 0);
+                let copy_len = rgba.len().min(needed);
+                existing.texture.data[..copy_len].copy_from_slice(&rgba[..copy_len]);
+                if copy_len < needed {
+                    existing.texture.data[copy_len..].fill(0);
+                }
+                existing.rect = rect;
+            }
+            _ => {
+                let mut texture = Texture::new(w, h);
+                texture.data.resize(needed, 0);
+                let copy_len = rgba.len().min(needed);
+                texture.data[..copy_len].copy_from_slice(&rgba[..copy_len]);
+                self.rgba_overlay = Some(RgbaOverlayState { texture, rect });
+            }
+        }
+    }
+
+    pub fn clear_rgba_overlay(&mut self) {
+        self.rgba_overlay = None;
     }
 
     /// Total number of VM layers (base + overlays).
@@ -1025,6 +1386,8 @@ impl SceneVM {
                 active_vm_index: 0,
                 log_layer_activity: false,
                 compositing_pipeline: None,
+                rgba_overlay_pipeline: None,
+                rgba_overlay: None,
                 stats_last_log: Instant::now(),
                 stats_frames_since_log: 0,
             };
@@ -1076,6 +1439,8 @@ impl SceneVM {
                 active_vm_index: 0,
                 log_layer_activity: false,
                 compositing_pipeline: None,
+                rgba_overlay_pipeline: None,
+                rgba_overlay: None,
                 stats_last_log: Instant::now(),
                 stats_frames_since_log: 0,
             };
@@ -1118,25 +1483,18 @@ impl SceneVM {
         .expect("Failed to create wgpu device");
 
         let caps = surface.get_capabilities(&adapter);
+        // Prefer non-sRGB swapchain when scene output is already tonemapped/gamma-encoded.
         let surface_format = caps
             .formats
             .iter()
             .copied()
-            .find(|f| f.is_srgb())
+            .find(|f| !f.is_srgb())
             .unwrap_or(caps.formats[0]);
-        let present_mode = caps
-            .present_modes
-            .iter()
-            .copied()
-            .find(|m| {
-                matches!(
-                    m,
-                    wgpu::PresentMode::Mailbox
-                        | wgpu::PresentMode::Immediate
-                        | wgpu::PresentMode::Fifo
-                )
-            })
-            .unwrap_or(wgpu::PresentMode::Fifo);
+        let present_mode = if caps.present_modes.contains(&wgpu::PresentMode::Fifo) {
+            wgpu::PresentMode::Fifo
+        } else {
+            caps.present_modes[0]
+        };
         let alpha_mode = caps
             .alpha_modes
             .get(0)
@@ -1182,6 +1540,8 @@ impl SceneVM {
             active_vm_index: 0,
             log_layer_activity: false,
             compositing_pipeline: None,
+            rgba_overlay_pipeline: None,
+            rgba_overlay: None,
             stats_last_log: Instant::now(),
             stats_frames_since_log: 0,
         };
@@ -1224,25 +1584,18 @@ impl SceneVM {
         .expect("Failed to create wgpu device");
 
         let caps = surface.get_capabilities(&adapter);
+        // Prefer non-sRGB swapchain when scene output is already tonemapped/gamma-encoded.
         let surface_format = caps
             .formats
             .iter()
             .copied()
-            .find(|f| f.is_srgb())
+            .find(|f| !f.is_srgb())
             .unwrap_or(caps.formats[0]);
-        let present_mode = caps
-            .present_modes
-            .iter()
-            .copied()
-            .find(|m| {
-                matches!(
-                    m,
-                    wgpu::PresentMode::Mailbox
-                        | wgpu::PresentMode::Immediate
-                        | wgpu::PresentMode::Fifo
-                )
-            })
-            .unwrap_or(wgpu::PresentMode::Fifo);
+        let present_mode = if caps.present_modes.contains(&wgpu::PresentMode::Fifo) {
+            wgpu::PresentMode::Fifo
+        } else {
+            caps.present_modes[0]
+        };
         let alpha_mode = caps
             .alpha_modes
             .get(0)
@@ -1288,6 +1641,8 @@ impl SceneVM {
             active_vm_index: 0,
             log_layer_activity: false,
             compositing_pipeline: None,
+            rgba_overlay_pipeline: None,
+            rgba_overlay: None,
             stats_last_log: Instant::now(),
             stats_frames_since_log: 0,
         };
@@ -1450,6 +1805,9 @@ impl SceneVM {
             h,
             self.log_layer_activity,
             &mut self.compositing_pipeline,
+            &mut self.rgba_overlay,
+            &mut self.rgba_overlay_pipeline,
+            false,
         );
         SceneVM::maybe_log_runtime_stats(
             self.log_layer_activity,
@@ -1490,6 +1848,26 @@ impl SceneVM {
             .expect("Surface GPU not allocated")
             .view
             .clone();
+        let (overlay_view, overlay_rect_px): (wgpu::TextureView, [f32; 4]) =
+            if let Some(overlay) = self.rgba_overlay.as_mut() {
+                overlay.texture.ensure_gpu_with(&gpu.device);
+                overlay.texture.upload_to_gpu_with(&gpu.device, &gpu.queue);
+                if let Some(overlay_gpu) = overlay.texture.gpu.as_ref() {
+                    (overlay_gpu.view.clone(), overlay.rect)
+                } else {
+                    (src_view.clone(), [0.0, 0.0, 0.0, 0.0])
+                }
+            } else {
+                (src_view.clone(), [0.0, 0.0, 0.0, 0.0])
+            };
+        let fw = ws.config.width.max(1) as f32;
+        let fh = ws.config.height.max(1) as f32;
+        let overlay_rect = [
+            overlay_rect_px[0] / fw,
+            overlay_rect_px[1] / fh,
+            overlay_rect_px[2] / fw,
+            overlay_rect_px[3] / fh,
+        ];
 
         if ws
             .present_pipeline
@@ -1497,9 +1875,22 @@ impl SceneVM {
             .map(|p| p.surface_format != ws.format)
             .unwrap_or(true)
         {
-            ws.present_pipeline = Some(PresentPipeline::new(&gpu.device, ws.format, &src_view));
+            ws.present_pipeline = Some(PresentPipeline::new(
+                &gpu.device,
+                &gpu.queue,
+                ws.format,
+                &src_view,
+                &overlay_view,
+                overlay_rect,
+            ));
         } else if let Some(pipeline) = ws.present_pipeline.as_mut() {
-            pipeline.update_bind_group(&gpu.device, &src_view);
+            pipeline.update_bind_group(
+                &gpu.device,
+                &gpu.queue,
+                &src_view,
+                &overlay_view,
+                overlay_rect,
+            );
         }
 
         let present = ws
@@ -1571,6 +1962,9 @@ impl SceneVM {
             h,
             self.log_layer_activity,
             &mut self.compositing_pipeline,
+            &mut self.rgba_overlay,
+            &mut self.rgba_overlay_pipeline,
+            true,
         );
         SceneVM::maybe_log_runtime_stats(
             self.log_layer_activity,
@@ -1618,6 +2012,9 @@ impl SceneVM {
             h,
             self.log_layer_activity,
             &mut self.compositing_pipeline,
+            &mut self.rgba_overlay,
+            &mut self.rgba_overlay_pipeline,
+            true,
         );
 
         // Start readback and await readiness
@@ -1728,6 +2125,9 @@ impl SceneVM {
                 h,
                 self.log_layer_activity,
                 &mut self.compositing_pipeline,
+                &mut self.rgba_overlay,
+                &mut self.rgba_overlay_pipeline,
+                true,
             );
             SceneVM::maybe_log_runtime_stats(
                 self.log_layer_activity,
@@ -2051,6 +2451,7 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(
     let mut vm: Option<SceneVM> = None;
     let mut ctx: Option<NativeRenderCtx> = None;
     let mut cursor_pos: PhysicalPosition<f64> = PhysicalPosition { x: 0.0, y: 0.0 };
+    let mut last_frame_at = std::time::Instant::now();
     #[cfg(feature = "ui")]
     let mut modifiers = winit::event::Modifiers::default();
     let apply_logical_scale = |vm_ref: &mut SceneVM, scale: f64| {
@@ -2070,6 +2471,7 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(
             let win = target
                 .create_window(attrs)
                 .expect("failed to create window");
+            win.set_cursor_visible(false);
             let size = win.inner_size();
             let scale = win.scale_factor();
             let logical = size.to_logical::<f64>(scale);
@@ -2161,6 +2563,13 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(
                             app.scroll(vm_ref, dx / scale, dy / scale);
                         }
                         WindowEvent::RedrawRequested => {
+                            if let Some(dt) = frame_interval {
+                                let now = std::time::Instant::now();
+                                if now.duration_since(last_frame_at) < dt {
+                                    return;
+                                }
+                                last_frame_at = now;
+                            }
                             if app.needs_update(vm_ref) {
                                 ctx_ref.begin_frame();
                                 app.update(vm_ref);
@@ -2241,10 +2650,31 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(
                         WindowEvent::ModifiersChanged(new_modifiers) => {
                             modifiers = new_modifiers;
                         }
-                        #[cfg(feature = "ui")]
                         WindowEvent::KeyboardInput { event, .. } => {
+                            use winit::keyboard::{Key, NamedKey};
+                            #[cfg(feature = "ui")]
                             use winit::keyboard::{KeyCode, PhysicalKey};
 
+                            let key = match &event.logical_key {
+                                Key::Character(text) => text.to_lowercase(),
+                                Key::Named(NamedKey::ArrowUp) => "up".to_string(),
+                                Key::Named(NamedKey::ArrowDown) => "down".to_string(),
+                                Key::Named(NamedKey::ArrowLeft) => "left".to_string(),
+                                Key::Named(NamedKey::ArrowRight) => "right".to_string(),
+                                Key::Named(NamedKey::Space) => "space".to_string(),
+                                Key::Named(NamedKey::Enter) => "enter".to_string(),
+                                Key::Named(NamedKey::Tab) => "tab".to_string(),
+                                Key::Named(NamedKey::Escape) => "escape".to_string(),
+                                _ => String::new(),
+                            };
+                            if !key.is_empty() {
+                                match event.state {
+                                    ElementState::Pressed => app.key_down(vm_ref, &key),
+                                    ElementState::Released => app.key_up(vm_ref, &key),
+                                }
+                            }
+
+                            #[cfg(feature = "ui")]
                             if event.state == ElementState::Pressed {
                                 // Check for Cmd/Ctrl+Z (Undo)
                                 if event.physical_key == PhysicalKey::Code(KeyCode::KeyZ) {

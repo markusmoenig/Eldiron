@@ -65,7 +65,9 @@ impl LoopOp {
                 .with_tile_id(*tile_id)
                 .with_animation(*animation),
             LoopOp::Window {
-                frame_tile_id, inset, ..
+                frame_tile_id,
+                inset,
+                ..
             } => ActionProperties::default()
                 .with_depth(*inset)
                 .with_target_side(target_side)

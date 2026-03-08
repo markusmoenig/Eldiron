@@ -55,6 +55,10 @@ pub trait SceneVMApp {
     fn mouse_move(&mut self, _vm: &mut SceneVM, _x: f32, _y: f32) {}
     /// Scroll/pan delta (e.g. trackpad or wheel) in logical units.
     fn scroll(&mut self, _vm: &mut SceneVM, _dx: f32, _dy: f32) {}
+    /// Keyboard key pressed callback.
+    fn key_down(&mut self, _vm: &mut SceneVM, _key: &str) {}
+    /// Keyboard key released callback.
+    fn key_up(&mut self, _vm: &mut SceneVM, _key: &str) {}
     /// Pinch gesture: scale factor and center in logical coordinates.
     fn pinch(&mut self, _vm: &mut SceneVM, _scale: f32, _center: (f32, f32)) {}
 

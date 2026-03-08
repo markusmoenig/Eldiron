@@ -62,8 +62,7 @@ pub fn apply_entity_data(entity: &mut Entity, toml: &str) {
                                 entity.set_attribute(key, crate::Value::Int(value as i32));
                             } else if let Some(value) = value.as_str() {
                                 if key == "tile_id" {
-                                    if let Some(source) = parse_tile_source_from_str(value)
-                                    {
+                                    if let Some(source) = parse_tile_source_from_str(value) {
                                         entity.set_attribute("source", Value::Source(source));
                                     } else {
                                         entity.set_attribute(
@@ -132,8 +131,7 @@ pub fn apply_item_data(item: &mut Item, toml: &str) {
                                 item.set_attribute(key, crate::Value::Int(value as i32));
                             } else if let Some(value) = value.as_str() {
                                 if key == "tile_id" {
-                                    if let Some(source) = parse_tile_source_from_str(value)
-                                    {
+                                    if let Some(source) = parse_tile_source_from_str(value) {
                                         item.set_attribute("source", Value::Source(source));
                                     } else {
                                         item.set_attribute(

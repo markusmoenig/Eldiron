@@ -1491,6 +1491,347 @@ impl Client {
         }
     }
 
+    /// Returns the first game widget rect in viewport coordinates.
+    pub fn game_widget_rect(&self) -> Option<Rect> {
+        self.game_widgets.values().next().map(|w| w.rect)
+    }
+
+    /// Returns the presentation transform from viewport coordinates into a surface size.
+    /// Output is `(scale, offset_x, offset_y)`.
+    pub fn presentation_transform_for_surface(&self, width: u32, height: u32) -> (f32, f32, f32) {
+        let vw = self.viewport.x.max(1) as f32;
+        let vh = self.viewport.y.max(1) as f32;
+        let sw = width.max(1) as f32;
+        let sh = height.max(1) as f32;
+
+        if self.upscale_mode == "aspect" {
+            let scale = (sw / vw).min(sh / vh).max(0.0001);
+            let scaled_w = vw * scale;
+            let scaled_h = vh * scale;
+            let offset_x = ((sw - scaled_w) * 0.5).floor();
+            let offset_y = ((sh - scaled_h) * 0.5).floor();
+            (scale, offset_x, offset_y)
+        } else {
+            // "none" mode: no scaling, centered when the target is larger.
+            let offset_x = ((sw - vw) * 0.5).max(0.0).floor();
+            let offset_y = ((sh - vh) * 0.5).max(0.0).floor();
+            (1.0, offset_x, offset_y)
+        }
+    }
+
+    /// Prepare the primary game widget for direct GPU presentation.
+    /// Returns false when no game widget exists.
+    pub fn prepare_scenevm_direct(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+        scene_handler: &mut SceneHandler,
+        size: (u32, u32),
+    ) -> bool {
+        // Keep input mapping in sync with direct SceneVM presentation path.
+        let (scale, offset_x, offset_y) = self.presentation_transform_for_surface(size.0, size.1);
+        self.upscale_factor = scale.max(0.0001);
+        self.target_offset = Vec2::new(offset_x as i32, offset_y as i32);
+
+        let Some(widget) = self.game_widgets.values_mut().next() else {
+            return false;
+        };
+
+        let width = size.0.max(1) as i32;
+        let height = size.1.max(1) as i32;
+        let current_dim = widget.buffer.dim();
+        if current_dim.width != width || current_dim.height != height {
+            widget.buffer = TheRGBABuffer::new(TheDim::sized(width, height));
+        }
+
+        widget.firstp_eye_level = self.firstp_eye_level;
+        widget.apply_entities(map, assets, self.animation_frame, scene_handler);
+        widget.prepare_frame(
+            map,
+            &self.server_time,
+            self.animation_frame,
+            assets,
+            scene_handler,
+        );
+        true
+    }
+
+    /// Render only screen/UI widgets into a transparent overlay buffer.
+    pub fn draw_ui_overlay_only(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+        messages: Vec<crate::server::Message>,
+        choices: Vec<crate::MultipleChoice>,
+        width: u32,
+        height: u32,
+    ) -> &TheRGBABuffer {
+        let w = width.max(1) as i32;
+        let h = height.max(1) as i32;
+        let dim = self.overlay.dim();
+        if dim.width != w || dim.height != h {
+            self.overlay = TheRGBABuffer::new(TheDim::sized(w, h));
+        }
+        self.overlay.fill([0, 0, 0, 0]);
+        let say_bg_enabled = self.get_say_background_enabled();
+        let say_bg_color = self.get_say_background_color();
+
+        let mut player_entity = Entity::default();
+        for entity in &map.entities {
+            if entity.is_player() {
+                self.intent = entity.get_attr_string("intent").unwrap_or_default();
+                self.current_sector = entity
+                    .get_attr_string("sector")
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| {
+                        map.find_sector_at(entity.get_pos_xz())
+                            .map(|s| s.name.clone())
+                    })
+                    .unwrap_or_default();
+                player_entity = entity.clone();
+            }
+        }
+
+        if let Some(screen) = assets.screens.get(&self.current_screen)
+            && let Some(screen_widget) = &mut self.screen_widget
+        {
+            let (start_x, start_y) =
+                crate::utils::align_screen_to_grid(w as f32, h as f32, self.grid_size);
+
+            screen_widget.builder_d2.activated_widgets = self.activated_widgets.clone();
+            screen_widget.grid_size = self.grid_size;
+
+            for w in self.button_widgets.iter() {
+                if w.1.intent.is_some() && w.1.intent.as_ref().unwrap() == &self.intent {
+                    screen_widget.builder_d2.activated_widgets.push(w.0.clone());
+                }
+            }
+
+            screen_widget.offset = Vec2::new(start_x, start_y);
+            screen_widget.build(screen, assets);
+            screen_widget.draw(screen, &self.server_time, assets);
+            self.overlay.blend_into(0, 0, &screen_widget.buffer);
+        }
+
+        // Draw "say" bubbles projected from 3D game widgets into the overlay.
+        if let Some(font) = &self.messages_font {
+            let overlay_w = self.overlay.dim().width as usize;
+            let overlay_h = self.overlay.dim().height as usize;
+            let pixels = self.overlay.pixels_mut();
+            for game in self.game_widgets.values() {
+                if game.camera == PlayerCamera::D2 {
+                    continue;
+                }
+                let gw = game.rect.width.max(1.0) as usize;
+                let gh = game.rect.height.max(1.0) as usize;
+                if gw == 0 || gh == 0 {
+                    continue;
+                }
+
+                let view = game.camera_d3.view_matrix();
+                let proj = game.camera_d3.projection_matrix(gw as f32, gh as f32);
+                let vp = proj * view;
+
+                for (grid_pos, message, text_size, color, _) in self.messages_to_draw.values() {
+                    let world = Vec4::new(grid_pos.x, 1.8, grid_pos.y, 1.0);
+                    let clip = vp * world;
+                    if clip.w <= 0.0 {
+                        continue;
+                    }
+
+                    let ndc = Vec3::new(clip.x / clip.w, clip.y / clip.w, clip.z / clip.w);
+                    if ndc.z < -1.0 || ndc.z > 1.0 {
+                        continue;
+                    }
+
+                    let local_sx = ((ndc.x * 0.5 + 0.5) * gw as f32) as isize;
+                    let local_sy = ((1.0 - (ndc.y * 0.5 + 0.5)) * gh as f32) as isize;
+                    let sx = game.rect.x as isize + local_sx;
+                    let sy = game.rect.y as isize + local_sy;
+
+                    let tuple = (
+                        sx - *text_size as isize / 2 - 5,
+                        sy - self.messages_font_size as isize - 14,
+                        *text_size as isize + 10,
+                        22,
+                    );
+
+                    if say_bg_enabled && say_bg_color[3] > 0 {
+                        self.draw2d.blend_rect_safe(
+                            pixels,
+                            &tuple,
+                            overlay_w,
+                            &say_bg_color,
+                            &(0, 0, overlay_w as isize, overlay_h as isize),
+                        );
+                    }
+
+                    self.draw2d.text_rect_blend_safe(
+                        pixels,
+                        &tuple,
+                        overlay_w,
+                        font,
+                        self.messages_font_size,
+                        message,
+                        color,
+                        draw2d::TheHorizontalAlign::Center,
+                        draw2d::TheVerticalAlign::Center,
+                        &(0, 0, overlay_w as isize, overlay_h as isize),
+                    );
+                }
+            }
+        }
+
+        for widget in self.deco_widgets.values_mut() {
+            widget.update_draw(&mut self.overlay, map, &self.currencies, assets);
+            self.overlay
+                .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
+        }
+
+        if let Some(widget) = &mut self.messages_widget {
+            let hide = self.widgets_to_hide.iter().any(|pattern| {
+                if pattern.ends_with('*') {
+                    let prefix = &pattern[..pattern.len() - 1];
+                    widget.name.starts_with(prefix)
+                } else {
+                    widget.name == *pattern
+                }
+            });
+
+            if !hide {
+                let map = widget.update_draw(&mut self.overlay, assets, map, messages, choices);
+                if map.is_some() {
+                    self.choice_map = map;
+                }
+                self.overlay
+                    .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
+            } else {
+                let map = widget.process_messages(assets, map, messages, choices);
+                if map.is_some() {
+                    self.choice_map = map;
+                }
+            }
+        }
+
+        for widget in self.text_widgets.values_mut() {
+            let hide = self.widgets_to_hide.iter().any(|pattern| {
+                if pattern.ends_with('*') {
+                    let prefix = &pattern[..pattern.len() - 1];
+                    widget.name.starts_with(prefix)
+                } else {
+                    widget.name == *pattern
+                }
+            });
+
+            if !hide {
+                widget.update_draw(&mut self.overlay, map, &self.currencies, assets);
+                self.overlay
+                    .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
+            }
+        }
+
+        for widget in self.avatar_widgets.values_mut() {
+            let hide = self.widgets_to_hide.iter().any(|pattern| {
+                if pattern.ends_with('*') {
+                    let prefix = &pattern[..pattern.len() - 1];
+                    widget.name.starts_with(prefix)
+                } else {
+                    widget.name == *pattern
+                }
+            });
+
+            if !hide {
+                widget.update_draw(&mut self.overlay, assets, &player_entity, &self.draw2d);
+            }
+        }
+
+        for widget in self.button_widgets.values_mut() {
+            let hide = self.widgets_to_hide.iter().any(|pattern| {
+                if pattern.ends_with('*') {
+                    let prefix = &pattern[..pattern.len() - 1];
+                    widget.name.starts_with(prefix)
+                } else {
+                    widget.name == *pattern
+                }
+            });
+
+            if !hide {
+                widget.update_draw(
+                    &mut self.overlay,
+                    map,
+                    assets,
+                    &player_entity,
+                    &self.draw2d,
+                    &self.animation_frame,
+                    if self.activated_widgets.contains(&widget.id) {
+                        1
+                    } else {
+                        0
+                    },
+                );
+            }
+        }
+
+        if self.dragging_started
+            && let Some(item_id) = self.dragging_item_id
+        {
+            let dragged_item = player_entity.get_item(item_id).or_else(|| {
+                player_entity
+                    .equipped
+                    .values()
+                    .find(|item| item.id == item_id)
+            });
+            if let Some(item) = dragged_item
+                && let Some(Value::Source(source)) = item.attributes.get("source")
+                && let Some(tile) = source.tile_from_tile_list(assets)
+            {
+                let index = self.animation_frame % tile.textures.len();
+                let texture = &tile.textures[index];
+                let preview_size = 28usize;
+                let x = self.cursor_pos.x as usize;
+                let y = self.cursor_pos.y as usize;
+                let half = preview_size / 2;
+                let stride = self.overlay.stride();
+                self.draw2d.blend_scale_chunk(
+                    self.overlay.pixels_mut(),
+                    &(
+                        x.saturating_sub(half),
+                        y.saturating_sub(half),
+                        preview_size,
+                        preview_size,
+                    ),
+                    stride,
+                    &texture.data,
+                    &(texture.width, texture.height),
+                );
+            }
+        }
+
+        if let Some(cursor) = self.curr_cursor
+            && let Some(tile) = assets.tiles.get(&cursor)
+            && let Some(texture) = tile.textures.first()
+        {
+            let x = self.cursor_pos.x as isize - texture.width as isize / 2;
+            let y = self.cursor_pos.y as isize - texture.height as isize / 2;
+            let stride = self.overlay.stride();
+            let safe_rect = (
+                0,
+                0,
+                self.overlay.dim().width as usize,
+                self.overlay.dim().height as usize,
+            );
+            self.draw2d.blend_slice_safe(
+                self.overlay.pixels_mut(),
+                &texture.data,
+                &(x, y, texture.width, texture.height),
+                stride,
+                &safe_rect,
+            );
+        }
+
+        &self.overlay
+    }
+
     /// Fill only the border areas (letterbox/pillarbox) around the content area.
     fn fill_borders(
         buffer: &mut TheRGBABuffer,

@@ -397,6 +397,37 @@ impl Rusterix {
         );
     }
 
+    /// Prepare the game scene in SceneVM for direct window presentation.
+    /// This avoids CPU readback and lets a caller present with SceneVM's native window path.
+    pub fn prepare_game_scene_for_present(&mut self, map: &Map, size: (u32, u32)) -> bool {
+        self.client
+            .prepare_scenevm_direct(map, &self.assets, &mut self.scene_handler, size)
+    }
+
+    /// Render only UI/screen widgets into a transparent overlay RGBA buffer.
+    pub fn draw_ui_overlay_only(
+        &mut self,
+        map: &Map,
+        messages: Vec<crate::server::Message>,
+        choices: Vec<crate::MultipleChoice>,
+        width: u32,
+        height: u32,
+    ) -> &TheRGBABuffer {
+        self.client
+            .draw_ui_overlay_only(map, &self.assets, messages, choices, width, height)
+    }
+
+    /// Get first game widget rect in viewport coordinates.
+    pub fn game_widget_rect(&self) -> Option<crate::Rect> {
+        self.client.game_widget_rect()
+    }
+
+    /// Get presentation transform from viewport coordinates into a target surface.
+    pub fn presentation_transform_for_surface(&self, size: (u32, u32)) -> (f32, f32, f32) {
+        self.client
+            .presentation_transform_for_surface(size.0, size.1)
+    }
+
     /// Clear active say bubbles from the client.
     pub fn clear_say_messages(&mut self) {
         self.client.clear_say_messages();
