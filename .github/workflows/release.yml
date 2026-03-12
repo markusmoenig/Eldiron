@@ -68,7 +68,10 @@ jobs:
 
       # --- Install Rust ------------------------------------------------------
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
 
       # --- Build Eldiron -----------------------------------------------------
       - name: Build (release)

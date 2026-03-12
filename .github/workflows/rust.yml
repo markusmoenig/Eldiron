@@ -51,7 +51,10 @@ jobs:
 
       # ----- Install the toolchain (all OSes) -------------------------
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
 
       # ────────────────────────────────────────────────────────────────────────────
       # 4. Build
