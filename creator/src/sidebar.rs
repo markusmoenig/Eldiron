@@ -205,6 +205,10 @@ impl Sidebar {
         debug_log_item.set_text(fl!("debug_log"));
         config_node.add_widget(Box::new(debug_log_item));
 
+        let mut console_item = TheTreeItem::new(TheId::named("Console"));
+        console_item.set_text("Console".to_string());
+        config_node.add_widget(Box::new(console_item));
+
         root.add_child(config_node);
 
         project_canvas.set_layout(project_tree_layout);
@@ -2878,6 +2882,9 @@ impl Sidebar {
                     redraw = true;
                 } else if id.name == "Debug Log" {
                     set_project_context(ctx, ui, project, server_ctx, ProjectContext::DebugLog);
+                    redraw = true;
+                } else if id.name == "Console" {
+                    set_project_context(ctx, ui, project, server_ctx, ProjectContext::Console);
                     redraw = true;
                 } else if id.name == "Tileset Item" {
                     // Display the tileset editor

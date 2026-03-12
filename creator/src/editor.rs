@@ -788,6 +788,19 @@ impl TheTrait for Editor {
                 TheId::named("Stop"),
                 TheAccelerator::new(TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT, 'p'),
             ));
+            game_menu.add_separator();
+            game_menu.add(TheContextMenuItem::new(
+                "Show Settings".to_string(),
+                TheId::named("Show Settings"),
+            ));
+            game_menu.add(TheContextMenuItem::new(
+                "Show Debug Log".to_string(),
+                TheId::named("Show Debug Log"),
+            ));
+            game_menu.add(TheContextMenuItem::new(
+                "Show Console".to_string(),
+                TheId::named("Show Console"),
+            ));
 
             file_menu.register_accel(ctx);
             edit_menu.register_accel(ctx);
@@ -2555,6 +2568,33 @@ impl TheTrait for Editor {
                             TheId::named("Render SceneManager Map"),
                             TheValue::Empty,
                         ));
+                    } else if id.name == "Show Settings" {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            &self.project,
+                            &mut self.server_ctx,
+                            ProjectContext::ProjectSettings,
+                        );
+                        redraw = true;
+                    } else if id.name == "Show Debug Log" {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            &self.project,
+                            &mut self.server_ctx,
+                            ProjectContext::DebugLog,
+                        );
+                        redraw = true;
+                    } else if id.name == "Show Console" {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            &self.project,
+                            &mut self.server_ctx,
+                            ProjectContext::Console,
+                        );
+                        redraw = true;
                     } else if id.name == "Undo" || id.name == "Redo" {
                         let mut refresh_action_ui = false;
                         if ui.focus_widget_supports_undo_redo(ctx) {

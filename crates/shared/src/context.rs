@@ -168,6 +168,7 @@ pub enum ProjectContext {
     AvatarAnimation(Uuid, Uuid, usize),
     ProjectSettings,
     DebugLog,
+    Console,
 }
 
 impl ProjectContext {
@@ -175,7 +176,8 @@ impl ProjectContext {
         match self {
             ProjectContext::Unknown
             | ProjectContext::ProjectSettings
-            | ProjectContext::DebugLog => None,
+            | ProjectContext::DebugLog
+            | ProjectContext::Console => None,
             ProjectContext::Region(id)
             | ProjectContext::RegionSettings(id)
             | ProjectContext::RegionCharacterInstance(id, _)

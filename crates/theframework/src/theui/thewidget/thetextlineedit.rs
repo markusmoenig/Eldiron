@@ -434,7 +434,12 @@ impl TheWidget for TheTextLineEdit {
                                 } else {
                                     ctx.ui.send_widget_value_changed(self.id(), self.value());
                                 }
-                                if !self.embedded {
+                                if self.id.name == "Console Input" {
+                                    let id = self.id().clone();
+                                    ctx.ui.focus = Some(id.clone());
+                                    ctx.ui.keyboard_focus = Some(id.clone());
+                                    ctx.ui.send(TheEvent::GainedFocus(id));
+                                } else if !self.embedded {
                                     ctx.ui.clear_focus();
                                 }
                                 redraw = true;

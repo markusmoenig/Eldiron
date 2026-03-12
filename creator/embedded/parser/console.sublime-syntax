@@ -1,0 +1,46 @@
+%YAML 1.2
+---
+name: Eldiron Console
+scope: source.eldironconsole
+
+contexts:
+  main:
+    - match: ^(Console ready\.|Commands:.*|When the game is running,.*)$
+      scope: comment.line.console
+
+    - match: ^(game:/[^\s]*)\s+(>)\s+(.+)$
+      captures:
+        1: keyword.control.console
+        2: punctuation.separator.console
+        3: variable.function.console
+
+    - match: ^(Characters|Items)(\s+\(\d+\))?
+      captures:
+        1: entity.name.section.console
+        2: constant.numeric.console
+
+    - match: ^(Character|Item)\b
+      scope: entity.name.section.console
+
+    - match: ^([A-Za-z_][A-Za-z0-9_]*)(\s*)(=)
+      captures:
+        1: variable.language.console
+        3: keyword.operator.assignment.console
+
+    - match: \".*?\"
+      scope: string.quoted.double.console
+
+    - match: \b\d+\b
+      scope: constant.numeric.console
+
+    - match: \b(help|list|focus|show|get|pwd|up|clear)\b
+      scope: support.function.console
+
+    - match: \b(Name|Id|attributes|inventory|equipped|container|position|orientation|<none>|<empty>)\b
+      scope: variable.language.console
+
+    - match: \|
+      scope: punctuation.separator.console
+
+    - match: ^.*$
+      scope: variable.other.console

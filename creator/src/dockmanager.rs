@@ -48,6 +48,9 @@ impl DockManager {
         let dock: Box<dyn Dock> = Box::new(crate::docks::log::LogDock::new());
         docks.insert("Log".into(), dock);
 
+        let dock: Box<dyn Dock> = Box::new(crate::docks::console::ConsoleDock::new());
+        docks.insert("Console".into(), dock);
+
         let dock: Box<dyn Dock> = Box::new(crate::docks::tilemap::TilemapDock::new());
         docks.insert("Tilemap".into(), dock);
 

@@ -853,6 +853,13 @@ pub fn set_project_context(
                 .unwrap()
                 .set_dock("Log".into(), ui, ctx, project, server_ctx);
         }
+        ProjectContext::Console => {
+            ui.set_widget_value("Project Context", ctx, TheValue::Text("Console".into()));
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Console".into(), ui, ctx, project, server_ctx);
+        }
         _ => {}
     }
 
@@ -911,6 +918,27 @@ pub fn set_project_context(
                                 node.set_open(true);
                                 for widget in &node.widgets {
                                     if widget.id().name == "Debug Log" {
+                                        found = Some(widget.id().clone());
+                                        break;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        found
+                    };
+                    if let Some(id) = target_id {
+                        tree_layout.new_item_selected(id);
+                    }
+                }
+                ProjectContext::Console => {
+                    let target_id = {
+                        let mut found: Option<TheId> = None;
+                        for node in &mut tree_layout.get_root().childs {
+                            if node.id.name == fl!("game") {
+                                node.set_open(true);
+                                for widget in &node.widgets {
+                                    if widget.id().name == "Console" {
                                         found = Some(widget.id().clone());
                                         break;
                                     }
