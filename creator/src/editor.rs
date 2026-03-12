@@ -1016,17 +1016,6 @@ impl TheTrait for Editor {
             self.build_values
                 .set("character_off", Value::Texture(texture));
         }
-        if let Some(icon) = ctx.ui.icon("treasure_on") {
-            let texture = Texture::from_rgbabuffer(icon);
-            self.build_values
-                .set("treasure_on", Value::Texture(texture));
-        }
-        if let Some(icon) = ctx.ui.icon("treasure_off") {
-            let texture = Texture::from_rgbabuffer(icon);
-            self.build_values
-                .set("treasure_off", Value::Texture(texture));
-        }
-
         RUSTERIX
             .write()
             .unwrap()

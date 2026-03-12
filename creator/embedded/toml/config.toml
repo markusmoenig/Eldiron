@@ -52,6 +52,7 @@ background_color = "#00000080"
 [viewport]
 width = 960
 height = 540
+window_scale = 1.0
 grid_size = 32
 
 [render]

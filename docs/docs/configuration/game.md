@@ -197,6 +197,7 @@ Viewport configuration defines the resolution and grid used when the game starts
 [viewport]
 width = 1280        # Width of the game viewport in pixels.
 height = 720        # Height of the game viewport in pixels.
+window_scale = 1.0  # Multiplies startup window size (e.g. 2.0 = 2x bigger window).
 grid_size = 32      # Size of one grid tile in pixels.
 upscale = "aspect"  # 'aspect' upscales the game output to the screen dimensions. 'none' otherwise.
 cursor_id = "..."   # The tile id of the default mouse cursor.
@@ -207,6 +208,11 @@ cursor_id = "..."   # The tile id of the default mouse cursor.
 - **`width` / `height`**
     Defines the **starting resolution** of the game window or screen.
     You can adjust these values to target common resolutions like 1280×720 or 1920×1080.
+
+- **`window_scale`**
+    Multiplies the startup window size while keeping the game viewport resolution unchanged.
+    For example, with `width = 1280`, `height = 720`, and `window_scale = 2.0`, the window opens at 2560×1440.
+    Default is `1.0`.
 
 - **`grid_size`**
     Sets the **pixel size of a single tile** in the world/grid.

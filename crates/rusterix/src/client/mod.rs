@@ -1496,6 +1496,12 @@ impl Client {
         self.game_widgets.values().next().map(|w| w.rect)
     }
 
+    /// Startup window size multiplier from `[viewport].window_scale` (default `1.0`).
+    pub fn window_scale(&self) -> f32 {
+        self.get_config_f32_default("viewport", "window_scale", 1.0)
+            .max(0.1)
+    }
+
     /// Returns the presentation transform from viewport coordinates into a surface size.
     /// Output is `(scale, offset_x, offset_y)`.
     pub fn presentation_transform_for_surface(&self, width: u32, height: u32) -> (f32, f32, f32) {

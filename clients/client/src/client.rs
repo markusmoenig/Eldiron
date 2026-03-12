@@ -71,9 +71,14 @@ impl TheTrait for Client {
     }
 
     fn default_window_size(&self) -> (usize, usize) {
+        let scale = self.rusterix.client.window_scale();
         (
-            self.rusterix.client.viewport.x as usize,
-            self.rusterix.client.viewport.y as usize,
+            ((self.rusterix.client.viewport.x as f32 * scale)
+                .round()
+                .max(1.0)) as usize,
+            ((self.rusterix.client.viewport.y as f32 * scale)
+                .round()
+                .max(1.0)) as usize,
         )
     }
 

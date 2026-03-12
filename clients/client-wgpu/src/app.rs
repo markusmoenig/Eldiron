@@ -5,6 +5,7 @@ use rusterix::{EntityAction, MultipleChoice, Rusterix, Value, server::Message};
 use scenevm::{Atom, SceneVM, SceneVMApp, SceneVMRenderCtx};
 use shared::{project::Project, rusterix_utils::*};
 use std::path::PathBuf;
+use toml::Table;
 use vek::Vec2;
 
 pub struct EldironPlayerApp {
@@ -72,6 +73,32 @@ impl EldironPlayerApp {
             return Some(project);
         }
         None
+    }
+
+    fn initial_window_size_from_project(&self) -> Option<(u32, u32)> {
+        let path = self.resolve_data_path()?;
+        let project = self.load_project(path)?;
+        let cfg = project.config.parse::<Table>().ok()?;
+        let viewport = cfg.get("viewport")?.as_table()?;
+
+        let w = viewport.get("width")?.as_integer()? as f32;
+        let h = viewport.get("height")?.as_integer()? as f32;
+        let scale = viewport
+            .get("window_scale")
+            .and_then(toml::Value::as_float)
+            .map(|v| v as f32)
+            .or_else(|| {
+                viewport
+                    .get("window_scale")
+                    .and_then(toml::Value::as_integer)
+                    .map(|v| v as f32)
+            })
+            .unwrap_or(1.0)
+            .max(0.1);
+
+        let ww = (w * scale).round().max(1.0) as u32;
+        let wh = (h * scale).round().max(1.0) as u32;
+        Some((ww, wh))
     }
 
     pub fn initialize(&mut self) {
@@ -171,6 +198,9 @@ impl EldironPlayerApp {
 
 impl SceneVMApp for EldironPlayerApp {
     fn initial_window_size(&self) -> Option<(u32, u32)> {
+        if let Some(size) = self.initial_window_size_from_project() {
+            return Some(size);
+        }
         let w = self.rusterix.client.viewport.x;
         let h = self.rusterix.client.viewport.y;
         if w <= 1 || h <= 1 {

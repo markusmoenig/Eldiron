@@ -1145,6 +1145,10 @@ impl SceneVM {
         self.atlas.sdf_uv4(id, anim_frame)
     }
 
+    pub fn atlas_dims(&self) -> (u32, u32) {
+        self.atlas.dims()
+    }
+
     /// Enable or disable drawing for a VM layer. Disabled layers still receive commands.
     pub fn set_layer_enabled(&mut self, index: usize, enabled: bool) -> bool {
         if let Some(vm) = self.vm_mut_by_index(index) {

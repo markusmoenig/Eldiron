@@ -42,6 +42,7 @@ pub struct SharedAtlasInner {
     pub layout_version: u64,
     pub tiles_index_map: FxHashMap<Uuid, u32>,
     pub atlas_map: FxHashMap<Uuid, Vec<AtlasEntry>>,
+    pub auto_size: bool,
 }
 
 #[derive(Clone)]
@@ -62,6 +63,7 @@ impl SharedAtlas {
                 layout_version: 0,
                 tiles_index_map: FxHashMap::default(),
                 atlas_map: FxHashMap::default(),
+                auto_size: true,
             })),
         }
     }
@@ -306,6 +308,9 @@ impl SharedAtlas {
     pub fn ensure_built(&self) -> bool {
         let mut guard = self.inner.lock().unwrap();
         if guard.layout_dirty {
+            if guard.auto_size {
+                auto_resize_atlas_inner(&mut guard);
+            }
             build_atlas_inner(&mut guard);
             guard.layout_dirty = false;
             return true;
@@ -357,6 +362,7 @@ impl SharedAtlas {
         guard.atlas_map.clear();
         guard.tiles_index_map.clear();
         guard.layout_version = guard.layout_version.wrapping_add(1);
+        guard.auto_size = false;
     }
 
     pub fn inner_arc(&self) -> Arc<Mutex<SharedAtlasInner>> {
@@ -454,6 +460,91 @@ fn build_atlas_inner(inner: &mut SharedAtlasInner) {
         }
     }
     inner.layout_version = inner.layout_version.wrapping_add(1);
+}
+
+fn pack_fits(inner: &SharedAtlasInner, atlas_w: u32, atlas_h: u32) -> bool {
+    let mut pen_x: u32 = 0;
+    let mut pen_y: u32 = 0;
+    let mut shelf_h: u32 = 0;
+
+    for id in &inner.tiles_order {
+        let Some(tile) = inner.tiles_map.get(id) else {
+            continue;
+        };
+        if tile.w == 0 || tile.h == 0 {
+            continue;
+        }
+
+        let packed_w = tile.w.saturating_add(ATLAS_FRAME_PADDING * 2);
+        let packed_h = tile.h.saturating_add(ATLAS_FRAME_PADDING * 2);
+        if packed_w > atlas_w || packed_h > atlas_h {
+            return false;
+        }
+
+        for _ in 0..tile.frames.len() {
+            if pen_x + packed_w > atlas_w {
+                pen_x = 0;
+                pen_y = pen_y.saturating_add(shelf_h);
+                shelf_h = 0;
+            }
+            if pen_y + packed_h > atlas_h {
+                return false;
+            }
+            shelf_h = shelf_h.max(packed_h);
+            pen_x = pen_x.saturating_add(packed_w);
+        }
+    }
+
+    true
+}
+
+fn auto_resize_atlas_inner(inner: &mut SharedAtlasInner) {
+    const MIN_ATLAS_SIDE: u32 = 256;
+    const MAX_ATLAS_SIDE: u32 = 16384;
+
+    let mut max_dim = 1u32;
+    let mut total_area: u64 = 0;
+    let mut frame_count: u64 = 0;
+
+    for id in &inner.tiles_order {
+        let Some(tile) = inner.tiles_map.get(id) else {
+            continue;
+        };
+        if tile.w == 0 || tile.h == 0 || tile.frames.is_empty() {
+            continue;
+        }
+
+        let packed_w = tile.w.saturating_add(ATLAS_FRAME_PADDING * 2);
+        let packed_h = tile.h.saturating_add(ATLAS_FRAME_PADDING * 2);
+        max_dim = max_dim.max(packed_w.max(packed_h));
+        total_area = total_area
+            .saturating_add((packed_w as u64) * (packed_h as u64) * (tile.frames.len() as u64));
+        frame_count = frame_count.saturating_add(tile.frames.len() as u64);
+    }
+
+    let mut side = max_dim.max(MIN_ATLAS_SIDE).next_power_of_two();
+    if total_area > 0 {
+        let estimated = (total_area as f64).sqrt().ceil() as u32;
+        side = side.max(estimated.max(MIN_ATLAS_SIDE).next_power_of_two());
+    }
+    if frame_count == 0 {
+        side = MIN_ATLAS_SIDE;
+    }
+
+    side = side.min(MAX_ATLAS_SIDE);
+    while side < MAX_ATLAS_SIDE && !pack_fits(inner, side, side) {
+        side = (side.saturating_mul(2)).min(MAX_ATLAS_SIDE);
+    }
+
+    if side != inner.atlas.width || side != inner.atlas.height {
+        inner.atlas = Texture::new(side, side);
+        inner.atlas_material = Texture::new(side, side);
+        inner.atlas_dirty = true;
+        inner.layout_dirty = true;
+        inner.atlas_map.clear();
+        inner.tiles_index_map.clear();
+        inner.layout_version = inner.layout_version.wrapping_add(1);
+    }
 }
 
 fn repaint_atlas_pixels_inner(inner: &mut SharedAtlasInner) {
