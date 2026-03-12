@@ -105,7 +105,7 @@ impl TheTrait for Map {
             }
             Off => {}
         }
-        self.entity.apply_to_camera(&mut self.camera);
+        // self.entity.apply_to_camera(&mut self.camera);
 
         // Set it up
         Rasterizer::setup(
