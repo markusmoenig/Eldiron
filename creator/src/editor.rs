@@ -1244,10 +1244,12 @@ impl TheTrait for Editor {
                         }
                         self.last_processed_log_len = log_text.len();
                     }
+                    let mut refresh_visual_debug = false;
                     for r in &mut self.project.regions {
                         rusterix.server.apply_entities_items(&mut r.map);
 
                         if r.id == self.server_ctx.curr_region {
+                            refresh_visual_debug = true;
                             if let Some(time) = rusterix.server.get_time(&r.map.id) {
                                 rusterix.client.set_server_time(time);
                                 if let Some(widget) = ui.get_widget("Server Time Slider") {
@@ -1280,24 +1282,16 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
-
-                            // Redraw the nodes
-                            match &self.server_ctx.cc {
-                                ContentContext::CharacterInstance(uuid) => {
-                                    for entity in r.map.entities.iter() {
-                                        if entity.creator_id == *uuid {
-                                            CODEGRIDFX.write().unwrap().redraw_debug(
-                                                ui,
-                                                ctx,
-                                                entity.id,
-                                                &rusterix.server.debug,
-                                            );
-                                        }
-                                    }
-                                }
-                                _ => {}
-                            }
                         }
+                    }
+                    if refresh_visual_debug {
+                        DOCKMANAGER.write().unwrap().apply_debug_data(
+                            ui,
+                            ctx,
+                            &self.project,
+                            &self.server_ctx,
+                            &rusterix.server.debug,
+                        );
                     }
                 }
             }
@@ -2529,7 +2523,7 @@ impl TheTrait for Editor {
                                 start_server(
                                     &mut RUSTERIX.write().unwrap(),
                                     &mut self.project,
-                                    false,
+                                    true,
                                 );
                                 RUSTERIX.write().unwrap().clear_say_messages();
                                 let commands =

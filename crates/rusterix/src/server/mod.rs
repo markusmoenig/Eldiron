@@ -295,6 +295,7 @@ impl Server {
     /// players region change.
     pub fn update(&mut self, assets: &mut Assets) -> Option<String> {
         let mut rc: Option<String> = None;
+        self.debug.clear_execution();
 
         for receiver in &self.from_region {
             while let Ok(message) = receiver.try_recv() {

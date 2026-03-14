@@ -1,5 +1,6 @@
 use crate::docks::visual_code_undo::*;
 use crate::prelude::*;
+use codegridfx::DebugModule;
 use codegridfx::Module;
 use theframework::prelude::*;
 
@@ -7,8 +8,9 @@ use theframework::prelude::*;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EntityKey {
     CharacterInstance(Uuid, Uuid), // (region_id, instance_id)
-    Character(Uuid),
-    Item(Uuid),
+    CharacterTemplate(Uuid),
+    ItemInstance(Uuid, Uuid), // (region_id, instance_id)
+    ItemTemplate(Uuid),
 }
 
 pub struct VisualCodeDock {
@@ -49,14 +51,44 @@ impl Dock for VisualCodeDock {
             if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
                 if let Some(region) = project.get_region(&id) {
                     if let Some(character_instance) = region.characters.get(&instance_id) {
+                        let mut entity_key = EntityKey::CharacterInstance(id, instance_id);
                         self.module = character_instance.module.clone();
-                        // Keep stored routines as-is; avoid re-running default-routine insertion
-                        // on each dock activation.
                         self.module.module_type = codegridfx::ModuleType::CharacterInstance;
+
+                        if self.module.routines.is_empty() {
+                            if let Some(character) =
+                                project.characters.get(&character_instance.character_id)
+                            {
+                                self.module = character.module.clone();
+                                self.module.module_type = codegridfx::ModuleType::CharacterTemplate;
+                                entity_key =
+                                    EntityKey::CharacterTemplate(character_instance.character_id);
+                            }
+                        }
+
                         self.module.view_name = "DockVisualScripting".into();
                         self.module.redraw(ui, ctx);
-                        // Switch to this entity's undo stack
-                        self.switch_to_entity(EntityKey::CharacterInstance(id, instance_id), ctx);
+                        self.switch_to_entity(entity_key, ctx);
+                    }
+                }
+            } else if let Some(instance_id) = server_ctx.pc.get_region_item_instance_id() {
+                if let Some(region) = project.get_region(&id) {
+                    if let Some(item_instance) = region.items.get(&instance_id) {
+                        let mut entity_key = EntityKey::ItemInstance(id, instance_id);
+                        self.module = item_instance.module.clone();
+                        self.module.module_type = codegridfx::ModuleType::ItemInstance;
+
+                        if self.module.routines.is_empty() {
+                            if let Some(item) = project.items.get(&item_instance.item_id) {
+                                self.module = item.module.clone();
+                                self.module.module_type = codegridfx::ModuleType::ItemTemplate;
+                                entity_key = EntityKey::ItemTemplate(item_instance.item_id);
+                            }
+                        }
+
+                        self.module.view_name = "DockVisualScripting".into();
+                        self.module.redraw(ui, ctx);
+                        self.switch_to_entity(entity_key, ctx);
                     }
                 }
             } else if server_ctx.pc.is_character() {
@@ -67,8 +99,7 @@ impl Dock for VisualCodeDock {
                     self.module.module_type = codegridfx::ModuleType::CharacterTemplate;
                     self.module.view_name = "DockVisualScripting".into();
                     self.module.redraw(ui, ctx);
-                    // Switch to this entity's undo stack
-                    self.switch_to_entity(EntityKey::Character(id), ctx);
+                    self.switch_to_entity(EntityKey::CharacterTemplate(id), ctx);
                 }
             } else if server_ctx.pc.is_item() {
                 if let Some(item) = project.items.get(&id) {
@@ -78,10 +109,24 @@ impl Dock for VisualCodeDock {
                     self.module.module_type = codegridfx::ModuleType::ItemTemplate;
                     self.module.view_name = "DockVisualScripting".into();
                     self.module.redraw(ui, ctx);
-                    // Switch to this entity's undo stack
-                    self.switch_to_entity(EntityKey::Item(id), ctx);
+                    self.switch_to_entity(EntityKey::ItemTemplate(id), ctx);
                 }
             }
+        }
+    }
+
+    fn apply_debug_data(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &ServerContext,
+        debug: &DebugModule,
+    ) {
+        if let Some(runtime_id) = self.runtime_debug_id(project, server_ctx) {
+            self.module.redraw_debug(ui, ctx, runtime_id, debug);
+        } else {
+            self.module.redraw(ui, ctx);
         }
     }
 
@@ -137,36 +182,7 @@ impl Dock for VisualCodeDock {
                     // Store current module as previous for next change
                     self.prev_module = Some(self.module.clone());
 
-                    if let Some(id) = server_ctx.pc.id() {
-                        let code = self.module.build(false);
-                        let debug_code = self.module.build(true);
-
-                        if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id()
-                        {
-                            if let Some(region) = project.get_region_mut(&id) {
-                                if let Some(character_instance) =
-                                    region.characters.get_mut(&instance_id)
-                                {
-                                    character_instance.module = self.module.clone();
-                                    character_instance.source = code;
-                                    character_instance.source_debug = debug_code;
-                                }
-                            }
-                        } else if server_ctx.pc.is_character() {
-                            if let Some(character) = project.characters.get_mut(&id) {
-                                character.module = self.module.clone();
-                                character.source = code;
-                                character.source_debug = debug_code;
-                            }
-                        } else if server_ctx.pc.is_item() {
-                            if let Some(item) = project.items.get_mut(&id) {
-                                item.module = self.module.clone();
-                                item.module = self.module.clone();
-                                item.source = code;
-                                item.source_debug = debug_code;
-                            }
-                        }
-                    }
+                    self.update_project_module(project, server_ctx);
                 }
             }
             _ => {}
@@ -274,31 +290,89 @@ impl VisualCodeDock {
 
     /// Update the project with the current module state
     fn update_project_module(&mut self, project: &mut Project, server_ctx: &mut ServerContext) {
-        if let Some(id) = server_ctx.pc.id() {
-            let code = self.module.build(false);
-            let debug_code = self.module.build(true);
+        let code = self.module.build(false);
+        let debug_code = self.module.build(true);
 
-            if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
-                if let Some(region) = project.get_region_mut(&id) {
+        match self.current_entity {
+            Some(EntityKey::CharacterInstance(region_id, instance_id)) => {
+                if let Some(region) = project.get_region_mut(&region_id) {
                     if let Some(character_instance) = region.characters.get_mut(&instance_id) {
                         character_instance.module = self.module.clone();
                         character_instance.source = code;
                         character_instance.source_debug = debug_code;
                     }
                 }
-            } else if server_ctx.pc.is_character() {
+            }
+            Some(EntityKey::CharacterTemplate(id)) => {
                 if let Some(character) = project.characters.get_mut(&id) {
                     character.module = self.module.clone();
                     character.source = code;
                     character.source_debug = debug_code;
                 }
-            } else if server_ctx.pc.is_item() {
+            }
+            Some(EntityKey::ItemInstance(region_id, instance_id)) => {
+                if let Some(region) = project.get_region_mut(&region_id) {
+                    if let Some(item_instance) = region.items.get_mut(&instance_id) {
+                        item_instance.module = self.module.clone();
+                        item_instance.source = code;
+                        item_instance.source_debug = debug_code;
+                    }
+                }
+            }
+            Some(EntityKey::ItemTemplate(id)) => {
                 if let Some(item) = project.items.get_mut(&id) {
                     item.module = self.module.clone();
                     item.source = code;
                     item.source_debug = debug_code;
                 }
             }
+            None => {
+                let _ = server_ctx;
+            }
+        }
+    }
+
+    fn runtime_debug_id(&self, project: &Project, server_ctx: &ServerContext) -> Option<u32> {
+        let region = project.get_region(&server_ctx.curr_region)?;
+
+        match server_ctx.cc {
+            ContentContext::CharacterInstance(instance_id) => region
+                .map
+                .entities
+                .iter()
+                .find(|entity| entity.creator_id == instance_id)
+                .map(|entity| entity.id),
+            ContentContext::CharacterTemplate(template_id) => region
+                .characters
+                .values()
+                .find(|instance| instance.character_id == template_id)
+                .and_then(|instance| {
+                    region
+                        .map
+                        .entities
+                        .iter()
+                        .find(|entity| entity.creator_id == instance.id)
+                        .map(|entity| entity.id)
+                }),
+            ContentContext::ItemInstance(instance_id) => region
+                .map
+                .items
+                .iter()
+                .find(|item| item.creator_id == instance_id)
+                .map(|item| item.id),
+            ContentContext::ItemTemplate(template_id) => region
+                .items
+                .values()
+                .find(|instance| instance.item_id == template_id)
+                .and_then(|instance| {
+                    region
+                        .map
+                        .items
+                        .iter()
+                        .find(|item| item.creator_id == instance.id)
+                        .map(|item| item.id)
+                }),
+            _ => None,
         }
     }
 }

@@ -128,9 +128,61 @@ pub struct Module {
     pub view_name: String,
 
     filter_text: String,
+
+    #[serde(skip)]
+    drag_started: bool,
+
+    #[serde(skip)]
+    drop_target: Option<(Uuid, (u32, u32), bool, String)>,
+
+    #[serde(skip)]
+    drag_origin: Option<Vec2<i32>>,
 }
 
 impl Module {
+    fn update_drop_preview(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        coord: Vec2<i32>,
+    ) -> bool {
+        let content_x = coord.x - self.grid_ctx.offset_x;
+        let content_y = coord.y - self.grid_ctx.offset_y;
+        self.drop_target = None;
+
+        if let Some(drop) = &ctx.ui.drop {
+            for r in self.routines.values() {
+                if r.visible {
+                    let local_y = content_y - r.module_offset;
+                    if local_y < 0 {
+                        continue;
+                    }
+                    if let Some((coord, valid, label)) =
+                        r.drop_preview_at(Vec2::new(content_x.max(0) as u32, local_y as u32), drop)
+                    {
+                        self.drop_target = Some((r.id, coord, valid, label.clone()));
+                        let status = if valid {
+                            format!("{} here", label)
+                        } else {
+                            format!("Cannot place {} here", label.to_lowercase())
+                        };
+                        self.redraw(ui, ctx);
+                        ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
+                        return true;
+                    }
+                }
+            }
+            self.redraw(ui, ctx);
+            ctx.ui.send(TheEvent::SetStatusText(
+                TheId::empty(),
+                "Drag to a compatible cell".into(),
+            ));
+            return true;
+        }
+
+        false
+    }
+
     /// Replace persisted module data while keeping runtime-only UI state
     /// (selection, scroll, view binding, filter text) intact.
     pub fn replace_preserving_runtime(&mut self, next: &Module) {
@@ -551,11 +603,38 @@ impl Module {
             let mut global_width = 0u32;
             for r in self.routines.values_mut() {
                 r.set_screen_width(renderview.dim().width as u32, ctx, &self.grid_ctx);
-                r.draw(ctx, &self.grid_ctx, 0, None, None);
+                let drop_target =
+                    self.drop_target
+                        .as_ref()
+                        .and_then(|(routine_id, coord, valid, label)| {
+                            if *routine_id == r.id {
+                                Some((*coord, *valid, label.as_str()))
+                            } else {
+                                None
+                            }
+                        });
+                r.draw(ctx, &self.grid_ctx, 0, None, None, drop_target);
                 global_width = global_width.max(r.buffer.dim().width as u32);
             }
             for r in self.routines.values_mut() {
-                r.draw(ctx, &self.grid_ctx, 0, None, Some(global_width));
+                let drop_target =
+                    self.drop_target
+                        .as_ref()
+                        .and_then(|(routine_id, coord, valid, label)| {
+                            if *routine_id == r.id {
+                                Some((*coord, *valid, label.as_str()))
+                            } else {
+                                None
+                            }
+                        });
+                r.draw(
+                    ctx,
+                    &self.grid_ctx,
+                    0,
+                    None,
+                    Some(global_width),
+                    drop_target,
+                );
             }
             self.draw(renderview.render_buffer_mut());
         }
@@ -572,11 +651,38 @@ impl Module {
             let mut global_width = 0u32;
             for r in self.routines.values_mut() {
                 r.set_screen_width(renderview.dim().width as u32, ctx, &self.grid_ctx);
-                r.draw(ctx, &self.grid_ctx, id, Some(debug), None);
+                let drop_target =
+                    self.drop_target
+                        .as_ref()
+                        .and_then(|(routine_id, coord, valid, label)| {
+                            if *routine_id == r.id {
+                                Some((*coord, *valid, label.as_str()))
+                            } else {
+                                None
+                            }
+                        });
+                r.draw(ctx, &self.grid_ctx, id, Some(debug), None, drop_target);
                 global_width = global_width.max(r.buffer.dim().width as u32);
             }
             for r in self.routines.values_mut() {
-                r.draw(ctx, &self.grid_ctx, id, Some(debug), Some(global_width));
+                let drop_target =
+                    self.drop_target
+                        .as_ref()
+                        .and_then(|(routine_id, coord, valid, label)| {
+                            if *routine_id == r.id {
+                                Some((*coord, *valid, label.as_str()))
+                            } else {
+                                None
+                            }
+                        });
+                r.draw(
+                    ctx,
+                    &self.grid_ctx,
+                    id,
+                    Some(debug),
+                    Some(global_width),
+                    drop_target,
+                );
             }
             self.draw(renderview.render_buffer_mut());
         }
@@ -906,7 +1012,7 @@ impl Module {
                                 if let Some(item) = r.grid.grid.get_mut(&coord) {
                                     needs_update =
                                         item.apply_value(&id.name, value, self.module_type);
-                                    r.draw(ctx, &self.grid_ctx, 0, None, None);
+                                    r.draw(ctx, &self.grid_ctx, 0, None, None, None);
                                 }
                             }
                         }
@@ -937,12 +1043,71 @@ impl Module {
                     // }
                 }
             }
+            TheEvent::RenderViewDragged(id, coord) => {
+                if id.name == self.get_view_name() && !self.drag_started {
+                    let Some(origin) = self.drag_origin else {
+                        return redraw;
+                    };
+                    let delta = *coord - origin;
+                    if delta.x * delta.x + delta.y * delta.y < 36 {
+                        return redraw;
+                    }
+                    let content_x = coord.x - self.grid_ctx.offset_x;
+                    let content_y = coord.y - self.grid_ctx.offset_y;
+
+                    for r in self.routines.values() {
+                        if !r.visible {
+                            continue;
+                        }
+                        let local_y = content_y - r.module_offset;
+                        if local_y < 0 {
+                            continue;
+                        }
+
+                        if let Some(payload) =
+                            r.drag_payload_at(Vec2::new(content_x.max(0) as u32, local_y as u32))
+                        {
+                            let mut drop = TheDrop::new(TheId::named("Code Editor Cell"));
+                            drop.operation = TheDropOperation::Copy;
+                            let title = match &payload {
+                                crate::routine::DragPayload::Cell(item) => item.cell.to_string(),
+                                crate::routine::DragPayload::Block(block) => {
+                                    block.root.cell.to_string()
+                                }
+                            };
+                            drop.set_title(title);
+                            drop.set_data(serde_json::to_string(&payload).unwrap_or_default());
+                            ui.style.create_drop_image(&mut drop, ctx);
+                            ctx.ui.set_drop(drop);
+                            self.drag_started = true;
+                            self.update_drop_preview(ui, ctx, *coord);
+                            redraw = true;
+                            break;
+                        }
+                    }
+                } else if id.name == self.get_view_name() && self.drag_started {
+                    if self.update_drop_preview(ui, ctx, *coord) {
+                        redraw = true;
+                    }
+                }
+            }
+            TheEvent::RenderViewUp(id, _coord) => {
+                if id.name == self.get_view_name() {
+                    self.drag_started = false;
+                    self.drop_target = None;
+                    self.drag_origin = None;
+                    ctx.ui.clear_drop();
+                }
+            }
             TheEvent::Drop(coord, drop) => {
                 let mut handled = false;
                 let prev = self.to_json();
                 let mut settings: Option<TheNodeUI> = None;
                 let content_x = coord.x as i32 - self.grid_ctx.offset_x;
                 let content_y = coord.y as i32 - self.grid_ctx.offset_y;
+                self.drag_started = false;
+                self.drop_target = None;
+                self.drag_origin = None;
 
                 if drop.title == "Event" {
                     if self.module_type.is_instance() {
@@ -1001,6 +1166,11 @@ impl Module {
                     ));
 
                     redraw = true;
+                } else if drop.id.name == "Code Editor Cell" {
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        "Invalid drop target for copied cell".into(),
+                    ));
                 }
             }
             TheEvent::ContextMenuSelected(_id, _item) => {
@@ -1033,7 +1203,7 @@ impl Module {
                             }
                             let loc = Vec2::new(content_x.max(0) as u32, local_y as u32);
                             if let Some(menu) = r.context_at(loc, ctx, &mut self.grid_ctx) {
-                                r.draw(ctx, &mut self.grid_ctx, 0, None, None);
+                                r.draw(ctx, &mut self.grid_ctx, 0, None, None, None);
                                 if let Some(renderview) = ui.get_render_view(&self.get_view_name())
                                 {
                                     self.draw(renderview.render_buffer_mut());
@@ -1049,6 +1219,7 @@ impl Module {
             }
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == self.get_view_name() {
+                    self.drag_origin = Some(*coord);
                     let mut settings: Option<TheNodeUI> = None;
                     let content_x = coord.x as i32 - self.grid_ctx.offset_x;
                     let content_y = coord.y as i32 - self.grid_ctx.offset_y;
@@ -1085,6 +1256,34 @@ impl Module {
                         //     redraw = true;
                         // }
                     }
+                }
+            }
+            TheEvent::RenderViewHoverChanged(id, coord) => {
+                if id.name == self.get_view_name() {
+                    if self.update_drop_preview(ui, ctx, *coord) {
+                        redraw = true;
+                        return redraw;
+                    }
+
+                    let content_x = coord.x - self.grid_ctx.offset_x;
+                    let content_y = coord.y - self.grid_ctx.offset_y;
+                    let mut status = String::new();
+                    for r in self.routines.values() {
+                        if r.visible {
+                            let local_y = content_y - r.module_offset;
+                            if local_y < 0 {
+                                continue;
+                            }
+                            if let Some(text) = r
+                                .hover_status_at(Vec2::new(content_x.max(0) as u32, local_y as u32))
+                            {
+                                status = text;
+                                break;
+                            }
+                        }
+                    }
+
+                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
                 }
             }
             _ => {}

@@ -13,6 +13,7 @@ pub mod visual_code;
 pub mod visual_code_undo;
 
 pub use crate::prelude::*;
+use codegridfx::DebugModule;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum DockDefaultState {
@@ -142,5 +143,16 @@ pub trait Dock: Send + Sync {
     /// Returns true if this dock animates minimap content (requires soft updates each tick).
     fn supports_minimap_animation(&self) -> bool {
         false
+    }
+
+    /// Apply a live debug overlay to the visible dock, if supported.
+    fn apply_debug_data(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &ServerContext,
+        debug: &DebugModule,
+    ) {
     }
 }

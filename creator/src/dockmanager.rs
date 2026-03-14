@@ -1,5 +1,6 @@
 use crate::editor::TOOLLIST;
 use crate::prelude::*;
+use codegridfx::DebugModule;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum DockManagerState {
@@ -418,6 +419,23 @@ impl DockManager {
         }
         for dock in self.editor_docks.values_mut() {
             dock.mark_saved();
+        }
+    }
+
+    pub fn apply_debug_data(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &ServerContext,
+        debug: &DebugModule,
+    ) {
+        if self.state == DockManagerState::Editor {
+            if let Some(editor_dock) = self.editor_docks.get_mut(&self.dock) {
+                editor_dock.apply_debug_data(ui, ctx, project, server_ctx, debug);
+            }
+        } else if let Some((_, dock)) = self.docks.get_index_mut(self.index) {
+            dock.apply_debug_data(ui, ctx, project, server_ctx, debug);
         }
     }
 }

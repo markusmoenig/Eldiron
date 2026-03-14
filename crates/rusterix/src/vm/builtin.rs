@@ -76,6 +76,30 @@ impl Default for Builtins {
             },
         );
         b.insert(
+            "set_debug_value",
+            4,
+            NodeOp::HostCall {
+                name: "set_debug_value".into(),
+                argc: 4,
+            },
+        );
+        b.insert(
+            "set_debug_condition",
+            4,
+            NodeOp::HostCall {
+                name: "set_debug_condition".into(),
+                argc: 4,
+            },
+        );
+        b.insert(
+            "mark_debug_header",
+            1,
+            NodeOp::HostCall {
+                name: "mark_debug_header".into(),
+                argc: 1,
+            },
+        );
+        b.insert(
             "set_player_camera",
             1,
             NodeOp::HostCall {

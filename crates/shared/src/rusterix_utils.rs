@@ -7,13 +7,21 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     rusterix.server.debug_mode = debug;
     rusterix.server.log_changed = true;
 
-    insert_content_into_maps(project);
+    insert_content_into_maps_mode(project, debug);
 
     // Characters
     rusterix.assets.entities.clear();
     rusterix.assets.character_maps.clear();
     rusterix.assets.entity_tiles.clear();
-    for character in project.characters.values() {
+    for character in project.characters.values_mut() {
+        if !character.module.routines.is_empty() {
+            if character.source.is_empty() {
+                character.source = character.module.build(false);
+            }
+            if debug {
+                character.source_debug = character.module.build(true);
+            }
+        }
         if debug && !character.source_debug.is_empty() {
             rusterix.assets.entities.insert(
                 character.name.clone(),
@@ -37,7 +45,15 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     rusterix.assets.items.clear();
     rusterix.assets.item_maps.clear();
     rusterix.assets.item_tiles.clear();
-    for item in project.items.values() {
+    for item in project.items.values_mut() {
+        if !item.module.routines.is_empty() {
+            if item.source.is_empty() {
+                item.source = item.module.build(false);
+            }
+            if debug {
+                item.source_debug = item.module.build(true);
+            }
+        }
         if debug && !item.source_debug.is_empty() {
             rusterix.assets.items.insert(
                 item.name.clone(),
@@ -130,9 +146,21 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
 
 /// Convert the characters and items into Entities / Items for the rusterix server
 pub fn insert_content_into_maps(project: &mut Project) {
+    insert_content_into_maps_mode(project, false);
+}
+
+pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
     for region in &mut project.regions {
         region.map.entities.clear();
-        for instance in region.characters.values() {
+        for instance in region.characters.values_mut() {
+            if !instance.module.routines.is_empty() {
+                if instance.source.is_empty() {
+                    instance.source = instance.module.build(false);
+                }
+                if debug {
+                    instance.source_debug = instance.module.build(true);
+                }
+            }
             let mut entity = Entity {
                 creator_id: instance.id,
                 position: instance.position,
@@ -143,7 +171,14 @@ pub fn insert_content_into_maps(project: &mut Project) {
             if let Some(character_template) = project.characters.get(&instance.character_id) {
                 entity.set_attribute("name", Value::Str(character_template.name.clone()));
             }
-            entity.set_attribute("setup", Value::Str(instance.source.clone()));
+            entity.set_attribute(
+                "setup",
+                Value::Str(if debug && !instance.source_debug.is_empty() {
+                    instance.source_debug.clone()
+                } else {
+                    instance.source.clone()
+                }),
+            );
             if let Some(character) = project.characters.get(&instance.character_id) {
                 entity.set_attribute("class_name", Value::Str(character.name.clone()));
             }
@@ -151,7 +186,15 @@ pub fn insert_content_into_maps(project: &mut Project) {
         }
 
         region.map.items.clear();
-        for instance in region.items.values() {
+        for instance in region.items.values_mut() {
+            if !instance.module.routines.is_empty() {
+                if instance.source.is_empty() {
+                    instance.source = instance.module.build(false);
+                }
+                if debug {
+                    instance.source_debug = instance.module.build(true);
+                }
+            }
             let mut item = rusterix::Item {
                 creator_id: instance.id,
                 position: instance.position,
@@ -161,7 +204,14 @@ pub fn insert_content_into_maps(project: &mut Project) {
             if let Some(item_template) = project.items.get(&instance.item_id) {
                 item.set_attribute("name", Value::Str(item_template.name.clone()));
             }
-            item.set_attribute("setup", Value::Str(instance.source.clone()));
+            item.set_attribute(
+                "setup",
+                Value::Str(if debug && !instance.source_debug.is_empty() {
+                    instance.source_debug.clone()
+                } else {
+                    instance.source.clone()
+                }),
+            );
             if let Some(character) = project.items.get(&instance.item_id) {
                 item.set_attribute("class_name", Value::Str(character.name.clone()));
             }

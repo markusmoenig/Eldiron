@@ -103,8 +103,17 @@ impl CellItem {
         let text_color = [85, 81, 85, 255];
         let highlight_text_color = [242, 242, 242, 255];
         let error_color = [209, 42, 42, 255];
+        let executed_border_color = [255, 243, 163, 255];
+        let not_taken_border_color = [116, 150, 184, 255];
 
         let stride = buffer.dim().width as usize;
+        let is_executed = debug.is_some_and(|debug| debug.was_executed(id, event, pos.0, pos.1));
+        let execution_border_color =
+            if debug.is_some_and(|debug| debug.row_was_not_taken(id, event, pos.1)) {
+                &not_taken_border_color
+            } else {
+                &executed_border_color
+            };
         let color = if self.has_error {
             &error_color
         } else if is_selected {
@@ -135,13 +144,41 @@ impl CellItem {
                 );
 
                 let r = rect.to_buffer_utuple();
+                let mut has_debug = false;
+                if let Some(debug) = debug {
+                    if let Some(value) = debug.get_value(id, event, pos.0, pos.1) {
+                        let color = if debug.has_error(id, event, pos.0, pos.1) {
+                            &error_color
+                        } else {
+                            &highlight_text_color
+                        };
+                        has_debug = true;
+                        ctx.draw.text_rect_blend(
+                            buffer.pixels_mut(),
+                            &(r.0, r.1 + 15, r.2, r.3),
+                            stride,
+                            &value.describe(),
+                            TheFontSettings {
+                                size: font_size,
+                                ..Default::default()
+                            },
+                            color,
+                            TheHorizontalAlign::Center,
+                            TheVerticalAlign::Center,
+                        );
+                    }
+                }
                 ctx.draw.text_rect_blend(
                     buffer.pixels_mut(),
                     &(
                         r.0,
                         r.1,
                         r.2,
-                        r.3 - if self.description.is_empty() { 0 } else { 10 },
+                        r.3 - if !self.description.is_empty() || has_debug {
+                            10
+                        } else {
+                            0
+                        },
                     ),
                     stride,
                     &text,
@@ -154,8 +191,7 @@ impl CellItem {
                     TheVerticalAlign::Center,
                 );
 
-                if !self.description.is_empty() {
-                    let r = rect.to_buffer_utuple();
+                if !self.description.is_empty() && !has_debug {
                     ctx.draw.text_rect_blend(
                         buffer.pixels_mut(),
                         &(r.0, r.1 + 15, r.2, r.3),
@@ -286,6 +322,18 @@ impl CellItem {
                     &color,
                     1.5,
                 );
+
+                if is_executed {
+                    ctx.draw.rounded_rect_with_border(
+                        buffer.pixels_mut(),
+                        &rect.to_buffer_shrunk_utuple(&shrinker),
+                        stride,
+                        &[0, 0, 0, 0],
+                        &self.rounding(rounding),
+                        execution_border_color,
+                        2.0,
+                    );
+                }
             }
             _ => {
                 // Function Header
@@ -322,6 +370,18 @@ impl CellItem {
                             TheVerticalAlign::Center,
                         );
                     }
+                }
+
+                if is_executed {
+                    ctx.draw.rounded_rect_with_border(
+                        buffer.pixels_mut(),
+                        &rect.to_buffer_utuple(),
+                        stride,
+                        &[0, 0, 0, 0],
+                        &self.rounding(rounding),
+                        execution_border_color,
+                        2.0,
+                    );
                 }
 
                 ctx.draw.text_rect_blend(

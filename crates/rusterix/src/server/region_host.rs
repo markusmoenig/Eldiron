@@ -22,24 +22,6 @@ enum SpellTargetArg {
     Position(Vec3<f32>),
 }
 
-const COMBAT_DEBUG_CALLS: &[&str] = &[
-    "action",
-    "intent",
-    "clear_target",
-    "set_target",
-    "target",
-    "has_target",
-    "set_attr",
-    "set_proximity_tracking",
-    "block_events",
-    "deal_damage",
-    "took_damage",
-    "goto",
-    "close_in",
-    "patrol",
-    "cast_spell",
-];
-
 fn opening_geo_for_item(item: &Item) -> Option<GeoId> {
     let host_id = match item.attributes.get("profile_host_sector_id") {
         Some(Value::UInt(v)) => Some(*v),
@@ -52,13 +34,6 @@ fn opening_geo_for_item(item: &Item) -> Option<GeoId> {
     }?;
 
     Some(GeoId::Hole(host_id, profile_id))
-}
-
-fn format_vm_value(v: &VMValue) -> String {
-    match v.as_string() {
-        Some(s) => format!("\"{}\" ({:.2},{:.2},{:.2})", s, v.x, v.y, v.z),
-        None => format!("({:.2},{:.2},{:.2})", v.x, v.y, v.z),
-    }
 }
 
 fn convert_attr_value(key: &str, val: &VMValue, hint: Option<&Value>, health_attr: &str) -> Value {
@@ -85,6 +60,62 @@ fn convert_attr_value(key: &str, val: &VMValue, hint: Option<&Value>, health_att
 }
 
 impl<'a> RegionHost<'a> {
+    fn push_debug_vm_value(&mut self, event: &str, x: u32, y: u32, value: &VMValue, error: bool) {
+        let display = TheValue::Text(value.to_string());
+        self.push_debug_text(event, x, y, display, error);
+    }
+
+    fn push_debug_text(&mut self, event: &str, x: u32, y: u32, display: TheValue, error: bool) {
+        if let Some(item_id) = self.ctx.curr_item_id {
+            self.ctx.debug.add_value(item_id, event, x, y, display);
+            if error {
+                self.ctx.debug.add_error(item_id, event, x, y);
+            } else {
+                self.ctx.debug.remove_error(item_id, event, x, y);
+            }
+        } else {
+            self.ctx
+                .debug
+                .add_value(self.ctx.curr_entity_id, event, x, y, display);
+            if error {
+                self.ctx
+                    .debug
+                    .add_error(self.ctx.curr_entity_id, event, x, y);
+            } else {
+                self.ctx
+                    .debug
+                    .remove_error(self.ctx.curr_entity_id, event, x, y);
+            }
+        }
+    }
+
+    fn debug_return(&mut self, value: VMValue) -> Option<VMValue> {
+        if self.ctx.debug_mode
+            && let Some((event, x, y)) = self.ctx.curr_debug_loc.clone()
+        {
+            self.push_debug_vm_value(&event, x, y, &value, false);
+            self.ctx.curr_debug_loc = None;
+        }
+        Some(value)
+    }
+
+    fn debug_return_bool(&mut self, value: bool) -> Option<VMValue> {
+        let vm = VMValue::from_bool(value);
+        if self.ctx.debug_mode
+            && let Some((event, x, y)) = self.ctx.curr_debug_loc.clone()
+        {
+            self.push_debug_text(
+                &event,
+                x,
+                y,
+                TheValue::Text(if value { "True" } else { "False" }.into()),
+                false,
+            );
+            self.ctx.curr_debug_loc = None;
+        }
+        Some(vm)
+    }
+
     fn parse_route_names(attrs: &ValueContainer) -> Vec<String> {
         if let Some(Value::StrArray(values)) = attrs.get("route") {
             return values
@@ -309,17 +340,6 @@ impl<'a> RegionHost<'a> {
         self.ctx.map.entities.iter().any(|e| e.id == target_id)
     }
 
-    fn is_combat_debug_call(name: &str, args: &[VMValue]) -> bool {
-        if name == "set_attr" {
-            return args
-                .first()
-                .and_then(|v| v.as_string())
-                .map(|k| matches!(k, "intent" | "mode" | "target" | "attack_target"))
-                .unwrap_or(false);
-        }
-        COMBAT_DEBUG_CALLS.contains(&name)
-    }
-
     fn parse_spell_target_arg(arg: &VMValue) -> Option<SpellTargetArg> {
         if let Some(s) = arg.as_string() {
             if let Ok(id) = s.parse::<u32>() {
@@ -336,37 +356,10 @@ impl<'a> RegionHost<'a> {
 
         Some(SpellTargetArg::Entity(arg.x.max(0.0) as u32))
     }
-
-    fn debug_log_call(&self, name: &str, args: &[VMValue]) {
-        if !self.ctx.debug_mode || !Self::is_combat_debug_call(name, args) {
-            return;
-        }
-
-        let formatted_args = args
-            .iter()
-            .map(format_vm_value)
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        let msg = format!(
-            "[host:{}] region={} entity={} item={:?} args=[{}]",
-            name,
-            self.ctx.region_id,
-            self.ctx.curr_entity_id,
-            self.ctx.curr_item_id,
-            formatted_args
-        );
-
-        if let Some(sender) = self.ctx.from_sender.get() {
-            let _ = sender.send(RegionMessage::LogMessage(msg));
-        }
-    }
 }
 
 impl<'a> HostHandler for RegionHost<'a> {
     fn on_host_call(&mut self, name: &str, args: &[VMValue]) -> Option<VMValue> {
-        self.debug_log_call(name, args);
-
         match name {
             "action" => {
                 if let Some(s) = args.get(0).and_then(|v| v.as_string()) {
@@ -378,14 +371,6 @@ impl<'a> HostHandler for RegionHost<'a> {
                             .iter_mut()
                             .find(|e| e.id == self.ctx.curr_entity_id)
                         {
-                            if self.ctx.debug_mode {
-                                if let Some(sender) = self.ctx.from_sender.get() {
-                                    let _ = sender.send(RegionMessage::LogMessage(format!(
-                                        "[host:action] entity={} {:?} -> {:?}",
-                                        ent.id, ent.action, action
-                                    )));
-                                }
-                            }
                             ent.action = action;
                         }
                     }
@@ -400,19 +385,6 @@ impl<'a> HostHandler for RegionHost<'a> {
                         .iter_mut()
                         .find(|e| e.id == self.ctx.curr_entity_id)
                     {
-                        if self.ctx.debug_mode {
-                            if let Some(sender) = self.ctx.from_sender.get() {
-                                let old_intent = ent
-                                    .attributes
-                                    .get_str("intent")
-                                    .unwrap_or("<none>")
-                                    .to_string();
-                                let _ = sender.send(RegionMessage::LogMessage(format!(
-                                    "[host:intent] entity={} {} -> {}",
-                                    ent.id, old_intent, s
-                                )));
-                            }
-                        }
                         ent.set_attribute("intent", Value::Str(s.to_string()));
                     }
                 }
@@ -486,22 +458,23 @@ impl<'a> HostHandler for RegionHost<'a> {
                     .filter(|id| self.ctx.map.entities.iter().any(|e| e.id == *id));
                 if let Some(target_id) = target_id {
                     self.set_current_target_id(Some(target_id));
-                    return Some(VMValue::from_bool(true));
+                    return self.debug_return_bool(true);
                 }
-                return Some(VMValue::from_bool(false));
+                return self.debug_return_bool(false);
             }
             "clear_target" => {
                 self.set_current_target_id(None);
-                return Some(VMValue::from_bool(true));
+                return self.debug_return_bool(true);
             }
             "target" => {
                 if let Some(target_id) = self.get_current_target_id() {
-                    return Some(VMValue::from_u32(target_id));
+                    return self.debug_return(VMValue::from_u32(target_id));
                 }
-                return Some(VMValue::zero());
+                return self.debug_return(VMValue::zero());
             }
             "has_target" => {
-                return Some(VMValue::from_bool(self.has_valid_target()));
+                let has_target = self.has_valid_target();
+                return self.debug_return_bool(has_target);
             }
             "play_audio" => {
                 if let Some(name) = args.first().and_then(|v| v.as_string()) {
@@ -753,7 +726,60 @@ impl<'a> HostHandler for RegionHost<'a> {
                 ) {
                     let x = x.x as u32;
                     let y = y.x as u32;
+                    if let Some(item_id) = self.ctx.curr_item_id {
+                        self.ctx.debug.mark_executed(item_id, event, x, y);
+                    } else {
+                        self.ctx
+                            .debug
+                            .mark_executed(self.ctx.curr_entity_id, event, x, y);
+                    }
                     self.ctx.curr_debug_loc = Some((event.to_string(), x, y));
+                }
+            }
+            "set_debug_value" => {
+                if let (Some(event), Some(x), Some(y), Some(value)) = (
+                    args.get(0).and_then(|v| v.as_string()),
+                    args.get(1),
+                    args.get(2),
+                    args.get(3),
+                ) {
+                    self.push_debug_vm_value(event, x.x as u32, y.x as u32, value, false);
+                }
+            }
+            "set_debug_condition" => {
+                if let (Some(event), Some(x), Some(y), Some(value)) = (
+                    args.get(0).and_then(|v| v.as_string()),
+                    args.get(1),
+                    args.get(2),
+                    args.get(3),
+                ) {
+                    let taken = value.to_bool();
+                    let display = TheValue::Text(if taken { "True" } else { "False" }.into());
+                    if let Some(item_id) = self.ctx.curr_item_id {
+                        self.ctx
+                            .debug
+                            .mark_condition(item_id, event, x.x as u32, y.x as u32, taken, display);
+                    } else {
+                        self.ctx.debug.mark_condition(
+                            self.ctx.curr_entity_id,
+                            event,
+                            x.x as u32,
+                            y.x as u32,
+                            taken,
+                            display,
+                        );
+                    }
+                }
+            }
+            "mark_debug_header" => {
+                if let Some(event) = args.get(0).and_then(|v| v.as_string()) {
+                    if let Some(item_id) = self.ctx.curr_item_id {
+                        self.ctx.debug.mark_header_executed(item_id, event);
+                    } else {
+                        self.ctx
+                            .debug
+                            .mark_header_executed(self.ctx.curr_entity_id, event);
+                    }
                 }
             }
             "set_tile" => {
@@ -876,7 +902,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                 }
             }
             "id" => {
-                return Some(VMValue::broadcast(self.ctx.curr_entity_id as f32));
+                return self.debug_return(VMValue::broadcast(self.ctx.curr_entity_id as f32));
             }
             "get_attr_of" => {
                 if let (Some(id_val), Some(key)) =
@@ -885,31 +911,31 @@ impl<'a> HostHandler for RegionHost<'a> {
                     let id = id_val.x as u32;
                     if let Some(entity) = self.ctx.get_entity_mut(id) {
                         if let Some(v) = entity.attributes.get(key).cloned() {
-                            return Some(VMValue::from_value(&v));
+                            return self.debug_return(VMValue::from_value(&v));
                         }
                     } else if let Some(item) = self.ctx.get_item_mut(id) {
                         if let Some(v) = item.attributes.get(key).cloned() {
-                            return Some(VMValue::from_value(&v));
+                            return self.debug_return(VMValue::from_value(&v));
                         }
                     }
                 }
-                return Some(VMValue::zero());
+                return self.debug_return(VMValue::zero());
             }
             "get_attr" => {
                 if let Some(key) = args.get(0).and_then(|v| v.as_string()) {
                     if let Some(item_id) = self.ctx.curr_item_id {
                         if let Some(item) = self.ctx.get_item_mut(item_id) {
                             if let Some(v) = item.attributes.get(key).cloned() {
-                                return Some(VMValue::from_value(&v));
+                                return self.debug_return(VMValue::from_value(&v));
                             }
                         }
                     } else if let Some(entity) = self.ctx.get_current_entity_mut() {
                         if let Some(v) = entity.attributes.get(key).cloned() {
-                            return Some(VMValue::from_value(&v));
+                            return self.debug_return(VMValue::from_value(&v));
                         }
                     }
                 }
-                return Some(VMValue::zero());
+                return self.debug_return(VMValue::zero());
             }
             "random" => {
                 // random(min, max) inclusive; fallback to 0..1 if missing args
@@ -921,10 +947,16 @@ impl<'a> HostHandler for RegionHost<'a> {
                     }
                     let mut rng = rand::rng();
                     let r: i32 = rng.random_range(lo..=hi);
-                    return Some(VMValue::broadcast(r as f32));
+                    if self.ctx.debug_mode {
+                        add_debug_value(&mut self.ctx, TheValue::Int(r), false);
+                    }
+                    return self.debug_return(VMValue::broadcast(r as f32));
                 } else {
                     let r: f32 = rand::random();
-                    return Some(VMValue::broadcast(r));
+                    if self.ctx.debug_mode {
+                        add_debug_value(&mut self.ctx, TheValue::Float(r), false);
+                    }
+                    return self.debug_return(VMValue::broadcast(r));
                 }
             }
             "notify_in" => {
@@ -1270,7 +1302,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                     }
                     v.z = ids.len() as f32;
                     v.string = Some(ids_str.join(","));
-                    return Some(v);
+                    return self.debug_return(v);
                 }
             }
             "inventory_items_of" => {
@@ -1308,7 +1340,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                         }
                         v.z = ids.len() as f32;
                         v.string = Some(ids_str.join(","));
-                        return Some(v);
+                        return self.debug_return(v);
                     }
                 }
             }
@@ -1364,7 +1396,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                 }
                 v.z = ids.len() as f32;
                 v.string = Some(ids_str.join(","));
-                return Some(v);
+                return self.debug_return(v);
             }
             "list_get" => {
                 // list is arg0 (comma-separated string), index is arg1
@@ -1372,7 +1404,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                 if let Some(list_str) = args.get(0).and_then(|v| v.as_string()) {
                     let parts: Vec<&str> = list_str.split(',').filter(|s| !s.is_empty()).collect();
                     if parts.is_empty() {
-                        return Some(VMValue::zero());
+                        return self.debug_return(VMValue::zero());
                     }
                     let clamped = if idx < 0 {
                         0
@@ -1382,9 +1414,9 @@ impl<'a> HostHandler for RegionHost<'a> {
                         idx as usize
                     };
                     if let Ok(val) = parts[clamped].parse::<f32>() {
-                        return Some(VMValue::broadcast(val));
+                        return self.debug_return(VMValue::broadcast(val));
                     }
-                    return Some(VMValue::zero());
+                    return self.debug_return(VMValue::zero());
                 }
             }
             "is_item" => {
@@ -1398,14 +1430,14 @@ impl<'a> HostHandler for RegionHost<'a> {
                             .iter()
                             .flat_map(|e| e.iter_inventory().map(|(_, it)| it.id))
                             .any(|i| i == item_id);
-                    return Some(VMValue::broadcast(if exists { 1.0 } else { 0.0 }));
+                    return self.debug_return_bool(exists);
                 }
             }
             "is_entity" => {
                 if let Some(id) = args.get(0) {
                     let entity_id = id.x as u32;
                     let exists = self.ctx.map.entities.iter().any(|e| e.id == entity_id);
-                    return Some(VMValue::broadcast(if exists { 1.0 } else { 0.0 }));
+                    return self.debug_return_bool(exists);
                 }
             }
             "distance_to" => {
@@ -1425,10 +1457,10 @@ impl<'a> HostHandler for RegionHost<'a> {
                         };
                         if let Some(pos) = pos {
                             let dist = pos.distance(target_pos);
-                            return Some(VMValue::broadcast(dist));
+                            return self.debug_return(VMValue::broadcast(dist));
                         }
                     }
-                    return Some(VMValue::zero());
+                    return self.debug_return(VMValue::zero());
                 }
             }
             "deal_damage" => {
@@ -1476,13 +1508,14 @@ impl<'a> HostHandler for RegionHost<'a> {
                         ));
                     }
                     if self.ctx.debug_mode {
-                        if let Some(sender) = self.ctx.from_sender.get() {
-                            let _ = sender.send(RegionMessage::LogMessage(format!(
-                                "[host:deal_damage] from={} to={} amount={}",
-                                subject_id, id, dmg
-                            )));
-                        }
+                        add_debug_value(
+                            &mut self.ctx,
+                            TheValue::Text(format!("{} dmg", dmg.max(0))),
+                            false,
+                        );
                     }
+                } else if self.ctx.debug_mode {
+                    add_debug_value(&mut self.ctx, TheValue::Text("No Target".into()), true);
                 }
             }
             "took_damage" => {
@@ -1496,25 +1529,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                     }
 
                     let id = self.ctx.curr_entity_id;
-                    let health_attr = self.ctx.health_attr.clone();
-                    let kill = apply_damage_direct(self.ctx, id, from, amount);
-
-                    if self.ctx.debug_mode {
-                        if let Some(sender) = self.ctx.from_sender.get() {
-                            let hp_after = self
-                                .ctx
-                                .map
-                                .entities
-                                .iter()
-                                .find(|e| e.id == id)
-                                .and_then(|e| e.attributes.get_int(&health_attr))
-                                .unwrap_or(-1);
-                            let _ = sender.send(RegionMessage::LogMessage(format!(
-                                "[host:took_damage] entity={} from={} amount={} hp_after={} kill={}",
-                                id, from, amount, hp_after, kill
-                            )));
-                        }
-                    }
+                    let _ = apply_damage_direct(self.ctx, id, from, amount);
                 }
             }
             "block_events" => {
@@ -1523,11 +1538,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                 {
                     let target_tick =
                         self.ctx.ticks + (self.ctx.ticks_per_minute as f32 * minutes.x) as i64;
-                    let mut target_kind = "entity";
-                    let mut target_id = self.ctx.curr_entity_id;
                     if let Some(item_id) = self.ctx.curr_item_id {
-                        target_kind = "item";
-                        target_id = item_id;
                         if let Some(state) = self.ctx.item_state_data.get_mut(&item_id) {
                             state.set(event, Value::Int64(target_tick));
                         }
@@ -1536,21 +1547,6 @@ impl<'a> HostHandler for RegionHost<'a> {
                         if let Some(state) = self.ctx.entity_state_data.get_mut(&eid) {
                             state.set(event, Value::Int64(target_tick));
                         }
-                    }
-
-                    if self.ctx.debug_mode
-                        && let Some(sender) = self.ctx.from_sender.get()
-                    {
-                        let _ = sender.send(RegionMessage::LogMessage(format!(
-                            "[host:block_events] region={} {}={} event={} minutes={:.2} ticks_now={} blocked_until={}",
-                            self.ctx.region_id,
-                            target_kind,
-                            target_id,
-                            event,
-                            minutes.x,
-                            self.ctx.ticks,
-                            target_tick
-                        )));
                     }
                 }
             }

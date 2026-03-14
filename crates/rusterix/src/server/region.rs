@@ -1106,6 +1106,10 @@ impl RegionInstance {
             if ctx.paused {
                 return;
             }
+            if ctx.debug_mode {
+                ctx.debug.clear_execution();
+                ctx.curr_debug_loc = None;
+            }
             ctx.ticks += 1;
             ticks = ctx.ticks;
 
@@ -1243,12 +1247,6 @@ impl RegionInstance {
                         VMValue::from(entities[0]),
                     ));
                 }
-            }
-
-            if ctx.debug_mode {
-                self.from_sender
-                    .send(RegionMessage::DebugData(ctx.debug.clone()))
-                    .unwrap();
             }
         });
     }
@@ -2679,14 +2677,6 @@ impl RegionInstance {
                 // Check if we have already executed this script in this tick
                 if let Some(Value::Int64(tick)) = state_data.get(&todo.1) {
                     if *tick >= ticks {
-                        with_regionctx(self.id, |ctx| {
-                            if ctx.debug_mode {
-                                ctx.send_log_message(format!(
-                                    "[events:entity:block] region={} entity={} event={} ticks_now={} blocked_until={}",
-                                    ctx.region_id, todo.0, todo.1, ticks, tick
-                                ));
-                            }
-                        });
                         if todo.1.starts_with("intent") {
                             with_regionctx(self.id, |ctx| {
                                 send_message(ctx, todo.0, "{cant_do_that_yet}".into(), "warning");
@@ -2697,26 +2687,10 @@ impl RegionInstance {
                 }
                 // Store the tick we executed this in
                 state_data.set(&todo.1, Value::Int64(ticks));
-                with_regionctx(self.id, |ctx| {
-                    if ctx.debug_mode {
-                        ctx.send_log_message(format!(
-                            "[events:entity:set] region={} entity={} event={} ticks_now={} next_block_until={}",
-                            ctx.region_id, todo.0, todo.1, ticks, ticks
-                        ));
-                    }
-                });
             } else {
                 let mut vc = ValueContainer::default();
                 vc.set(&todo.1, Value::Int64(ticks));
                 state_data.insert(todo.0, vc);
-                with_regionctx(self.id, |ctx| {
-                    if ctx.debug_mode {
-                        ctx.send_log_message(format!(
-                            "[events:entity:init] region={} entity={} event={} ticks_now={} next_block_until={}",
-                            ctx.region_id, todo.0, todo.1, ticks, ticks
-                        ));
-                    }
-                });
             }
 
             with_regionctx(self.id, |ctx| {
@@ -2763,39 +2737,15 @@ impl RegionInstance {
                 // Check if we have already executed this script in this tick
                 if let Some(Value::Int64(tick)) = state_data.get(&todo.1) {
                     if *tick >= ticks {
-                        with_regionctx(self.id, |ctx| {
-                            if ctx.debug_mode {
-                                ctx.send_log_message(format!(
-                                    "[events:item:block] region={} item={} event={} ticks_now={} blocked_until={}",
-                                    ctx.region_id, todo.0, todo.1, ticks, tick
-                                ));
-                            }
-                        });
                         continue;
                     }
                 }
                 // Store the tick we executed this in
                 state_data.set(&todo.1, Value::Int64(ticks));
-                with_regionctx(self.id, |ctx| {
-                    if ctx.debug_mode {
-                        ctx.send_log_message(format!(
-                            "[events:item:set] region={} item={} event={} ticks_now={} next_block_until={}",
-                            ctx.region_id, todo.0, todo.1, ticks, ticks
-                        ));
-                    }
-                });
             } else {
                 let mut vc = ValueContainer::default();
                 vc.set(&todo.1, Value::Int64(ticks));
                 state_data.insert(todo.0, vc);
-                with_regionctx(self.id, |ctx| {
-                    if ctx.debug_mode {
-                        ctx.send_log_message(format!(
-                            "[events:item:init] region={} item={} event={} ticks_now={} next_block_until={}",
-                            ctx.region_id, todo.0, todo.1, ticks, ticks
-                        ));
-                    }
-                });
             }
 
             with_regionctx(self.id, |ctx| {
@@ -2818,6 +2768,14 @@ impl RegionInstance {
             //     );
             // }
         }
+
+        with_regionctx(self.id, |ctx| {
+            if ctx.debug_mode {
+                self.from_sender
+                    .send(RegionMessage::DebugData(ctx.debug.clone()))
+                    .unwrap();
+            }
+        });
     }
 
     /*
