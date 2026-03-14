@@ -410,6 +410,8 @@ impl GameWidget {
 
         if scene_handler.vm.vm_layer_count() > 1 {
             scene_handler.vm.set_layer_enabled(1, false);
+        }
+        if scene_handler.vm.vm_layer_count() > 2 {
             scene_handler.vm.set_layer_enabled(2, false);
         }
 
@@ -419,8 +421,10 @@ impl GameWidget {
             self.prepare_d3(time, animation_frame, scene_handler);
         }
 
-        if scene_handler.vm.vm_layer_count() > 1 {
+        if self.camera != PlayerCamera::D2 && scene_handler.vm.vm_layer_count() > 1 {
             scene_handler.vm.set_layer_enabled(1, true);
+        }
+        if self.camera != PlayerCamera::D2 && scene_handler.vm.vm_layer_count() > 2 {
             scene_handler.vm.set_layer_enabled(2, true);
         }
     }
@@ -542,6 +546,27 @@ impl GameWidget {
         scene_handler
             .vm
             .execute(scenevm::Atom::SetTransform2D(transform));
+
+        if scene_handler.vm.vm_layer_count() > 1 {
+            scene_handler.vm.set_active_vm(1);
+            scene_handler
+                .vm
+                .execute(scenevm::Atom::SetGP0(Vec4::zero()));
+            scene_handler
+                .vm
+                .execute(scenevm::Atom::SetGP2(Vec4::zero()));
+            scene_handler.vm.set_active_vm(0);
+        }
+        if scene_handler.vm.vm_layer_count() > 2 {
+            scene_handler.vm.set_active_vm(2);
+            scene_handler
+                .vm
+                .execute(scenevm::Atom::SetGP0(Vec4::zero()));
+            scene_handler
+                .vm
+                .execute(scenevm::Atom::SetGP2(Vec4::zero()));
+            scene_handler.vm.set_active_vm(0);
+        }
 
         scene_handler
             .vm
