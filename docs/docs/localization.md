@@ -148,3 +148,4 @@ Current behavior:
 - existing `PLAYER.*` status placeholders still work in text widgets
 - `PLAYER.FUNDS` shows the current player funds
 - `PLAYER.<ATTR>` shows a player attribute value
+- `WORLD.HOUR`, `WORLD.MINUTE`, `WORLD.TIME`, `WORLD.TIME_12`, and `WORLD.TIME_24` show the current in-game time

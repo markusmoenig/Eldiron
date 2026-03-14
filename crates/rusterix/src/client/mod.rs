@@ -1303,14 +1303,22 @@ impl Client {
             });
 
             if !hide {
-                let map = widget.update_draw(&mut self.target, assets, map, messages, choices);
+                let map = widget.update_draw(
+                    &mut self.target,
+                    assets,
+                    map,
+                    &self.server_time,
+                    messages,
+                    choices,
+                );
                 if map.is_some() {
                     self.choice_map = map;
                 }
                 self.target
                     .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
             } else {
-                let map = widget.process_messages(assets, map, messages, choices);
+                let map =
+                    widget.process_messages(assets, map, &self.server_time, messages, choices);
                 if map.is_some() {
                     self.choice_map = map;
                 }
@@ -1329,7 +1337,13 @@ impl Client {
             });
 
             if !hide {
-                widget.update_draw(&mut self.target, map, &self.currencies, assets);
+                widget.update_draw(
+                    &mut self.target,
+                    map,
+                    &self.currencies,
+                    assets,
+                    &self.server_time,
+                );
                 self.target
                     .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
             }
@@ -1705,14 +1719,22 @@ impl Client {
             });
 
             if !hide {
-                let map = widget.update_draw(&mut self.overlay, assets, map, messages, choices);
+                let map = widget.update_draw(
+                    &mut self.overlay,
+                    assets,
+                    map,
+                    &self.server_time,
+                    messages,
+                    choices,
+                );
                 if map.is_some() {
                     self.choice_map = map;
                 }
                 self.overlay
                     .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
             } else {
-                let map = widget.process_messages(assets, map, messages, choices);
+                let map =
+                    widget.process_messages(assets, map, &self.server_time, messages, choices);
                 if map.is_some() {
                     self.choice_map = map;
                 }
@@ -1730,7 +1752,13 @@ impl Client {
             });
 
             if !hide {
-                widget.update_draw(&mut self.overlay, map, &self.currencies, assets);
+                widget.update_draw(
+                    &mut self.overlay,
+                    map,
+                    &self.currencies,
+                    assets,
+                    &self.server_time,
+                );
                 self.overlay
                     .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
             }

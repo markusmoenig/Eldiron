@@ -120,6 +120,7 @@ impl TextWidget {
         map: &Map,
         currencies: &Currencies,
         assets: &Assets,
+        time: &TheTime,
     ) {
         if let Some(font) = &self.font {
             let stride = buffer.stride();
@@ -155,6 +156,7 @@ impl TextWidget {
                         sender_entity: player_id,
                         sender_item: None,
                         receiver_entity: player_id,
+                        world_time: Some(*time),
                     },
                 );
 

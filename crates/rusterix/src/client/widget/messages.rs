@@ -119,6 +119,7 @@ impl MessagesWidget {
         &mut self,
         assets: &Assets,
         map: &Map,
+        time: &TheTime,
         messages: Vec<crate::server::Message>,
         choices: Vec<crate::MultipleChoice>,
     ) -> Option<FxHashMap<char, Choice>> {
@@ -141,6 +142,7 @@ impl MessagesWidget {
                     sender_entity: *sender_entity,
                     sender_item: *sender_item,
                     receiver_entity: Some(*receiver_id),
+                    world_time: Some(*time),
                 },
             );
             self.messages.push((
@@ -210,7 +212,7 @@ impl MessagesWidget {
             }
             self.messages.push((
                 Uuid::new_v4(),
-                self.resolve_msg("0) {system.exit_menu}", map, assets),
+                self.resolve_msg("0) {system.exit_menu}", map, assets, time),
                 Rect::default(),
                 Some(Choice::Cancel(choices.from, choices.to)),
                 color,
@@ -236,6 +238,7 @@ impl MessagesWidget {
         buffer: &mut TheRGBABuffer,
         assets: &Assets,
         map: &Map,
+        time: &TheTime,
         messages: Vec<crate::server::Message>,
         choices: Vec<crate::MultipleChoice>,
     ) -> Option<FxHashMap<char, Choice>> {
@@ -251,7 +254,7 @@ impl MessagesWidget {
             ]
         }
 
-        let choice_map = self.process_messages(assets, map, messages, choices);
+        let choice_map = self.process_messages(assets, map, time, messages, choices);
 
         // Draw bottom up
         if let Some(font) = &self.font {
@@ -350,7 +353,15 @@ impl MessagesWidget {
     }
 
     /// Resolves a message
-    fn resolve_msg(&self, msg: &str, map: &Map, assets: &Assets) -> String {
-        self.resolver.resolve(self.parser.parse(msg), map, assets)
+    fn resolve_msg(&self, msg: &str, map: &Map, assets: &Assets, time: &TheTime) -> String {
+        self.resolver.resolve_with_context(
+            self.parser.parse(msg),
+            map,
+            assets,
+            MessageContext {
+                world_time: Some(*time),
+                ..Default::default()
+            },
+        )
     }
 }

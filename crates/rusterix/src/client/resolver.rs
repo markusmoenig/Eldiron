@@ -1,11 +1,13 @@
 use crate::{Assets, Map, MsgParser, Tok};
 use std::collections::HashMap;
+use theframework::prelude::TheTime;
 
 #[derive(Clone, Copy, Default)]
 pub struct MessageContext {
     pub sender_entity: Option<u32>,
     pub sender_item: Option<u32>,
     pub receiver_entity: Option<u32>,
+    pub world_time: Option<TheTime>,
 }
 
 fn normalize_locale(locale: &str) -> String {
@@ -205,7 +207,9 @@ impl MsgResolver {
             let rendered = match tok {
                 Tok::Plain(s) => s.clone(),
                 Tok::TextKey { key, opts } => {
-                    if let Some(base) = self.lookup_locale_text(assets, key) {
+                    if let Some(world) = Self::resolve_world_key(key, context) {
+                        Self::apply_case(&world, opts)
+                    } else if let Some(base) = self.lookup_locale_text(assets, key) {
                         let substituted = self.apply_template_params(
                             &base, opts, parser, map, assets, depth, context,
                         );
@@ -352,6 +356,10 @@ impl MsgResolver {
             return value.to_string();
         };
 
+        if value.len() >= 6 && value[..6].eq_ignore_ascii_case("world.") {
+            return value.to_string();
+        }
+
         for (prefix, id) in [
             ("self.", context.receiver_entity),
             ("sender.", context.sender_entity),
@@ -370,6 +378,30 @@ impl MsgResolver {
         }
 
         value.to_string()
+    }
+
+    fn resolve_world_key(key: &str, context: Option<MessageContext>) -> Option<String> {
+        let time = context?.world_time?;
+
+        if key.eq_ignore_ascii_case("WORLD.HOUR") {
+            return Some(time.hours.to_string());
+        }
+        if key.eq_ignore_ascii_case("WORLD.MINUTE") {
+            return Some(format!("{:02}", time.minutes));
+        }
+        if key.eq_ignore_ascii_case("WORLD.TIME") || key.eq_ignore_ascii_case("WORLD.TIME_24") {
+            return Some(format!("{:02}:{:02}", time.hours, time.minutes));
+        }
+        if key.eq_ignore_ascii_case("WORLD.TIME_12") {
+            let mut hour = time.hours % 12;
+            if hour == 0 {
+                hour = 12;
+            }
+            let suffix = if time.hours < 12 { "AM" } else { "PM" };
+            return Some(format!("{}:{:02} {}", hour, time.minutes, suffix));
+        }
+
+        None
     }
 
     fn apply_case(s: &str, opts: &HashMap<String, String>) -> String {
@@ -486,7 +518,9 @@ fn locale_candidates(locale: &str) -> Vec<String> {
 }
 
 fn matches_token_syntax(value: &str) -> bool {
-    ["E:", "I:", "It:", "Item:", "N:", "F:"]
+    ["E:", "I:", "It:", "Item:", "N:", "F:", "WORLD."]
         .iter()
-        .any(|prefix| value.starts_with(prefix))
+        .any(|prefix| {
+            value.len() >= prefix.len() && value[..prefix.len()].eq_ignore_ascii_case(prefix)
+        })
 }
