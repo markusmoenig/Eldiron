@@ -446,6 +446,7 @@ impl Editor {
         match self.server_ctx.pc {
             ProjectContext::ProjectSettings => "docs/configuration/game".to_string(),
             ProjectContext::GameRules | ProjectContext::GameLocales => "docs/rules".to_string(),
+            ProjectContext::GameAudioFx => "docs/audio".to_string(),
             ProjectContext::RegionSettings(_) => "docs/building_maps/region_settings".to_string(),
             ProjectContext::CharacterPreviewRigging(_) => "docs/characters_items/rigging".into(),
             ProjectContext::Character(_)
@@ -554,6 +555,11 @@ impl TheTrait for Editor {
         if let Some(bytes) = crate::Embedded::get("toml/locales.toml") {
             if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
                 project.locales = source.to_string();
+            }
+        }
+        if let Some(bytes) = crate::Embedded::get("toml/audio_fx.toml") {
+            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                project.audio_fx = source.to_string();
             }
         }
 

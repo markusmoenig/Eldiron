@@ -1,0 +1,163 @@
+[sfx.door_open]
+wave = "noise"
+duration = 0.12
+attack = 0.002
+decay = 0.10
+release = 0.02
+gain = 0.35
+freq = 900
+freq_end = 280
+noise = 0.85
+lowpass = 0.45
+
+[sfx.door_close]
+wave = "noise"
+duration = 0.10
+attack = 0.0
+decay = 0.08
+release = 0.02
+gain = 0.28
+freq = 420
+freq_end = 180
+noise = 0.75
+lowpass = 0.60
+
+[sfx.fire_cast]
+wave = "sine"
+duration = 0.22
+attack = 0.005
+decay = 0.14
+release = 0.03
+gain = 0.30
+freq = 1200
+freq_end = 260
+noise = 0.35
+lowpass = 0.18
+
+[sfx.ice_cast]
+wave = "triangle"
+duration = 0.20
+attack = 0.003
+decay = 0.12
+release = 0.03
+gain = 0.25
+freq = 1400
+freq_end = 500
+noise = 0.10
+lowpass = 0.08
+
+[sfx.arcane_cast]
+wave = "saw"
+duration = 0.24
+attack = 0.004
+decay = 0.16
+release = 0.04
+gain = 0.22
+freq = 620
+freq_end = 1240
+noise = 0.08
+tremolo_depth = 0.20
+tremolo_freq = 22
+
+[sfx.ui_click]
+wave = "square"
+duration = 0.03
+attack = 0.0
+decay = 0.02
+release = 0.01
+gain = 0.16
+freq = 1200
+freq_end = 900
+
+[sfx.ui_confirm]
+wave = "sine"
+duration = 0.07
+attack = 0.0
+decay = 0.05
+release = 0.02
+gain = 0.18
+freq = 720
+freq_end = 1020
+
+[sfx.pickup_coin]
+wave = "sine"
+duration = 0.09
+attack = 0.0
+decay = 0.05
+release = 0.02
+gain = 0.18
+freq = 900
+freq_end = 1600
+repeat = 2
+repeat_gap = 0.02
+
+[sfx.hit_small]
+wave = "square"
+duration = 0.08
+attack = 0.0
+decay = 0.05
+release = 0.01
+gain = 0.25
+freq = 240
+freq_end = 120
+noise = 0.15
+
+[sfx.attack]
+wave = "noise"
+duration = 0.11
+attack = 0.0
+decay = 0.07
+release = 0.02
+gain = 0.22
+freq = 1100
+freq_end = 260
+noise = 0.92
+lowpass = 0.18
+
+[sfx.hit]
+wave = "square"
+duration = 0.09
+attack = 0.0
+decay = 0.06
+release = 0.02
+gain = 0.30
+freq = 220
+freq_end = 90
+noise = 0.18
+lowpass = 0.22
+
+[sfx.hit_heavy]
+wave = "square"
+duration = 0.12
+attack = 0.0
+decay = 0.08
+release = 0.02
+gain = 0.34
+freq = 180
+freq_end = 70
+noise = 0.22
+lowpass = 0.25
+
+[sfx.whoosh_small]
+wave = "noise"
+duration = 0.10
+attack = 0.0
+decay = 0.07
+release = 0.02
+gain = 0.20
+freq = 1200
+freq_end = 380
+noise = 0.95
+lowpass = 0.15
+
+[sfx.whoosh_large]
+wave = "noise"
+duration = 0.18
+attack = 0.0
+decay = 0.12
+release = 0.03
+gain = 0.28
+freq = 900
+freq_end = 180
+noise = 1.0
+lowpass = 0.35

@@ -212,6 +212,11 @@ impl Sidebar {
         locales_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
         config_node.add_widget(Box::new(locales_item));
 
+        let mut audio_fx_item = TheTreeItem::new(TheId::named("Game Audio FX"));
+        audio_fx_item.set_text("Audio FX".to_string());
+        audio_fx_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+        config_node.add_widget(Box::new(audio_fx_item));
+
         let mut debug_log_item = TheTreeItem::new(TheId::named("Debug Log"));
         debug_log_item.set_text(fl!("debug_log"));
         debug_log_item.set_background_color(TheColor::from(ActionRole::Editor.to_color()));
@@ -2898,6 +2903,9 @@ impl Sidebar {
                     redraw = true;
                 } else if id.name == "Game Locales" {
                     set_project_context(ctx, ui, project, server_ctx, ProjectContext::GameLocales);
+                    redraw = true;
+                } else if id.name == "Game Audio FX" {
+                    set_project_context(ctx, ui, project, server_ctx, ProjectContext::GameAudioFx);
                     redraw = true;
                 } else if id.name == "Debug Log" {
                     set_project_context(ctx, ui, project, server_ctx, ProjectContext::DebugLog);

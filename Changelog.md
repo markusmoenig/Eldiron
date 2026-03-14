@@ -1,3 +1,50 @@
+# Eldiron v0.91
+
+## New Features
+
+### Creator
+
+- Added a new **Game / Rules** TOML document with its own project tree item, data editor, and undo / redo integration.
+- Added a new **Game / Locales** TOML document for project localization, separated from game settings.
+- Added a new **Game / Audio FX** TOML document for generated sound effects, including in-editor preview via the `Play` button.
+- Extended the `Game` tree items so TOML-driven entries are visually differentiated from log / console entries.
+- Improved CodeGridFX debugging with live execution highlighting for event headers, cells, and rows.
+- Added persistent last result / error feedback in CodeGridFX so one-shot calls remain visible after execution.
+- Added `if` condition feedback in CodeGridFX, including `True` / `False` values and a muted not-taken highlight.
+- Added inline variable value mirroring in CodeGridFX so assignment targets show their current value after execution.
+- Added hover help for function calls directly inside the visual scripting graph.
+- Added drag-copy for existing CodeGridFX cells, including dependency subtree copying, validation, and visual drop feedback.
+- Improved the CodeGridFX editing field styling by restoring framed text entry widgets.
+
+### Server
+
+- Added project-wide combat rules with per-kind overrides for incoming damage.
+- Changed `take_damage` to receive final incoming damage after rules are applied, while the server commits damage automatically after the event returns.
+- Integrated damage kinds across combat, including physical, spell, and custom kinds such as fire.
+- Added automatic combat messages driven by rules and localized through the new locale system.
+- Added automatic combat audio driven by rules, including per-kind overrides and support for generated Audio FX.
+- Added per-weapon and per-spell audio overrides via item attributes such as `attack_fx` and `hit_fx`.
+- Added configurable combat message categories in rules.
+- Added `locale = "auto"` support to resolve the active language from the system locale.
+- Added support for localized custom `message(...)` strings with named parameters and shortcut resolvers like `self.*`, `attacker.*`, and `target.*`.
+- Added world time resolver keys for text and messages: `WORLD.HOUR`, `WORLD.MINUTE`, `WORLD.TIME`, `WORLD.TIME_12`, and `WORLD.TIME_24`.
+- Hid legacy `took_damage` from the normal visual scripting surface while keeping runtime compatibility for older content.
+
+### Audio
+
+- Added generated built-in Audio FX definitions such as `attack`, `hit`, `door_open`, `fire_cast`, and other reusable small effects.
+- Made generated Audio FX available through the normal audio playback path, so `play_audio(...)` works for both assets and generated effects.
+- Added rules-driven combat audio that can trigger generated effects like `attack` and `hit` automatically.
+
+### Documentation
+
+- Added dedicated documentation for **Rules** and **Localization**.
+- Updated the visual scripting docs to cover realtime debugging, persistent values, condition feedback, hover help, and drag-copy.
+- Updated audio docs to cover `Game / Audio FX`, combat audio integration, and Audio FX parameters.
+- Updated scripting and event docs to reflect the new `take_damage` behavior, damage kinds, and `source_item_id`.
+
+---
+
 # Eldiron v0.9.0
 
 ## New Features

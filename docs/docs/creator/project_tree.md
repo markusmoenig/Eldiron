@@ -82,4 +82,5 @@ In the game section you can select:
 - **Settings**. Edit your game settings, see all supported settings in the [reference](../reference/configuration).
 - **Rules**. Edit project-wide gameplay rules and formulas in a TOML-based data editor, see [Rules](../rules).
 - **Locales**. Edit shared localization tables like `[en]` and `[de]` in a TOML-based data editor, see [Localization](../localization).
+- **Audio FX**. Edit generated micro sound effects in a TOML-based data editor with built-in preview, see [Audio](../audio).
 - **Debug Log**. Displays state during game play, important especially to diagnose server startup or runtime errors. Shown by default after starting the game server.

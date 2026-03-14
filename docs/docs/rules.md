@@ -21,6 +21,10 @@ incoming_category = "warning"
 outgoing_key = "combat.damage.outgoing"
 outgoing_category = "system"
 
+[combat.audio]
+incoming_fx = "hit"
+outgoing_fx = "attack"
+
 [combat.kinds.physical]
 incoming_damage = "value + attacker.STR - defender.ARMOR"
 
@@ -94,6 +98,54 @@ Automatic combat messages are only sent when a player is involved:
 - `incoming`: only if the defender is a player
 - `outgoing`: only if the attacker is a player
 
+## Combat Audio
+
+Rules can also trigger built-in or file-based audio clips during combat.
+
+```toml
+[combat.audio]
+incoming_fx = "hit"
+incoming_bus = "sfx"
+incoming_gain = 1.0
+outgoing_fx = "attack"
+outgoing_bus = "sfx"
+outgoing_gain = 1.0
+```
+
+These names are played through the normal audio system, so they can point to either:
+
+- generated effects from `Game / Audio FX`
+- regular audio assets loaded through the audio asset system
+
+Kind overrides work the same way as formula overrides:
+
+```toml
+[combat.kinds.fire.audio]
+outgoing_fx = "fire_cast"
+```
+
+Spells are already connected to this system through `spell_kind`:
+
+- spell items default to `spell_kind = "spell"`
+- changing `spell_kind` to `fire`, `ice`, or another custom kind uses the matching `combat.kinds.<kind>` rule path
+- the same kind drives damage formulas, combat messages, and combat audio
+
+Weapon and spell items can override the rules-based audio directly with item attributes:
+
+- `attack_fx`
+- `attack_bus`
+- `attack_gain`
+- `hit_fx`
+- `hit_bus`
+- `hit_gain`
+
+These item-level values take precedence over the global rules audio. This lets one sword, bow, or spell item use its own sound without changing the shared combat defaults.
+
+Combat audio is only played when a player is involved:
+
+- `incoming_fx`: only if the defender is a player
+- `outgoing_fx`: only if the attacker is a player
+
 Damage kinds are passed through the runtime payload:
 
 - `deal_damage(...)` defaults to `physical`
@@ -105,6 +157,7 @@ After the server resolves the final amount, `take_damage` receives:
 - `amount`: final incoming damage
 - `from_id`: attacker id
 - `damage_kind`: kind string
+- `source_item_id`: weapon or spell item id when available
 - `attacker_name`: resolved attacker name
 
 The server applies the final damage automatically after `take_damage` returns.

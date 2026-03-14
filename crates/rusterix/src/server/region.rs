@@ -184,8 +184,8 @@ fn sector_floor_height_below_or_nearest(
 
 use EntityAction::*;
 
-use super::RegionMessage;
 use super::data::{apply_entity_data, apply_item_data};
+use super::{AudioCommand, RegionMessage};
 use RegionMessage::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -2714,6 +2714,16 @@ impl RegionInstance {
                 } else {
                     None
                 };
+                ctx.current_damage_source_item = if todo.1 == "take_damage" {
+                    let source_item_id = todo.2.z.max(0.0) as u32;
+                    if source_item_id > 0 {
+                        Some(source_item_id)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
 
                 if let Some(class_name) = ctx.entity_classes.get(&todo.0) {
                     if let Some(program) = ctx.entity_programs.get(class_name).cloned() {
@@ -2730,12 +2740,20 @@ impl RegionInstance {
                                     .as_deref()
                                     .unwrap_or("physical")
                                     .to_string();
-                                let _ = apply_damage_direct(ctx, todo.0, from_id, amount, &kind);
+                                let _ = apply_damage_direct(
+                                    ctx,
+                                    todo.0,
+                                    from_id,
+                                    amount,
+                                    &kind,
+                                    ctx.current_damage_source_item,
+                                );
                             }
                         }
                     }
                 }
                 ctx.current_damage_kind = None;
+                ctx.current_damage_source_item = None;
             });
 
             // if let Err(err) = self.execute(&todo.2) {
@@ -4411,6 +4429,7 @@ pub(crate) fn apply_damage_direct(
     from_id: u32,
     amount: i32,
     kind: &str,
+    source_item_id: Option<u32>,
 ) -> bool {
     if amount <= 0 {
         return false;
@@ -4457,6 +4476,7 @@ pub(crate) fn apply_damage_direct(
         target_id,
         amount,
         kind,
+        source_item_id,
         &attacker_name,
         &defender_name,
     );
@@ -4624,6 +4644,65 @@ fn combat_message_template(ctx: &RegionCtx, key: &str) -> Option<String> {
         .map(ToString::to_string)
 }
 
+fn combat_audio_string(ctx: &RegionCtx, kind: &str, key: &str) -> Option<String> {
+    if !kind.is_empty()
+        && let Some(value) = ctx
+            .rules
+            .get("combat")
+            .and_then(toml::Value::as_table)
+            .and_then(|combat| combat.get("kinds"))
+            .and_then(toml::Value::as_table)
+            .and_then(|kinds| kinds.get(kind))
+            .and_then(toml::Value::as_table)
+            .and_then(|kind_table| kind_table.get("audio"))
+            .and_then(toml::Value::as_table)
+            .and_then(|audio| audio.get(key))
+            .and_then(toml::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+    {
+        return Some(value.to_string());
+    }
+
+    ctx.rules
+        .get("combat")
+        .and_then(toml::Value::as_table)
+        .and_then(|combat| combat.get("audio"))
+        .and_then(toml::Value::as_table)
+        .and_then(|audio| audio.get(key))
+        .and_then(toml::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(ToString::to_string)
+}
+
+fn combat_audio_gain(ctx: &RegionCtx, kind: &str, key: &str) -> f32 {
+    if !kind.is_empty()
+        && let Some(value) = ctx
+            .rules
+            .get("combat")
+            .and_then(toml::Value::as_table)
+            .and_then(|combat| combat.get("kinds"))
+            .and_then(toml::Value::as_table)
+            .and_then(|kinds| kinds.get(kind))
+            .and_then(toml::Value::as_table)
+            .and_then(|kind_table| kind_table.get("audio"))
+            .and_then(toml::Value::as_table)
+            .and_then(|audio| audio.get(key))
+            .and_then(toml::Value::as_float)
+    {
+        return value as f32;
+    }
+
+    ctx.rules
+        .get("combat")
+        .and_then(toml::Value::as_table)
+        .and_then(|combat| combat.get("audio"))
+        .and_then(toml::Value::as_table)
+        .and_then(|audio| audio.get(key))
+        .and_then(toml::Value::as_float)
+        .map(|value| value as f32)
+        .unwrap_or(1.0)
+}
+
 fn combat_message_category(ctx: &RegionCtx, key: &str) -> String {
     ctx.rules
         .get("combat")
@@ -4663,12 +4742,118 @@ fn is_player_message_recipient(ctx: &RegionCtx, entity_id: u32) -> bool {
         .unwrap_or(false)
 }
 
+fn item_by_id<'a>(ctx: &'a RegionCtx, item_id: u32) -> Option<&'a Item> {
+    if let Some(item) = ctx.map.items.iter().find(|item| item.id == item_id) {
+        return Some(item);
+    }
+    for entity in &ctx.map.entities {
+        if let Some(item) = entity
+            .inventory
+            .iter()
+            .flatten()
+            .find(|item| item.id == item_id)
+        {
+            return Some(item);
+        }
+        for slot in entity.equipped.values() {
+            if slot.id == item_id {
+                return Some(slot);
+            }
+        }
+    }
+    None
+}
+
+fn equipped_audio_item<'a>(ctx: &'a RegionCtx, attacker_id: u32) -> Option<&'a Item> {
+    ctx.map
+        .entities
+        .iter()
+        .find(|entity| entity.id == attacker_id)
+        .and_then(|entity| {
+            for slot in ["main_hand", "mainhand", "weapon", "hand_main", "off_hand"] {
+                if let Some(item) = entity.get_equipped_item(slot) {
+                    return Some(item);
+                }
+            }
+            None
+        })
+}
+
+fn item_audio_override(
+    item: &Item,
+    key_prefix: &str,
+) -> Option<(String, Option<String>, Option<f32>)> {
+    let name = item
+        .attributes
+        .get_str(&format!("{}_fx", key_prefix))
+        .filter(|value| !value.trim().is_empty())?;
+    let bus = item
+        .attributes
+        .get_str(&format!("{}_bus", key_prefix))
+        .filter(|value| !value.trim().is_empty());
+    let gain = item.attributes.get_float(&format!("{}_gain", key_prefix));
+    Some((name.to_string(), bus.map(ToString::to_string), gain))
+}
+
+fn send_damage_rule_audio_with_source(
+    ctx: &RegionCtx,
+    entity_id: u32,
+    attacker_id: u32,
+    kind: &str,
+    source_item_id: Option<u32>,
+    key_prefix: &str,
+) {
+    if !is_player_message_recipient(ctx, entity_id) {
+        return;
+    }
+
+    let item_override = source_item_id
+        .and_then(|item_id| item_by_id(ctx, item_id))
+        .and_then(|item| item_audio_override(item, key_prefix))
+        .or_else(|| {
+            equipped_audio_item(ctx, attacker_id)
+                .and_then(|item| item_audio_override(item, key_prefix))
+        });
+
+    let (name, bus, gain) = if let Some((name, bus, gain)) = item_override {
+        (
+            name,
+            bus.unwrap_or_else(|| "sfx".to_string()),
+            gain.unwrap_or(1.0),
+        )
+    } else {
+        let Some(name) = combat_audio_string(ctx, kind, &format!("{}_fx", key_prefix)) else {
+            return;
+        };
+        let bus = combat_audio_string(ctx, kind, &format!("{}_bus", key_prefix))
+            .unwrap_or_else(|| "sfx".to_string());
+        let gain = combat_audio_gain(ctx, kind, &format!("{}_gain", key_prefix));
+        (name, bus, gain)
+    };
+
+    if name.trim().is_empty() {
+        return;
+    }
+
+    let cmd = RegionMessage::AudioCmd(
+        ctx.region_id,
+        AudioCommand::Play {
+            name,
+            bus,
+            gain,
+            looping: false,
+        },
+    );
+    let _ = ctx.from_sender.get().unwrap().send(cmd);
+}
+
 fn send_damage_rule_messages(
     ctx: &RegionCtx,
     from_id: u32,
     target_id: u32,
     amount: i32,
     kind: &str,
+    source_item_id: Option<u32>,
     attacker_name: &str,
     defender_name: &str,
 ) {
@@ -4707,6 +4892,9 @@ fn send_damage_rule_messages(
             send_message(ctx, from_id, message, &category);
         }
     }
+
+    send_damage_rule_audio_with_source(ctx, target_id, from_id, kind, source_item_id, "incoming");
+    send_damage_rule_audio_with_source(ctx, from_id, from_id, kind, source_item_id, "outgoing");
 }
 
 fn equipped_attr(entity: &Entity, attr: &str) -> f32 {
@@ -5041,7 +5229,7 @@ fn update_spell_items(ctx: &mut RegionCtx) {
 
     let mut despawn_item_ids: Vec<u32> = Vec::new();
     let mut casting_casters: FxHashSet<u32> = FxHashSet::default();
-    let mut pending_damage: Vec<(u32, u32, i32, String)> = Vec::new(); // (target_id, caster_id, amount, kind)
+    let mut pending_damage: Vec<(u32, u32, i32, String, u32)> = Vec::new(); // (target_id, caster_id, amount, kind, source_item_id)
     let mut pending_heal: Vec<(u32, i32)> = Vec::new(); // (target_id, amount)
     let mut pending_item_events: Vec<(u32, String, VMValue)> = Vec::new();
 
@@ -5266,7 +5454,7 @@ fn update_spell_items(ctx: &mut RegionCtx) {
             if effect == "heal" {
                 pending_heal.push((target_id, amount));
             } else {
-                pending_damage.push((target_id, caster_id, amount, kind));
+                pending_damage.push((target_id, caster_id, amount, kind, item.id));
             }
 
             pending_item_events.push((item.id, "hit".into(), VMValue::broadcast(target_id as f32)));
@@ -5332,7 +5520,7 @@ fn update_spell_items(ctx: &mut RegionCtx) {
         }
     }
 
-    for (target_id, caster_id, amount, kind) in pending_damage {
+    for (target_id, caster_id, amount, kind, source_item_id) in pending_damage {
         if amount <= 0 {
             continue;
         }
@@ -5349,12 +5537,24 @@ fn update_spell_items(ctx: &mut RegionCtx) {
             .unwrap_or(false);
 
         if autodamage {
-            _ = apply_damage_direct(ctx, target_id, caster_id, final_amount, &kind);
+            _ = apply_damage_direct(
+                ctx,
+                target_id,
+                caster_id,
+                final_amount,
+                &kind,
+                Some(source_item_id),
+            );
         } else {
             ctx.to_execute_entity.push((
                 target_id,
                 "take_damage".into(),
-                VMValue::new_with_string(caster_id as f32, final_amount as f32, 0.0, kind),
+                VMValue::new_with_string(
+                    caster_id as f32,
+                    final_amount as f32,
+                    source_item_id as f32,
+                    kind,
+                ),
             ));
         }
     }

@@ -107,6 +107,12 @@ If called with one argument, `deal_damage(amount)` uses the current target (see 
 If called with two arguments and the second argument is a string, `deal_damage(amount, kind)` uses the current target and sets the damage kind.
 If no kind is supplied, `deal_damage` defaults to `physical`.
 
+The damage kind is also used by:
+
+- `Game / Rules` combat formula overrides under `combat.kinds.<kind>`
+- automatic combat messages and combat audio in `Game / Rules`
+- the `take_damage` event payload as `damage_kind`
+
 If the target character has [autodamage](attributes#autodamage) set to `true`, damage is applied directly by the server and no [take_damage](events#take_damage) event is sent.
 
 See also: [set_target](#set_target), [target](#target), [has_target](#has_target), [clear_target](#clear_target).

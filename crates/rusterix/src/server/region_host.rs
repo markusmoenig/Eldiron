@@ -1515,12 +1515,25 @@ impl<'a> HostHandler for RegionHost<'a> {
                         .unwrap_or(false);
 
                     if autodamage {
-                        _ = apply_damage_direct(self.ctx, id, subject_id, dmg, &kind);
+                        _ = apply_damage_direct(
+                            self.ctx,
+                            id,
+                            subject_id,
+                            dmg,
+                            &kind,
+                            self.ctx.curr_item_id,
+                        );
                     } else {
+                        let source_item_id = self.ctx.curr_item_id.unwrap_or(0) as f32;
                         self.ctx.to_execute_entity.push((
                             id,
                             "take_damage".into(),
-                            VMValue::new_with_string(subject_id as f32, dmg as f32, 0.0, kind),
+                            VMValue::new_with_string(
+                                subject_id as f32,
+                                dmg as f32,
+                                source_item_id,
+                                kind,
+                            ),
                         ));
                     }
                     if self.ctx.debug_mode {
@@ -1551,7 +1564,14 @@ impl<'a> HostHandler for RegionHost<'a> {
                         .as_deref()
                         .unwrap_or("physical")
                         .to_string();
-                    let _ = apply_damage_direct(self.ctx, id, from, amount, &kind);
+                    let _ = apply_damage_direct(
+                        self.ctx,
+                        id,
+                        from,
+                        amount,
+                        &kind,
+                        self.ctx.current_damage_source_item,
+                    );
                     self.ctx.damage_committed = true;
                 }
             }

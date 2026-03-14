@@ -18,6 +18,7 @@ pub enum EntityKey {
     ProjectSettings,
     GameRules,
     GameLocales,
+    GameAudioFx,
     ScreenWidget(Uuid, Uuid), // (screen_id, widget_id)
 }
 
@@ -64,6 +65,21 @@ impl Dock for DataDock {
 
     fn setup(&mut self, _ctx: &mut TheContext) -> TheCanvas {
         let mut center = TheCanvas::new();
+
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
+        toolbar_hlayout.set_padding(3);
+
+        let mut play = TheTraybarButton::new(TheId::named("Audio FX Preview Play"));
+        play.set_text("Play".to_string());
+        play.set_status_text("Preview the audio effect under the cursor");
+        toolbar_hlayout.add_widget(Box::new(play));
+
+        toolbar_canvas.set_layout(toolbar_hlayout);
+        center.set_top(toolbar_canvas);
 
         let mut textedit = TheTextAreaEdit::new(TheId::named("DockDataEditor"));
         if let Some(bytes) = crate::Embedded::get("parser/TOML.sublime-syntax") {
@@ -171,7 +187,16 @@ impl Dock for DataDock {
                 TheValue::Text(project.locales.clone()),
             );
             self.switch_to_entity(EntityKey::GameLocales, ctx);
+        } else if server_ctx.pc.is_game_audio_fx() {
+            ui.set_widget_value(
+                "DockDataEditor",
+                ctx,
+                TheValue::Text(project.audio_fx.clone()),
+            );
+            self.switch_to_entity(EntityKey::GameAudioFx, ctx);
         }
+
+        self.sync_audio_fx_toolbar(ctx, server_ctx);
 
         // Store initial state for undo
         if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
@@ -281,6 +306,21 @@ impl Dock for DataDock {
                             project.locales = code;
                             redraw = true;
                         }
+                    } else if server_ctx.pc.is_game_audio_fx() {
+                        if let Some(code) = value.to_string() {
+                            project.audio_fx = code;
+                            redraw = true;
+                            let mut rusterix = RUSTERIX.write().unwrap();
+                            rusterix.assets.audio_fx_src = project.audio_fx.clone();
+                            rusterix.load_audio_assets();
+                        }
+                    }
+                }
+            }
+            TheEvent::StateChanged(id, state) => {
+                if *state == TheWidgetState::Clicked {
+                    if id.name == "Audio FX Preview Play" {
+                        self.preview_audio_fx(ui, project);
                     }
                 }
             }
@@ -469,6 +509,59 @@ impl Dock for DataDock {
 }
 
 impl DataDock {
+    fn sync_audio_fx_toolbar(&mut self, ctx: &mut TheContext, server_ctx: &ServerContext) {
+        let active = server_ctx.pc.is_game_audio_fx();
+        for id in ["Audio FX Preview Play"] {
+            if active {
+                ctx.ui.set_enabled(id);
+            } else {
+                ctx.ui.set_disabled(id);
+            }
+        }
+    }
+
+    fn preview_audio_fx(&mut self, ui: &mut TheUI, project: &Project) {
+        let Some(effect_name) = self.current_audio_fx_name(ui) else {
+            return;
+        };
+        let Ok(bytes) = rusterix::audio::synthesize_audio_fx_wav(&project.audio_fx, &effect_name)
+        else {
+            return;
+        };
+
+        let mut rusterix = RUSTERIX.write().unwrap();
+        if rusterix.audio.is_none() {
+            rusterix.audio = rusterix::AudioEngine::new().ok();
+        }
+        let Some(engine) = rusterix.audio.as_ref() else {
+            return;
+        };
+        engine.clear_bus("preview");
+        let clip_name = "__audio_fx_preview";
+        let _ = engine.load_clip_from_bytes(clip_name, &bytes);
+        let _ = engine.play_on_bus(clip_name, "preview", 1.0, false);
+    }
+
+    fn current_audio_fx_name(&self, ui: &mut TheUI) -> Option<String> {
+        let edit = ui.get_text_area_edit("DockDataEditor")?;
+        let state = edit.get_state();
+        let row = state.cursor.row.min(state.rows.len().saturating_sub(1));
+
+        for index in (0..=row).rev() {
+            let line = state.rows.get(index)?.trim();
+            if let Some(section) = line.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+                let section = section.trim();
+                if let Some(name) = section.strip_prefix("sfx.") {
+                    let name = name.trim();
+                    if !name.is_empty() {
+                        return Some(name.to_string());
+                    }
+                }
+            }
+        }
+        None
+    }
+
     fn is_preview_slot_key(key: &str) -> bool {
         matches!(
             key.to_ascii_lowercase().as_str(),
@@ -909,6 +1002,12 @@ impl DataDock {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
                 project.locales = text;
+            }
+        } else if server_ctx.pc.is_game_audio_fx() {
+            if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
+                let state = edit.get_state();
+                let text = state.rows.join("\n");
+                project.audio_fx = text;
             }
         }
     }

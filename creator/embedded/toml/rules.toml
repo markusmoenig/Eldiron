@@ -3,6 +3,7 @@
 # weapon.<attr> = attacker's equipped weapon attributes
 # Kind overrides live under [combat.kinds.<kind>]
 # Optional auto-messages live under [combat.messages]
+# Optional player combat audio lives under [combat.audio]
 
 [combat]
 incoming_damage = "value + attacker.STR - defender.ARMOR"
@@ -13,11 +14,27 @@ incoming_category = "warning"
 outgoing_key = "combat.damage.outgoing"
 outgoing_category = "system"
 
+[combat.audio]
+incoming_fx = "hit"
+incoming_bus = "sfx"
+incoming_gain = 1.0
+outgoing_fx = "attack"
+outgoing_bus = "sfx"
+outgoing_gain = 1.0
+
 [combat.kinds.physical]
 incoming_damage = "value + attacker.STR - defender.ARMOR"
 
 [combat.kinds.spell]
 incoming_damage = "value + attacker.INT - defender.RESIST"
 
+[combat.kinds.spell.audio]
+incoming_fx = "hit"
+outgoing_fx = "arcane_cast"
+
 [combat.kinds.fire]
 incoming_damage = "value + attacker.INT - defender.FIRE_RESIST"
+
+[combat.kinds.fire.audio]
+incoming_fx = "hit"
+outgoing_fx = "fire_cast"

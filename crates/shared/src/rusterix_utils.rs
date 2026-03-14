@@ -10,6 +10,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     insert_content_into_maps_mode(project, debug);
     rusterix.assets.rules = project.rules.clone();
     rusterix.assets.locales_src = project.locales.clone();
+    rusterix.assets.audio_fx_src = project.audio_fx.clone();
     rusterix.assets.read_locales();
 
     // Characters
@@ -113,6 +114,7 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
     rusterix.assets.config = project.config.clone();
     rusterix.assets.rules = project.rules.clone();
     rusterix.assets.locales_src = project.locales.clone();
+    rusterix.assets.audio_fx_src = project.audio_fx.clone();
     rusterix.assets.read_locales();
     rusterix.assets.palette = project.palette.clone();
     rusterix.assets.maps.clear();

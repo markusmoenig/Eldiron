@@ -36,6 +36,7 @@ pub struct Assets {
     pub config: String,
     pub rules: String,
     pub locales_src: String,
+    pub audio_fx_src: String,
     pub atlas: Texture,
 
     pub fonts: FxHashMap<String, fontdue::Font>,
@@ -97,6 +98,7 @@ impl Assets {
             config: String::new(),
             rules: String::new(),
             locales_src: String::new(),
+            audio_fx_src: String::new(),
             atlas: Texture::default(),
             fonts: FxHashMap::default(),
             audio: FxHashMap::default(),

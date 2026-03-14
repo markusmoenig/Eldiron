@@ -110,6 +110,13 @@ impl Rusterix {
         for (name, bytes) in &self.assets.audio {
             let _ = engine.load_clip_from_bytes(name, bytes);
         }
+        for name in crate::audio::list_audio_fx_names(&self.assets.audio_fx_src) {
+            if let Ok(bytes) =
+                crate::audio::synthesize_audio_fx_wav(&self.assets.audio_fx_src, &name)
+            {
+                let _ = engine.load_clip_from_bytes(&name, &bytes);
+            }
+        }
     }
 
     /// Play one-shot audio by asset name.

@@ -122,7 +122,7 @@ Events are categorized as:
 
 - **Value**: `amount` *(int)*
 - **Description**: Triggered by the `deal_damage()` command after the server has applied the project-wide damage formula.  
-  `amount` is the final incoming damage, `from_id` contains the attacker id, and `damage_kind` contains the kind such as `physical`, `spell`, or `fire`.
+  `amount` is the final incoming damage, `from_id` contains the attacker id, `damage_kind` contains the kind such as `physical`, `spell`, or `fire`, and `source_item_id` contains the weapon or spell item when available.
   The server applies this final damage automatically after the event returns.
   If the target has [autodamage](attributes#autodamage) enabled, this event is not triggered.
 
