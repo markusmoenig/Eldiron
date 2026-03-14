@@ -2,6 +2,7 @@ use crate::{
     Assets, Batch3D, D3Camera, Map, PixelSource, Scene, SceneHandler, Value, ValueContainer,
 };
 use scenevm::{Atom, DynamicObject, GeoId, Light};
+use uuid::Uuid;
 use vek::{Vec2, Vec3};
 
 pub struct D3Builder {}
@@ -377,6 +378,14 @@ impl D3Builder {
         scene_handler.add_sector_campfire_lights(map);
 
         let basis = camera.basis_vectors();
+        let creator_geo_id = |creator_id: Uuid, fallback: u32, is_item: bool| {
+            let raw = creator_id.as_u128() as u32;
+            if is_item {
+                GeoId::Item(if raw == 0 { fallback } else { raw })
+            } else {
+                GeoId::Character(if raw == 0 { fallback } else { raw })
+            }
+        };
 
         scene.dynamic_lights = vec![];
         let mut batches = vec![];
@@ -513,6 +522,30 @@ impl D3Builder {
                             batches.push(batch);
                         }
                     }
+                } else {
+                    let size = entity.attributes.get_float_default("size", 1.0).max(0.5);
+                    let center3 = Vec3::new(
+                        entity.position.x,
+                        entity.position.y + size * 0.5,
+                        entity.position.z,
+                    );
+                    let icon = if Some(entity.creator_id) == map.selected_entity_item {
+                        scene_handler.character_on
+                    } else {
+                        scene_handler.character_off
+                    };
+                    let dynamic = DynamicObject::billboard_tile(
+                        creator_geo_id(entity.creator_id, 10_000, false),
+                        icon,
+                        center3,
+                        basis.1,
+                        basis.2,
+                        size,
+                        size,
+                    );
+                    scene_handler
+                        .vm
+                        .execute(Atom::AddDynamic { object: dynamic });
                 }
             }
         }
@@ -606,6 +639,39 @@ impl D3Builder {
                             batches.push(batch);
                         }
                     }
+                } else {
+                    let size = 1.0;
+                    let pos_xz = item.get_pos_xz();
+                    let mut ground_y = map
+                        .find_sector_at(pos_xz)
+                        .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                        .unwrap_or(0.0);
+                    if ground_y == 0.0 {
+                        let config =
+                            crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                        ground_y = crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                            map, pos_xz, &config,
+                        );
+                    }
+                    let center3 =
+                        Vec3::new(item.position.x, ground_y + size * 0.5, item.position.z);
+                    let icon = if Some(item.creator_id) == map.selected_entity_item {
+                        scene_handler.item_on
+                    } else {
+                        scene_handler.item_off
+                    };
+                    let dynamic = DynamicObject::billboard_tile(
+                        creator_geo_id(item.creator_id, 20_000, true),
+                        icon,
+                        center3,
+                        basis.1,
+                        basis.2,
+                        size,
+                        size,
+                    );
+                    scene_handler
+                        .vm
+                        .execute(Atom::AddDynamic { object: dynamic });
                 }
             }
         }

@@ -127,53 +127,50 @@ impl Tool for EntityTool {
                     return None;
                 }
 
-                if let Some(click_pos) = self.map_pos_unsnapped(ui, server_ctx, map, coord) {
-                    if server_ctx.get_map_context() == MapContext::Region {
-                        if let Some(hit) = self.pick_hit(map, click_pos) {
-                            map.clear_selection();
-                            map.selected_entity_item = Some(hit.id());
+                if server_ctx.get_map_context() == MapContext::Region
+                    && let Some(hit) = self.pick_hit_for_coord(ui, server_ctx, map, coord)
+                {
+                    let click_pos = self
+                        .map_pos_unsnapped(ui, server_ctx, map, coord)
+                        .unwrap_or(hit.pos);
 
-                            let grab_offset = hit.pos - click_pos;
+                    map.clear_selection();
+                    map.selected_entity_item = Some(hit.id());
 
-                            self.drag_state = Some(DragState {
-                                target: hit.target,
-                                start_pos: hit.pos,
-                                changed: false,
-                                grab_offset,
-                            });
+                    let grab_offset = hit.pos - click_pos;
 
-                            // Record original positions for movement tracking
-                            match hit.target {
-                                DragTarget::Entity(id) => {
-                                    if let Some(entity) =
-                                        map.entities.iter().find(|e| e.creator_id == id)
-                                    {
-                                        server_ctx
-                                            .moved_entities
-                                            .entry(id)
-                                            .or_insert((entity.position, entity.position));
-                                    }
-                                }
-                                DragTarget::Item(id) => {
-                                    if let Some(item) =
-                                        map.items.iter().find(|i| i.creator_id == id)
-                                    {
-                                        server_ctx
-                                            .moved_items
-                                            .entry(id)
-                                            .or_insert((item.position, item.position));
-                                    }
-                                }
+                    self.drag_state = Some(DragState {
+                        target: hit.target,
+                        start_pos: hit.pos,
+                        changed: false,
+                        grab_offset,
+                    });
+
+                    match hit.target {
+                        DragTarget::Entity(id) => {
+                            if let Some(entity) = map.entities.iter().find(|e| e.creator_id == id) {
+                                server_ctx
+                                    .moved_entities
+                                    .entry(id)
+                                    .or_insert((entity.position, entity.position));
                             }
-
-                            self.select_in_tree(ui, server_ctx, hit.id());
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Map Selection Changed"),
-                                TheValue::Empty,
-                            ));
-                            RUSTERIX.write().unwrap().set_dirty();
+                        }
+                        DragTarget::Item(id) => {
+                            if let Some(item) = map.items.iter().find(|i| i.creator_id == id) {
+                                server_ctx
+                                    .moved_items
+                                    .entry(id)
+                                    .or_insert((item.position, item.position));
+                            }
                         }
                     }
+
+                    self.select_in_tree(ui, server_ctx, hit.id());
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
+                    RUSTERIX.write().unwrap().set_dirty();
                 }
             }
             MapUp(coord) => {
@@ -283,15 +280,10 @@ impl Tool for EntityTool {
                 }
             }
             MapHover(coord) => {
-                if let Some(hit_pos) = self.map_pos_unsnapped(ui, server_ctx, map, coord) {
-                    if server_ctx.get_map_context() == MapContext::Region {
-                        if let Some(hit) = self.pick_hit(map, hit_pos) {
-                            ctx.ui
-                                .send(TheEvent::SetStatusText(TheId::empty(), hit.status_text()));
-                        } else {
-                            ctx.ui
-                                .send(TheEvent::SetStatusText(TheId::empty(), "".into()));
-                        }
+                if server_ctx.get_map_context() == MapContext::Region {
+                    if let Some(hit) = self.pick_hit_for_coord(ui, server_ctx, map, coord) {
+                        ctx.ui
+                            .send(TheEvent::SetStatusText(TheId::empty(), hit.status_text()));
                     } else {
                         ctx.ui
                             .send(TheEvent::SetStatusText(TheId::empty(), "".into()));
@@ -363,10 +355,33 @@ impl EntityTool {
     fn map_pos_unsnapped(
         &self,
         ui: &mut TheUI,
-        _server_ctx: &ServerContext,
+        server_ctx: &ServerContext,
         map: &Map,
         coord: Vec2<i32>,
     ) -> Option<Vec2<f32>> {
+        if server_ctx.editor_view_mode != EditorViewMode::D2
+            && let Some(render_view) = ui.get_render_view("PolyView")
+        {
+            let dim = *render_view.dim();
+            let screen_uv = [
+                coord.x as f32 / dim.width as f32,
+                coord.y as f32 / dim.height as f32,
+            ];
+            let rusterix = RUSTERIX.write().unwrap();
+            if let Some((_, hit, _)) = rusterix.scene_handler.vm.pick_geo_id_at_uv(
+                dim.width as u32,
+                dim.height as u32,
+                screen_uv,
+                false,
+                true,
+            ) {
+                return Some(Vec2::new(hit.x, hit.z));
+            }
+            if let Some(hit) = server_ctx.hover_cursor_3d {
+                return Some(Vec2::new(hit.x, hit.z));
+            }
+        }
+
         ui.get_render_view("PolyView").map(|render_view| {
             let dim = *render_view.dim();
             let grid_space_pos = Vec2::new(coord.x as f32, coord.y as f32)
@@ -404,10 +419,7 @@ impl EntityTool {
         }
     }
 
-    fn pick_hit(&self, map: &Map, pos: Vec2<f32>) -> Option<Hit> {
-        // Allow picking even when subdivisions differ; use a small radius in map units
-        let radius2 = 0.16; // about 0.4 cell diameter
-
+    fn pick_hit(&self, map: &Map, pos: Vec2<f32>, radius2: f32) -> Option<Hit> {
         if let Some(entity) = map.entities.iter().find(|e| {
             let d = e.get_pos_xz() - pos;
             d.x * d.x + d.y * d.y < radius2
@@ -439,6 +451,22 @@ impl EntityTool {
         }
 
         None
+    }
+
+    fn pick_hit_for_coord(
+        &self,
+        ui: &mut TheUI,
+        server_ctx: &ServerContext,
+        map: &Map,
+        coord: Vec2<i32>,
+    ) -> Option<Hit> {
+        let pos = self.map_pos_unsnapped(ui, server_ctx, map, coord)?;
+        let radius2 = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+            0.16
+        } else {
+            1.44
+        };
+        self.pick_hit(map, pos, radius2)
     }
 
     fn delete_selected(

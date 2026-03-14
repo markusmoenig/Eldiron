@@ -948,61 +948,91 @@ impl SceneHandler {
                     }
                 }
 
-                if entity.attributes.get_bool_default("visible", false) {
-                    let size = entity.attributes.get_float_default("size", 2.0).max(0.01);
-                    // Entity Y stores base/ground height; place billboard so feet sit on ground.
-                    let center3 = Vec3::new(
-                        entity.position.x,
-                        entity.position.y + size * 0.5,
-                        entity.position.z,
-                    );
-                    let geo_id = GeoId::Character(entity.id);
-                    let mut rendered_avatar = false;
-                    if let Some(avatar) =
-                        AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets)
-                    {
-                        // println!("found avatar");
-                        let direction = if camera.id() == "iso" && entity.is_player() {
-                            Self::avatar_direction_from_orientation(entity)
-                        } else {
-                            Self::avatar_direction_3d(entity, camera)
-                        };
-                        if self
-                            .avatar_builder
-                            .ensure_entity_avatar_uploaded_with_direction(
-                                &mut self.vm,
-                                entity,
-                                avatar,
-                                assets,
-                                animation_frame,
-                                geo_id,
-                                Some(direction),
-                            )
-                        {
-                            active_avatar_geo.insert(geo_id);
-                            let dynamic = DynamicObject::billboard_avatar(
-                                geo_id, center3, basis.1, basis.2, size, size,
-                            );
-                            self.vm.execute(Atom::AddDynamic { object: dynamic });
-                            rendered_avatar = true;
-                        }
-                    }
+                let size = entity.attributes.get_float_default("size", 2.0).max(0.01);
+                let pos_xz = entity.get_pos_xz();
+                let mut ground_y = map
+                    .find_sector_at(pos_xz)
+                    .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                    .unwrap_or(0.0);
+                if ground_y == 0.0 {
+                    let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                    ground_y =
+                        crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                            map, pos_xz, &config,
+                        );
+                }
+                let center3 = Vec3::new(
+                    entity.position.x,
+                    entity.position.y + size * 0.5,
+                    entity.position.z,
+                );
+                let preview_center3 =
+                    Vec3::new(entity.position.x, ground_y + size * 0.5, entity.position.z);
+                let geo_id = GeoId::Character(entity.id);
+                let mut rendered_avatar = false;
+                let visible = entity.attributes.get_bool_default("visible", false);
 
-                    if !rendered_avatar {
-                        if let Some(Value::Source(source)) = entity.attributes.get("source") {
-                            if let Some(tile) = source.tile_from_tile_list(assets) {
-                                let dynamic = DynamicObject::billboard_tile(
-                                    GeoId::Character(entity.id),
-                                    tile.id,
-                                    center3,
-                                    basis.1,
-                                    basis.2,
-                                    size,
-                                    size,
-                                );
-                                self.vm.execute(Atom::AddDynamic { object: dynamic });
-                            }
-                        }
+                if visible
+                    && let Some(avatar) =
+                        AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets)
+                {
+                    let direction = if camera.id() == "iso" && entity.is_player() {
+                        Self::avatar_direction_from_orientation(entity)
+                    } else {
+                        Self::avatar_direction_3d(entity, camera)
+                    };
+                    if self
+                        .avatar_builder
+                        .ensure_entity_avatar_uploaded_with_direction(
+                            &mut self.vm,
+                            entity,
+                            avatar,
+                            assets,
+                            animation_frame,
+                            geo_id,
+                            Some(direction),
+                        )
+                    {
+                        active_avatar_geo.insert(geo_id);
+                        let dynamic = DynamicObject::billboard_avatar(
+                            geo_id, center3, basis.1, basis.2, size, size,
+                        );
+                        self.vm.execute(Atom::AddDynamic { object: dynamic });
+                        rendered_avatar = true;
+                    }
+                }
+
+                if !rendered_avatar {
+                    if visible
+                        && let Some(Value::Source(source)) = entity.attributes.get("source")
+                        && let Some(tile) = source.tile_from_tile_list(assets)
+                    {
+                        let dynamic = DynamicObject::billboard_tile(
+                            GeoId::Character(entity.id),
+                            tile.id,
+                            center3,
+                            basis.1,
+                            basis.2,
+                            size,
+                            size,
+                        );
+                        self.vm.execute(Atom::AddDynamic { object: dynamic });
+                    } else {
+                        let icon = if Some(entity.creator_id) == map.selected_entity_item {
+                            self.character_on
+                        } else {
+                            self.character_off
+                        };
+                        let dynamic = DynamicObject::billboard_tile(
+                            GeoId::Character(entity.id),
+                            icon,
+                            preview_center3,
+                            basis.1,
+                            basis.2,
+                            size,
+                            size,
+                        );
+                        self.vm.execute(Atom::AddDynamic { object: dynamic });
                     }
                 }
             }
@@ -1037,78 +1067,88 @@ impl SceneHandler {
                         });
                     }
 
-                    if let Some(Value::Source(source)) = item.attributes.get("source") {
-                        if item.attributes.get_bool_default("visible", false) {
-                            let size = 1.0;
-                            if let Some(tile) = source.tile_from_tile_list(assets) {
-                                let pos_xz = item.get_pos_xz();
-                                let mut ground_y = map
-                                    .find_sector_at(pos_xz)
-                                    .map(|s| s.properties.get_float_default("floor_height", 0.0))
-                                    .unwrap_or(0.0);
-                                if ground_y == 0.0 {
-                                    let config =
-                                        crate::chunkbuilder::terrain_generator::TerrainConfig::default();
-                                    ground_y = crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
-                                        map, pos_xz, &config,
-                                    );
-                                }
-                                let alignment = item
-                                    .attributes
-                                    .get_str_default("billboard_alignment", "upright".into())
-                                    .to_ascii_lowercase();
-                                let floor_aligned =
-                                    matches!(alignment.as_str(), "floor" | "ground" | "flat");
-                                let (center3, view_right, view_up) = if floor_aligned {
-                                    // Ground-aligned billboard for items that should lie on the floor.
-                                    (
-                                        Vec3::new(
-                                            item.position.x,
-                                            ground_y + 0.01,
-                                            item.position.z,
-                                        ),
-                                        Vec3::unit_x(),
-                                        Vec3::unit_z(),
-                                    )
-                                } else {
-                                    let is_spell_like =
-                                        item.attributes.get_bool_default("is_spell", false)
-                                            || item
-                                                .attributes
-                                                .get_bool_default("spell_impacting", false);
-                                    let y = if is_spell_like {
-                                        item.position.y + size * 0.5
-                                    } else {
-                                        ground_y + size * 0.5
-                                    };
-                                    // Default: camera-facing upright billboard.
-                                    (
-                                        Vec3::new(item.position.x, y, item.position.z),
-                                        basis.1,
-                                        basis.2,
-                                    )
-                                };
+                    let size = 1.0;
+                    let visible = item.attributes.get_bool_default("visible", false);
+                    let pos_xz = item.get_pos_xz();
+                    let mut ground_y = map
+                        .find_sector_at(pos_xz)
+                        .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                        .unwrap_or(0.0);
+                    if ground_y == 0.0 {
+                        let config =
+                            crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                        ground_y = crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                            map, pos_xz, &config,
+                        );
+                    }
 
-                                let dynamic = DynamicObject::billboard_tile(
-                                    GeoId::Item(item.id),
-                                    tile.id,
-                                    center3,
-                                    view_right,
-                                    view_up,
-                                    size,
-                                    size,
-                                )
-                                .with_anim_start_counter({
-                                    let geo_id = GeoId::Item(item.id);
-                                    let anim_start = self.impact_anim_start_for_item(geo_id, item);
-                                    if anim_start.is_some() {
-                                        active_impact_geo.insert(geo_id);
-                                    }
-                                    anim_start
-                                });
-                                self.vm.execute(Atom::AddDynamic { object: dynamic });
+                    if visible
+                        && let Some(Value::Source(source)) = item.attributes.get("source")
+                        && let Some(tile) = source.tile_from_tile_list(assets)
+                    {
+                        let alignment = item
+                            .attributes
+                            .get_str_default("billboard_alignment", "upright".into())
+                            .to_ascii_lowercase();
+                        let floor_aligned =
+                            matches!(alignment.as_str(), "floor" | "ground" | "flat");
+                        let (center3, view_right, view_up) = if floor_aligned {
+                            (
+                                Vec3::new(item.position.x, ground_y + 0.01, item.position.z),
+                                Vec3::unit_x(),
+                                Vec3::unit_z(),
+                            )
+                        } else {
+                            let is_spell_like = item.attributes.get_bool_default("is_spell", false)
+                                || item.attributes.get_bool_default("spell_impacting", false);
+                            let y = if is_spell_like {
+                                item.position.y + size * 0.5
+                            } else {
+                                ground_y + size * 0.5
+                            };
+                            (
+                                Vec3::new(item.position.x, y, item.position.z),
+                                basis.1,
+                                basis.2,
+                            )
+                        };
+
+                        let dynamic = DynamicObject::billboard_tile(
+                            GeoId::Item(item.id),
+                            tile.id,
+                            center3,
+                            view_right,
+                            view_up,
+                            size,
+                            size,
+                        )
+                        .with_anim_start_counter({
+                            let geo_id = GeoId::Item(item.id);
+                            let anim_start = self.impact_anim_start_for_item(geo_id, item);
+                            if anim_start.is_some() {
+                                active_impact_geo.insert(geo_id);
                             }
-                        }
+                            anim_start
+                        });
+                        self.vm.execute(Atom::AddDynamic { object: dynamic });
+                    } else {
+                        let center3 =
+                            Vec3::new(item.position.x, ground_y + size * 0.5, item.position.z);
+                        let icon = if Some(item.creator_id) == map.selected_entity_item {
+                            self.item_on
+                        } else {
+                            self.item_off
+                        };
+                        let dynamic = DynamicObject::billboard_tile(
+                            GeoId::Item(item.id),
+                            icon,
+                            center3,
+                            basis.1,
+                            basis.2,
+                            size,
+                            size,
+                        );
+                        self.vm.execute(Atom::AddDynamic { object: dynamic });
                     }
                 }
             }

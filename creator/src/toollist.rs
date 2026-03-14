@@ -923,12 +923,6 @@ impl ToolList {
                                 server_ctx.geo_hit_pos = Vec3::zero();
                             }
                             // println!("{:?}", server_ctx.geo_hit);
-                            // let pt = self.hitpoint_to_editing_coord(
-                            //     project,
-                            //     server_ctx,
-                            //     server_ctx.hitinfo.hitpoint,
-                            // );
-                            // server_ctx.hover_cursor = pt;
                         }
                     }
                     if let Some(map) = project.get_map_mut(server_ctx) {
@@ -1764,16 +1758,16 @@ impl ToolList {
         let mut rusterix = RUSTERIX.write().unwrap();
 
         server_ctx.hover_cursor_3d = None;
-        if let Some(rc) = rusterix.scene_handler.vm.pick_geo_id_at_uv(
+        if let Some(raw) = rusterix.scene_handler.vm.pick_geo_id_at_uv(
             dim.width as u32,
             dim.height as u32,
             screen_uv,
             false,
             false,
         ) {
-            server_ctx.hover_cursor_3d = Some(rc.1);
+            server_ctx.hover_cursor_3d = Some(raw.1);
             if server_ctx.curr_map_tool_type == MapToolType::Sector {
-                return Some((rc.0, rc.1));
+                return Some((raw.0, raw.1));
             }
         }
 
@@ -1791,10 +1785,6 @@ impl ToolList {
 
         rusterix.scene_handler.vm.set_active_vm(0);
 
-        if let Some(rc) = rc {
-            return Some((rc.0, rc.1));
-        }
-
-        None
+        rc.map(|(geo_id, pos, _)| (geo_id, pos))
     }
 }

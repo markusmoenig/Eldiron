@@ -131,6 +131,14 @@ impl Tool for SectorTool {
                 self.was_clicked = true;
                 let mut changed = false;
 
+                if server_ctx.editor_view_mode != EditorViewMode::D2 && server_ctx.hover.2.is_none()
+                {
+                    let hit_pos = server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos);
+                    server_ctx.hover.2 = map
+                        .find_sector_at(Vec2::new(hit_pos.x, hit_pos.z))
+                        .map(|s| s.id);
+                }
+
                 self.click_selected = false;
                 if server_ctx.hover.2.is_some() {
                     map.selected_entity_item = None;
@@ -747,24 +755,24 @@ impl Tool for SectorTool {
                         ));
                         server_ctx.hover_cursor = Some(cp);
                     } else {
-                        if let Some(geo_id) = server_ctx.geo_hit {
-                            match geo_id {
-                                GeoId::Sector(id) => {
-                                    server_ctx.hover = (None, None, Some(id));
-                                }
-                                _ => {
-                                    server_ctx.hover = (None, None, None);
-                                }
-                            }
-                        } else {
-                            server_ctx.hover = (None, None, None);
-                        }
+                        let hit_pos = server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos);
 
-                        if let Some(cp) = server_ctx.hover_cursor {
+                        let hovered_sector = match server_ctx.geo_hit {
+                            Some(GeoId::Sector(id)) => Some(id),
+                            _ => map
+                                .find_sector_at(Vec2::new(hit_pos.x, hit_pos.z))
+                                .map(|s| s.id),
+                        };
+
+                        server_ctx.hover = (None, None, hovered_sector);
+
+                        if hit_pos != Vec3::zero() {
+                            let cp = Vec2::new(hit_pos.x, hit_pos.z);
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Cursor Pos Changed"),
                                 TheValue::Float2(cp),
                             ));
+                            server_ctx.hover_cursor = Some(cp);
                         }
                     }
 

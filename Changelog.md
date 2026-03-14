@@ -15,6 +15,8 @@
 - Added hover help for function calls directly inside the visual scripting graph.
 - Added drag-copy for existing CodeGridFX cells, including dependency subtree copying, validation, and visual drop feedback.
 - Improved the CodeGridFX editing field styling by restoring framed text entry widgets.
+- Added 3D editor billboard previews for region entities and items, so placed instances are visible in 3D even without full runtime geometry.
+- Improved 3D Sector tool selection so sectors without direct geometry can still be selected from the world hit position.
 
 ### Server
 
