@@ -1,5 +1,5 @@
 ---
-title: "Character Rigging"
+title: "Character Rigging with Avatars"
 sidebar_position: 4
 ---
 
@@ -16,6 +16,14 @@ To enable avatar-based rendering on a character, set an avatar in the character 
 ```toml
 avatar = "human"
 ```
+
+---
+
+## Tutorial Video
+
+Avatar setup and rigging walkthrough:
+
+- [Avatar Tutorial Video](https://youtu.be/kmObqQil62k)
 
 ---
 
