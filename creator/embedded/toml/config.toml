@@ -21,6 +21,10 @@ base_currency_name = "Gold"
 # The symbol of the base currency
 base_currency_symbol = "G"
 
+# The active locale used for localized UI and rules-driven messages.
+# Use "auto" to follow the system locale.
+locale = "en"
+
 # The supported gear slots
 gear_slots = ["legs", "head", "torso"]
 

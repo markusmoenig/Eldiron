@@ -1,6 +1,9 @@
 use crate::{
     Assets, Choice, EntityAction, Map, MsgParser, Pixel, Rect,
-    client::{draw2d, resolver::MsgResolver},
+    client::{
+        draw2d,
+        resolver::{MessageContext, MsgResolver},
+    },
 };
 use draw2d::Draw2D;
 use theframework::prelude::*;
@@ -54,6 +57,16 @@ impl MessagesWidget {
 
     pub fn init(&mut self, assets: &Assets) {
         let mut font_name = String::new();
+        if let Ok(config) = assets.config.parse::<toml::Table>() {
+            if let Some(locale) = config
+                .get("game")
+                .and_then(toml::Value::as_table)
+                .and_then(|game| game.get("locale"))
+                .and_then(toml::Value::as_str)
+            {
+                self.resolver.set_locale(locale);
+            }
+        }
         if let Ok(table) = self.toml_str.parse::<toml::Table>() {
             if let Some(ui) = table.get("ui").and_then(toml::Value::as_table) {
                 if let Some(value) = ui.get("font") {
@@ -110,7 +123,7 @@ impl MessagesWidget {
         choices: Vec<crate::MultipleChoice>,
     ) -> Option<FxHashMap<char, Choice>> {
         // Append new messages
-        for (_, _, _, msg, category) in &messages {
+        for (sender_entity, sender_item, receiver_id, msg, category) in &messages {
             let mut color = self.default_color;
             if let Some(ui) = self.table.get("ui").and_then(toml::Value::as_table) {
                 if let Some(value) = ui.get(category) {
@@ -120,7 +133,16 @@ impl MessagesWidget {
                 }
             }
 
-            let message = self.resolver.resolve(self.parser.parse(msg), map, assets);
+            let message = self.resolver.resolve_with_context(
+                self.parser.parse(msg),
+                map,
+                assets,
+                MessageContext {
+                    sender_entity: *sender_entity,
+                    sender_item: *sender_item,
+                    receiver_entity: Some(*receiver_id),
+                },
+            );
             self.messages.push((
                 Uuid::new_v4(),
                 message.clone(),
@@ -188,7 +210,7 @@ impl MessagesWidget {
             }
             self.messages.push((
                 Uuid::new_v4(),
-                self.resolve_msg("0) {exit_menu}", map, assets),
+                self.resolve_msg("0) {system.exit_menu}", map, assets),
                 Rect::default(),
                 Some(Choice::Cancel(choices.from, choices.to)),
                 color,

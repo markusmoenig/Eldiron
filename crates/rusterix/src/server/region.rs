@@ -1656,7 +1656,7 @@ impl RegionInstance {
                                             get_entity_mut(&mut ctx.map, *buyer_id)
                                         {
                                             msg_to_buyer = Some(format!(
-                                                "{{you_bought}} {{I:{}.name, article=indef, case=lower}}",
+                                                "{{system.you_bought}} {{I:{}.name, article=indef, case=lower}}",
                                                 item.id
                                             ));
                                             _ = entity.add_item(item);
@@ -1664,7 +1664,7 @@ impl RegionInstance {
                                         }
                                     }
                                 } else {
-                                    msg_to_buyer = Some("{cant_afford}".into());
+                                    msg_to_buyer = Some("{system.cant_afford}".into());
                                     msg_role = "warning";
                                 }
 
@@ -2687,7 +2687,12 @@ impl RegionInstance {
                     if *tick >= ticks {
                         if todo.1.starts_with("intent") {
                             with_regionctx(self.id, |ctx| {
-                                send_message(ctx, todo.0, "{cant_do_that_yet}".into(), "warning");
+                                send_message(
+                                    ctx,
+                                    todo.0,
+                                    "{system.cant_do_that_yet}".into(),
+                                    "warning",
+                                );
                             });
                         }
                         continue;
@@ -2704,6 +2709,11 @@ impl RegionInstance {
             with_regionctx(self.id, |ctx| {
                 ctx.entity_state_data = state_data;
                 ctx.damage_committed = false;
+                ctx.current_damage_kind = if todo.1 == "take_damage" {
+                    todo.2.as_string().map(|s| s.to_string())
+                } else {
+                    None
+                };
 
                 if let Some(class_name) = ctx.entity_classes.get(&todo.0) {
                     if let Some(program) = ctx.entity_programs.get(class_name).cloned() {
@@ -2715,11 +2725,17 @@ impl RegionInstance {
                             let from_id = payload.x.max(0.0) as u32;
                             let amount = payload.y.max(0.0) as i32;
                             if amount > 0 {
-                                let _ = apply_damage_direct(ctx, todo.0, from_id, amount);
+                                let kind = ctx
+                                    .current_damage_kind
+                                    .as_deref()
+                                    .unwrap_or("physical")
+                                    .to_string();
+                                let _ = apply_damage_direct(ctx, todo.0, from_id, amount, &kind);
                             }
                         }
                     }
                 }
+                ctx.current_damage_kind = None;
             });
 
             // if let Err(err) = self.execute(&todo.2) {
@@ -4394,6 +4410,7 @@ pub(crate) fn apply_damage_direct(
     target_id: u32,
     from_id: u32,
     amount: i32,
+    kind: &str,
 ) -> bool {
     if amount <= 0 {
         return false;
@@ -4403,6 +4420,8 @@ pub(crate) fn apply_damage_direct(
     let mut kill = false;
     let mut enqueue_death = false;
     let mut should_autodrop = false;
+    let attacker_name = ctx.get_entity_name(from_id);
+    let defender_name = ctx.get_entity_name(target_id);
 
     if let Some(entity) = ctx.map.entities.iter_mut().find(|e| e.id == target_id)
         && let Some(mut health) = entity.attributes.get_int(&health_attr)
@@ -4431,6 +4450,16 @@ pub(crate) fn apply_damage_direct(
         ctx.to_execute_entity
             .push((target_id, "death".into(), VMValue::zero()));
     }
+
+    send_damage_rule_messages(
+        ctx,
+        from_id,
+        target_id,
+        amount,
+        kind,
+        &attacker_name,
+        &defender_name,
+    );
 
     if kill {
         ctx.to_execute_entity
@@ -4468,6 +4497,216 @@ fn combat_rule_expr<'a>(ctx: &'a RegionCtx, kind: &str) -> Option<&'a str> {
                 .or_else(|| combat.get("received_damage"))
         })
         .and_then(toml::Value::as_str)
+}
+
+fn active_locale(ctx: &RegionCtx) -> &str {
+    let configured = ctx
+        .config
+        .get("game")
+        .and_then(toml::Value::as_table)
+        .and_then(|game| game.get("locale"))
+        .and_then(toml::Value::as_str)
+        .filter(|locale| !locale.trim().is_empty())
+        .unwrap_or("en");
+
+    resolve_runtime_locale(&ctx.assets, configured)
+}
+
+fn normalize_locale(locale: &str) -> String {
+    locale
+        .trim()
+        .replace('-', "_")
+        .split('.')
+        .next()
+        .unwrap_or("en")
+        .to_string()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn detect_system_locale() -> Option<String> {
+    for key in ["LC_ALL", "LC_MESSAGES", "LANG"] {
+        if let Ok(value) = std::env::var(key) {
+            let value = value.trim();
+            if !value.is_empty() {
+                return Some(normalize_locale(value));
+            }
+        }
+    }
+    None
+}
+
+#[cfg(target_arch = "wasm32")]
+fn detect_system_locale() -> Option<String> {
+    None
+}
+
+fn locale_candidates(locale: &str) -> Vec<String> {
+    let normalized = normalize_locale(locale);
+    let mut candidates = vec![normalized.clone()];
+    if let Some((base, _)) = normalized.split_once('_')
+        && base != normalized
+    {
+        candidates.push(base.to_string());
+    }
+    if !candidates.iter().any(|candidate| candidate == "en") {
+        candidates.push("en".to_string());
+    }
+    candidates
+}
+
+fn resolve_runtime_locale<'a>(assets: &'a Assets, configured: &str) -> &'a str {
+    let requested = if configured.eq_ignore_ascii_case("auto") {
+        detect_system_locale().unwrap_or_else(|| "en".to_string())
+    } else {
+        configured.to_string()
+    };
+
+    for candidate in locale_candidates(&requested) {
+        if assets.locales.contains_key(&candidate) {
+            return assets
+                .locales
+                .get_key_value(&candidate)
+                .map(|(key, _)| key.as_str())
+                .unwrap();
+        }
+    }
+
+    "en"
+}
+
+fn localized_template(ctx: &RegionCtx, key: &str) -> Option<String> {
+    let locale = active_locale(ctx);
+    ctx.assets
+        .locales
+        .get(locale)
+        .and_then(|translations| translations.get(key))
+        .cloned()
+        .or_else(|| {
+            if let Some((base, _)) = locale.split_once('_') {
+                return ctx
+                    .assets
+                    .locales
+                    .get(base)
+                    .and_then(|translations| translations.get(key))
+                    .cloned();
+            }
+            None
+        })
+        .or_else(|| {
+            ctx.assets
+                .locales
+                .get("en")
+                .and_then(|translations| translations.get(key))
+                .cloned()
+        })
+}
+
+fn combat_message_template(ctx: &RegionCtx, key: &str) -> Option<String> {
+    let messages = ctx
+        .rules
+        .get("combat")
+        .and_then(toml::Value::as_table)
+        .and_then(|combat| combat.get("messages"))
+        .and_then(toml::Value::as_table)?;
+
+    if let Some(locale_key) = messages
+        .get(&format!("{}_key", key))
+        .and_then(toml::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        && let Some(template) = localized_template(ctx, locale_key)
+    {
+        return Some(template);
+    }
+
+    messages
+        .get(key)
+        .and_then(toml::Value::as_str)
+        .map(ToString::to_string)
+}
+
+fn combat_message_category(ctx: &RegionCtx, key: &str) -> String {
+    ctx.rules
+        .get("combat")
+        .and_then(toml::Value::as_table)
+        .and_then(|combat| combat.get("messages"))
+        .and_then(toml::Value::as_table)
+        .and_then(|messages| messages.get(key))
+        .and_then(toml::Value::as_str)
+        .map(ToString::to_string)
+        .unwrap_or_else(|| "system".to_string())
+}
+
+fn render_damage_message(
+    template: &str,
+    attacker: &str,
+    defender: &str,
+    amount: i32,
+    kind: &str,
+    from_id: u32,
+    target_id: u32,
+) -> String {
+    template
+        .replace("{attacker}", attacker)
+        .replace("{defender}", defender)
+        .replace("{amount}", &amount.to_string())
+        .replace("{kind}", kind)
+        .replace("{from_id}", &from_id.to_string())
+        .replace("{target_id}", &target_id.to_string())
+}
+
+fn is_player_message_recipient(ctx: &RegionCtx, entity_id: u32) -> bool {
+    ctx.map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id)
+        .map(|entity| entity.is_player())
+        .unwrap_or(false)
+}
+
+fn send_damage_rule_messages(
+    ctx: &RegionCtx,
+    from_id: u32,
+    target_id: u32,
+    amount: i32,
+    kind: &str,
+    attacker_name: &str,
+    defender_name: &str,
+) {
+    if is_player_message_recipient(ctx, target_id)
+        && let Some(template) = combat_message_template(ctx, "incoming")
+    {
+        let category = combat_message_category(ctx, "incoming_category");
+        let message = render_damage_message(
+            &template,
+            attacker_name,
+            defender_name,
+            amount,
+            kind,
+            from_id,
+            target_id,
+        );
+        if !message.trim().is_empty() {
+            send_message(ctx, target_id, message, &category);
+        }
+    }
+
+    if is_player_message_recipient(ctx, from_id)
+        && let Some(template) = combat_message_template(ctx, "outgoing")
+    {
+        let category = combat_message_category(ctx, "outgoing_category");
+        let message = render_damage_message(
+            &template,
+            attacker_name,
+            defender_name,
+            amount,
+            kind,
+            from_id,
+            target_id,
+        );
+        if !message.trim().is_empty() {
+            send_message(ctx, from_id, message, &category);
+        }
+    }
 }
 
 fn equipped_attr(entity: &Entity, attr: &str) -> f32 {
@@ -5110,7 +5349,7 @@ fn update_spell_items(ctx: &mut RegionCtx) {
             .unwrap_or(false);
 
         if autodamage {
-            _ = apply_damage_direct(ctx, target_id, caster_id, final_amount);
+            _ = apply_damage_direct(ctx, target_id, caster_id, final_amount, &kind);
         } else {
             ctx.to_execute_entity.push((
                 target_id,

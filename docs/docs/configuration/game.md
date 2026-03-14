@@ -28,6 +28,7 @@ start_screen = ""              # The name of the screen to show at startup.
 # Base currency configuration
 base_currency_name = "Gold"      # Display name of the primary in-game currency.
 base_currency_symbol = "G"       # Symbol used to represent the currency (e.g. "G" for Gold).
+locale = "en"                    # Active locale used for localized strings and rules-based messages.
 
 # The supported gear slots
 gear_slots = ["legs", "head", "torso"]
@@ -132,6 +133,12 @@ avatar_skin_auto_shading = false
 
 - The **short symbol** shown with currency values (e.g. `"G"`).
 - Appears alongside numbers (e.g. `50 G`, `100 💎`).
+
+#### `locale`
+
+- Selects the active locale table, for example `"en"` or `"de"`.
+- Use `"auto"` to follow the system locale.
+- The actual translation tables are edited separately in **Game / Locales**.
 
 ---
 

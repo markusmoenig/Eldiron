@@ -9,6 +9,8 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
 
     insert_content_into_maps_mode(project, debug);
     rusterix.assets.rules = project.rules.clone();
+    rusterix.assets.locales_src = project.locales.clone();
+    rusterix.assets.read_locales();
 
     // Characters
     rusterix.assets.entities.clear();
@@ -110,6 +112,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
 pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Command> {
     rusterix.assets.config = project.config.clone();
     rusterix.assets.rules = project.rules.clone();
+    rusterix.assets.locales_src = project.locales.clone();
     rusterix.assets.read_locales();
     rusterix.assets.palette = project.palette.clone();
     rusterix.assets.maps.clear();

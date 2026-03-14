@@ -17,6 +17,7 @@ pub enum EntityKey {
     Item(Uuid),
     ProjectSettings,
     GameRules,
+    GameLocales,
     ScreenWidget(Uuid, Uuid), // (screen_id, widget_id)
 }
 
@@ -163,6 +164,13 @@ impl Dock for DataDock {
         } else if server_ctx.pc.is_game_rules() {
             ui.set_widget_value("DockDataEditor", ctx, TheValue::Text(project.rules.clone()));
             self.switch_to_entity(EntityKey::GameRules, ctx);
+        } else if server_ctx.pc.is_game_locales() {
+            ui.set_widget_value(
+                "DockDataEditor",
+                ctx,
+                TheValue::Text(project.locales.clone()),
+            );
+            self.switch_to_entity(EntityKey::GameLocales, ctx);
         }
 
         // Store initial state for undo
@@ -266,6 +274,11 @@ impl Dock for DataDock {
                     } else if server_ctx.pc.is_game_rules() {
                         if let Some(code) = value.to_string() {
                             project.rules = code;
+                            redraw = true;
+                        }
+                    } else if server_ctx.pc.is_game_locales() {
+                        if let Some(code) = value.to_string() {
+                            project.locales = code;
                             redraw = true;
                         }
                     }
@@ -890,6 +903,12 @@ impl DataDock {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
                 project.rules = text;
+            }
+        } else if server_ctx.pc.is_game_locales() {
+            if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
+                let state = edit.get_state();
+                let text = state.rows.join("\n");
+                project.locales = text;
             }
         }
     }

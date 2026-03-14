@@ -226,7 +226,7 @@ impl Module {
         filter_edit.set_text(self.filter_text.clone());
         filter_edit.limiter_mut().set_max_size(Vec2::new(120, 18));
         filter_edit.set_font_size(12.5);
-        filter_edit.set_frameless(true);
+        filter_edit.set_frameless(false);
         filter_edit.set_status_text("Show content containing the given text.");
         filter_edit.set_continuous(true);
         hlayout.add_widget(Box::new(filter_edit));
@@ -254,7 +254,7 @@ impl Module {
                         edit.set_status_text(status);
                         edit.set_info_text(default_value.clone());
                         edit.set_font_size(12.5);
-                        edit.set_frameless(true);
+                        edit.set_frameless(false);
                         edit.limiter_mut().set_max_size(Vec2::new(480, 18));
                         hlayout.add_widget(Box::new(edit));
                     }
@@ -287,7 +287,7 @@ impl Module {
                         edit.set_continuous(*continous);
                         edit.set_status_text(status);
                         edit.set_font_size(12.5);
-                        edit.set_frameless(true);
+                        edit.set_frameless(false);
                         edit.limiter_mut().set_max_size(Vec2::new(120, 18));
                         hlayout.add_widget(Box::new(edit));
                     }
@@ -305,7 +305,7 @@ impl Module {
                         edit.set_continuous(*continous);
                         edit.set_status_text(status);
                         edit.set_font_size(12.5);
-                        edit.set_frameless(true);
+                        edit.set_frameless(false);
                         edit.limiter_mut().set_max_size(Vec2::new(100, 18));
                         hlayout.add_widget(Box::new(edit));
                     }
@@ -322,7 +322,7 @@ impl Module {
                         edit.set_status_text(status);
                         edit.set_palette(palette.clone());
                         edit.set_font_size(12.5);
-                        edit.set_frameless(true);
+                        edit.set_frameless(false);
                         edit.limiter_mut().set_max_size(Vec2::new(100, 18));
                         hlayout.add_widget(Box::new(edit));
                     }

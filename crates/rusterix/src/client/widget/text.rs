@@ -1,4 +1,10 @@
-use crate::{Assets, Currencies, Map, Pixel, Rect, WHITE, client::draw2d};
+use crate::{
+    Assets, Currencies, Map, MsgParser, Pixel, Rect, WHITE,
+    client::{
+        draw2d,
+        resolver::{MessageContext, MsgResolver},
+    },
+};
 use draw2d::Draw2D;
 use regex::Regex;
 use theframework::prelude::*;
@@ -30,6 +36,8 @@ pub struct TextWidget {
     pub table: toml::Table,
     pub text: String,
     pub color: Pixel,
+    pub parser: MsgParser,
+    pub resolver: MsgResolver,
 }
 
 impl Default for TextWidget {
@@ -53,11 +61,23 @@ impl TextWidget {
             table: toml::Table::default(),
             text: String::new(),
             color: WHITE,
+            parser: MsgParser::new(),
+            resolver: MsgResolver::default(),
         }
     }
 
     pub fn init(&mut self, assets: &Assets) {
         let mut font_name = String::new();
+        if let Ok(config) = assets.config.parse::<toml::Table>() {
+            if let Some(locale) = config
+                .get("game")
+                .and_then(toml::Value::as_table)
+                .and_then(|game| game.get("locale"))
+                .and_then(toml::Value::as_str)
+            {
+                self.resolver.set_locale(locale);
+            }
+        }
         if let Ok(table) = self.toml_str.parse::<toml::Table>() {
             if let Some(ui) = table.get("ui").and_then(toml::Value::as_table) {
                 if let Some(value) = ui.get("font") {
@@ -99,28 +119,26 @@ impl TextWidget {
         buffer: &mut TheRGBABuffer,
         map: &Map,
         currencies: &Currencies,
-        _assets: &Assets,
+        assets: &Assets,
     ) {
         if let Some(font) = &self.font {
             let stride = buffer.stride();
             let mut y = self.rect.y;
+            let player = map.entities.iter().find(|entity| entity.is_player());
+            let player_id = player.map(|entity| entity.id);
 
             let width = buffer.dim().width;
             let height = buffer.dim().height;
 
             for line in self.text.lines() {
-                let resolved = substitute_placeholders(line, |cat, key| {
+                let legacy = substitute_placeholders(line, |cat, key| {
                     match cat {
                         "PLAYER" => {
-                            for entity in &map.entities {
-                                if entity.is_player() {
-                                    if key == "FUNDS" {
-                                        return Some(
-                                            entity.wallet.get_balance(currencies).to_string(),
-                                        );
-                                    } else if let Some(value) = entity.attributes.get(key) {
-                                        return Some(value.to_string());
-                                    }
+                            if let Some(entity) = player {
+                                if key == "FUNDS" {
+                                    return Some(entity.wallet.get_balance(currencies).to_string());
+                                } else if let Some(value) = entity.attributes.get(key) {
+                                    return Some(value.to_string());
                                 }
                             }
                             None
@@ -129,6 +147,16 @@ impl TextWidget {
                         _ => None,
                     }
                 });
+                let resolved = self.resolver.resolve_with_context(
+                    self.parser.parse(&legacy),
+                    map,
+                    assets,
+                    MessageContext {
+                        sender_entity: player_id,
+                        sender_item: None,
+                        receiver_entity: player_id,
+                    },
+                );
 
                 let tuple = (
                     self.rect.x as isize,

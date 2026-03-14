@@ -17,6 +17,10 @@ fn default_rules() -> String {
     String::new()
 }
 
+fn default_locales() -> String {
+    String::new()
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Project {
     pub name: String,
@@ -55,6 +59,9 @@ pub struct Project {
 
     #[serde(default = "default_rules")]
     pub rules: String,
+
+    #[serde(default = "default_locales")]
+    pub locales: String,
 
     #[serde(default)]
     pub avatars: IndexMap<Uuid, Avatar>,
@@ -95,6 +102,7 @@ impl Project {
 
             config: String::new(),
             rules: default_rules(),
+            locales: default_locales(),
         }
     }
 

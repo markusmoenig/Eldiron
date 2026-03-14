@@ -2,9 +2,16 @@
 # attacker.<attr> / defender.<attr> = character attributes
 # weapon.<attr> = attacker's equipped weapon attributes
 # Kind overrides live under [combat.kinds.<kind>]
+# Optional auto-messages live under [combat.messages]
 
 [combat]
 incoming_damage = "value + attacker.STR - defender.ARMOR"
+
+[combat.messages]
+incoming_key = "combat.damage.incoming"
+incoming_category = "warning"
+outgoing_key = "combat.damage.outgoing"
+outgoing_category = "system"
 
 [combat.kinds.physical]
 incoming_damage = "value + attacker.STR - defender.ARMOR"

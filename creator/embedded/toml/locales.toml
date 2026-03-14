@@ -1,0 +1,7 @@
+[en]
+combat.damage.incoming = "{attacker} hits you for {amount} damage"
+combat.damage.outgoing = "You hit {defender} for {amount} damage"
+system.cant_do_that_yet = "Can't do that yet"
+system.cant_afford = "You can't afford that"
+system.you_bought = "You bought"
+system.exit_menu = "Goodbye"

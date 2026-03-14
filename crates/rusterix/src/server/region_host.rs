@@ -1515,7 +1515,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                         .unwrap_or(false);
 
                     if autodamage {
-                        _ = apply_damage_direct(self.ctx, id, subject_id, dmg);
+                        _ = apply_damage_direct(self.ctx, id, subject_id, dmg, &kind);
                     } else {
                         self.ctx.to_execute_entity.push((
                             id,
@@ -1545,7 +1545,13 @@ impl<'a> HostHandler for RegionHost<'a> {
                     }
 
                     let id = self.ctx.curr_entity_id;
-                    let _ = apply_damage_direct(self.ctx, id, from, amount);
+                    let kind = self
+                        .ctx
+                        .current_damage_kind
+                        .as_deref()
+                        .unwrap_or("physical")
+                        .to_string();
+                    let _ = apply_damage_direct(self.ctx, id, from, amount, &kind);
                     self.ctx.damage_committed = true;
                 }
             }

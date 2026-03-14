@@ -66,6 +66,7 @@ pub struct RegionCtx {
 
     pub health_attr: String,
     pub damage_committed: bool,
+    pub current_damage_kind: Option<String>,
 
     pub currencies: Currencies,
 }

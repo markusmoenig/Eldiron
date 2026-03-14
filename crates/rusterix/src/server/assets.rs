@@ -35,6 +35,7 @@ pub struct Assets {
 
     pub config: String,
     pub rules: String,
+    pub locales_src: String,
     pub atlas: Texture,
 
     pub fonts: FxHashMap<String, fontdue::Font>,
@@ -58,6 +59,25 @@ impl Default for Assets {
 }
 
 impl Assets {
+    fn collect_locale_entries(
+        prefix: Option<&str>,
+        table: &toml::value::Table,
+        out: &mut FxHashMap<String, String>,
+    ) {
+        for (key, value) in table.iter() {
+            let full_key = match prefix {
+                Some(prefix) if !prefix.is_empty() => format!("{}.{}", prefix, key),
+                _ => key.clone(),
+            };
+
+            if let Some(text) = value.as_str() {
+                out.insert(full_key, text.to_string());
+            } else if let Some(child) = value.as_table() {
+                Self::collect_locale_entries(Some(&full_key), child, out);
+            }
+        }
+    }
+
     pub fn new() -> Self {
         Self {
             map_sources: FxHashMap::default(),
@@ -76,6 +96,7 @@ impl Assets {
             item_tiles: FxHashMap::default(),
             config: String::new(),
             rules: String::new(),
+            locales_src: String::new(),
             atlas: Texture::default(),
             fonts: FxHashMap::default(),
             audio: FxHashMap::default(),
@@ -86,22 +107,15 @@ impl Assets {
         }
     }
 
-    /// Reads all locale tables (locale_*) from the config file.
+    /// Reads all locale tables from the dedicated locales source.
     pub fn read_locales(&mut self) {
         self.locales.clear();
-        if let Ok(table) = self.config.parse::<Table>() {
-            for (key, value) in table.iter() {
-                if let Some(locale_name) = key.strip_prefix("locale_") {
-                    if let Some(locales) = value.as_table() {
-                        let mut translations = FxHashMap::default();
-                        for (name, value) in locales.iter() {
-                            if let Some(locale_map) = value.as_str() {
-                                translations.insert(name.clone(), locale_map.to_string());
-                            }
-                        }
-                        // println!("Found locale: {} {:?}", locale_name, translations);
-                        self.locales.insert(locale_name.to_string(), translations);
-                    }
+        if let Ok(table) = self.locales_src.parse::<Table>() {
+            for (locale_name, value) in table.iter() {
+                if let Some(locales) = value.as_table() {
+                    let mut translations = FxHashMap::default();
+                    Self::collect_locale_entries(None, locales, &mut translations);
+                    self.locales.insert(locale_name.to_string(), translations);
                 }
             }
         }

@@ -199,18 +199,27 @@ impl Sidebar {
 
         let mut config_item = TheTreeItem::new(TheId::named("Project Settings"));
         config_item.set_text(fl!("settings"));
+        config_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
         config_node.add_widget(Box::new(config_item));
 
         let mut rules_item = TheTreeItem::new(TheId::named("Game Rules"));
         rules_item.set_text("Rules".to_string());
+        rules_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
         config_node.add_widget(Box::new(rules_item));
+
+        let mut locales_item = TheTreeItem::new(TheId::named("Game Locales"));
+        locales_item.set_text("Locales".to_string());
+        locales_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+        config_node.add_widget(Box::new(locales_item));
 
         let mut debug_log_item = TheTreeItem::new(TheId::named("Debug Log"));
         debug_log_item.set_text(fl!("debug_log"));
+        debug_log_item.set_background_color(TheColor::from(ActionRole::Editor.to_color()));
         config_node.add_widget(Box::new(debug_log_item));
 
         let mut console_item = TheTreeItem::new(TheId::named("Console"));
         console_item.set_text("Console".to_string());
+        console_item.set_background_color(TheColor::from(ActionRole::Editor.to_color()));
         config_node.add_widget(Box::new(console_item));
 
         root.add_child(config_node);
@@ -2886,6 +2895,9 @@ impl Sidebar {
                     redraw = true;
                 } else if id.name == "Game Rules" {
                     set_project_context(ctx, ui, project, server_ctx, ProjectContext::GameRules);
+                    redraw = true;
+                } else if id.name == "Game Locales" {
+                    set_project_context(ctx, ui, project, server_ctx, ProjectContext::GameLocales);
                     redraw = true;
                 } else if id.name == "Debug Log" {
                     set_project_context(ctx, ui, project, server_ctx, ProjectContext::DebugLog);

@@ -168,6 +168,7 @@ pub enum ProjectContext {
     AvatarAnimation(Uuid, Uuid, usize),
     ProjectSettings,
     GameRules,
+    GameLocales,
     DebugLog,
     Console,
 }
@@ -178,6 +179,7 @@ impl ProjectContext {
             ProjectContext::Unknown
             | ProjectContext::ProjectSettings
             | ProjectContext::GameRules
+            | ProjectContext::GameLocales
             | ProjectContext::DebugLog
             | ProjectContext::Console => None,
             ProjectContext::Region(id)
@@ -285,6 +287,13 @@ impl ProjectContext {
     pub fn is_game_rules(&self) -> bool {
         match self {
             ProjectContext::GameRules => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_game_locales(&self) -> bool {
+        match self {
+            ProjectContext::GameLocales => true,
             _ => false,
         }
     }
