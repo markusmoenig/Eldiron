@@ -575,7 +575,7 @@ impl Cell {
             ClearAudio => "Stop currently playing audio on a bus, or all buses if omitted.".into(),
             ClearTarget => "Clear current target for the current entity or item.".into(),
             CloseIn => "Close in to the target entities within the given radius and speed.".into(),
-            DealDamage => "Deal damage. Use deal_damage(amount) for current target, or deal_damage(target, amount).".into(),
+            DealDamage => "Deal damage. Use deal_damage(amount[, kind]) for current target, or deal_damage(target, amount[, kind]).".into(),
             Drop => "Drop the item of the given ID for the current entity.".into(),
             DropItems => "Drop all or filtered items for the current entity.".into(),
             EntitiesInRadius => {

@@ -862,6 +862,11 @@ impl Routine {
             // *out += &format!("{:indent$}from_id = value[\"from\"]\n", "");
             *out += &format!("{:indent$}let from_id = value.subject_id;\n", "");
             *out += &format!("{:indent$}let amount = value.amount;\n", "");
+            *out += &format!("{:indent$}let damage_kind = value.string;\n", "");
+            *out += &format!(
+                "{:indent$}let attacker_name = get_attr_of( from_id,  \"name\");\n",
+                ""
+            );
         } else if self.name == "intent" {
             // *out += &format!("{:indent$}intent = value[\"intent\"]\n", "");
             // *out += &format!("{:indent$}distance = value[\"distance\"]\n", "");
@@ -1055,7 +1060,7 @@ impl Routine {
             "instantiation" => "".into(),
             "proximity_warning" => "'value' is a list of entity IDs in proximity".into(),
             "closed_in" => "`value` is the entity ID".into(),
-            "take_damage" => "`amount` is the damage and `from_id` is the ID".into(),
+            "take_damage" => "`amount` is final damage, `from_id` is the ID, `damage_kind` is the type, `attacker_name` resolves the name".into(),
             "death" => "send on death".into(),
             "kill" => "`value` is the killed entity's ID".into(),
             "arrived" => "`value` is the sector name".into(),

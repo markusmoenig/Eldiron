@@ -153,7 +153,7 @@ start_equipped_items = ["Shield", "Helmet"]
 
 *Character-only attribute.*
 
-The current mode of the entity. On startup of characters this is set to **"active"**, [took_damage](server_commands#took_damage) changes this to **"dead"** when the [health attribute](/docs/configuration/game#health) is below or equal to 0. Dead characters do not receive events. Healers can set the mode attribute to **"active"** again.
+The current mode of the entity. On startup of characters this is set to **"active"**. When the [health attribute](/docs/configuration/game#health) drops to zero or below, the server changes it to **"dead"** automatically. Dead characters do not receive events. Healers can set the mode attribute to **"active"** again.
 
 ```python
 set_attr("mode", "active")

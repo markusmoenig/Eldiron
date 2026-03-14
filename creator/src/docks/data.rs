@@ -16,6 +16,7 @@ pub enum EntityKey {
     CharacterPreviewRigging(Uuid),
     Item(Uuid),
     ProjectSettings,
+    GameRules,
     ScreenWidget(Uuid, Uuid), // (screen_id, widget_id)
 }
 
@@ -159,6 +160,9 @@ impl Dock for DataDock {
             );
             // Switch to this entity's undo stack
             self.switch_to_entity(EntityKey::ProjectSettings, ctx);
+        } else if server_ctx.pc.is_game_rules() {
+            ui.set_widget_value("DockDataEditor", ctx, TheValue::Text(project.rules.clone()));
+            self.switch_to_entity(EntityKey::GameRules, ctx);
         }
 
         // Store initial state for undo
@@ -257,6 +261,11 @@ impl Dock for DataDock {
                         if let Some(code) = value.to_string() {
                             _ = RUSTERIX.write().unwrap().scene_handler.settings.read(&code);
                             project.config = code;
+                            redraw = true;
+                        }
+                    } else if server_ctx.pc.is_game_rules() {
+                        if let Some(code) = value.to_string() {
+                            project.rules = code;
                             redraw = true;
                         }
                     }
@@ -875,6 +884,12 @@ impl DataDock {
                 let text = state.rows.join("\n");
                 _ = RUSTERIX.write().unwrap().scene_handler.settings.read(&text);
                 project.config = text;
+            }
+        } else if server_ctx.pc.is_game_rules() {
+            if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
+                let state = edit.get_state();
+                let text = state.rows.join("\n");
+                project.rules = text;
             }
         }
     }

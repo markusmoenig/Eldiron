@@ -846,6 +846,13 @@ pub fn set_project_context(
                 .unwrap()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
+        ProjectContext::GameRules => {
+            ui.set_widget_value("Project Context", ctx, TheValue::Text("Game Rules".into()));
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Data".into(), ui, ctx, project, server_ctx);
+        }
         ProjectContext::DebugLog => {
             // ui.set_widget_value("LogEdit", ctx, TheValue::Text(log));
             DOCKMANAGER
@@ -897,6 +904,27 @@ pub fn set_project_context(
                                 node.set_open(true);
                                 for widget in &node.widgets {
                                     if widget.id().name == "Project Settings" {
+                                        found = Some(widget.id().clone());
+                                        break;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        found
+                    };
+                    if let Some(id) = target_id {
+                        tree_layout.new_item_selected(id);
+                    }
+                }
+                ProjectContext::GameRules => {
+                    let target_id = {
+                        let mut found: Option<TheId> = None;
+                        for node in &mut tree_layout.get_root().childs {
+                            if node.id.name == fl!("game") {
+                                node.set_open(true);
+                                for widget in &node.widgets {
+                                    if widget.id().name == "Game Rules" {
                                         found = Some(widget.id().clone());
                                         break;
                                     }

@@ -58,12 +58,14 @@ pub struct RegionCtx {
 
     pub delta_time: f32,
     pub config: Table,
+    pub rules: Table,
     pub assets: Assets,
 
     pub to_receiver: OnceLock<Receiver<RegionMessage>>,
     pub from_sender: OnceLock<Sender<RegionMessage>>,
 
     pub health_attr: String,
+    pub damage_committed: bool,
 
     pub currencies: Currencies,
 }

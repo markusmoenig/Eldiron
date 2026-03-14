@@ -5,7 +5,7 @@ use theframework::prelude::*;
 const BLOCKS: [&str; 3] = ["Event", "Var = ..", "If .. == .."];
 const VALUES: [&str; 1] = ["Value"];
 const OPERATORS: [&str; 4] = ["Arithmetic", "Assignment", "Comparison", "Else"];
-const FUNCTIONS: [&str; 41] = [
+const FUNCTIONS: [&str; 40] = [
     "action",
     "add_item",
     "block_events",
@@ -46,7 +46,6 @@ const FUNCTIONS: [&str; 41] = [
     "has_target",
     "teleport",
     "toggle_attr",
-    "took_damage",
 ];
 
 const SHADER_BLOCKS: [&str; 3] = ["Event", "Color = ..", "If .. == .."];
@@ -256,7 +255,7 @@ impl Module {
                         edit.set_info_text(default_value.clone());
                         edit.set_font_size(12.5);
                         edit.set_frameless(true);
-                        edit.limiter_mut().set_max_size(Vec2::new(280, 18));
+                        edit.limiter_mut().set_max_size(Vec2::new(480, 18));
                         hlayout.add_widget(Box::new(edit));
                     }
                     TheNodeUIItem::Selector(id, name, status, values, value) => {

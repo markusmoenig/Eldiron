@@ -56,7 +56,6 @@ fn event(event, value) {
     if event == "take_damage" {
         let from_id = value.subject_id;
         let amount = value.amount;
-        took_damage( from_id,  amount);
         let attacker = get_attr_of( from_id,  "name");
         message( id(),  "You hit the Orc for " + amount + " damage",  "");
     }

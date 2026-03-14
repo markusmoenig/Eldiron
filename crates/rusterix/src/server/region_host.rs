@@ -1,7 +1,7 @@
 use crate::server::message::{AudioCommand, RegionMessage};
 use crate::server::region::{
-    add_debug_value, apply_damage_direct, apply_spell_default_attrs, is_spell_on_cooldown,
-    set_spell_cooldown,
+    add_debug_value, apply_damage_direct, apply_damage_rules, apply_spell_default_attrs,
+    is_spell_on_cooldown, set_spell_cooldown,
 };
 use crate::vm::*;
 use crate::{
@@ -1464,14 +1464,29 @@ impl<'a> HostHandler for RegionHost<'a> {
                 }
             }
             "deal_damage" => {
-                // deal_damage(target, amount) or deal_damage(amount) using current target.
-                let (target_id, dmg) = match args {
-                    [amount] => (self.get_current_target_id(), amount.x as i32),
-                    [target, amount, ..] => (
+                // deal_damage(amount[, kind]) using current target, or deal_damage(target, amount[, kind]).
+                let (target_id, base_dmg, kind) = match args {
+                    [amount] => (
+                        self.get_current_target_id(),
+                        amount.x as i32,
+                        "physical".to_string(),
+                    ),
+                    [amount, kind] if kind.as_string().is_some() => (
+                        self.get_current_target_id(),
+                        amount.x as i32,
+                        kind.as_string().unwrap_or("physical").to_string(),
+                    ),
+                    [target, amount] => (
                         Self::parse_target_arg_id(target).or_else(|| self.get_current_target_id()),
                         amount.x as i32,
+                        "physical".to_string(),
                     ),
-                    _ => (None, 0),
+                    [target, amount, kind] => (
+                        Self::parse_target_arg_id(target).or_else(|| self.get_current_target_id()),
+                        amount.x as i32,
+                        kind.as_string().unwrap_or("physical").to_string(),
+                    ),
+                    _ => (None, 0, "physical".to_string()),
                 };
 
                 if let Some(id) = target_id {
@@ -1480,6 +1495,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                     } else {
                         self.ctx.curr_entity_id
                     };
+                    let dmg = apply_damage_rules(self.ctx, id, subject_id, base_dmg, &kind);
                     if self.ctx.curr_item_id.is_none() && dmg > 0 {
                         if let Some(attacker) = self.ctx.get_current_entity_mut() {
                             let attack_time = attacker
@@ -1504,7 +1520,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                         self.ctx.to_execute_entity.push((
                             id,
                             "take_damage".into(),
-                            VMValue::new(subject_id as f32, dmg as f32, 0.0),
+                            VMValue::new_with_string(subject_id as f32, dmg as f32, 0.0, kind),
                         ));
                     }
                     if self.ctx.debug_mode {
@@ -1530,6 +1546,7 @@ impl<'a> HostHandler for RegionHost<'a> {
 
                     let id = self.ctx.curr_entity_id;
                     let _ = apply_damage_direct(self.ctx, id, from, amount);
+                    self.ctx.damage_committed = true;
                 }
             }
             "block_events" => {

@@ -201,6 +201,10 @@ impl Sidebar {
         config_item.set_text(fl!("settings"));
         config_node.add_widget(Box::new(config_item));
 
+        let mut rules_item = TheTreeItem::new(TheId::named("Game Rules"));
+        rules_item.set_text("Rules".to_string());
+        config_node.add_widget(Box::new(rules_item));
+
         let mut debug_log_item = TheTreeItem::new(TheId::named("Debug Log"));
         debug_log_item.set_text(fl!("debug_log"));
         config_node.add_widget(Box::new(debug_log_item));
@@ -2879,6 +2883,9 @@ impl Sidebar {
                         server_ctx,
                         ProjectContext::ProjectSettings,
                     );
+                    redraw = true;
+                } else if id.name == "Game Rules" {
+                    set_project_context(ctx, ui, project, server_ctx, ProjectContext::GameRules);
                     redraw = true;
                 } else if id.name == "Debug Log" {
                     set_project_context(ctx, ui, project, server_ctx, ProjectContext::DebugLog);

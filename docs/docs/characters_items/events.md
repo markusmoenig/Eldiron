@@ -120,9 +120,10 @@ Events are categorized as:
 
 ### `take_damage`
 
-- **Value**: `dict`
-- **Description**: Triggered by the `deal_damage()` command.  
-  The dictionary contains the damage payload sent by the attacker.
+- **Value**: `amount` *(int)*
+- **Description**: Triggered by the `deal_damage()` command after the server has applied the project-wide damage formula.  
+  `amount` is the final incoming damage, `from_id` contains the attacker id, and `damage_kind` contains the kind such as `physical`, `spell`, or `fire`.
+  The server applies this final damage automatically after the event returns.
   If the target has [autodamage](attributes#autodamage) enabled, this event is not triggered.
 
 ---

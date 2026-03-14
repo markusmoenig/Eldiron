@@ -34,6 +34,7 @@ pub struct Assets {
     pub item_tiles: FxHashMap<u32, IndexMap<String, Tile>>,
 
     pub config: String,
+    pub rules: String,
     pub atlas: Texture,
 
     pub fonts: FxHashMap<String, fontdue::Font>,
@@ -74,6 +75,7 @@ impl Assets {
             item_maps: FxHashMap::default(),
             item_tiles: FxHashMap::default(),
             config: String::new(),
+            rules: String::new(),
             atlas: Texture::default(),
             fonts: FxHashMap::default(),
             audio: FxHashMap::default(),

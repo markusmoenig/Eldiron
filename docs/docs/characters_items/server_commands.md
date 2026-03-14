@@ -94,14 +94,18 @@ See also: [set_target](#set_target), [target](#target), [has_target](#has_target
 
 *This command can be used with both characters and items.*
 
-Deals damage to an entity or item. Sends a [take_damage](events#take_damage) event to the receiver with the script created dictionary. The script should put all relevant information into the dictionary which will be processed by the target's [take_damage](events#take_damage) event to calculate the real damage done and in turn than calls [took_damage](#took_damage) to register the damage with the system.
+Deals damage to an entity or item. The server first applies the project-wide **Game -> Rules** combat formula to calculate the final incoming damage, then sends a [take_damage](events#take_damage) event to the receiver with that final amount and the attacker id.
 
 ```eldrin
 deal_damage(id, random(2, 5))
 deal_damage(random(2, 5)) // Uses current target.
+deal_damage(id, random(2, 5), "fire")
+deal_damage(random(2, 5), "physical")
 ```
 
 If called with one argument, `deal_damage(amount)` uses the current target (see [set_target](#set_target)).
+If called with two arguments and the second argument is a string, `deal_damage(amount, kind)` uses the current target and sets the damage kind.
+If no kind is supplied, `deal_damage` defaults to `physical`.
 
 If the target character has [autodamage](attributes#autodamage) set to `true`, damage is applied directly by the server and no [take_damage](events#take_damage) event is sent.
 
@@ -536,29 +540,6 @@ Teleports the character to a named sector, the second parameter is optional and 
 
 ```eldrin
 teleport("Entrance", "Deadly Dungeon")
-```
-
----
-
-## `took_damage`
-
-*This command can only be used with characters.*
-
-Registers damage to an entity, this command is called from within [take_damage](events#take_damage) events, where the target of the damage calculates the real damage done and calls **took_damage** to register it with the system.
-
-Internally **took_damage** will deduct the damage from the [health](/docs/configuration/game/#health) attribute and check if the new value is below or equal to 0. If yes it will:
-
-- Set the [mode](attributes#mode) attribute of the target to **"dead"**.
-- Send a [dead](events#dead) event to the target.
-- Send a [kill](events#kill) event to the entity which caused the damage.
-
-Example:
-
-In the [take_damage](events#take_damage) event we take the amount and the id of the attacker from the dictionary we created in [deal_damage](#deal_damage) and reduce the amount by 1.
-
-```eldrin
-let amount = value.amount - 1
-took_damage(value.subject_id, amount)
 ```
 
 ---

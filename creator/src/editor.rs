@@ -445,6 +445,7 @@ impl Editor {
     fn help_url_for_data_context(&self) -> String {
         match self.server_ctx.pc {
             ProjectContext::ProjectSettings => "docs/configuration/game".to_string(),
+            ProjectContext::GameRules => "docs/configuration/game".to_string(),
             ProjectContext::RegionSettings(_) => "docs/building_maps/region_settings".to_string(),
             ProjectContext::CharacterPreviewRigging(_) => "docs/characters_items/rigging".into(),
             ProjectContext::Character(_)
@@ -543,6 +544,11 @@ impl TheTrait for Editor {
         if let Some(bytes) = crate::Embedded::get("toml/config.toml") {
             if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
                 project.config = source.to_string();
+            }
+        }
+        if let Some(bytes) = crate::Embedded::get("toml/rules.toml") {
+            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                project.rules = source.to_string();
             }
         }
 

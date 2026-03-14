@@ -1,0 +1,16 @@
+# value = base damage
+# attacker.<attr> / defender.<attr> = character attributes
+# weapon.<attr> = attacker's equipped weapon attributes
+# Kind overrides live under [combat.kinds.<kind>]
+
+[combat]
+incoming_damage = "value + attacker.STR - defender.ARMOR"
+
+[combat.kinds.physical]
+incoming_damage = "value + attacker.STR - defender.ARMOR"
+
+[combat.kinds.spell]
+incoming_damage = "value + attacker.INT - defender.RESIST"
+
+[combat.kinds.fire]
+incoming_damage = "value + attacker.INT - defender.FIRE_RESIST"

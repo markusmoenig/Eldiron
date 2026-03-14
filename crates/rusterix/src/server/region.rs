@@ -516,6 +516,14 @@ impl RegionInstance {
         if let Ok(toml) = config_toml.parse::<toml::Table>() {
             ctx.config = toml;
         }
+        if !assets.rules.trim().is_empty() {
+            match assets.rules.parse::<toml::Table>() {
+                Ok(toml) => ctx.rules = toml,
+                Err(err) => ctx
+                    .startup_errors
+                    .push(format!("[warning] {}: Game Rules: {}", self.name, err)),
+            }
+        }
 
         ctx.map = map;
         ctx.blocking_tiles = assets.blocking_tiles();
@@ -2695,11 +2703,21 @@ impl RegionInstance {
 
             with_regionctx(self.id, |ctx| {
                 ctx.entity_state_data = state_data;
+                ctx.damage_committed = false;
 
                 if let Some(class_name) = ctx.entity_classes.get(&todo.0) {
                     if let Some(program) = ctx.entity_programs.get(class_name).cloned() {
-                        let args = [VMValue::from_string(todo.1), todo.2];
+                        let event_name = todo.1.clone();
+                        let payload = todo.2.clone();
+                        let args = [VMValue::from_string(event_name.clone()), payload.clone()];
                         run_server_fn(&mut self.exec, &args, &program, ctx);
+                        if event_name == "take_damage" && !ctx.damage_committed {
+                            let from_id = payload.x.max(0.0) as u32;
+                            let amount = payload.y.max(0.0) as i32;
+                            if amount > 0 {
+                                let _ = apply_damage_direct(ctx, todo.0, from_id, amount);
+                            }
+                        }
                     }
                 }
             });
@@ -4013,6 +4031,9 @@ pub(crate) fn apply_spell_default_attrs(spell_item: &mut Item) {
     if spell_item.attributes.get("spell_amount").is_none() {
         spell_item.set_attribute("spell_amount", Value::Int(1));
     }
+    if spell_item.attributes.get("spell_kind").is_none() {
+        spell_item.set_attribute("spell_kind", Value::Str("spell".into()));
+    }
     if spell_item.attributes.get("spell_speed").is_none() {
         spell_item.set_attribute("spell_speed", Value::Float(6.0));
     }
@@ -4419,6 +4440,299 @@ pub(crate) fn apply_damage_direct(
     kill
 }
 
+fn combat_rule_expr<'a>(ctx: &'a RegionCtx, kind: &str) -> Option<&'a str> {
+    if !kind.is_empty()
+        && let Some(expr) = ctx
+            .rules
+            .get("combat")
+            .and_then(toml::Value::as_table)
+            .and_then(|combat| combat.get("kinds"))
+            .and_then(toml::Value::as_table)
+            .and_then(|kinds| kinds.get(kind))
+            .and_then(toml::Value::as_table)
+            .and_then(|kind_table| {
+                kind_table
+                    .get("incoming_damage")
+                    .or_else(|| kind_table.get("received_damage"))
+            })
+            .and_then(toml::Value::as_str)
+    {
+        return Some(expr);
+    }
+    ctx.rules
+        .get("combat")
+        .and_then(toml::Value::as_table)
+        .and_then(|combat| {
+            combat
+                .get("incoming_damage")
+                .or_else(|| combat.get("received_damage"))
+        })
+        .and_then(toml::Value::as_str)
+}
+
+fn equipped_attr(entity: &Entity, attr: &str) -> f32 {
+    for slot in ["main_hand", "mainhand", "weapon", "hand_main", "off_hand"] {
+        if let Some(item) = entity.get_equipped_item(slot) {
+            return item.attributes.get_float_default(attr, 0.0);
+        }
+    }
+    0.0
+}
+
+fn resolve_combat_var(
+    name: &str,
+    value: f32,
+    attacker: Option<&Entity>,
+    defender: Option<&Entity>,
+) -> f32 {
+    if name == "value" {
+        return value;
+    }
+    if let Some(attr) = name.strip_prefix("attacker.weapon.") {
+        return attacker.map_or(0.0, |entity| equipped_attr(entity, attr));
+    }
+    if let Some(attr) = name.strip_prefix("defender.weapon.") {
+        return defender.map_or(0.0, |entity| equipped_attr(entity, attr));
+    }
+    if let Some(attr) = name.strip_prefix("weapon.") {
+        return attacker.map_or(0.0, |entity| equipped_attr(entity, attr));
+    }
+    if let Some(attr) = name.strip_prefix("attacker.") {
+        return attacker.map_or(0.0, |entity| entity.attributes.get_float_default(attr, 0.0));
+    }
+    if let Some(attr) = name.strip_prefix("defender.") {
+        return defender.map_or(0.0, |entity| entity.attributes.get_float_default(attr, 0.0));
+    }
+    0.0
+}
+
+struct FormulaParser<'a, F>
+where
+    F: Fn(&str) -> f32,
+{
+    src: &'a [u8],
+    idx: usize,
+    resolve: F,
+}
+
+impl<'a, F> FormulaParser<'a, F>
+where
+    F: Fn(&str) -> f32,
+{
+    fn new(src: &'a str, resolve: F) -> Self {
+        Self {
+            src: src.as_bytes(),
+            idx: 0,
+            resolve,
+        }
+    }
+
+    fn parse(mut self) -> Option<f32> {
+        let value = self.parse_expr()?;
+        self.skip_ws();
+        if self.idx == self.src.len() {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    fn skip_ws(&mut self) {
+        while self.idx < self.src.len() && self.src[self.idx].is_ascii_whitespace() {
+            self.idx += 1;
+        }
+    }
+
+    fn consume(&mut self, ch: u8) -> bool {
+        self.skip_ws();
+        if self.idx < self.src.len() && self.src[self.idx] == ch {
+            self.idx += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn parse_expr(&mut self) -> Option<f32> {
+        let mut value = self.parse_term()?;
+        loop {
+            self.skip_ws();
+            if self.consume(b'+') {
+                value += self.parse_term()?;
+            } else if self.consume(b'-') {
+                value -= self.parse_term()?;
+            } else {
+                break;
+            }
+        }
+        Some(value)
+    }
+
+    fn parse_term(&mut self) -> Option<f32> {
+        let mut value = self.parse_factor()?;
+        loop {
+            self.skip_ws();
+            if self.consume(b'*') {
+                value *= self.parse_factor()?;
+            } else if self.consume(b'/') {
+                let rhs = self.parse_factor()?;
+                if rhs.abs() <= f32::EPSILON {
+                    return None;
+                }
+                value /= rhs;
+            } else {
+                break;
+            }
+        }
+        Some(value)
+    }
+
+    fn parse_factor(&mut self) -> Option<f32> {
+        self.skip_ws();
+        if self.consume(b'+') {
+            return self.parse_factor();
+        }
+        if self.consume(b'-') {
+            return self.parse_factor().map(|v| -v);
+        }
+        self.parse_primary()
+    }
+
+    fn parse_primary(&mut self) -> Option<f32> {
+        self.skip_ws();
+        if self.consume(b'(') {
+            let value = self.parse_expr()?;
+            if !self.consume(b')') {
+                return None;
+            }
+            return Some(value);
+        }
+        if self.idx >= self.src.len() {
+            return None;
+        }
+        let ch = self.src[self.idx];
+        if ch.is_ascii_digit() || ch == b'.' {
+            return self.parse_number();
+        }
+        if ch.is_ascii_alphabetic() || ch == b'_' {
+            let ident = self.parse_identifier()?;
+            self.skip_ws();
+            if self.consume(b'(') {
+                let value = self.parse_call(&ident)?;
+                if !self.consume(b')') {
+                    return None;
+                }
+                return Some(value);
+            }
+            return Some((self.resolve)(&ident));
+        }
+        None
+    }
+
+    fn parse_identifier(&mut self) -> Option<String> {
+        self.skip_ws();
+        let start = self.idx;
+        while self.idx < self.src.len() {
+            let ch = self.src[self.idx];
+            if ch.is_ascii_alphanumeric() || matches!(ch, b'_' | b'.') {
+                self.idx += 1;
+            } else {
+                break;
+            }
+        }
+        if self.idx == start {
+            None
+        } else {
+            std::str::from_utf8(&self.src[start..self.idx])
+                .ok()
+                .map(ToString::to_string)
+        }
+    }
+
+    fn parse_number(&mut self) -> Option<f32> {
+        self.skip_ws();
+        let start = self.idx;
+        let mut seen_dot = false;
+        while self.idx < self.src.len() {
+            let ch = self.src[self.idx];
+            if ch.is_ascii_digit() {
+                self.idx += 1;
+            } else if ch == b'.' && !seen_dot {
+                seen_dot = true;
+                self.idx += 1;
+            } else {
+                break;
+            }
+        }
+        std::str::from_utf8(&self.src[start..self.idx])
+            .ok()?
+            .parse::<f32>()
+            .ok()
+    }
+
+    fn parse_args(&mut self) -> Option<Vec<f32>> {
+        let mut args = Vec::new();
+        self.skip_ws();
+        if self.idx < self.src.len() && self.src[self.idx] == b')' {
+            return Some(args);
+        }
+        loop {
+            args.push(self.parse_expr()?);
+            self.skip_ws();
+            if self.consume(b',') {
+                continue;
+            }
+            break;
+        }
+        Some(args)
+    }
+
+    fn parse_call(&mut self, ident: &str) -> Option<f32> {
+        let args = self.parse_args()?;
+        match ident {
+            "min" if args.len() == 2 => Some(args[0].min(args[1])),
+            "max" if args.len() == 2 => Some(args[0].max(args[1])),
+            "clamp" if args.len() == 3 => Some(args[0].clamp(args[1], args[2])),
+            "abs" if args.len() == 1 => Some(args[0].abs()),
+            "floor" if args.len() == 1 => Some(args[0].floor()),
+            "ceil" if args.len() == 1 => Some(args[0].ceil()),
+            "round" if args.len() == 1 => Some(args[0].round()),
+            _ => None,
+        }
+    }
+}
+
+pub(crate) fn apply_damage_rules(
+    ctx: &RegionCtx,
+    target_id: u32,
+    from_id: u32,
+    amount: i32,
+    kind: &str,
+) -> i32 {
+    let amount = amount.max(0);
+    let Some(expr) = combat_rule_expr(ctx, kind) else {
+        return amount;
+    };
+
+    let attacker = ctx.map.entities.iter().find(|entity| entity.id == from_id);
+    let defender = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == target_id);
+    let base_value = amount as f32;
+
+    let parsed = FormulaParser::new(expr, |name| {
+        resolve_combat_var(name, base_value, attacker, defender)
+    })
+    .parse();
+
+    parsed
+        .filter(|value| value.is_finite())
+        .map(|value| value.round().max(0.0) as i32)
+        .unwrap_or(amount)
+}
+
 pub(crate) fn drop_all_items_for_entity(ctx: &mut RegionCtx, entity_id: u32) {
     let removed_items = if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
         let mut removed_items = Vec::new();
@@ -4488,7 +4802,7 @@ fn update_spell_items(ctx: &mut RegionCtx) {
 
     let mut despawn_item_ids: Vec<u32> = Vec::new();
     let mut casting_casters: FxHashSet<u32> = FxHashSet::default();
-    let mut pending_damage: Vec<(u32, u32, i32)> = Vec::new(); // (target_id, caster_id, amount)
+    let mut pending_damage: Vec<(u32, u32, i32, String)> = Vec::new(); // (target_id, caster_id, amount, kind)
     let mut pending_heal: Vec<(u32, i32)> = Vec::new(); // (target_id, amount)
     let mut pending_item_events: Vec<(u32, String, VMValue)> = Vec::new();
 
@@ -4705,11 +5019,15 @@ fn update_spell_items(ctx: &mut RegionCtx) {
                 .get_str_default("spell_effect", "damage".into())
                 .to_ascii_lowercase();
             let amount = item.attributes.get_int_default("spell_amount", 1).max(0);
+            let kind = item
+                .attributes
+                .get_str_default("spell_kind", "spell".into())
+                .to_string();
 
             if effect == "heal" {
                 pending_heal.push((target_id, amount));
             } else {
-                pending_damage.push((target_id, caster_id, amount));
+                pending_damage.push((target_id, caster_id, amount, kind));
             }
 
             pending_item_events.push((item.id, "hit".into(), VMValue::broadcast(target_id as f32)));
@@ -4775,8 +5093,12 @@ fn update_spell_items(ctx: &mut RegionCtx) {
         }
     }
 
-    for (target_id, caster_id, amount) in pending_damage {
+    for (target_id, caster_id, amount, kind) in pending_damage {
         if amount <= 0 {
+            continue;
+        }
+        let final_amount = apply_damage_rules(ctx, target_id, caster_id, amount, &kind);
+        if final_amount <= 0 {
             continue;
         }
         let autodamage = ctx
@@ -4788,12 +5110,12 @@ fn update_spell_items(ctx: &mut RegionCtx) {
             .unwrap_or(false);
 
         if autodamage {
-            _ = apply_damage_direct(ctx, target_id, caster_id, amount);
+            _ = apply_damage_direct(ctx, target_id, caster_id, final_amount);
         } else {
             ctx.to_execute_entity.push((
                 target_id,
                 "take_damage".into(),
-                VMValue::new(caster_id as f32, amount as f32, 0.0),
+                VMValue::new_with_string(caster_id as f32, final_amount as f32, 0.0, kind),
             ));
         }
     }

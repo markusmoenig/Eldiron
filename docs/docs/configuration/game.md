@@ -109,7 +109,7 @@ avatar_skin_auto_shading = false
 
 ### `health`
 
-  The name of the health attribute for characters. When smaller or equal to zero means the character is considered **dead** and it's [mode](/docs/characters_items/attributes#mode) attribute is set to '"dead", this is handled automatically by [took_damage](/docs/characters_items/server_commands#took_damage) . If you want to use another attribute name than change the default **"HP"** value to something else.
+  The name of the health attribute for characters. When it becomes smaller or equal to zero, the character is considered **dead** and its [mode](/docs/characters_items/attributes#mode) attribute is set to `"dead"` automatically by the server damage system. If you want to use another attribute name, change the default **"HP"** value to something else.
 
 ### `avatar_shading`
 
@@ -132,10 +132,6 @@ avatar_skin_auto_shading = false
 
 - The **short symbol** shown with currency values (e.g. `"G"`).
 - Appears alongside numbers (e.g. `50 G`, `100 💎`).
-
-:::tip
-The supported game configuration options will increase over time.
-:::
 
 ---
 

@@ -13,6 +13,10 @@ fn default_tick_ms() -> u32 {
     250
 }
 
+fn default_rules() -> String {
+    String::new()
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Project {
     pub name: String,
@@ -48,6 +52,9 @@ pub struct Project {
 
     #[serde(default)]
     pub config: String,
+
+    #[serde(default = "default_rules")]
+    pub rules: String,
 
     #[serde(default)]
     pub avatars: IndexMap<Uuid, Avatar>,
@@ -87,6 +94,7 @@ impl Project {
             avatars: IndexMap::default(),
 
             config: String::new(),
+            rules: default_rules(),
         }
     }
 
