@@ -2570,6 +2570,14 @@ impl TheTrait for Editor {
                         RUSTERIX.write().unwrap().server.stop();
                         RUSTERIX.write().unwrap().clear_say_messages();
                         RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
+                        {
+                            let mut rusterix = RUSTERIX.write().unwrap();
+                            rusterix.client.scene.d2_dynamic.clear();
+                            rusterix.client.scene.d3_dynamic.clear();
+                            rusterix.client.scene.dynamic_lights.clear();
+                            rusterix.scene_handler.clear_runtime_overlays();
+                            rusterix.set_dirty();
+                        }
 
                         ui.set_widget_value("InfoView", ctx, TheValue::Text("".into()));
                         insert_content_into_maps(&mut self.project);

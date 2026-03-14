@@ -48,6 +48,7 @@ pub struct DataDock {
     current_entity: Option<EntityKey>,
     max_undo: usize,
     prev_state: Option<TheTextEditState>,
+    validation_signatures: FxHashMap<EntityKey, String>,
 }
 
 impl Dock for DataDock {
@@ -60,6 +61,7 @@ impl Dock for DataDock {
             current_entity: None,
             max_undo: 30,
             prev_state: None,
+            validation_signatures: FxHashMap::default(),
         }
     }
 
@@ -197,6 +199,7 @@ impl Dock for DataDock {
         }
 
         self.sync_audio_fx_toolbar(ctx, server_ctx);
+        self.validate_project_documents(project);
 
         // Store initial state for undo
         if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
@@ -315,6 +318,8 @@ impl Dock for DataDock {
                             rusterix.load_audio_assets();
                         }
                     }
+
+                    self.validate_project_documents(project);
                 }
             }
             TheEvent::StateChanged(id, state) => {
@@ -909,6 +914,277 @@ impl DataDock {
         self.set_undo_state_to_ui(ctx);
     }
 
+    fn validate_project_documents(&mut self, project: &Project) {
+        let Some(entity_key) = self.current_entity else {
+            return;
+        };
+
+        if !matches!(
+            entity_key,
+            EntityKey::GameRules | EntityKey::GameLocales | EntityKey::GameAudioFx
+        ) {
+            return;
+        }
+
+        let issues = Self::collect_project_validation_issues(project);
+        let signature = issues.join("\n");
+        let previous = self
+            .validation_signatures
+            .insert(entity_key, signature.clone())
+            .unwrap_or_default();
+
+        if signature == previous || issues.is_empty() {
+            return;
+        }
+
+        let label = match entity_key {
+            EntityKey::GameRules => "Game / Rules",
+            EntityKey::GameLocales => "Game / Locales",
+            EntityKey::GameAudioFx => "Game / Audio FX",
+            _ => return,
+        };
+
+        let mut chunk = format!("[Warning] {} validation\n", label);
+        for issue in issues {
+            chunk.push_str("- ");
+            chunk.push_str(&issue);
+            chunk.push('\n');
+        }
+
+        let mut rusterix = RUSTERIX.write().unwrap();
+        rusterix.server.log.push_str(&chunk);
+        rusterix.server.log_changed = true;
+    }
+
+    fn collect_project_validation_issues(project: &Project) -> Vec<String> {
+        let mut issues = Vec::new();
+
+        let locale_tables = match Self::parse_locale_tables(&project.locales) {
+            Ok(locales) => locales,
+            Err(err) => {
+                issues.push(format!("Locales TOML parse error: {}", err));
+                FxHashMap::default()
+            }
+        };
+
+        let (audio_fx_names, audio_fx_issues) =
+            Self::parse_audio_fx_names_and_issues(&project.audio_fx);
+        issues.extend(audio_fx_issues);
+
+        let asset_audio_names = project
+            .assets
+            .values()
+            .filter(|asset| matches!(asset.buffer, AssetBuffer::Audio(_)))
+            .map(|asset| asset.name.clone())
+            .collect::<FxHashSet<_>>();
+
+        match project.rules.parse::<Table>() {
+            Ok(rules) => {
+                let referenced_locale_keys = Self::rules_locale_keys(&rules);
+                let referenced_audio_fx = Self::rules_audio_fx_refs(&rules);
+
+                if locale_tables.is_empty() {
+                    for key in &referenced_locale_keys {
+                        issues.push(format!(
+                            "Rules reference locale key '{}' but Game / Locales has no locale tables.",
+                            key
+                        ));
+                    }
+                } else {
+                    for locale in locale_tables.keys() {
+                        let keys = locale_tables.get(locale).unwrap();
+                        for key in &referenced_locale_keys {
+                            if !keys.contains(key) {
+                                issues
+                                    .push(format!("Locale '{}' is missing key '{}'.", locale, key));
+                            }
+                        }
+                    }
+                }
+
+                for (path, name) in referenced_audio_fx {
+                    if !audio_fx_names.contains(&name) && !asset_audio_names.contains(&name) {
+                        issues.push(format!(
+                            "Rules reference unknown audio '{}' at '{}'.",
+                            name, path
+                        ));
+                    }
+                }
+            }
+            Err(err) => issues.push(format!("Rules TOML parse error: {}", err)),
+        }
+
+        issues
+    }
+
+    fn parse_locale_tables(src: &str) -> Result<FxHashMap<String, FxHashSet<String>>, String> {
+        let table = src.parse::<Table>().map_err(|err| err.to_string())?;
+        let mut locales = FxHashMap::default();
+        for (locale, value) in table {
+            let Some(locale_table) = value.as_table() else {
+                continue;
+            };
+            let mut keys = FxHashSet::default();
+            Self::flatten_locale_keys("", locale_table, &mut keys);
+            locales.insert(locale, keys);
+        }
+        Ok(locales)
+    }
+
+    fn flatten_locale_keys(prefix: &str, table: &Table, out: &mut FxHashSet<String>) {
+        for (key, value) in table {
+            let full = if prefix.is_empty() {
+                key.clone()
+            } else {
+                format!("{}.{}", prefix, key)
+            };
+            if let Some(nested) = value.as_table() {
+                Self::flatten_locale_keys(&full, nested, out);
+            } else {
+                out.insert(full);
+            }
+        }
+    }
+
+    fn parse_audio_fx_names_and_issues(src: &str) -> (FxHashSet<String>, Vec<String>) {
+        const ALLOWED_PARAMS: &[&str] = &[
+            "wave",
+            "duration",
+            "attack",
+            "decay",
+            "sustain_level",
+            "release",
+            "gain",
+            "freq",
+            "freq_end",
+            "noise",
+            "lowpass",
+            "repeat",
+            "repeat_gap",
+            "tremolo_depth",
+            "tremolo_freq",
+        ];
+        const ALLOWED_WAVES: &[&str] = &["sine", "square", "saw", "triangle", "noise"];
+
+        let table = match src.parse::<Table>() {
+            Ok(table) => table,
+            Err(err) => {
+                return (
+                    FxHashSet::default(),
+                    vec![format!("Audio FX TOML parse error: {}", err)],
+                );
+            }
+        };
+
+        let mut names = FxHashSet::default();
+        let mut issues = Vec::new();
+
+        let Some(sfx) = table.get("sfx").and_then(toml::Value::as_table) else {
+            return (names, issues);
+        };
+
+        for (name, value) in sfx {
+            let Some(effect) = value.as_table() else {
+                issues.push(format!("Audio FX section 'sfx.{}' must be a table.", name));
+                continue;
+            };
+            names.insert(name.clone());
+
+            for key in effect.keys() {
+                if !ALLOWED_PARAMS.contains(&key.as_str()) {
+                    issues.push(format!(
+                        "Audio FX 'sfx.{}' uses unknown parameter '{}'.",
+                        name, key
+                    ));
+                }
+            }
+
+            if let Some(wave) = effect.get("wave").and_then(toml::Value::as_str)
+                && !ALLOWED_WAVES.contains(&wave)
+            {
+                issues.push(format!(
+                    "Audio FX 'sfx.{}' uses unsupported wave '{}'.",
+                    name, wave
+                ));
+            }
+        }
+
+        (names, issues)
+    }
+
+    fn rules_locale_keys(rules: &Table) -> Vec<String> {
+        let mut keys = Vec::new();
+        if let Some(messages) = rules
+            .get("combat")
+            .and_then(toml::Value::as_table)
+            .and_then(|combat| combat.get("messages"))
+            .and_then(toml::Value::as_table)
+        {
+            for key in ["incoming_key", "outgoing_key"] {
+                if let Some(value) = messages
+                    .get(key)
+                    .and_then(toml::Value::as_str)
+                    .filter(|value| !value.trim().is_empty())
+                {
+                    keys.push(value.to_string());
+                }
+            }
+        }
+        keys
+    }
+
+    fn rules_audio_fx_refs(rules: &Table) -> Vec<(String, String)> {
+        let mut refs = Vec::new();
+
+        if let Some(audio) = rules
+            .get("combat")
+            .and_then(toml::Value::as_table)
+            .and_then(|combat| combat.get("audio"))
+            .and_then(toml::Value::as_table)
+        {
+            for key in ["incoming_fx", "outgoing_fx"] {
+                if let Some(name) = audio
+                    .get(key)
+                    .and_then(toml::Value::as_str)
+                    .filter(|value| !value.trim().is_empty())
+                {
+                    refs.push((format!("combat.audio.{}", key), name.to_string()));
+                }
+            }
+        }
+
+        if let Some(kinds) = rules
+            .get("combat")
+            .and_then(toml::Value::as_table)
+            .and_then(|combat| combat.get("kinds"))
+            .and_then(toml::Value::as_table)
+        {
+            for (kind, value) in kinds {
+                let Some(kind_audio) = value
+                    .as_table()
+                    .and_then(|kind_table| kind_table.get("audio"))
+                    .and_then(toml::Value::as_table)
+                else {
+                    continue;
+                };
+                for key in ["incoming_fx", "outgoing_fx"] {
+                    if let Some(name) = kind_audio
+                        .get(key)
+                        .and_then(toml::Value::as_str)
+                        .filter(|value| !value.trim().is_empty())
+                    {
+                        refs.push((
+                            format!("combat.kinds.{}.audio.{}", kind, key),
+                            name.to_string(),
+                        ));
+                    }
+                }
+            }
+        }
+
+        refs
+    }
+
     /// Add an undo atom to the current entity's undo stack
     fn add_undo(&mut self, atom: DataUndoAtom, ctx: &mut TheContext) {
         if let Some(entity_key) = self.current_entity {
@@ -1010,5 +1286,7 @@ impl DataDock {
                 project.audio_fx = text;
             }
         }
+
+        self.validate_project_documents(project);
     }
 }

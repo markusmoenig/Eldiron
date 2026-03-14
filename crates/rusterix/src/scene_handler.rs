@@ -122,6 +122,27 @@ impl SceneHandler {
         self.dynamics_ready_3d = false;
     }
 
+    /// Clear cached runtime geometry, billboards, lights and dynamic state.
+    pub fn clear_runtime_scene(&mut self) {
+        self.vm.execute(Atom::ClearGeometry);
+        self.vm.execute(Atom::ClearDynamics);
+        self.vm.execute(Atom::ClearLights);
+        self.billboards.clear();
+        self.billboard_anim_states.clear();
+        self.impact_anim_starts.clear();
+        self.mark_dynamics_dirty();
+    }
+
+    /// Clear only runtime overlays and dynamic caches, keeping base geometry intact.
+    pub fn clear_runtime_overlays(&mut self) {
+        self.vm.execute(Atom::ClearDynamics);
+        self.vm.execute(Atom::ClearLights);
+        self.billboards.clear();
+        self.billboard_anim_states.clear();
+        self.impact_anim_starts.clear();
+        self.mark_dynamics_dirty();
+    }
+
     pub fn add_sector_campfire_lights(&mut self, map: &Map) {
         let mut top_floor_y_by_sector: FxHashMap<u32, f32> = FxHashMap::default();
         for surface in map.surfaces.values() {
