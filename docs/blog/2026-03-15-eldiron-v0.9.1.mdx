@@ -1,0 +1,45 @@
+---
+title: Eldiron v0.9.1 Released
+authors: [markusm]
+tags: [releases]
+---
+
+<!-- truncate -->
+
+Eldiron v0.9.1 is a workflow-focused update that makes projects easier to debug, balance, localize, and polish. The biggest additions are the new global rules, localization, and audio FX systems, along with a major upgrade to realtime feedback in visual scripting.
+
+## Rules, Localization, and Audio FX
+
+This release introduces a new central setup for gameplay rules, localized text, and procedural audio effects. Instead of repeating the same combat logic and messages across many character scripts, projects can now define shared combat formulas, localized combat text, and built-in combat sound effects in one place.
+
+This makes it much easier to:
+
+- balance damage formulas
+- separate physical, spell, and elemental damage kinds
+- localize combat messages cleanly
+- add lightweight sound effects without hunting for lots of small audio samples
+
+The new audio FX system also supports direct preview while editing, so tuning a small attack or hit sound is much faster.
+
+## Better Visual Scripting Debugging
+
+CodeGridFX now gives much clearer realtime feedback while a game is running. Executed event headers, rows, and cells can be highlighted, values now stay visible after execution, and assignments and conditions reveal much more of what is going on internally.
+
+This makes visual scripting feel much less like guesswork and much more like working with a live system you can actually inspect while it runs.
+
+## Combat and UI Improvements
+
+Combat rules are now more flexible and can work with attacker, defender, equipment, and source-item values directly. This makes it easier to build reusable damage formulas without pushing everything into character-specific script code.
+
+UI text and localized messages can now also resolve more game data directly, including time and derived equipment values such as attack and armor totals. This makes HUDs and combat feedback much easier to build.
+
+## Editor and Documentation Polish
+
+The editor also received a long list of quality-of-life improvements, including better 3D entity previews and selection behavior, improved sector selection in 3D, cleaner in-editor game rendering, and more complete documentation. The docs now also include built-in local search.
+
+Overall, v0.9.1 is about smoother iteration: less repetition, better debugging, and faster feedback while building games.
+
+---
+
+Take care,  
+Markus
