@@ -232,6 +232,23 @@ spell_effect = "damage"
 # spell_effect = "heal"
 ```
 
+## `spell_kind`
+
+Damage kind used for combat rules, combat messages, and combat audio.
+Default: `spell`.
+
+```toml
+spell_kind = "fire"
+```
+
+This maps the spell to the matching `combat.kinds.<kind>` rule path, for example:
+
+- `spell_kind = "spell"` -> `combat.kinds.spell`
+- `spell_kind = "fire"` -> `combat.kinds.fire`
+- `spell_kind = "ice"` -> `combat.kinds.ice`
+
+See [Rules](../rules) for the full rules format and combat kind configuration.
+
 ## `spell_target_filter`
 
 Target filtering used by spell hit checks.

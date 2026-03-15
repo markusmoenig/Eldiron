@@ -219,6 +219,22 @@ const config = {
     ],
   ],
 
+  plugins: [
+    [
+      require.resolve("@easyops-cn/docusaurus-search-local"),
+      {
+        hashed: true,
+        indexDocs: true,
+        indexBlog: true,
+        indexPages: true,
+        docsRouteBasePath: "/docs",
+        searchBarShortcut: true,
+        searchBarShortcutHint: true,
+        searchBarPosition: "right",
+      },
+    ],
+  ],
+
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
@@ -245,6 +261,10 @@ const config = {
           { to: "/intro", label: "History", position: "left" },
           { to: "/sponsor", label: "Sponsor", position: "left" },
           { to: "/games", label: "Games", position: "left" },
+          {
+            type: "search",
+            position: "right",
+          },
           {
             type: "html",
             position: "right",

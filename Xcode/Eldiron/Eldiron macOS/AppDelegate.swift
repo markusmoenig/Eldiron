@@ -135,6 +135,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         stop.target = self
         gameMenu.addItem(stop)
 
+        gameMenu.addItem(NSMenuItem.separator())
+
+        let showRoot = NSMenuItem(title: "Show", action: nil, keyEquivalent: "")
+        let showMenu = NSMenu(title: "Show")
+
+        let settings = NSMenuItem(title: "Settings", action: #selector(showSettingsMenu), keyEquivalent: "")
+        settings.target = self
+        showMenu.addItem(settings)
+
+        let rules = NSMenuItem(title: "Rules", action: #selector(showRulesMenu), keyEquivalent: "")
+        rules.target = self
+        showMenu.addItem(rules)
+
+        let locales = NSMenuItem(title: "Locales", action: #selector(showLocalesMenu), keyEquivalent: "")
+        locales.target = self
+        showMenu.addItem(locales)
+
+        let audioFx = NSMenuItem(title: "Audio FX", action: #selector(showAudioFxMenu), keyEquivalent: "")
+        audioFx.target = self
+        showMenu.addItem(audioFx)
+
+        let debugLog = NSMenuItem(title: "Debug Log", action: #selector(showDebugLogMenu), keyEquivalent: "")
+        debugLog.target = self
+        showMenu.addItem(debugLog)
+
+        let console = NSMenuItem(title: "Console", action: #selector(showConsoleMenu), keyEquivalent: "")
+        console.target = self
+        showMenu.addItem(console)
+
+        gameMenu.addItem(showRoot)
+        gameMenu.setSubmenu(showMenu, for: showRoot)
+
         let insertIndex = if let editIndex = mainMenu.items.firstIndex(where: { $0.title == "Edit" }) {
             editIndex + 1
         } else {
@@ -176,6 +208,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         rust_stop()
     }
 
+    @objc private func showSettingsMenu() {
+        rust_show_settings()
+    }
+
+    @objc private func showRulesMenu() {
+        rust_show_rules()
+    }
+
+    @objc private func showLocalesMenu() {
+        rust_show_locales()
+    }
+
+    @objc private func showAudioFxMenu() {
+        rust_show_audio_fx()
+    }
+
+    @objc private func showDebugLogMenu() {
+        rust_show_debug_log()
+    }
+
+    @objc private func showConsoleMenu() {
+        rust_show_console()
+    }
+
     @objc private func openDocs() {
         NSWorkspace.shared.open(URL(string: "https://eldiron.com/docs")!)
     }
@@ -198,11 +254,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard #available(macOS 11.0, *) else {
             return
         }
+        setMenuIcon("New", "doc.badge.plus")
+        setMenuIcon("Open…", "folder")
+        setMenuIcon("Close", "xmark.circle")
+        setMenuIcon("Save…", "square.and.arrow.down")
+        setMenuIcon("Save As…", "square.and.arrow.down.on.square")
         setMenuIcon("Undo", "arrow.uturn.backward")
         setMenuIcon("Redo", "arrow.uturn.forward")
         setMenuIcon("Cut", "scissors")
         setMenuIcon("Copy", "doc.on.doc")
         setMenuIcon("Paste", "doc.on.clipboard")
+        setMenuIcon("Play", "play.fill")
+        setMenuIcon("Pause", "pause.fill")
+        setMenuIcon("Stop", "stop.fill")
+        setMenuIcon("Settings", "gearshape")
+        setMenuIcon("Rules", "scroll")
+        setMenuIcon("Locales", "globe")
+        setMenuIcon("Audio FX", "waveform")
+        setMenuIcon("Debug Log", "ladybug")
+        setMenuIcon("Console", "terminal")
+        setMenuIcon("Eldiron Docs", "book")
     }
 
     private func confirmCloseIfNeeded() -> Bool {

@@ -806,17 +806,35 @@ impl TheTrait for Editor {
                 TheAccelerator::new(TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT, 'p'),
             ));
             game_menu.add_separator();
-            game_menu.add(TheContextMenuItem::new(
-                "Show Settings".to_string(),
+            let mut show_menu = TheContextMenu::named("Show".to_string());
+            show_menu.add(TheContextMenuItem::new(
+                "Settings".to_string(),
                 TheId::named("Show Settings"),
             ));
-            game_menu.add(TheContextMenuItem::new(
-                "Show Debug Log".to_string(),
+            show_menu.add(TheContextMenuItem::new(
+                "Rules".to_string(),
+                TheId::named("Show Rules"),
+            ));
+            show_menu.add(TheContextMenuItem::new(
+                "Locales".to_string(),
+                TheId::named("Show Locales"),
+            ));
+            show_menu.add(TheContextMenuItem::new(
+                "Audio FX".to_string(),
+                TheId::named("Show Audio FX"),
+            ));
+            show_menu.add(TheContextMenuItem::new(
+                "Debug Log".to_string(),
                 TheId::named("Show Debug Log"),
             ));
-            game_menu.add(TheContextMenuItem::new(
-                "Show Console".to_string(),
+            show_menu.add(TheContextMenuItem::new(
+                "Console".to_string(),
                 TheId::named("Show Console"),
+            ));
+            game_menu.add(TheContextMenuItem::new_submenu(
+                "Show".to_string(),
+                TheId::named("Show"),
+                show_menu,
             ));
 
             file_menu.register_accel(ctx);
@@ -2594,6 +2612,33 @@ impl TheTrait for Editor {
                             &self.project,
                             &mut self.server_ctx,
                             ProjectContext::ProjectSettings,
+                        );
+                        redraw = true;
+                    } else if id.name == "Show Rules" {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            &self.project,
+                            &mut self.server_ctx,
+                            ProjectContext::GameRules,
+                        );
+                        redraw = true;
+                    } else if id.name == "Show Locales" {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            &self.project,
+                            &mut self.server_ctx,
+                            ProjectContext::GameLocales,
+                        );
+                        redraw = true;
+                    } else if id.name == "Show Audio FX" {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            &self.project,
+                            &mut self.server_ctx,
+                            ProjectContext::GameAudioFx,
                         );
                         redraw = true;
                     } else if id.name == "Show Debug Log" {

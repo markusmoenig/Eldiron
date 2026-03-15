@@ -335,6 +335,54 @@ mod ffi {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn rust_show_settings() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Show Settings"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_show_rules() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Show Rules"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_show_locales() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Show Locales"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_show_audio_fx() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Show Audio FX"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_show_debug_log() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Show Debug Log"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_show_console() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Show Console"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn rust_cut() -> *mut c_char {
         CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
             TheId::named("Cut"),

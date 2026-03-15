@@ -7,7 +7,8 @@
 - Added a new **Game / Rules** TOML document with its own project tree item, data editor, and undo / redo integration.
 - Added a new **Game / Locales** TOML document for project localization, separated from game settings.
 - Added a new **Game / Audio FX** TOML document for generated sound effects, including in-editor preview via the `Play` button.
-- Extended the `Game` tree items so TOML-driven entries are visually differentiated from log / console entries.
+- Extended the `Game` tree so **Settings**, **Rules**, **Locales**, and **Audio FX** are distinct TOML entries, while **Debug Log** and **Console** remain separate runtime/output items.
+- Added a new **Game / Console** dock for inspecting and navigating live runtime state, including root, character, and item focus plus interactive console commands.
 - Improved CodeGridFX debugging with live execution highlighting for event headers, cells, and rows.
 - Added persistent last result / error feedback in CodeGridFX so one-shot calls remain visible after execution.
 - Added `if` condition feedback in CodeGridFX, including `True` / `False` values and a muted not-taken highlight.

@@ -58,6 +58,12 @@ void rust_open();
 void rust_close();
 void rust_save();
 void rust_save_as();
+void rust_show_settings();
+void rust_show_rules();
+void rust_show_locales();
+void rust_show_audio_fx();
+void rust_show_debug_log();
+void rust_show_console();
 
 void rust_undo();
 void rust_redo();
