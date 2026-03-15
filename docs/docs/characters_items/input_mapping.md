@@ -3,6 +3,8 @@ title: "Input Mapping"
 sidebar_position: 8
 ---
 
+For the overall input model, see [Player Input](player_input).
+
 Player input is mapped in character data via a top-level `[input]` table.
 
 ```toml
@@ -61,6 +63,8 @@ Each entry value supports one of:
 `intent(<name>)` sets the player intent (for example `use`, `attack`, `take`).
 
 For UI-driven intents, you can also use [button widgets](/docs/screens/screens_widgets#button-widgets).
+
+For how intents behave in 2D vs 3D and how they become `intent` events, see [Player Input](player_input).
 
 ## Spell Shortcuts
 
