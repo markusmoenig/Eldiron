@@ -555,7 +555,7 @@ dependencies = [
 
 [[package]]
 name = "codegridfx"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "indexmap 2.13.0",
  "rusteria",
@@ -1148,7 +1148,7 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
 name = "eldiron-client"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "console_error_panic_hook",
  "eldiron-shared",
@@ -1167,7 +1167,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-client-wgpu"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "eldiron-shared",
  "instant",
@@ -1182,7 +1182,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-creator"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "arboard",
  "codegridfx",
@@ -1212,7 +1212,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-shared"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "codegridfx",
  "earcutr",
@@ -4137,7 +4137,7 @@ dependencies = [
 
 [[package]]
 name = "rusteria"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "image",
  "indexmap 2.13.0",
@@ -4153,7 +4153,7 @@ dependencies = [
 
 [[package]]
 name = "rusterix"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "bincode",
  "bvh",
@@ -4260,7 +4260,7 @@ dependencies = [
 
 [[package]]
 name = "scenevm"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "bytemuck",
  "fontdue",
@@ -4793,7 +4793,7 @@ dependencies = [
 
 [[package]]
 name = "theframework"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "arboard",
  "console_error_panic_hook",

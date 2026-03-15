@@ -564,7 +564,6 @@ impl<'a> HostHandler for RegionHost<'a> {
                     let Some(mut spell_item) = self.ctx.create_item(template.to_string()) else {
                         return Some(VMValue::from_i32(-1));
                     };
-                    let had_cast_offset = spell_item.attributes.contains("spell_cast_offset");
                     let had_cast_height = spell_item.attributes.contains("spell_cast_height");
                     spell_item.set_attribute("is_spell", Value::Bool(true));
                     if spell_item.attributes.get("visible").is_none() {
@@ -597,7 +596,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                         .attributes
                         .get_float_default("spell_cast_time", 0.0)
                         .max(0.0);
-                    let mut cast_offset = spell_item
+                    let cast_offset = spell_item
                         .attributes
                         .get_float_default("spell_cast_offset", 0.6)
                         .max(0.0);
@@ -605,9 +604,6 @@ impl<'a> HostHandler for RegionHost<'a> {
                         .attributes
                         .get_float_default("spell_cast_height", flight_height);
                     if is_firstp {
-                        if !had_cast_offset {
-                            cast_offset = cast_offset.max(1.6);
-                        }
                         if !had_cast_height {
                             cast_height = cast_height.max(1.4);
                         }

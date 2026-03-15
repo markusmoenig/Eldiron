@@ -4162,7 +4162,6 @@ fn cast_spell_for_entity(
         Some(Value::PlayerCamera(PlayerCamera::D3FirstP))
     );
     let target_pos = target.position;
-    let had_cast_offset = spell_item.attributes.contains("spell_cast_offset");
     let had_cast_height = spell_item.attributes.contains("spell_cast_height");
 
     spell_item.set_attribute("is_spell", Value::Bool(true));
@@ -4181,7 +4180,7 @@ fn cast_spell_for_entity(
         .attributes
         .get_float_default("spell_cast_time", 0.0)
         .max(0.0);
-    let mut cast_offset = spell_item
+    let cast_offset = spell_item
         .attributes
         .get_float_default("spell_cast_offset", 0.6)
         .max(0.0);
@@ -4189,9 +4188,6 @@ fn cast_spell_for_entity(
         .attributes
         .get_float_default("spell_cast_height", flight_height);
     if caster_is_firstp {
-        if !had_cast_offset {
-            cast_offset = cast_offset.max(1.6);
-        }
         if !had_cast_height {
             cast_height = cast_height.max(1.4);
         }
@@ -4284,7 +4280,6 @@ fn cast_spell_for_entity_to_pos(
         caster.attributes.get("player_camera"),
         Some(Value::PlayerCamera(PlayerCamera::D3FirstP))
     );
-    let had_cast_offset = spell_item.attributes.contains("spell_cast_offset");
     let had_cast_height = spell_item.attributes.contains("spell_cast_height");
 
     spell_item.set_attribute("is_spell", Value::Bool(true));
@@ -4305,7 +4300,7 @@ fn cast_spell_for_entity_to_pos(
         .attributes
         .get_float_default("spell_cast_time", 0.0)
         .max(0.0);
-    let mut cast_offset = spell_item
+    let cast_offset = spell_item
         .attributes
         .get_float_default("spell_cast_offset", 0.6)
         .max(0.0);
@@ -4313,9 +4308,6 @@ fn cast_spell_for_entity_to_pos(
         .attributes
         .get_float_default("spell_cast_height", flight_height);
     if caster_is_firstp {
-        if !had_cast_offset {
-            cast_offset = cast_offset.max(1.6);
-        }
         if !had_cast_height {
             cast_height = cast_height.max(1.4);
         }

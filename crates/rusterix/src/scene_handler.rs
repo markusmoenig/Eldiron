@@ -915,6 +915,10 @@ impl SceneHandler {
 
         // Entities
         for entity in &map.entities {
+            if entity.get_mode() == "dead" {
+                continue;
+            }
+
             let show_entity = true; // !(entity.is_player() && camera.id() == "firstp");
 
             if show_entity {
