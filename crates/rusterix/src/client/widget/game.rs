@@ -420,13 +420,6 @@ impl GameWidget {
         } else {
             self.prepare_d3(time, animation_frame, scene_handler);
         }
-
-        if self.camera != PlayerCamera::D2 && scene_handler.vm.vm_layer_count() > 1 {
-            scene_handler.vm.set_layer_enabled(1, true);
-        }
-        if self.camera != PlayerCamera::D2 && scene_handler.vm.vm_layer_count() > 2 {
-            scene_handler.vm.set_layer_enabled(2, true);
-        }
     }
 
     fn prepare_d2(

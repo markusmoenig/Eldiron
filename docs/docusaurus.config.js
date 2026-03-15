@@ -144,6 +144,11 @@ const gruvboxDarkTheme = {
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
+if (typeof globalThis.File === "undefined") {
+  const { File } = require("node:buffer");
+  globalThis.File = File;
+}
+
 const isGhPages = process.env.DOCS_GH_PAGES === "1";
 const isProd = process.env.NODE_ENV === "production";
 
